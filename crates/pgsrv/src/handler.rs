@@ -12,7 +12,6 @@ use crate::proxy::{
 };
 use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::DataType;
-use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::scalar::ScalarValue;
 use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
@@ -21,6 +20,7 @@ use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use sqlexec::context::local::{OutputFields, Portal, PreparedStatement};
 use sqlexec::engine::SessionStorageConfig;
+use sqlexec::session::ExecutionStream;
 use sqlexec::{
     engine::Engine,
     parser::{self, StatementWithExtensions},
@@ -678,11 +678,13 @@ where
 
     async fn send_result(
         conn: &mut FramedConn<C>,
-        result: ExecutionResult,
+        mut stream: ExecutionStream,
         encoding_state: Vec<(PgType, Format)>,
     ) -> Result<()> {
+        let result = stream.inspect_result().await;
         match result {
-            ExecutionResult::Query { stream, .. } | ExecutionResult::ShowVariable { stream } => {
+            ExecutionResult::Error(e) => return Err(e.into()),
+            ExecutionResult::Query => {
                 if let Some(num_rows) = Self::stream_batch(conn, stream, encoding_state).await? {
                     Self::command_complete(conn, format!("SELECT {}", num_rows)).await?;
                 }
@@ -691,7 +693,11 @@ where
             ExecutionResult::Begin => Self::command_complete(conn, "BEGIN").await?,
             ExecutionResult::Commit => Self::command_complete(conn, "COMMIT").await?,
             ExecutionResult::Rollback => Self::command_complete(conn, "ROLLBACK").await?,
-            ExecutionResult::WriteSuccess => Self::command_complete(conn, "INSERT").await?,
+            ExecutionResult::InsertSuccess { rows_inserted } => {
+                // Format is 'INSERT <oid> <num_inserted>'. Oid will always be
+                // zero according to postgres docs.
+                Self::command_complete(conn, format!("INSERT 0 {rows_inserted}")).await?
+            }
             ExecutionResult::CopySuccess => Self::command_complete(conn, "COPY").await?,
             ExecutionResult::DeleteSuccess { deleted_rows } => {
                 Self::command_complete(conn, format!("DELETE {}", deleted_rows)).await?
@@ -718,7 +724,7 @@ where
             ExecutionResult::AlterTunnelRotateKeys => {
                 Self::command_complete(conn, "ALTER TUNNEL").await?
             }
-            ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
+            ExecutionResult::Set => Self::command_complete(conn, "SET").await?,
             ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,
             ExecutionResult::DropViews => Self::command_complete(conn, "DROP VIEW").await?,
             ExecutionResult::DropSchemas => Self::command_complete(conn, "DROP SCHEMA").await?,
@@ -750,7 +756,7 @@ where
     /// rows sent. `None` rows sent means that an error response was sent.
     async fn stream_batch(
         conn: &mut FramedConn<C>,
-        mut stream: SendableRecordBatchStream,
+        mut stream: ExecutionStream,
         encoding_state: Vec<(PgType, Format)>,
     ) -> Result<Option<usize>> {
         conn.set_encoding_state(encoding_state);

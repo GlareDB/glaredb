@@ -7,7 +7,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
 use datasources::common::ssh::key::SshKey;
 use datasources::common::ssh::SshConnectionParameters;
-use protogen::metastore::types::catalog::{CatalogEntry, EntryType};
+use protogen::metastore::types::catalog::{CatalogEntry, EntryType, TableEntry};
 use protogen::metastore::types::options::TunnelOptions;
 use sqlbuiltins::builtins::{
     DATABASE_DEFAULT, GLARE_COLUMNS, GLARE_CREDENTIALS, GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA,
@@ -15,7 +15,7 @@ use sqlbuiltins::builtins::{
     GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
 };
 
-use crate::metastore::catalog::{SessionCatalog, TempObjects};
+use crate::metastore::catalog::{SessionCatalog, TempCatalog};
 use crate::metrics::SessionMetrics;
 
 use super::{DispatchError, Result};
@@ -24,14 +24,14 @@ use super::{DispatchError, Result};
 pub struct SystemTableDispatcher<'a> {
     catalog: &'a SessionCatalog,
     metrics: &'a SessionMetrics,
-    temp_objects: &'a TempObjects,
+    temp_objects: &'a TempCatalog,
 }
 
 impl<'a> SystemTableDispatcher<'a> {
     pub fn new(
         catalog: &'a SessionCatalog,
         metrics: &'a SessionMetrics,
-        temp_objects: &'a TempObjects,
+        temp_objects: &'a TempCatalog,
     ) -> Self {
         SystemTableDispatcher {
             catalog,
@@ -40,7 +40,14 @@ impl<'a> SystemTableDispatcher<'a> {
         }
     }
 
-    pub fn dispatch(&self, schema: &str, name: &str) -> Result<Arc<dyn TableProvider>> {
+    pub fn dispatch(&self, ent: &TableEntry) -> Result<Arc<dyn TableProvider>> {
+        let schema_ent = self
+            .catalog
+            .get_by_oid(ent.meta.parent)
+            .ok_or_else(|| DispatchError::MissingObjectWithOid(ent.meta.parent))?;
+        let name = &ent.meta.name;
+        let schema = &schema_ent.get_meta().name;
+
         Ok(if GLARE_DATABASES.matches(schema, name) {
             Arc::new(self.build_glare_databases())
         } else if GLARE_TUNNELS.matches(schema, name) {
@@ -274,16 +281,16 @@ impl<'a> SystemTableDispatcher<'a> {
         }
 
         // Append temporary tables.
-        for table in self.temp_objects.table_names() {
+        for table in self.temp_objects.get_table_entries() {
             // TODO: Assign OID to temporary tables
-            oid.append_value(0);
-            schema_oid.append_value(SCHEMA_CURRENT_SESSION.oid);
+            oid.append_value(table.meta.id);
+            schema_oid.append_value(table.meta.parent);
             database_oid.append_value(DATABASE_DEFAULT.oid);
             schema_name.append_value(SCHEMA_CURRENT_SESSION.name);
-            table_name.append_value(table);
-            builtin.append_value(false);
-            external.append_value(false);
-            datasource.append_value("internal");
+            table_name.append_value(table.meta.name);
+            builtin.append_value(table.meta.builtin);
+            external.append_value(table.meta.external);
+            datasource.append_value(table.options.as_str());
         }
 
         let batch = RecordBatch::try_new(

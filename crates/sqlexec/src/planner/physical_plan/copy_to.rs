@@ -1,4 +1,3 @@
-use datafusion::arrow::array::UInt64Array;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -23,7 +22,7 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
-use super::insert::INSERT_COUNT_SCHEMA;
+use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA};
 
 #[derive(Debug, Clone)]
 pub struct CopyToExec {
@@ -38,7 +37,7 @@ impl ExecutionPlan for CopyToExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        INSERT_COUNT_SCHEMA.clone()
+        GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -97,7 +96,6 @@ impl DisplayAs for CopyToExec {
 
 impl CopyToExec {
     async fn copy_to(self, context: Arc<TaskContext>) -> DataFusionResult<RecordBatch> {
-        let schema = self.schema();
         let sink = match (self.dest, self.format) {
             (CopyToDestinationOptions::Local(local_options), format) => {
                 {
@@ -127,8 +125,8 @@ impl CopyToExec {
 
         let stream = execute_stream(self.source, context.clone())?;
         let count = sink.write_all(stream, &context).await?;
-        let count = UInt64Array::from_iter_values([count]);
-        Ok(RecordBatch::try_new(schema, vec![Arc::new(count)])?)
+
+        Ok(new_operation_with_count_batch("copy", count))
     }
 }
 

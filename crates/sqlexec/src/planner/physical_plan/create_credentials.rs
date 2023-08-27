@@ -71,7 +71,7 @@ impl ExecutionPlan for CreateCredentialsExec {
     }
 
     fn schema(&self) -> SchemaRef {
-        Arc::new(Schema::empty())
+        GENERIC_OPERATION_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -132,5 +132,5 @@ async fn create_credentials(
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to create credentials: {e}")))?;
 
-    Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
+    Ok(new_operation_batch("create_credentials"))
 }

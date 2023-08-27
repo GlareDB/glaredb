@@ -329,6 +329,7 @@ mod tests {
                 name: "table_1".to_string(),
                 builtin: false,
                 external: false,
+                is_temp: false,
             },
             options: TableOptions::Internal(TableOptionsInternal {
                 columns: vec![InternalColumnDefinition {

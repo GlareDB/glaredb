@@ -14,7 +14,7 @@ use crate::{
     dispatch::external::ExternalDispatcher,
     errors::Result,
     extension_codec::GlareDBExtensionCodec,
-    metastore::catalog::{CatalogMutator, SessionCatalog, TempObjects},
+    metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog},
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
 
@@ -57,7 +57,7 @@ impl RemoteSessionContext {
             .with_extension(Arc::new(StagedClientStreams::default()))
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(TempObjects::new()));
+            .with_extension(Arc::new(TempCatalog::default()));
 
         // TODO: Query planners for handling custom plans.
 
@@ -131,7 +131,7 @@ impl RemoteSessionContext {
             .await?;
 
         let prov: Arc<dyn TableProvider> =
-            if let Some(tbl) = self.catalog.resolve_native_table(database, schema, name) {
+            if let Some(tbl) = self.catalog.resolve_table(database, schema, name) {
                 self.tables.load_table(tbl).await?.into_table_provider()
             } else {
                 // Since this is operating on a remote node, always disable local fs

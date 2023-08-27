@@ -31,7 +31,7 @@ update t1 set t1.generate_series = 1;
 statement ok
 create external table t3 from debug options (table_type = 'never_ending');
 
-statement error Update for external tables
+statement error UPDATE with external tables
 update t3 set a = 10;
 
 statement ok

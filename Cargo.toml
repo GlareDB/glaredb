@@ -1,6 +1,7 @@
 [workspace]
 members = ["crates/*", "xtask", "py-glaredb"]
 default-members = ["crates/*", "xtask"]
+resolver = "2"
 
 [workspace.package]
 version = "0.4.0"

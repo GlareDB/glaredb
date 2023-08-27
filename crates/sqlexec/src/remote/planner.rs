@@ -84,7 +84,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let exec = AlterTableRenameExec {
                     catalog_version: self.catalog_version,
                     reference: lp.reference.clone(),
-                    new_reference: lp.reference.clone(),
+                    new_reference: lp.new_reference.clone(),
                 };
                 Ok(Some(Arc::new(exec)))
             }

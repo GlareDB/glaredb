@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use datafusion::{
-    arrow::{
-        datatypes::{Schema, SchemaRef},
-        record_batch::RecordBatch,
-    },
+    arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
     error::{DataFusionError, Result as DataFusionResult},
     execution::TaskContext,
     physical_expr::PhysicalSortExpr,
@@ -22,10 +19,13 @@ use tracing::info;
 use crate::{
     errors::ExecError,
     metastore::catalog::{CatalogMutator, SessionCatalog},
-    planner::{logical_plan::OwnedFullObjectReference, physical_plan::insert::InsertExec},
+    planner::{
+        logical_plan::OwnedFullObjectReference,
+        physical_plan::{insert::InsertExec, new_operation_batch},
+    },
 };
 
-use super::insert::INSERT_COUNT_SCHEMA;
+use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
 
 #[derive(Debug, Clone)]
 pub struct CreateTableExec {
@@ -42,11 +42,7 @@ impl ExecutionPlan for CreateTableExec {
     }
 
     fn schema(&self) -> SchemaRef {
-        if self.source.is_some() {
-            INSERT_COUNT_SCHEMA.clone()
-        } else {
-            Arc::new(Schema::empty())
-        }
+        GENERIC_OPERATION_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -124,8 +120,6 @@ impl CreateTableExec {
         storage: Arc<NativeTableStorage>,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<RecordBatch> {
-        let schema = self.schema();
-
         let state = mutator
             .mutate(
                 self.catalog_version,
@@ -145,7 +139,7 @@ impl CreateTableExec {
         // we're just using it here to get the new table entry easily.
         let new_catalog = SessionCatalog::new(state);
         let ent = new_catalog
-            .resolve_native_table(
+            .resolve_table(
                 DEFAULT_CATALOG,
                 &self.reference.schema,
                 &self.reference.name,
@@ -158,14 +152,12 @@ impl CreateTableExec {
         })?;
         info!(loc = %table.storage_location(), "native table created");
 
-        let res = if let Some(source) = self.source {
-            InsertExec::do_insert(table.into_table_provider(), source, context).await?
-        } else {
-            RecordBatch::new_empty(schema)
-        };
+        if let Some(source) = self.source {
+            InsertExec::do_insert(table.into_table_provider(), source, context).await?;
+        }
 
         // TODO: Add storage tracking job.
 
-        Ok(res)
+        Ok(new_operation_batch("create_table"))
     }
 }

@@ -1,6 +1,4 @@
-use datafusion::arrow::array::UInt64Array;
-use datafusion::arrow::datatypes::DataType;
-use datafusion::arrow::datatypes::{Field, Schema};
+use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
@@ -17,6 +15,8 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
+use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA};
+
 #[derive(Debug, Clone)]
 pub struct DeleteExec {
     pub table: TableEntry,
@@ -29,11 +29,7 @@ impl ExecutionPlan for DeleteExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        Arc::new(Schema::new(vec![Field::new(
-            "count",
-            DataType::UInt64,
-            false,
-        )]))
+        GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -98,16 +94,10 @@ async fn delete(
 ) -> DataFusionResult<RecordBatch> {
     let storage = storage.as_ref();
 
-    let schema = plan.schema();
     let num_deleted = storage
         .delete_rows_where(&plan.table, plan.where_expr)
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to delete: {e}")))?;
 
-    let batch = RecordBatch::try_new(
-        schema,
-        vec![Arc::new(UInt64Array::from(vec![num_deleted as u64]))],
-    )?;
-
-    Ok(batch)
+    Ok(new_operation_with_count_batch("delete", num_deleted as u64))
 }

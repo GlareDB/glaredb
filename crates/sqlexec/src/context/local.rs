@@ -1,16 +1,14 @@
 use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
-use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempObjects};
+use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog};
 use crate::metrics::SessionMetrics;
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
-use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::SchemaReference;
-use datafusion::datasource::MemTable;
 use datafusion::execution::context::{
     SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
 };
@@ -21,7 +19,7 @@ use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
-use protogen::metastore::types::service::{self, Mutation};
+
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromClient,
 };
@@ -31,7 +29,7 @@ use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
-use tracing::info;
+
 use uuid::Uuid;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
@@ -81,7 +79,7 @@ impl LocalSessionContext {
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(TempObjects::new()));
+            .with_extension(Arc::new(TempCatalog::default()));
         let state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
         let df_ctx = DfSessionContext::with_state(state);
@@ -153,11 +151,11 @@ impl LocalSessionContext {
         &self.tables
     }
 
-    pub fn get_temp_objects(&self) -> Arc<TempObjects> {
+    pub fn get_temp_objects(&self) -> Arc<TempCatalog> {
         self.df_ctx
             .state()
             .config()
-            .get_extension::<TempObjects>()
+            .get_extension::<TempCatalog>()
             .expect("local contexts should have temp objects")
     }
 
@@ -177,85 +175,6 @@ impl LocalSessionContext {
             .config()
             .get_extension::<CatalogMutator>()
             .unwrap()
-    }
-
-    /// Create a temp table.
-    pub async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
-        if self
-            .get_temp_objects()
-            .resolve_temp_table(&plan.reference.name)
-            .is_some()
-        {
-            if plan.if_not_exists {
-                return Ok(());
-            }
-            return Err(ExecError::DuplicateObjectName(
-                plan.reference.name.clone().into_owned(),
-            ));
-        }
-
-        let schema = plan.schema.as_ref();
-        let schema: Arc<ArrowSchema> = Arc::new(schema.into());
-
-        let data = RecordBatch::new_empty(schema.clone());
-        let table = Arc::new(MemTable::try_new(schema, vec![vec![data]])?);
-        self.get_temp_objects()
-            .put_temp_table(plan.reference.name.into_owned(), table.clone());
-
-        // TODO:
-        // Write to the table if it has a source query
-        // if let Some(source) = plan.source {
-        //     let insert_plan = Insert {
-        //         source,
-        //         table_provider: table,
-        //     };
-        //     self.insert(insert_plan).await?;
-        // }
-
-        Ok(())
-    }
-
-    pub async fn create_table(&mut self, plan: CreateTable) -> Result<()> {
-        // Insert into catalog.
-        let state = self
-            .catalog_mutator()
-            .mutate(
-                self.catalog.version(),
-                [Mutation::CreateTable(service::CreateTable {
-                    schema: plan.reference.schema.clone().into_owned(),
-                    name: plan.reference.name.clone().into_owned(),
-                    options: plan.schema.into(),
-                    if_not_exists: plan.if_not_exists,
-                })],
-            )
-            .await?;
-
-        // Note that we're not changing out the catalog stored on the context,
-        // we're just using it here to get the new table entry easily.
-        let new_catalog = SessionCatalog::new(state);
-        let ent = new_catalog
-            .resolve_native_table(
-                DEFAULT_CATALOG,
-                plan.reference.schema.as_ref(),
-                plan.reference.name.as_ref(),
-            )
-            .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))?;
-
-        // Create native table.
-        let table = self.tables.create_table(ent).await?;
-        info!(loc = %table.storage_location(), "native table created");
-
-        // TODO: No need for this function?
-        // Write to the table if it has a source query
-        // if let Some(source) = plan.source {
-        //     let insert_plan = Insert {
-        //         source,
-        //         table_provider: table.into_table_provider(),
-        //     };
-        //     self.insert(insert_plan).await?;
-        // }
-
-        Ok(())
     }
 
     /// Get a reference to the session variables.

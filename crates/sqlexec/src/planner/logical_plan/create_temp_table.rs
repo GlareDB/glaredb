@@ -21,7 +21,7 @@ impl UserDefinedLogicalNodeCore for CreateTempTable {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+        &GENERIC_OPERATION_LOGICAL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {

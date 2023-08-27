@@ -10,8 +10,9 @@ use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::SessionContext as DfSessionContext;
 use datafusion::prelude::{Column, Expr};
 use datasources::native::access::NativeTableStorage;
-use protogen::metastore::types::catalog::{CatalogEntry, EntryMeta, EntryType, ViewEntry};
-use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
+use protogen::metastore::types::catalog::{
+    CatalogEntry, DatabaseEntry, EntryMeta, EntryType, ViewEntry,
+};
 
 use crate::context::local::LocalSessionContext;
 use crate::parser::CustomParser;
@@ -19,7 +20,7 @@ use crate::planner::errors::PlanError;
 use crate::planner::session_planner::SessionPlanner;
 use crate::{
     dispatch::system::SystemTableDispatcher,
-    metastore::catalog::{SessionCatalog, TempObjects},
+    metastore::catalog::{SessionCatalog, TempCatalog},
     metrics::SessionMetrics,
 };
 
@@ -37,6 +38,9 @@ pub enum DispatchError {
 
     #[error("Missing builtin table; schema: {schema}, name: {name}")]
     MissingBuiltinTable { schema: String, name: String },
+
+    #[error("Missing temp table: {name}")]
+    MissingTempTable { name: String },
 
     #[error("Missing object with oid: {0}")]
     MissingObjectWithOid(u32),
@@ -152,7 +156,7 @@ pub struct Dispatcher<'a> {
     catalog: &'a SessionCatalog,
     tables: &'a NativeTableStorage,
     metrics: &'a SessionMetrics,
-    temp_objects: &'a TempObjects,
+    temp_objects: &'a TempCatalog,
     view_planner: &'a dyn ViewPlanner,
     // TODO: Remove need for this.
     df_ctx: &'a DfSessionContext,
@@ -165,7 +169,7 @@ impl<'a> Dispatcher<'a> {
         catalog: &'a SessionCatalog,
         tables: &'a NativeTableStorage,
         metrics: &'a SessionMetrics,
-        temp_objects: &'a TempObjects,
+        temp_objects: &'a TempCatalog,
         view_planner: &'a dyn ViewPlanner,
         df_ctx: &'a DfSessionContext,
         disable_local_fs_access: bool,
@@ -182,49 +186,7 @@ impl<'a> Dispatcher<'a> {
     }
 
     /// Dispatch to a table provider.
-    pub async fn dispatch(
-        &self,
-        database: &str,
-        schema: &str,
-        name: &str,
-    ) -> Result<Arc<dyn TableProvider>> {
-        // "External" database.
-        if database != DEFAULT_CATALOG {
-            let db = match self.catalog.resolve_database(database) {
-                Some(db) => db,
-                None => {
-                    return Err(DispatchError::MissingDatabase {
-                        database: database.to_string(),
-                    })
-                }
-            };
-            return ExternalDispatcher::new(
-                self.catalog,
-                self.df_ctx,
-                self.disable_local_fs_access,
-            )
-            .dispatch_external_database(db, schema, name)
-            .await;
-        }
-
-        if schema == CURRENT_SESSION_SCHEMA {
-            return match self.temp_objects.resolve_temp_table(name) {
-                Some(table) => Ok(table),
-                None => Err(DispatchError::MissingEntry {
-                    schema: schema.to_owned(),
-                    name: name.to_owned(),
-                }),
-            };
-        }
-
-        let ent = self
-            .catalog
-            .resolve_entry(database, schema, name)
-            .ok_or_else(|| DispatchError::MissingEntry {
-                schema: schema.to_string(),
-                name: name.to_string(),
-            })?;
-
+    pub async fn dispatch(&self, ent: CatalogEntry) -> Result<Arc<dyn TableProvider>> {
         // Only allow dispatching to types we can actually convert to a table
         // provider.
         if !matches!(ent.entry_type(), EntryType::View | EntryType::Table) {
@@ -232,25 +194,47 @@ impl<'a> Dispatcher<'a> {
         }
 
         match ent {
-            CatalogEntry::View(view) => self.dispatch_view(view).await,
+            CatalogEntry::View(view) => self.dispatch_view(&view).await,
+            // Temp tables
+            CatalogEntry::Table(tbl) if tbl.meta.is_temp => {
+                let provider = self
+                    .temp_objects
+                    .get_temp_table_provider(&tbl.meta.name)
+                    .ok_or_else(|| DispatchError::MissingTempTable {
+                        name: tbl.meta.name.to_string(),
+                    })?;
+                Ok(provider)
+            }
             // Dispatch to builtin tables.
             CatalogEntry::Table(tbl) if tbl.meta.builtin => {
                 SystemTableDispatcher::new(self.catalog, self.metrics, self.temp_objects)
-                    .dispatch(schema, name)
+                    .dispatch(&tbl)
             }
             // Dispatch to external tables.
             CatalogEntry::Table(tbl) if tbl.meta.external => {
                 ExternalDispatcher::new(self.catalog, self.df_ctx, self.disable_local_fs_access)
-                    .dispatch_external_table(tbl)
+                    .dispatch_external_table(&tbl)
                     .await
             }
             // Dispatch to native tables.
             CatalogEntry::Table(tbl) => {
-                let table = self.tables.load_table(tbl).await?;
+                let table = self.tables.load_table(&tbl).await?;
                 Ok(table.into_table_provider())
             }
             other => Err(DispatchError::UnhandledEntry(other.get_meta().clone())),
         }
+    }
+
+    /// Dispatch to an external system.
+    pub async fn dispatch_external(
+        &self,
+        db_ent: &DatabaseEntry,
+        schema: &str,
+        name: &str,
+    ) -> Result<Arc<dyn TableProvider>> {
+        ExternalDispatcher::new(self.catalog, self.df_ctx, self.disable_local_fs_access)
+            .dispatch_external(&db_ent.meta.name, schema, name)
+            .await
     }
 
     async fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {

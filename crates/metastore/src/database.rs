@@ -464,6 +464,18 @@ impl State {
     /// Builtins are added to the catalog when converting from a persisted
     /// catalog.
     fn to_persisted(&self) -> PersistedCatalog {
+        // Ensure no temp objects are in this catalog. If there are, it means we
+        // have a (pretty significant) logic bug. Metastore should never be
+        // dealing with temp objects.
+        if self
+            .entries
+            .as_ref()
+            .iter()
+            .any(|(_, ent)| ent.get_meta().is_temp)
+        {
+            panic!("temp object found in catalog: {:?}", self.entries);
+        }
+
         PersistedCatalog {
             state: CatalogState {
                 version: self.version,
@@ -638,6 +650,7 @@ impl State {
                         name: create_database.name.clone(),
                         builtin: false,
                         external: true,
+                        is_temp: false,
                     },
                     options: create_database.options,
                     tunnel_id,
@@ -666,6 +679,7 @@ impl State {
                         name: create_tunnel.name.clone(),
                         builtin: false,
                         external: false,
+                        is_temp: false,
                     },
                     options: create_tunnel.options,
                 };
@@ -695,6 +709,7 @@ impl State {
                         name: create_credentials.name.clone(),
                         builtin: false,
                         external: false,
+                        is_temp: false,
                     },
                     options: create_credentials.options,
                     comment: create_credentials.comment,
@@ -726,6 +741,7 @@ impl State {
                         name: create_schema.name.clone(),
                         builtin: false,
                         external: false,
+                        is_temp: false,
                     },
                 };
                 self.entries.insert(oid, CatalogEntry::Schema(ent))?;
@@ -747,6 +763,7 @@ impl State {
                         name: create_view.name.clone(),
                         builtin: false,
                         external: false,
+                        is_temp: false,
                     },
                     sql: create_view.sql,
                     columns: create_view.columns,
@@ -775,6 +792,7 @@ impl State {
                         name: create_table.name.clone(),
                         builtin: false,
                         external: false,
+                        is_temp: false,
                     },
                     options: TableOptions::Internal(create_table.options),
                     tunnel_id: None,
@@ -816,6 +834,7 @@ impl State {
                         name: create_ext.name.clone(),
                         builtin: false,
                         external: true,
+                        is_temp: false,
                     },
                     options: create_ext.options,
                     tunnel_id,
@@ -1063,6 +1082,7 @@ impl BuiltinCatalog {
                         name: database.name.to_string(),
                         builtin: true,
                         external: false,
+                        is_temp: false,
                     },
                     options: DatabaseOptions::Internal(DatabaseOptionsInternal {}),
                     tunnel_id: None,
@@ -1083,6 +1103,7 @@ impl BuiltinCatalog {
                         name: schema.name.to_string(),
                         builtin: true,
                         external: false,
+                        is_temp: false,
                     },
                 }),
             );
@@ -1105,6 +1126,7 @@ impl BuiltinCatalog {
                         name: table.name.to_string(),
                         builtin: true,
                         external: false,
+                        is_temp: false,
                     },
                     options: TableOptions::new_internal(table.columns.clone()),
                     tunnel_id: None,
@@ -1133,6 +1155,7 @@ impl BuiltinCatalog {
                         name: view.name.to_string(),
                         builtin: true,
                         external: false,
+                        is_temp: false,
                     },
                     sql: view.sql.to_string(),
                     columns: Vec::new(),
@@ -1162,6 +1185,7 @@ impl BuiltinCatalog {
                         name: func.name().to_string(),
                         builtin: true,
                         external: false,
+                        is_temp: false,
                     },
                     func_type: FunctionType::TableReturning,
                 }),
