@@ -1,8 +1,8 @@
 use crate::util::pyprint;
 use anyhow::Result;
 use arrow_util::pretty::pretty_format_batches;
+use datafusion::arrow::pyarrow::ToPyArrow;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::arrow::{datatypes::Schema, pyarrow::ToPyArrow};
 use futures::lock::Mutex;
 use futures::StreamExt;
 use pgrepr::format::Format;

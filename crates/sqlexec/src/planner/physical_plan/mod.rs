@@ -87,13 +87,11 @@ pub fn new_operation_with_count_batch(operation: impl Into<String>, count: u64) 
 }
 
 pub fn get_operation_from_batch(batch: &RecordBatch) -> Option<String> {
-    if batch.columns().len() < 1 {
+    if batch.columns().is_empty() {
         return None;
     }
-    if let Ok(val) = ScalarValue::try_from_array(batch.column(0), 0) {
-        if let ScalarValue::Utf8(Some(val)) = val {
-            return Some(val);
-        }
+    if let Ok(ScalarValue::Utf8(Some(val))) = ScalarValue::try_from_array(batch.column(0), 0) {
+        return Some(val);
     }
     None
 }
@@ -102,10 +100,8 @@ pub fn get_count_from_batch(batch: &RecordBatch) -> Option<u64> {
     if batch.columns().len() < 2 {
         return None;
     }
-    if let Ok(val) = ScalarValue::try_from_array(batch.column(1), 0) {
-        if let ScalarValue::UInt64(Some(val)) = val {
-            return Some(val);
-        }
+    if let Ok(ScalarValue::UInt64(Some(val))) = ScalarValue::try_from_array(batch.column(1), 0) {
+        return Some(val);
     }
     None
 }
