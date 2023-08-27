@@ -50,7 +50,7 @@ impl ExtensionNode for DropDatabase {
         })
     }
 
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!("DropDatabase::try_decode_extension failed",)),

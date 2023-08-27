@@ -1,7 +1,7 @@
 use super::*;
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CreateView {
-    pub reference: OwnedFullObjectReference,
+    pub view_reference: OwnedFullObjectReference,
     pub sql: String,
     pub columns: Vec<String>,
     pub or_replace: bool,
@@ -54,13 +54,13 @@ impl ExtensionNode for CreateView {
             .into();
 
         Ok(CreateView {
-            reference,
+            view_reference: reference,
             sql: proto.sql,
             columns: proto.columns,
             or_replace: proto.or_replace,
         })
     }
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!(
@@ -73,7 +73,7 @@ impl ExtensionNode for CreateView {
         use protogen::sqlexec::logical_plan as protogen;
 
         let proto = protogen::CreateView {
-            reference: Some(self.reference.clone().into()),
+            reference: Some(self.view_reference.clone().into()),
             sql: self.sql.clone(),
             columns: self.columns.clone(),
             or_replace: self.or_replace,

@@ -20,7 +20,7 @@ use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 #[derive(Debug, Clone)]
 pub struct CreateSchemaExec {
     pub catalog_version: u64,
-    pub reference: OwnedFullSchemaReference,
+    pub schema_reference: OwnedFullSchemaReference,
     pub if_not_exists: bool,
 }
 
@@ -97,7 +97,7 @@ async fn create_schema(
         .mutate(
             plan.catalog_version,
             [Mutation::CreateSchema(service::CreateSchema {
-                name: plan.reference.schema.into_owned(),
+                name: plan.schema_reference.schema.into_owned(),
                 if_not_exists: plan.if_not_exists,
             })],
         )

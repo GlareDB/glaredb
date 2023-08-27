@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DropViews {
-    pub references: Vec<OwnedFullObjectReference>,
+    pub view_references: Vec<OwnedFullObjectReference>,
     pub if_exists: bool,
 }
 
@@ -51,11 +51,11 @@ impl ExtensionNode for DropViews {
             .collect::<Vec<_>>();
 
         Ok(Self {
-            references,
+            view_references: references,
             if_exists: proto.if_exists,
         })
     }
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!(
@@ -67,7 +67,7 @@ impl ExtensionNode for DropViews {
     fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()> {
         use protogen::sqlexec::logical_plan as protogen;
         let references = self
-            .references
+            .view_references
             .clone()
             .into_iter()
             .map(|r| r.into())
