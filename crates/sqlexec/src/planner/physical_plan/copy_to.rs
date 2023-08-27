@@ -126,7 +126,7 @@ impl CopyToExec {
         let stream = execute_stream(self.source, context.clone())?;
         let count = sink.write_all(stream, &context).await?;
 
-        Ok(new_operation_with_count_batch("copy to", count))
+        Ok(new_operation_with_count_batch("copy", count))
     }
 }
 

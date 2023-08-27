@@ -158,6 +158,6 @@ impl CreateTableExec {
 
         // TODO: Add storage tracking job.
 
-        Ok(new_operation_batch("create table"))
+        Ok(new_operation_batch("create_table"))
     }
 }

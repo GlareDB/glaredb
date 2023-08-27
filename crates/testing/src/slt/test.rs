@@ -305,11 +305,11 @@ impl AsyncDB for TestClient {
                         Vec::new(),
                         vec![Format::Text; num_fields],
                     )?;
-                    let result = session.execute_portal(&UNNAMED, 0).await?;
+                    let mut stream = session.execute_portal(&UNNAMED, 0).await?;
+                    let result = stream.inspect_result().await;
 
                     match result {
-                        ExecutionResult::Query { stream, .. }
-                        | ExecutionResult::ShowVariable { stream } => {
+                        ExecutionResult::Query => {
                             let batches = stream
                                 .collect::<Vec<_>>()
                                 .await

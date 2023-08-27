@@ -7,6 +7,7 @@ use futures::lock::Mutex;
 use futures::StreamExt;
 use pgrepr::format::Format;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
+use sqlexec::session::ExecutionStream;
 use sqlexec::{
     engine::{Engine, TrackedSession},
     parser,
@@ -25,12 +26,9 @@ pub struct LocalSession {
 }
 
 #[pyclass]
-pub struct PyExecutionResult(ExecutionResult);
-
-impl From<ExecutionResult> for PyExecutionResult {
-    fn from(result: ExecutionResult) -> Self {
-        Self(result)
-    }
+pub struct PyExecutionStream {
+    pub inner: ExecutionStream,
+    pub result: ExecutionResult,
 }
 
 #[pymethods]
@@ -47,7 +45,7 @@ impl LocalSession {
         })
     }
 
-    fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<()> {
+    fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionStream> {
         const UNNAMED: String = String::new();
 
         let mut statements = parser::parse_sql(query).map_err(PyGlareDbError::from)?;
@@ -77,22 +75,17 @@ impl LocalSession {
                         vec![Format::Text; num_fields],
                     )
                     .map_err(PyGlareDbError::from)?;
-                    let exec_result = sess
+                    let mut stream = sess
                         .execute_portal(&UNNAMED, 0)
                         .await
                         .map_err(PyGlareDbError::from)?;
 
-                    // TODO: Currently a bit hacky until we refactor/remove the
-                    // execution result. Everything is tied to execution of the
-                    // stream.
-                    if let ExecutionResult::Query { mut stream, .. } = exec_result {
-                        // Execute the stream to completion.
-                        while let Some(result) = stream.next().await {
-                            let _ = result?;
-                        }
-                    }
+                    let result = stream.inspect_result().await;
 
-                    Ok(())
+                    Ok(PyExecutionStream {
+                        inner: stream,
+                        result,
+                    })
                 }
                 _ => {
                     todo!()
@@ -112,72 +105,56 @@ impl LocalSession {
 }
 
 fn to_arrow_batches_and_schema(
-    result: &mut ExecutionResult,
+    stream: &mut ExecutionStream,
     py: Python<'_>,
 ) -> PyResult<(PyObject, PyObject)> {
-    match result {
-        ExecutionResult::Query { stream, .. } => {
-            let batches: Result<Vec<RecordBatch>> = wait_for_future(py, async move {
-                Ok(stream
-                    .collect::<Vec<_>>()
-                    .await
-                    .into_iter()
-                    .collect::<Result<Vec<_>, _>>()?)
-            });
+    let batches: Result<Vec<RecordBatch>> = wait_for_future(py, async move {
+        Ok(stream
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?)
+    });
 
-            let batches = batches
-                .map_err(|e| PyRuntimeError::new_err(format!("unhandled exception: {:?}", &e)))?;
-            let schema = batches[0].schema().to_pyarrow(py)?;
+    let batches =
+        batches.map_err(|e| PyRuntimeError::new_err(format!("unhandled exception: {:?}", &e)))?;
+    let schema = batches[0].schema().to_pyarrow(py)?;
 
-            // TODO: currently we are iterating twice due to the GIL lock
-            // we can't use `to_pyarrow` within an async block.
-            let batches = batches
-                .into_iter()
-                .map(|batch| batch.to_pyarrow(py))
-                .collect::<Result<Vec<_>, _>>()?
-                .to_object(py);
+    // TODO: currently we are iterating twice due to the GIL lock
+    // we can't use `to_pyarrow` within an async block.
+    let batches = batches
+        .into_iter()
+        .map(|batch| batch.to_pyarrow(py))
+        .collect::<Result<Vec<_>, _>>()?
+        .to_object(py);
 
-            Ok((batches, schema))
-        }
-        _ => {
-            // TODO: Figure out the schema we actually want to use.
-            let schema = Arc::new(Schema::empty());
-            let batches = vec![RecordBatch::new_empty(schema.clone()).to_pyarrow(py)]
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()?
-                .to_object(py);
-            Ok((batches, schema.to_pyarrow(py)?))
-        }
-    }
+    Ok((batches, schema))
 }
 
-fn print_batch(result: &mut ExecutionResult, py: Python<'_>) -> PyResult<()> {
-    match result {
-        ExecutionResult::Query { stream, .. } => {
-            let batches = wait_for_future(py, async move {
-                stream
-                    .collect::<Vec<_>>()
-                    .await
-                    .into_iter()
-                    .collect::<Result<Vec<RecordBatch>, _>>()
-            })?;
+fn print_batch(stream: &mut ExecutionStream, py: Python<'_>) -> PyResult<()> {
+    let batches = wait_for_future(py, async move {
+        stream
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<RecordBatch>, _>>()
+    })?;
 
-            let disp = pretty_format_batches(&batches, None, None, None)
-                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+    let disp = pretty_format_batches(&batches, None, None, None)
+        .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
-            pyprint(disp, py)
-        }
-        _ => Err(PyRuntimeError::new_err("Not able to show executed result")),
-    }
+    pyprint(disp, py)?;
+
+    Ok(())
 }
 
 #[pymethods]
-impl PyExecutionResult {
+impl PyExecutionStream {
     /// Convert to Arrow Table
     /// Collect the batches and pass to Arrow Table
     #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
     pub fn to_arrow(&mut self, py: Python) -> PyResult<PyObject> {
-        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
+        let (batches, schema) = to_arrow_batches_and_schema(&mut self.inner, py)?;
 
         Python::with_gil(|py| {
             // Instantiate pyarrow Table object and use its from_batches method
@@ -190,7 +167,7 @@ impl PyExecutionResult {
 
     #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
     pub fn to_polars(&mut self, py: Python) -> PyResult<PyObject> {
-        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
+        let (batches, schema) = to_arrow_batches_and_schema(&mut self.inner, py)?;
 
         Python::with_gil(|py| {
             let table_class = py.import("pyarrow")?.getattr("Table")?;
@@ -206,7 +183,7 @@ impl PyExecutionResult {
 
     #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
     pub fn to_pandas(&mut self, py: Python) -> PyResult<PyObject> {
-        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
+        let (batches, schema) = to_arrow_batches_and_schema(&mut self.inner, py)?;
 
         Python::with_gil(|py| {
             let table_class = py.import("pyarrow")?.getattr("Table")?;
@@ -219,7 +196,7 @@ impl PyExecutionResult {
     }
 
     pub fn show(&mut self, py: Python) -> PyResult<()> {
-        print_batch(&mut self.0, py)?;
+        print_batch(&mut self.inner, py)?;
         Ok(())
     }
 }

@@ -130,5 +130,5 @@ async fn create_temp_table(
         }
     }
 
-    Ok(new_operation_batch("create_temp_table"))
+    Ok(new_operation_batch("create_table"))
 }

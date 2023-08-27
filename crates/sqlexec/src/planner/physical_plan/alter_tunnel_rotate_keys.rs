@@ -109,5 +109,5 @@ async fn alter_tunnel_rotate_keys(
             DataFusionError::Execution(format!("failed to rotate keys for tunnel: {e}"))
         })?;
 
-    Ok(new_operation_batch("alter tunnel rotate keys"))
+    Ok(new_operation_batch("alter_tunnel_rotate_keys"))
 }

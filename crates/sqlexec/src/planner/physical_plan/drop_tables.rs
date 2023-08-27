@@ -15,6 +15,8 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
+use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
+
 #[derive(Debug, Clone)]
 pub struct DropTablesExec {
     pub catalog_version: u64,
@@ -28,7 +30,7 @@ impl ExecutionPlan for DropTablesExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        Arc::new(Schema::empty())
+        GENERIC_OPERATION_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -135,5 +137,5 @@ async fn drop_tables(
     // // on the session until transaction commit.
     // self.background_jobs.add_many(jobs)?;
 
-    Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
+    Ok(new_operation_batch("drop_tables"))
 }

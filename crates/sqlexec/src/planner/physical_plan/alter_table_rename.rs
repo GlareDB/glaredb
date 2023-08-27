@@ -106,5 +106,5 @@ async fn alter_table_rename(
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to rename table: {e}")))?;
 
-    Ok(new_operation_batch("alter table rename"))
+    Ok(new_operation_batch("alter_table_rename"))
 }

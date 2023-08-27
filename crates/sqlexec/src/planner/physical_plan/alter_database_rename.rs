@@ -105,5 +105,5 @@ async fn alter_database_rename(
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to rename database: {e}")))?;
 
-    Ok(new_operation_batch("alter database rename"))
+    Ok(new_operation_batch("alter_database_rename"))
 }

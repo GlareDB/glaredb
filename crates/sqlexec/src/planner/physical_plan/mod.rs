@@ -34,6 +34,7 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::FunctionRegistry;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use datafusion::scalar::ScalarValue;
 use datafusion::{
     physical_expr::PhysicalSortExpr,
     physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, Statistics},
@@ -48,7 +49,7 @@ use once_cell::sync::Lazy;
 
 pub static GENERIC_OPERATION_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
     Arc::new(Schema::new(vec![Field::new(
-        "operation",
+        "$operation",
         DataType::Utf8,
         false,
     )]))
@@ -67,8 +68,8 @@ pub fn new_operation_batch(operation: impl Into<String>) -> RecordBatch {
 /// Arrow schema for dml (excluding select) output streams.
 pub static GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
     Arc::new(Schema::new(vec![
-        Field::new("operation", DataType::Utf8, false),
-        Field::new("count", DataType::UInt64, false),
+        Field::new("$operation", DataType::Utf8, false),
+        Field::new("$count", DataType::UInt64, false),
     ]))
 });
 
@@ -83,4 +84,28 @@ pub fn new_operation_with_count_batch(operation: impl Into<String>, count: u64) 
         ],
     )
     .unwrap()
+}
+
+pub fn get_operation_from_batch(batch: &RecordBatch) -> Option<String> {
+    if batch.columns().len() < 1 {
+        return None;
+    }
+    if let Ok(val) = ScalarValue::try_from_array(batch.column(0), 0) {
+        if let ScalarValue::Utf8(Some(val)) = val {
+            return Some(val);
+        }
+    }
+    None
+}
+
+pub fn get_count_from_batch(batch: &RecordBatch) -> Option<u64> {
+    if batch.columns().len() < 2 {
+        return None;
+    }
+    if let Ok(val) = ScalarValue::try_from_array(batch.column(1), 0) {
+        if let ScalarValue::UInt64(Some(val)) = val {
+            return Some(val);
+        }
+    }
+    None
 }
