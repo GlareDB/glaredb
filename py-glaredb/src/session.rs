@@ -58,8 +58,6 @@ impl LocalSession {
                 1 => {
                     let stmt = statements.pop_front().unwrap();
 
-                    println!("statement: {stmt}");
-
                     sess.prepare_statement(UNNAMED, Some(stmt), Vec::new())
                         .await
                         .map_err(PyGlareDbError::from)?;
