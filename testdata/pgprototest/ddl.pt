@@ -1,0 +1,33 @@
+# DDL
+
+send
+Query {"query": "drop table if exists hello;"}
+----
+
+until
+ReadyForQuery
+----
+CommandComplete {"tag":"DROP TABLE"}
+ReadyForQuery {"status":"I"}
+
+
+send
+Query {"query": "create table hello (a int);"}
+----
+
+until
+ReadyForQuery
+----
+CommandComplete {"tag":"CREATE TABLE"}
+ReadyForQuery {"status":"I"}
+
+
+send
+Query {"query": "insert into hello values (1), (2)"}
+----
+
+until
+ReadyForQuery
+----
+CommandComplete {"tag":"INSERT 0 2"}
+ReadyForQuery {"status":"I"}

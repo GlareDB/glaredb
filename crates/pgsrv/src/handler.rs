@@ -485,28 +485,30 @@ where
                 return self.ready_for_query().await;
             }
 
-            // Describe portal and maybe row description...
-            //
-            // Only send back a row description if the statement produces
-            // output.
-            let output_fields =
-                session_do!(self, session, get_portal, &UNNAMED, Portal::output_fields);
-            if let Some(fields) = output_fields {
-                Self::send_row_descriptor(conn, fields).await?;
-            }
-
             // Execute...
-            let result = match session.execute_portal(&UNNAMED, 0).await {
-                Ok(result) => result,
+            let mut stream = match session.execute_portal(&UNNAMED, 0).await {
+                Ok(stream) => stream,
                 Err(e) => {
                     self.send_error(e.into()).await?;
                     return self.ready_for_query().await;
                 }
             };
 
+            // If we're returning data (SELECT), send back the output fields
+            // before sending back actual data.
+            let result = stream.inspect_result().await;
+            if let ExecutionResult::Query = result {
+                let output_fields =
+                    session_do!(self, session, get_portal, &UNNAMED, Portal::output_fields);
+                if let Some(fields) = output_fields {
+                    Self::send_row_descriptor(conn, fields).await?;
+                }
+            }
+
             Self::send_result(
                 conn,
                 result,
+                stream,
                 session_do!(self, session, get_portal, &UNNAMED, get_encoding_state),
             )
             .await?;
@@ -647,13 +649,19 @@ where
 
         let conn = &mut self.conn;
         let session = &mut self.session;
-        let result = match session.execute_portal(&portal, max_rows).await {
+        let mut stream = match session.execute_portal(&portal, max_rows).await {
             Ok(r) => r,
             Err(e) => return self.send_error(e.into()).await,
         };
+        let result = stream.inspect_result().await;
+
+        // TODO: This seems to be missing sending back row description. Is it
+        // needed? If not, a comment needs to go here.
+
         Self::send_result(
             conn,
             result,
+            stream,
             session_do!(self, session, get_portal, &portal, get_encoding_state),
         )
         .await
@@ -678,10 +686,10 @@ where
 
     async fn send_result(
         conn: &mut FramedConn<C>,
-        mut stream: ExecutionStream,
+        result: ExecutionResult,
+        stream: ExecutionStream,
         encoding_state: Vec<(PgType, Format)>,
     ) -> Result<()> {
-        let result = stream.inspect_result().await;
         match result {
             ExecutionResult::Error(e) => return Err(e.into()),
             ExecutionResult::Query => {
