@@ -11,7 +11,7 @@ use super::*;
 
 #[derive(Debug, Clone)]
 pub struct CreateTempTableExec {
-    pub reference: OwnedFullObjectReference,
+    pub tbl_reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
     pub arrow_schema: SchemaRef,
     pub source: Option<Arc<dyn ExecutionPlan>>,
@@ -46,7 +46,7 @@ impl ExecutionPlan for CreateTempTableExec {
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         Ok(Arc::new(CreateTempTableExec {
-            reference: self.reference.clone(),
+            tbl_reference: self.tbl_reference.clone(),
             if_not_exists: self.if_not_exists,
             arrow_schema: self.arrow_schema.clone(),
             source: children.get(0).cloned(),
@@ -92,7 +92,7 @@ async fn create_temp_table(
         .unwrap();
 
     if temp_objects
-        .resolve_temp_table(&plan.reference.name)
+        .resolve_temp_table(&plan.tbl_reference.name)
         .is_some()
     {
         if plan.if_not_exists {
@@ -100,14 +100,14 @@ async fn create_temp_table(
         }
         return Err(DataFusionError::Execution(format!(
             "Duplicate object name: '{}' already exists",
-            plan.reference.name.clone().into_owned()
+            plan.tbl_reference.name.clone().into_owned()
         )));
     }
 
     let schema = plan.arrow_schema;
     let data = RecordBatch::new_empty(schema.clone());
     let table = Arc::new(MemTable::try_new(schema, vec![vec![data]])?);
-    temp_objects.put_temp_table(plan.reference.name.into_owned(), table.clone());
+    temp_objects.put_temp_table(plan.tbl_reference.name.into_owned(), table.clone());
 
     if let Some(source) = plan.source {
         let source: Arc<dyn ExecutionPlan> = match source.output_partitioning().partition_count() {

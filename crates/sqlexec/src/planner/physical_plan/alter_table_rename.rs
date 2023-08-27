@@ -20,8 +20,8 @@ use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 #[derive(Debug, Clone)]
 pub struct AlterTableRenameExec {
     pub catalog_version: u64,
-    pub reference: OwnedFullObjectReference,
-    pub new_reference: OwnedFullObjectReference,
+    pub tbl_reference: OwnedFullObjectReference,
+    pub new_tbl_reference: OwnedFullObjectReference,
 }
 
 impl ExecutionPlan for AlterTableRenameExec {
@@ -98,9 +98,9 @@ async fn alter_table_rename(
         .mutate(
             plan.catalog_version,
             [Mutation::AlterTableRename(service::AlterTableRename {
-                name: plan.reference.name.into_owned(),
-                new_name: plan.new_reference.name.into_owned(),
-                schema: plan.reference.schema.into_owned(),
+                name: plan.tbl_reference.name.into_owned(),
+                new_name: plan.new_tbl_reference.name.into_owned(),
+                schema: plan.tbl_reference.schema.into_owned(),
             })],
         )
         .await

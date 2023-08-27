@@ -419,8 +419,8 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }
             proto::ExecutionPlanExtensionType::CreateSchema(ext) => Arc::new(CreateSchemaExec {
                 catalog_version: ext.catalog_version,
-                reference: ext
-                    .reference
+                schema_reference: ext
+                    .schema_reference
                     .ok_or_else(|| {
                         DataFusionError::Internal("missing schema references".to_string())
                     })?
@@ -449,14 +449,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::AlterTableRenameExec(ext) => {
                 Arc::new(AlterTableRenameExec {
                     catalog_version: ext.catalog_version,
-                    reference: ext
-                        .reference
+                    tbl_reference: ext
+                        .tbl_reference
                         .ok_or_else(|| {
                             DataFusionError::Internal("missing table references".to_string())
                         })?
                         .into(),
-                    new_reference: ext
-                        .new_reference
+                    new_tbl_reference: ext
+                        .new_tbl_reference
                         .ok_or_else(|| {
                             DataFusionError::Internal("missing new table references".to_string())
                         })?
@@ -486,8 +486,8 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 Arc::new(CreateTableExec {
                     catalog_version: ext.catalog_version,
-                    reference: ext
-                        .reference
+                    tbl_reference: ext
+                        .tbl_reference
                         .ok_or_else(|| {
                             DataFusionError::Internal("missing table references".to_string())
                         })?
@@ -504,8 +504,8 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 let schema: Schema = (&schema).try_into()?;
 
                 Arc::new(CreateTempTableExec {
-                    reference: ext
-                        .reference
+                    tbl_reference: ext
+                        .tbl_reference
                         .ok_or_else(|| {
                             DataFusionError::Internal("missing table references".to_string())
                         })?
@@ -517,7 +517,11 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }
             proto::ExecutionPlanExtensionType::DropSchemasExec(ext) => Arc::new(DropSchemasExec {
                 catalog_version: ext.catalog_version,
-                references: ext.references.into_iter().map(|r| r.into()).collect(),
+                schema_references: ext
+                    .schema_references
+                    .into_iter()
+                    .map(|r| r.into())
+                    .collect(),
                 if_exists: ext.if_exists,
                 cascade: ext.cascade,
             }),
@@ -528,7 +532,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }),
             proto::ExecutionPlanExtensionType::DropViewsExec(ext) => Arc::new(DropViewsExec {
                 catalog_version: ext.catalog_version,
-                references: ext.references.into_iter().map(|r| r.into()).collect(),
+                view_references: ext.view_references.into_iter().map(|r| r.into()).collect(),
                 if_exists: ext.if_exists,
             }),
             proto::ExecutionPlanExtensionType::CreateExternalDatabaseExec(ext) => {
@@ -551,8 +555,8 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                         ))?;
                 Arc::new(CreateExternalTableExec {
                     catalog_version: ext.catalog_version,
-                    reference: ext
-                        .reference
+                    tbl_reference: ext
+                        .tbl_reference
                         .ok_or_else(|| {
                             DataFusionError::Internal("missing table references".to_string())
                         })?
@@ -575,11 +579,9 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }
             proto::ExecutionPlanExtensionType::CreateViewExec(ext) => Arc::new(CreateViewExec {
                 catalog_version: ext.catalog_version,
-                reference: ext
-                    .reference
-                    .ok_or_else(|| {
-                        DataFusionError::Internal("missing table references".to_string())
-                    })?
+                view_reference: ext
+                    .view_reference
+                    .ok_or_else(|| DataFusionError::Internal("missing view reference".to_string()))?
                     .into(),
                 sql: ext.sql,
                 columns: ext.columns,
@@ -594,7 +596,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }
             proto::ExecutionPlanExtensionType::DropTablesExec(ext) => Arc::new(DropTablesExec {
                 catalog_version: ext.catalog_version,
-                references: ext.references.into_iter().map(|r| r.into()).collect(),
+                tbl_references: ext.tbl_references.into_iter().map(|r| r.into()).collect(),
                 if_exists: ext.if_exists,
             }),
             proto::ExecutionPlanExtensionType::SetVarExec(ext) => Arc::new(SetVarExec {
@@ -710,7 +712,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateSchemaExec>() {
             proto::ExecutionPlanExtensionType::CreateSchema(proto::CreateSchema {
                 catalog_version: exec.catalog_version,
-                reference: Some(exec.reference.clone().into()),
+                schema_reference: Some(exec.schema_reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateCredentialsExec>() {
@@ -720,13 +722,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateTableExec>() {
             proto::ExecutionPlanExtensionType::CreateTableExec(proto::CreateTableExec {
                 catalog_version: exec.catalog_version,
-                reference: Some(exec.reference.clone().into()),
+                tbl_reference: Some(exec.tbl_reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
                 arrow_schema: Some(exec.schema().try_into()?),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateTempTableExec>() {
             proto::ExecutionPlanExtensionType::CreateTempTableExec(proto::CreateTempTableExec {
-                reference: Some(exec.reference.clone().into()),
+                tbl_reference: Some(exec.tbl_reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
                 arrow_schema: Some(exec.schema().try_into()?),
             })
@@ -741,8 +743,8 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<AlterTableRenameExec>() {
             proto::ExecutionPlanExtensionType::AlterTableRenameExec(proto::AlterTableRenameExec {
                 catalog_version: exec.catalog_version,
-                reference: Some(exec.reference.clone().into()),
-                new_reference: Some(exec.new_reference.clone().into()),
+                tbl_reference: Some(exec.tbl_reference.clone().into()),
+                new_tbl_reference: Some(exec.new_tbl_reference.clone().into()),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<AlterTunnelRotateKeysExec>() {
             proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(
@@ -762,8 +764,8 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<DropSchemasExec>() {
             proto::ExecutionPlanExtensionType::DropSchemasExec(proto::DropSchemasExec {
                 catalog_version: exec.catalog_version,
-                references: exec
-                    .references
+                schema_references: exec
+                    .schema_references
                     .clone()
                     .into_iter()
                     .map(|r| r.into())
@@ -780,8 +782,8 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<DropViewsExec>() {
             proto::ExecutionPlanExtensionType::DropViewsExec(proto::DropViewsExec {
                 catalog_version: exec.catalog_version,
-                references: exec
-                    .references
+                view_references: exec
+                    .view_references
                     .clone()
                     .into_iter()
                     .map(|r| r.into())
@@ -802,7 +804,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::CreateExternalTableExec(
                 proto::CreateExternalTableExec {
                     catalog_version: exec.catalog_version,
-                    reference: Some(exec.reference.clone().into()),
+                    tbl_reference: Some(exec.tbl_reference.clone().into()),
                     if_not_exists: exec.if_not_exists,
                     table_options: Some(exec.table_options.clone().try_into()?),
                     tunnel: exec.tunnel.clone(),
@@ -818,7 +820,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateViewExec>() {
             proto::ExecutionPlanExtensionType::CreateViewExec(proto::CreateViewExec {
                 catalog_version: exec.catalog_version,
-                reference: Some(exec.reference.clone().into()),
+                view_reference: Some(exec.view_reference.clone().into()),
                 sql: exec.sql.clone(),
                 columns: exec.columns.clone(),
                 or_replace: exec.or_replace,
@@ -832,8 +834,8 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<DropTablesExec>() {
             proto::ExecutionPlanExtensionType::DropTablesExec(proto::DropTablesExec {
                 catalog_version: exec.catalog_version,
-                references: exec
-                    .references
+                tbl_references: exec
+                    .tbl_references
                     .clone()
                     .into_iter()
                     .map(|r| r.into())

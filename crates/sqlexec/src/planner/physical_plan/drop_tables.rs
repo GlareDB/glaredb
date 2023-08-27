@@ -20,7 +20,7 @@ use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 #[derive(Debug, Clone)]
 pub struct DropTablesExec {
     pub catalog_version: u64,
-    pub references: Vec<OwnedFullObjectReference>,
+    pub tbl_references: Vec<OwnedFullObjectReference>,
     pub if_exists: bool,
 }
 
@@ -93,11 +93,11 @@ async fn drop_tables(
     mutator: Arc<CatalogMutator>,
     plan: DropTablesExec,
 ) -> DataFusionResult<RecordBatch> {
-    let mut drops = Vec::with_capacity(plan.references.len());
+    let mut drops = Vec::with_capacity(plan.tbl_references.len());
     // let mut jobs = Vec::with_capacity(plan.names.len());
     // let mut temp_table_drops = Vec::with_capacity(plan.references.len());
 
-    for r in plan.references {
+    for r in plan.tbl_references {
         // if let Ok(table) = self.resolve_temp_table_ref(r.clone()) {
         //     // This is a temp table.
         //     temp_table_drops.push(table);

@@ -20,7 +20,7 @@ use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 #[derive(Debug, Clone)]
 pub struct CreateViewExec {
     pub catalog_version: u64,
-    pub reference: OwnedFullObjectReference,
+    pub view_reference: OwnedFullObjectReference,
     pub sql: String,
     pub columns: Vec<String>,
     pub or_replace: bool,
@@ -99,8 +99,8 @@ async fn create_view(
         .mutate(
             plan.catalog_version,
             [Mutation::CreateView(service::CreateView {
-                schema: plan.reference.schema.into_owned(),
-                name: plan.reference.name.into_owned(),
+                schema: plan.view_reference.schema.into_owned(),
+                name: plan.view_reference.name.into_owned(),
                 sql: plan.sql,
                 or_replace: plan.or_replace,
                 columns: plan.columns,

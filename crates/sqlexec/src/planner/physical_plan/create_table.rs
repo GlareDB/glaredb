@@ -30,7 +30,7 @@ use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
 #[derive(Debug, Clone)]
 pub struct CreateTableExec {
     pub catalog_version: u64,
-    pub reference: OwnedFullObjectReference,
+    pub tbl_reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
     pub arrow_schema: SchemaRef,
     pub source: Option<Arc<dyn ExecutionPlan>>,
@@ -66,7 +66,7 @@ impl ExecutionPlan for CreateTableExec {
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         Ok(Arc::new(CreateTableExec {
             catalog_version: self.catalog_version,
-            reference: self.reference.clone(),
+            tbl_reference: self.tbl_reference.clone(),
             if_not_exists: self.if_not_exists,
             arrow_schema: self.arrow_schema.clone(),
             source: children.get(0).cloned(),
@@ -124,8 +124,8 @@ impl CreateTableExec {
             .mutate(
                 self.catalog_version,
                 [Mutation::CreateTable(service::CreateTable {
-                    schema: self.reference.schema.clone().into_owned(),
-                    name: self.reference.name.clone().into_owned(),
+                    schema: self.tbl_reference.schema.clone().into_owned(),
+                    name: self.tbl_reference.name.clone().into_owned(),
                     options: self.arrow_schema.into(),
                     if_not_exists: self.if_not_exists,
                 })],
@@ -141,8 +141,8 @@ impl CreateTableExec {
         let ent = new_catalog
             .resolve_table(
                 DEFAULT_CATALOG,
-                &self.reference.schema,
-                &self.reference.name,
+                &self.tbl_reference.schema,
+                &self.tbl_reference.name,
             )
             .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))
             .unwrap();

@@ -1,8 +1,8 @@
 use super::*;
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct AlterTableRename {
-    pub reference: OwnedFullObjectReference,
-    pub new_reference: OwnedFullObjectReference,
+    pub tbl_reference: OwnedFullObjectReference,
+    pub new_tbl_reference: OwnedFullObjectReference,
 }
 impl UserDefinedLogicalNodeCore for AlterTableRename {
     fn name(&self) -> &str {
@@ -57,12 +57,12 @@ impl ExtensionNode for AlterTableRename {
             .into();
 
         Ok(Self {
-            reference,
-            new_reference,
+            tbl_reference: reference,
+            new_tbl_reference: new_reference,
         })
     }
 
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!(
@@ -74,8 +74,8 @@ impl ExtensionNode for AlterTableRename {
     fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()> {
         use protogen::sqlexec::logical_plan as protogen;
 
-        let reference = self.reference.clone().into();
-        let new_reference = self.new_reference.clone().into();
+        let reference = self.tbl_reference.clone().into();
+        let new_reference = self.new_tbl_reference.clone().into();
 
         let alter_table = protogen::AlterTableRename {
             reference: Some(reference),

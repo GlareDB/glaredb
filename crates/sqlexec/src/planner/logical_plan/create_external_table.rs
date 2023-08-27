@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CreateExternalTable {
-    pub reference: OwnedFullObjectReference,
+    pub tbl_reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
     pub table_options: TableOptions,
     pub tunnel: Option<String>,
@@ -58,14 +58,14 @@ impl ExtensionNode for CreateExternalTable {
         ))?;
 
         Ok(Self {
-            reference,
+            tbl_reference: reference,
             if_not_exists: proto.if_not_exists,
             table_options: tbl_options.try_into()?,
             tunnel: proto.tunnel,
         })
     }
 
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!(
@@ -78,7 +78,7 @@ impl ExtensionNode for CreateExternalTable {
         use protogen::sqlexec::logical_plan as protogen;
 
         let create_table = protogen::CreateExternalTable {
-            reference: Some(self.reference.clone().into()),
+            reference: Some(self.tbl_reference.clone().into()),
             if_not_exists: self.if_not_exists,
             table_options: Some(self.table_options.clone().try_into().ok().ok_or(
                 ProtoConvError::RequiredField("table_options is required".to_string()),

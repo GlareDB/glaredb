@@ -83,8 +83,8 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let lp = require_downcast_lp::<AlterTableRename>(node);
                 let exec = AlterTableRenameExec {
                     catalog_version: self.catalog_version,
-                    reference: lp.reference.clone(),
-                    new_reference: lp.new_reference.clone(),
+                    tbl_reference: lp.tbl_reference.clone(),
+                    new_tbl_reference: lp.new_tbl_reference.clone(),
                 };
                 Ok(Some(Arc::new(exec)))
             }
@@ -122,7 +122,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let lp = require_downcast_lp::<CreateExternalTable>(node);
                 Ok(Some(Arc::new(CreateExternalTableExec {
                     catalog_version: self.catalog_version,
-                    reference: lp.reference.clone(),
+                    tbl_reference: lp.tbl_reference.clone(),
                     if_not_exists: lp.if_not_exists,
                     tunnel: lp.tunnel.clone(),
                     table_options: lp.table_options.clone(),
@@ -132,7 +132,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let lp = require_downcast_lp::<CreateSchema>(node);
                 Ok(Some(Arc::new(CreateSchemaExec {
                     catalog_version: self.catalog_version,
-                    reference: lp.reference.clone(),
+                    schema_reference: lp.schema_reference.clone(),
                     if_not_exists: lp.if_not_exists,
                 })))
             }
@@ -140,7 +140,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let lp = require_downcast_lp::<CreateTable>(node);
                 Ok(Some(Arc::new(CreateTableExec {
                     catalog_version: self.catalog_version,
-                    reference: lp.reference.clone(),
+                    tbl_reference: lp.tbl_reference.clone(),
                     if_not_exists: lp.if_not_exists,
                     arrow_schema: Arc::new(lp.schema.as_ref().into()),
                     source: physical_inputs.get(0).cloned(),
@@ -149,7 +149,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateTempTable => {
                 let lp = require_downcast_lp::<CreateTempTable>(node);
                 Ok(Some(Arc::new(CreateTempTableExec {
-                    reference: lp.reference.clone(),
+                    tbl_reference: lp.tbl_reference.clone(),
                     if_not_exists: lp.if_not_exists,
                     arrow_schema: Arc::new(lp.schema.as_ref().into()),
                     source: physical_inputs.get(0).cloned(),
@@ -168,7 +168,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let lp = require_downcast_lp::<CreateView>(node);
                 Ok(Some(Arc::new(CreateViewExec {
                     catalog_version: self.catalog_version,
-                    reference: lp.reference.clone(),
+                    view_reference: lp.view_reference.clone(),
                     sql: lp.sql.clone(),
                     columns: lp.columns.clone(),
                     or_replace: lp.or_replace,
@@ -178,7 +178,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let lp = require_downcast_lp::<DropTables>(node);
                 Ok(Some(Arc::new(DropTablesExec {
                     catalog_version: self.catalog_version,
-                    references: lp.references.clone(),
+                    tbl_references: lp.tbl_references.clone(),
                     if_exists: lp.if_exists,
                 })))
             }
@@ -201,10 +201,9 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             }
             ExtensionType::DropSchemas => {
                 let lp = require_downcast_lp::<DropSchemas>(node);
-                // TODO: Error if catalog provided in names.
                 let exec = DropSchemasExec {
                     catalog_version: self.catalog_version,
-                    references: lp.references.clone(),
+                    schema_references: lp.schema_references.clone(),
                     if_exists: lp.if_exists,
                     cascade: lp.cascade,
                 };
@@ -224,7 +223,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 // TODO: Fix this.
                 let exec = DropViewsExec {
                     catalog_version: self.catalog_version,
-                    references: lp.references.clone(),
+                    view_references: lp.view_references.clone(),
                     if_exists: lp.if_exists,
                 };
                 Ok(Some(Arc::new(exec)))

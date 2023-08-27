@@ -20,7 +20,7 @@ use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 #[derive(Debug, Clone)]
 pub struct DropSchemasExec {
     pub catalog_version: u64,
-    pub references: Vec<OwnedFullSchemaReference>,
+    pub schema_references: Vec<OwnedFullSchemaReference>,
     pub if_exists: bool,
     pub cascade: bool,
 }
@@ -95,7 +95,7 @@ async fn drop_schemas(
     plan: DropSchemasExec,
 ) -> DataFusionResult<RecordBatch> {
     let drops: Vec<_> = plan
-        .references
+        .schema_references
         .into_iter()
         .map(|r| {
             Mutation::DropSchema(service::DropSchema {

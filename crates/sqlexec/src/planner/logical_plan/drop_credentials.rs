@@ -48,7 +48,7 @@ impl ExtensionNode for DropCredentials {
             if_exists: proto.if_exists,
         })
     }
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!("DropCredentials::try_decode_extension failed",)),

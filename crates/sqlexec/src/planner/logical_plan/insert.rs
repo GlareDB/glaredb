@@ -54,7 +54,7 @@ impl ExtensionNode for Insert {
         unimplemented!()
     }
 
-    fn try_decode_extension(_extension: &datafusion::logical_expr::Extension) -> Result<Self> {
+    fn try_downcast_extension(_extension: &datafusion::logical_expr::Extension) -> Result<Self> {
         unimplemented!()
     }
 

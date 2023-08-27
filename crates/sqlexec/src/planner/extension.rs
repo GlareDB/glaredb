@@ -101,7 +101,7 @@ pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
         ))
     }
 
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self>;
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self>;
 
     fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()>;
 
@@ -117,7 +117,7 @@ pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
         codec: &dyn LogicalExtensionCodec,
     ) -> Result<()> {
         // TODO: ?
-        let extension = Self::try_decode_extension(extension)?;
+        let extension = Self::try_downcast_extension(extension)?;
         extension.try_encode(buf, codec)
     }
 }

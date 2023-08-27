@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CreateTempTable {
-    pub reference: OwnedFullObjectReference,
+    pub tbl_reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
     pub schema: DFSchemaRef,
     pub source: Option<DfLogicalPlan>,
@@ -68,13 +68,13 @@ impl ExtensionNode for CreateTempTable {
             .map_err(ProtoConvError::DataFusionError)?;
 
         Ok(Self {
-            reference,
+            tbl_reference: reference,
             if_not_exists: proto.if_not_exists,
             schema,
             source,
         })
     }
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!(
@@ -96,7 +96,7 @@ impl ExtensionNode for CreateTempTable {
         });
 
         let create_table = protogen::CreateTempTable {
-            reference: Some(self.reference.clone().into()),
+            reference: Some(self.tbl_reference.clone().into()),
             if_not_exists: self.if_not_exists,
             schema,
             source,

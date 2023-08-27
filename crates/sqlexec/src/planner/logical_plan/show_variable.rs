@@ -66,7 +66,7 @@ impl ExtensionNode for ShowVariable {
         unimplemented!()
     }
 
-    fn try_decode_extension(_extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(_extension: &LogicalPlanExtension) -> Result<Self> {
         unimplemented!()
     }
 

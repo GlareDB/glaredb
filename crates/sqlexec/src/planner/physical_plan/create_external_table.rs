@@ -21,7 +21,7 @@ use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 #[derive(Debug, Clone)]
 pub struct CreateExternalTableExec {
     pub catalog_version: u64,
-    pub reference: OwnedFullObjectReference,
+    pub tbl_reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
     pub table_options: TableOptions,
     pub tunnel: Option<String>,
@@ -101,8 +101,8 @@ async fn create_external_table(
             plan.catalog_version,
             [Mutation::CreateExternalTable(
                 service::CreateExternalTable {
-                    schema: plan.reference.schema.into_owned(),
-                    name: plan.reference.name.into_owned(),
+                    schema: plan.tbl_reference.schema.into_owned(),
+                    name: plan.tbl_reference.name.into_owned(),
                     options: plan.table_options,
                     if_not_exists: plan.if_not_exists,
                     tunnel: plan.tunnel,

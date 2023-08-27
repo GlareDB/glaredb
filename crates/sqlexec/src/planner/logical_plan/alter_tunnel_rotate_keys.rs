@@ -51,7 +51,7 @@ impl ExtensionNode for AlterTunnelRotateKeys {
             new_ssh_key: proto.new_ssh_key,
         })
     }
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!("AlterTunnelRotateKeys decode failed",)),

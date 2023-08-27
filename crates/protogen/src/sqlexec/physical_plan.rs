@@ -37,7 +37,7 @@ pub struct CreateTableExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
     #[prost(message, tag = "2")]
-    pub reference: Option<FullObjectReference>,
+    pub tbl_reference: Option<FullObjectReference>,
     #[prost(bool, tag = "3")]
     pub if_not_exists: bool,
     #[prost(message, tag = "4")]
@@ -71,9 +71,9 @@ pub struct AlterTableRenameExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
     #[prost(message, tag = "2")]
-    pub reference: Option<FullObjectReference>,
+    pub tbl_reference: Option<FullObjectReference>,
     #[prost(message, tag = "3")]
-    pub new_reference: Option<FullObjectReference>,
+    pub new_tbl_reference: Option<FullObjectReference>,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -103,7 +103,7 @@ pub struct DropSchemasExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
     #[prost(message, repeated, tag = "2")]
-    pub references: Vec<FullSchemaReference>,
+    pub schema_references: Vec<FullSchemaReference>,
     #[prost(bool, tag = "3")]
     pub if_exists: bool,
     #[prost(bool, tag = "4")]
@@ -125,7 +125,7 @@ pub struct DropViewsExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
     #[prost(message, repeated, tag = "2")]
-    pub references: Vec<FullObjectReference>,
+    pub view_references: Vec<FullObjectReference>,
     #[prost(bool, tag = "3")]
     pub if_exists: bool,
 }
@@ -135,7 +135,7 @@ pub struct CreateSchema {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
     #[prost(message, tag = "2")]
-    pub reference: Option<FullSchemaReference>,
+    pub schema_reference: Option<FullSchemaReference>,
     #[prost(bool, tag = "3")]
     pub if_not_exists: bool,
 }
@@ -143,7 +143,7 @@ pub struct CreateSchema {
 #[derive(Clone, PartialEq, Message)]
 pub struct CreateTempTableExec {
     #[prost(message, tag = "1")]
-    pub reference: Option<FullObjectReference>,
+    pub tbl_reference: Option<FullObjectReference>,
     #[prost(bool, tag = "2")]
     pub if_not_exists: bool,
     #[prost(message, tag = "3")]
@@ -169,7 +169,7 @@ pub struct CreateExternalTableExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
     #[prost(message, tag = "2")]
-    pub reference: Option<FullObjectReference>,
+    pub tbl_reference: Option<FullObjectReference>,
     #[prost(bool, tag = "3")]
     pub if_not_exists: bool,
     #[prost(message, tag = "4")]
@@ -195,7 +195,7 @@ pub struct CreateViewExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
     #[prost(message, tag = "2")]
-    pub reference: Option<FullObjectReference>,
+    pub view_reference: Option<FullObjectReference>,
     #[prost(string, tag = "3")]
     pub sql: String,
     #[prost(message, repeated, tag = "4")]
@@ -219,7 +219,7 @@ pub struct DropTablesExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
     #[prost(message, repeated, tag = "2")]
-    pub references: Vec<FullObjectReference>,
+    pub tbl_references: Vec<FullObjectReference>,
     #[prost(bool, tag = "3")]
     pub if_exists: bool,
 }

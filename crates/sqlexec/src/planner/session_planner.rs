@@ -517,7 +517,7 @@ impl<'a> SessionPlanner<'a> {
         let table_name = object_name_to_table_ref(stmt.name)?;
 
         let plan = CreateExternalTable {
-            reference: self.ctx.resolve_table_ref(table_name)?,
+            tbl_reference: self.ctx.resolve_table_ref(table_name)?,
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
             tunnel,
@@ -649,7 +649,7 @@ impl<'a> SessionPlanner<'a> {
                 };
 
                 Ok(CreateSchema {
-                    reference: self.ctx.resolve_schema_ref(schema_name),
+                    schema_reference: self.ctx.resolve_schema_ref(schema_name),
                     if_not_exists,
                 }
                 .into_logical_plan())
@@ -728,7 +728,7 @@ impl<'a> SessionPlanner<'a> {
                     let df_schema = df_schema.to_dfschema_ref()?;
 
                     let plan = CreateTempTable {
-                        reference: FullObjectReference {
+                        tbl_reference: FullObjectReference {
                             database: DEFAULT_CATALOG.into(),
                             schema: CURRENT_SESSION_SCHEMA.into(),
                             name: table_name.into(),
@@ -743,7 +743,7 @@ impl<'a> SessionPlanner<'a> {
                     let df_schema = Schema::new(arrow_cols.clone());
                     let df_schema = df_schema.to_dfschema_ref()?;
                     let create_table = CreateTable {
-                        reference: self.ctx.resolve_table_ref(table_name)?,
+                        tbl_reference: self.ctx.resolve_table_ref(table_name)?,
                         schema: df_schema,
                         if_not_exists,
                         source,
@@ -798,7 +798,7 @@ impl<'a> SessionPlanner<'a> {
                     })
                 } else {
                     Ok(CreateView {
-                        reference: self.ctx.resolve_table_ref(name)?,
+                        view_reference: self.ctx.resolve_table_ref(name)?,
                         sql: query_string,
                         columns,
                         or_replace,
@@ -854,8 +854,8 @@ impl<'a> SessionPlanner<'a> {
                 validate_object_name(&table_name)?;
                 let new_name = object_name_to_table_ref(table_name)?;
                 Ok(AlterTableRename {
-                    reference: self.ctx.resolve_table_ref(name)?,
-                    new_reference: self.ctx.resolve_table_ref(new_name)?,
+                    tbl_reference: self.ctx.resolve_table_ref(name)?,
+                    new_tbl_reference: self.ctx.resolve_table_ref(new_name)?,
                 }
                 .into_logical_plan())
             }
@@ -876,7 +876,7 @@ impl<'a> SessionPlanner<'a> {
 
                 let plan = DropTables {
                     if_exists,
-                    references: refs,
+                    tbl_references: refs,
                 };
                 Ok(plan.into_logical_plan())
             }
@@ -896,7 +896,7 @@ impl<'a> SessionPlanner<'a> {
                 }
                 Ok(DropViews {
                     if_exists,
-                    references: refs,
+                    view_references: refs,
                 }
                 .into_logical_plan())
             }
@@ -917,7 +917,7 @@ impl<'a> SessionPlanner<'a> {
                 }
                 Ok(DropSchemas {
                     if_exists,
-                    references: refs,
+                    schema_references: refs,
                     cascade,
                 }
                 .into_logical_plan())

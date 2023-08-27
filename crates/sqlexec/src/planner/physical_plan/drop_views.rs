@@ -20,7 +20,7 @@ use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 #[derive(Debug, Clone)]
 pub struct DropViewsExec {
     pub catalog_version: u64,
-    pub references: Vec<OwnedFullObjectReference>,
+    pub view_references: Vec<OwnedFullObjectReference>,
     pub if_exists: bool,
 }
 
@@ -94,7 +94,7 @@ async fn drop_views(
     plan: DropViewsExec,
 ) -> DataFusionResult<RecordBatch> {
     let drops: Vec<_> = plan
-        .references
+        .view_references
         .into_iter()
         .map(|r| {
             Mutation::DropObject(service::DropObject {
