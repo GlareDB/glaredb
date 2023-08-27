@@ -21,6 +21,7 @@ pub struct BackgroundJobStorageTracker {
 }
 
 impl BackgroundJobStorageTracker {
+    #[allow(dead_code)]
     pub fn new(native_store: NativeTableStorage, metastore: MetastoreClientHandle) -> Arc<Self> {
         Arc::new(Self {
             native_store,
@@ -67,6 +68,7 @@ pub struct BackgroundJobDeleteTable {
 }
 
 impl BackgroundJobDeleteTable {
+    #[allow(dead_code)]
     pub fn new(native_store: NativeTableStorage, table_entry: TableEntry) -> Arc<Self> {
         Arc::new(Self {
             native_store,
@@ -139,6 +141,7 @@ mod tests {
                     name: "table_1".to_string(),
                     builtin: false,
                     external: false,
+                    is_temp: false,
                 },
                 options: TableOptions::Internal(TableOptionsInternal {
                     columns: vec![InternalColumnDefinition {

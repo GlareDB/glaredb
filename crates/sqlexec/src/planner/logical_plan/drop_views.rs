@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DropViews {
-    pub names: Vec<OwnedTableReference>,
+    pub references: Vec<OwnedFullObjectReference>,
     pub if_exists: bool,
 }
 
@@ -16,7 +16,7 @@ impl UserDefinedLogicalNodeCore for DropViews {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+        &GENERIC_OPERATION_LOGICAL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {
@@ -44,14 +44,14 @@ impl ExtensionNode for DropViews {
         _ctx: &SessionContext,
         _codec: &dyn LogicalExtensionCodec,
     ) -> std::result::Result<Self, ProtoConvError> {
-        let names = proto
-            .names
+        let references = proto
+            .references
             .into_iter()
-            .map(|name| name.try_into())
-            .collect::<Result<_, _>>()?;
+            .map(|r| r.into())
+            .collect::<Vec<_>>();
 
         Ok(Self {
-            names,
+            references,
             if_exists: proto.if_exists,
         })
     }
@@ -66,14 +66,15 @@ impl ExtensionNode for DropViews {
 
     fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()> {
         use protogen::sqlexec::logical_plan as protogen;
-        let names = self
-            .names
-            .iter()
-            .map(|name| name.to_owned_reference().into())
+        let references = self
+            .references
+            .clone()
+            .into_iter()
+            .map(|r| r.into())
             .collect::<Vec<_>>();
 
         let drop_tables = protogen::DropViews {
-            names,
+            references,
             if_exists: self.if_exists,
         };
         let plan_type = protogen::LogicalPlanExtensionType::DropViews(drop_tables);

@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CreateTempTable {
-    pub table_name: String,
+    pub reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
     pub schema: DFSchemaRef,
     pub source: Option<DfLogicalPlan>,
@@ -21,7 +21,7 @@ impl UserDefinedLogicalNodeCore for CreateTempTable {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &self.schema
+        &GENERIC_OPERATION_LOGICAL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {
@@ -49,6 +49,12 @@ impl ExtensionNode for CreateTempTable {
         ctx: &SessionContext,
         codec: &dyn LogicalExtensionCodec,
     ) -> std::result::Result<Self, ProtoConvError> {
+        let reference = proto
+            .reference
+            .ok_or(ProtoConvError::RequiredField(
+                "reference is required".to_string(),
+            ))?
+            .into();
         let schema = proto
             .schema
             .ok_or(ProtoConvError::RequiredField(
@@ -62,7 +68,7 @@ impl ExtensionNode for CreateTempTable {
             .map_err(ProtoConvError::DataFusionError)?;
 
         Ok(Self {
-            table_name: proto.table_name,
+            reference,
             if_not_exists: proto.if_not_exists,
             schema,
             source,
@@ -90,7 +96,7 @@ impl ExtensionNode for CreateTempTable {
         });
 
         let create_table = protogen::CreateTempTable {
-            table_name: self.table_name.clone(),
+            reference: Some(self.reference.clone().into()),
             if_not_exists: self.if_not_exists,
             schema,
             source,

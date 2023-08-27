@@ -4,7 +4,7 @@ use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CreateTable {
-    pub table_name: OwnedTableReference,
+    pub reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
     pub schema: DFSchemaRef,
     pub source: Option<DfLogicalPlan>,
@@ -23,7 +23,7 @@ impl UserDefinedLogicalNodeCore for CreateTable {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &self.schema
+        &GENERIC_OPERATION_LOGICAL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {
@@ -51,12 +51,12 @@ impl ExtensionNode for CreateTable {
         ctx: &SessionContext,
         codec: &dyn LogicalExtensionCodec,
     ) -> std::result::Result<Self, ProtoConvError> {
-        let table_name = proto
-            .table_name
+        let reference = proto
+            .reference
             .ok_or(ProtoConvError::RequiredField(
                 "table_name is required".to_string(),
             ))?
-            .try_into()?;
+            .into();
         let schema = proto
             .schema
             .ok_or(ProtoConvError::RequiredField(
@@ -71,7 +71,7 @@ impl ExtensionNode for CreateTable {
             .map_err(ProtoConvError::DataFusionError)?;
 
         Ok(Self {
-            table_name,
+            reference,
             if_not_exists: proto.if_not_exists,
             schema,
             source,
@@ -102,7 +102,7 @@ impl ExtensionNode for CreateTable {
             .transpose()?;
 
         let create_table = protogen::CreateTable {
-            table_name: Some(self.table_name.clone().into()),
+            reference: Some(self.reference.clone().into()),
             if_not_exists: self.if_not_exists,
             schema,
             source,

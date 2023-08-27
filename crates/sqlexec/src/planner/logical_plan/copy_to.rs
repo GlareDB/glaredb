@@ -27,7 +27,7 @@ impl UserDefinedLogicalNodeCore for CopyTo {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+        &GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {
@@ -43,7 +43,6 @@ impl UserDefinedLogicalNodeCore for CopyTo {
         _exprs: &[datafusion::prelude::Expr],
         _inputs: &[DfLogicalPlan],
     ) -> Self {
-        println!("CopyTo from_template");
         self.clone()
     }
 }

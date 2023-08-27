@@ -35,17 +35,17 @@ statement ok
 COPY ( SELECT b FROM copy_to_table ORDER BY a DESC )
 	TO '${TMP}/query_copy_url.csv';
 
-query T
+query T rowsort
 SELECT * FROM csv_scan('${TMP}/query_copy_url.csv');
 ----
-def
 abc
+def
 
 statement ok
 COPY current_session.copy_to_table
 	TO '${TMP}/table_copy_url.csv';
 
-query IT
+query IT rowsort
 SELECT a, b FROM csv_scan('${TMP}/table_copy_url.csv');
 ----
 1	abc
@@ -58,7 +58,7 @@ COPY copy_to_table
 	TO '${TMP}/csv_copy_without_ext'
 	FORMAT csv;
 
-query IT
+query IT rowsort
 SELECT a, b FROM csv_scan('${TMP}/csv_copy_without_ext');
 ----
 1	abc
@@ -71,7 +71,7 @@ statement ok
 COPY default.current_session.copy_to_table
 	TO '${TMP}/copy_file.json';
 
-query IT
+query IT rowsort
 SELECT a, b FROM ndjson_scan('${TMP}/copy_file.json');
 ----
 1	abc
@@ -82,7 +82,7 @@ statement ok
 COPY default.current_session.copy_to_table
 	TO '${TMP}/copy_file.parquet';
 
-query IT
+query IT rowsort
 SELECT a, b FROM parquet_scan('${TMP}/copy_file.parquet');
 ----
 1	abc
@@ -93,7 +93,7 @@ SELECT a, b FROM parquet_scan('${TMP}/copy_file.parquet');
 statement ok
 COPY copy_to_table TO '${TMP}/random_file';
 
-query IT
+query IT rowsort
 SELECT a, b FROM csv_scan('${TMP}/random_file');
 ----
 1	abc
@@ -106,7 +106,7 @@ COPY copy_to_table TO '${TMP}/random_file.abc' FORMAT abc;
 
 # Multiple URLs
 
-query IT rowsort
+query IT rowsort rowsort
 SELECT a, b FROM csv_scan([
 	'${TMP}/query_copy.csv',
 	'${TMP}/csv_copy_without_ext'

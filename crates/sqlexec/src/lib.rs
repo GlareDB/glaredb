@@ -14,6 +14,7 @@ mod dispatch;
 mod functions;
 mod metrics;
 mod planner;
+mod resolve;
 
 pub use planner::logical_plan::LogicalPlan;
 

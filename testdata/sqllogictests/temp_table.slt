@@ -33,13 +33,21 @@ create temp table abc (x int);
 statement ok
 insert into abc values (9, 8, 7);
 
+# Query unqualified
+query III rowsort
+select a, b, c from abc limit 1;
+----
+9	8	7
+
+# Query qualified with schema ("current_session")
 query III rowsort
 select a, b, c from current_session.abc limit 1;
 ----
 9	8	7
 
+# Query fully qualified temp table
 query III rowsort
-select a, b, c from abc limit 1;
+select a, b, c from default.current_session.abc limit 1;
 ----
 9	8	7
 
@@ -48,10 +56,6 @@ query III
 select a, b, c from public.abc limit 1;
 ----
 1	2	3
-
-# TODO: Inserting from external table also causes the same error as non-matching
-# schemas when doing `INSERT INTO abc(a, b) ...`.
-halt
 
 # Insert from another table
 statement ok
@@ -86,6 +90,9 @@ select * from t1
 1
 3
 5
+
+# Need to determine if below behavior is correct.
+halt
 
 statement ok
 drop table t1, current_session.abc;

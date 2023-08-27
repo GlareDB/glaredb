@@ -14,7 +14,7 @@ use crate::{
     dispatch::external::ExternalDispatcher,
     errors::Result,
     extension_codec::GlareDBExtensionCodec,
-    metastore::catalog::{CatalogMutator, SessionCatalog},
+    metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog},
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
 
@@ -28,7 +28,6 @@ use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 pub struct RemoteSessionContext {
     /// Database catalog.
     catalog: SessionCatalog,
-    catalog_mutator: CatalogMutator,
     /// Native tables.
     tables: NativeTableStorage,
     /// Datafusion session context used for execution.
@@ -54,7 +53,11 @@ impl RemoteSessionContext {
         let mut conf: SessionConfig = opts.into();
 
         // Add in remote only extensions.
-        conf = conf.with_extension(Arc::new(StagedClientStreams::default()));
+        conf = conf
+            .with_extension(Arc::new(StagedClientStreams::default()))
+            .with_extension(Arc::new(catalog_mutator))
+            .with_extension(Arc::new(native_tables.clone()))
+            .with_extension(Arc::new(TempCatalog::default()));
 
         // TODO: Query planners for handling custom plans.
 
@@ -62,7 +65,6 @@ impl RemoteSessionContext {
 
         Ok(RemoteSessionContext {
             catalog,
-            catalog_mutator,
             tables: native_tables,
             df_ctx,
             _background_jobs: background_jobs,
@@ -81,7 +83,15 @@ impl RemoteSessionContext {
     /// Returns the extension codec used for serializing and deserializing data
     /// over RPCs.
     pub fn extension_codec(&self) -> GlareDBExtensionCodec<'_> {
-        GlareDBExtensionCodec::new_decoder(&self.provider_cache)
+        GlareDBExtensionCodec::new_decoder(&self.provider_cache, self.df_ctx.runtime_env())
+    }
+
+    fn catalog_mutator(&self) -> Arc<CatalogMutator> {
+        self.df_ctx
+            .state()
+            .config()
+            .get_extension::<CatalogMutator>()
+            .unwrap()
     }
 
     pub fn staged_streams(&self) -> Arc<StagedClientStreams> {
@@ -117,11 +127,11 @@ impl RemoteSessionContext {
         name: &str,
     ) -> Result<(Uuid, Arc<dyn TableProvider>)> {
         self.catalog
-            .maybe_refresh_state(self.catalog_mutator.get_metastore_client(), false)
+            .maybe_refresh_state(self.catalog_mutator().get_metastore_client(), false)
             .await?;
 
         let prov: Arc<dyn TableProvider> =
-            if let Some(tbl) = self.catalog.resolve_native_table(database, schema, name) {
+            if let Some(tbl) = self.catalog.resolve_table(database, schema, name) {
                 self.tables.load_table(tbl).await?.into_table_provider()
             } else {
                 // Since this is operating on a remote node, always disable local fs

@@ -39,6 +39,7 @@ use protogen::metastore::types::options::{
     TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
     TunnelOptionsSsh,
 };
+use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use sqlbuiltins::validation::{
     validate_copyto_dest_creds_support, validate_copyto_dest_format_support,
     validate_database_creds_support, validate_database_tunnel_support,
@@ -57,6 +58,7 @@ use crate::parser::{
 use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
+use crate::resolve::EntryResolver;
 
 use super::context_builder::PartialContextProvider;
 use super::extension::ExtensionNode;
@@ -515,7 +517,7 @@ impl<'a> SessionPlanner<'a> {
         let table_name = object_name_to_table_ref(stmt.name)?;
 
         let plan = CreateExternalTable {
-            table_name,
+            reference: self.ctx.resolve_table_ref(table_name)?,
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
             tunnel,
@@ -647,7 +649,7 @@ impl<'a> SessionPlanner<'a> {
                 };
 
                 Ok(CreateSchema {
-                    schema_name,
+                    reference: self.ctx.resolve_schema_ref(schema_name),
                     if_not_exists,
                 }
                 .into_logical_plan())
@@ -726,7 +728,11 @@ impl<'a> SessionPlanner<'a> {
                     let df_schema = df_schema.to_dfschema_ref()?;
 
                     let plan = CreateTempTable {
-                        table_name,
+                        reference: FullObjectReference {
+                            database: DEFAULT_CATALOG.into(),
+                            schema: CURRENT_SESSION_SCHEMA.into(),
+                            name: table_name.into(),
+                        },
                         schema: df_schema,
                         if_not_exists,
                         source,
@@ -737,7 +743,7 @@ impl<'a> SessionPlanner<'a> {
                     let df_schema = Schema::new(arrow_cols.clone());
                     let df_schema = df_schema.to_dfschema_ref()?;
                     let create_table = CreateTable {
-                        table_name: table_name.to_owned_reference(),
+                        reference: self.ctx.resolve_table_ref(table_name)?,
                         schema: df_schema,
                         if_not_exists,
                         source,
@@ -792,7 +798,7 @@ impl<'a> SessionPlanner<'a> {
                     })
                 } else {
                     Ok(CreateView {
-                        view_name: name,
+                        reference: self.ctx.resolve_table_ref(name)?,
                         sql: query_string,
                         columns,
                         or_replace,
@@ -830,13 +836,12 @@ impl<'a> SessionPlanner<'a> {
                     .insert_to_source_plan(&table_name, &columns, source)
                     .await?;
 
-                let table_provider = context_provider.table_provider(table_name).await?;
+                let resolver = EntryResolver::from_context(self.ctx);
+                let ent = resolver
+                    .resolve_entry_from_reference(table_name)?
+                    .try_into_table_entry()?;
 
-                Ok(WritePlan::Insert(Insert {
-                    table_provider,
-                    source,
-                })
-                .into())
+                Ok(Insert { table: ent, source }.into_logical_plan())
             }
 
             ast::Statement::AlterTable {
@@ -848,7 +853,11 @@ impl<'a> SessionPlanner<'a> {
 
                 validate_object_name(&table_name)?;
                 let new_name = object_name_to_table_ref(table_name)?;
-                Ok(AlterTableRename { name, new_name }.into_logical_plan())
+                Ok(AlterTableRename {
+                    reference: self.ctx.resolve_table_ref(name)?,
+                    new_reference: self.ctx.resolve_table_ref(new_name)?,
+                }
+                .into_logical_plan())
             }
 
             // Drop tables
@@ -862,12 +871,12 @@ impl<'a> SessionPlanner<'a> {
                 for name in names.into_iter() {
                     validate_object_name(&name)?;
                     let r = object_name_to_table_ref(name)?;
-                    refs.push(r);
+                    refs.push(self.ctx.resolve_table_ref(r)?);
                 }
 
                 let plan = DropTables {
                     if_exists,
-                    names: refs,
+                    references: refs,
                 };
                 Ok(plan.into_logical_plan())
             }
@@ -883,11 +892,11 @@ impl<'a> SessionPlanner<'a> {
                 for name in names.into_iter() {
                     validate_object_name(&name)?;
                     let r = object_name_to_table_ref(name)?;
-                    refs.push(r);
+                    refs.push(self.ctx.resolve_table_ref(r)?);
                 }
                 Ok(DropViews {
                     if_exists,
-                    names: refs,
+                    references: refs,
                 }
                 .into_logical_plan())
             }
@@ -904,11 +913,11 @@ impl<'a> SessionPlanner<'a> {
                 for name in names.into_iter() {
                     validate_object_name(&name)?;
                     let r = object_name_to_schema_ref(name)?;
-                    refs.push(r);
+                    refs.push(self.ctx.resolve_schema_ref(r));
                 }
                 Ok(DropSchemas {
                     if_exists,
-                    names: refs,
+                    references: refs,
                     cascade,
                 }
                 .into_logical_plan())
@@ -935,10 +944,7 @@ impl<'a> SessionPlanner<'a> {
                 variable,
                 value,
                 ..
-            } => Ok(
-                VariablePlan::SetVariable(SetVariable::try_new(variable.to_string(), value)?)
-                    .into(),
-            ),
+            } => Ok(SetVariable::try_new(variable.to_string(), value)?.into_logical_plan()),
 
             // "SHOW ..."
             //
@@ -959,7 +965,7 @@ impl<'a> SessionPlanner<'a> {
                     variable.pop().unwrap()
                 };
 
-                Ok(VariablePlan::ShowVariable(ShowVariable { variable }).into())
+                Ok(ShowVariable::new(variable).into_logical_plan())
             }
 
             // "DELETE FROM <table> WHERE <expression>"
@@ -1012,11 +1018,20 @@ impl<'a> SessionPlanner<'a> {
                     None
                 };
 
-                Ok(WritePlan::Delete(Delete {
-                    table_name,
+                let resolver = EntryResolver::from_context(self.ctx);
+                let ent = resolver
+                    .resolve_entry_from_reference(table_name)?
+                    .try_into_table_entry()?;
+                // External deletes not supported yet.
+                if ent.meta.external {
+                    return Err(PlanError::UnsupportedFeature("DELETE with external tables"));
+                }
+
+                Ok(Delete {
+                    table: ent,
                     where_expr,
-                })
-                .into())
+                }
+                .into_logical_plan())
             }
 
             // "UPDATE <table_name> SET <col1> = <value_expression> WHERE <expression>"
@@ -1070,12 +1085,21 @@ impl<'a> SessionPlanner<'a> {
                     None
                 };
 
-                Ok(WritePlan::Update(Update {
-                    table_name,
+                let resolver = EntryResolver::from_context(self.ctx);
+                let ent = resolver
+                    .resolve_entry_from_reference(table_name)?
+                    .try_into_table_entry()?;
+                // External updates not supported yet.
+                if ent.meta.external {
+                    return Err(PlanError::UnsupportedFeature("UPDATE with external tables"));
+                }
+
+                Ok(Update {
+                    table: ent,
                     updates,
                     where_expr,
-                })
-                .into())
+                }
+                .into_logical_plan())
             }
 
             stmt => Err(PlanError::UnsupportedSQLStatement(stmt.to_string())),
@@ -1331,12 +1355,13 @@ impl<'a> SessionPlanner<'a> {
                 source: Box::new(e),
             }
         })?;
-        Ok(WritePlan::CopyTo(CopyTo {
-            source,
-            dest,
+
+        Ok(CopyTo {
             format,
-        })
-        .into())
+            dest,
+            source,
+        }
+        .into_logical_plan())
     }
 
     fn get_tunnel_opts(&self, tunnel: &Option<String>) -> Result<Option<TunnelOptions>> {

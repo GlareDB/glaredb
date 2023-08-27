@@ -10,21 +10,23 @@ mod create_table;
 mod create_temp_table;
 mod create_tunnel;
 mod create_view;
+mod delete;
 mod drop_credentials;
 mod drop_database;
 mod drop_schemas;
 mod drop_tables;
 mod drop_tunnel;
 mod drop_views;
+mod insert;
 mod set_variable;
 mod show_variable;
+mod update;
 
 use crate::errors::{internal, Result};
 use crate::planner::extension::ExtensionNode;
 
-use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
-use datafusion::common::{DFSchema, DFSchemaRef, OwnedSchemaReference, OwnedTableReference};
-use datafusion::datasource::TableProvider;
+use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema};
+use datafusion::common::{DFField, DFSchema, DFSchemaRef};
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 use datafusion::prelude::SessionContext;
@@ -39,7 +41,9 @@ use protogen::metastore::types::options::{
     CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
 };
 use protogen::ProtoConvError;
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 
 pub use alter_database_rename::*;
@@ -54,28 +58,49 @@ pub use create_table::*;
 pub use create_temp_table::*;
 pub use create_tunnel::*;
 pub use create_view::*;
+pub use delete::*;
 pub use drop_credentials::*;
 pub use drop_database::*;
 pub use drop_schemas::*;
 pub use drop_tables::*;
 pub use drop_tunnel::*;
 pub use drop_views::*;
+pub use insert::*;
 pub use set_variable::*;
 pub use show_variable::*;
+pub use update::*;
 
-static EMPTY_SCHEMA: Lazy<Arc<DFSchema>> = Lazy::new(|| Arc::new(DFSchema::empty()));
+use super::physical_plan::{
+    GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA, GENERIC_OPERATION_PHYSICAL_SCHEMA,
+};
+
+pub static GENERIC_OPERATION_LOGICAL_SCHEMA: Lazy<DFSchemaRef> = Lazy::new(|| {
+    Arc::new(
+        GENERIC_OPERATION_PHYSICAL_SCHEMA
+            .as_ref()
+            .clone()
+            .try_into()
+            .unwrap(),
+    )
+});
+
+pub static GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA: Lazy<DFSchemaRef> = Lazy::new(|| {
+    Arc::new(
+        GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA
+            .as_ref()
+            .clone()
+            .try_into()
+            .unwrap(),
+    )
+});
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
-    /// Write plans.
-    Write(WritePlan),
     /// Plans related to querying the underlying data store. This will run
     /// through datafusion.
     Datafusion(DfLogicalPlan),
     /// Plans related to transaction management.
     Transaction(TransactionPlan),
-    /// Plans related to altering the state or runtime of the session.
-    Variable(VariablePlan),
 }
 
 impl LogicalPlan {
@@ -95,9 +120,6 @@ impl LogicalPlan {
                 let schema: ArrowSchema = plan.schema().as_ref().into();
                 Some(schema)
             }
-            LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => Some(ArrowSchema::new(
-                vec![Field::new(&plan.variable, DataType::Utf8, false)],
-            )),
             _ => None,
         }
     }
@@ -151,67 +173,72 @@ impl From<DfLogicalPlan> for LogicalPlan {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum WritePlan {
-    Insert(Insert),
-    CopyTo(CopyTo),
-    Delete(Delete),
-    Update(Update),
+/// A fully qualified reference to a database object.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FullObjectReference<'a> {
+    pub database: Cow<'a, str>,
+    pub schema: Cow<'a, str>,
+    pub name: Cow<'a, str>,
 }
 
-impl From<WritePlan> for LogicalPlan {
-    fn from(plan: WritePlan) -> Self {
-        LogicalPlan::Write(plan)
+pub type OwnedFullObjectReference = FullObjectReference<'static>;
+
+impl<'a> fmt::Display for FullObjectReference<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.database, self.schema, self.name)
     }
 }
 
-#[derive(Clone)]
-pub struct Insert {
-    pub table_provider: Arc<dyn TableProvider>,
-    pub source: DfLogicalPlan,
-}
-
-impl std::fmt::Debug for Insert {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Insert")
-            .field("source", &self.source)
-            .field("table_provider", &self.table_provider.schema())
-            .finish()
+impl<'a> From<protogen::sqlexec::common::FullObjectReference> for FullObjectReference<'a> {
+    fn from(value: protogen::sqlexec::common::FullObjectReference) -> Self {
+        FullObjectReference {
+            database: value.database.into(),
+            schema: value.schema.into(),
+            name: value.name.into(),
+        }
     }
 }
 
-#[derive(Clone)]
-pub struct Delete {
-    pub table_name: OwnedTableReference,
-    pub where_expr: Option<Expr>,
-}
-
-impl std::fmt::Debug for Delete {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Delete")
-            .field("table_name", &self.table_name.schema())
-            .field("where_expr", &self.where_expr)
-            .finish()
+impl<'a> From<FullObjectReference<'a>> for protogen::sqlexec::common::FullObjectReference {
+    fn from(value: FullObjectReference) -> Self {
+        Self {
+            database: value.database.into(),
+            schema: value.schema.into(),
+            name: value.name.into(),
+        }
     }
 }
 
-#[derive(Clone)]
-pub struct Update {
-    pub table_name: OwnedTableReference,
-    pub updates: Vec<(String, Expr)>,
-    pub where_expr: Option<Expr>,
+/// A fully qualified reference to a database schema.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FullSchemaReference<'a> {
+    pub database: Cow<'a, str>,
+    pub schema: Cow<'a, str>,
 }
 
-impl std::fmt::Debug for Update {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Update")
-            .field("table_name", &self.table_name.schema())
-            .field(
-                "updates",
-                &self.updates.iter().map(|(k, v)| (k, v.to_string())),
-            )
-            .field("where_expr", &self.where_expr)
-            .finish()
+pub type OwnedFullSchemaReference = FullSchemaReference<'static>;
+
+impl<'a> fmt::Display for FullSchemaReference<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}", self.database, self.schema)
+    }
+}
+
+impl<'a> From<protogen::sqlexec::common::FullSchemaReference> for FullSchemaReference<'a> {
+    fn from(value: protogen::sqlexec::common::FullSchemaReference) -> Self {
+        FullSchemaReference {
+            database: value.database.into(),
+            schema: value.schema.into(),
+        }
+    }
+}
+
+impl<'a> From<FullSchemaReference<'a>> for protogen::sqlexec::common::FullSchemaReference {
+    fn from(value: FullSchemaReference) -> Self {
+        Self {
+            database: value.database.into(),
+            schema: value.schema.into(),
+        }
     }
 }
 
@@ -225,17 +252,5 @@ pub enum TransactionPlan {
 impl From<TransactionPlan> for LogicalPlan {
     fn from(plan: TransactionPlan) -> Self {
         LogicalPlan::Transaction(plan)
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum VariablePlan {
-    SetVariable(SetVariable),
-    ShowVariable(ShowVariable),
-}
-
-impl From<VariablePlan> for LogicalPlan {
-    fn from(plan: VariablePlan) -> Self {
-        LogicalPlan::Variable(plan)
     }
 }
