@@ -101,7 +101,7 @@ pub fn init(verbosity: impl Into<Verbosity>, json: bool) {
         let subscriber = with_env_filter(builder.finish());
         subscriber::set_global_default(subscriber).unwrap();
     } else {
-        let builder = default_fmt_builder(level);
+        let builder = default_fmt_builder(level).pretty();
         let subscriber = with_env_filter(builder.finish());
         subscriber::set_global_default(subscriber).unwrap();
     }
