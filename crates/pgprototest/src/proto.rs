@@ -166,7 +166,7 @@ fn is_ignored(msg: &SerializedMessage, args: &HashMap<String, Vec<String>>) -> b
         Some(a) => a,
         None => return false,
     };
-    msg_args.iter().find(|s| s.as_str() == "ignore").is_some()
+    msg_args.iter().any(|s| s.as_str() == "ignore")
 }
 
 struct PgConn {
