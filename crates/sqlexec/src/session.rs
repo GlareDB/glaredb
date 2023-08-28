@@ -1,76 +1,165 @@
 use std::fmt;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
 use crate::planner::context_builder::PartialContextProvider;
-use crate::planner::extension::{ExtensionNode, ExtensionType};
+use crate::planner::physical_plan::{
+    get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
+    GENERIC_OPERATION_PHYSICAL_SCHEMA,
+};
 use crate::remote::client::RemoteClient;
+use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 use datafusion::arrow::datatypes::Schema;
+use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::OwnedTableReference;
 use datafusion::datasource::TableProvider;
-use datafusion::logical_expr::{Extension, LogicalPlan as DfLogicalPlan};
-use datafusion::physical_plan::empty::EmptyExec;
-use datafusion::physical_plan::insert::DataSink;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
-    execute_stream, memory::MemoryStream, ExecutionPlan, SendableRecordBatchStream,
+    execute_stream, EmptyRecordBatchStream, ExecutionPlan, RecordBatchStream,
+    SendableRecordBatchStream,
 };
+use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
-use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
-use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
-use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
-use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
 use datasources::native::access::NativeTableStorage;
-use datasources::object_store::gcs::GcsStoreAccess;
-use datasources::object_store::local::LocalStoreAccess;
-use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::ObjStoreAccess;
+use futures::{Stream, StreamExt};
 use pgrepr::format::Format;
-use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use telemetry::Tracker;
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::background_jobs::JobRunner;
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
 use crate::environment::EnvironmentReader;
-use crate::errors::{internal, Result};
+use crate::errors::Result;
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 
+/// The results of execution.
+pub struct ExecutionStream {
+    /// Inner results stream from execution.
+    inner: SendableRecordBatchStream,
+    /// Execution plan used to create the stream. Used for collecting metrics
+    /// for query execution.
+    // TODO: Remote Option once everything is executed through an execution
+    // plan.
+    plan: Option<Arc<dyn ExecutionPlan>>,
+}
+
+impl ExecutionStream {
+    pub fn empty() -> ExecutionStream {
+        ExecutionStream {
+            inner: Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty()))),
+            plan: None,
+        }
+    }
+
+    /// Inspect the stream to provide additional details.
+    pub async fn inspect_result(&mut self) -> ExecutionResult {
+        let schema = self.inner.schema();
+        // If we don't match either of these schemas, just assume these results
+        // are from a normal SELECT query.
+        if !(schema.eq(&GENERIC_OPERATION_PHYSICAL_SCHEMA)
+            || schema.eq(&GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA))
+        {
+            return ExecutionResult::Query;
+        }
+
+        let batch = match self.inner.next().await {
+            Some(Ok(batch)) => batch,
+            Some(Err(e)) => return ExecutionResult::Error(e),
+            None => return ExecutionResult::EmptyQuery,
+        };
+
+        // Our special batches contain only a single row. If we have more,
+        // assume that this is a user query (which would be weird since it
+        // matches our special schemas).
+        if batch.num_rows() != 1 {
+            self.swap_with_stream_and_first_result(Ok(batch));
+            return ExecutionResult::Query;
+        }
+
+        // Try to get the execution result type from the batch. Default to
+        // `Query` if we don't know how to translate it into a result.
+        let op = get_operation_from_batch(&batch).unwrap_or_default();
+        let count = get_count_from_batch(&batch);
+        let result =
+            ExecutionResult::from_str_and_count(&op, count).unwrap_or(ExecutionResult::Query);
+
+        // Put the batch we inspected back on the stream.
+        self.swap_with_stream_and_first_result(Ok(batch));
+
+        result
+    }
+
+    /// Helper for swapping out the stream with one that prepends `result`.
+    fn swap_with_stream_and_first_result(&mut self, result: DataFusionResult<RecordBatch>) {
+        let mut placeholder: SendableRecordBatchStream =
+            Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())));
+        std::mem::swap(&mut self.inner, &mut placeholder);
+        self.inner = Box::pin(StreamAndFirstResult {
+            stream: placeholder,
+            first_result: Some(result),
+        });
+    }
+
+    /// Swap out the stream with one that will record metrics on query completion.
+    // TODO: This could be a bit better integrated.
+    fn swap_with_metrics_stream(
+        &mut self,
+        pending: QueryMetrics,
+        sender: mpsc::Sender<QueryMetrics>,
+    ) {
+        let mut placeholder: SendableRecordBatchStream =
+            Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())));
+        std::mem::swap(&mut self.inner, &mut placeholder);
+
+        let metrics_stream =
+            BatchStreamWithMetricSender::new(placeholder, self.plan.clone(), pending, sender);
+
+        self.inner = Box::pin(metrics_stream)
+    }
+}
+
+impl Stream for ExecutionStream {
+    type Item = DataFusionResult<RecordBatch>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.inner.poll_next_unpin(cx)
+    }
+}
+
+impl RecordBatchStream for ExecutionStream {
+    fn schema(&self) -> Arc<Schema> {
+        self.inner.schema()
+    }
+}
+
 /// Results from a sql statement execution.
 pub enum ExecutionResult {
+    /// Execution errored.
+    Error(DataFusionError),
     /// The stream for the output of a query.
-    Query {
-        stream: SendableRecordBatchStream,
-        /// Plan used to create the stream. Used for getting metrics after the
-        /// stream completes.
-        ///
-        /// TODO: I would like to remove this. Putting the plan on the result
-        /// was the easiest way of providing everything needed to construct a
-        /// `BatchStreamWithMetricSender` without a bit more refactoring. This
-        /// stream requires physical plan and a starting set of execution
-        /// metrics, which are created separately.
-        plan: Arc<dyn ExecutionPlan>,
-    },
-    /// Showing a variable.
-    // TODO: We don't need to make a stream for this.
-    ShowVariable { stream: SendableRecordBatchStream },
-    /// No statement provided.
+    Query,
+    /// No batches returned.
     EmptyQuery,
     /// Transaction started.
     Begin,
     /// Transaction committed,
     Commit,
-    /// Transaction rolled abck.
+    /// Transaction rolled back.
     Rollback,
+    /// Data successfully inserted.
+    InsertSuccess { rows_inserted: usize },
     /// Data successfully deleted.
     DeleteSuccess { deleted_rows: usize },
     /// Data successfully updated.
     UpdateSuccess { updated_rows: usize },
-    /// Data successfully written.
-    WriteSuccess,
     /// Data successfully copied.
     CopySuccess,
     /// Table created.
@@ -92,7 +181,7 @@ pub enum ExecutionResult {
     /// A tunnel was altered.
     AlterTunnelRotateKeys,
     /// A client local variable was set.
-    SetLocal,
+    Set,
     /// Tables dropped.
     DropTables,
     /// Views dropped.
@@ -110,16 +199,16 @@ pub enum ExecutionResult {
 impl ExecutionResult {
     const fn result_type_str(&self) -> &'static str {
         match self {
+            ExecutionResult::Error(_) => "error",
             ExecutionResult::Query { .. } => "query",
-            ExecutionResult::ShowVariable { .. } => "show_variable",
             ExecutionResult::EmptyQuery => "empty_query",
             ExecutionResult::Begin => "begin",
             ExecutionResult::Commit => "commit",
             ExecutionResult::Rollback => "rollback",
-            ExecutionResult::WriteSuccess => "write_success",
-            ExecutionResult::CopySuccess => "copy_success",
-            ExecutionResult::DeleteSuccess { .. } => "delete_success",
-            ExecutionResult::UpdateSuccess { .. } => "update success",
+            ExecutionResult::InsertSuccess { .. } => "insert",
+            ExecutionResult::DeleteSuccess { .. } => "delete",
+            ExecutionResult::UpdateSuccess { .. } => "update",
+            ExecutionResult::CopySuccess => "copy",
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateTunnel => "create_tunnel",
@@ -129,7 +218,7 @@ impl ExecutionResult {
             ExecutionResult::AlterTableRename => "alter_table_rename",
             ExecutionResult::AlterDatabaseRename => "alter_database_rename",
             ExecutionResult::AlterTunnelRotateKeys => "alter_tunnel_rotate_keys",
-            ExecutionResult::SetLocal => "set_local",
+            ExecutionResult::Set => "set_local",
             ExecutionResult::DropTables => "drop_tables",
             ExecutionResult::DropViews => "drop_views",
             ExecutionResult::DropSchemas => "drop_schemas",
@@ -138,29 +227,63 @@ impl ExecutionResult {
             ExecutionResult::DropCredentials => "drop_credentials",
         }
     }
+
+    fn from_str_and_count(s: &str, count: Option<u64>) -> Option<ExecutionResult> {
+        Some(match s {
+            "begin" => ExecutionResult::Begin,
+            "commit" => ExecutionResult::Commit,
+            "rollback" => ExecutionResult::Rollback,
+            "insert" => ExecutionResult::InsertSuccess {
+                rows_inserted: count.unwrap_or_default() as usize,
+            },
+            "delete" => ExecutionResult::DeleteSuccess {
+                deleted_rows: count.unwrap_or_default() as usize,
+            },
+            "update" => ExecutionResult::UpdateSuccess {
+                updated_rows: count.unwrap_or_default() as usize,
+            },
+            "copy" => ExecutionResult::CopySuccess,
+            "create_table" => ExecutionResult::CreateTable,
+            "create_database" => ExecutionResult::CreateDatabase,
+            "create_tunnel" => ExecutionResult::CreateTunnel,
+            "create_credentials" => ExecutionResult::CreateCredentials,
+            "create_schema" => ExecutionResult::CreateSchema,
+            "create_view" => ExecutionResult::CreateView,
+            "alter_table_rename" => ExecutionResult::AlterTableRename,
+            "alter_database_rename" => ExecutionResult::AlterDatabaseRename,
+            "alter_tunnel_rotate_keys" => ExecutionResult::AlterTunnelRotateKeys,
+            "set" => ExecutionResult::Set,
+            "drop_tables" => ExecutionResult::DropTables,
+            "drop_views" => ExecutionResult::DropViews,
+            "drop_schemas" => ExecutionResult::DropSchemas,
+            "drop_database" => ExecutionResult::DropDatabase,
+            "drop_tunnel" => ExecutionResult::DropTunnel,
+            "drop_credentials" => ExecutionResult::DropCredentials,
+            _ => return None,
+        })
+    }
 }
 
 impl fmt::Display for ExecutionResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ExecutionResult::Query { stream, .. } => {
-                let fields: Vec<_> = stream
-                    .schema()
-                    .fields()
-                    .iter()
-                    .map(|f| f.name().clone())
-                    .collect();
-                write!(f, "Query ({})", fields.join(", "))
+            ExecutionResult::Error(e) => {
+                write!(f, "Execution error: {e}")
             }
-            ExecutionResult::ShowVariable { .. } => {
-                write!(f, "Show")
+            ExecutionResult::Query => {
+                write!(f, "Query")
             }
             ExecutionResult::EmptyQuery => write!(f, "No results"),
             ExecutionResult::Begin => write!(f, "Begin"),
             ExecutionResult::Commit => write!(f, "Commit"),
             ExecutionResult::Rollback => write!(f, "Rollback"),
-            ExecutionResult::WriteSuccess => write!(f, "Write success"),
-            ExecutionResult::CopySuccess => write!(f, "Copy success"),
+            ExecutionResult::InsertSuccess { rows_inserted } => {
+                if *rows_inserted == 1 {
+                    write!(f, "Inserted 1 row")
+                } else {
+                    write!(f, "Inserted {} rows", rows_inserted)
+                }
+            }
             ExecutionResult::DeleteSuccess { deleted_rows } => {
                 if *deleted_rows == 1 {
                     write!(f, "Deleted 1 row")
@@ -175,6 +298,7 @@ impl fmt::Display for ExecutionResult {
                     write!(f, "Updated {} rows", updated_rows)
                 }
             }
+            ExecutionResult::CopySuccess => write!(f, "Copy success"),
             ExecutionResult::CreateTable => write!(f, "Table created"),
             ExecutionResult::CreateDatabase => write!(f, "Database created"),
             ExecutionResult::CreateTunnel => write!(f, "Tunnel created"),
@@ -184,7 +308,7 @@ impl fmt::Display for ExecutionResult {
             ExecutionResult::AlterTableRename => write!(f, "Table renamed"),
             ExecutionResult::AlterDatabaseRename => write!(f, "Database renamed"),
             ExecutionResult::AlterTunnelRotateKeys => write!(f, "Keys rotated"),
-            ExecutionResult::SetLocal => write!(f, "Local variable set"),
+            ExecutionResult::Set => write!(f, "Local variable set"),
             ExecutionResult::DropTables => write!(f, "Table(s) dropped"),
             ExecutionResult::DropViews => write!(f, "View(s) dropped"),
             ExecutionResult::DropSchemas => write!(f, "Schema(s) dropped"),
@@ -192,6 +316,30 @@ impl fmt::Display for ExecutionResult {
             ExecutionResult::DropTunnel => write!(f, "Tunnel(s) dropped"),
             ExecutionResult::DropCredentials => write!(f, "Credentials dropped"),
         }
+    }
+}
+
+/// Simple stream adapter to use after we've inspected the first batch in a
+/// stream.
+struct StreamAndFirstResult {
+    stream: SendableRecordBatchStream,
+    first_result: Option<DataFusionResult<RecordBatch>>,
+}
+
+impl Stream for StreamAndFirstResult {
+    type Item = DataFusionResult<RecordBatch>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(batch) = self.first_result.take() {
+            return Poll::Ready(Some(batch));
+        }
+        self.stream.poll_next_unpin(cx)
+    }
+}
+
+impl RecordBatchStream for StreamAndFirstResult {
+    fn schema(&self) -> Arc<Schema> {
+        self.stream.schema()
     }
 }
 
@@ -266,122 +414,24 @@ impl Session {
 
     /// Create a physical plan for a given datafusion logical plan.
     pub async fn create_physical_plan(
-        &mut self,
+        &self,
         plan: DfLogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();
-
-        // TODO!: these should be pushed down to physical execs,
-        // currently we need to early exit on extension nodes as we don't have a physical exec for them.
-        match plan {
-            DfLogicalPlan::Extension(ref extension) if self.is_main_instance() => {
-                let _exec_res = self.execute_extension(extension).await?;
-                Ok(Arc::new(EmptyExec::new(false, Schema::empty().into())))
-            }
-            plan => {
-                let plan = state.create_physical_plan(&plan).await?;
-                Ok(plan)
-            }
-        }
-    }
-
-    pub async fn execute_extension(&mut self, extension: &Extension) -> Result<ExecutionResult> {
-        let node = extension.node.name().parse::<ExtensionType>()?;
-
-        match node {
-            ExtensionType::CreateTable => {
-                let create_table = CreateTable::try_decode_extension(extension)?;
-                self.create_table(create_table).await?;
-                Ok(ExecutionResult::CreateTable)
-            }
-            ExtensionType::CreateExternalTable => {
-                let create_table = CreateExternalTable::try_decode_extension(extension)?;
-                self.create_external_table(create_table).await?;
-                Ok(ExecutionResult::CreateTable)
-            }
-            ExtensionType::CreateSchema => {
-                let create_schema = CreateSchema::try_decode_extension(extension)?;
-                self.create_schema(create_schema).await?;
-                Ok(ExecutionResult::CreateSchema)
-            }
-            ExtensionType::DropTables => {
-                let drop_tables = DropTables::try_decode_extension(extension)?;
-                self.drop_tables(drop_tables).await?;
-                Ok(ExecutionResult::DropTables)
-            }
-            ExtensionType::AlterTableRename => {
-                let alter_table_rename = AlterTableRename::try_decode_extension(extension)?;
-                self.alter_table_rename(alter_table_rename).await?;
-                Ok(ExecutionResult::AlterTableRename)
-            }
-            ExtensionType::AlterDatabaseRename => {
-                let alter_database_rename = AlterDatabaseRename::try_decode_extension(extension)?;
-                self.alter_database_rename(alter_database_rename).await?;
-                Ok(ExecutionResult::AlterDatabaseRename)
-            }
-            ExtensionType::AlterTunnelRotateKeys => {
-                let alter_tunnel_rotate_keys =
-                    AlterTunnelRotateKeys::try_decode_extension(extension)?;
-                self.alter_tunnel_rotate_keys(alter_tunnel_rotate_keys)
-                    .await?;
-                Ok(ExecutionResult::AlterTunnelRotateKeys)
-            }
-            ExtensionType::CreateCredentials => {
-                let create_credentials = CreateCredentials::try_decode_extension(extension)?;
-                self.create_credentials(create_credentials).await?;
-                Ok(ExecutionResult::CreateCredentials)
-            }
-            ExtensionType::CreateExternalDatabase => {
-                let create_database = CreateExternalDatabase::try_decode_extension(extension)?;
-                self.create_database(create_database).await?;
-                Ok(ExecutionResult::CreateDatabase)
-            }
-            ExtensionType::CreateTunnel => {
-                let create_tunnel = CreateTunnel::try_decode_extension(extension)?;
-                self.create_tunnel(create_tunnel).await?;
-                Ok(ExecutionResult::CreateTunnel)
-            }
-            ExtensionType::CreateTempTable => {
-                let create_temp_table = CreateTempTable::try_decode_extension(extension)?;
-                self.create_temp_table(create_temp_table).await?;
-                Ok(ExecutionResult::CreateTable)
-            }
-            ExtensionType::CreateView => {
-                let create_view = CreateView::try_decode_extension(extension)?;
-                self.create_view(create_view).await?;
-                Ok(ExecutionResult::CreateView)
-            }
-            ExtensionType::DropCredentials => {
-                let drop_credentials = DropCredentials::try_decode_extension(extension)?;
-                self.drop_credentials(drop_credentials).await?;
-                Ok(ExecutionResult::DropCredentials)
-            }
-            ExtensionType::DropDatabase => {
-                let drop_database = DropDatabase::try_decode_extension(extension)?;
-                self.drop_database(drop_database).await?;
-                Ok(ExecutionResult::DropDatabase)
-            }
-            ExtensionType::DropSchemas => {
-                let drop_schemas = DropSchemas::try_decode_extension(extension)?;
-                self.drop_schemas(drop_schemas).await?;
-                Ok(ExecutionResult::DropSchemas)
-            }
-            ExtensionType::DropTunnel => {
-                let drop_tunnel = DropTunnel::try_decode_extension(extension)?;
-                self.drop_tunnel(drop_tunnel).await?;
-                Ok(ExecutionResult::DropTunnel)
-            }
-            ExtensionType::DropViews => {
-                let drop_views = DropViews::try_decode_extension(extension)?;
-                self.drop_views(drop_views).await?;
-                Ok(ExecutionResult::DropViews)
-            }
-            ExtensionType::SetVariable => {
-                let set_variable = SetVariable::try_decode_extension(extension)?;
-                self.set_variable(set_variable)?;
-                Ok(ExecutionResult::SetLocal)
-            }
-            other => Err(internal!("Unsupported extension node type: {:?}", other)),
+        let plan = state.optimize(&plan)?;
+        if let Some(client) = self.ctx.exec_client() {
+            let planner = RemotePhysicalPlanner {
+                remote_client: client,
+                catalog: self.ctx.get_session_catalog(),
+            };
+            let plan = planner.create_physical_plan(&plan, &state).await?;
+            Ok(plan)
+        } else {
+            let ddl_planner = DDLExtensionPlanner::new(self.ctx.get_session_catalog().version());
+            let planner =
+                DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(ddl_planner)]);
+            let plan = planner.create_physical_plan(&plan, &state).await?;
+            Ok(plan)
         }
     }
 
@@ -403,202 +453,6 @@ impl Session {
         let state = self.ctx.df_ctx().state();
         let mut ctx_provider = PartialContextProvider::new(&self.ctx, &state)?;
         Ok(ctx_provider.table_provider(table_ref).await?)
-    }
-
-    pub(crate) async fn create_table(
-        &mut self,
-        plan: CreateTable,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
-        let schema = plan.schema.as_ref().clone();
-        self.ctx.create_table(plan).await?;
-        Ok(Arc::new(EmptyExec::new(false, schema.into())))
-    }
-
-    pub(crate) async fn create_temp_table(&mut self, plan: CreateTempTable) -> Result<()> {
-        self.ctx.create_temp_table(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_external_table(&mut self, plan: CreateExternalTable) -> Result<()> {
-        self.ctx.create_external_table(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_schema(&mut self, plan: CreateSchema) -> Result<()> {
-        self.ctx.create_schema(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_database(&mut self, plan: CreateExternalDatabase) -> Result<()> {
-        self.ctx.create_external_database(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_tunnel(&mut self, plan: CreateTunnel) -> Result<()> {
-        self.ctx.create_tunnel(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_credentials(&mut self, plan: CreateCredentials) -> Result<()> {
-        self.ctx.create_credentials(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn create_view(&mut self, plan: CreateView) -> Result<()> {
-        self.ctx.create_view(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn alter_table_rename(&mut self, plan: AlterTableRename) -> Result<()> {
-        self.ctx.alter_table_rename(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn alter_database_rename(&mut self, plan: AlterDatabaseRename) -> Result<()> {
-        self.ctx.alter_database_rename(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn alter_tunnel_rotate_keys(
-        &mut self,
-        plan: AlterTunnelRotateKeys,
-    ) -> Result<()> {
-        self.ctx.alter_tunnel_rotate_keys(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn drop_tables(&mut self, plan: DropTables) -> Result<()> {
-        self.ctx.drop_tables(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn drop_views(&mut self, plan: DropViews) -> Result<()> {
-        self.ctx.drop_views(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn drop_schemas(&mut self, plan: DropSchemas) -> Result<()> {
-        self.ctx.drop_schemas(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn drop_database(&mut self, plan: DropDatabase) -> Result<()> {
-        self.ctx.drop_database(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn drop_tunnel(&mut self, plan: DropTunnel) -> Result<()> {
-        self.ctx.drop_tunnel(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn drop_credentials(&mut self, plan: DropCredentials) -> Result<()> {
-        self.ctx.drop_credentials(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) fn set_variable(&mut self, plan: SetVariable) -> Result<()> {
-        self.ctx.get_session_vars().write().set(
-            &plan.variable,
-            &plan.values,
-            VarType::UserDefined,
-        )?;
-        Ok(())
-    }
-
-    pub(crate) async fn insert_into(&mut self, plan: Insert) -> Result<()> {
-        self.ctx.insert(plan).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn plan_copy_to(&mut self, plan: CopyTo) -> Result<()> {
-        fn get_sink_for_obj(
-            format: CopyToFormatOptions,
-            access: &dyn ObjStoreAccess,
-            location: &str,
-        ) -> Result<Box<dyn DataSink>> {
-            let store = access.create_store()?;
-            let path = access.path(location)?;
-
-            let sink: Box<dyn DataSink> = match format {
-                CopyToFormatOptions::Csv(csv_opts) => Box::new(CsvSink::from_obj_store(
-                    store,
-                    path,
-                    CsvSinkOpts {
-                        delim: csv_opts.delim,
-                        header: csv_opts.header,
-                    },
-                )),
-                CopyToFormatOptions::Parquet(parquet_opts) => {
-                    Box::new(ParquetSink::from_obj_store(
-                        store,
-                        path,
-                        ParquetSinkOpts {
-                            row_group_size: parquet_opts.row_group_size,
-                        },
-                    ))
-                }
-                CopyToFormatOptions::Json(json_opts) => Box::new(JsonSink::from_obj_store(
-                    store,
-                    path,
-                    JsonSinkOpts {
-                        array: json_opts.array,
-                    },
-                )),
-            };
-            Ok(sink)
-        }
-
-        let sink = match (plan.dest, plan.format) {
-            (CopyToDestinationOptions::Local(local_options), format) => {
-                {
-                    // Create the path if it doesn't exist (for local).
-                    let _ = tokio::fs::File::create(&local_options.location).await?;
-                }
-                let access = LocalStoreAccess;
-                get_sink_for_obj(format, &access, &local_options.location)?
-            }
-            (CopyToDestinationOptions::Gcs(gcs_options), format) => {
-                let access = GcsStoreAccess {
-                    bucket: gcs_options.bucket,
-                    service_account_key: gcs_options.service_account_key,
-                };
-                get_sink_for_obj(format, &access, &gcs_options.location)?
-            }
-            (CopyToDestinationOptions::S3(s3_options), format) => {
-                let access = S3StoreAccess {
-                    region: s3_options.region,
-                    bucket: s3_options.bucket,
-                    access_key_id: s3_options.access_key_id,
-                    secret_access_key: s3_options.secret_access_key,
-                };
-                get_sink_for_obj(format, &access, &s3_options.location)?
-            }
-        };
-
-        let physical = self.create_physical_plan(plan.source).await?;
-        let stream = self.execute_physical(physical)?;
-        sink.write_all(stream, &self.ctx.task_context()).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn delete(&mut self, plan: Delete) -> Result<usize> {
-        self.ctx.delete(plan).await
-    }
-
-    pub(crate) async fn update(&mut self, plan: Update) -> Result<usize> {
-        self.ctx.update(plan).await
-    }
-
-    pub(crate) fn show_variable(&self, plan: ShowVariable) -> Result<SendableRecordBatchStream> {
-        let var = self.ctx.get_session_vars();
-        let var = var.read();
-        let var = var.get(&plan.variable)?;
-        let batch = var.record_batch();
-        let schema = batch.schema();
-        // Creating this stream should never error.
-        let stream = MemoryStream::try_new(vec![batch], schema, None).unwrap();
-        Ok(Box::pin(stream))
     }
 
     pub fn get_session_vars(&self) -> SessionVars {
@@ -655,57 +509,23 @@ impl Session {
             .bind_statement(portal_name, stmt_name, params, result_formats)
     }
 
-    pub fn is_main_instance(&self) -> bool {
-        self.ctx.get_session_vars().remote_session_id().is_none()
-    }
-
-    pub async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionResult> {
+    pub async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionStream> {
         // Note that transaction support is fake, in that we don't currently do
         // anything and do not provide any transactional semantics.
         //
         // We stub out transaction commands since many tools (even BI ones) will
         // try to open a transaction for some queries.
-        let result = match plan {
-            LogicalPlan::Transaction(plan) => match plan {
-                TransactionPlan::Begin => ExecutionResult::Begin,
-                TransactionPlan::Commit => ExecutionResult::Commit,
-                TransactionPlan::Abort => ExecutionResult::Rollback,
-            },
-            LogicalPlan::Write(WritePlan::Insert(plan)) => {
-                self.insert_into(plan).await?;
-                ExecutionResult::WriteSuccess
-            }
-            LogicalPlan::Write(WritePlan::CopyTo(plan)) => {
-                self.plan_copy_to(plan).await?;
-                ExecutionResult::CopySuccess
-            }
-            LogicalPlan::Write(WritePlan::Delete(plan)) => {
-                let deleted_rows = self.delete(plan).await?;
-                ExecutionResult::DeleteSuccess { deleted_rows }
-            }
-            LogicalPlan::Write(WritePlan::Update(plan)) => {
-                let updated_rows = self.update(plan).await?;
-                ExecutionResult::UpdateSuccess { updated_rows }
-            }
+        match plan {
+            LogicalPlan::Transaction(_plan) => Ok(ExecutionStream::empty()),
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan).await?;
                 let stream = self.execute_physical(physical.clone())?;
-                ExecutionResult::Query {
-                    stream,
-                    plan: physical,
-                }
+                Ok(ExecutionStream {
+                    inner: stream,
+                    plan: Some(physical),
+                })
             }
-            LogicalPlan::Variable(VariablePlan::SetVariable(plan)) => {
-                self.set_variable(plan)?;
-                ExecutionResult::SetLocal
-            }
-            LogicalPlan::Variable(VariablePlan::ShowVariable(plan)) => {
-                let stream = self.show_variable(plan)?;
-                ExecutionResult::ShowVariable { stream }
-            }
-        };
-
-        Ok(result)
+        }
     }
 
     /// Execute a portal.
@@ -716,25 +536,34 @@ impl Session {
         &mut self,
         portal_name: &str,
         _max_rows: i32,
-    ) -> Result<ExecutionResult> {
+    ) -> Result<ExecutionStream> {
         // Flush any completed metrics.
         self.ctx.get_metrics_mut().flush_completed();
 
         let portal = self.ctx.get_portal(portal_name)?;
         let plan = match &portal.stmt.plan {
             Some(plan) => plan.clone(),
-            None => return Ok(ExecutionResult::EmptyQuery),
+            None => return Ok(ExecutionStream::empty()),
         };
 
         // Create "base" metrics.
         let mut metrics = QueryMetrics::new_for_portal(portal);
 
-        let result = self.execute_inner(plan).await;
-        let result = match result {
-            Ok(result) => {
-                metrics.execution_status = ExecutionStatus::Success;
-                metrics.result_type = result.result_type_str();
-                result
+        let mut stream = match self.execute_inner(plan).await {
+            Ok(mut stream) => {
+                let result = stream.inspect_result().await;
+                match result {
+                    ExecutionResult::Error(e) => {
+                        metrics.execution_status = ExecutionStatus::Fail;
+                        metrics.error_message = Some(e.to_string());
+                        return Err(e.into());
+                    }
+                    result => {
+                        metrics.execution_status = ExecutionStatus::Success;
+                        metrics.result_type = result.result_type_str();
+                        stream
+                    }
+                }
             }
             Err(e) => {
                 metrics.execution_status = ExecutionStatus::Fail;
@@ -748,28 +577,12 @@ impl Session {
             }
         };
 
-        // If we're running a query, then swap out the batch stream with one
-        // that will send metrics at the completions of the stream.
-        match result {
-            ExecutionResult::Query { stream, plan } => {
-                let sender = self.ctx.get_metrics().get_sender();
-                Ok(ExecutionResult::Query {
-                    stream: Box::pin(BatchStreamWithMetricSender::new(
-                        stream,
-                        plan.clone(),
-                        metrics,
-                        sender,
-                    )),
-                    plan,
-                })
-            }
-            result => {
-                // Query not async (already completed), we're good to go ahead
-                // and push this metric.
-                self.ctx.get_metrics_mut().push_metric(metrics);
-                Ok(result)
-            }
-        }
+        // Swap out the batch stream with one that will send metrics at the
+        // completions of the stream.
+        let sender = self.ctx.get_metrics().get_sender();
+        stream.swap_with_metrics_stream(metrics, sender);
+
+        Ok(stream)
     }
 
     pub async fn sql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {

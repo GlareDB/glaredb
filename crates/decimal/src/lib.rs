@@ -78,10 +78,7 @@ pub struct Decimal<T: DecimalType> {
 
 impl<T: DecimalType> Clone for Decimal<T> {
     fn clone(&self) -> Self {
-        Self {
-            mantissa: self.mantissa(),
-            scale: self.scale(),
-        }
+        *self
     }
 }
 
@@ -648,5 +645,16 @@ mod tests {
             assert_eq!(d.mantissa(), m);
             assert_eq!(d.scale(), s);
         }
+    }
+
+    #[test]
+    fn test_copy_and_eq() {
+        let mut x = Decimal128::new(123, 2).unwrap();
+        let y = x;
+        x.rescale(4);
+
+        assert_ne!(x, y);
+        assert_eq!(x, Decimal128::new(12300, 4).unwrap());
+        assert_eq!(y, Decimal128::new(123, 2).unwrap());
     }
 }

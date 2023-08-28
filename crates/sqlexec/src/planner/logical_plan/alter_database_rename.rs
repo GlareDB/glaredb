@@ -18,7 +18,7 @@ impl UserDefinedLogicalNodeCore for AlterDatabaseRename {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+        &GENERIC_OPERATION_LOGICAL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {
@@ -51,7 +51,7 @@ impl ExtensionNode for AlterDatabaseRename {
             new_name: proto.new_name,
         })
     }
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!(

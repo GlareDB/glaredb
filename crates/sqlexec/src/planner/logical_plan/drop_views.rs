@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DropViews {
-    pub names: Vec<OwnedTableReference>,
+    pub view_references: Vec<OwnedFullObjectReference>,
     pub if_exists: bool,
 }
 
@@ -16,7 +16,7 @@ impl UserDefinedLogicalNodeCore for DropViews {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+        &GENERIC_OPERATION_LOGICAL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {
@@ -44,18 +44,18 @@ impl ExtensionNode for DropViews {
         _ctx: &SessionContext,
         _codec: &dyn LogicalExtensionCodec,
     ) -> std::result::Result<Self, ProtoConvError> {
-        let names = proto
-            .names
+        let references = proto
+            .references
             .into_iter()
-            .map(|name| name.try_into())
-            .collect::<Result<_, _>>()?;
+            .map(|r| r.into())
+            .collect::<Vec<_>>();
 
         Ok(Self {
-            names,
+            view_references: references,
             if_exists: proto.if_exists,
         })
     }
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!(
@@ -66,14 +66,15 @@ impl ExtensionNode for DropViews {
 
     fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()> {
         use protogen::sqlexec::logical_plan as protogen;
-        let names = self
-            .names
-            .iter()
-            .map(|name| name.to_owned_reference().into())
+        let references = self
+            .view_references
+            .clone()
+            .into_iter()
+            .map(|r| r.into())
             .collect::<Vec<_>>();
 
         let drop_tables = protogen::DropViews {
-            names,
+            references,
             if_exists: self.if_exists,
         };
         let plan_type = protogen::LogicalPlanExtensionType::DropViews(drop_tables);

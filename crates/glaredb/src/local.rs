@@ -11,7 +11,6 @@ use datafusion::arrow::json::writer::{
     JsonFormat, LineDelimited as JsonLineDelimted, Writer as JsonWriter,
 };
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
 use reedline::{FileBackedHistory, Reedline, Signal};
@@ -21,7 +20,7 @@ use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
 use sqlexec::remote::client::RemoteClient;
-use sqlexec::session::ExecutionResult;
+use sqlexec::session::{ExecutionResult, ExecutionStream};
 use std::env;
 use std::fmt::Write as _;
 use std::io::Write;
@@ -296,11 +295,12 @@ impl LocalSession {
                 Vec::new(),
                 vec![Format::Text; num_fields],
             )?;
-            let result = self.sess.execute_portal(&UNNAMED, 0).await?;
+
+            let mut stream = self.sess.execute_portal(&UNNAMED, 0).await?;
+            let result = stream.inspect_result().await;
 
             match result {
-                ExecutionResult::Query { stream, .. }
-                | ExecutionResult::ShowVariable { stream } => {
+                ExecutionResult::Query => {
                     print_stream(
                         stream,
                         self.opts.mode,
@@ -362,7 +362,7 @@ impl LocalSession {
     }
 }
 
-async fn process_stream(stream: SendableRecordBatchStream) -> Result<Vec<RecordBatch>> {
+async fn process_stream(stream: ExecutionStream) -> Result<Vec<RecordBatch>> {
     let batches = stream
         .collect::<Vec<_>>()
         .await
@@ -372,7 +372,7 @@ async fn process_stream(stream: SendableRecordBatchStream) -> Result<Vec<RecordB
 }
 
 async fn print_stream(
-    stream: SendableRecordBatchStream,
+    stream: ExecutionStream,
     mode: OutputMode,
     width: Option<usize>,
     max_rows: Option<usize>,

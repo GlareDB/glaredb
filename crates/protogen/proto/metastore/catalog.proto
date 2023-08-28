@@ -120,7 +120,11 @@ message EntryMeta {
   // database or external table).
   bool external = 6;
 
-  // next: 7
+  // If this entry is temporary and should be dropped at the end of a session.
+  // Temp objects should never be persisted.
+  bool is_temp = 7;
+
+  // next: 8
 }
 
 message DatabaseEntry {

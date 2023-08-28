@@ -1,11 +1,13 @@
 use core::fmt;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result};
+use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::FunctionRegistry;
-use datafusion::logical_expr::{Extension, LogicalPlan};
+use datafusion::logical_expr::{AggregateUDF, Extension, LogicalPlan, ScalarUDF, WindowUDF};
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::{Expr, SessionContext};
 use datafusion_proto::logical_plan::from_proto::parse_expr;
@@ -14,11 +16,32 @@ use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 use uuid::Uuid;
 
 use crate::errors::ExecError;
-use crate::planner::extension::{ExtensionNode, ExtensionType};
+use crate::planner::extension::{ExtensionNode, ExtensionType, PhysicalExtensionNode};
 use crate::planner::logical_plan as plan;
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
+use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
+use crate::planner::physical_plan::copy_to::CopyToExec;
+use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
+use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
+use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
+use crate::planner::physical_plan::create_schema::CreateSchemaExec;
+use crate::planner::physical_plan::create_table::CreateTableExec;
+use crate::planner::physical_plan::create_temp_table::CreateTempTableExec;
+use crate::planner::physical_plan::create_tunnel::CreateTunnelExec;
+use crate::planner::physical_plan::create_view::CreateViewExec;
+use crate::planner::physical_plan::delete::DeleteExec;
+use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
+use crate::planner::physical_plan::drop_database::DropDatabaseExec;
+use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
+use crate::planner::physical_plan::drop_tables::DropTablesExec;
+use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
+use crate::planner::physical_plan::drop_views::DropViewsExec;
+use crate::planner::physical_plan::insert::InsertExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
+use crate::planner::physical_plan::set_var::SetVarExec;
+use crate::planner::physical_plan::show_var::ShowVarExec;
+use crate::planner::physical_plan::update::UpdateExec;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
 };
@@ -29,18 +52,46 @@ use protogen::export::prost::Message;
 
 pub struct GlareDBExtensionCodec<'a> {
     table_providers: Option<&'a ProviderCache>,
+    runtime: Option<Arc<RuntimeEnv>>,
+}
+struct EmptyFunctionRegistry;
+
+impl FunctionRegistry for EmptyFunctionRegistry {
+    fn udfs(&self) -> HashSet<String> {
+        HashSet::new()
+    }
+
+    fn udf(&self, name: &str) -> Result<Arc<ScalarUDF>> {
+        Err(DataFusionError::Plan(
+            format!("No function registry provided to deserialize, so can not deserialize User Defined Function '{name}'"))
+        )
+    }
+
+    fn udaf(&self, name: &str) -> Result<Arc<AggregateUDF>> {
+        Err(DataFusionError::Plan(
+            format!("No function registry provided to deserialize, so can not deserialize User Defined Aggregate Function '{name}'"))
+        )
+    }
+
+    fn udwf(&self, name: &str) -> Result<Arc<WindowUDF>> {
+        Err(DataFusionError::Plan(
+            format!("No function registry provided to deserialize, so can not deserialize User Defined Window Function '{name}'"))
+        )
+    }
 }
 
 impl<'a> GlareDBExtensionCodec<'a> {
-    pub fn new_decoder(table_providers: &'a ProviderCache) -> Self {
+    pub fn new_decoder(table_providers: &'a ProviderCache, runtime: Arc<RuntimeEnv>) -> Self {
         Self {
             table_providers: Some(table_providers),
+            runtime: Some(runtime),
         }
     }
 
     pub fn new_encoder() -> Self {
         Self {
             table_providers: None,
+            runtime: None,
         }
     }
 }
@@ -241,7 +292,13 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             ExtensionType::DropTunnel => plan::DropTunnel::try_encode_extension(node, buf, self),
             ExtensionType::DropViews => plan::DropViews::try_encode_extension(node, buf, self),
             ExtensionType::SetVariable => plan::SetVariable::try_encode_extension(node, buf, self),
+            ExtensionType::ShowVariable => {
+                plan::ShowVariable::try_encode_extension(node, buf, self)
+            }
             ExtensionType::CopyTo => plan::CopyTo::try_encode_extension(node, buf, self),
+            ExtensionType::Update => plan::Update::try_encode_extension(node, buf, self),
+            ExtensionType::Delete => plan::Update::try_encode_extension(node, buf, self),
+            ExtensionType::Insert => plan::Insert::try_encode_extension(node, buf, self),
         }
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(())
@@ -290,7 +347,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
     fn try_decode(
         &self,
         buf: &[u8],
-        _inputs: &[Arc<dyn ExecutionPlan>],
+        inputs: &[Arc<dyn ExecutionPlan>],
         registry: &dyn FunctionRegistry,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         use protogen::sqlexec::physical_plan as proto;
@@ -302,6 +359,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             .inner
             .ok_or_else(|| DataFusionError::Plan("missing execution plan".to_string()))?;
 
+        //TODO! use the `PhysicalExtensionNode` trait to decode the extension instead of hardcoding here.
         let plan: Arc<dyn ExecutionPlan> = match ext {
             proto::ExecutionPlanExtensionType::ClientExchangeRecvExec(ext) => {
                 let broadcast_id = Uuid::from_slice(&ext.broadcast_id).map_err(|e| {
@@ -359,6 +417,28 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     limit,
                 })
             }
+            proto::ExecutionPlanExtensionType::CreateSchema(ext) => Arc::new(CreateSchemaExec {
+                catalog_version: ext.catalog_version,
+                schema_reference: ext
+                    .schema_reference
+                    .ok_or_else(|| {
+                        DataFusionError::Internal("missing schema references".to_string())
+                    })?
+                    .into(),
+                if_not_exists: ext.if_not_exists,
+            }),
+            proto::ExecutionPlanExtensionType::CreateCredentialsExec(create_credentials) => {
+                let exec = CreateCredentialsExec::try_decode(
+                    create_credentials,
+                    &EmptyFunctionRegistry,
+                    self.runtime
+                        .as_ref()
+                        .expect("runtime should be set on decoder"),
+                    self,
+                )
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                Arc::new(exec)
+            }
             proto::ExecutionPlanExtensionType::AlterDatabaseRenameExec(ext) => {
                 Arc::new(AlterDatabaseRenameExec {
                     catalog_version: ext.catalog_version,
@@ -369,11 +449,224 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::AlterTableRenameExec(ext) => {
                 Arc::new(AlterTableRenameExec {
                     catalog_version: ext.catalog_version,
-                    name: ext.name,
-                    new_name: ext.new_name,
-                    schema: ext.schema,
+                    tbl_reference: ext
+                        .tbl_reference
+                        .ok_or_else(|| {
+                            DataFusionError::Internal("missing table references".to_string())
+                        })?
+                        .into(),
+                    new_tbl_reference: ext
+                        .new_tbl_reference
+                        .ok_or_else(|| {
+                            DataFusionError::Internal("missing new table references".to_string())
+                        })?
+                        .into(),
                 })
             }
+            proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(ext) => {
+                Arc::new(AlterTunnelRotateKeysExec {
+                    catalog_version: ext.catalog_version,
+                    name: ext.name,
+                    if_exists: ext.if_exists,
+                    new_ssh_key: ext.new_ssh_key,
+                })
+            }
+            proto::ExecutionPlanExtensionType::DropDatabaseExec(ext) => {
+                Arc::new(DropDatabaseExec {
+                    catalog_version: ext.catalog_version,
+                    names: ext.names,
+                    if_exists: ext.if_exists,
+                })
+            }
+            proto::ExecutionPlanExtensionType::CreateTableExec(ext) => {
+                let schema = ext
+                    .arrow_schema
+                    .ok_or(DataFusionError::Plan("schema is required".to_string()))?;
+                let schema: Schema = (&schema).try_into()?;
+
+                Arc::new(CreateTableExec {
+                    catalog_version: ext.catalog_version,
+                    tbl_reference: ext
+                        .tbl_reference
+                        .ok_or_else(|| {
+                            DataFusionError::Internal("missing table references".to_string())
+                        })?
+                        .into(),
+                    if_not_exists: ext.if_not_exists,
+                    arrow_schema: Arc::new(schema),
+                    source: inputs.get(0).cloned(),
+                })
+            }
+            proto::ExecutionPlanExtensionType::CreateTempTableExec(ext) => {
+                let schema = ext
+                    .arrow_schema
+                    .ok_or(DataFusionError::Plan("schema is required".to_string()))?;
+                let schema: Schema = (&schema).try_into()?;
+
+                Arc::new(CreateTempTableExec {
+                    tbl_reference: ext
+                        .tbl_reference
+                        .ok_or_else(|| {
+                            DataFusionError::Internal("missing table references".to_string())
+                        })?
+                        .into(),
+                    if_not_exists: ext.if_not_exists,
+                    arrow_schema: Arc::new(schema),
+                    source: inputs.get(0).cloned(),
+                })
+            }
+            proto::ExecutionPlanExtensionType::DropSchemasExec(ext) => Arc::new(DropSchemasExec {
+                catalog_version: ext.catalog_version,
+                schema_references: ext
+                    .schema_references
+                    .into_iter()
+                    .map(|r| r.into())
+                    .collect(),
+                if_exists: ext.if_exists,
+                cascade: ext.cascade,
+            }),
+            proto::ExecutionPlanExtensionType::DropTunnelExec(ext) => Arc::new(DropTunnelExec {
+                catalog_version: ext.catalog_version,
+                names: ext.names,
+                if_exists: ext.if_exists,
+            }),
+            proto::ExecutionPlanExtensionType::DropViewsExec(ext) => Arc::new(DropViewsExec {
+                catalog_version: ext.catalog_version,
+                view_references: ext.view_references.into_iter().map(|r| r.into()).collect(),
+                if_exists: ext.if_exists,
+            }),
+            proto::ExecutionPlanExtensionType::CreateExternalDatabaseExec(ext) => {
+                let options = ext.options.ok_or(protogen::ProtoConvError::RequiredField(
+                    "options".to_string(),
+                ))?;
+                Arc::new(CreateExternalDatabaseExec {
+                    catalog_version: ext.catalog_version,
+                    database_name: ext.database_name,
+                    if_not_exists: ext.if_not_exists,
+                    options: options.try_into()?,
+                    tunnel: ext.tunnel,
+                })
+            }
+            proto::ExecutionPlanExtensionType::CreateExternalTableExec(ext) => {
+                let table_options =
+                    ext.table_options
+                        .ok_or(protogen::ProtoConvError::RequiredField(
+                            "table_options".to_string(),
+                        ))?;
+                Arc::new(CreateExternalTableExec {
+                    catalog_version: ext.catalog_version,
+                    tbl_reference: ext
+                        .tbl_reference
+                        .ok_or_else(|| {
+                            DataFusionError::Internal("missing table references".to_string())
+                        })?
+                        .into(),
+                    if_not_exists: ext.if_not_exists,
+                    table_options: table_options.try_into()?,
+                    tunnel: ext.tunnel,
+                })
+            }
+            proto::ExecutionPlanExtensionType::CreateTunnelExec(ext) => {
+                let options = ext.options.ok_or(protogen::ProtoConvError::RequiredField(
+                    "options".to_string(),
+                ))?;
+                Arc::new(CreateTunnelExec {
+                    catalog_version: ext.catalog_version,
+                    name: ext.name,
+                    if_not_exists: ext.if_not_exists,
+                    options: options.try_into()?,
+                })
+            }
+            proto::ExecutionPlanExtensionType::CreateViewExec(ext) => Arc::new(CreateViewExec {
+                catalog_version: ext.catalog_version,
+                view_reference: ext
+                    .view_reference
+                    .ok_or_else(|| DataFusionError::Internal("missing view reference".to_string()))?
+                    .into(),
+                sql: ext.sql,
+                columns: ext.columns,
+                or_replace: ext.or_replace,
+            }),
+            proto::ExecutionPlanExtensionType::DropCredentialsExec(ext) => {
+                Arc::new(DropCredentialsExec {
+                    catalog_version: ext.catalog_version,
+                    names: ext.names,
+                    if_exists: ext.if_exists,
+                })
+            }
+            proto::ExecutionPlanExtensionType::DropTablesExec(ext) => Arc::new(DropTablesExec {
+                catalog_version: ext.catalog_version,
+                tbl_references: ext.tbl_references.into_iter().map(|r| r.into()).collect(),
+                if_exists: ext.if_exists,
+            }),
+            proto::ExecutionPlanExtensionType::SetVarExec(ext) => Arc::new(SetVarExec {
+                variable: ext.variable,
+                values: ext.values,
+            }),
+            proto::ExecutionPlanExtensionType::ShowVarExec(ext) => Arc::new(ShowVarExec {
+                variable: ext.variable,
+            }),
+            proto::ExecutionPlanExtensionType::UpdateExec(ext) => {
+                let mut updates = Vec::with_capacity(ext.updates.len());
+                for update in ext.updates {
+                    let expr = update.expr.ok_or_else(|| {
+                        DataFusionError::Internal("missing expression".to_string())
+                    })?;
+                    let expr = parse_expr(&expr, registry)?;
+                    updates.push((update.column.clone(), expr));
+                }
+                let where_expr: Option<Expr> = ext
+                    .where_expr
+                    .map(|expr| parse_expr(&expr, registry))
+                    .transpose()?;
+                Arc::new(UpdateExec {
+                    table: ext
+                        .table
+                        .ok_or_else(|| DataFusionError::Internal("missing table".to_string()))?
+                        .try_into()?,
+                    updates,
+                    where_expr,
+                })
+            }
+            proto::ExecutionPlanExtensionType::InsertExec(ext) => Arc::new(InsertExec {
+                table: ext
+                    .table
+                    .ok_or_else(|| DataFusionError::Internal("missing table".to_string()))?
+                    .try_into()?,
+                source: inputs
+                    .get(0)
+                    .ok_or_else(|| DataFusionError::Internal("missing input source".to_string()))?
+                    .clone(),
+            }),
+            proto::ExecutionPlanExtensionType::DeleteExec(ext) => {
+                let where_expr: Option<Expr> = ext
+                    .where_expr
+                    .map(|expr| parse_expr(&expr, registry))
+                    .transpose()?;
+                Arc::new(DeleteExec {
+                    table: ext
+                        .table
+                        .ok_or_else(|| DataFusionError::Internal("missing table".to_string()))?
+                        .try_into()?,
+                    where_expr,
+                })
+            }
+            proto::ExecutionPlanExtensionType::CopyToExec(ext) => Arc::new(CopyToExec {
+                format: ext
+                    .format
+                    .ok_or_else(|| DataFusionError::Internal("missing format options".to_string()))?
+                    .try_into()?,
+                dest: ext
+                    .dest
+                    .ok_or_else(|| {
+                        DataFusionError::Internal("missing destination options".to_string())
+                    })?
+                    .try_into()?,
+                source: inputs
+                    .get(0)
+                    .ok_or_else(|| DataFusionError::Internal("missing input source".to_string()))?
+                    .clone(),
+            }),
         };
 
         Ok(plan)
@@ -416,6 +709,29 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .collect::<Result<_, _>>()?,
                 limit: exec.limit.map(|u| u as u64),
             })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateSchemaExec>() {
+            proto::ExecutionPlanExtensionType::CreateSchema(proto::CreateSchema {
+                catalog_version: exec.catalog_version,
+                schema_reference: Some(exec.schema_reference.clone().into()),
+                if_not_exists: exec.if_not_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateCredentialsExec>() {
+            return exec
+                .try_encode(buf, self)
+                .map_err(|e| DataFusionError::External(Box::new(e)));
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateTableExec>() {
+            proto::ExecutionPlanExtensionType::CreateTableExec(proto::CreateTableExec {
+                catalog_version: exec.catalog_version,
+                tbl_reference: Some(exec.tbl_reference.clone().into()),
+                if_not_exists: exec.if_not_exists,
+                arrow_schema: Some(exec.schema().try_into()?),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateTempTableExec>() {
+            proto::ExecutionPlanExtensionType::CreateTempTableExec(proto::CreateTempTableExec {
+                tbl_reference: Some(exec.tbl_reference.clone().into()),
+                if_not_exists: exec.if_not_exists,
+                arrow_schema: Some(exec.schema().try_into()?),
+            })
         } else if let Some(exec) = node.as_any().downcast_ref::<AlterDatabaseRenameExec>() {
             proto::ExecutionPlanExtensionType::AlterDatabaseRenameExec(
                 proto::AlterDatabaseRenameExec {
@@ -427,9 +743,149 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         } else if let Some(exec) = node.as_any().downcast_ref::<AlterTableRenameExec>() {
             proto::ExecutionPlanExtensionType::AlterTableRenameExec(proto::AlterTableRenameExec {
                 catalog_version: exec.catalog_version,
+                tbl_reference: Some(exec.tbl_reference.clone().into()),
+                new_tbl_reference: Some(exec.new_tbl_reference.clone().into()),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<AlterTunnelRotateKeysExec>() {
+            proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(
+                proto::AlterTunnelRotateKeysExec {
+                    catalog_version: exec.catalog_version,
+                    name: exec.name.clone(),
+                    if_exists: exec.if_exists,
+                    new_ssh_key: exec.new_ssh_key.clone(),
+                },
+            )
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropDatabaseExec>() {
+            proto::ExecutionPlanExtensionType::DropDatabaseExec(proto::DropDatabaseExec {
+                catalog_version: exec.catalog_version,
+                names: exec.names.clone(),
+                if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropSchemasExec>() {
+            proto::ExecutionPlanExtensionType::DropSchemasExec(proto::DropSchemasExec {
+                catalog_version: exec.catalog_version,
+                schema_references: exec
+                    .schema_references
+                    .clone()
+                    .into_iter()
+                    .map(|r| r.into())
+                    .collect(),
+                if_exists: exec.if_exists,
+                cascade: exec.cascade,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropTunnelExec>() {
+            proto::ExecutionPlanExtensionType::DropTunnelExec(proto::DropTunnelExec {
+                catalog_version: exec.catalog_version,
+                names: exec.names.clone(),
+                if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropViewsExec>() {
+            proto::ExecutionPlanExtensionType::DropViewsExec(proto::DropViewsExec {
+                catalog_version: exec.catalog_version,
+                view_references: exec
+                    .view_references
+                    .clone()
+                    .into_iter()
+                    .map(|r| r.into())
+                    .collect(),
+                if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateExternalDatabaseExec>() {
+            proto::ExecutionPlanExtensionType::CreateExternalDatabaseExec(
+                proto::CreateExternalDatabaseExec {
+                    catalog_version: exec.catalog_version,
+                    database_name: exec.database_name.clone(),
+                    options: Some(exec.options.clone().into()),
+                    if_not_exists: exec.if_not_exists,
+                    tunnel: exec.tunnel.clone(),
+                },
+            )
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateExternalTableExec>() {
+            proto::ExecutionPlanExtensionType::CreateExternalTableExec(
+                proto::CreateExternalTableExec {
+                    catalog_version: exec.catalog_version,
+                    tbl_reference: Some(exec.tbl_reference.clone().into()),
+                    if_not_exists: exec.if_not_exists,
+                    table_options: Some(exec.table_options.clone().try_into()?),
+                    tunnel: exec.tunnel.clone(),
+                },
+            )
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateTunnelExec>() {
+            proto::ExecutionPlanExtensionType::CreateTunnelExec(proto::CreateTunnelExec {
+                catalog_version: exec.catalog_version,
                 name: exec.name.clone(),
-                new_name: exec.new_name.clone(),
-                schema: exec.schema.clone(),
+                options: Some(exec.options.clone().into()),
+                if_not_exists: exec.if_not_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateViewExec>() {
+            proto::ExecutionPlanExtensionType::CreateViewExec(proto::CreateViewExec {
+                catalog_version: exec.catalog_version,
+                view_reference: Some(exec.view_reference.clone().into()),
+                sql: exec.sql.clone(),
+                columns: exec.columns.clone(),
+                or_replace: exec.or_replace,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropCredentialsExec>() {
+            proto::ExecutionPlanExtensionType::DropCredentialsExec(proto::DropCredentialsExec {
+                catalog_version: exec.catalog_version,
+                names: exec.names.clone(),
+                if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DropTablesExec>() {
+            proto::ExecutionPlanExtensionType::DropTablesExec(proto::DropTablesExec {
+                catalog_version: exec.catalog_version,
+                tbl_references: exec
+                    .tbl_references
+                    .clone()
+                    .into_iter()
+                    .map(|r| r.into())
+                    .collect(),
+                if_exists: exec.if_exists,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<SetVarExec>() {
+            proto::ExecutionPlanExtensionType::SetVarExec(proto::SetVarExec {
+                variable: exec.variable.clone(),
+                values: exec.values.clone(),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<ShowVarExec>() {
+            proto::ExecutionPlanExtensionType::ShowVarExec(proto::ShowVarExec {
+                variable: exec.variable.clone(),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<UpdateExec>() {
+            let mut updates = Vec::with_capacity(exec.updates.len());
+            for (col, expr) in &exec.updates {
+                updates.push(proto::UpdateSelector {
+                    column: col.clone(),
+                    expr: Some(expr.try_into()?),
+                });
+            }
+
+            proto::ExecutionPlanExtensionType::UpdateExec(proto::UpdateExec {
+                table: Some(exec.table.clone().try_into()?),
+                updates,
+                where_expr: exec
+                    .where_expr
+                    .as_ref()
+                    .map(|expr| expr.try_into())
+                    .transpose()?,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<InsertExec>() {
+            proto::ExecutionPlanExtensionType::InsertExec(proto::InsertExec {
+                table: Some(exec.table.clone().try_into()?),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DeleteExec>() {
+            proto::ExecutionPlanExtensionType::DeleteExec(proto::DeleteExec {
+                table: Some(exec.table.clone().try_into()?),
+                where_expr: exec
+                    .where_expr
+                    .as_ref()
+                    .map(|expr| expr.try_into())
+                    .transpose()?,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CopyToExec>() {
+            proto::ExecutionPlanExtensionType::CopyToExec(proto::CopyToExec {
+                format: Some(exec.format.clone().try_into()?),
+                dest: Some(exec.dest.clone().try_into()?),
             })
         } else {
             return Err(DataFusionError::NotImplemented(format!(

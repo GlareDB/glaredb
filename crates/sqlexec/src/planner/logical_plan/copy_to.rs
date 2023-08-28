@@ -27,7 +27,7 @@ impl UserDefinedLogicalNodeCore for CopyTo {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+        &GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {
@@ -43,7 +43,6 @@ impl UserDefinedLogicalNodeCore for CopyTo {
         _exprs: &[datafusion::prelude::Expr],
         _inputs: &[DfLogicalPlan],
     ) -> Self {
-        println!("CopyTo from_template");
         self.clone()
     }
 }
@@ -74,7 +73,7 @@ impl ExtensionNode for CopyTo {
         })
     }
 
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!(

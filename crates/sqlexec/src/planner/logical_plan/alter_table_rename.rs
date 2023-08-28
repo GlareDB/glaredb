@@ -1,8 +1,8 @@
 use super::*;
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct AlterTableRename {
-    pub name: OwnedTableReference,
-    pub new_name: OwnedTableReference,
+    pub tbl_reference: OwnedFullObjectReference,
+    pub new_tbl_reference: OwnedFullObjectReference,
 }
 impl UserDefinedLogicalNodeCore for AlterTableRename {
     fn name(&self) -> &str {
@@ -14,7 +14,7 @@ impl UserDefinedLogicalNodeCore for AlterTableRename {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+        &GENERIC_OPERATION_LOGICAL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {
@@ -42,23 +42,27 @@ impl ExtensionNode for AlterTableRename {
         _ctx: &SessionContext,
         _codec: &dyn LogicalExtensionCodec,
     ) -> std::result::Result<Self, ProtoConvError> {
-        let name = proto
-            .name
+        let reference = proto
+            .reference
             .ok_or(ProtoConvError::RequiredField(
-                "name is required".to_string(),
+                "reference is required".to_string(),
             ))?
-            .try_into()?;
+            .into();
 
-        let new_name = proto
-            .new_name
+        let new_reference = proto
+            .new_reference
             .ok_or(ProtoConvError::RequiredField(
                 "new_name is required".to_string(),
             ))?
-            .try_into()?;
+            .into();
 
-        Ok(Self { name, new_name })
+        Ok(Self {
+            tbl_reference: reference,
+            new_tbl_reference: new_reference,
+        })
     }
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!(
@@ -70,12 +74,12 @@ impl ExtensionNode for AlterTableRename {
     fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()> {
         use protogen::sqlexec::logical_plan as protogen;
 
-        let name = self.name.clone().into();
-        let new_name = self.new_name.clone().into();
+        let reference = self.tbl_reference.clone().into();
+        let new_reference = self.new_tbl_reference.clone().into();
 
         let alter_table = protogen::AlterTableRename {
-            name: Some(name),
-            new_name: Some(new_name),
+            reference: Some(reference),
+            new_reference: Some(new_reference),
         };
 
         let extension = protogen::LogicalPlanExtensionType::AlterTableRename(alter_table);

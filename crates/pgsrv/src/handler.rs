@@ -12,7 +12,6 @@ use crate::proxy::{
 };
 use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::DataType;
-use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::scalar::ScalarValue;
 use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
@@ -21,6 +20,7 @@ use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use sqlexec::context::local::{OutputFields, Portal, PreparedStatement};
 use sqlexec::engine::SessionStorageConfig;
+use sqlexec::session::ExecutionStream;
 use sqlexec::{
     engine::Engine,
     parser::{self, StatementWithExtensions},
@@ -466,12 +466,15 @@ where
             };
 
             // Describe statement and get number of fields...
+            fn get_num_fields(s: &PreparedStatement) -> usize {
+                s.output_fields().map(|f| f.len()).unwrap_or(0)
+            }
             let num_fields = session_do!(
                 self,
                 session,
                 get_prepared_statement,
                 &UNNAMED,
-                |s: &PreparedStatement| s.output_fields().map(|f| f.len()).unwrap_or(0)
+                get_num_fields
             );
 
             // Bind...
@@ -482,28 +485,30 @@ where
                 return self.ready_for_query().await;
             }
 
-            // Describe portal and maybe row description...
-            //
-            // Only send back a row description if the statement produces
-            // output.
-            let output_fields =
-                session_do!(self, session, get_portal, &UNNAMED, Portal::output_fields);
-            if let Some(fields) = output_fields {
-                Self::send_row_descriptor(conn, fields).await?;
-            }
-
             // Execute...
-            let result = match session.execute_portal(&UNNAMED, 0).await {
-                Ok(result) => result,
+            let mut stream = match session.execute_portal(&UNNAMED, 0).await {
+                Ok(stream) => stream,
                 Err(e) => {
                     self.send_error(e.into()).await?;
                     return self.ready_for_query().await;
                 }
             };
 
+            // If we're returning data (SELECT), send back the output fields
+            // before sending back actual data.
+            let result = stream.inspect_result().await;
+            if let ExecutionResult::Query = result {
+                let output_fields =
+                    session_do!(self, session, get_portal, &UNNAMED, Portal::output_fields);
+                if let Some(fields) = output_fields {
+                    Self::send_row_descriptor(conn, fields).await?;
+                }
+            }
+
             Self::send_result(
                 conn,
                 result,
+                stream,
                 session_do!(self, session, get_portal, &UNNAMED, get_encoding_state),
             )
             .await?;
@@ -644,13 +649,19 @@ where
 
         let conn = &mut self.conn;
         let session = &mut self.session;
-        let result = match session.execute_portal(&portal, max_rows).await {
+        let mut stream = match session.execute_portal(&portal, max_rows).await {
             Ok(r) => r,
             Err(e) => return self.send_error(e.into()).await,
         };
+        let result = stream.inspect_result().await;
+
+        // TODO: This seems to be missing sending back row description. Is it
+        // needed? If not, a comment needs to go here.
+
         Self::send_result(
             conn,
             result,
+            stream,
             session_do!(self, session, get_portal, &portal, get_encoding_state),
         )
         .await
@@ -676,10 +687,12 @@ where
     async fn send_result(
         conn: &mut FramedConn<C>,
         result: ExecutionResult,
+        stream: ExecutionStream,
         encoding_state: Vec<(PgType, Format)>,
     ) -> Result<()> {
         match result {
-            ExecutionResult::Query { stream, .. } | ExecutionResult::ShowVariable { stream } => {
+            ExecutionResult::Error(e) => return Err(e.into()),
+            ExecutionResult::Query => {
                 if let Some(num_rows) = Self::stream_batch(conn, stream, encoding_state).await? {
                     Self::command_complete(conn, format!("SELECT {}", num_rows)).await?;
                 }
@@ -688,7 +701,11 @@ where
             ExecutionResult::Begin => Self::command_complete(conn, "BEGIN").await?,
             ExecutionResult::Commit => Self::command_complete(conn, "COMMIT").await?,
             ExecutionResult::Rollback => Self::command_complete(conn, "ROLLBACK").await?,
-            ExecutionResult::WriteSuccess => Self::command_complete(conn, "INSERT").await?,
+            ExecutionResult::InsertSuccess { rows_inserted } => {
+                // Format is 'INSERT <oid> <num_inserted>'. Oid will always be
+                // zero according to postgres docs.
+                Self::command_complete(conn, format!("INSERT 0 {rows_inserted}")).await?
+            }
             ExecutionResult::CopySuccess => Self::command_complete(conn, "COPY").await?,
             ExecutionResult::DeleteSuccess { deleted_rows } => {
                 Self::command_complete(conn, format!("DELETE {}", deleted_rows)).await?
@@ -715,7 +732,7 @@ where
             ExecutionResult::AlterTunnelRotateKeys => {
                 Self::command_complete(conn, "ALTER TUNNEL").await?
             }
-            ExecutionResult::SetLocal => Self::command_complete(conn, "SET").await?,
+            ExecutionResult::Set => Self::command_complete(conn, "SET").await?,
             ExecutionResult::DropTables => Self::command_complete(conn, "DROP TABLE").await?,
             ExecutionResult::DropViews => Self::command_complete(conn, "DROP VIEW").await?,
             ExecutionResult::DropSchemas => Self::command_complete(conn, "DROP SCHEMA").await?,
@@ -747,7 +764,7 @@ where
     /// rows sent. `None` rows sent means that an error response was sent.
     async fn stream_batch(
         conn: &mut FramedConn<C>,
-        mut stream: SendableRecordBatchStream,
+        mut stream: ExecutionStream,
         encoding_state: Vec<(PgType, Format)>,
     ) -> Result<Option<usize>> {
         conn.set_encoding_state(encoding_state);

@@ -82,7 +82,7 @@ impl FromStr for PrimitiveType {
                 // decimal(15, 2)
                 // decimal(15,2)
                 static DECIMAL_RE: Lazy<Regex> =
-                    Lazy::new(|| Regex::new(r#"^decimal\((?P<p>\d+),\s?(?P<s>\d+)\)$"#).unwrap());
+                    Lazy::new(|| Regex::new(r"^decimal\((?P<p>\d+),\s?(?P<s>\d+)\)$").unwrap());
 
                 let captures = DECIMAL_RE.captures(other).ok_or_else(|| {
                     IcebergError::DataInvalid(format!("Invalid decimal type: {other}"))
@@ -116,7 +116,7 @@ impl FromStr for PrimitiveType {
                 // Regex that matches:
                 // fixed[16]
                 static FIXED_RE: Lazy<Regex> =
-                    Lazy::new(|| Regex::new(r#"^fixed\[(?P<l>\d+)\]$"#).unwrap());
+                    Lazy::new(|| Regex::new(r"^fixed\[(?P<l>\d+)\]$").unwrap());
 
                 let captures = FIXED_RE.captures(other).ok_or_else(|| {
                     IcebergError::DataInvalid(format!("Invalid fixed type: {other}"))

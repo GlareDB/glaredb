@@ -41,7 +41,7 @@ fn create_table(
     max_rows: Option<usize>,
     max_columns: Option<usize>,
 ) -> Result<Table, ArrowError> {
-    if batches.is_empty() {
+    if batches.is_empty() || batches[0].schema().fields().is_empty() {
         return Ok(default_table());
     }
     let num_columns = batches[0].num_columns();

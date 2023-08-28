@@ -1,4 +1,5 @@
 use crate::metastore::catalog::CatalogMutator;
+use crate::planner::logical_plan::OwnedFullObjectReference;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -14,12 +15,13 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
+use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
+
 #[derive(Debug, Clone)]
 pub struct AlterTableRenameExec {
     pub catalog_version: u64,
-    pub name: String,
-    pub new_name: String,
-    pub schema: String,
+    pub tbl_reference: OwnedFullObjectReference,
+    pub new_tbl_reference: OwnedFullObjectReference,
 }
 
 impl ExecutionPlan for AlterTableRenameExec {
@@ -28,7 +30,7 @@ impl ExecutionPlan for AlterTableRenameExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        Arc::new(Schema::empty())
+        GENERIC_OPERATION_PHYSICAL_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -91,17 +93,18 @@ async fn alter_table_rename(
     mutator: Arc<CatalogMutator>,
     plan: AlterTableRenameExec,
 ) -> DataFusionResult<RecordBatch> {
+    // TODO: Error if schemas between references differ.
     mutator
         .mutate(
             plan.catalog_version,
             [Mutation::AlterTableRename(service::AlterTableRename {
-                name: plan.name,
-                new_name: plan.new_name,
-                schema: plan.schema,
+                name: plan.tbl_reference.name.into_owned(),
+                new_name: plan.new_tbl_reference.name.into_owned(),
+                schema: plan.tbl_reference.schema.into_owned(),
             })],
         )
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to rename table: {e}")))?;
 
-    Ok(RecordBatch::new_empty(Arc::new(Schema::empty())))
+    Ok(new_operation_batch("alter_table_rename"))
 }

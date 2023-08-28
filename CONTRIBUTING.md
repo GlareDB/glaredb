@@ -442,7 +442,7 @@ docker run --rm --name "my_postgres" -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=t
 Now run `pgprototest` with rewriting:
 
 ```shell
-cargo run -p pgprototest pgprototest -- --dir ./testdata/pgprototest --addr localhost:5432 --user postgres --database postgres --rewrite
+cargo run -p pgprototest -- --dir ./testdata/pgprototest --addr localhost:5432 --user postgres --database postgres --rewrite
 ```
 
 If everything runs correctly, you should see the `until` that we wrote above
@@ -466,7 +466,7 @@ messages we receive from GlareDB match the messages we received from Postgres in
 Step 3.
 
 ```shell
-cargo run -p pgprototest pgprototest -- --dir ./testdata/pgprototest --addr localhost:6543 --user glaredb --password dummy --database glaredb
+cargo run -p pgprototest -- --dir ./testdata/pgprototest --addr localhost:6543 --user glaredb --password dummy --database glaredb
 ```
 
 If all goes well, we exit with a 0 status code, indicating that we return the

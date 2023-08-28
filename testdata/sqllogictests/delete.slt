@@ -27,7 +27,7 @@ delete from;
 statement ok
 create external table t3 from debug options (table_type = 'never_ending');
 
-statement error Delete for external tables
+statement error Unsupported feature: 'DELETE with external tables'
 delete from t3;
 
 statement error Unsupported feature: 'DELETE from multiple tables'

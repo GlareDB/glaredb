@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CreateSchema {
-    pub schema_name: OwnedSchemaReference,
+    pub schema_reference: OwnedFullSchemaReference,
     pub if_not_exists: bool,
 }
 
@@ -16,7 +16,7 @@ impl UserDefinedLogicalNodeCore for CreateSchema {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &EMPTY_SCHEMA
+        &GENERIC_OPERATION_LOGICAL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {
@@ -44,19 +44,19 @@ impl ExtensionNode for CreateSchema {
         _ctx: &SessionContext,
         _codec: &dyn LogicalExtensionCodec,
     ) -> std::result::Result<Self, ProtoConvError> {
-        let schema_name = proto
-            .schema_name
+        let reference = proto
+            .reference
             .ok_or(ProtoConvError::RequiredField(
-                "schema name is required".to_string(),
+                "reference is required".to_string(),
             ))?
-            .try_into()?;
+            .into();
 
         Ok(Self {
-            schema_name,
+            schema_reference: reference,
             if_not_exists: proto.if_not_exists,
         })
     }
-    fn try_decode_extension(extension: &LogicalPlanExtension) -> Result<Self> {
+    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
         match extension.node.as_any().downcast_ref::<Self>() {
             Some(s) => Ok(s.clone()),
             None => Err(internal!("CreateSchema::try_decode_extension failed",)),
@@ -67,7 +67,7 @@ impl ExtensionNode for CreateSchema {
         use protogen::sqlexec::logical_plan as protogen;
 
         let create_schema = protogen::CreateSchema {
-            schema_name: Some(self.schema_name.clone().try_into()?),
+            reference: Some(self.schema_reference.clone().into()),
             if_not_exists: self.if_not_exists,
         };
         let plan_type = protogen::LogicalPlanExtensionType::CreateSchema(create_schema);

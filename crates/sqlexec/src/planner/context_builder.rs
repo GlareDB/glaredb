@@ -4,6 +4,8 @@ use crate::errors::ExecError;
 use crate::functions::BuiltinScalarFunction;
 use crate::functions::PgFunctionBuilder;
 use crate::planner::errors::PlanError;
+use crate::resolve::EntryResolver;
+use crate::resolve::ResolvedEntry;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::OwnedTableReference;
@@ -42,14 +44,18 @@ pub struct PartialContextProvider<'a> {
     state: &'a SessionState,
     /// Glaredb session context.
     ctx: &'a LocalSessionContext,
+    /// Entry resolver to use to resolve tables and other objects.
+    resolver: EntryResolver<'a>,
 }
 
 impl<'a> PartialContextProvider<'a> {
     pub fn new(ctx: &'a LocalSessionContext, state: &'a SessionState) -> Result<Self, PlanError> {
+        let resolver = EntryResolver::from_context(ctx);
         Ok(Self {
             providers: HashMap::new(),
             state,
             ctx,
+            resolver,
         })
     }
 
@@ -95,84 +101,57 @@ impl<'a> PartialContextProvider<'a> {
             }
         }
 
-        // TODO: Be a bit more discerning about which tables to dispatch
-        // remotely. We want system tables and temp tables to resolve locally,
-        // while external and native tables get dispatches remotely.
-        //
-        // Also this is missing search path semantics.
+        let ent = self
+            .resolver
+            .resolve_entry_from_reference(reference.clone())?;
+
+        // If we have a remote session configured, do some selective dispatching
+        // remotely.
         if let Some(mut client) = self.ctx.exec_client() {
-            let owned = match reference {
-                TableReference::Bare { table } => {
-                    let schema = self.ctx.first_nonimplicit_schema()?;
-                    TableReference::Full {
-                        catalog: DEFAULT_CATALOG.into(),
-                        schema: schema.into(),
-                        table,
+            match &ent {
+                // References to external databases should always resolve
+                // remotely.
+                ResolvedEntry::NeedsExternalResolution { .. } => {
+                    let owned = reference.to_owned_reference();
+                    let prov = client.dispatch_access(owned).await?;
+                    return Ok(Arc::new(prov));
+                }
+
+                // Only resolve native and external tables remotely.
+                //
+                // Temp and system tables should be handled locally.
+                ResolvedEntry::Entry(ent) => {
+                    // TODO: Probably want to get the fully qualified reference.
+                    let meta = ent.get_meta();
+                    if !(meta.is_temp || meta.builtin) {
+                        let owned = reference.to_owned_reference();
+                        let prov = client.dispatch_access(owned).await?;
+                        return Ok(Arc::new(prov));
                     }
                 }
-                TableReference::Partial { schema, table } => TableReference::Full {
-                    catalog: DEFAULT_CATALOG.into(),
-                    schema,
-                    table,
-                },
-                TableReference::Full {
-                    catalog,
-                    schema,
-                    table,
-                } => TableReference::Full {
-                    catalog,
-                    schema,
-                    table,
-                },
-            };
-            let owned = owned.to_owned_reference();
-            let prov = client.dispatch_access(owned).await?;
-            return Ok(Arc::new(prov));
+            }
         }
 
         let dispatcher = Dispatcher::new(
             self.ctx.get_session_catalog(),
             self.ctx.get_native_tables(),
             self.ctx.get_metrics(),
-            self.ctx.get_temp_objects(),
+            &self.resolver.temp_objects,
             self.ctx,
             self.ctx.df_ctx(),
             self.ctx.get_session_vars().is_cloud_instance(),
         );
-        match &reference {
-            TableReference::Bare { table } => {
-                for schema in self.ctx.implicit_search_paths() {
-                    // TODO: Allow defaulting to some other database.
-                    match dispatcher.dispatch(DEFAULT_CATALOG, &schema, table).await {
-                        Ok(table) => return Ok(table),
-                        Err(e) if e.should_try_next_schema() => (), // Continue to next schema in search path.
-                        Err(e) => {
-                            return Err(PlanError::FailedToCreateTableProvider {
-                                reference: reference.to_string(),
-                                e,
-                            });
-                        }
-                    }
-                }
 
-                Err(PlanError::FailedToFindTableForReference {
-                    reference: reference.to_string(),
-                })
-            }
-            TableReference::Partial { schema, table } => {
-                // TODO: Allow defaulting to some other database.
-                let table = dispatcher.dispatch(DEFAULT_CATALOG, schema, table).await?;
-                Ok(table)
-            }
-            TableReference::Full {
-                catalog,
+        let provider = match ent {
+            ResolvedEntry::Entry(ent) => dispatcher.dispatch(ent).await?,
+            ResolvedEntry::NeedsExternalResolution {
+                db_ent,
                 schema,
-                table,
-            } => {
-                let table = dispatcher.dispatch(catalog, schema, table).await?;
-                Ok(table)
-            }
-        }
+                name,
+            } => dispatcher.dispatch_external(db_ent, &schema, &name).await?,
+        };
+
+        Ok(provider)
     }
 
     /// Find a table function with the given reference, taking into account the
@@ -181,6 +160,8 @@ impl<'a> PartialContextProvider<'a> {
         &self,
         reference: TableReference<'_>,
     ) -> Option<Arc<dyn TableFunc>> {
+        // TODO: Refactor this to resolve properly.
+
         let catalog = self.ctx.get_session_catalog();
 
         let resolve_func = |schema: String, name| {
