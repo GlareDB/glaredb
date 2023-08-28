@@ -93,3 +93,6 @@ impl TableProvider for StubRemoteTableProvider {
         ))
     }
 }
+
+#[derive(Clone)]
+pub struct LocalTableHint(pub Arc<dyn TableProvider>);

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use datafusion::{arrow::datatypes::Schema, common::OwnedTableReference, sql::TableReference};
 use prost::Message;
 use uuid::Uuid;
@@ -7,6 +9,8 @@ use crate::{
     gen::rpcsrv::service,
     metastore::types::{catalog::CatalogState, FromOptionalField},
 };
+
+use super::func_param_value::FuncParamValue;
 
 pub struct SessionStorageConfig {
     pub gcs_bucket: Option<String>,
@@ -315,4 +319,14 @@ impl From<CloseSessionResponse> for service::CloseSessionResponse {
     fn from(_value: CloseSessionResponse) -> Self {
         Self {}
     }
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateProviderRequest {
+    #[prost(string, tag = "1")]
+    pub session_id: String,
+    #[prost(message, repeated, tag = "2")]
+    pub args: Vec<FuncParamValue>,
+    #[prost(map = "string, message", tag = "3")]
+    pub opts: HashMap<String, FuncParamValue>,
 }

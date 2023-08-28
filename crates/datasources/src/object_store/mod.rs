@@ -190,6 +190,7 @@ impl TableProvider for ObjStoreTableProvider {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        println!("scan called");
         let config = FileScanConfig {
             object_store_url: self.base_url.clone(),
             file_schema: self.arrow_schema.clone(),

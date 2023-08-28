@@ -10,6 +10,8 @@ use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use decimal::Decimal128;
 use protogen::metastore::types::catalog::{CredentialsEntry, DatabaseEntry};
+use protogen::rpcsrv::types::func_param_value::FuncParamValueArrayVariant;
+use protogen::rpcsrv::types::func_param_value::FuncParamValueEnum;
 
 use crate::errors::{ExtensionError, Result};
 use crate::vars::SessionVars;
@@ -72,6 +74,70 @@ impl fmt::Display for FuncParamValue {
             Self::Ident(s) => write!(f, "{s}"),
             Self::Scalar(s) => write!(f, "{s}"),
             Self::Array(vals) => write!(f, "{}", FuncParamValue::multiple_to_string(vals)),
+        }
+    }
+}
+impl FuncParamValue {
+    fn decode_inner(variant: FuncParamValueEnum) -> Result<Self> {
+        use protogen::rpcsrv::types::func_param_value::FuncParamValueEnum::*;
+
+        Ok(match variant {
+            Ident(v) => Self::Ident(v),
+            Scalar(v) => {
+                let v = ScalarValue::try_from(&v).unwrap();
+                Self::Scalar(v)
+            }
+            Array(values) => {
+                let arr = values
+                    .array
+                    .into_iter()
+                    .map(|v| {
+                        let variant = v.func_param_value_enum.unwrap();
+                        Self::decode_inner(variant)
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Self::Array(arr)
+            }
+        })
+    }
+
+    pub fn from_proto(
+        proto: protogen::rpcsrv::types::func_param_value::FuncParamValue,
+    ) -> Result<Self> {
+        let variant = proto
+            .func_param_value_enum
+            .expect("missing func_param_value_enum");
+
+        Self::decode_inner(variant)
+    }
+
+    fn encode_inner(&self) -> FuncParamValueEnum {
+        let inner = match self {
+            Self::Ident(v) => FuncParamValueEnum::Ident(v.clone()),
+            Self::Scalar(v) => {
+                let scalar = v.try_into().unwrap();
+                FuncParamValueEnum::Scalar(scalar)
+            }
+            Self::Array(values) => {
+                let arr = values
+                    .iter()
+                    .map(|v| {
+                        let inner = v.encode_inner();
+                        protogen::rpcsrv::types::func_param_value::FuncParamValue {
+                            func_param_value_enum: Some(inner),
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                FuncParamValueEnum::Array(FuncParamValueArrayVariant { array: arr })
+            }
+        };
+        inner
+    }
+    
+    pub fn to_proto(&self) -> protogen::rpcsrv::types::func_param_value::FuncParamValue {
+        let inner = self.encode_inner();
+        protogen::rpcsrv::types::func_param_value::FuncParamValue {
+            func_param_value_enum: Some(inner),
         }
     }
 }

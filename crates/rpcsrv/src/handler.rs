@@ -7,13 +7,14 @@ use dashmap::DashMap;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::{arrow::ipc::writer::FileWriter as IpcFileWriter, variable::VarType};
-use datafusion_ext::vars::SessionVars;
+use datafusion_ext::{errors::ExtensionError, functions::FuncParamValue, vars::SessionVars};
 use futures::{Stream, StreamExt};
 use protogen::{
     gen::rpcsrv::service::{self, BroadcastExchangeResponse},
     rpcsrv::types::service::{
-        CloseSessionRequest, CloseSessionResponse, DispatchAccessRequest, InitializeSessionRequest,
-        InitializeSessionResponse, PhysicalPlanExecuteRequest, TableProviderResponse,
+        CloseSessionRequest, CloseSessionResponse, CreateProviderRequest, DispatchAccessRequest,
+        InitializeSessionRequest, InitializeSessionResponse, PhysicalPlanExecuteRequest,
+        TableProviderResponse,
     },
 };
 use sqlexec::{
@@ -21,6 +22,7 @@ use sqlexec::{
     remote::exchange_stream::ClientExchangeRecvStream,
 };
 use std::{
+    collections::HashMap,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -160,6 +162,27 @@ impl RpcHandler {
             .get(&session_id)
             .ok_or_else(|| RpcsrvError::MissingSession(session_id))
             .map(|s| s.value().clone())
+    }
+    pub async fn create_provider(
+        &self,
+        req: CreateProviderRequest,
+    ) -> Result<TableProviderResponse> {
+        let session = self.get_session(req.session_id.parse().unwrap())?;
+        info!(session_id=%req.session_id, "creating provider");
+        let args = req
+            .args
+            .into_iter()
+            .map(FuncParamValue::from_proto)
+            .collect::<std::result::Result<Vec<_>, ExtensionError>>()
+            .unwrap();
+        let opts = req
+            .opts
+            .into_iter()
+            .map(|(k, v)| Ok((k, FuncParamValue::from_proto(v)?)))
+            .collect::<std::result::Result<HashMap<_, _>, ExtensionError>>()
+            .unwrap();
+        let (id, schema) = session.create_provider(args, opts).await?;
+        Ok(TableProviderResponse { id, schema })
     }
 }
 

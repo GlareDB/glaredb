@@ -150,6 +150,7 @@ impl TableFunc for ObjScanTableFunc {
         }
 
         let plan = plan_builder.build()?;
+        
         Ok(plan)
     }
 }
@@ -178,7 +179,6 @@ async fn get_table_provider(
             .map_err(|e| ExtensionError::Access(Box::new(e)))?;
         objects.push(list);
     }
-
     let provider = accessor
         .into_table_provider(
             state,
@@ -188,10 +188,10 @@ async fn get_table_provider(
         )
         .await
         .map_err(|e| ExtensionError::Access(Box::new(e)))?;
-
     if is_local {
         Ok(Arc::new(LocalTableHint(provider)))
     } else {
+        
         Ok(provider)
     }
 }

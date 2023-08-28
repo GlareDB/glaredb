@@ -2,11 +2,13 @@ use crate::errors::{Result, RpcsrvError};
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::{OwnedTableReference, TableReference};
 use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion_ext::functions::FuncParamValue;
 use datafusion_proto::physical_plan::AsExecutionPlan;
 use datafusion_proto::protobuf::PhysicalPlanNode;
 use protogen::metastore::types::catalog::CatalogState;
 use sqlexec::context::remote::RemoteSessionContext;
 use sqlexec::remote::exchange_stream::ClientExchangeRecvStream;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -54,6 +56,21 @@ impl RemoteSession {
         let schema = prov.schema().as_ref().clone();
 
         Ok((id, schema))
+    }
+
+    pub async fn create_provider(
+        &self,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> Result<(Uuid, Schema)> {
+        let mut session = self.session.lock().await;
+        session.execute_physical(-)
+        todo!("create provider");
+
+        // let (id, prov) = session.load_and_cache_table(&db, &schema, &name).await?;
+        // let schema = prov.schema().as_ref().clone();
+
+        // Ok((id, schema))
     }
 
     pub async fn physical_plan_execute(
