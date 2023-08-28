@@ -1,0 +1,72 @@
+# Tests for asserting we get the right command tags back.
+
+send
+Query {"query": "drop table if exists hello;"}
+----
+
+until NoticeResponse=ignore
+ReadyForQuery
+----
+CommandComplete {"tag":"DROP TABLE"}
+ReadyForQuery {"status":"I"}
+
+
+send
+Query {"query": "create table hello (a int);"}
+----
+
+until
+ReadyForQuery
+----
+CommandComplete {"tag":"CREATE TABLE"}
+ReadyForQuery {"status":"I"}
+
+
+# Insert
+send
+Query {"query": "insert into hello values (1), (2)"}
+----
+
+until
+ReadyForQuery
+----
+CommandComplete {"tag":"INSERT 0 2"}
+ReadyForQuery {"status":"I"}
+
+
+# Update
+send
+Query {"query": "update hello set a = 3"}
+----
+
+until
+ReadyForQuery
+----
+CommandComplete {"tag":"UPDATE 2"}
+ReadyForQuery {"status":"I"}
+
+
+# Delete
+send
+Query {"query": "delete from hello"}
+----
+
+until
+ReadyForQuery
+----
+CommandComplete {"tag":"DELETE 2"}
+ReadyForQuery {"status":"I"}
+
+
+# Create schema
+send
+Query {"query": "create schema if not exists test_schema"}
+----
+
+until NoticeResponse=ignore
+ReadyForQuery
+----
+CommandComplete {"tag":"CREATE SCHEMA"}
+ReadyForQuery {"status":"I"}
+
+
