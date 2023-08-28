@@ -122,9 +122,13 @@ fn run_send(
 ///
 /// Continually reads messages from the connection until either all expected
 /// have been read. Panics on timeout when reading any one message.
+///
+/// Message can optionally be ignored through setting '<message-name>=ignore'.
+/// This is particularly useful for ignoring notices from the backend
+/// ('NoticeResponse=ignore').
 fn run_until(
     conn: &mut PgConn,
-    _args: &HashMap<String, Vec<String>>,
+    args: &HashMap<String, Vec<String>>,
     input: &str,
     timeout: Duration,
     verbose: bool,
@@ -134,10 +138,20 @@ fn run_until(
         loop {
             let (id, msg) = conn.read_message(timeout).unwrap();
             let human = SerializedMessage::try_from((id, msg)).unwrap();
+
+            let ignored = is_ignored(&human, args);
             if verbose {
-                println!("READ: {}", human);
+                if ignored {
+                    println!("READ [IGNORED]: {}", human);
+                } else {
+                    println!("READ: {}", human);
+                }
             }
-            human_strings.push(human.to_string());
+
+            if !ignored {
+                human_strings.push(human.to_string());
+            }
+
             if human.typ == expected_typ {
                 break;
             }
@@ -145,6 +159,14 @@ fn run_until(
     }
 
     human_strings.join("\n") + "\n"
+}
+
+fn is_ignored(msg: &SerializedMessage, args: &HashMap<String, Vec<String>>) -> bool {
+    let msg_args = match args.get(&msg.typ) {
+        Some(a) => a,
+        None => return false,
+    };
+    msg_args.iter().find(|s| s.as_str() == "ignore").is_some()
 }
 
 struct PgConn {

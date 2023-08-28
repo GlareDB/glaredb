@@ -83,6 +83,9 @@ impl TryFrom<(char, Message)> for SerializedMessage {
                         .collect()?,
                 })?,
             ),
+            Message::NoticeResponse(_msg) => {
+                ("NoticeResponse", serde_json::to_string(&NoticeResponse {})?)
+            }
             _ => return Err(anyhow!("unhandle message, type identifier: {}", id)),
         };
         Ok(SerializedMessage {
@@ -170,4 +173,9 @@ pub struct CommandComplete {
 #[derive(Serialize)]
 pub struct ErrorResponse {
     pub fields: Vec<String>,
+}
+
+#[derive(Serialize)]
+pub struct NoticeResponse {
+    // TODO: Fill me in. Currently we don't assert notices.
 }
