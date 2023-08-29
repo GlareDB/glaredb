@@ -724,13 +724,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 catalog_version: exec.catalog_version,
                 tbl_reference: Some(exec.tbl_reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
-                arrow_schema: Some(exec.schema().try_into()?),
+                arrow_schema: Some(exec.arrow_schema.clone().try_into()?),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateTempTableExec>() {
             proto::ExecutionPlanExtensionType::CreateTempTableExec(proto::CreateTempTableExec {
                 tbl_reference: Some(exec.tbl_reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
-                arrow_schema: Some(exec.schema().try_into()?),
+                arrow_schema: Some(exec.arrow_schema.clone().try_into()?),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<AlterDatabaseRenameExec>() {
             proto::ExecutionPlanExtensionType::AlterDatabaseRenameExec(

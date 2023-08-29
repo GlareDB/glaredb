@@ -52,15 +52,16 @@ Kathryn  Sweden
 
 # One off tests for #1599
 
-# statement ok
-# create schema hello_world;
+statement ok
+create schema hello_world;
 
-# statement ok
-# drop schema hello_world;
+statement ok
+drop schema hello_world;
 
+# Views don't seem to be working yet.
 # statement ok
 # create view my_view as select 1;
-
+#
 # query I
 # select * from my_view;
 # ----
@@ -77,3 +78,14 @@ select * from test2;
 ----
 1
 
+# Test for #1661
+statement ok
+create table t1661 (a int, b int, c int);
+
+statement ok
+insert into t1661 select 1, 2, 3;
+
+query III
+select * from t1661;
+----
+1 2 3

@@ -131,8 +131,8 @@ jobs:
 
       - name: SQL Logic Tests (RPC)
         run: |
-          just sql-logic-tests -v 'sqllogictests/rpc' \
-                                  'sqllogictests/time'
+          just sql-logic-tests -v --rpc-test 'sqllogictests/rpc' \
+                                             'sqllogictests/time'
 
       - name: Protocol Tests
         run: ./scripts/protocol-test.sh
