@@ -2,8 +2,11 @@ use object_store::{
     gcp::GoogleCloudStorageBuilder, local::LocalFileSystem, memory::InMemory,
     Error as ObjectStoreError, ObjectStore,
 };
+use once_cell::sync::Lazy;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+static IN_MEMORY_STORE: Lazy<Arc<InMemory>> = Lazy::new(|| Arc::new(InMemory::new()));
 
 /// Configuration options for various types of storage we support.
 #[derive(Debug, Clone)]
@@ -32,7 +35,7 @@ impl StorageConfig {
                     .build()?,
             ),
             StorageConfig::Local { path } => Arc::new(LocalFileSystem::new_with_prefix(path)?),
-            StorageConfig::Memory => Arc::new(InMemory::new()),
+            StorageConfig::Memory => IN_MEMORY_STORE.clone(),
         })
     }
 }
