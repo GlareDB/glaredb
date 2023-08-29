@@ -24,6 +24,7 @@ use datafusion_ext::local_hint::LocalTableHint;
 use datafusion_ext::planner::AsyncContextProvider;
 use datafusion_ext::vars::SessionVars;
 use protogen::metastore::types::catalog::{CatalogEntry, CredentialsEntry, DatabaseEntry};
+use protogen::metastore::types::options::TableOptions;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
@@ -131,8 +132,17 @@ impl<'a> PartialContextProvider<'a> {
                 //
                 // Temp and system tables should be handled locally.
                 ResolvedEntry::Entry(ent) => {
+                    // Anything that should be resolved locally should not go
+                    // to server for resolution.
+                    let should_resolve_local = match &ent {
+                        CatalogEntry::Table(t) => {
+                            matches!(&t.options, TableOptions::Debug(_) | TableOptions::Local(_))
+                        }
+                        _ => false,
+                    };
                     let meta = ent.get_meta();
-                    if !(meta.is_temp || meta.builtin) {
+                    let should_resolve_local = meta.is_temp || meta.builtin || should_resolve_local;
+                    if !should_resolve_local {
                         let prov = client
                             .dispatch_access(ResolvedTableReference::Internal {
                                 table_oid: meta.id,
