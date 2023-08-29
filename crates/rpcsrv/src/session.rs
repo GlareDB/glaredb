@@ -1,10 +1,10 @@
-use crate::errors::{Result, RpcsrvError};
+use crate::errors::Result;
 use datafusion::arrow::datatypes::Schema;
-use datafusion::common::{OwnedTableReference, TableReference};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_proto::physical_plan::AsExecutionPlan;
 use datafusion_proto::protobuf::PhysicalPlanNode;
 use protogen::metastore::types::catalog::CatalogState;
+use protogen::rpcsrv::types::service::ResolvedTableReference;
 use sqlexec::context::remote::RemoteSessionContext;
 use sqlexec::remote::exchange_stream::ClientExchangeRecvStream;
 use std::sync::Arc;
@@ -30,27 +30,18 @@ impl RemoteSession {
 
     /// Get the catalog state suitable for sending back to the requesting
     /// session.
-    pub async fn get_catalog_state(&self) -> CatalogState {
-        let session = self.session.lock().await;
-        session.get_session_catalog().get_state().as_ref().clone()
+    pub async fn get_refreshed_catalog_state(&self) -> Result<CatalogState> {
+        let mut session = self.session.lock().await;
+        session.refresh_catalog().await?;
+        Ok(session.get_session_catalog().get_state().as_ref().clone())
     }
 
-    pub async fn dispatch_access(&self, table_ref: OwnedTableReference) -> Result<(Uuid, Schema)> {
-        let (db, schema, name) = match table_ref {
-            TableReference::Bare { .. } | TableReference::Partial { .. } => {
-                return Err(RpcsrvError::Internal(
-                    "Full table reference required".to_string(),
-                ));
-            }
-            TableReference::Full {
-                catalog,
-                schema,
-                table,
-            } => (catalog, schema, table),
-        };
-
+    pub async fn dispatch_access(
+        &self,
+        table_ref: ResolvedTableReference,
+    ) -> Result<(Uuid, Schema)> {
         let mut session = self.session.lock().await;
-        let (id, prov) = session.load_and_cache_table(&db, &schema, &name).await?;
+        let (id, prov) = session.load_and_cache_table(table_ref).await?;
         let schema = prov.schema().as_ref().clone();
 
         Ok((id, schema))

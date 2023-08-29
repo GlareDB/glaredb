@@ -173,7 +173,7 @@ pub struct BatchStreamWithMetricSender {
     /// Underlying stream being wrapped.
     stream: SendableRecordBatchStream,
     /// Reference to the plan to get complete query metrics from.
-    plan: Option<Arc<dyn ExecutionPlan>>,
+    plan: Arc<dyn ExecutionPlan>,
     /// The pending set of query metrics. Wrapped in an Option to allow taking
     /// inner.
     pending: Option<QueryMetrics>,
@@ -184,7 +184,7 @@ pub struct BatchStreamWithMetricSender {
 impl BatchStreamWithMetricSender {
     pub fn new(
         stream: SendableRecordBatchStream,
-        plan: Option<Arc<dyn ExecutionPlan>>,
+        plan: Arc<dyn ExecutionPlan>,
         pending: QueryMetrics,
         sender: mpsc::Sender<QueryMetrics>,
     ) -> Self {
@@ -214,12 +214,10 @@ impl Stream for BatchStreamWithMetricSender {
                 if let Some(mut metrics) = self.pending.take() {
                     metrics.execution_status = ExecutionStatus::Success;
 
-                    if let Some(plan) = &self.plan {
-                        if let Some(exec_metrics) = plan.metrics() {
-                            metrics.elapsed_compute_ns =
-                                exec_metrics.elapsed_compute().map(|v| v as u64);
-                            metrics.output_rows = exec_metrics.output_rows().map(|v| v as u64);
-                        }
+                    if let Some(exec_metrics) = self.plan.metrics() {
+                        metrics.elapsed_compute_ns =
+                            exec_metrics.elapsed_compute().map(|v| v as u64);
+                        metrics.output_rows = exec_metrics.output_rows().map(|v| v as u64);
                     }
 
                     if let Err(e) = self.sender.try_send(metrics) {
@@ -241,12 +239,10 @@ impl Stream for BatchStreamWithMetricSender {
 
                     // The query may have failed, but having these execution
                     // stats may be useful anyways.
-                    if let Some(plan) = &self.plan {
-                        if let Some(exec_metrics) = plan.metrics() {
-                            metrics.elapsed_compute_ns =
-                                exec_metrics.elapsed_compute().map(|v| v as u64);
-                            metrics.output_rows = exec_metrics.output_rows().map(|v| v as u64);
-                        }
+                    if let Some(exec_metrics) = self.plan.metrics() {
+                        metrics.elapsed_compute_ns =
+                            exec_metrics.elapsed_compute().map(|v| v as u64);
+                        metrics.output_rows = exec_metrics.output_rows().map(|v| v as u64);
                     }
 
                     if let Err(e) = self.sender.try_send(metrics) {

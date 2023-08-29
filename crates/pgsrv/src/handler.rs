@@ -12,6 +12,7 @@ use crate::proxy::{
 };
 use crate::ssl::{Connection, SslConfig};
 use datafusion::arrow::datatypes::DataType;
+use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::scalar::ScalarValue;
 use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
@@ -20,7 +21,6 @@ use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use sqlexec::context::local::{OutputFields, Portal, PreparedStatement};
 use sqlexec::engine::SessionStorageConfig;
-use sqlexec::session::ExecutionStream;
 use sqlexec::{
     engine::Engine,
     parser::{self, StatementWithExtensions},
@@ -486,7 +486,7 @@ where
             }
 
             // Execute...
-            let mut stream = match session.execute_portal(&UNNAMED, 0).await {
+            let stream = match session.execute_portal(&UNNAMED, 0).await {
                 Ok(stream) => stream,
                 Err(e) => {
                     self.send_error(e.into()).await?;
@@ -496,8 +496,7 @@ where
 
             // If we're returning data (SELECT), send back the output fields
             // before sending back actual data.
-            let result = stream.inspect_result().await;
-            if let ExecutionResult::Query = result {
+            if let ExecutionResult::Query { .. } = stream {
                 let output_fields =
                     session_do!(self, session, get_portal, &UNNAMED, Portal::output_fields);
                 if let Some(fields) = output_fields {
@@ -507,7 +506,6 @@ where
 
             Self::send_result(
                 conn,
-                result,
                 stream,
                 session_do!(self, session, get_portal, &UNNAMED, get_encoding_state),
             )
@@ -649,18 +647,16 @@ where
 
         let conn = &mut self.conn;
         let session = &mut self.session;
-        let mut stream = match session.execute_portal(&portal, max_rows).await {
+        let stream = match session.execute_portal(&portal, max_rows).await {
             Ok(r) => r,
             Err(e) => return self.send_error(e.into()).await,
         };
-        let result = stream.inspect_result().await;
 
         // TODO: This seems to be missing sending back row description. Is it
         // needed? If not, a comment needs to go here.
 
         Self::send_result(
             conn,
-            result,
             stream,
             session_do!(self, session, get_portal, &portal, get_encoding_state),
         )
@@ -686,13 +682,12 @@ where
 
     async fn send_result(
         conn: &mut FramedConn<C>,
-        result: ExecutionResult,
-        stream: ExecutionStream,
+        stream: ExecutionResult,
         encoding_state: Vec<(PgType, Format)>,
     ) -> Result<()> {
-        match result {
+        match stream {
             ExecutionResult::Error(e) => return Err(e.into()),
-            ExecutionResult::Query => {
+            ExecutionResult::Query { stream, .. } => {
                 if let Some(num_rows) = Self::stream_batch(conn, stream, encoding_state).await? {
                     Self::command_complete(conn, format!("SELECT {}", num_rows)).await?;
                 }
@@ -764,7 +759,7 @@ where
     /// rows sent. `None` rows sent means that an error response was sent.
     async fn stream_batch(
         conn: &mut FramedConn<C>,
-        mut stream: ExecutionStream,
+        mut stream: SendableRecordBatchStream,
         encoding_state: Vec<(PgType, Format)>,
     ) -> Result<Option<usize>> {
         conn.set_encoding_state(encoding_state);

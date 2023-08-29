@@ -330,8 +330,8 @@ impl SessionCatalog {
         // Note that when we have transactions, we should move this to only
         // swapping states between transactions.
         if client.version_hint() != self.version() {
-            debug!(version = %self.version(), "swapping catalog state for session");
             let new_state = client.get_cached_state().await?;
+            debug!(old_version = %self.version(), new_version = %new_state.version, "swapping catalog state for session");
             self.swap_state(new_state);
         }
 
@@ -339,7 +339,12 @@ impl SessionCatalog {
     }
 
     /// Swap the underlying state of the catalog.
-    fn swap_state(&mut self, new_state: Arc<CatalogState>) {
+    ///
+    /// NOTE: This does not check if the new state is actually from a new
+    /// catalog.
+    pub fn swap_state(&mut self, new_state: Arc<CatalogState>) {
+        debug!(old_version = %self.state.version, new_version = %new_state.version, "swapping session catalog");
+
         self.state = new_state;
         self.rebuild_name_maps();
     }

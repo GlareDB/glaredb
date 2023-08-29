@@ -12,8 +12,9 @@ use futures::{Stream, StreamExt};
 use protogen::{
     gen::rpcsrv::service::{self, BroadcastExchangeResponse},
     rpcsrv::types::service::{
-        CloseSessionRequest, CloseSessionResponse, DispatchAccessRequest, InitializeSessionRequest,
-        InitializeSessionResponse, PhysicalPlanExecuteRequest, TableProviderResponse,
+        CloseSessionRequest, CloseSessionResponse, DispatchAccessRequest, FetchCatalogRequest,
+        FetchCatalogResponse, InitializeSessionRequest, InitializeSessionResponse,
+        PhysicalPlanExecuteRequest, TableProviderResponse,
     },
 };
 use sqlexec::{
@@ -100,7 +101,7 @@ impl RpcHandler {
             .await?;
 
         let sess = RemoteSession::new(context);
-        let initial_state = sess.get_catalog_state().await;
+        let initial_state = sess.get_refreshed_catalog_state().await?;
 
         self.sessions.insert(conn_id, sess);
 
@@ -110,12 +111,22 @@ impl RpcHandler {
         })
     }
 
+    async fn fetch_catalog_inner(&self, req: FetchCatalogRequest) -> Result<FetchCatalogResponse> {
+        let session = self.get_session(req.session_id)?;
+        let catalog = session.get_refreshed_catalog_state().await?;
+
+        info!(session_id=%req.session_id, version = %catalog.version, "fetching catalog");
+
+        Ok(FetchCatalogResponse { catalog })
+    }
+
     async fn dispatch_access_inner(
         &self,
         req: DispatchAccessRequest,
     ) -> Result<TableProviderResponse> {
+        info!(session_id=%req.session_id, table_ref=?req.table_ref, "dispatching table access");
+
         let session = self.get_session(req.session_id)?;
-        info!(session_id=%req.session_id, table_ref=%req.table_ref, "dispatching table access");
         let (id, schema) = session.dispatch_access(req.table_ref).await?;
         Ok(TableProviderResponse { id, schema })
     }
@@ -124,8 +135,9 @@ impl RpcHandler {
         &self,
         req: PhysicalPlanExecuteRequest,
     ) -> Result<ExecutionResponseBatchStream> {
-        let session = self.get_session(req.session_id)?;
         info!(session_id=%req.session_id, "executing physical plan");
+
+        let session = self.get_session(req.session_id)?;
         let batches = session.physical_plan_execute(req.physical_plan).await?;
         Ok(ExecutionResponseBatchStream {
             batches,
@@ -139,8 +151,10 @@ impl RpcHandler {
     ) -> Result<BroadcastExchangeResponse> {
         let stream = ClientExchangeRecvStream::try_new(req).await?;
         let session_id = stream.session_id();
-        let session = self.get_session(session_id)?;
+
         info!(session_id=%session_id, broadcast_id=%stream.broadcast_id(), "beginning client exchange stream");
+
+        let session = self.get_session(session_id)?;
 
         session.register_broadcast_stream(stream).await?;
 
@@ -174,6 +188,16 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
     ) -> Result<Response<service::InitializeSessionResponse>, Status> {
         let resp = self
             .initialize_session_inner(request.into_inner().try_into()?)
+            .await?;
+        Ok(Response::new(resp.try_into()?))
+    }
+
+    async fn fetch_catalog(
+        &self,
+        request: Request<service::FetchCatalogRequest>,
+    ) -> Result<Response<service::FetchCatalogResponse>, Status> {
+        let resp = self
+            .fetch_catalog_inner(request.into_inner().try_into()?)
             .await?;
         Ok(Response::new(resp.try_into()?))
     }

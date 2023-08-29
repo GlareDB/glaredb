@@ -86,10 +86,14 @@ message InitializeSessionResponse {
   metastore.catalog.CatalogState catalog = 2;
 }
 
+message FetchCatalogRequest { bytes session_id = 1; }
+
+message FetchCatalogResponse { metastore.catalog.CatalogState catalog = 1; }
+
 // Dispatch the table access on remote server.
 message DispatchAccessRequest {
   bytes session_id = 1;
-  TableReference table_ref = 2;
+  ResolvedTableReference table_ref = 2;
 }
 
 // Execute a physical plan and get the stream.
@@ -109,10 +113,24 @@ message RecordBatchResponse {
   bytes arrow_ipc = 1;
 }
 
-message TableReference {
-  optional string catalog = 1;
-  optional string schema = 2;
-  string table = 3;
+message InternalTableReference {
+  // OID of the table in the catalog.
+  uint32 table_oid = 1;
+}
+
+message ExternalTableReference {
+  string database = 1;
+  string schema = 2;
+  string name = 3;
+}
+
+message ResolvedTableReference {
+  oneof reference {
+    // Table exists in our catalog.
+    InternalTableReference internal = 1;
+    // Table exists in an external system that we need to contact.
+    ExternalTableReference external = 2;
+  }
 }
 
 message BroadcastExchangeRequest {
@@ -146,6 +164,8 @@ service ExecutionService {
   // Initializes a remote session.
   rpc InitializeSession(InitializeSessionRequest)
       returns (InitializeSessionResponse);
+
+  rpc FetchCatalog(FetchCatalogRequest) returns (FetchCatalogResponse);
 
   // Dispatch and create a table provider on the remote server.
   rpc DispatchAccess(DispatchAccessRequest) returns (TableProviderResponse);
