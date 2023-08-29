@@ -7,12 +7,15 @@ use datafusion::{
 };
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
+use protogen::{
+    metastore::types::catalog::CatalogEntry, rpcsrv::types::service::ResolvedTableReference,
+};
 use uuid::Uuid;
 
 use crate::{
     background_jobs::JobRunner,
     dispatch::external::ExternalDispatcher,
-    errors::Result,
+    errors::{ExecError, Result},
     extension_codec::GlareDBExtensionCodec,
     metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog},
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
@@ -80,6 +83,13 @@ impl RemoteSessionContext {
         &self.catalog
     }
 
+    pub async fn refresh_catalog(&mut self) -> Result<()> {
+        self.catalog
+            .maybe_refresh_state(self.catalog_mutator().get_metastore_client(), false)
+            .await?;
+        Ok(())
+    }
+
     /// Returns the extension codec used for serializing and deserializing data
     /// over RPCs.
     pub fn extension_codec(&self) -> GlareDBExtensionCodec<'_> {
@@ -122,23 +132,46 @@ impl RemoteSessionContext {
     // getting the correct entries from the catalog.
     pub async fn load_and_cache_table(
         &mut self,
-        database: &str,
-        schema: &str,
-        name: &str,
+        table_ref: ResolvedTableReference,
     ) -> Result<(Uuid, Arc<dyn TableProvider>)> {
         self.catalog
             .maybe_refresh_state(self.catalog_mutator().get_metastore_client(), false)
             .await?;
 
-        let prov: Arc<dyn TableProvider> =
-            if let Some(tbl) = self.catalog.resolve_table(database, schema, name) {
-                self.tables.load_table(tbl).await?.into_table_provider()
-            } else {
-                // Since this is operating on a remote node, always disable local fs
-                // access.
-                let dispatcher = ExternalDispatcher::new(&self.catalog, &self.df_ctx, true);
-                dispatcher.dispatch_external(database, schema, name).await?
-            };
+        // Since this is operating on a remote node, always disable local fs
+        // access.
+        let dispatcher = ExternalDispatcher::new(&self.catalog, &self.df_ctx, true);
+
+        let prov: Arc<dyn TableProvider> = match table_ref {
+            ResolvedTableReference::Internal { table_oid } => {
+                match self.catalog.get_by_oid(table_oid) {
+                    Some(CatalogEntry::Table(tbl)) => {
+                        if tbl.meta.external {
+                            dispatcher.dispatch_external_table(tbl).await?
+                        } else {
+                            self.tables.load_table(tbl).await?.into_table_provider()
+                        }
+                    }
+                    Some(_) => {
+                        return Err(ExecError::Internal(format!("oid not a table: {table_oid}")))
+                    }
+                    None => {
+                        return Err(ExecError::Internal(format!(
+                            "missing entry for oid: {table_oid}"
+                        )))
+                    }
+                }
+            }
+            ResolvedTableReference::External {
+                database,
+                schema,
+                name,
+            } => {
+                dispatcher
+                    .dispatch_external(&database, &schema, &name)
+                    .await?
+            }
+        };
 
         let id = Uuid::new_v4();
         self.provider_cache.put(id, prov.clone());

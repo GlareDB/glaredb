@@ -24,6 +24,7 @@ use datafusion_ext::local_hint::LocalTableHint;
 use datafusion_ext::planner::AsyncContextProvider;
 use datafusion_ext::vars::SessionVars;
 use protogen::metastore::types::catalog::{CatalogEntry, CredentialsEntry, DatabaseEntry};
+use protogen::rpcsrv::types::service::ResolvedTableReference;
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 use std::collections::HashMap;
@@ -111,9 +112,18 @@ impl<'a> PartialContextProvider<'a> {
             match &ent {
                 // References to external databases should always resolve
                 // remotely.
-                ResolvedEntry::NeedsExternalResolution { .. } => {
-                    let owned = reference.to_owned_reference();
-                    let prov = client.dispatch_access(owned).await?;
+                ResolvedEntry::NeedsExternalResolution {
+                    db_ent,
+                    schema,
+                    name,
+                } => {
+                    let prov = client
+                        .dispatch_access(ResolvedTableReference::External {
+                            database: db_ent.meta.name.clone(),
+                            schema: schema.clone().into_owned(),
+                            name: name.clone().into_owned(),
+                        })
+                        .await?;
                     return Ok(Arc::new(prov));
                 }
 
@@ -121,11 +131,13 @@ impl<'a> PartialContextProvider<'a> {
                 //
                 // Temp and system tables should be handled locally.
                 ResolvedEntry::Entry(ent) => {
-                    // TODO: Probably want to get the fully qualified reference.
                     let meta = ent.get_meta();
                     if !(meta.is_temp || meta.builtin) {
-                        let owned = reference.to_owned_reference();
-                        let prov = client.dispatch_access(owned).await?;
+                        let prov = client
+                            .dispatch_access(ResolvedTableReference::Internal {
+                                table_oid: meta.id,
+                            })
+                            .await?;
                         return Ok(Arc::new(prov));
                     }
                 }
@@ -149,6 +161,13 @@ impl<'a> PartialContextProvider<'a> {
                 schema,
                 name,
             } => dispatcher.dispatch_external(db_ent, &schema, &name).await?,
+        };
+
+        // TODO: See <https://github.com/GlareDB/glaredb/issues/1657#issuecomment-1696219544>
+        let provider = if self.ctx.exec_client().is_some() {
+            Arc::new(LocalTableHint(provider))
+        } else {
+            provider
         };
 
         Ok(provider)

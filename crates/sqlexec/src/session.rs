@@ -19,8 +19,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
-    execute_stream, EmptyRecordBatchStream, ExecutionPlan, RecordBatchStream,
-    SendableRecordBatchStream,
+    execute_stream, ExecutionPlan, RecordBatchStream, SendableRecordBatchStream,
 };
 use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
@@ -29,7 +28,6 @@ use datasources::native::access::NativeTableStorage;
 use futures::{Stream, StreamExt};
 use pgrepr::format::Format;
 use telemetry::Tracker;
-use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::background_jobs::JobRunner;
@@ -40,112 +38,18 @@ use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics,
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 
-/// The results of execution.
-pub struct ExecutionStream {
-    /// Inner results stream from execution.
-    inner: SendableRecordBatchStream,
-    /// Execution plan used to create the stream. Used for collecting metrics
-    /// for query execution.
-    // TODO: Remote Option once everything is executed through an execution
-    // plan.
-    plan: Option<Arc<dyn ExecutionPlan>>,
-}
-
-impl ExecutionStream {
-    pub fn empty() -> ExecutionStream {
-        ExecutionStream {
-            inner: Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty()))),
-            plan: None,
-        }
-    }
-
-    /// Inspect the stream to provide additional details.
-    pub async fn inspect_result(&mut self) -> ExecutionResult {
-        let schema = self.inner.schema();
-        // If we don't match either of these schemas, just assume these results
-        // are from a normal SELECT query.
-        if !(schema.eq(&GENERIC_OPERATION_PHYSICAL_SCHEMA)
-            || schema.eq(&GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA))
-        {
-            return ExecutionResult::Query;
-        }
-
-        let batch = match self.inner.next().await {
-            Some(Ok(batch)) => batch,
-            Some(Err(e)) => return ExecutionResult::Error(e),
-            None => return ExecutionResult::EmptyQuery,
-        };
-
-        // Our special batches contain only a single row. If we have more,
-        // assume that this is a user query (which would be weird since it
-        // matches our special schemas).
-        if batch.num_rows() != 1 {
-            self.swap_with_stream_and_first_result(Ok(batch));
-            return ExecutionResult::Query;
-        }
-
-        // Try to get the execution result type from the batch. Default to
-        // `Query` if we don't know how to translate it into a result.
-        let op = get_operation_from_batch(&batch).unwrap_or_default();
-        let count = get_count_from_batch(&batch);
-        let result =
-            ExecutionResult::from_str_and_count(&op, count).unwrap_or(ExecutionResult::Query);
-
-        // Put the batch we inspected back on the stream.
-        self.swap_with_stream_and_first_result(Ok(batch));
-
-        result
-    }
-
-    /// Helper for swapping out the stream with one that prepends `result`.
-    fn swap_with_stream_and_first_result(&mut self, result: DataFusionResult<RecordBatch>) {
-        let mut placeholder: SendableRecordBatchStream =
-            Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())));
-        std::mem::swap(&mut self.inner, &mut placeholder);
-        self.inner = Box::pin(StreamAndFirstResult {
-            stream: placeholder,
-            first_result: Some(result),
-        });
-    }
-
-    /// Swap out the stream with one that will record metrics on query completion.
-    // TODO: This could be a bit better integrated.
-    fn swap_with_metrics_stream(
-        &mut self,
-        pending: QueryMetrics,
-        sender: mpsc::Sender<QueryMetrics>,
-    ) {
-        let mut placeholder: SendableRecordBatchStream =
-            Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())));
-        std::mem::swap(&mut self.inner, &mut placeholder);
-
-        let metrics_stream =
-            BatchStreamWithMetricSender::new(placeholder, self.plan.clone(), pending, sender);
-
-        self.inner = Box::pin(metrics_stream)
-    }
-}
-
-impl Stream for ExecutionStream {
-    type Item = DataFusionResult<RecordBatch>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.inner.poll_next_unpin(cx)
-    }
-}
-
-impl RecordBatchStream for ExecutionStream {
-    fn schema(&self) -> Arc<Schema> {
-        self.inner.schema()
-    }
-}
-
 /// Results from a sql statement execution.
 pub enum ExecutionResult {
+    /// The stream for the output of a query.
+    Query {
+        /// Inner results stream from execution.
+        stream: SendableRecordBatchStream,
+        /// Execution plan used to create the stream. Used for collecting metrics
+        /// for query execution.
+        plan: Arc<dyn ExecutionPlan>,
+    },
     /// Execution errored.
     Error(DataFusionError),
-    /// The stream for the output of a query.
-    Query,
     /// No batches returned.
     EmptyQuery,
     /// Transaction started.
@@ -197,6 +101,58 @@ pub enum ExecutionResult {
 }
 
 impl ExecutionResult {
+    /// Create a result from a stream and a physical plan.
+    ///
+    /// This will look at the first batch in the stream to determine which
+    /// result it is.
+    pub async fn from_stream_and_plan(
+        mut stream: SendableRecordBatchStream,
+        plan: Arc<dyn ExecutionPlan>,
+    ) -> ExecutionResult {
+        let schema = stream.schema();
+        // If we don't match either of these schemas, just assume these results
+        // are from a normal SELECT query.
+        if !(schema.eq(&GENERIC_OPERATION_PHYSICAL_SCHEMA)
+            || schema.eq(&GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA))
+        {
+            return ExecutionResult::Query { stream, plan };
+        }
+
+        let (batch, stream) = match stream.next().await {
+            Some(Ok(batch)) => (
+                batch.clone(),
+                StreamAndFirstResult {
+                    stream,
+                    first_result: Some(Ok(batch)),
+                },
+            ),
+            Some(Err(e)) => {
+                return ExecutionResult::Error(e);
+            }
+            None => return ExecutionResult::EmptyQuery,
+        };
+
+        // Our special batches contain only a single row. If we have more,
+        // assume that this is a user query (which would be weird since it
+        // matches our special schemas).
+        if batch.num_rows() != 1 {
+            return ExecutionResult::Query {
+                stream: Box::pin(stream),
+                plan,
+            };
+        }
+
+        // Try to get the execution result type from the batch. Default to
+        // `Query` if we don't know how to translate it into a result.
+        let op = get_operation_from_batch(&batch).unwrap_or_default();
+        let count = get_count_from_batch(&batch);
+
+        ExecutionResult::from_str_and_count(&op, count).unwrap_or(ExecutionResult::Query {
+            stream: Box::pin(stream),
+            plan,
+        })
+    }
+
     const fn result_type_str(&self) -> &'static str {
         match self {
             ExecutionResult::Error(_) => "error",
@@ -226,6 +182,31 @@ impl ExecutionResult {
             ExecutionResult::DropTunnel => "drop_tunnel",
             ExecutionResult::DropCredentials => "drop_credentials",
         }
+    }
+
+    const fn is_ddl(&self) -> bool {
+        matches!(
+            self,
+            ExecutionResult::CreateTable
+                | ExecutionResult::CreateDatabase
+                | ExecutionResult::CreateTunnel
+                | ExecutionResult::CreateCredentials
+                | ExecutionResult::CreateSchema
+                | ExecutionResult::CreateView
+                | ExecutionResult::AlterTableRename
+                | ExecutionResult::AlterDatabaseRename
+                | ExecutionResult::AlterTunnelRotateKeys
+                | ExecutionResult::DropTables
+                | ExecutionResult::DropViews
+                | ExecutionResult::DropSchemas
+                | ExecutionResult::DropDatabase
+                | ExecutionResult::DropTunnel
+                | ExecutionResult::DropCredentials
+        )
+    }
+
+    const fn is_error(&self) -> bool {
+        matches!(self, ExecutionResult::Error(_))
     }
 
     fn from_str_and_count(s: &str, count: Option<u64>) -> Option<ExecutionResult> {
@@ -270,7 +251,7 @@ impl fmt::Display for ExecutionResult {
             ExecutionResult::Error(e) => {
                 write!(f, "Execution error: {e}")
             }
-            ExecutionResult::Query => {
+            ExecutionResult::Query { .. } => {
                 write!(f, "Query")
             }
             ExecutionResult::EmptyQuery => write!(f, "No results"),
@@ -509,21 +490,52 @@ impl Session {
             .bind_statement(portal_name, stmt_name, params, result_formats)
     }
 
-    pub async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionStream> {
+    pub async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionResult> {
         // Note that transaction support is fake, in that we don't currently do
         // anything and do not provide any transactional semantics.
         //
         // We stub out transaction commands since many tools (even BI ones) will
         // try to open a transaction for some queries.
         match plan {
-            LogicalPlan::Transaction(_plan) => Ok(ExecutionStream::empty()),
+            LogicalPlan::Transaction(_plan) => Ok(ExecutionResult::EmptyQuery),
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan).await?;
                 let stream = self.execute_physical(physical.clone())?;
-                Ok(ExecutionStream {
-                    inner: stream,
-                    plan: Some(physical),
-                })
+
+                let stream = ExecutionResult::from_stream_and_plan(stream, physical).await;
+
+                // If we're attached to a remote node, and the result indicates
+                // the operation was a DDL operation, then fetch the newer
+                // catalog from the remote node.
+                if let Some(mut client) = self.ctx.exec_client() {
+                    // Note that 'is error' check tries to cover the case where
+                    // the local client tries to query a table that's been
+                    // changed by a second client (e.g. rename). This check aims
+                    // to make sure we get the latest catalog so that the user
+                    // isn't stuck (the user tries to query using the name table
+                    // name, but the catalog is out of date and doesn't know
+                    // about it).
+                    //
+                    // This check is overly broad in that we'll try to get the
+                    // catalog on every error. We can look into adding more
+                    // detail on the grpc response stream from the remote node
+                    // to provide a better hint of what we should be doing on
+                    // error.
+                    if stream.is_ddl() || stream.is_error() {
+                        // TODO: Instead of swapping here, I'd like to if we
+                        // could go towards collecting a "diff" of a session
+                        // (including new catalog states, variable changes, etc)
+                        // and applying at the start of a new query. This would
+                        // make "rolling back" in the case of an error pretty
+                        // easy -- just drop the diff.
+                        let state = client.fetch_catalog().await?;
+                        self.ctx
+                            .get_session_catalog_mut()
+                            .swap_state(Arc::new(state));
+                    }
+                }
+
+                Ok(stream)
             }
         }
     }
@@ -536,35 +548,49 @@ impl Session {
         &mut self,
         portal_name: &str,
         _max_rows: i32,
-    ) -> Result<ExecutionStream> {
+    ) -> Result<ExecutionResult> {
         // Flush any completed metrics.
         self.ctx.get_metrics_mut().flush_completed();
 
         let portal = self.ctx.get_portal(portal_name)?;
         let plan = match &portal.stmt.plan {
             Some(plan) => plan.clone(),
-            None => return Ok(ExecutionStream::empty()),
+            None => return Ok(ExecutionResult::EmptyQuery),
         };
 
         // Create "base" metrics.
         let mut metrics = QueryMetrics::new_for_portal(portal);
 
-        let mut stream = match self.execute_inner(plan).await {
-            Ok(mut stream) => {
-                let result = stream.inspect_result().await;
-                match result {
-                    ExecutionResult::Error(e) => {
-                        metrics.execution_status = ExecutionStatus::Fail;
-                        metrics.error_message = Some(e.to_string());
-                        return Err(e.into());
-                    }
-                    result => {
-                        metrics.execution_status = ExecutionStatus::Success;
-                        metrics.result_type = result.result_type_str();
-                        stream
+        let stream = match self.execute_inner(plan).await {
+            Ok(stream) => match stream {
+                ExecutionResult::Error(e) => {
+                    metrics.execution_status = ExecutionStatus::Fail;
+                    metrics.error_message = Some(e.to_string());
+                    return Err(e.into());
+                }
+                stream => {
+                    metrics.execution_status = ExecutionStatus::Success;
+                    metrics.result_type = stream.result_type_str();
+
+                    match stream {
+                        ExecutionResult::Query { stream, plan } => {
+                            // Swap out the batch stream with one that will send
+                            // metrics at the completions of the stream.
+                            let sender = self.ctx.get_metrics().get_sender();
+                            ExecutionResult::Query {
+                                stream: Box::pin(BatchStreamWithMetricSender::new(
+                                    stream,
+                                    plan.clone(),
+                                    metrics,
+                                    sender,
+                                )),
+                                plan,
+                            }
+                        }
+                        other => other,
                     }
                 }
-            }
+            },
             Err(e) => {
                 metrics.execution_status = ExecutionStatus::Fail;
                 metrics.error_message = Some(e.to_string());
@@ -576,11 +602,6 @@ impl Session {
                 return Err(e);
             }
         };
-
-        // Swap out the batch stream with one that will send metrics at the
-        // completions of the stream.
-        let sender = self.ctx.get_metrics().get_sender();
-        stream.swap_with_metrics_stream(metrics, sender);
 
         Ok(stream)
     }

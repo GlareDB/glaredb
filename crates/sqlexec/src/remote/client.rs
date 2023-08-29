@@ -3,13 +3,15 @@ use crate::{
     extension_codec::GlareDBExtensionCodec,
     metastore::catalog::SessionCatalog,
 };
-use datafusion::{common::OwnedTableReference, physical_plan::ExecutionPlan};
+use datafusion::physical_plan::ExecutionPlan;
 use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
 use protogen::{
     gen::rpcsrv::service::{self, execution_service_client::ExecutionServiceClient},
+    metastore::types::catalog::CatalogState,
     rpcsrv::types::service::{
-        CloseSessionRequest, DispatchAccessRequest, InitializeSessionRequest,
-        InitializeSessionResponse, PhysicalPlanExecuteRequest, TableProviderResponse,
+        CloseSessionRequest, DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse,
+        InitializeSessionRequest, InitializeSessionResponse, PhysicalPlanExecuteRequest,
+        ResolvedTableReference, TableProviderResponse,
     },
 };
 use proxyutil::metadata_constants::{
@@ -227,9 +229,28 @@ impl RemoteSessionClient {
         self.inner.get_deployment_name()
     }
 
+    pub async fn fetch_catalog(&mut self) -> Result<CatalogState> {
+        let mut request = service::FetchCatalogRequest::from(FetchCatalogRequest {
+            session_id: self.session_id(),
+        })
+        .into_request();
+        self.inner.append_auth_metadata(request.metadata_mut());
+
+        let resp: FetchCatalogResponse = self
+            .inner
+            .client
+            .fetch_catalog(request)
+            .await
+            .map_err(|e| ExecError::RemoteSession(format!("failed to fetch catalog: {e}")))?
+            .into_inner()
+            .try_into()?;
+
+        Ok(resp.catalog)
+    }
+
     pub async fn dispatch_access(
         &mut self,
-        table_ref: OwnedTableReference,
+        table_ref: ResolvedTableReference,
     ) -> Result<StubRemoteTableProvider> {
         let mut request = service::DispatchAccessRequest::from(DispatchAccessRequest {
             session_id: self.session_id(),

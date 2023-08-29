@@ -110,13 +110,27 @@ impl LocalSessionContext {
             ))
             .await?;
 
-        self.get_session_vars()
-            .write()
-            .remote_session_id
-            .set_raw(Some(client.session_id()), VarType::System)
-            .unwrap();
-        self.exec_client = Some(client.clone());
+        // I gave up and just decided to create a new state. Datafusion isn't
+        // amenable to mutating an existing context.
+        //
+        // The main difference here is creating a new catalog mutator without a
+        // metastore client to "detach" ourselves from the metastore we're
+        // connected to (likely running in-memory).
+        let vars = self
+            .get_session_vars()
+            .with_remote_session_id(client.session_id(), VarType::System);
+        let runtime = self.df_ctx.runtime_env();
+        let opts = new_datafusion_session_config_opts(vars);
+        let mut conf: SessionConfig = opts.into();
+        conf = conf
+            .with_extension(Arc::new(CatalogMutator::empty()))
+            .with_extension(Arc::new(self.get_native_tables().clone()))
+            .with_extension(Arc::new(TempCatalog::default()));
+        let state = SessionState::with_config_rt(conf, runtime);
+        let df_ctx = DfSessionContext::with_state(state);
 
+        self.exec_client = Some(client.clone());
+        self.df_ctx = df_ctx;
         self.catalog = catalog;
 
         Ok(())
@@ -189,6 +203,11 @@ impl LocalSessionContext {
     /// Get a reference to the session catalog.
     pub fn get_session_catalog(&self) -> &SessionCatalog {
         &self.catalog
+    }
+
+    /// Get a mutable reference to the session catalog.
+    pub fn get_session_catalog_mut(&mut self) -> &mut SessionCatalog {
+        &mut self.catalog
     }
 
     /// Create a prepared statement.

@@ -153,6 +153,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     InvalidMetadataValue(#[from] tonic::metadata::errors::InvalidMetadataValue),
+
+    #[error("{0}")]
+    String(String),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;

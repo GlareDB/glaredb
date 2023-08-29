@@ -178,6 +178,15 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
         Ok(Response::new(resp.try_into()?))
     }
 
+    async fn fetch_catalog(
+        &self,
+        request: Request<service::FetchCatalogRequest>,
+    ) -> Result<Response<service::FetchCatalogResponse>, Status> {
+        info!("fetching catalog (proxy)");
+        let (_, mut client) = self.connect(request.metadata()).await?;
+        client.fetch_catalog(request).await
+    }
+
     async fn dispatch_access(
         &self,
         request: Request<service::DispatchAccessRequest>,

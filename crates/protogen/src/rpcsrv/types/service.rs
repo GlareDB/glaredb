@@ -1,10 +1,10 @@
-use datafusion::{arrow::datatypes::Schema, common::OwnedTableReference, sql::TableReference};
+use datafusion::arrow::datatypes::Schema;
 use prost::Message;
 use uuid::Uuid;
 
 use crate::{
     errors::ProtoConvError,
-    gen::rpcsrv::service,
+    gen::rpcsrv::service::{self, ExternalTableReference, InternalTableReference},
     metastore::types::{catalog::CatalogState, FromOptionalField},
 };
 
@@ -145,9 +145,52 @@ impl TryFrom<InitializeSessionResponse> for service::InitializeSessionResponse {
     }
 }
 
+pub struct FetchCatalogRequest {
+    pub session_id: Uuid,
+}
+
+impl TryFrom<service::FetchCatalogRequest> for FetchCatalogRequest {
+    type Error = ProtoConvError;
+    fn try_from(value: service::FetchCatalogRequest) -> Result<Self, Self::Error> {
+        Ok(Self {
+            session_id: Uuid::from_slice(&value.session_id)?,
+        })
+    }
+}
+
+impl From<FetchCatalogRequest> for service::FetchCatalogRequest {
+    fn from(value: FetchCatalogRequest) -> Self {
+        Self {
+            session_id: value.session_id.into_bytes().into(),
+        }
+    }
+}
+
+pub struct FetchCatalogResponse {
+    pub catalog: CatalogState,
+}
+
+impl TryFrom<service::FetchCatalogResponse> for FetchCatalogResponse {
+    type Error = ProtoConvError;
+    fn try_from(value: service::FetchCatalogResponse) -> Result<Self, Self::Error> {
+        Ok(Self {
+            catalog: value.catalog.required("catalog state")?,
+        })
+    }
+}
+
+impl TryFrom<FetchCatalogResponse> for service::FetchCatalogResponse {
+    type Error = ProtoConvError;
+    fn try_from(value: FetchCatalogResponse) -> Result<Self, Self::Error> {
+        Ok(Self {
+            catalog: Some(value.catalog.try_into()?),
+        })
+    }
+}
+
 pub struct DispatchAccessRequest {
     pub session_id: Uuid,
-    pub table_ref: OwnedTableReference,
+    pub table_ref: ResolvedTableReference,
 }
 
 impl TryFrom<service::DispatchAccessRequest> for DispatchAccessRequest {
@@ -223,60 +266,62 @@ impl TryFrom<TableProviderResponse> for service::TableProviderResponse {
 
 // Table Reference
 
-impl TryFrom<service::TableReference> for OwnedTableReference {
+#[derive(Debug, Clone)]
+pub enum ResolvedTableReference {
+    Internal {
+        table_oid: u32,
+    },
+    External {
+        database: String,
+        schema: String,
+        name: String,
+    },
+}
+
+impl TryFrom<service::ResolvedTableReference> for ResolvedTableReference {
     type Error = ProtoConvError;
-    fn try_from(value: service::TableReference) -> Result<Self, Self::Error> {
-        let service::TableReference {
-            catalog,
-            schema,
-            table,
-        } = value;
-        let table_ref = match (catalog, schema, table) {
-            (None, None, table) => OwnedTableReference::Bare {
-                table: table.into(),
+    fn try_from(value: service::ResolvedTableReference) -> Result<Self, Self::Error> {
+        let reference = value
+            .reference
+            .ok_or_else(|| ProtoConvError::RequiredField("reference".to_string()))?;
+
+        Ok(match reference {
+            service::resolved_table_reference::Reference::Internal(InternalTableReference {
+                table_oid,
+            }) => ResolvedTableReference::Internal { table_oid },
+            service::resolved_table_reference::Reference::External(ExternalTableReference {
+                database,
+                schema,
+                name,
+            }) => ResolvedTableReference::External {
+                database,
+                schema,
+                name,
             },
-            (None, Some(schema), table) => OwnedTableReference::Partial {
-                table: table.into(),
-                schema: schema.into(),
-            },
-            (Some(catalog), Some(schema), table) => OwnedTableReference::Full {
-                table: table.into(),
-                schema: schema.into(),
-                catalog: catalog.into(),
-            },
-            (catalog, schema, table) => {
-                return Err(ProtoConvError::InvalidTableReference(
-                    catalog.unwrap_or_default(),
-                    schema.unwrap_or_default(),
-                    table,
-                ))
-            }
-        };
-        Ok(table_ref)
+        })
     }
 }
 
-impl<'a> From<TableReference<'a>> for service::TableReference {
-    fn from(value: TableReference<'a>) -> Self {
+impl From<ResolvedTableReference> for service::ResolvedTableReference {
+    fn from(value: ResolvedTableReference) -> Self {
         match value {
-            TableReference::Bare { table } => service::TableReference {
-                table: table.into_owned(),
-                schema: None,
-                catalog: None,
+            ResolvedTableReference::Internal { table_oid } => service::ResolvedTableReference {
+                reference: Some(service::resolved_table_reference::Reference::Internal(
+                    InternalTableReference { table_oid },
+                )),
             },
-            TableReference::Partial { schema, table } => service::TableReference {
-                table: table.into_owned(),
-                schema: Some(schema.into_owned()),
-                catalog: None,
-            },
-            TableReference::Full {
-                catalog,
+            ResolvedTableReference::External {
+                database,
                 schema,
-                table,
-            } => service::TableReference {
-                table: table.into_owned(),
-                schema: Some(schema.into_owned()),
-                catalog: Some(catalog.into_owned()),
+                name,
+            } => service::ResolvedTableReference {
+                reference: Some(service::resolved_table_reference::Reference::External(
+                    ExternalTableReference {
+                        database,
+                        schema,
+                        name,
+                    },
+                )),
             },
         }
     }
