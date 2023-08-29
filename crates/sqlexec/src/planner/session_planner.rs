@@ -5,8 +5,7 @@ use datafusion::arrow::datatypes::{
     DataType, Field, Schema, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::parsers::CompressionTypeVariant;
-use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
-use datafusion::datasource::file_format::file_type::FileType;
+use datafusion::common::{FileType, OwnedSchemaReference, OwnedTableReference, ToDFSchema};
 use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;

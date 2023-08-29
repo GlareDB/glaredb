@@ -2,9 +2,8 @@ use std::collections::HashMap;
 use std::{sync::Arc, vec};
 
 use async_trait::async_trait;
-use datafusion::common::OwnedTableReference;
+use datafusion::common::{FileCompressionType, FileType, OwnedTableReference};
 use datafusion::datasource::file_format::csv::CsvFormat;
-use datafusion::datasource::file_format::file_type::{FileCompressionType, FileType};
 use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;

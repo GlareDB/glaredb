@@ -41,6 +41,16 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 let all = match set_quantifier {
                     SetQuantifier::All => true,
                     SetQuantifier::Distinct | SetQuantifier::None => false,
+                    SetQuantifier::ByName => {
+                        return Err(DataFusionError::NotImplemented(
+                            "UNION BY NAME not implemented".to_string(),
+                        ));
+                    }
+                    SetQuantifier::AllByName => {
+                        return Err(DataFusionError::NotImplemented(
+                            "UNION ALL BY NAME not implemented".to_string(),
+                        ))
+                    }
                 };
 
                 let left_plan = self.set_expr_to_plan(*left, planner_context).await?;

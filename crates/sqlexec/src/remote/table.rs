@@ -87,6 +87,7 @@ impl TableProvider for StubRemoteTableProvider {
         &self,
         _state: &SessionState,
         _input: Arc<dyn ExecutionPlan>,
+        _overwrite: bool,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::NotImplemented(
             "insert_into called on a stub provider".to_string(),

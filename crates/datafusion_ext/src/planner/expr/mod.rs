@@ -35,10 +35,12 @@ use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::expr::{InList, Placeholder};
 use datafusion::logical_expr::{
     col, expr, lit, AggregateFunction, Between, BinaryExpr, BuiltinScalarFunction, Cast, Expr,
-    ExprSchemable, GetIndexedField, Like, Operator, TryCast,
+    ExprSchemable, GetFieldAccess, GetIndexedField, Like, Operator, TryCast,
 };
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{ArrayAgg, Expr as SQLExpr, Interval, TrimWhereField, Value};
+use datafusion::sql::sqlparser::ast::{
+    ArrayAgg, Expr as SQLExpr, Interval, JsonOperator, TrimWhereField, Value,
+};
 use datafusion::sql::sqlparser::parser::ParserError::ParserError;
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
@@ -191,7 +193,13 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 
             SQLExpr::MapAccess { column, keys } => {
                 if let SQLExpr::Identifier(id) = *column {
-                    plan_indexed(col(self.normalizer.normalize(id)), keys)
+                    self.plan_indexed(
+                        col(self.normalizer.normalize(id)),
+                        keys,
+                        schema,
+                        planner_context,
+                    )
+                    .await
                 } else {
                     Err(DataFusionError::NotImplemented(format!(
                         "map access requires an identifier, found column {column} instead"
@@ -203,7 +211,8 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 let expr = self
                     .sql_expr_to_logical_expr(*obj, schema, planner_context)
                     .await?;
-                plan_indexed(expr, indexes)
+                self.plan_indexed(expr, indexes, schema, planner_context)
+                    .await
             }
 
             SQLExpr::CompoundIdentifier(ids) => {
@@ -405,7 +414,6 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 "binary_op should be handled by sql_expr_to_logical_expr.".to_string(),
             )),
 
-            #[cfg(feature = "unicode_expressions")]
             SQLExpr::Substring {
                 expr,
                 substring_from,
@@ -420,12 +428,6 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 )
                 .await
             }
-
-            #[cfg(not(feature = "unicode_expressions"))]
-            SQLExpr::Substring { .. } => Err(DataFusionError::Internal(
-                "statement substring requires compilation with feature flag: unicode_expressions."
-                    .to_string(),
-            )),
 
             SQLExpr::Trim {
                 expr,
@@ -711,6 +713,70 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             )),
         }
     }
+
+    async fn plan_indices(
+        &mut self,
+        expr: SQLExpr,
+        schema: &DFSchema,
+        planner_context: &mut PlannerContext,
+    ) -> Result<GetFieldAccess> {
+        let field = match expr.clone() {
+            SQLExpr::Value(Value::SingleQuotedString(s) | Value::DoubleQuotedString(s)) => {
+                GetFieldAccess::NamedStructField {
+                    name: ScalarValue::Utf8(Some(s)),
+                }
+            }
+            SQLExpr::JsonAccess {
+                left,
+                operator: JsonOperator::Colon,
+                right,
+            } => {
+                let start = Box::new(
+                    self.sql_expr_to_logical_expr(*left, schema, planner_context)
+                        .await?,
+                );
+                let stop = Box::new(
+                    self.sql_expr_to_logical_expr(*right, schema, planner_context)
+                        .await?,
+                );
+
+                GetFieldAccess::ListRange { start, stop }
+            }
+            _ => GetFieldAccess::ListIndex {
+                key: Box::new(
+                    self.sql_expr_to_logical_expr(expr, schema, planner_context)
+                        .await?,
+                ),
+            },
+        };
+
+        Ok(field)
+    }
+
+    #[async_recursion]
+    async fn plan_indexed(
+        &mut self,
+        expr: Expr,
+        mut keys: Vec<SQLExpr>,
+        schema: &DFSchema,
+        planner_context: &mut PlannerContext,
+    ) -> Result<Expr> {
+        let indices = keys.pop().ok_or_else(|| {
+            ParserError("Internal error: Missing index key expression".to_string())
+        })?;
+
+        let expr = if !keys.is_empty() {
+            self.plan_indexed(expr, keys, schema, planner_context)
+                .await?
+        } else {
+            expr
+        };
+
+        Ok(Expr::GetIndexedField(GetIndexedField::new(
+            Box::new(expr),
+            self.plan_indices(indices, schema, planner_context).await?,
+        )))
+    }
 }
 
 // modifies expr if it is a placeholder with datatype of right
@@ -744,42 +810,6 @@ fn infer_placeholder_types(expr: Expr, schema: &DFSchema) -> Result<Expr> {
         };
         Ok(Transformed::Yes(expr))
     })
-}
-
-fn plan_key(key: SQLExpr) -> Result<ScalarValue> {
-    let scalar = match key {
-        SQLExpr::Value(Value::Number(s, _)) => ScalarValue::Int64(Some(
-            s.parse()
-                .map_err(|_| ParserError(format!("Cannot parse {s} as i64.")))?,
-        )),
-        SQLExpr::Value(Value::SingleQuotedString(s) | Value::DoubleQuotedString(s)) => {
-            ScalarValue::Utf8(Some(s))
-        }
-        _ => {
-            return Err(DataFusionError::SQL(ParserError(format!(
-                "Unsuported index key expression: {key:?}"
-            ))));
-        }
-    };
-
-    Ok(scalar)
-}
-
-fn plan_indexed(expr: Expr, mut keys: Vec<SQLExpr>) -> Result<Expr> {
-    let key = keys
-        .pop()
-        .ok_or_else(|| ParserError("Internal error: Missing index key expression".to_string()))?;
-
-    let expr = if !keys.is_empty() {
-        plan_indexed(expr, keys)?
-    } else {
-        expr
-    };
-
-    Ok(Expr::GetIndexedField(GetIndexedField::new(
-        Box::new(expr),
-        plan_key(key)?,
-    )))
 }
 
 // #[cfg(test)]

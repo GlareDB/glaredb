@@ -290,6 +290,7 @@ impl TableProvider for NativeTable {
         &self,
         _state: &SessionState,
         input: Arc<dyn ExecutionPlan>,
+        _overwrite: bool,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         Ok(self.insert_exec(input))
     }
