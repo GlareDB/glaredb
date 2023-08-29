@@ -138,11 +138,19 @@ impl RemoteSessionContext {
             .maybe_refresh_state(self.catalog_mutator().get_metastore_client(), false)
             .await?;
 
+        // Since this is operating on a remote node, always disable local fs
+        // access.
+        let dispatcher = ExternalDispatcher::new(&self.catalog, &self.df_ctx, true);
+
         let prov: Arc<dyn TableProvider> = match table_ref {
             ResolvedTableReference::Internal { table_oid } => {
                 match self.catalog.get_by_oid(table_oid) {
                     Some(CatalogEntry::Table(tbl)) => {
-                        self.tables.load_table(tbl).await?.into_table_provider()
+                        if tbl.meta.external {
+                            dispatcher.dispatch_external_table(tbl).await?
+                        } else {
+                            self.tables.load_table(tbl).await?.into_table_provider()
+                        }
                     }
                     Some(_) => {
                         return Err(ExecError::Internal(format!("oid not a table: {table_oid}")))
@@ -159,9 +167,6 @@ impl RemoteSessionContext {
                 schema,
                 name,
             } => {
-                // Since this is operating on a remote node, always disable local fs
-                // access.
-                let dispatcher = ExternalDispatcher::new(&self.catalog, &self.df_ctx, true);
                 dispatcher
                     .dispatch_external(&database, &schema, &name)
                     .await?

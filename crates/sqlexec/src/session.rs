@@ -205,6 +205,10 @@ impl ExecutionResult {
         )
     }
 
+    const fn is_error(&self) -> bool {
+        matches!(self, ExecutionResult::Error(_))
+    }
+
     fn from_str_and_count(s: &str, count: Option<u64>) -> Option<ExecutionResult> {
         Some(match s {
             "begin" => ExecutionResult::Begin,
@@ -504,10 +508,20 @@ impl Session {
                 // the operation was a DDL operation, then fetch the newer
                 // catalog from the remote node.
                 if let Some(mut client) = self.ctx.exec_client() {
-                    // TODO: It might make to check the error too, since it's
-                    // possible that erroring might've been from using an out of
-                    // date catalog.
-                    if stream.is_ddl() {
+                    // Note that 'is error' check tries to cover the case where
+                    // the local client tries to query a table that's been
+                    // changed by a second client (e.g. rename). This check aims
+                    // to make sure we get the latest catalog so that the user
+                    // isn't stuck (the user tries to query using the name table
+                    // name, but the catalog is out of date and doesn't know
+                    // about it).
+                    //
+                    // This check is overly broad in that we'll try to get the
+                    // catalog on every error. We can look into adding more
+                    // detail on the grpc response stream from the remote node
+                    // to provide a better hint of what we should be doing on
+                    // error.
+                    if stream.is_ddl() || stream.is_error() {
                         // TODO: Instead of swapping here, I'd like to if we
                         // could go towards collecting a "diff" of a session
                         // (including new catalog states, variable changes, etc)

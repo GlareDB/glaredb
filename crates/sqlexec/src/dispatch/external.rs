@@ -93,7 +93,7 @@ impl<'a> ExternalDispatcher<'a> {
         self.dispatch_external_table(table).await
     }
 
-    pub(super) async fn dispatch_external_database(
+    pub async fn dispatch_external_database(
         &self,
         db: &DatabaseEntry,
         schema: &str,
@@ -202,7 +202,7 @@ impl<'a> ExternalDispatcher<'a> {
         }
     }
 
-    pub(super) async fn dispatch_external_table(
+    pub async fn dispatch_external_table(
         &self,
         table: &TableEntry,
     ) -> Result<Arc<dyn TableProvider>> {
