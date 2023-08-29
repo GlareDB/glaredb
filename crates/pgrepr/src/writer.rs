@@ -162,7 +162,7 @@ impl Writer for BinaryWriter {
     }
 
     fn write_timestamptz(buf: &mut BytesMut, v: &DateTime<Tz>) -> Result<()> {
-        let utc_date_time = DateTime::<Utc>::from_utc(v.naive_utc(), Utc);
+        let utc_date_time = DateTime::<Utc>::from_naive_utc_and_offset(v.naive_utc(), Utc);
         put_to_sql!(buf, TIMESTAMPTZ, utc_date_time)
     }
 

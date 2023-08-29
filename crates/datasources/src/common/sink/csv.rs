@@ -91,13 +91,18 @@ impl CsvSink {
 impl DataSink for CsvSink {
     async fn write_all(
         &self,
-        stream: SendableRecordBatchStream,
+        data: Vec<SendableRecordBatchStream>,
         _context: &Arc<TaskContext>,
     ) -> DfResult<u64> {
-        self.stream_into_inner(stream)
-            .await
-            .map(|x| x as u64)
-            .map_err(|e| DataFusionError::External(Box::new(e)))
+        let mut count = 0;
+        for stream in data {
+            count += self
+                .stream_into_inner(stream)
+                .await
+                .map(|x| x as u64)
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        }
+        Ok(count)
     }
 }
 

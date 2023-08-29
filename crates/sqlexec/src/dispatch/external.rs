@@ -1,8 +1,8 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
+use datafusion::common::{FileCompressionType, FileType};
 use datafusion::datasource::file_format::csv::CsvFormat;
-use datafusion::datasource::file_format::file_type::{FileCompressionType, FileType};
 use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;

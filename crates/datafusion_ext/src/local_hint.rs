@@ -73,8 +73,9 @@ impl TableProvider for LocalTableHint {
         &self,
         state: &SessionState,
         input: Arc<dyn ExecutionPlan>,
+        overwrite: bool,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let plan = self.0.insert_into(state, input).await?;
+        let plan = self.0.insert_into(state, input, overwrite).await?;
         Ok(plan)
     }
 }

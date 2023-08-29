@@ -137,8 +137,9 @@ impl TableProvider for LocalSideTableProvider {
         &self,
         state: &SessionState,
         input: Arc<dyn ExecutionPlan>,
+        overwrite: bool,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let plan = self.inner.insert_into(state, input).await?;
+        let plan = self.inner.insert_into(state, input, overwrite).await?;
         Ok(plan)
     }
 }

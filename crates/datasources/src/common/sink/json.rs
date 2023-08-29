@@ -93,13 +93,18 @@ impl JsonSink {
 impl DataSink for JsonSink {
     async fn write_all(
         &self,
-        data: SendableRecordBatchStream,
+        data: Vec<SendableRecordBatchStream>,
         _context: &Arc<TaskContext>,
     ) -> DfResult<u64> {
-        self.stream_into_inner(data)
-            .await
-            .map(|x| x as u64)
-            .map_err(|e| DataFusionError::External(Box::new(e)))
+        let mut count = 0;
+        for stream in data {
+            count += self
+                .stream_into_inner(stream)
+                .await
+                .map(|x| x as u64)
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        }
+        Ok(count)
     }
 }
 

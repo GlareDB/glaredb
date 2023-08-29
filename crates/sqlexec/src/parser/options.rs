@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, fmt};
 
 use datafusion::{
-    common::parsers::CompressionTypeVariant, datasource::file_format::file_type::FileType,
+    common::{parsers::CompressionTypeVariant, FileType},
     sql::sqlparser::parser::ParserError,
 };
 use datasources::{debug::DebugTableType, mongodb::MongoProtocol};
