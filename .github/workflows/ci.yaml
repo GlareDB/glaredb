@@ -132,9 +132,25 @@ jobs:
       - name: SQL Logic Tests (RPC)
         run: |
           just sql-logic-tests -v --rpc-test 'sqllogictests/rpc' \
-                                             'sqllogictests/time'
+                                             'sqllogictests/time' \
+                                             'sqllogictests/cast/*' \
+                                             'sqllogictests/cte/*' \
+                                             'sqllogictests/alter' \
+                                             'sqllogictests/create_table' \
+                                             'sqllogictests/credentials' \
+                                             'sqllogictests/csv' \
+                                             'sqllogictests/debug' \
+                                             'sqllogictests/demo_pg' \
+                                             'sqllogictests/drop' \
+                                             'sqllogictests/metabase' \
+                                             'sqllogictests/name' \
+                                             'sqllogictests/object_names' \
+                                             'sqllogictests/select' \
+                                             'sqllogictests/tunnels' \
+                                             'sqllogictests/vars' \
+                                             'sqllogictests/views'
 
-      - name: Protocol Tests
+      - name: PG Protocol Tests
         run: ./scripts/protocol-test.sh
 
       - name: Python bindings tests
