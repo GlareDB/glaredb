@@ -90,9 +90,34 @@ select * from t1661;
 ----
 1 2 3
 
+
 # Test for #1671
 statement ok
 create table emptyNative (a int);
 
 statement ok
 select * from emptyNative;
+
+# Test if "values" clause works.
+# https://github.com/GlareDB/glaredb/pull/1673
+
+query I
+values (1), (2), (3);
+----
+1
+2
+3
+
+statement ok
+create table t1665 (a int, b text);
+
+statement ok
+insert into t1665 values
+  (1, 'a-thing'),
+  (2, 'b-thing');
+
+query TI
+select b, a from t1665;
+----
+a-thing  1
+b-thing  2

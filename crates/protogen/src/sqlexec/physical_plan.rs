@@ -279,10 +279,18 @@ pub struct CopyToExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct ValuesExec {
+    #[prost(message, tag = "1")]
+    pub schema: Option<Schema>,
+    #[prost(bytes, tag = "2")]
+    pub data: Vec<u8>,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -343,4 +351,7 @@ pub enum ExecutionPlanExtensionType {
     DeleteExec(DeleteExec),
     #[prost(message, tag = "25")]
     CopyToExec(CopyToExec),
+    // Other
+    #[prost(message, tag = "26")]
+    ValuesExec(ValuesExec),
 }

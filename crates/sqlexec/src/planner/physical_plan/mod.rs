@@ -26,6 +26,7 @@ pub mod send_recv;
 pub mod set_var;
 pub mod show_var;
 pub mod update;
+pub mod values;
 
 use crate::planner::extension::PhysicalExtensionNode;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
