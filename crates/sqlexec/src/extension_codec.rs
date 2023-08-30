@@ -1,13 +1,18 @@
 use core::fmt;
 use std::collections::HashSet;
+use std::io::Cursor;
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
+use datafusion::arrow::error::ArrowError;
+use datafusion::arrow::ipc::reader::FileReader as IpcFileReader;
+use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::runtime_env::RuntimeEnv;
-use datafusion::execution::FunctionRegistry;
+use datafusion::execution::{FunctionRegistry, TaskContext};
 use datafusion::logical_expr::{AggregateUDF, Extension, LogicalPlan, ScalarUDF, WindowUDF};
+use datafusion::physical_plan::values::ValuesExec;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::{Expr, SessionContext};
 use datafusion_proto::logical_plan::from_proto::parse_expr;
@@ -42,6 +47,7 @@ use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::set_var::SetVarExec;
 use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
+use crate::planner::physical_plan::values::ExtValuesExec;
 use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
 };
@@ -667,6 +673,16 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .ok_or_else(|| DataFusionError::Internal("missing input source".to_string()))?
                     .clone(),
             }),
+            proto::ExecutionPlanExtensionType::ValuesExec(ext) => {
+                let schema = ext
+                    .schema
+                    .ok_or_else(|| DataFusionError::Internal("missing schema".to_string()))?;
+                let reader = IpcFileReader::try_new(Cursor::new(ext.data), None)?;
+                Arc::new(ExtValuesExec {
+                    schema: (&schema).try_into()?,
+                    data: reader.collect::<Result<Vec<_>, ArrowError>>()?,
+                })
+            }
         };
 
         Ok(plan)
@@ -886,6 +902,33 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::CopyToExec(proto::CopyToExec {
                 format: Some(exec.format.clone().try_into()?),
                 dest: Some(exec.dest.clone().try_into()?),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<ValuesExec>() {
+            // ValuesExec only expects 1 partition.
+            let schema = exec.schema();
+
+            // HACK: Currently, we can't collect the data directly from
+            // `ValuesExec`. There's an existing PR submitted in the DataFusion
+            // repository to make it possible to construct, destruct (and
+            // eventually serialize) a values execution plan:
+            // https://github.com/apache/arrow-datafusion/pull/7444.
+            //
+            // For now we simply block on the runtime here and collect the data
+            // from the stream.
+            let stream = exec.execute(0, Arc::new(TaskContext::default()))?;
+            let mut data = Vec::new();
+            {
+                let mut writer = IpcFileWriter::try_new(&mut data, schema.as_ref())?;
+                for batch in futures::executor::block_on_stream(stream) {
+                    let batch = batch?;
+                    writer.write(&batch)?;
+                }
+                writer.finish()?;
+            }
+
+            proto::ExecutionPlanExtensionType::ValuesExec(proto::ValuesExec {
+                schema: Some(schema.as_ref().try_into()?),
+                data,
             })
         } else {
             return Err(DataFusionError::NotImplemented(format!(
