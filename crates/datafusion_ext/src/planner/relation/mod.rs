@@ -63,12 +63,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                         let provider = self
                             .schema_provider
                             .get_table_func(table_ref.clone(), unnamed_args, named_args)
-                            .await
-                            .ok_or_else(|| {
-                                DataFusionError::Plan(format!(
-                                    "Missing table function: '{table_ref}'"
-                                ))
-                            })?;
+                            .await?;
 
                         let plan_builder = LogicalPlanBuilder::scan(table_ref, provider, None)?;
 

@@ -268,8 +268,7 @@ impl<'a> Dispatcher<'a> {
         let prov = resolve_func
             .unwrap()
             .create_provider(self, args, opts)
-            .await
-            .map_err(|_| DispatchError::InvalidDispatch("failed to create provider"))?;
+            .await?;
         Ok(prov)
     }
 }

@@ -405,11 +405,11 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         name: TableReference<'_>,
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
-    ) -> Option<Arc<dyn TableSource>> {
-        self.resolve_reference(name, Some(args), Some(opts))
+    ) -> DataFusionResult<Arc<dyn TableSource>> {
+        self.resolve_reference(name.to_owned_reference(), Some(args), Some(opts))
             .await
             .map(|p| Arc::new(DefaultTableSource::new(p)) as _)
-            .ok()
+            .map_err(|e| DataFusionError::External(Box::new(e)))
     }
 
     fn options(&self) -> &ConfigOptions {

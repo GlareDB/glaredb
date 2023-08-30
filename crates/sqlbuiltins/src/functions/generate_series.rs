@@ -40,7 +40,7 @@ impl TableFunc for GenerateSeries {
         &self,
         _: &dyn TableFuncContextProvider,
         args: Vec<FuncParamValue>,
-        _opts: HashMap<String, FuncParamValue>,
+        _: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             2 => {

@@ -78,7 +78,7 @@ pub trait AsyncContextProvider: Send + Sync {
         name: TableReference<'_>,
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
-    ) -> Option<Arc<dyn TableSource>>;
+    ) -> Result<Arc<dyn TableSource>>;
 
     /// Get configuration options.
     fn options(&self) -> &ConfigOptions;
