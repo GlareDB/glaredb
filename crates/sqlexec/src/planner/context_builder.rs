@@ -138,6 +138,26 @@ impl<'a> PartialContextProvider<'a> {
                         CatalogEntry::Table(t) => {
                             matches!(&t.options, TableOptions::Debug(_) | TableOptions::Local(_))
                         }
+                        // TODO: Views will likely need to be handled a bit
+                        // differently in the future.
+                        //
+                        // Given the following view:
+                        //
+                        // `create view v1 as select local_table cross join remote_table`
+                        //
+                        // And the following query:
+                        //
+                        // `select * from v1`
+                        //
+                        // Will mean that the client will be streaming 2 sets of
+                        // record batches, not just one, as would be optimal.
+                        //
+                        // 1. The client needs to upload the results of
+                        // `local_table`.
+                        // 2. The client will then receive the results of the
+                        // cross join, but then needs upload that so that the
+                        // rest of the query can continue to execute remotely.
+                        CatalogEntry::View(_) => true,
                         _ => false,
                     };
                     let meta = ent.get_meta();
