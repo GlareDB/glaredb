@@ -2,6 +2,7 @@ use crate::native::errors::{NativeError, Result};
 use crate::native::insert::NativeTableInsertExec;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::Schema as ArrowSchema;
+use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::SessionState;
@@ -12,6 +13,7 @@ use deltalake::action::SaveMode;
 use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::delete::DeleteBuilder;
 use deltalake::operations::update::UpdateBuilder;
+use deltalake::operations::write::WriteBuilder;
 use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use futures::StreamExt;
@@ -90,6 +92,12 @@ impl NativeTableStorage {
         // TODO: Partitioning
 
         let table = builder.await?;
+        let schema = TableProvider::schema(&table);
+
+        // add an empty record to avoid panic while trying to scan an empty table
+        WriteBuilder::new(table.object_store(), table.state.clone())
+            .with_input_batches([RecordBatch::new_empty(schema)])
+            .await?;
 
         Ok(NativeTable::new(table))
     }
