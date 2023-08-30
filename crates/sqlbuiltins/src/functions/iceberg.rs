@@ -12,6 +12,7 @@ use datafusion_ext::local_hint::LocalTableHint;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lake::LakeStorageOptions;
+use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::CredentialsOptions;
 
 /// Scan an iceberg table.
@@ -20,6 +21,9 @@ pub struct IcebergScan;
 
 #[async_trait]
 impl TableFunc for IcebergScan {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
+    }
     fn name(&self) -> &str {
         "iceberg_scan"
     }
@@ -53,6 +57,9 @@ pub struct IcebergSnapshots;
 
 #[async_trait]
 impl TableFunc for IcebergSnapshots {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
+    }
     fn name(&self) -> &str {
         "iceberg_snapshots"
     }
@@ -112,6 +119,9 @@ pub struct IcebergDataFiles;
 
 #[async_trait]
 impl TableFunc for IcebergDataFiles {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
+    }
     fn name(&self) -> &str {
         "iceberg_data_files"
     }

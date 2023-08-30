@@ -60,29 +60,19 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                                 unnamed_args.push(val);
                             }
                         }
-                        let func = self
+                        let provider = self
                             .schema_provider
-                            .get_table_func(table_ref.clone())
+                            .get_table_func(table_ref.clone(), unnamed_args, named_args)
+                            .await
                             .ok_or_else(|| {
                                 DataFusionError::Plan(format!(
                                     "Missing table function: '{table_ref}'"
                                 ))
                             })?;
 
-                        let table_fn_provider = self.schema_provider.table_fn_ctx_provider();
-                        let plan = func
-                            .create_logical_plan(
-                                table_ref,
-                                &table_fn_provider,
-                                unnamed_args,
-                                named_args,
-                            )
-                            .await
-                            .map_err(|e| {
-                                DataFusionError::Plan(format!(
-                                    "Failed to create logical plan for table function\n Reason: {e}"
-                                ))
-                            })?;
+                        let plan_builder = LogicalPlanBuilder::scan(table_ref, provider, None)?;
+
+                        let plan = plan_builder.build()?;
 
                         (plan, alias)
                     }

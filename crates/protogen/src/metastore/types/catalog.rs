@@ -494,11 +494,55 @@ impl From<FunctionType> for catalog::function_entry::FunctionType {
         }
     }
 }
+#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
+pub enum RuntimePreference {
+    Unspecified,
+    Local,
+    Remote,
+}
+
+impl TryFrom<i32> for RuntimePreference {
+    type Error = ProtoConvError;
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        catalog::function_entry::RuntimePreference::from_i32(value)
+            .ok_or(ProtoConvError::UnknownEnumVariant(
+                "RuntimePreference",
+                value,
+            ))
+            .and_then(|t| t.try_into())
+    }
+}
+
+impl TryFrom<catalog::function_entry::RuntimePreference> for RuntimePreference {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::function_entry::RuntimePreference) -> Result<Self, Self::Error> {
+        Ok(match value {
+            catalog::function_entry::RuntimePreference::Unspecified => {
+                RuntimePreference::Unspecified
+            }
+            catalog::function_entry::RuntimePreference::Local => RuntimePreference::Local,
+            catalog::function_entry::RuntimePreference::Remote => RuntimePreference::Remote,
+        })
+    }
+}
+
+impl From<RuntimePreference> for catalog::function_entry::RuntimePreference {
+    fn from(value: RuntimePreference) -> Self {
+        match value {
+            RuntimePreference::Unspecified => {
+                catalog::function_entry::RuntimePreference::Unspecified
+            }
+            RuntimePreference::Local => catalog::function_entry::RuntimePreference::Local,
+            RuntimePreference::Remote => catalog::function_entry::RuntimePreference::Remote,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct FunctionEntry {
     pub meta: EntryMeta,
     pub func_type: FunctionType,
+    pub runtime_preference: RuntimePreference,
 }
 
 impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
@@ -508,6 +552,7 @@ impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
         Ok(FunctionEntry {
             meta,
             func_type: value.func_type.try_into()?,
+            runtime_preference: value.runtime_preference.try_into()?,
         })
     }
 }
@@ -515,9 +560,12 @@ impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
 impl From<FunctionEntry> for catalog::FunctionEntry {
     fn from(value: FunctionEntry) -> Self {
         let func_type: catalog::function_entry::FunctionType = value.func_type.into();
+        let runtime_preference: catalog::function_entry::RuntimePreference =
+            value.runtime_preference.into();
         catalog::FunctionEntry {
             meta: Some(value.meta.into()),
             func_type: func_type as i32,
+            runtime_preference: runtime_preference as i32,
         }
     }
 }

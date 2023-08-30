@@ -4,14 +4,20 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{
+    FuncParamValue, TableFunc, TableFuncContextProvider,
+};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
+use protogen::metastore::types::catalog::RuntimePreference;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadPostgres;
 
 #[async_trait]
 impl TableFunc for ReadPostgres {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
+    }
     fn name(&self) -> &str {
         "read_postgres"
     }

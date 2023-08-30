@@ -1,12 +1,14 @@
 use crate::errors::Result;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion_ext::functions::FuncParamValue;
 use datafusion_proto::physical_plan::AsExecutionPlan;
 use datafusion_proto::protobuf::PhysicalPlanNode;
 use protogen::metastore::types::catalog::CatalogState;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
 use sqlexec::context::remote::RemoteSessionContext;
 use sqlexec::remote::exchange_stream::ClientExchangeRecvStream;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -39,9 +41,11 @@ impl RemoteSession {
     pub async fn dispatch_access(
         &self,
         table_ref: ResolvedTableReference,
+        args: Option<Vec<FuncParamValue>>,
+        opts: Option<HashMap<String, FuncParamValue>>,
     ) -> Result<(Uuid, Schema)> {
         let mut session = self.session.lock().await;
-        let (id, prov) = session.load_and_cache_table(table_ref).await?;
+        let (id, prov) = session.load_and_cache_table(table_ref, args, opts).await?;
         let schema = prov.schema().as_ref().clone();
 
         Ok((id, schema))

@@ -9,6 +9,7 @@ use datafusion_ext::local_hint::LocalTableHint;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::lake::delta::access::load_table_direct;
 use datasources::lake::LakeStorageOptions;
+use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::CredentialsOptions;
 
 /// Function for scanning delta tables.
@@ -24,6 +25,9 @@ pub struct DeltaScan;
 
 #[async_trait]
 impl TableFunc for DeltaScan {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
+    }
     fn name(&self) -> &str {
         "delta_scan"
     }

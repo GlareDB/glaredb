@@ -28,6 +28,9 @@ pub enum RpcsrvError {
     ProtoConvError(#[from] protogen::errors::ProtoConvError),
 
     #[error(transparent)]
+    ExtensionError(#[from] datafusion_ext::errors::ExtensionError),
+
+    #[error(transparent)]
     ExecError(#[from] sqlexec::errors::ExecError),
 
     #[error("Failed to authenticate with GlareDB Cloud: {0}")]

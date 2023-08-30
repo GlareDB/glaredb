@@ -1,15 +1,21 @@
+use std::any::Any;
 use std::collections::HashMap;
 use std::{sync::Arc, vec};
 
 use async_trait::async_trait;
-use datafusion::common::{FileCompressionType, FileType, OwnedTableReference};
+use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::common::{FileCompressionType, FileType};
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
-use datafusion::datasource::{DefaultTableSource, TableProvider};
+use datafusion::datasource::TableProvider;
+use datafusion::execution::context::SessionState;
 use datafusion::execution::object_store::ObjectStoreUrl;
-use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
+use datafusion::logical_expr::TableType;
+use datafusion::physical_plan::union::UnionExec;
+use datafusion::physical_plan::ExecutionPlan;
+use datafusion::prelude::Expr;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
     FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
@@ -21,6 +27,8 @@ use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
+use futures::TryStreamExt;
+use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::CredentialsOptions;
 
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
@@ -32,8 +40,100 @@ pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson
 #[derive(Debug, Clone)]
 pub struct ObjScanTableFunc(FileType, &'static str);
 
+pub struct MultiSourceTableProvider {
+    sources: Vec<Arc<dyn TableProvider>>,
+}
+impl MultiSourceTableProvider {
+    pub fn new<T: IntoIterator<Item = Arc<dyn TableProvider>>>(sources: T) -> Self {
+        Self {
+            sources: sources.into_iter().collect(),
+        }
+    }
+}
+
+#[async_trait]
+impl TableProvider for MultiSourceTableProvider {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> SchemaRef {
+        self.sources.first().unwrap().schema()
+    }
+
+    fn table_type(&self) -> TableType {
+        TableType::View
+    }
+
+    async fn scan(
+        &self,
+        state: &SessionState,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        // limit can be used to reduce the amount scanned
+        // from the datasource as a performance optimization.
+        // If set, it contains the amount of rows needed by the `LogicalPlan`,
+        // The datasource should return *at least* this number of rows if available.
+        limit: Option<usize>,
+    ) -> datafusion::common::Result<Arc<dyn ExecutionPlan>> {
+        if self.sources.is_empty() {
+            return Err(datafusion::error::DataFusionError::Execution(
+                "no sources found".to_string(),
+            ));
+        }
+        if self
+            .sources
+            .as_slice()
+            .windows(2)
+            .any(|w| w[0].schema() != w[1].schema())
+        {
+            return Err(datafusion::error::DataFusionError::Execution(
+                "schemas of sources do not match".to_string(),
+            ));
+        }
+        let mut plans = Vec::new();
+        for source in &self.sources {
+            let plan = source
+                .scan(state, projection, filters, limit)
+                .await
+                .map_err(|e| datafusion::error::DataFusionError::Execution(e.to_string()))?;
+            plans.push(plan);
+        }
+        Ok(Arc::new(UnionExec::new(plans)) as _)
+    }
+}
+
 #[async_trait]
 impl TableFunc for ObjScanTableFunc {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Unspecified
+    }
+
+    fn detect_runtime(&self, args: &[FuncParamValue]) -> Result<RuntimePreference> {
+        let mut args = args.iter();
+        let url_arg = args.next().unwrap();
+        let urls = if DatasourceUrl::is_param_valid(url_arg) {
+            vec![url_arg.param_ref_into()?]
+        } else {
+            url_arg.param_ref_into::<Vec<DatasourceUrl>>()?
+        };
+        let mut urls = urls.iter().map(|url| match url.datasource_url_type() {
+            DatasourceUrlType::File => RuntimePreference::Local,
+            DatasourceUrlType::Http => RuntimePreference::Remote,
+            DatasourceUrlType::Gcs => RuntimePreference::Remote,
+            DatasourceUrlType::S3 => RuntimePreference::Remote,
+        });
+        let first = urls.next().unwrap();
+
+        if urls.all(|url| std::mem::discriminant(&url) == std::mem::discriminant(&first)) {
+            Ok(first)
+        } else {
+            Err(ExtensionError::String(
+                "cannot mix different types of urls".to_owned(),
+            ))
+        }
+    }
+
     fn name(&self) -> &str {
         let Self(_, name) = self;
         name
@@ -41,20 +141,10 @@ impl TableFunc for ObjScanTableFunc {
 
     async fn create_provider(
         &self,
-        _: &dyn TableFuncContextProvider,
-        _: Vec<FuncParamValue>,
-        _: HashMap<String, FuncParamValue>,
-    ) -> Result<Arc<dyn TableProvider>> {
-        unimplemented!();
-    }
-
-    async fn create_logical_plan(
-        &self,
-        table_ref: OwnedTableReference,
         ctx: &dyn TableFuncContextProvider,
         args: Vec<FuncParamValue>,
         mut opts: HashMap<String, FuncParamValue>,
-    ) -> Result<LogicalPlan> {
+    ) -> Result<Arc<dyn TableProvider>> {
         if args.is_empty() {
             return Err(ExtensionError::InvalidNumArgs);
         }
@@ -128,28 +218,19 @@ impl TableFunc for ObjScanTableFunc {
 
         // Now that we have all urls (grouped by their access), we try and get
         // all the objects and turn this into a table provider.
-        let mut fn_registry = fn_registry.into_values();
 
-        let (access, locations) = fn_registry.next().ok_or(ExtensionError::String(
-            "internal: no urls found, at least one expected".to_string(),
-        ))?;
-        let first_provider =
-            get_table_provider(ctx, ft.clone(), access, locations.into_iter()).await?;
-        let source = Arc::new(DefaultTableSource::new(first_provider));
-        let mut plan_builder = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?;
+        let o = fn_registry
+            .into_values()
+            .map(|(access, locations)| {
+                let provider = get_table_provider(ctx, ft.clone(), access, locations.into_iter());
+                provider
+            })
+            .collect::<futures::stream::FuturesUnordered<_>>()
+            .try_collect::<Vec<_>>()
+            .await
+            .map(|providers| Arc::new(MultiSourceTableProvider::new(providers)) as _)?;
 
-        for (access, locations) in fn_registry {
-            let provider =
-                get_table_provider(ctx, ft.clone(), access, locations.into_iter()).await?;
-
-            let source = Arc::new(DefaultTableSource::new(provider));
-            let plan = LogicalPlanBuilder::scan(table_ref.clone(), source, None)?.build()?;
-
-            plan_builder = plan_builder.union(plan)?;
-        }
-
-        let plan = plan_builder.build()?;
-        Ok(plan)
+        Ok(o)
     }
 }
 
@@ -180,7 +261,7 @@ async fn get_table_provider(
 
     let provider = accessor
         .into_table_provider(
-            state,
+            &state,
             ft,
             objects.into_iter().flatten().collect(),
             /* predicate_pushdown = */ true,

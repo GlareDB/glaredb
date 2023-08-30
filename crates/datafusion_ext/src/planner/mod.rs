@@ -25,6 +25,7 @@ mod statement;
 pub mod utils;
 mod values;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::functions::*;
@@ -56,8 +57,6 @@ use crate::utils::make_decimal_type;
 /// functions referenced in SQL statements
 #[async_trait]
 pub trait AsyncContextProvider: Send + Sync {
-    type TableFuncContextProvider: TableFuncContextProvider;
-
     /// Getter for a datasource
     async fn get_table_provider(
         &mut self,
@@ -74,10 +73,12 @@ pub trait AsyncContextProvider: Send + Sync {
     ///
     /// Note that this accepts a table reference since these functions are
     /// namespaced similiarly to tables.
-    fn get_table_func(&mut self, name: TableReference<'_>) -> Option<Arc<dyn TableFunc>>;
-
-    /// Get the table func context provider.
-    fn table_fn_ctx_provider(&self) -> Self::TableFuncContextProvider;
+    async fn get_table_func(
+        &mut self,
+        name: TableReference<'_>,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> Option<Arc<dyn TableSource>>;
 
     /// Get configuration options.
     fn options(&self) -> &ConfigOptions;

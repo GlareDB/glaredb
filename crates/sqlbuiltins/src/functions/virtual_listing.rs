@@ -15,6 +15,7 @@ use datasources::mongodb::MongoAccessor;
 use datasources::mysql::MysqlAccessor;
 use datasources::postgres::PostgresAccess;
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection};
+use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
@@ -25,6 +26,9 @@ pub struct ListSchemas;
 
 #[async_trait]
 impl TableFunc for ListSchemas {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Unspecified
+    }
     fn name(&self) -> &str {
         "list_schemas"
     }
@@ -67,6 +71,9 @@ pub struct ListTables;
 
 #[async_trait]
 impl TableFunc for ListTables {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Unspecified
+    }
     fn name(&self) -> &str {
         "list_tables"
     }

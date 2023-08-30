@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -7,7 +8,10 @@ use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::TableProvider;
+use datafusion::execution::context::SessionState;
 use datafusion::prelude::SessionContext;
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
+use datafusion_ext::vars::SessionVars;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::DeltaLakeAccessor;
@@ -19,7 +23,9 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, TableEntry};
+use protogen::metastore::types::catalog::{
+    CatalogEntry, CredentialsEntry, DatabaseEntry, FunctionEntry, TableEntry,
+};
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
     DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
@@ -28,6 +34,7 @@ use protogen::metastore::types::options::{
     TableOptionsSnowflake, TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
+use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 
 use crate::metastore::catalog::SessionCatalog;
 
@@ -40,6 +47,26 @@ pub struct ExternalDispatcher<'a> {
     df_ctx: &'a SessionContext,
     /// Whether or not local file system access should be disabled.
     disable_local_fs_access: bool,
+}
+
+impl<'a> TableFuncContextProvider for ExternalDispatcher<'a> {
+    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry> {
+        self.catalog.resolve_database(name)
+    }
+
+    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry> {
+        self.catalog.resolve_credentials(name)
+    }
+
+    fn get_session_vars(&self) -> SessionVars {
+        let cfg = self.df_ctx.copied_config();
+        let vars = cfg.options().extensions.get::<SessionVars>().unwrap();
+        vars.clone()
+    }
+
+    fn get_session_state(&self) -> SessionState {
+        self.df_ctx.state()
+    }
 }
 
 impl<'a> ExternalDispatcher<'a> {
@@ -402,6 +429,28 @@ impl<'a> ExternalDispatcher<'a> {
             .await?;
 
         Ok(provider)
+    }
+
+    pub async fn dispatch_function(
+        &self,
+        func: &FunctionEntry,
+        args: Option<Vec<FuncParamValue>>,
+        opts: Option<HashMap<String, FuncParamValue>>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let args = args.unwrap_or_default();
+        let opts = opts.unwrap_or_default();
+        let resolve_func = if func.meta.builtin {
+            BUILTIN_TABLE_FUNCS.find_function(&func.meta.name)
+        } else {
+            // We only have builtin functions right now.
+            None
+        };
+        let prov = resolve_func
+            .unwrap()
+            .create_provider(self, args, opts)
+            .await
+            .map_err(|_| DispatchError::InvalidDispatch("failed to create provider"))?;
+        Ok(prov)
     }
 
     fn get_tunnel_opts(&self, tunnel_id: Option<u32>) -> Result<Option<TunnelOptions>> {

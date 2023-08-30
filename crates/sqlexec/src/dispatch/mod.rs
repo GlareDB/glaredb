@@ -2,17 +2,22 @@
 pub mod external;
 pub mod system;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::datasource::{TableProvider, ViewTable};
+use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::SessionContext as DfSessionContext;
 use datafusion::prelude::{Column, Expr};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
+use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{
-    CatalogEntry, DatabaseEntry, EntryMeta, EntryType, ViewEntry,
+    CatalogEntry, CredentialsEntry, DatabaseEntry, EntryMeta, EntryType, FunctionEntry, ViewEntry,
 };
+use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 
 use crate::context::local::LocalSessionContext;
 use crate::parser::CustomParser;
@@ -87,6 +92,8 @@ pub enum DispatchError {
     CommonDatasource(#[from] datasources::common::errors::DatasourceCommonError),
     #[error(transparent)]
     SshKey(#[from] datasources::common::ssh::key::SshKeyError),
+    #[error(transparent)]
+    ExtensionError(#[from] datafusion_ext::errors::ExtensionError),
 }
 
 impl DispatchError {
@@ -244,5 +251,45 @@ impl<'a> Dispatcher<'a> {
             .await
             .map_err(|e| DispatchError::ViewPlanning(Box::new(e)))?;
         Ok(Arc::new(ViewTable::try_new(plan, None)?))
+    }
+
+    pub async fn dispatch_function(
+        &self,
+        func: &FunctionEntry,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let resolve_func = if func.meta.builtin {
+            BUILTIN_TABLE_FUNCS.find_function(&func.meta.name)
+        } else {
+            // We only have builtin functions right now.
+            None
+        };
+        let prov = resolve_func
+            .unwrap()
+            .create_provider(self, args, opts)
+            .await
+            .map_err(|_| DispatchError::InvalidDispatch("failed to create provider"))?;
+        Ok(prov)
+    }
+}
+
+impl<'a> TableFuncContextProvider for Dispatcher<'a> {
+    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry> {
+        self.catalog.resolve_database(name)
+    }
+
+    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry> {
+        self.catalog.resolve_credentials(name)
+    }
+
+    fn get_session_vars(&self) -> SessionVars {
+        let cfg = self.df_ctx.copied_config();
+        let vars = cfg.options().extensions.get::<SessionVars>().unwrap();
+        vars.clone()
+    }
+
+    fn get_session_state(&self) -> SessionState {
+        self.df_ctx.state()
     }
 }

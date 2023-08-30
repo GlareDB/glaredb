@@ -87,6 +87,9 @@ pub enum ExecError {
     #[error(transparent)]
     ProtoConvError(#[from] protogen::errors::ProtoConvError),
 
+    #[error(transparent)]
+    ExtensionError(#[from] datafusion_ext::errors::ExtensionError),
+
     #[error("Unable to retrieve ssh tunnel connection: {0}")]
     MissingSshTunnel(Box<crate::errors::ExecError>),
 

@@ -3,7 +3,8 @@ use crate::{
     extension_codec::GlareDBExtensionCodec,
     metastore::catalog::SessionCatalog,
 };
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::{datasource::TableProvider, physical_plan::ExecutionPlan};
+use datafusion_ext::functions::FuncParamValue;
 use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
 use protogen::{
     gen::rpcsrv::service::{self, execution_service_client::ExecutionServiceClient},
@@ -17,7 +18,7 @@ use protogen::{
 use proxyutil::metadata_constants::{
     COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tonic::{
     metadata::MetadataMap,
     transport::{Channel, Endpoint},
@@ -251,10 +252,29 @@ impl RemoteSessionClient {
     pub async fn dispatch_access(
         &mut self,
         table_ref: ResolvedTableReference,
-    ) -> Result<StubRemoteTableProvider> {
+        args: Option<Vec<FuncParamValue>>,
+        opts: Option<HashMap<String, FuncParamValue>>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let args = args
+            .map(|arg| {
+                arg.into_iter()
+                    .map(|arg| Ok(arg.try_into()?))
+                    .collect::<Result<Vec<_>>>()
+            })
+            .transpose()?;
+
+        let opts = opts
+            .map(|opts| {
+                opts.into_iter()
+                    .map(|(k, v)| Ok((k, v.try_into()?)))
+                    .collect::<Result<HashMap<_, _>>>()
+            })
+            .transpose()?;
         let mut request = service::DispatchAccessRequest::from(DispatchAccessRequest {
             session_id: self.session_id(),
             table_ref,
+            args,
+            opts,
         })
         .into_request();
         self.inner.append_auth_metadata(request.metadata_mut());
@@ -268,7 +288,7 @@ impl RemoteSessionClient {
             .into_inner()
             .try_into()?;
 
-        Ok(StubRemoteTableProvider::new(resp.id, Arc::new(resp.schema)))
+        Ok(Arc::new(StubRemoteTableProvider::new(resp.id, Arc::new(resp.schema))) as _)
     }
 
     pub async fn physical_plan_execute(

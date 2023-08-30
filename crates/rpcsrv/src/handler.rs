@@ -22,6 +22,7 @@ use sqlexec::{
     remote::exchange_stream::ClientExchangeRecvStream,
 };
 use std::{
+    collections::HashMap,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -125,9 +126,26 @@ impl RpcHandler {
         req: DispatchAccessRequest,
     ) -> Result<TableProviderResponse> {
         info!(session_id=%req.session_id, table_ref=?req.table_ref, "dispatching table access");
+        let args = req
+            .args
+            .map(|args| {
+                args.into_iter()
+                    .map(|arg| Ok(arg.try_into()?))
+                    .collect::<Result<Vec<_>>>()
+            })
+            .transpose()?;
+
+        let opts = req
+            .opts
+            .map(|opts| {
+                opts.into_iter()
+                    .map(|(k, v)| Ok((k, v.try_into()?)))
+                    .collect::<Result<HashMap<_, _>>>()
+            })
+            .transpose()?;
 
         let session = self.get_session(req.session_id)?;
-        let (id, schema) = session.dispatch_access(req.table_ref).await?;
+        let (id, schema) = session.dispatch_access(req.table_ref, args, opts).await?;
         Ok(TableProviderResponse { id, schema })
     }
 
