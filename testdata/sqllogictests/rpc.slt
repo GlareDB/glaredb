@@ -89,3 +89,10 @@ query III
 select * from t1661;
 ----
 1 2 3
+
+# Test for #1671
+statement ok
+create table emptyNative (a int);
+
+statement ok
+select * from emptyNative;
