@@ -90,6 +90,14 @@ select * from t1661;
 ----
 1 2 3
 
+
+# Test for #1671
+statement ok
+create table emptyNative (a int);
+
+statement ok
+select * from emptyNative;
+
 # Test if "values" clause works.
 # https://github.com/GlareDB/glaredb/pull/1673
 

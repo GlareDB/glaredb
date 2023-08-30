@@ -6,6 +6,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableType};
+use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::Expr;
 use deltalake::action::SaveMode;
@@ -271,7 +272,17 @@ impl TableProvider for NativeTable {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        self.delta.scan(session, projection, filters, limit).await
+        let stats = self
+            .statistics()
+            .unwrap_or_default()
+            .num_rows
+            .unwrap_or_default();
+        if stats == 0 {
+            let schema = TableProvider::schema(&self.delta);
+            Ok(Arc::new(EmptyExec::new(false, schema)))
+        } else {
+            self.delta.scan(session, projection, filters, limit).await
+        }
     }
 
     fn supports_filter_pushdown(
