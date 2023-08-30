@@ -20,7 +20,7 @@ use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
     FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
 };
-use datafusion_ext::local_hint::LocalTableHint;
+
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
@@ -249,9 +249,7 @@ async fn get_table_provider(
         ObjStoreAccessor::new(access).map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
     let mut objects = Vec::new();
-    let mut is_local = true; // Sets to false if any of the data sources aren't a file.
     for loc in locations {
-        is_local = loc.datasource_url_type() == DatasourceUrlType::File && is_local;
         let list = accessor
             .list_globbed(loc.path())
             .await
@@ -269,11 +267,7 @@ async fn get_table_provider(
         .await
         .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
-    if is_local {
-        Ok(Arc::new(LocalTableHint(provider)))
-    } else {
-        Ok(provider)
-    }
+    Ok(provider)
 }
 
 fn get_store_access(

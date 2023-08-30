@@ -81,9 +81,11 @@ impl<'a> PartialContextProvider<'a> {
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>, DispatchError> {
-        self.new_dispatcher()
-            .dispatch_function(func, args, opts)
-            .await
+        Ok(Arc::new(LocalTableHint(
+            self.new_dispatcher()
+                .dispatch_function(func, args, opts)
+                .await?,
+        )))
     }
 
     async fn dispatch_function_remote(
@@ -108,7 +110,9 @@ impl<'a> PartialContextProvider<'a> {
         &self,
         ent: &CatalogEntry,
     ) -> Result<Arc<dyn TableProvider>, DispatchError> {
-        self.new_dispatcher().dispatch(ent.clone()).await
+        Ok(Arc::new(LocalTableHint(
+            self.new_dispatcher().dispatch(ent.clone()).await?,
+        )))
     }
 
     async fn dispatch_external_entry_local(
@@ -117,9 +121,11 @@ impl<'a> PartialContextProvider<'a> {
         schema: &str,
         name: &str,
     ) -> Result<Arc<dyn TableProvider>, DispatchError> {
-        self.new_dispatcher()
-            .dispatch_external(db_ent, schema, name)
-            .await
+        Ok(Arc::new(LocalTableHint(
+            self.new_dispatcher()
+                .dispatch_external(db_ent, schema, name)
+                .await?,
+        )))
     }
 
     /// Get the table provider from the table reference.
@@ -190,7 +196,9 @@ impl<'a> PartialContextProvider<'a> {
             // 2. The client will then receive the results of the
             // cross join, but then needs upload that so that the
             // rest of the query can continue to execute remotely.
-            (Entry(ent @ CatalogEntry::View(_)), _) => self.new_dispatcher().dispatch(ent).await?,
+            (Entry(ent @ CatalogEntry::View(_)), _) => {
+                Arc::new(LocalTableHint(self.new_dispatcher().dispatch(ent).await?))
+            }
 
             // --- LOCAL RESOLUTION ---
             // (function , no remote client)
@@ -318,9 +326,7 @@ impl<'a> PartialContextProvider<'a> {
 
                 match actual_runtime {
                     RuntimePreference::Local => {
-                        self.new_dispatcher()
-                            .dispatch_function(func, args, opts)
-                            .await?
+                        self.dispatch_function_local(func, args, opts).await?
                     }
                     RuntimePreference::Remote => {
                         client
