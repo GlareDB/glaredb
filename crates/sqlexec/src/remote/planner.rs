@@ -47,7 +47,7 @@ use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
 
 use super::client::RemoteSessionClient;
-use super::rewriter::LocalSideTableRewriter;
+use super::rewriter::{CopyRemoteToLocalRewriter, LocalSideTableRewriter};
 
 pub struct DDLExtensionPlanner {
     catalog_version: u64,
@@ -291,10 +291,6 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         // TODO: This can be refactored a bit to better handle explains.
 
-        // Rewrite logical plan to ensure tables that have a
-        // "local" hint have their providers replaced with ones
-        // that will produce client recv and send execs.
-        let mut rewriter = LocalSideTableRewriter::new(self.remote_client.clone());
         // TODO: Figure out where this should actually be called to remove need
         // to clone.
         //
@@ -309,7 +305,17 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         // optimzation is for. We would also need to figure out how to pass
         // around the exec refs, so probably not worth it.
         let logical_plan = logical_plan.clone();
-        let logical_plan = logical_plan.rewrite(&mut rewriter)?;
+
+        // Rewrite logical plan to ensure tables that have a
+        // "local" hint have their providers replaced with ones
+        // that will produce client recv and send execs.
+        let mut local_side_table_rewriter = LocalSideTableRewriter::new(self.remote_client.clone());
+        let logical_plan = logical_plan.rewrite(&mut local_side_table_rewriter)?;
+
+        // Rewrite any copy-to where destination is local so we can only send
+        // the query on remote and process is later on local.
+        let mut copy_remote_to_local_rewriter = CopyRemoteToLocalRewriter::default();
+        let logical_plan = logical_plan.rewrite(&mut copy_remote_to_local_rewriter)?;
 
         // Create the physical plans. This will call `scan` on
         // the custom table providers meaning we'll have the
@@ -335,7 +341,22 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         //
         // At this point, the send execs should have been
         // populated.
-        let physical = Arc::new(SendRecvJoinExec::new(physical, rewriter.exec_refs));
+        let physical = Arc::new(SendRecvJoinExec::new(
+            physical,
+            local_side_table_rewriter.exec_refs,
+        ));
+
+        // Execute this copy to on local.
+        let physical: Arc<dyn ExecutionPlan> =
+            if let Some((format, dest)) = copy_remote_to_local_rewriter.0 {
+                Arc::new(CopyToExec {
+                    format,
+                    dest,
+                    source: physical,
+                })
+            } else {
+                physical
+            };
 
         Ok(physical)
     }

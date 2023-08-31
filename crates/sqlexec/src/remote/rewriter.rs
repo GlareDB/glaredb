@@ -1,11 +1,14 @@
+use crate::planner::logical_plan::CopyTo;
+
 use super::client::RemoteSessionClient;
 use super::local_side::{ClientSendExecsRef, LocalSideTableProvider};
 use datafusion::common::tree_node::RewriteRecursion;
 use datafusion::common::tree_node::TreeNodeRewriter;
 use datafusion::datasource::{source_as_provider, DefaultTableSource};
-use datafusion::error::Result;
+use datafusion::error::{DataFusionError, Result};
 use datafusion::logical_expr::{LogicalPlan, TableScan};
 use datafusion_ext::local_hint::is_local_table_hint;
+use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use std::sync::Arc;
 
 /// A logical plan rewriter that will inspect all table scans rewriting all
@@ -90,6 +93,49 @@ impl TreeNodeRewriter for LocalSideTableRewriter {
                 }
             }
             other => Ok(other),
+        }
+    }
+}
+
+/// A logical plan rewriter that replaces a remote copy to with `CopyToQuery`
+/// so the remote server is only responsible for executing the query and we run
+/// the actual copy to on local.
+///
+/// NOTE: We should only have one copy remote to local in a plan.
+#[derive(Debug, Default)]
+pub struct CopyRemoteToLocalRewriter(pub Option<(CopyToFormatOptions, CopyToDestinationOptions)>);
+
+impl TreeNodeRewriter for CopyRemoteToLocalRewriter {
+    type N = LogicalPlan;
+
+    fn pre_visit(&mut self, node: &Self::N) -> Result<RewriteRecursion> {
+        if let LogicalPlan::Extension(_) = node {
+            Ok(RewriteRecursion::Mutate)
+        } else {
+            Ok(RewriteRecursion::Continue)
+        }
+    }
+
+    fn mutate(&mut self, node: Self::N) -> Result<Self::N> {
+        if let LogicalPlan::Extension(ext) = node {
+            if let Some(copy_to) = ext.node.as_any().downcast_ref::<CopyTo>() {
+                // Rewrite if the destination is local.
+                if matches!(&copy_to.dest, CopyToDestinationOptions::Local(_)) {
+                    if self.0.is_some() {
+                        return Err(DataFusionError::Internal(
+                            "a logical plan should have only 1 copy to".to_string(),
+                        ));
+                    }
+                    self.0 = Some((copy_to.format.clone(), copy_to.dest.clone()));
+                    Ok(copy_to.source.clone())
+                } else {
+                    Ok(LogicalPlan::Extension(ext))
+                }
+            } else {
+                Ok(LogicalPlan::Extension(ext))
+            }
+        } else {
+            Ok(node)
         }
     }
 }

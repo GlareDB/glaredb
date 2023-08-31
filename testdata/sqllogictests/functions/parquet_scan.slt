@@ -22,12 +22,15 @@ select count(*) from parquet_scan('https://github.com/GlareDB/glaredb/raw/main/t
 #
 # Note that this is a pretty big file, but the limit will be pushed down to the
 # exec, ensuring we don't need to load the whole thing.
-query T
-select length(head) > 1 from parquet_scan(
-  'https://huggingface.co/datasets/allenai/soda/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet'
-) limit 1;
-----
-t
+#
+# TODO: Re-enable this test with a new URL that works. This URL returns 404.
+#
+# query T
+# select length(head) > 1 from parquet_scan(
+#   'https://huggingface.co/datasets/allenai/soda/resolve/refs%2Fconvert%2Fparquet/default/train/0000.parquet'
+# ) limit 1;
+# ----
+# t
 
 # Multiple URLs
 
