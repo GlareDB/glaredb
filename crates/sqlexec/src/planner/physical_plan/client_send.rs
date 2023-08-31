@@ -251,7 +251,7 @@ impl Stream for ClientExchangeSendStream {
                         Err(e) => {
                             let mut result = self.result.lock();
                             result.error = Some(DataFusionError::Execution(format!(
-                                "failed to encode batch: {e}"
+                                "failed to encode empty batch: {e}"
                             )));
                             return Poll::Ready(None);
                         }
