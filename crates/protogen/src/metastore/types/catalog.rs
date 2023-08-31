@@ -496,9 +496,10 @@ impl From<FunctionType> for catalog::function_entry::FunctionType {
 }
 #[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
 pub enum RuntimePreference {
-    Unspecified,
-    Local,
-    Remote,
+    Unspecified = 0,
+    Local = 1,
+    Remote = 2,
+    Inherit = 3,
 }
 
 impl TryFrom<i32> for RuntimePreference {
@@ -522,6 +523,7 @@ impl TryFrom<catalog::function_entry::RuntimePreference> for RuntimePreference {
             }
             catalog::function_entry::RuntimePreference::Local => RuntimePreference::Local,
             catalog::function_entry::RuntimePreference::Remote => RuntimePreference::Remote,
+            catalog::function_entry::RuntimePreference::Inherit => RuntimePreference::Inherit,
         })
     }
 }
@@ -534,6 +536,7 @@ impl From<RuntimePreference> for catalog::function_entry::RuntimePreference {
             }
             RuntimePreference::Local => catalog::function_entry::RuntimePreference::Local,
             RuntimePreference::Remote => catalog::function_entry::RuntimePreference::Remote,
+            RuntimePreference::Inherit => catalog::function_entry::RuntimePreference::Inherit,
         }
     }
 }

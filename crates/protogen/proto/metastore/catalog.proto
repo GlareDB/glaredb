@@ -183,6 +183,7 @@ message FunctionEntry {
     UNSPECIFIED = 0;
     LOCAL = 1;
     REMOTE = 2;
+    INHERIT = 3;
   }
   EntryMeta meta = 1;
   FunctionType func_type = 2;

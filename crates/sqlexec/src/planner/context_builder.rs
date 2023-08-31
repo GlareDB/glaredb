@@ -81,6 +81,7 @@ impl<'a> PartialContextProvider<'a> {
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>, DispatchError> {
+        println!("dispatching function local");
         Ok(Arc::new(LocalTableHint(
             self.new_dispatcher()
                 .dispatch_function(func, args, opts)
@@ -302,12 +303,19 @@ impl<'a> PartialContextProvider<'a> {
         }
         let args = args.unwrap_or_default();
         let opts = opts.unwrap_or_default();
-
         Ok(match func.runtime_preference {
             RuntimePreference::Local => self.dispatch_function_local(func, args, opts).await?,
             RuntimePreference::Remote => {
                 self.dispatch_function_remote(func, args, opts, &mut client)
                     .await?
+            }
+            RuntimePreference::Inherit => {
+                if self.remote_context_available() {
+                    self.dispatch_function_remote(func, args, opts, &mut client)
+                        .await?
+                } else {
+                    self.dispatch_function_local(func, args, opts).await?
+                }
             }
             RuntimePreference::Unspecified => {
                 let resolve_func = if func.meta.builtin {
@@ -339,7 +347,7 @@ impl<'a> PartialContextProvider<'a> {
                             )
                             .await?
                     }
-                    RuntimePreference::Unspecified => panic!(
+                    _ => panic!(
                         "function should have a specified runtime at this point. This is a bug."
                     ),
                 }
@@ -370,6 +378,9 @@ impl<'a> PartialContextProvider<'a> {
         } else {
             self.dispatch_catalog_entry_local(ent).await?
         })
+    }
+    fn remote_context_available(&self) -> bool {
+        self.ctx.exec_client().is_some()
     }
 }
 

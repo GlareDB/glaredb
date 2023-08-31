@@ -599,7 +599,6 @@ impl<'a> SessionPlanner<'a> {
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
         let state = self.ctx.df_ctx().state();
         let mut context_provider = PartialContextProvider::new(self.ctx, &state)?;
-
         match statement {
             ast::Statement::StartTransaction { .. } => Ok(TransactionPlan::Begin.into()),
             ast::Statement::Commit { .. } => Ok(TransactionPlan::Commit.into()),
