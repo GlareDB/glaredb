@@ -35,11 +35,11 @@ impl TableFunc for GenerateSeries {
     fn detect_runtime(
         &self,
         _: &[FuncParamValue],
-        parent: &RuntimePreference,
+        parent: RuntimePreference,
     ) -> Result<RuntimePreference> {
         match parent {
             RuntimePreference::Unspecified => Ok(RuntimePreference::Local),
-            other => Ok(*other),
+            other => Ok(other),
         }
     }
     fn name(&self) -> &str {

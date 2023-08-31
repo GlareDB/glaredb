@@ -336,7 +336,7 @@ impl<'a> PartialContextProvider<'a> {
                 };
 
                 let actual_runtime = resolve_func
-                    .detect_runtime(&args, &self.runtime_preference)
+                    .detect_runtime(&args, self.runtime_preference)
                     .map_err(DispatchError::ExtensionError)?;
 
                 match actual_runtime {

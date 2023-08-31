@@ -112,7 +112,7 @@ impl TableFunc for ObjScanTableFunc {
     fn detect_runtime(
         &self,
         args: &[FuncParamValue],
-        _: &RuntimePreference,
+        _: RuntimePreference,
     ) -> Result<RuntimePreference> {
         let mut args = args.iter();
         let url_arg = args.next().unwrap();
