@@ -1824,7 +1824,7 @@ dependencies = [
 [[package]]
 name = "deltalake"
 version = "0.14.0"
-source = "git+https://github.com/glaredb/delta-rs.git?branch=fork#c83e4088e57a49239b8d3171c2b767fc1e43cf1c"
+source = "git+https://github.com/delta-io/delta-rs.git?branch=main#787c13a63efa9ada96d303c10c093424215aaa80"
 dependencies = [
  "arrow",
  "arrow-array",
