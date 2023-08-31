@@ -84,9 +84,15 @@ impl ExecutionPlan for ClientExchangeSendExec {
             ));
         }
 
+        let schema = self.input.schema();
         let input = self.input.execute(0, context)?;
-        let stream =
-            ClientExchangeSendStream::new(self.client.session_id(), self.broadcast_id, input);
+
+        let stream = ClientExchangeSendStream::new(
+            self.client.session_id(),
+            self.broadcast_id,
+            input,
+            schema,
+        );
 
         let fut = flush_stream(self.client.clone(), stream);
         let stream = futures::stream::once(fut);
@@ -151,10 +157,18 @@ struct ClientExchangeSendStream {
     /// record batch stream), and producing a stream of ipc encoded data, we
     /// don't really have a decent way forwarding errors through the stream.
     result: Arc<Mutex<ClientExchangeSendResult>>,
+
+    // needed to create an empty reocrd batch in case of a empty stream
+    schema: Arc<Schema>,
 }
 
 impl ClientExchangeSendStream {
-    fn new(session_id: Uuid, broadcast_id: Uuid, stream: SendableRecordBatchStream) -> Self {
+    fn new(
+        session_id: Uuid,
+        broadcast_id: Uuid,
+        stream: SendableRecordBatchStream,
+        schema: Arc<Schema>,
+    ) -> Self {
         ClientExchangeSendStream {
             session_id,
             broadcast_id,
@@ -162,6 +176,7 @@ impl ClientExchangeSendStream {
             buf: Vec::new(),
             row_count: 0,
             result: Arc::new(Mutex::new(ClientExchangeSendResult::default())),
+            schema,
         }
     }
 
@@ -224,7 +239,28 @@ impl Stream for ClientExchangeSendStream {
                 result.error = Some(e);
                 Poll::Ready(None)
             }
-            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Ready(None) => {
+                // if row_count is 0 and we are here that means the stream is empty.
+                // send an empty batch record in this case, so that we are able to extract
+                // session_id and broadcast_id from the stream.
+                if self.row_count == 0 {
+                    self.row_count += 1;
+                    let empty_batch = RecordBatch::new_empty(self.schema.clone());
+                    let req = match self.write_batch(&empty_batch) {
+                        Ok(req) => req,
+                        Err(e) => {
+                            let mut result = self.result.lock();
+                            result.error = Some(DataFusionError::Execution(format!(
+                                "failed to encode batch: {e}"
+                            )));
+                            return Poll::Ready(None);
+                        }
+                    };
+                    Poll::Ready(Some(req))
+                } else {
+                    Poll::Ready(None)
+                }
+            }
             Poll::Pending => Poll::Pending,
         }
     }
