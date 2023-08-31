@@ -1,4 +1,4 @@
-use crate::highlighter::{SQLHighlighter, SQLValidator};
+use crate::highlighter::{SQLHighlighter, SQLHinter, SQLValidator};
 use crate::prompt::SQLPrompt;
 use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
@@ -214,6 +214,7 @@ impl LocalSession {
         let mut line_editor = Reedline::create().with_history(history);
 
         line_editor = line_editor
+            .with_hinter(Box::new(SQLHinter::new()))
             .with_highlighter(Box::new(SQLHighlighter))
             .with_validator(Box::new(SQLValidator));
 
