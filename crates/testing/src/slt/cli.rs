@@ -107,6 +107,16 @@ impl Cli {
 
         Builder::new_multi_thread()
             .enable_all()
+            // Bump the stack from th default 2MB.
+            //
+            // We reach the limit when planning a query in an SLT where we have
+            // a nested view. The 4MB allows that test to pass.
+            //
+            // Note that Sean observed the stack size only reaching ~300KB when
+            // running in release mode, and so we don't need to bump this
+            // everywhere. However there's definitely improvements to stack
+            // usage that we can make.
+            .thread_stack_size(4 * 1024 * 1024)
             .build()?
             .block_on(async move {
                 let batch_size = num_cpus::get();
