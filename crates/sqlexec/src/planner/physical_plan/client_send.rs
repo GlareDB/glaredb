@@ -84,15 +84,9 @@ impl ExecutionPlan for ClientExchangeSendExec {
             ));
         }
 
-        let schema = self.input.schema();
         let input = self.input.execute(0, context)?;
-
-        let stream = ClientExchangeSendStream::new(
-            self.client.session_id(),
-            self.broadcast_id,
-            input,
-            schema,
-        );
+        let stream =
+            ClientExchangeSendStream::new(self.client.session_id(), self.broadcast_id, input);
 
         let fut = flush_stream(self.client.clone(), stream);
         let stream = futures::stream::once(fut);
@@ -157,18 +151,10 @@ struct ClientExchangeSendStream {
     /// record batch stream), and producing a stream of ipc encoded data, we
     /// don't really have a decent way forwarding errors through the stream.
     result: Arc<Mutex<ClientExchangeSendResult>>,
-
-    // needed to create an empty reocrd batch in case of a empty stream
-    schema: Arc<Schema>,
 }
 
 impl ClientExchangeSendStream {
-    fn new(
-        session_id: Uuid,
-        broadcast_id: Uuid,
-        stream: SendableRecordBatchStream,
-        schema: Arc<Schema>,
-    ) -> Self {
+    fn new(session_id: Uuid, broadcast_id: Uuid, stream: SendableRecordBatchStream) -> Self {
         ClientExchangeSendStream {
             session_id,
             broadcast_id,
@@ -176,7 +162,6 @@ impl ClientExchangeSendStream {
             buf: Vec::new(),
             row_count: 0,
             result: Arc::new(Mutex::new(ClientExchangeSendResult::default())),
-            schema,
         }
     }
 
@@ -245,7 +230,7 @@ impl Stream for ClientExchangeSendStream {
                 // session_id and broadcast_id from the stream.
                 if self.row_count == 0 {
                     self.row_count += 1;
-                    let empty_batch = RecordBatch::new_empty(self.schema.clone());
+                    let empty_batch = RecordBatch::new_empty(self.stream.schema());
                     let req = match self.write_batch(&empty_batch) {
                         Ok(req) => req,
                         Err(e) => {
