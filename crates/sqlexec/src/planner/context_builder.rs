@@ -50,6 +50,7 @@ pub struct PartialContextProvider<'a> {
     ctx: &'a LocalSessionContext,
     /// Entry resolver to use to resolve tables and other objects.
     resolver: EntryResolver<'a>,
+    runtime_preference: RuntimePreference,
 }
 
 impl<'a> PartialContextProvider<'a> {
@@ -60,7 +61,20 @@ impl<'a> PartialContextProvider<'a> {
             state,
             ctx,
             resolver,
+            runtime_preference: RuntimePreference::Unspecified,
         })
+    }
+
+    /// Hint to the planner that the query should be planned to run on the specified runtime.
+    /// This is useful for queries with subqueries such as:
+    /// `create table t1 as select * from generate_series(1, 15, 2);`
+    /// without the hint, the planner will mistakenly plan each node individually
+    /// {subquery: local} -> {create table {subquery: local}: remote}
+    /// when instead, we want to hint the subquery to respect the runtime preference of the parent
+    /// {subquery: remote} -> {create table {subquery: remote}: remote}
+    pub fn with_runtime_preference(mut self, runtime_preference: RuntimePreference) -> Self {
+        self.runtime_preference = runtime_preference;
+        self
     }
 
     fn new_dispatcher(&self) -> Dispatcher {
@@ -81,7 +95,6 @@ impl<'a> PartialContextProvider<'a> {
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>, DispatchError> {
-        println!("dispatching function local");
         Ok(Arc::new(LocalTableHint(
             self.new_dispatcher()
                 .dispatch_function(func, args, opts)
@@ -301,21 +314,15 @@ impl<'a> PartialContextProvider<'a> {
                 "function should have args or opts at this point".to_string(),
             ));
         }
+
         let args = args.unwrap_or_default();
         let opts = opts.unwrap_or_default();
+
         Ok(match func.runtime_preference {
             RuntimePreference::Local => self.dispatch_function_local(func, args, opts).await?,
             RuntimePreference::Remote => {
                 self.dispatch_function_remote(func, args, opts, &mut client)
                     .await?
-            }
-            RuntimePreference::Inherit => {
-                if self.remote_context_available() {
-                    self.dispatch_function_remote(func, args, opts, &mut client)
-                        .await?
-                } else {
-                    self.dispatch_function_local(func, args, opts).await?
-                }
             }
             RuntimePreference::Unspecified => {
                 let resolve_func = if func.meta.builtin {
@@ -329,7 +336,7 @@ impl<'a> PartialContextProvider<'a> {
                 };
 
                 let actual_runtime = resolve_func
-                    .detect_runtime(&args)
+                    .detect_runtime(&args, &self.runtime_preference)
                     .map_err(DispatchError::ExtensionError)?;
 
                 match actual_runtime {
@@ -378,9 +385,6 @@ impl<'a> PartialContextProvider<'a> {
         } else {
             self.dispatch_catalog_entry_local(ent).await?
         })
-    }
-    fn remote_context_available(&self) -> bool {
-        self.ctx.exec_client().is_some()
     }
 }
 

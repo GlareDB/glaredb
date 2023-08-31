@@ -30,7 +30,17 @@ pub struct GenerateSeries;
 #[async_trait]
 impl TableFunc for GenerateSeries {
     fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Inherit
+        RuntimePreference::Unspecified
+    }
+    fn detect_runtime(
+        &self,
+        _: &[FuncParamValue],
+        parent: &RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        match parent {
+            RuntimePreference::Unspecified => Ok(RuntimePreference::Local),
+            other => Ok(*other),
+        }
     }
     fn name(&self) -> &str {
         "generate_series"
