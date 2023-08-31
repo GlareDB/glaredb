@@ -224,7 +224,28 @@ impl Stream for ClientExchangeSendStream {
                 result.error = Some(e);
                 Poll::Ready(None)
             }
-            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Ready(None) => {
+                // if row_count is 0 and we are here that means the stream is empty.
+                // send an empty batch record in this case, so that we are able to extract
+                // session_id and broadcast_id from the stream.
+                if self.row_count == 0 {
+                    self.row_count += 1;
+                    let empty_batch = RecordBatch::new_empty(self.stream.schema());
+                    let req = match self.write_batch(&empty_batch) {
+                        Ok(req) => req,
+                        Err(e) => {
+                            let mut result = self.result.lock();
+                            result.error = Some(DataFusionError::Execution(format!(
+                                "failed to encode empty batch: {e}"
+                            )));
+                            return Poll::Ready(None);
+                        }
+                    };
+                    Poll::Ready(Some(req))
+                } else {
+                    Poll::Ready(None)
+                }
+            }
             Poll::Pending => Poll::Pending,
         }
     }
