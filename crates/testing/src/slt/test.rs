@@ -319,26 +319,31 @@ impl AsyncDB for TestClient {
                                 if num_columns == 0 {
                                     num_columns = batch.num_columns();
                                 }
+
                                 for row_idx in 0..batch.num_rows() {
                                     let mut row_output = Vec::with_capacity(num_columns);
+
                                     for col in batch.columns() {
                                         let pg_type = arrow_to_pg_type(col.data_type(), None);
                                         let scalar =
                                             Scalar::try_from_array(col, row_idx, &pg_type)?;
+
                                         if scalar.is_null() {
                                             row_output.push("NULL".to_string());
-                                        }
-                                        let mut buf = BytesMut::new();
-                                        scalar.encode_with_format(Format::Text, &mut buf)?;
-                                        if buf.is_empty() {
-                                            row_output.push("(empty)".to_string())
                                         } else {
-                                            let scalar = String::from_utf8(buf.to_vec()).map_err(|e| {
+                                            let mut buf = BytesMut::new();
+                                            scalar.encode_with_format(Format::Text, &mut buf)?;
+
+                                            if buf.is_empty() {
+                                                row_output.push("(empty)".to_string())
+                                            } else {
+                                                let scalar = String::from_utf8(buf.to_vec()).map_err(|e| {
                                                 ExecError::Internal(format!(
                                                     "invalid text formatted result from pg encoder: {e}"
                                                 ))
                                             })?;
-                                            row_output.push(scalar);
+                                                row_output.push(scalar);
+                                            }
                                         }
                                     }
                                     output.push(row_output);
