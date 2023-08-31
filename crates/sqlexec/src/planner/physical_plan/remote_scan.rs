@@ -3,6 +3,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
+use datafusion::physical_plan::display::ProjectSchemaDisplay;
 use datafusion::physical_plan::expressions::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
@@ -129,6 +130,11 @@ impl ExecutionPlan for RemoteScanExec {
 
 impl DisplayAs for RemoteScanExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RemoteScanExec")
+        write!(
+            f,
+            "RemoteScanExec: projection={}",
+            ProjectSchemaDisplay(&self.projected_schema)
+        )?;
+        Ok(())
     }
 }
