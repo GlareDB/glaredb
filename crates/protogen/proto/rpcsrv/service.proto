@@ -94,6 +94,10 @@ message FetchCatalogResponse { metastore.catalog.CatalogState catalog = 1; }
 message DispatchAccessRequest {
   bytes session_id = 1;
   ResolvedTableReference table_ref = 2;
+  repeated bytes args = 3;
+  // gRPC doesn't really provide a way for Option<Vec<T>> or Option<Map<K,V>>
+  // so we use a map and just check if it's empty or not in rust.
+  map < string, bytes > options = 4;
 }
 
 // Execute a physical plan and get the stream.

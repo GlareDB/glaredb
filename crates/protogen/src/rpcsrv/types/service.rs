@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use datafusion::arrow::datatypes::Schema;
 use prost::Message;
 use uuid::Uuid;
@@ -7,6 +9,8 @@ use crate::{
     gen::rpcsrv::service::{self, ExternalTableReference, InternalTableReference},
     metastore::types::{catalog::CatalogState, FromOptionalField},
 };
+
+use super::func_param_value::FuncParamValue;
 
 pub struct SessionStorageConfig {
     pub gcs_bucket: Option<String>,
@@ -188,26 +192,67 @@ impl TryFrom<FetchCatalogResponse> for service::FetchCatalogResponse {
     }
 }
 
+#[derive(Debug)]
 pub struct DispatchAccessRequest {
     pub session_id: Uuid,
     pub table_ref: ResolvedTableReference,
+    pub args: Option<Vec<FuncParamValue>>,
+
+    pub opts: Option<HashMap<String, FuncParamValue>>,
 }
 
 impl TryFrom<service::DispatchAccessRequest> for DispatchAccessRequest {
     type Error = ProtoConvError;
     fn try_from(value: service::DispatchAccessRequest) -> Result<Self, Self::Error> {
+        let args = value
+            .args
+            .iter()
+            .map(|v| FuncParamValue::decode(v.as_slice()).map_err(ProtoConvError::from))
+            .collect::<Result<Vec<_>, Self::Error>>()?;
+        let opts = value
+            .options
+            .into_iter()
+            .map(|(k, v)| {
+                Ok((
+                    k,
+                    FuncParamValue::decode(v.as_slice()).map_err(ProtoConvError::from)?,
+                ))
+            })
+            .collect::<Result<HashMap<_, _>, Self::Error>>()?;
+
+        let args = if args.is_empty() { None } else { Some(args) };
+        let opts = if opts.is_empty() { None } else { Some(opts) };
+
         Ok(Self {
             session_id: Uuid::from_slice(&value.session_id)?,
             table_ref: value.table_ref.required("table reference")?,
+            args,
+            opts,
         })
     }
 }
 
 impl From<DispatchAccessRequest> for service::DispatchAccessRequest {
     fn from(value: DispatchAccessRequest) -> Self {
+        let args = value
+            .args
+            .map(|v| v.into_iter().map(|v| v.encode_to_vec()).collect::<Vec<_>>())
+            .unwrap_or_default();
+
+        let options = value
+            .opts
+            .map(|v| {
+                v.into_iter()
+                    .map(|(k, v)| (k, v.encode_to_vec()))
+                    .collect::<HashMap<_, _>>()
+            })
+            .unwrap_or_default();
+
         Self {
             session_id: value.session_id.into_bytes().into(),
             table_ref: Some(value.table_ref.into()),
+            args,
+            options,
         }
     }
 }

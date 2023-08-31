@@ -2,23 +2,27 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use datafusion::common::OwnedTableReference;
-use datafusion::datasource::DefaultTableSource;
-use datafusion::datasource::TableProvider;
-use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
-use decimal::Decimal128;
-use protogen::metastore::types::catalog::{CredentialsEntry, DatabaseEntry};
-
 use crate::errors::{ExtensionError, Result};
 use crate::vars::SessionVars;
+use async_trait::async_trait;
+use datafusion::datasource::TableProvider;
+use datafusion::execution::context::SessionState;
+use decimal::Decimal128;
+use protogen::metastore::types::catalog::{CredentialsEntry, DatabaseEntry, RuntimePreference};
+use protogen::rpcsrv::types::func_param_value::{
+    FuncParamValue as ProtoFuncParamValue, FuncParamValueArrayVariant,
+    FuncParamValueEnum as ProtoFuncParamValueEnum,
+};
 
 #[async_trait]
 pub trait TableFunc: Sync + Send {
     /// The name for this table function. This name will be used when looking up
     /// function implementations.
     fn name(&self) -> &str;
+    fn runtime_preference(&self) -> RuntimePreference;
+    fn detect_runtime(&self, _args: &[FuncParamValue]) -> Result<RuntimePreference> {
+        Ok(self.runtime_preference())
+    }
 
     /// Return a table provider using the provided args.
     async fn create_provider(
@@ -27,28 +31,12 @@ pub trait TableFunc: Sync + Send {
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>>;
-
-    /// Return a logical plan using the provided args.
-    async fn create_logical_plan(
-        &self,
-        table_ref: OwnedTableReference,
-        ctx: &dyn TableFuncContextProvider,
-        args: Vec<FuncParamValue>,
-        opts: HashMap<String, FuncParamValue>,
-    ) -> Result<LogicalPlan> {
-        let provider = self.create_provider(ctx, args, opts).await?;
-        let source = Arc::new(DefaultTableSource::new(provider));
-
-        let plan_builder = LogicalPlanBuilder::scan(table_ref, source, None)?;
-        let plan = plan_builder.build()?;
-        Ok(plan)
-    }
 }
 pub trait TableFuncContextProvider: Sync + Send {
     fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
     fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
     fn get_session_vars(&self) -> SessionVars;
-    fn get_session_state(&self) -> &SessionState;
+    fn get_session_state(&self) -> SessionState;
 }
 
 use std::fmt;
@@ -75,6 +63,53 @@ impl fmt::Display for FuncParamValue {
         }
     }
 }
+impl TryFrom<FuncParamValue> for ProtoFuncParamValue {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> std::result::Result<Self, Self::Error> {
+        let variant = match value {
+            FuncParamValue::Ident(id) => ProtoFuncParamValueEnum::Ident(id),
+            FuncParamValue::Scalar(ref s) => ProtoFuncParamValueEnum::Scalar(s.try_into().unwrap()),
+            FuncParamValue::Array(a) => {
+                let values = a
+                    .into_iter()
+                    .map(|v| v.try_into())
+                    .collect::<Result<Vec<_>, _>>()?;
+                ProtoFuncParamValueEnum::Array(FuncParamValueArrayVariant { array: values })
+            }
+        };
+        Ok(ProtoFuncParamValue {
+            func_param_value_enum: Some(variant),
+        })
+    }
+}
+
+impl TryFrom<ProtoFuncParamValue> for FuncParamValue {
+    type Error = ExtensionError;
+    fn try_from(value: ProtoFuncParamValue) -> Result<Self, Self::Error> {
+        let variant = value.func_param_value_enum.unwrap();
+        Ok(match variant {
+            ProtoFuncParamValueEnum::Ident(id) => Self::Ident(id),
+            ProtoFuncParamValueEnum::Scalar(ref scalar) => {
+                let scalar = scalar
+                    .try_into()
+                    .map_err(|_| ExtensionError::InvalidParamValue {
+                        param: format!("{:?}", scalar),
+                        expected: "scalar",
+                    })?;
+                Self::Scalar(scalar)
+            }
+            ProtoFuncParamValueEnum::Array(values) => {
+                let values = values
+                    .array
+                    .into_iter()
+                    .map(|v| v.try_into())
+                    .collect::<Result<Vec<_>, _>>()?;
+                Self::Array(values)
+            }
+        })
+    }
+}
 
 impl FuncParamValue {
     /// Print multiple function parameter values.
@@ -99,11 +134,22 @@ impl FuncParamValue {
     {
         T::from_param(self)
     }
+
+    /// Wrapper over `FromFuncParamValue::from_param`.
+    pub fn param_ref_into<T>(&self) -> Result<T>
+    where
+        T: FromFuncParamValue,
+    {
+        T::from_param_ref(self)
+    }
 }
 
 pub trait FromFuncParamValue: Sized {
     /// Get the value from parameter.
     fn from_param(value: FuncParamValue) -> Result<Self>;
+    fn from_param_ref(value: &FuncParamValue) -> Result<Self> {
+        Self::from_param(value.clone())
+    }
 
     /// Check if the value is valid (able to convert).
     ///

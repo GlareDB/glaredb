@@ -22,12 +22,16 @@ use datafusion_ext::functions::{
 use decimal::Decimal128;
 use futures::Stream;
 use num_traits::Zero;
+use protogen::metastore::types::catalog::RuntimePreference;
 
 #[derive(Debug, Clone, Copy)]
 pub struct GenerateSeries;
 
 #[async_trait]
 impl TableFunc for GenerateSeries {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Local
+    }
     fn name(&self) -> &str {
         "generate_series"
     }
@@ -36,7 +40,7 @@ impl TableFunc for GenerateSeries {
         &self,
         _: &dyn TableFuncContextProvider,
         args: Vec<FuncParamValue>,
-        _opts: HashMap<String, FuncParamValue>,
+        _: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
             2 => {

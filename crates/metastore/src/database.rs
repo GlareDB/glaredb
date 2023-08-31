@@ -1188,6 +1188,7 @@ impl BuiltinCatalog {
                         is_temp: false,
                     },
                     func_type: FunctionType::TableReturning,
+                    runtime_preference: func.runtime_preference(),
                 }),
             );
             schema_objects

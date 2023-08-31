@@ -1,11 +1,11 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use datafusion::{
     datasource::TableProvider,
     execution::context::{SessionConfig, SessionContext as DfSessionContext},
     physical_plan::{execute_stream, ExecutionPlan, SendableRecordBatchStream},
 };
-use datafusion_ext::vars::SessionVars;
+use datafusion_ext::{functions::FuncParamValue, vars::SessionVars};
 use datasources::native::access::NativeTableStorage;
 use protogen::{
     metastore::types::catalog::CatalogEntry, rpcsrv::types::service::ResolvedTableReference,
@@ -133,6 +133,8 @@ impl RemoteSessionContext {
     pub async fn load_and_cache_table(
         &mut self,
         table_ref: ResolvedTableReference,
+        args: Option<Vec<FuncParamValue>>,
+        opts: Option<HashMap<String, FuncParamValue>>,
     ) -> Result<(Uuid, Arc<dyn TableProvider>)> {
         self.catalog
             .maybe_refresh_state(self.catalog_mutator().get_metastore_client(), false)
@@ -151,6 +153,9 @@ impl RemoteSessionContext {
                         } else {
                             self.tables.load_table(tbl).await?.into_table_provider()
                         }
+                    }
+                    Some(CatalogEntry::Function(f)) => {
+                        dispatcher.dispatch_function(f, args, opts).await?
                     }
                     Some(_) => {
                         return Err(ExecError::Internal(format!("oid not a table: {table_oid}")))

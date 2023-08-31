@@ -1,9 +1,11 @@
 use crate::context::local::LocalSessionContext;
+use crate::dispatch::DispatchError;
 use crate::dispatch::Dispatcher;
 use crate::errors::ExecError;
 use crate::functions::BuiltinScalarFunction;
 use crate::functions::PgFunctionBuilder;
 use crate::planner::errors::PlanError;
+use crate::remote::client::RemoteSessionClient;
 use crate::resolve::EntryResolver;
 use crate::resolve::ResolvedEntry;
 use async_trait::async_trait;
@@ -18,19 +20,19 @@ use datafusion::logical_expr::AggregateUDF;
 use datafusion::logical_expr::ScalarUDF;
 use datafusion::logical_expr::TableSource;
 use datafusion::sql::TableReference;
-use datafusion_ext::functions::TableFunc;
-use datafusion_ext::functions::TableFuncContextProvider;
+use datafusion_ext::functions::FuncParamValue;
 use datafusion_ext::local_hint::LocalTableHint;
 use datafusion_ext::planner::AsyncContextProvider;
-use datafusion_ext::vars::SessionVars;
-use protogen::metastore::types::catalog::{CatalogEntry, CredentialsEntry, DatabaseEntry};
+
+use protogen::metastore::types::catalog::CatalogEntry;
+use protogen::metastore::types::catalog::DatabaseEntry;
+use protogen::metastore::types::catalog::FunctionEntry;
+use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::TableOptions;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
-use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::error;
 
 /// Partial context provider with table providers required to fulfill a single
 /// query.
@@ -61,6 +63,71 @@ impl<'a> PartialContextProvider<'a> {
         })
     }
 
+    fn new_dispatcher(&self) -> Dispatcher {
+        Dispatcher::new(
+            self.ctx.get_session_catalog(),
+            self.ctx.get_native_tables(),
+            self.ctx.get_metrics(),
+            &self.resolver.temp_objects,
+            self.ctx,
+            self.ctx.df_ctx(),
+            self.ctx.get_session_vars().is_cloud_instance(),
+        )
+    }
+
+    async fn dispatch_function_local(
+        &self,
+        func: &FunctionEntry,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> Result<Arc<dyn TableProvider>, DispatchError> {
+        Ok(Arc::new(LocalTableHint(
+            self.new_dispatcher()
+                .dispatch_function(func, args, opts)
+                .await?,
+        )))
+    }
+
+    async fn dispatch_function_remote(
+        &self,
+        func: &FunctionEntry,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+        client: &mut RemoteSessionClient,
+    ) -> Result<Arc<dyn TableProvider>, ExecError> {
+        client
+            .dispatch_access(
+                ResolvedTableReference::Internal {
+                    table_oid: func.meta.id,
+                },
+                Some(args),
+                Some(opts),
+            )
+            .await
+    }
+
+    async fn dispatch_catalog_entry_local(
+        &self,
+        ent: &CatalogEntry,
+    ) -> Result<Arc<dyn TableProvider>, DispatchError> {
+        Ok(Arc::new(LocalTableHint(
+            self.new_dispatcher().dispatch(ent.clone()).await?,
+        )))
+    }
+
+    async fn dispatch_external_entry_local(
+        &self,
+        db_ent: &DatabaseEntry,
+        schema: &str,
+        name: &str,
+    ) -> Result<Arc<dyn TableProvider>, DispatchError> {
+        Ok(Arc::new(LocalTableHint(
+            self.new_dispatcher()
+                .dispatch_external(db_ent, schema, name)
+                .await?,
+        )))
+    }
+
     /// Get the table provider from the table reference.
     pub async fn table_provider(
         &mut self,
@@ -70,7 +137,7 @@ impl<'a> PartialContextProvider<'a> {
             Some(provider) => provider.clone(),
             None => {
                 let provider = self
-                    .table_for_reference(TableReference::from(&name))
+                    .resolve_reference(TableReference::from(&name), None, None)
                     .await?;
                 self.providers.insert(name, provider.clone());
                 provider
@@ -82,9 +149,11 @@ impl<'a> PartialContextProvider<'a> {
 
     /// Find a table provider the given reference, taking into account the
     /// session's search path.
-    async fn table_for_reference(
+    async fn resolve_reference(
         &mut self,
         reference: TableReference<'_>,
+        args: Option<Vec<FuncParamValue>>,
+        opts: Option<HashMap<String, FuncParamValue>>,
     ) -> Result<Arc<dyn TableProvider>, PlanError> {
         // Try to read from the environment first.
         //
@@ -106,165 +175,206 @@ impl<'a> PartialContextProvider<'a> {
         let ent = self
             .resolver
             .resolve_entry_from_reference(reference.clone())?;
+        use ResolvedEntry::*;
+        let provider = match (ent, self.ctx.exec_client()) {
+            // TODO: Views will likely need to be handled a bit
+            // differently in the future.
+            //
+            // Given the following view:
+            //
+            // `create view v1 as select local_table cross join remote_table`
+            //
+            // And the following query:
+            //
+            // `select * from v1`
+            //
+            // Will mean that the client will be streaming 2 sets of
+            // record batches, not just one, as would be optimal.
+            //
+            // 1. The client needs to upload the results of
+            // `local_table`.
+            // 2. The client will then receive the results of the
+            // cross join, but then needs upload that so that the
+            // rest of the query can continue to execute remotely.
+            (Entry(ent @ CatalogEntry::View(_)), _) => {
+                Arc::new(LocalTableHint(self.new_dispatcher().dispatch(ent).await?))
+            }
 
-        // If we have a remote session configured, do some selective dispatching
-        // remotely.
-        if let Some(mut client) = self.ctx.exec_client() {
-            match &ent {
-                // References to external databases should always resolve
-                // remotely.
-                ResolvedEntry::NeedsExternalResolution {
+            // --- LOCAL RESOLUTION ---
+            // (function , no remote client)
+            (Entry(CatalogEntry::Function(ref f)), None) => {
+                let args = args.unwrap_or_default();
+                let opts = opts.unwrap_or_default();
+
+                self.dispatch_function_local(f, args, opts).await?
+            }
+
+            // (native entry, no remote client)
+            (Entry(ent), None) => self.dispatch_catalog_entry_local(&ent).await?,
+            // (external entry, no remote client)
+            (
+                NeedsExternalResolution {
                     db_ent,
                     schema,
                     name,
-                } => {
-                    let prov = client
-                        .dispatch_access(ResolvedTableReference::External {
+                },
+                None,
+            ) => {
+                self.dispatch_external_entry_local(db_ent, &schema, &name)
+                    .await?
+            }
+
+            // --- REMOTE RESOLUTION ---
+            // (local entry, remote client)
+            (Entry(ref ent @ CatalogEntry::Table(ref t)), Some(client)) => {
+                self.handle_table_entry_dispatch(ent, t, client, args, opts)
+                    .await?
+            }
+
+            (Entry(CatalogEntry::Function(ref f)), Some(client)) => {
+                self.handle_function_dispatch(f, args, opts, client).await?
+            }
+
+            // (native entry, remote client)
+            (Entry(ent), Some(client)) => {
+                self.handle_catalog_entry_dispatch(ent, client, args, opts)
+                    .await?
+            }
+            // (external entry, remote client)
+            (
+                NeedsExternalResolution {
+                    db_ent,
+                    schema,
+                    name,
+                },
+                Some(mut client),
+            ) => {
+                client
+                    .dispatch_access(
+                        ResolvedTableReference::External {
                             database: db_ent.meta.name.clone(),
                             schema: schema.clone().into_owned(),
                             name: name.clone().into_owned(),
-                        })
-                        .await?;
-                    return Ok(Arc::new(prov));
-                }
-
-                // Only resolve native and external tables remotely.
-                //
-                // Temp and system tables should be handled locally.
-                ResolvedEntry::Entry(ent) => {
-                    // Anything that should be resolved locally should not go
-                    // to server for resolution.
-                    let should_resolve_local = match &ent {
-                        CatalogEntry::Table(t) => {
-                            matches!(&t.options, TableOptions::Debug(_) | TableOptions::Local(_))
-                        }
-                        // TODO: Views will likely need to be handled a bit
-                        // differently in the future.
-                        //
-                        // Given the following view:
-                        //
-                        // `create view v1 as select local_table cross join remote_table`
-                        //
-                        // And the following query:
-                        //
-                        // `select * from v1`
-                        //
-                        // Will mean that the client will be streaming 2 sets of
-                        // record batches, not just one, as would be optimal.
-                        //
-                        // 1. The client needs to upload the results of
-                        // `local_table`.
-                        // 2. The client will then receive the results of the
-                        // cross join, but then needs upload that so that the
-                        // rest of the query can continue to execute remotely.
-                        CatalogEntry::View(_) => true,
-                        _ => false,
-                    };
-                    let meta = ent.get_meta();
-                    let should_resolve_local = meta.is_temp || meta.builtin || should_resolve_local;
-                    if !should_resolve_local {
-                        let prov = client
-                            .dispatch_access(ResolvedTableReference::Internal {
-                                table_oid: meta.id,
-                            })
-                            .await?;
-                        return Ok(Arc::new(prov));
-                    }
-                }
+                        },
+                        args,
+                        opts,
+                    )
+                    .await?
             }
-        }
-
-        let dispatcher = Dispatcher::new(
-            self.ctx.get_session_catalog(),
-            self.ctx.get_native_tables(),
-            self.ctx.get_metrics(),
-            &self.resolver.temp_objects,
-            self.ctx,
-            self.ctx.df_ctx(),
-            self.ctx.get_session_vars().is_cloud_instance(),
-        );
-
-        let provider = match ent {
-            ResolvedEntry::Entry(ent) => dispatcher.dispatch(ent).await?,
-            ResolvedEntry::NeedsExternalResolution {
-                db_ent,
-                schema,
-                name,
-            } => dispatcher.dispatch_external(db_ent, &schema, &name).await?,
-        };
-
-        // TODO: See <https://github.com/GlareDB/glaredb/issues/1657#issuecomment-1696219544>
-        let provider = if self.ctx.exec_client().is_some() {
-            Arc::new(LocalTableHint(provider))
-        } else {
-            provider
         };
 
         Ok(provider)
     }
 
-    /// Find a table function with the given reference, taking into account the
-    /// session's search path.
-    fn table_function_for_reference(
-        &self,
-        reference: TableReference<'_>,
-    ) -> Option<Arc<dyn TableFunc>> {
-        // TODO: Refactor this to resolve properly.
+    async fn handle_catalog_entry_dispatch(
+        &mut self,
+        ent: CatalogEntry,
+        mut client: RemoteSessionClient,
+        args: Option<Vec<FuncParamValue>>,
+        opts: Option<HashMap<String, FuncParamValue>>,
+    ) -> Result<Arc<dyn TableProvider>, PlanError> {
+        let meta = ent.get_meta();
+        let should_resolve_local = meta.is_temp || meta.builtin;
+        Ok(if should_resolve_local {
+            self.dispatch_catalog_entry_local(&ent).await?
+        } else {
+            client
+                .dispatch_access(
+                    ResolvedTableReference::Internal { table_oid: meta.id },
+                    args,
+                    opts,
+                )
+                .await?
+        })
+    }
 
-        let catalog = self.ctx.get_session_catalog();
-
-        let resolve_func = |schema: String, name| {
-            match catalog.resolve_entry(DEFAULT_CATALOG, &schema, name) {
-                Some(CatalogEntry::Function(func)) => {
-                    if func.meta.builtin {
-                        if let Some(func_impl) = BUILTIN_TABLE_FUNCS.find_function(&func.meta.name)
-                        {
-                            Some(func_impl)
-                        } else {
-                            // This can happen if we're in the middle of
-                            // a deploy and builtin functions were
-                            // added/removed.
-                            error!(name = %func.meta.name, "missing builtin function impl");
-                            None
-                        }
-                    } else {
-                        // We only have builtin functions right now.
-                        None
-                    }
-                }
-                _ => None,
-            }
-        };
-
-        match &reference {
-            TableReference::Bare { table } => {
-                for schema in self.ctx.implicit_search_paths() {
-                    if let Some(func_impl) = resolve_func(schema, table) {
-                        return Some(func_impl);
-                    }
-                }
-                None
-            }
-            TableReference::Partial { schema, table } => resolve_func(schema.to_string(), table),
-            TableReference::Full {
-                catalog,
-                schema,
-                table,
-            } => {
-                if catalog == DEFAULT_CATALOG {
-                    resolve_func(schema.to_string(), table)
-                } else {
-                    None
-                }
-            }
+    async fn handle_function_dispatch(
+        &mut self,
+        func: &protogen::metastore::types::catalog::FunctionEntry,
+        args: Option<Vec<FuncParamValue>>,
+        opts: Option<HashMap<String, FuncParamValue>>,
+        mut client: RemoteSessionClient,
+    ) -> Result<Arc<dyn TableProvider>, PlanError> {
+        if args.is_none() && opts.is_none() {
+            return Err(PlanError::Internal(
+                "function should have args or opts at this point".to_string(),
+            ));
         }
+        let args = args.unwrap_or_default();
+        let opts = opts.unwrap_or_default();
+
+        Ok(match func.runtime_preference {
+            RuntimePreference::Local => self.dispatch_function_local(func, args, opts).await?,
+            RuntimePreference::Remote => {
+                self.dispatch_function_remote(func, args, opts, &mut client)
+                    .await?
+            }
+            RuntimePreference::Unspecified => {
+                let resolve_func = if func.meta.builtin {
+                    BUILTIN_TABLE_FUNCS
+                        .find_function(&func.meta.name)
+                        .expect("function should always exist for builtins")
+                } else {
+                    return Err(PlanError::Internal(
+                        "only builtin functions supported at this timef".to_string(),
+                    ));
+                };
+
+                let actual_runtime = resolve_func
+                    .detect_runtime(&args)
+                    .map_err(DispatchError::ExtensionError)?;
+
+                match actual_runtime {
+                    RuntimePreference::Local => {
+                        self.dispatch_function_local(func, args, opts).await?
+                    }
+                    RuntimePreference::Remote => {
+                        client
+                            .dispatch_access(
+                                ResolvedTableReference::Internal {
+                                    table_oid: func.meta.id,
+                                },
+                                Some(args),
+                                Some(opts),
+                            )
+                            .await?
+                    }
+                    RuntimePreference::Unspecified => panic!(
+                        "function should have a specified runtime at this point. This is a bug."
+                    ),
+                }
+            }
+        })
+    }
+
+    async fn handle_table_entry_dispatch(
+        &mut self,
+        ent: &CatalogEntry,
+        t: &protogen::metastore::types::catalog::TableEntry,
+        mut client: RemoteSessionClient,
+        args: Option<Vec<FuncParamValue>>,
+        opts: Option<HashMap<String, FuncParamValue>>,
+    ) -> Result<Arc<dyn TableProvider>, PlanError> {
+        let meta = ent.get_meta();
+        let should_resolve_local = meta.is_temp
+            || meta.builtin
+            || matches!(&t.options, TableOptions::Debug(_) | TableOptions::Local(_));
+        Ok(if !should_resolve_local {
+            client
+                .dispatch_access(
+                    ResolvedTableReference::Internal { table_oid: meta.id },
+                    args,
+                    opts,
+                )
+                .await?
+        } else {
+            self.dispatch_catalog_entry_local(ent).await?
+        })
     }
 }
 
 #[async_trait]
 impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
-    type TableFuncContextProvider = TableFnCtxProvider<'a>;
-
     async fn get_table_provider(
         &mut self,
         name: TableReference<'_>,
@@ -296,41 +406,19 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         None
     }
 
-    fn get_table_func(&mut self, name: TableReference<'_>) -> Option<Arc<dyn TableFunc>> {
-        self.table_function_for_reference(name)
-    }
-
-    fn table_fn_ctx_provider(&self) -> Self::TableFuncContextProvider {
-        Self::TableFuncContextProvider {
-            ctx: self.ctx,
-            state: self.state,
-        }
+    async fn get_table_func(
+        &mut self,
+        name: TableReference<'_>,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> DataFusionResult<Arc<dyn TableSource>> {
+        self.resolve_reference(name.to_owned_reference(), Some(args), Some(opts))
+            .await
+            .map(|p| Arc::new(DefaultTableSource::new(p)) as _)
+            .map_err(|e| DataFusionError::External(Box::new(e)))
     }
 
     fn options(&self) -> &ConfigOptions {
         self.state.config_options()
-    }
-}
-
-pub struct TableFnCtxProvider<'a> {
-    ctx: &'a LocalSessionContext,
-    state: &'a SessionState,
-}
-
-impl<'a> TableFuncContextProvider for TableFnCtxProvider<'a> {
-    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry> {
-        self.ctx.get_session_catalog().resolve_database(name)
-    }
-
-    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry> {
-        self.ctx.get_session_catalog().resolve_credentials(name)
-    }
-
-    fn get_session_vars(&self) -> SessionVars {
-        self.ctx.get_session_vars()
-    }
-
-    fn get_session_state(&self) -> &SessionState {
-        self.state
     }
 }

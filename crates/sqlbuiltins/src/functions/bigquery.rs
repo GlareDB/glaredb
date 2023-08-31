@@ -7,12 +7,16 @@ use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use protogen::metastore::types::catalog::RuntimePreference;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadBigQuery;
 
 #[async_trait]
 impl TableFunc for ReadBigQuery {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
+    }
     fn name(&self) -> &str {
         "read_bigquery"
     }
