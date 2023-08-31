@@ -517,15 +517,25 @@ impl TryFrom<i32> for RuntimePreference {
 
 impl From<catalog::function_entry::RuntimePreference> for RuntimePreference {
     fn from(value: catalog::function_entry::RuntimePreference) -> Self {
-        // This is safe because the enum values should be identical.
-        // If they're not, then we need to update the proto repr
-        unsafe { std::mem::transmute(value) }
+        match value {
+            catalog::function_entry::RuntimePreference::Unspecified => {
+                RuntimePreference::Unspecified
+            }
+            catalog::function_entry::RuntimePreference::Local => RuntimePreference::Local,
+            catalog::function_entry::RuntimePreference::Remote => RuntimePreference::Remote,
+        }
     }
 }
 
 impl From<RuntimePreference> for catalog::function_entry::RuntimePreference {
     fn from(value: RuntimePreference) -> Self {
-        unsafe { std::mem::transmute(value) }
+        match value {
+            RuntimePreference::Unspecified => {
+                catalog::function_entry::RuntimePreference::Unspecified
+            }
+            RuntimePreference::Local => catalog::function_entry::RuntimePreference::Local,
+            RuntimePreference::Remote => catalog::function_entry::RuntimePreference::Remote,
+        }
     }
 }
 
