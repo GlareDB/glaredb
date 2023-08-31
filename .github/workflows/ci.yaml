@@ -148,7 +148,8 @@ jobs:
                                              'sqllogictests/select' \
                                              'sqllogictests/tunnels' \
                                              'sqllogictests/vars' \
-                                             'sqllogictests/views'
+                                             'sqllogictests/views' \
+                                             'sqllogictests/simple'
 
       - name: PG Protocol Tests
         run: ./scripts/protocol-test.sh
