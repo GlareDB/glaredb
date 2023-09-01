@@ -494,35 +494,36 @@ impl From<FunctionType> for catalog::function_entry::FunctionType {
         }
     }
 }
+
+/// The runtime preference for a function.
+/// It is important that this MUST match the values and order in `protogen::gen::metastore::catalog::function_entry::RuntimePreference`
+#[repr(i32)]
 #[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
 pub enum RuntimePreference {
-    Unspecified,
-    Local,
-    Remote,
+    Unspecified = 0,
+    Local = 1,
+    Remote = 2,
 }
 
 impl TryFrom<i32> for RuntimePreference {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        catalog::function_entry::RuntimePreference::from_i32(value)
-            .ok_or(ProtoConvError::UnknownEnumVariant(
-                "RuntimePreference",
-                value,
-            ))
-            .and_then(|t| t.try_into())
+        let pref = catalog::function_entry::RuntimePreference::from_i32(value).ok_or(
+            ProtoConvError::UnknownEnumVariant("RuntimePreference", value),
+        )?;
+        Ok(pref.into())
     }
 }
 
-impl TryFrom<catalog::function_entry::RuntimePreference> for RuntimePreference {
-    type Error = ProtoConvError;
-    fn try_from(value: catalog::function_entry::RuntimePreference) -> Result<Self, Self::Error> {
-        Ok(match value {
+impl From<catalog::function_entry::RuntimePreference> for RuntimePreference {
+    fn from(value: catalog::function_entry::RuntimePreference) -> Self {
+        match value {
             catalog::function_entry::RuntimePreference::Unspecified => {
                 RuntimePreference::Unspecified
             }
             catalog::function_entry::RuntimePreference::Local => RuntimePreference::Local,
             catalog::function_entry::RuntimePreference::Remote => RuntimePreference::Remote,
-        })
+        }
     }
 }
 

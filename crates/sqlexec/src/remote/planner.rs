@@ -9,6 +9,7 @@ use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
 use datafusion::physical_planner::{DefaultPhysicalPlanner, ExtensionPlanner, PhysicalPlanner};
 use datafusion::prelude::Expr;
+use protogen::metastore::types::options::CopyToDestinationOptions;
 
 use std::sync::Arc;
 
@@ -47,7 +48,7 @@ use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
 
 use super::client::RemoteSessionClient;
-use super::rewriter::{CopyRemoteToLocalRewriter, LocalSideTableRewriter};
+use super::rewriter::{DDLRewriter, LocalSideTableRewriter};
 
 pub struct DDLExtensionPlanner {
     catalog_version: u64,
@@ -312,10 +313,10 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         let mut local_side_table_rewriter = LocalSideTableRewriter::new(self.remote_client.clone());
         let logical_plan = logical_plan.rewrite(&mut local_side_table_rewriter)?;
 
-        // Rewrite any copy-to where destination is local so we can only send
-        // the query on remote and process is later on local.
-        let mut copy_remote_to_local_rewriter = CopyRemoteToLocalRewriter::default();
-        let logical_plan = logical_plan.rewrite(&mut copy_remote_to_local_rewriter)?;
+        // Rewrite any DDL that needs to prcess locally so we can only send the
+        // query on remote and process is later on.
+        let mut ddl_rewriter = DDLRewriter::default();
+        let logical_plan = logical_plan.rewrite(&mut ddl_rewriter)?;
 
         // Create the physical plans. This will call `scan` on
         // the custom table providers meaning we'll have the
@@ -346,17 +347,30 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
             local_side_table_rewriter.exec_refs,
         ));
 
-        // Execute this copy to on local.
-        let physical: Arc<dyn ExecutionPlan> =
-            if let Some((format, dest)) = copy_remote_to_local_rewriter.0 {
-                Arc::new(CopyToExec {
-                    format,
-                    dest,
-                    source: physical,
-                })
-            } else {
-                physical
-            };
+        // Execute the insert into locally.
+        let physical: Arc<dyn ExecutionPlan> = match ddl_rewriter {
+            DDLRewriter::None => physical,
+            DDLRewriter::InsertIntoTempTable(table) => Arc::new(InsertExec {
+                table,
+                source: physical,
+            }),
+            DDLRewriter::CreateTempTable(create_temp_table) => Arc::new(CreateTempTableExec {
+                tbl_reference: create_temp_table.tbl_reference.clone(),
+                if_not_exists: create_temp_table.if_not_exists,
+                arrow_schema: Arc::new(create_temp_table.schema.as_ref().into()),
+                source: if create_temp_table.source.is_some() {
+                    Some(physical)
+                } else {
+                    None
+                },
+            }),
+            DDLRewriter::DropTempTables { .. } => todo!("see rewriter for what's blocking"),
+            DDLRewriter::CopyRemoteToLocal { format, dest } => Arc::new(CopyToExec {
+                format,
+                dest: CopyToDestinationOptions::Local(dest),
+                source: physical,
+            }),
+        };
 
         Ok(physical)
     }
