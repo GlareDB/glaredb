@@ -26,6 +26,7 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
     CopyToDestinationOptionsS3, CopyToFormatOptions, CopyToFormatOptionsCsv,
@@ -599,7 +600,6 @@ impl<'a> SessionPlanner<'a> {
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
         let state = self.ctx.df_ctx().state();
         let mut context_provider = PartialContextProvider::new(self.ctx, &state)?;
-
         match statement {
             ast::Statement::StartTransaction { .. } => Ok(TransactionPlan::Begin.into()),
             ast::Statement::Commit { .. } => Ok(TransactionPlan::Commit.into()),
@@ -671,7 +671,11 @@ impl<'a> SessionPlanner<'a> {
                 let table_name = object_name_to_table_ref(name)?;
 
                 let (source, arrow_cols) = if let Some(q) = query {
-                    let mut planner = SqlQueryPlanner::new(&mut context_provider);
+                    let mut ctx =
+                        context_provider.with_runtime_preference(RuntimePreference::Remote);
+
+                    let mut planner = SqlQueryPlanner::new(&mut ctx);
+
                     let source = planner.query_to_plan(*q).await?;
                     let df_fields = source.schema().fields();
 

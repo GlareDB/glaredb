@@ -20,7 +20,11 @@ pub trait TableFunc: Sync + Send {
     /// function implementations.
     fn name(&self) -> &str;
     fn runtime_preference(&self) -> RuntimePreference;
-    fn detect_runtime(&self, _args: &[FuncParamValue]) -> Result<RuntimePreference> {
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
         Ok(self.runtime_preference())
     }
 
