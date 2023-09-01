@@ -131,26 +131,41 @@ jobs:
 
       - name: SQL Logic Tests (RPC)
         run: |
-          just sql-logic-tests -v --rpc-test 'sqllogictests/rpc' \
-                                             'sqllogictests/time' \
-                                             'sqllogictests/cast/*' \
+          just sql-logic-tests -v --rpc-test 'sqllogictests/cast/*' \
                                              'sqllogictests/cte/*' \
+                                             'sqllogictests/joins/*' \
+                                             'sqllogictests/topn/*' \
+                                             'sqllogictests/aggregates' \
                                              'sqllogictests/alter' \
                                              'sqllogictests/create_table' \
                                              'sqllogictests/credentials' \
                                              'sqllogictests/csv' \
                                              'sqllogictests/debug' \
+                                             'sqllogictests/delete' \
                                              'sqllogictests/demo_pg' \
                                              'sqllogictests/drop' \
                                              'sqllogictests/infer' \
+                                             'sqllogictests/information_schema' \
                                              'sqllogictests/metabase' \
                                              'sqllogictests/name' \
                                              'sqllogictests/object_names' \
+                                             'sqllogictests/rpc' \
                                              'sqllogictests/select' \
+                                             'sqllogictests/simple' \
+                                             'sqllogictests/table' \
+                                             'sqllogictests/time' \
                                              'sqllogictests/tunnels' \
+                                             'sqllogictests/update' \
                                              'sqllogictests/vars' \
                                              'sqllogictests/views' \
-                                             'sqllogictests/simple'
+                                             'sqllogictests/virtual_catalog'
+
+          # Run a single set of remote data source tests for now. The rest should be
+          # added when rpc is further along.
+          POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
+          export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
+
+          just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
 
       - name: PG Protocol Tests
         run: ./scripts/protocol-test.sh
