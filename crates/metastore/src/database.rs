@@ -1175,6 +1175,7 @@ impl BuiltinCatalog {
             let schema_id = schema_names
                 .get(DEFAULT_SCHEMA)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
+
             entries.insert(
                 oid,
                 CatalogEntry::Function(FunctionEntry {
