@@ -39,7 +39,7 @@ select count(*) from parquet_scan([
 ----
 2000
 
-statement error No valid path found
+statement error is an invalid location
 select * from parquet_scan('./testdata/parquet/userdata1.paruqet');
 
 # Ambiguous name.
