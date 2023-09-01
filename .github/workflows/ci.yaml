@@ -142,6 +142,7 @@ jobs:
                                              'sqllogictests/debug' \
                                              'sqllogictests/demo_pg' \
                                              'sqllogictests/drop' \
+                                             'sqllogictests/infer' \
                                              'sqllogictests/metabase' \
                                              'sqllogictests/name' \
                                              'sqllogictests/object_names' \

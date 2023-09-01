@@ -1,0 +1,53 @@
+# Tests for inferring table functions from file paths.
+
+query I
+select count(*) from '../../testdata/parquet/userdata1.parquet'
+----
+1000
+
+query IT
+select id, "../../testdata/parquet/userdata1.parquet".first_name
+  from '../../testdata/parquet/userdata1.parquet'
+  order by id
+  limit 1
+----
+1  Amanda
+
+
+query I
+select count(*) from '../../testdata/json/userdata1.json'
+----
+1000
+
+query IT
+select id, "../../testdata/json/userdata1.json".first_name
+  from '../../testdata/json/userdata1.json'
+  order by id
+  limit 1
+----
+1  Amanda
+
+query I
+select count(*) from '../../testdata/csv/userdata1.csv'
+----
+1000
+
+query IT
+select id, "../../testdata/csv/userdata1.csv".first_name
+  from '../../testdata/csv/userdata1.csv'
+  order by id
+  limit 1
+----
+1  Amanda
+
+statement error unable to infer
+select count(*) from '../../testdata/parquet/userdata1.unknown'
+
+query I
+select count(*) from '../../testdata/parquet/*.parquet'
+----
+1000
+
+statement error missing file extension
+select count(*) from '../../testdata/parquet/*'
+
