@@ -135,7 +135,7 @@ impl ObjStoreAccessor {
             .access
             .list_globbed(self.store.clone(), pattern.as_ref())
             .await?;
-        if objects.len() == 0 {
+        if objects.is_empty() {
             return Err(ObjectStoreSourceError::Static("No valid path found"));
         }
         Ok(objects)
