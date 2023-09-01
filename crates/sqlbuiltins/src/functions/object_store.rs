@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::collections::HashMap;
+use std::path::Path;
 use std::{sync::Arc, vec};
 
 use async_trait::async_trait;
@@ -166,6 +167,16 @@ impl TableFunc for ObjScanTableFunc {
             return Err(ExtensionError::String(
                 "at least one url expected".to_owned(),
             ));
+        }
+
+        // check if any file path is invalid
+        for url in urls.iter() {
+            if url.scheme() == "file" && !Path::new(url.path().as_ref()).exists() {
+                return Err(ExtensionError::String(format!(
+                    "File {} does not exist",
+                    url.path()
+                )));
+            }
         }
 
         let file_compression = match opts.remove("compression") {
