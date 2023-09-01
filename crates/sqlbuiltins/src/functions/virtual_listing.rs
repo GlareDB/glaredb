@@ -27,7 +27,8 @@ pub struct ListSchemas;
 #[async_trait]
 impl TableFunc for ListSchemas {
     fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Unspecified
+        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
+        RuntimePreference::Remote
     }
     fn name(&self) -> &str {
         "list_schemas"
@@ -72,7 +73,8 @@ pub struct ListTables;
 #[async_trait]
 impl TableFunc for ListTables {
     fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Unspecified
+        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
+        RuntimePreference::Remote
     }
     fn name(&self) -> &str {
         "list_tables"
