@@ -16,12 +16,13 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::path::Path;
 
 use crate::functions::FuncParamValue;
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 use async_recursion::async_recursion;
-use datafusion::common::{DataFusionError, Result};
+use datafusion::common::{DataFusionError, OwnedTableReference, Result};
 
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 
@@ -41,51 +42,81 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     ) -> Result<LogicalPlan> {
         let (plan, alias) = match relation {
             ast::TableFactor::Table {
-                name, alias, args, ..
+                mut name,
+                alias,
+                args,
+                ..
             } => {
-                // normalize name and alias
-                let table_ref = self.object_name_to_table_reference(name)?;
-                let mut unnamed_args = Vec::new();
-                let mut named_args = HashMap::new();
+                if name.0.len() == 1 && name.0[0].quote_style == Some('\'') {
+                    // SELECT * FROM './my/file.csv'
+                    //
+                    // Infer the table function to use based on a file path.
 
-                match args {
-                    Some(args) => {
-                        // Table factor has arguments, look up table returning
-                        // function.
-                        for arg in args {
-                            let (name, val) = self.get_constant_function_arg(arg)?;
-                            if let Some(name) = name {
-                                named_args.insert(name, val);
-                            } else {
-                                unnamed_args.push(val);
+                    let path = name.0.pop().unwrap().value;
+
+                    let func_ref = infer_func_for_file(&path)?;
+                    let args = vec![FuncParamValue::Scalar(ScalarValue::Utf8(Some(
+                        path.clone(),
+                    )))];
+                    let func = self
+                        .schema_provider
+                        .get_table_func(func_ref, args, HashMap::new())
+                        .await?;
+
+                    let table_ref = OwnedTableReference::Bare { table: path.into() };
+                    let plan_builder = LogicalPlanBuilder::scan(table_ref, func, None)?;
+                    let plan = plan_builder.build()?;
+
+                    (plan, alias)
+                } else {
+                    // SELECT * FROM my_table
+                    // SELECT * FROM func(...)
+
+                    // normalize name and alias
+                    let table_ref = self.object_name_to_table_reference(name)?;
+                    let mut unnamed_args = Vec::new();
+                    let mut named_args = HashMap::new();
+
+                    match args {
+                        Some(args) => {
+                            // Table factor has arguments, look up table returning
+                            // function.
+                            for arg in args {
+                                let (name, val) = self.get_constant_function_arg(arg)?;
+                                if let Some(name) = name {
+                                    named_args.insert(name, val);
+                                } else {
+                                    unnamed_args.push(val);
+                                }
                             }
-                        }
-                        let provider = self
-                            .schema_provider
-                            .get_table_func(table_ref.clone(), unnamed_args, named_args)
-                            .await?;
-
-                        let plan_builder = LogicalPlanBuilder::scan(table_ref, provider, None)?;
-
-                        let plan = plan_builder.build()?;
-
-                        (plan, alias)
-                    }
-                    None => {
-                        let table_name = table_ref.to_string();
-
-                        let cte = planner_context.get_cte(&table_name);
-                        let plan = if let Some(cte_plan) = cte {
-                            cte_plan.clone()
-                        } else {
                             let provider = self
                                 .schema_provider
-                                .get_table_provider(table_ref.clone())
+                                .get_table_func(table_ref.clone(), unnamed_args, named_args)
                                 .await?;
+
                             let plan_builder = LogicalPlanBuilder::scan(table_ref, provider, None)?;
-                            plan_builder.build()?
-                        };
-                        (plan, alias)
+
+                            let plan = plan_builder.build()?;
+
+                            (plan, alias)
+                        }
+                        None => {
+                            let table_name = table_ref.to_string();
+
+                            let cte = planner_context.get_cte(&table_name);
+                            let plan = if let Some(cte_plan) = cte {
+                                cte_plan.clone()
+                            } else {
+                                let provider = self
+                                    .schema_provider
+                                    .get_table_provider(table_ref.clone())
+                                    .await?;
+                                let plan_builder =
+                                    LogicalPlanBuilder::scan(table_ref, provider, None)?;
+                                plan_builder.build()?
+                            };
+                            (plan, alias)
+                        }
                     }
                 }
             }
@@ -197,4 +228,34 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             ))),
         }
     }
+}
+
+/// Returns a reference to table func by inferring which function to use from a
+/// given path.
+fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
+    let ext = Path::new(path)
+        .extension()
+        .ok_or_else(|| DataFusionError::Plan(format!("missing file extension: {path}")))?
+        .to_str()
+        .ok_or_else(|| DataFusionError::Plan(format!("strange file extension: {path}")))?
+        .to_lowercase();
+
+    // TODO: We can be a bit more sophisticated here and handle compression
+    // schemes as well.
+    Ok(match ext.as_str() {
+        "parquet" => OwnedTableReference::Bare {
+            table: "parquet_scan".into(),
+        },
+        "csv" => OwnedTableReference::Bare {
+            table: "csv_scan".into(),
+        },
+        "json" | "jsonl" => OwnedTableReference::Bare {
+            table: "ndjson_scan".into(),
+        },
+        ext => {
+            return Err(DataFusionError::Plan(format!(
+                "unable to infer how to handle file extension: {ext}"
+            )))
+        }
+    })
 }
