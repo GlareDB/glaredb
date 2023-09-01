@@ -258,6 +258,12 @@ async fn get_table_provider(
             .list_globbed(loc.path())
             .await
             .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+        if list.is_empty() {
+            return Err(ExtensionError::String(format!(
+                "{} is an invalid location",
+                loc
+            )));
+        }
         objects.push(list);
     }
 
