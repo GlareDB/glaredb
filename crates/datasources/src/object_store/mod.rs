@@ -131,9 +131,14 @@ impl ObjStoreAccessor {
 
     /// Returns a list of objects matching the globbed pattern.
     pub async fn list_globbed(&self, pattern: impl AsRef<str>) -> Result<Vec<ObjectMeta>> {
-        self.access
+        let objects = self
+            .access
             .list_globbed(self.store.clone(), pattern.as_ref())
-            .await
+            .await?;
+        if objects.len() == 0 {
+            return Err(ObjectStoreSourceError::Static("No valid path found"));
+        }
+        Ok(objects)
     }
 
     /// Takes all the objects and creates the table provider from the accesor.
