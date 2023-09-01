@@ -39,10 +39,10 @@ impl TreeNodeRewriter for LocalSideTableRewriter {
     type N = LogicalPlan;
 
     fn pre_visit(&mut self, node: &Self::N) -> Result<RewriteRecursion> {
-        if matches!(node, LogicalPlan::TableScan(..)) {
-            Ok(RewriteRecursion::Mutate)
-        } else {
-            Ok(RewriteRecursion::Continue)
+        match node {
+            LogicalPlan::Explain(_) => Ok(RewriteRecursion::Stop),
+            LogicalPlan::TableScan(_) => Ok(RewriteRecursion::Mutate),
+            _ => Ok(RewriteRecursion::Continue),
         }
     }
 
