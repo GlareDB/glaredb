@@ -12,6 +12,7 @@ use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::{FunctionRegistry, TaskContext};
 use datafusion::logical_expr::{AggregateUDF, Extension, LogicalPlan, ScalarUDF, WindowUDF};
+use datafusion::physical_plan::union::InterleaveExec;
 use datafusion::physical_plan::values::ValuesExec;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::{Expr, SessionContext};
@@ -683,6 +684,9 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     data: reader.collect::<Result<Vec<_>, ArrowError>>()?,
                 })
             }
+            proto::ExecutionPlanExtensionType::InterleaveExec(_ext) => {
+                Arc::new(InterleaveExec::try_new(inputs.to_vec())?)
+            }
         };
 
         Ok(plan)
@@ -930,6 +934,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 schema: Some(schema.as_ref().try_into()?),
                 data,
             })
+        } else if let Some(_exec) = node.as_any().downcast_ref::<InterleaveExec>() {
+            // TODO: Upstream to datafusion
+
+            // Note that InterleaveExec only depends on physical plans which are
+            // already encoded. We don't need to store anything extra on the
+            // proto message.
+            proto::ExecutionPlanExtensionType::InterleaveExec(proto::InterleaveExec {})
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {node:?}"
