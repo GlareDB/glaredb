@@ -2,8 +2,8 @@ mod postgres;
 pub use postgres::*;
 
 use crate::gen::metastore::catalog::TableEntry;
-use datafusion_proto::protobuf::{LogicalExprNode, Schema};
-use prost::{Message, Oneof};
+use datafusion_proto::protobuf::{LogicalExprNode, PhysicalExprNode, Schema};
+use prost::{Enumeration, Message, Oneof};
 
 use super::{
     common::{FullObjectReference, FullSchemaReference},
@@ -289,11 +289,35 @@ pub struct ValuesExec {
 #[derive(Clone, PartialEq, Message)]
 pub struct InterleaveExec {}
 
+#[derive(Clone, PartialEq, Debug, Enumeration)]
+#[repr(i32)]
+pub enum PartitionSearchMode {
+    Linear = 1,
+    PartiallySorted = 2,
+    Sorted = 3,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct BoundedWindowAggExec {
+    #[prost(message, repeated, tag = "1")]
+    pub window_expr: Vec<PhysicalExprNode>,
+    #[prost(string, repeated, tag = "2")]
+    pub window_expr_name: Vec<String>,
+    #[prost(message, tag = "3")]
+    pub input_schema: Option<Schema>,
+    #[prost(message, repeated, tag = "4")]
+    pub partition_keys: Vec<PhysicalExprNode>,
+    #[prost(enumeration = "PartitionSearchMode", tag = "5")]
+    pub partition_search_mode: i32,
+    #[prost(uint64, repeated, tag = "6")]
+    pub sorted_columns: Vec<u64>,
+}
+
 #[derive(Clone, PartialEq, Message)]
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -359,4 +383,6 @@ pub enum ExecutionPlanExtensionType {
     ValuesExec(ValuesExec),
     #[prost(message, tag = "27")]
     InterleaveExec(InterleaveExec),
+    #[prost(message, tag = "28")]
+    BoundedWindowAggExec(BoundedWindowAggExec),
 }

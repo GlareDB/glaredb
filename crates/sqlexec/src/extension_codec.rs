@@ -11,14 +11,22 @@ use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::{FunctionRegistry, TaskContext};
-use datafusion::logical_expr::{AggregateUDF, Extension, LogicalPlan, ScalarUDF, WindowUDF};
+use datafusion::logical_expr::{
+    AggregateUDF, Extension, LogicalPlan, ScalarUDF, WindowFrame, WindowFunction, WindowUDF,
+};
 use datafusion::physical_plan::union::InterleaveExec;
 use datafusion::physical_plan::values::ValuesExec;
+use datafusion::physical_plan::windows::{
+    create_window_expr, BoundedWindowAggExec, PartitionSearchMode,
+};
 use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::{displayable, WindowExpr};
 use datafusion::prelude::{Expr, SessionContext};
 use datafusion_proto::logical_plan::from_proto::parse_expr;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
+use datafusion_proto::physical_plan::from_proto::parse_physical_expr;
 use datafusion_proto::physical_plan::PhysicalExtensionCodec;
+use datafusion_proto::protobuf::physical_expr_node::ExprType;
 use uuid::Uuid;
 
 use crate::errors::ExecError;
@@ -687,6 +695,94 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::InterleaveExec(_ext) => {
                 Arc::new(InterleaveExec::try_new(inputs.to_vec())?)
             }
+            proto::ExecutionPlanExtensionType::BoundedWindowAggExec(ext) => {
+                let search_mode = proto::PartitionSearchMode::from_i32(ext.partition_search_mode)
+                    .ok_or_else(|| {
+                    DataFusionError::Internal(format!(
+                        "unknown search mode: {}",
+                        ext.partition_search_mode
+                    ))
+                })?;
+                let search_mode = match search_mode {
+                    proto::PartitionSearchMode::Linear => PartitionSearchMode::Linear,
+                    proto::PartitionSearchMode::PartiallySorted => {
+                        let cols = ext.sorted_columns.into_iter().map(|c| c as usize).collect();
+                        PartitionSearchMode::PartiallySorted(cols)
+                    }
+                    proto::PartitionSearchMode::Sorted => PartitionSearchMode::Sorted,
+                };
+
+                let input_schema = ext
+                    .input_schema
+                    .ok_or_else(|| DataFusionError::Plan("input is required".to_string()))?;
+                let input_schema: Schema = (&input_schema).try_into()?;
+
+                let partition_keys = ext
+                    .partition_keys
+                    .into_iter()
+                    .map(|expr| parse_physical_expr(&expr, registry, &input_schema))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let physical_window_expr: Vec<Arc<dyn WindowExpr>> = ext
+                    .window_expr
+                    .iter()
+                    .zip(ext.window_expr_name.iter())
+                    .map(|(expr, name)| {
+                        let expr_type = expr.expr_type.as_ref().ok_or_else(|| {
+                            DataFusionError::Internal(
+                                "Unexpected empty window physical expression".to_string(),
+                            )
+                        })?;
+
+                        match expr_type {
+                            ExprType::WindowExpr(window_node) => {
+                                let window_node_expr = window_node
+                                    .expr
+                                    .as_ref()
+                                    .map(|e| {
+                                        parse_physical_expr(e.as_ref(), registry, &input_schema)
+                                    })
+                                    .transpose()?
+                                    .ok_or_else(|| {
+                                        DataFusionError::Internal(
+                                            "Missing window_node expr expression".to_string(),
+                                        )
+                                    })?;
+
+                                let window_func: WindowFunction =
+                                    if let Some(func) = window_node.window_function.as_ref() {
+                                        func.try_into()?
+                                    } else {
+                                        return Err(DataFusionError::Internal(
+                                            "missing window function".to_string(),
+                                        ));
+                                    };
+
+                                Ok(create_window_expr(
+                                    &window_func,
+                                    name.to_owned(),
+                                    &[window_node_expr],
+                                    &[],
+                                    &[],
+                                    Arc::new(WindowFrame::new(false)),
+                                    &input_schema,
+                                )?)
+                            }
+                            _ => Err(DataFusionError::Internal(
+                                "Invalid expression for BoundedWindowAggrExec".to_string(),
+                            )),
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Arc::new(BoundedWindowAggExec::try_new(
+                    physical_window_expr,
+                    inputs[0].clone(),
+                    Arc::new(input_schema),
+                    partition_keys,
+                    search_mode,
+                )?)
+            }
         };
 
         Ok(plan)
@@ -941,9 +1037,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             // already encoded. We don't need to store anything extra on the
             // proto message.
             proto::ExecutionPlanExtensionType::InterleaveExec(proto::InterleaveExec {})
+        // } else if let Some(_exec) = node.as_any().downcast_ref::<BoundedWindowAggExec>() {
+        //     // TODO: Upstream to datafusion
+        //     unimplemented!()
         } else {
             return Err(DataFusionError::NotImplemented(format!(
-                "encoding not implemented for physical plan: {node:?}"
+                "encoding not implemented for physical plan: {}",
+                displayable(node.as_ref()).indent(true),
             )));
         };
 
