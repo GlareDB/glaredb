@@ -99,7 +99,12 @@ impl TableProvider for MultiSourceTableProvider {
                 .map_err(|e| datafusion::error::DataFusionError::Execution(e.to_string()))?;
             plans.push(plan);
         }
-        Ok(Arc::new(UnionExec::new(plans)) as _)
+
+        if plans.len() == 1 {
+            Ok(plans.pop().unwrap())
+        } else {
+            Ok(Arc::new(UnionExec::new(plans)))
+        }
     }
 }
 
