@@ -8,44 +8,50 @@ use datafusion::{
     physical_plan::{ExecutionPlan, Statistics},
     prelude::Expr,
 };
+use protogen::metastore::types::catalog::RuntimePreference;
 use std::{any::Any, sync::Arc};
 
-/// See if the provider is wrapped in a local table hint.
+use super::runtime_group::RuntimeGroupExec;
+
+/// A table provider that has an associated runtime preference.
 ///
-/// This can be used to swap out the provider with one that's able to do hybrid
-/// execution between local and remote nodes.
-pub fn is_local_table_hint(provider: &Arc<dyn TableProvider>) -> bool {
-    provider.as_ref().as_any().is::<LocalTableHint>()
+/// During a scan, this will produce a `RuntimeGroupExec` which is just a
+/// passthrough to the underlying execution plan.
+#[derive(Clone)]
+pub struct RuntimeAwareTableProvider {
+    pub preference: RuntimePreference,
+    pub provider: Arc<dyn TableProvider>,
 }
 
-/// A table provider that provides a hint for if the table is "local" to the
-/// session doing the planning.
-///
-/// This can wrap things like data frames and local file readers such that
-/// they're planned to be scanned on the client.
-#[derive(Clone)]
-pub struct LocalTableHint(pub Arc<dyn TableProvider>);
+impl RuntimeAwareTableProvider {
+    pub fn new(preference: RuntimePreference, provider: Arc<dyn TableProvider>) -> Self {
+        Self {
+            preference,
+            provider,
+        }
+    }
+}
 
 #[async_trait]
-impl TableProvider for LocalTableHint {
+impl TableProvider for RuntimeAwareTableProvider {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn schema(&self) -> SchemaRef {
-        self.0.schema()
+        self.provider.schema()
     }
 
     fn table_type(&self) -> TableType {
-        self.0.table_type()
+        self.provider.table_type()
     }
 
     fn get_table_definition(&self) -> Option<&str> {
-        self.0.get_table_definition()
+        self.provider.get_table_definition()
     }
 
     fn get_logical_plan(&self) -> Option<&LogicalPlan> {
-        self.0.get_logical_plan()
+        self.provider.get_logical_plan()
     }
 
     async fn scan(
@@ -55,18 +61,25 @@ impl TableProvider for LocalTableHint {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        self.0.scan(state, projection, filters, limit).await
+        let plan = self
+            .provider
+            .scan(state, projection, filters, limit)
+            .await?;
+        Ok(Arc::new(RuntimeGroupExec {
+            preference: self.preference,
+            child: plan,
+        }))
     }
 
     fn supports_filters_pushdown(
         &self,
         filters: &[&Expr],
     ) -> Result<Vec<TableProviderFilterPushDown>> {
-        self.0.supports_filters_pushdown(filters)
+        self.provider.supports_filters_pushdown(filters)
     }
 
     fn statistics(&self) -> Option<Statistics> {
-        self.0.statistics()
+        self.provider.statistics()
     }
 
     async fn insert_into(
@@ -75,7 +88,7 @@ impl TableProvider for LocalTableHint {
         input: Arc<dyn ExecutionPlan>,
         overwrite: bool,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let plan = self.0.insert_into(state, input, overwrite).await?;
+        let plan = self.provider.insert_into(state, input, overwrite).await?;
         Ok(plan)
     }
 }

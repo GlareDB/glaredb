@@ -2,6 +2,7 @@ use datafusion::arrow::array::UInt64Array;
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
@@ -90,18 +91,24 @@ impl ExecutionPlan for NativeTableInsertExec {
     fn execute(
         &self,
         partition: usize,
-        _context: Arc<TaskContext>,
+        context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
         if partition != 0 {
             return Err(DataFusionError::Internal(
                 format!("Invalid requested partition {partition}. NativeTableInsertExec requires a single input partition.")));
         }
 
+        // This is needed since we might be inserting from a plan that includes
+        // a client recv exec. That exec requires that we have an appropriate
+        // set of extensions.
+        let state =
+            SessionState::with_config_rt(context.session_config().clone(), context.runtime_env());
         // Allows writing multiple output partitions from the input execution
         // plan.
         //
         // TODO: Possibly try avoiding cloning the snapshot.
         let builder = WriteBuilder::new(self.store.clone(), self.snapshot.clone())
+            .with_input_session_state(state)
             .with_save_mode(SaveMode::Append)
             .with_input_execution_plan(self.input.clone());
 

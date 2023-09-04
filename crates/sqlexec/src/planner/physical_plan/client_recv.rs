@@ -74,7 +74,7 @@ impl ExecutionPlan for ClientExchangeRecvExec {
             .session_config()
             .get_extension::<StagedClientStreams>()
             .ok_or_else(|| {
-                DataFusionError::Execution("Missing stages streams extension".to_string())
+                DataFusionError::Execution("Missing staged streams extension".to_string())
             })?;
 
         let stream_fut = streams.resolve_pending_stream(self.broadcast_id);

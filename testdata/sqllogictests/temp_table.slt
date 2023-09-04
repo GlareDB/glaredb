@@ -61,17 +61,17 @@ select a, b, c from public.abc limit 1;
 statement ok
 insert into abc select a, b, c from public.abc limit 2;
 
-query III
+query III rowsort
 select a, b, c from abc;
 ----
+1	2	3
+1	2	3
 9	8	7
-1	2	3
-1	2	3
 
 statement ok
 create temp table t1 as select * from generate_series(1, 5, 2);
 
-query I
+query I rowsort
 select * from t1;
 ----
 1
@@ -84,7 +84,7 @@ statement error Missing database object
 drop table t1, t2;
 
 # t1 shouldn't be dropped
-query I
+query I rowsort
 select * from t1
 ----
 1

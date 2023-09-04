@@ -30,3 +30,23 @@ select * from t1;
 1  2
 3  4
 5  6
+
+# Create table as
+
+statement ok
+create table ctas1 as select 1;
+
+query I
+select * from ctas1;
+----
+1
+
+# Note one of the columns is a nanonsecond timestamp, and that fails when
+# attempting to insert into delta.
+statement ok
+create table ctas2 as select * exclude registration_dttm from '../../testdata/parquet/userdata1.parquet';
+
+query I
+select id from ctas2 order by id limit 1;
+----
+1

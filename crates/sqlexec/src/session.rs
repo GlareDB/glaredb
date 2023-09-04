@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
-use crate::planner::context_builder::PartialContextProvider;
 use crate::planner::physical_plan::{
     get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
     GENERIC_OPERATION_PHYSICAL_SCHEMA,
@@ -14,8 +13,6 @@ use crate::remote::client::RemoteClient;
 use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::common::OwnedTableReference;
-use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
@@ -424,16 +421,6 @@ impl Session {
         let context = self.ctx.task_context();
         let stream = execute_stream(plan, context)?;
         Ok(stream)
-    }
-
-    /// Get the session dispatcher.
-    pub async fn dispatch_access(
-        &self,
-        table_ref: OwnedTableReference,
-    ) -> Result<Arc<dyn TableProvider>> {
-        let state = self.ctx.df_ctx().state();
-        let mut ctx_provider = PartialContextProvider::new(&self.ctx, &state)?;
-        Ok(ctx_provider.table_provider(table_ref).await?)
     }
 
     pub fn get_session_vars(&self) -> SessionVars {

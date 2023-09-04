@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider};
-use datafusion_ext::local_hint::LocalTableHint;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::lake::delta::access::load_table_direct;
 use datasources::lake::LakeStorageOptions;
@@ -26,8 +25,10 @@ pub struct DeltaScan;
 #[async_trait]
 impl TableFunc for DeltaScan {
     fn runtime_preference(&self) -> RuntimePreference {
+        // TODO: Detect runtime.
         RuntimePreference::Remote
     }
+
     fn name(&self) -> &str {
         "delta_scan"
     }
@@ -113,16 +114,10 @@ impl TableFunc for DeltaScan {
             _ => return Err(ExtensionError::InvalidNumArgs),
         };
 
-        let is_local = matches!(delta_opts, LakeStorageOptions::Local);
         let table = load_table_direct(&loc, delta_opts)
             .await
             .map_err(|e| ExtensionError::Access(Box::new(e)))?;
-        let provider: Arc<dyn TableProvider> = if is_local {
-            Arc::new(LocalTableHint(Arc::new(table)))
-        } else {
-            Arc::new(table)
-        };
 
-        Ok(provider)
+        Ok(Arc::new(table))
     }
 }

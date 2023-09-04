@@ -1,5 +1,4 @@
 use crate::errors::Result;
-use crate::remote::local_side::ClientSendExecsRef;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -18,6 +17,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::task::JoinSet;
+use uuid::Uuid;
 
 use super::client_send::ClientExchangeSendExec;
 
@@ -35,6 +35,11 @@ pub struct SendRecvJoinExec {
     /// Note that these only get handled on the the call to the first partition
     /// execute.
     send_execs: Arc<Mutex<Vec<ClientExchangeSendExec>>>,
+
+    /// IDs for the associated send execs.
+    ///
+    /// Informational only.
+    broadcast_ids: Vec<Uuid>,
 }
 
 impl SendRecvJoinExec {
@@ -46,12 +51,15 @@ impl SendRecvJoinExec {
     /// have been populated by calling `LocalSideTableProvider::scan` (which
     /// should have already been done by creating the provided input execution
     /// plan).
-    pub fn new(input: Arc<dyn ExecutionPlan>, refs: Vec<ClientSendExecsRef>) -> SendRecvJoinExec {
-        let send_execs: Vec<_> = refs.into_iter().flat_map(|r| r.take_execs()).collect();
-
+    pub fn new(
+        input: Arc<dyn ExecutionPlan>,
+        send_execs: Vec<ClientExchangeSendExec>,
+    ) -> SendRecvJoinExec {
+        let broadcast_ids = send_execs.iter().map(|exec| exec.broadcast_id).collect();
         SendRecvJoinExec {
             input,
             send_execs: Arc::new(Mutex::new(send_execs)),
+            broadcast_ids,
         }
     }
 }
@@ -84,6 +92,7 @@ impl ExecutionPlan for SendRecvJoinExec {
         Ok(Arc::new(SendRecvJoinExec {
             input: children[0].clone(),
             send_execs: self.send_execs.clone(),
+            broadcast_ids: self.broadcast_ids.clone(),
         }))
     }
 
@@ -139,7 +148,15 @@ impl ExecutionPlan for SendRecvJoinExec {
 
 impl DisplayAs for SendRecvJoinExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "SendRecvExec")
+        write!(
+            f,
+            "SendRecvExec broadcast_ids=[{}]",
+            self.broadcast_ids
+                .iter()
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
     }
 }
 
