@@ -243,13 +243,16 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
     // TODO: We can be a bit more sophisticated here and handle compression
     // schemes as well.
     Ok(match ext.as_str() {
-        "parquet" => OwnedTableReference::Bare {
+        "parquet" => OwnedTableReference::Partial {
+            schema: "public".into(),
             table: "parquet_scan".into(),
         },
-        "csv" => OwnedTableReference::Bare {
+        "csv" => OwnedTableReference::Partial {
+            schema: "public".into(),
             table: "csv_scan".into(),
         },
-        "json" | "jsonl" => OwnedTableReference::Bare {
+        "json" | "jsonl" => OwnedTableReference::Partial {
+            schema: "public".into(),
             table: "ndjson_scan".into(),
         },
         ext => {
