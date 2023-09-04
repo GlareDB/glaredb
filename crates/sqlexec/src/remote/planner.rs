@@ -1,15 +1,22 @@
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::Schema;
-use datafusion::common::tree_node::TreeNode;
+use datafusion::common::tree_node::{Transformed, TreeNode};
 use datafusion::common::DFSchema;
-use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan as DfLogicalPlan, UserDefinedLogicalNode};
+use datafusion::physical_optimizer::PhysicalOptimizerRule;
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
 use datafusion::physical_planner::{DefaultPhysicalPlanner, ExtensionPlanner, PhysicalPlanner};
 use datafusion::prelude::Expr;
+use datafusion_ext::runtime::group_pull_up::RuntimeGroupPullUp;
+use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
+use datafusion_ext::transform::TreeNodeExt;
+use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::CopyToDestinationOptions;
+use tracing::debug;
+use uuid::Uuid;
 
 use std::sync::Arc;
 
@@ -24,6 +31,8 @@ use crate::planner::logical_plan::{
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
+use crate::planner::physical_plan::client_recv::ClientExchangeRecvExec;
+use crate::planner::physical_plan::client_send::ClientExchangeSendExec;
 use crate::planner::physical_plan::copy_to::CopyToExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
@@ -48,7 +57,7 @@ use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
 
 use super::client::RemoteSessionClient;
-use super::rewriter::{DDLRewriter, LocalSideTableRewriter};
+use super::rewriter::DDLRewriter;
 
 pub struct DDLExtensionPlanner {
     catalog_version: u64,
@@ -67,7 +76,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
         _logical_inputs: &[&DfLogicalPlan],
         physical_inputs: &[Arc<dyn ExecutionPlan>],
         _session_state: &SessionState,
-    ) -> DataFusionResult<Option<Arc<dyn ExecutionPlan>>> {
+    ) -> Result<Option<Arc<dyn ExecutionPlan>>> {
         let extension_type = node.name().parse::<ExtensionType>().unwrap();
 
         match extension_type {
@@ -283,6 +292,76 @@ pub struct RemotePhysicalPlanner<'a> {
     pub catalog: &'a SessionCatalog,
 }
 
+impl<'a> RemotePhysicalPlanner<'a> {
+    /// Replace all local runtime groups that are not the root of the plan with
+    /// equivalent client recv execs.
+    ///
+    /// The modifed execution plan with client recv execs will be returned,
+    /// along with the send execs that will be responsible for pushing batches
+    /// to the remote node.
+    ///
+    /// This should be ran after all optimizations have been made to the
+    /// physical plan.
+    fn replace_local_runtime_groups(
+        &self,
+        plan: Arc<dyn ExecutionPlan>,
+    ) -> Result<(Arc<dyn ExecutionPlan>, Vec<ClientExchangeSendExec>)> {
+        let mut sends = Vec::new();
+
+        let plan = plan.transform_up_mut(&mut |plan| {
+            let mut new_children: Vec<Arc<dyn ExecutionPlan>> = Vec::new();
+            let mut did_modify = false;
+
+            for child in plan.children() {
+                match child.as_any().downcast_ref::<RuntimeGroupExec>() {
+                    Some(exec) if exec.preference == RuntimePreference::Local => {
+                        did_modify = true;
+
+                        let broadcast_id = Uuid::new_v4();
+                        debug!(%broadcast_id, "creating send and recv execs");
+
+                        let mut input = exec.child.clone();
+
+                        // Create the receive exec. This will be executed on the
+                        // remote node.
+                        let recv = ClientExchangeRecvExec {
+                            broadcast_id,
+                            schema: input.schema(),
+                        };
+
+                        // Temporary coalesce exec until our custom plans support partition.
+                        if input.output_partitioning().partition_count() != 1 {
+                            input = Arc::new(CoalescePartitionsExec::new(input));
+                        }
+
+                        // And create the associated send exec. This will be
+                        // executed locally, and pushes batches over the
+                        // broadcast endpoint.
+                        let send = ClientExchangeSendExec {
+                            broadcast_id,
+                            client: self.remote_client.clone(),
+                            input,
+                        };
+                        sends.push(send);
+
+                        new_children.push(Arc::new(recv));
+                    }
+                    _ => new_children.push(child),
+                }
+            }
+
+            if !did_modify {
+                return Ok(Transformed::No(plan));
+            }
+
+            let new_plan = plan.with_new_children(new_children)?;
+            Ok(Transformed::Yes(new_plan))
+        })?;
+
+        Ok((plan, sends))
+    }
+}
+
 #[async_trait]
 impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
     async fn create_physical_plan(
@@ -291,32 +370,15 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         session_state: &SessionState,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         // TODO: This can be refactored a bit to better handle explains.
-
-        // TODO: Figure out where this should actually be called to remove need
-        // to clone.
-        //
-        // Datafusion steps:
-        // 1. Analyze logical
-        // 2. Optimize logical
-        // 3. Plan physical
-        // 4. Optimize physical
-        //
-        // Ideally this rewrite happens between 2 and 3. We could also add an
-        // optimzer rule to do this, but that kinda goes against what
-        // optimzation is for. We would also need to figure out how to pass
-        // around the exec refs, so probably not worth it.
-        let logical_plan = logical_plan.clone();
-
-        // Rewrite logical plan to ensure tables that have a
-        // "local" hint have their providers replaced with ones
-        // that will produce client recv and send execs.
-        let mut local_side_table_rewriter = LocalSideTableRewriter::new(self.remote_client.clone());
-        let logical_plan = logical_plan.rewrite(&mut local_side_table_rewriter)?;
+        // Unfortunately datafusion's handling of explains isn't really
+        // accessible to us here, as there's an expectation that we register our
+        // planner and optimization rules with the session context, and have
+        // their default planner do everything for us.
 
         // Rewrite any DDL that needs to prcess locally so we can only send the
         // query on remote and process is later on.
         let mut ddl_rewriter = DDLRewriter::default();
-        let logical_plan = logical_plan.rewrite(&mut ddl_rewriter)?;
+        let logical_plan = logical_plan.clone().rewrite(&mut ddl_rewriter)?;
 
         // Create the physical plans. This will call `scan` on
         // the custom table providers meaning we'll have the
@@ -328,26 +390,55 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         .create_physical_plan(&logical_plan, session_state)
         .await?;
 
-        // Temporary coalesce exec until our custom plans support partition.
-        let physical = Arc::new(CoalescePartitionsExec::new(physical));
+        // use datafusion::physical_plan::displayable;
+        // println!(
+        //     "before pull up:\n {}",
+        //     displayable(physical.as_ref()).indent(true)
+        // );
 
-        // Wrap in exec that will send the plan to the remote machine.
-        let physical = Arc::new(RemoteExecutionExec::new(
-            self.remote_client.clone(),
-            physical,
-        ));
+        let optimized =
+            RuntimeGroupPullUp::new().optimize(physical, session_state.config().options())?;
 
-        // Create a wrapper physical plan which drives both the
-        // result stream, and the send execs
+        let (physical, send_execs) = self.replace_local_runtime_groups(optimized)?;
+
+        // println!(
+        //     "before wrap:\n {}",
+        //     displayable(physical.as_ref()).indent(true)
+        // );
+
+        // If the root of the plan indicates a local runtime preference, then we
+        // can just execute everything locally by omitting the remote execution
+        // exec.
         //
-        // At this point, the send execs should have been
-        // populated.
-        let physical = Arc::new(SendRecvJoinExec::new(
-            physical,
-            local_side_table_rewriter.exec_refs,
-        ));
+        // TODO: We could probably have an option to configure this. Note that
+        // if we do add this as an option, we'll need to change
+        // `replace_local_runtime_groups` to handle the root of the plan too.
+        let physical = match physical.as_any().downcast_ref::<RuntimeGroupExec>() {
+            Some(exec) if exec.preference == RuntimePreference::Local && send_execs.is_empty() => {
+                physical
+            }
+            _ => {
+                let mut physical = physical;
+                // Temporary coalesce exec until our custom plans support partition.
+                if physical.output_partitioning().partition_count() != 1 {
+                    physical = Arc::new(CoalescePartitionsExec::new(physical));
+                }
 
-        // Execute the insert into locally.
+                // Wrap in exec that will send the plan to the remote machine.
+                let physical = Arc::new(RemoteExecutionExec::new(
+                    self.remote_client.clone(),
+                    physical,
+                ));
+
+                // Create a wrapper physical plan which drives both the
+                // result stream, and the send execs
+                Arc::new(SendRecvJoinExec::new(physical, send_execs))
+            }
+        };
+
+        // println!("after:\n {}", displayable(physical.as_ref()).indent(true));
+
+        // Execute the some plans into locally.
         let physical: Arc<dyn ExecutionPlan> = match ddl_rewriter {
             DDLRewriter::None => physical,
             DDLRewriter::InsertIntoTempTable(table) => Arc::new(InsertExec {
@@ -381,7 +472,7 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         input_dfschema: &DFSchema,
         input_schema: &Schema,
         session_state: &SessionState,
-    ) -> DataFusionResult<Arc<dyn PhysicalExpr>> {
+    ) -> Result<Arc<dyn PhysicalExpr>> {
         DefaultPhysicalPlanner::default().create_physical_expr(
             expr,
             input_dfschema,

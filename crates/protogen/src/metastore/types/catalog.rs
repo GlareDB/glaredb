@@ -496,13 +496,21 @@ impl From<FunctionType> for catalog::function_entry::FunctionType {
 }
 
 /// The runtime preference for a function.
-/// It is important that this MUST match the values and order in `protogen::gen::metastore::catalog::function_entry::RuntimePreference`
-#[repr(i32)]
 #[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
 pub enum RuntimePreference {
-    Unspecified = 0,
-    Local = 1,
-    Remote = 2,
+    Unspecified,
+    Local,
+    Remote,
+}
+
+impl RuntimePreference {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            RuntimePreference::Unspecified => "unspecified",
+            RuntimePreference::Local => "local",
+            RuntimePreference::Remote => "remote",
+        }
+    }
 }
 
 impl TryFrom<i32> for RuntimePreference {

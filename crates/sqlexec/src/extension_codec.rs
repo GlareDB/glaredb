@@ -14,11 +14,13 @@ use datafusion::execution::{FunctionRegistry, TaskContext};
 use datafusion::logical_expr::{AggregateUDF, Extension, LogicalPlan, ScalarUDF, WindowUDF};
 use datafusion::physical_plan::union::InterleaveExec;
 use datafusion::physical_plan::values::ValuesExec;
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::{displayable, ExecutionPlan};
 use datafusion::prelude::{Expr, SessionContext};
+use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use datafusion_proto::logical_plan::from_proto::parse_expr;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
 use datafusion_proto::physical_plan::PhysicalExtensionCodec;
+use protogen::metastore::types::catalog::RuntimePreference;
 use uuid::Uuid;
 
 use crate::errors::ExecError;
@@ -687,6 +689,15 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::InterleaveExec(_ext) => {
                 Arc::new(InterleaveExec::try_new(inputs.to_vec())?)
             }
+            proto::ExecutionPlanExtensionType::RuntimeGroupExec(_ext) => {
+                Arc::new(RuntimeGroupExec::new(
+                    RuntimePreference::Unspecified,
+                    inputs
+                        .get(0)
+                        .ok_or_else(|| DataFusionError::Internal("missing child".to_string()))?
+                        .clone(),
+                ))
+            }
         };
 
         Ok(plan)
@@ -941,9 +952,12 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             // already encoded. We don't need to store anything extra on the
             // proto message.
             proto::ExecutionPlanExtensionType::InterleaveExec(proto::InterleaveExec {})
+        } else if let Some(_exec) = node.as_any().downcast_ref::<RuntimeGroupExec>() {
+            proto::ExecutionPlanExtensionType::RuntimeGroupExec(proto::RuntimeGroupExec {})
         } else {
             return Err(DataFusionError::NotImplemented(format!(
-                "encoding not implemented for physical plan: {node:?}"
+                "encoding not implemented for physical plan: {}",
+                displayable(node.as_ref()).indent(true),
             )));
         };
 

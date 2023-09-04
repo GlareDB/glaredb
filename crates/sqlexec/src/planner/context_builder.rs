@@ -13,7 +13,6 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::common::OwnedTableReference;
 use datafusion::config::ConfigOptions;
 use datafusion::datasource::DefaultTableSource;
-use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::AggregateUDF;
@@ -21,13 +20,12 @@ use datafusion::logical_expr::ScalarUDF;
 use datafusion::logical_expr::TableSource;
 use datafusion::sql::TableReference;
 use datafusion_ext::functions::FuncParamValue;
-use datafusion_ext::local_hint::LocalTableHint;
 use datafusion_ext::planner::AsyncContextProvider;
 
-use protogen::metastore::types::catalog::CatalogEntry;
-use protogen::metastore::types::catalog::DatabaseEntry;
-use protogen::metastore::types::catalog::FunctionEntry;
-use protogen::metastore::types::catalog::RuntimePreference;
+use datafusion_ext::runtime::table_provider::RuntimeAwareTableProvider;
+use protogen::metastore::types::catalog::{
+    CatalogEntry, DatabaseEntry, FunctionEntry, RuntimePreference, TableEntry,
+};
 use protogen::metastore::types::options::TableOptions;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
@@ -43,7 +41,7 @@ use std::sync::Arc;
 /// this adapter uses.
 pub struct PartialContextProvider<'a> {
     /// Providers we've seen so far.
-    providers: HashMap<OwnedTableReference, Arc<dyn TableProvider>>,
+    providers: HashMap<OwnedTableReference, RuntimeAwareTableProvider>,
     /// Datafusion session state.
     state: &'a SessionState,
     /// Glaredb session context.
@@ -94,12 +92,13 @@ impl<'a> PartialContextProvider<'a> {
         func: &FunctionEntry,
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
-    ) -> Result<Arc<dyn TableProvider>, DispatchError> {
-        Ok(Arc::new(LocalTableHint(
+    ) -> Result<RuntimeAwareTableProvider, DispatchError> {
+        Ok(RuntimeAwareTableProvider::new(
+            RuntimePreference::Local,
             self.new_dispatcher()
                 .dispatch_function(func, args, opts)
                 .await?,
-        )))
+        ))
     }
 
     async fn dispatch_function_remote(
@@ -108,25 +107,29 @@ impl<'a> PartialContextProvider<'a> {
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
         client: &mut RemoteSessionClient,
-    ) -> Result<Arc<dyn TableProvider>, ExecError> {
-        client
-            .dispatch_access(
-                ResolvedTableReference::Internal {
-                    table_oid: func.meta.id,
-                },
-                Some(args),
-                Some(opts),
-            )
-            .await
+    ) -> Result<RuntimeAwareTableProvider, ExecError> {
+        Ok(RuntimeAwareTableProvider::new(
+            RuntimePreference::Remote,
+            client
+                .dispatch_access(
+                    ResolvedTableReference::Internal {
+                        table_oid: func.meta.id,
+                    },
+                    Some(args),
+                    Some(opts),
+                )
+                .await?,
+        ))
     }
 
     async fn dispatch_catalog_entry_local(
         &self,
         ent: &CatalogEntry,
-    ) -> Result<Arc<dyn TableProvider>, DispatchError> {
-        Ok(Arc::new(LocalTableHint(
+    ) -> Result<RuntimeAwareTableProvider, DispatchError> {
+        Ok(RuntimeAwareTableProvider::new(
+            RuntimePreference::Local,
             self.new_dispatcher().dispatch(ent.clone()).await?,
-        )))
+        ))
     }
 
     async fn dispatch_external_entry_local(
@@ -134,19 +137,20 @@ impl<'a> PartialContextProvider<'a> {
         db_ent: &DatabaseEntry,
         schema: &str,
         name: &str,
-    ) -> Result<Arc<dyn TableProvider>, DispatchError> {
-        Ok(Arc::new(LocalTableHint(
+    ) -> Result<RuntimeAwareTableProvider, DispatchError> {
+        Ok(RuntimeAwareTableProvider::new(
+            RuntimePreference::Local,
             self.new_dispatcher()
                 .dispatch_external(db_ent, schema, name)
                 .await?,
-        )))
+        ))
     }
 
     /// Get the table provider from the table reference.
     pub async fn table_provider(
         &mut self,
         name: OwnedTableReference,
-    ) -> Result<Arc<dyn TableProvider>, PlanError> {
+    ) -> Result<RuntimeAwareTableProvider, PlanError> {
         let provider = match self.providers.get(&name) {
             Some(provider) => provider.clone(),
             None => {
@@ -168,7 +172,7 @@ impl<'a> PartialContextProvider<'a> {
         reference: TableReference<'_>,
         args: Option<Vec<FuncParamValue>>,
         opts: Option<HashMap<String, FuncParamValue>>,
-    ) -> Result<Arc<dyn TableProvider>, PlanError> {
+    ) -> Result<RuntimeAwareTableProvider, PlanError> {
         // Try to read from the environment first.
         //
         // TODO: Determine if this is a behavior we want. This was move to the
@@ -181,7 +185,10 @@ impl<'a> PartialContextProvider<'a> {
                 {
                     // Hint that the table being scanned from the environment
                     // should be scanned client-side.
-                    return Ok(Arc::new(LocalTableHint(table)));
+                    return Ok(RuntimeAwareTableProvider::new(
+                        RuntimePreference::Local,
+                        table,
+                    ));
                 }
             }
         }
@@ -191,28 +198,12 @@ impl<'a> PartialContextProvider<'a> {
             .resolve_entry_from_reference(reference.clone())?;
         use ResolvedEntry::*;
         let provider = match (ent, self.ctx.exec_client()) {
-            // TODO: Views will likely need to be handled a bit
-            // differently in the future.
-            //
-            // Given the following view:
-            //
-            // `create view v1 as select local_table cross join remote_table`
-            //
-            // And the following query:
-            //
-            // `select * from v1`
-            //
-            // Will mean that the client will be streaming 2 sets of
-            // record batches, not just one, as would be optimal.
-            //
-            // 1. The client needs to upload the results of
-            // `local_table`.
-            // 2. The client will then receive the results of the
-            // cross join, but then needs upload that so that the
-            // rest of the query can continue to execute remotely.
-            (Entry(ent @ CatalogEntry::View(_)), _) => {
-                Arc::new(LocalTableHint(self.new_dispatcher().dispatch(ent).await?))
-            }
+            // (view, _)
+            // Rely on further planning to determine how to handle views.
+            (Entry(ent @ CatalogEntry::View(_)), _) => RuntimeAwareTableProvider::new(
+                RuntimePreference::Unspecified,
+                self.new_dispatcher().dispatch(ent).await?,
+            ),
 
             // --- LOCAL RESOLUTION ---
             // (function , no remote client)
@@ -262,7 +253,8 @@ impl<'a> PartialContextProvider<'a> {
                     name,
                 },
                 Some(mut client),
-            ) => {
+            ) => RuntimeAwareTableProvider::new(
+                RuntimePreference::Remote,
                 client
                     .dispatch_access(
                         ResolvedTableReference::External {
@@ -273,8 +265,8 @@ impl<'a> PartialContextProvider<'a> {
                         args,
                         opts,
                     )
-                    .await?
-            }
+                    .await?,
+            ),
         };
 
         Ok(provider)
@@ -286,29 +278,32 @@ impl<'a> PartialContextProvider<'a> {
         mut client: RemoteSessionClient,
         args: Option<Vec<FuncParamValue>>,
         opts: Option<HashMap<String, FuncParamValue>>,
-    ) -> Result<Arc<dyn TableProvider>, PlanError> {
+    ) -> Result<RuntimeAwareTableProvider, PlanError> {
         let meta = ent.get_meta();
         let should_resolve_local = meta.is_temp || meta.builtin;
         Ok(if should_resolve_local {
             self.dispatch_catalog_entry_local(&ent).await?
         } else {
-            client
-                .dispatch_access(
-                    ResolvedTableReference::Internal { table_oid: meta.id },
-                    args,
-                    opts,
-                )
-                .await?
+            RuntimeAwareTableProvider::new(
+                RuntimePreference::Remote,
+                client
+                    .dispatch_access(
+                        ResolvedTableReference::Internal { table_oid: meta.id },
+                        args,
+                        opts,
+                    )
+                    .await?,
+            )
         })
     }
 
     async fn handle_function_dispatch(
         &mut self,
-        func: &protogen::metastore::types::catalog::FunctionEntry,
+        func: &FunctionEntry,
         args: Option<Vec<FuncParamValue>>,
         opts: Option<HashMap<String, FuncParamValue>>,
         mut client: RemoteSessionClient,
-    ) -> Result<Arc<dyn TableProvider>, PlanError> {
+    ) -> Result<RuntimeAwareTableProvider, PlanError> {
         if args.is_none() && opts.is_none() {
             return Err(PlanError::Internal(
                 "function should have args or opts at this point".to_string(),
@@ -320,10 +315,12 @@ impl<'a> PartialContextProvider<'a> {
 
         Ok(match func.runtime_preference {
             RuntimePreference::Local => self.dispatch_function_local(func, args, opts).await?,
+
             RuntimePreference::Remote => {
                 self.dispatch_function_remote(func, args, opts, &mut client)
                     .await?
             }
+
             RuntimePreference::Unspecified => {
                 let resolve_func = if func.meta.builtin {
                     BUILTIN_TABLE_FUNCS
@@ -343,7 +340,9 @@ impl<'a> PartialContextProvider<'a> {
                     RuntimePreference::Local => {
                         self.dispatch_function_local(func, args, opts).await?
                     }
-                    RuntimePreference::Remote => {
+
+                    RuntimePreference::Remote => RuntimeAwareTableProvider::new(
+                        RuntimePreference::Remote,
                         client
                             .dispatch_access(
                                 ResolvedTableReference::Internal {
@@ -352,8 +351,8 @@ impl<'a> PartialContextProvider<'a> {
                                 Some(args),
                                 Some(opts),
                             )
-                            .await?
-                    }
+                            .await?,
+                    ),
                     _ => panic!(
                         "function should have a specified runtime at this point. This is a bug."
                     ),
@@ -365,25 +364,28 @@ impl<'a> PartialContextProvider<'a> {
     async fn handle_table_entry_dispatch(
         &mut self,
         ent: &CatalogEntry,
-        t: &protogen::metastore::types::catalog::TableEntry,
+        t: &TableEntry,
         mut client: RemoteSessionClient,
         args: Option<Vec<FuncParamValue>>,
         opts: Option<HashMap<String, FuncParamValue>>,
-    ) -> Result<Arc<dyn TableProvider>, PlanError> {
+    ) -> Result<RuntimeAwareTableProvider, PlanError> {
         let meta = ent.get_meta();
         let should_resolve_local = meta.is_temp
             || meta.builtin
             || matches!(&t.options, TableOptions::Debug(_) | TableOptions::Local(_));
-        Ok(if !should_resolve_local {
-            client
-                .dispatch_access(
-                    ResolvedTableReference::Internal { table_oid: meta.id },
-                    args,
-                    opts,
-                )
-                .await?
-        } else {
+        Ok(if should_resolve_local {
             self.dispatch_catalog_entry_local(ent).await?
+        } else {
+            RuntimeAwareTableProvider::new(
+                RuntimePreference::Remote,
+                client
+                    .dispatch_access(
+                        ResolvedTableReference::Internal { table_oid: meta.id },
+                        args,
+                        opts,
+                    )
+                    .await?,
+            )
         })
     }
 }
@@ -400,7 +402,7 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
             .map_err(|e| {
                 DataFusionError::Plan(format!("Unable to fetch table provider for '{name}': {e}"))
             })?;
-        Ok(Arc::new(DefaultTableSource::new(provider)))
+        Ok(Arc::new(DefaultTableSource::new(Arc::new(provider))))
     }
 
     async fn get_function_meta(&mut self, name: &str) -> Option<Arc<ScalarUDF>> {
@@ -429,7 +431,7 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
     ) -> DataFusionResult<Arc<dyn TableSource>> {
         self.resolve_reference(name.to_owned_reference(), Some(args), Some(opts))
             .await
-            .map(|p| Arc::new(DefaultTableSource::new(p)) as _)
+            .map(|p| Arc::new(DefaultTableSource::new(Arc::new(p))) as _)
             .map_err(|e| DataFusionError::External(Box::new(e)))
     }
 

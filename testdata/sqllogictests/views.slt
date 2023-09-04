@@ -122,3 +122,13 @@ create view datasources as select * from glare_catalog.external_datasources;
 
 statement ok
 select * from datasources;
+
+# View referencing a local file.
+
+statement ok
+create view file_view as select * from '../../testdata/parquet/userdata1.parquet'
+
+query I
+select id from file_view order by id limit 1;
+----
+1

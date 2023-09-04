@@ -611,8 +611,11 @@ impl StatefulWorker {
                     Err(e) => Err(e),
                 };
 
-                if response.send(result).is_err() {
-                    error!("failed to send result of mutate");
+                if let Err(result) = response.send(result) {
+                    match result {
+                        Ok(_) => error!("failed to send ok result of mutate"),
+                        Err(e) => error!(%e, "failed to send error result of mutate"),
+                    }
                 }
             }
             ClientRequest::RefreshCachedState { response, .. } => {
