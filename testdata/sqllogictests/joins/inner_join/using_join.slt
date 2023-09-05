@@ -1,4 +1,5 @@
 # Test USING joins
+# Test USING joins
 
 statement ok
 create schema using_join;

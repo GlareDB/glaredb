@@ -333,11 +333,7 @@ impl Display for ResolvedTableReference {
                 database,
                 schema,
                 name,
-            } => write!(
-                f,
-                "{}.{}.{}",
-                database, schema, name
-            ),
+            } => write!(f, "{}.{}.{}", database, schema, name),
         }
     }
 }
