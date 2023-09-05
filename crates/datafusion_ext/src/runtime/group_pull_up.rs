@@ -1,6 +1,6 @@
 use datafusion::common::tree_node::{Transformed, TreeNode};
 use datafusion::config::ConfigOptions;
-use datafusion::error::Result;
+use datafusion::error::{DataFusionError, Result};
 use datafusion::physical_optimizer::PhysicalOptimizerRule;
 use datafusion::physical_plan::aggregates::AggregateExec;
 use datafusion::physical_plan::filter::FilterExec;
@@ -11,6 +11,7 @@ use datafusion::physical_plan::sorts::sort::SortExec;
 use datafusion::physical_plan::sorts::sort_preserving_merge::SortPreservingMergeExec;
 use datafusion::physical_plan::union::{InterleaveExec, UnionExec};
 use datafusion::physical_plan::ExecutionPlan;
+use protogen::metastore::types::catalog::RuntimePreference;
 use std::sync::Arc;
 
 use crate::runtime::runtime_group::RuntimeGroupExec;
@@ -22,6 +23,65 @@ pub struct RuntimeGroupPullUp {}
 impl RuntimeGroupPullUp {
     pub fn new() -> Self {
         RuntimeGroupPullUp {}
+    }
+
+    /// if a union consists of multiple runtimes, we can rewrite it as 2 groupings
+    /// union[remote, local, remote, remote] -> [union[union[remote, remote, remote], local]]
+    fn rewrite_union(
+        self,
+        plan: Arc<dyn ExecutionPlan>,
+        children: Vec<RuntimeGroupExec>,
+        config: &ConfigOptions,
+    ) -> Result<Transformed<Arc<dyn ExecutionPlan>>> {
+        let handle_children =
+            |children: Vec<RuntimeGroupExec>| -> Result<Option<Arc<dyn ExecutionPlan>>> {
+                if children.is_empty() {
+                    return Ok(None);
+                }
+                Ok(Some(if children.len() == 1 {
+                    self.optimize(children.get(0).unwrap().clone().child, config)?
+                } else {
+                    Arc::new(UnionExec::new(
+                        children
+                            .into_iter()
+                            .map(|x| self.optimize(x.child, config))
+                            .collect::<Result<_>>()?,
+                    ))
+                }))
+            };
+
+        let it = children.into_iter();
+        let mut remote = Vec::new();
+        let mut local = Vec::new();
+
+        for child in it {
+            match child.preference {
+                RuntimePreference::Remote => remote.push(child),
+                RuntimePreference::Local => local.push(child),
+                RuntimePreference::Unspecified => return Ok(Transformed::No(plan)),
+            }
+        }
+
+        let res = match (handle_children(remote)?, handle_children(local)?) {
+            (None, None) => {
+                return Err(DataFusionError::Plan(
+                    "empty union not expected during union optimization".to_string(),
+                ))
+            }
+            (None, Some(local)) => {
+                Arc::new(RuntimeGroupExec::new(RuntimePreference::Local, local)) as _
+            }
+            (Some(remote), None) => {
+                Arc::new(RuntimeGroupExec::new(RuntimePreference::Remote, remote)) as _
+            }
+            (Some(remote), Some(local)) => {
+                let remote = Arc::new(RuntimeGroupExec::new(RuntimePreference::Remote, remote));
+                let local = Arc::new(RuntimeGroupExec::new(RuntimePreference::Local, local));
+
+                Arc::new(UnionExec::new(vec![local, remote])) as _
+            }
+        };
+        Ok(Transformed::Yes(res))
     }
 }
 
@@ -53,6 +113,10 @@ impl PhysicalOptimizerRule for RuntimeGroupPullUp {
                 None => return Ok(Transformed::No(plan)),
             };
 
+            if plan.as_any().downcast_ref::<UnionExec>().is_some() {
+                return self.rewrite_union(plan, children, _config);
+            }
+
             // TODO: How do we want to handle "unspecified"? Allow those to run
             // anywhere?
             if !children.iter().all(|exec| exec.preference == preference) {
@@ -62,7 +126,7 @@ impl PhysicalOptimizerRule for RuntimeGroupPullUp {
             // All children have the same preference. Swap them out for the
             // actual execs, and replace the node we're currently on with a new
             // runtime group exec.
-            let swapped_children: Vec<_> = children.iter().map(|c| c.child.clone()).collect();
+            let swapped_children: Vec<_> = children.into_iter().map(|c| c.child).collect();
             let node = plan.with_new_children(swapped_children)?;
 
             Ok(Transformed::Yes(Arc::new(RuntimeGroupExec {
@@ -116,10 +180,10 @@ mod tests {
     use super::*;
 
     /// Assert two plans are equal by checking explain strings.
-    fn assert_plans_equal_str(a: Arc<dyn ExecutionPlan>, b: Arc<dyn ExecutionPlan>) {
-        let a = displayable(a.as_ref()).indent(true).to_string();
-        let b = displayable(b.as_ref()).indent(true).to_string();
-        assert_eq!(a, b)
+    fn assert_plans_equal_str(actual: Arc<dyn ExecutionPlan>, expected: Arc<dyn ExecutionPlan>) {
+        let actual = displayable(actual.as_ref()).indent(true).to_string();
+        let expected = displayable(expected.as_ref()).indent(true).to_string();
+        assert_eq!(actual, expected)
     }
 
     fn test_schema() -> Arc<Schema> {
@@ -249,6 +313,80 @@ mod tests {
                     )
                     .unwrap(),
                 ),
+            )),
+            Arc::new(RuntimeGroupExec::new(
+                RuntimePreference::Remote,
+                Arc::new(
+                    FilterExec::try_new(
+                        Arc::new(Column::new("c", 0)),
+                        Arc::new(EmptyExec::new(true, test_schema())),
+                    )
+                    .unwrap(),
+                ),
+            )),
+        ]));
+
+        assert_plans_equal_str(out, expected);
+    }
+
+    #[test]
+    fn union_rewrite() {
+        // Note the differences in runtime preference.
+        let exec = Arc::new(UnionExec::new(vec![
+            Arc::new(
+                FilterExec::try_new(
+                    Arc::new(Column::new("c", 0)),
+                    Arc::new(RuntimeGroupExec::new(
+                        RuntimePreference::Local,
+                        Arc::new(EmptyExec::new(true, test_schema())),
+                    )),
+                )
+                .unwrap(),
+            ),
+            Arc::new(
+                FilterExec::try_new(
+                    Arc::new(Column::new("c", 0)),
+                    Arc::new(RuntimeGroupExec::new(
+                        RuntimePreference::Local,
+                        Arc::new(EmptyExec::new(true, test_schema())),
+                    )),
+                )
+                .unwrap(),
+            ),
+            Arc::new(
+                FilterExec::try_new(
+                    Arc::new(Column::new("c", 0)),
+                    Arc::new(RuntimeGroupExec::new(
+                        RuntimePreference::Remote,
+                        Arc::new(EmptyExec::new(true, test_schema())),
+                    )),
+                )
+                .unwrap(),
+            ),
+        ]));
+        let out = RuntimeGroupPullUp::new()
+            .optimize(exec, &ConfigOptions::default())
+            .unwrap();
+
+        let expected = Arc::new(UnionExec::new(vec![
+            Arc::new(RuntimeGroupExec::new(
+                RuntimePreference::Local,
+                Arc::new(UnionExec::new(vec![
+                    Arc::new(
+                        FilterExec::try_new(
+                            Arc::new(Column::new("c", 0)),
+                            Arc::new(EmptyExec::new(true, test_schema())),
+                        )
+                        .unwrap(),
+                    ),
+                    Arc::new(
+                        FilterExec::try_new(
+                            Arc::new(Column::new("c", 0)),
+                            Arc::new(EmptyExec::new(true, test_schema())),
+                        )
+                        .unwrap(),
+                    ),
+                ])),
             )),
             Arc::new(RuntimeGroupExec::new(
                 RuntimePreference::Remote,
