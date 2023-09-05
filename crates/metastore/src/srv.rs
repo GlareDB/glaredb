@@ -33,7 +33,7 @@ pub struct Service {
 impl Service {
     pub fn new(store: Arc<dyn ObjectStore>) -> Service {
         let process_id = Uuid::new_v4();
-        info!(%process_id, "creating new Metastore service with process id");
+        info!(%process_id, "Creating new Metastore service");
 
         let storage = Arc::new(Storage::new(process_id, store));
         Service {

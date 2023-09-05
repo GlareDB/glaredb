@@ -11,7 +11,7 @@ use tracing::info;
 
 /// Starts an in-process, in-memory metastore.
 pub async fn start_inprocess_inmemory() -> Result<MetastoreServiceClient<Channel>> {
-    info!("starting in-process metastore");
+    info!("Starting in-memory metastore");
     start_inprocess(Arc::new(InMemory::new())).await
 }
 

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use datafusion::arrow::datatypes::Schema;
 use prost::Message;
@@ -321,6 +321,25 @@ pub enum ResolvedTableReference {
         schema: String,
         name: String,
     },
+}
+
+impl Display for ResolvedTableReference {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResolvedTableReference::Internal { table_oid } => {
+                write!(f, "InternalTableReference({})", table_oid)
+            }
+            ResolvedTableReference::External {
+                database,
+                schema,
+                name,
+            } => write!(
+                f,
+                "{}.{}.{}",
+                database, schema, name
+            ),
+        }
+    }
 }
 
 impl TryFrom<service::ResolvedTableReference> for ResolvedTableReference {

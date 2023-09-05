@@ -2,7 +2,6 @@ use anyhow::Result;
 use clap::{Parser, ValueEnum};
 use glaredb::args::LocalArgs;
 use glaredb::commands::Commands;
-use tracing::info;
 #[derive(Debug, Clone, Copy, ValueEnum, Default)]
 enum LoggingMode {
     #[default]
@@ -59,8 +58,6 @@ fn main() -> Result<()> {
         (Commands::Local { .. }, None, 0) => (),
         _ => logutil::init(cli.verbose, cli.log_mode.unwrap_or_default().into()),
     }
-
-    info!(version = env!("CARGO_PKG_VERSION"), "starting...");
 
     command.run()
 }

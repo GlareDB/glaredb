@@ -1,5 +1,5 @@
 //! Utilities for logging and tracing.
-use tracing::{info, subscriber, Level};
+use tracing::{subscriber, trace, Level};
 use tracing_subscriber::{
     filter::EnvFilter,
     fmt::{
@@ -94,7 +94,7 @@ pub fn init(verbosity: impl Into<Verbosity>, mode: LoggingMode) {
     }
     .unwrap();
 
-    info!(set_level = %level, "log level set");
+    trace!(set_level = %level, "log level set");
 }
 
 struct PrettyTime;

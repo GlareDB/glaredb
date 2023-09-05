@@ -125,7 +125,7 @@ impl RpcHandler {
         &self,
         req: DispatchAccessRequest,
     ) -> Result<TableProviderResponse> {
-        info!(session_id=%req.session_id, table_ref=?req.table_ref, "dispatching table access");
+        info!(session_id=%req.session_id, table_ref=%req.table_ref, "dispatching table access");
         let args = req
             .args
             .map(|args| {
@@ -182,7 +182,7 @@ impl RpcHandler {
     }
 
     fn close_session_inner(&self, req: CloseSessionRequest) -> Result<CloseSessionResponse> {
-        info!(session_id=%req.session_id, "closing session");
+        info!(session_id=%req.session_id, "Closing Session");
         self.sessions.remove(&req.session_id);
         Ok(CloseSessionResponse {})
     }
