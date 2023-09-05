@@ -1,6 +1,6 @@
 use datafusion::common::tree_node::{Transformed, TreeNode};
 use datafusion::config::ConfigOptions;
-use datafusion::error::Result;
+use datafusion::error::{DataFusionError, Result};
 use datafusion::physical_optimizer::PhysicalOptimizerRule;
 use datafusion::physical_plan::aggregates::AggregateExec;
 use datafusion::physical_plan::filter::FilterExec;
@@ -33,18 +33,22 @@ impl RuntimeGroupPullUp {
         children: Vec<RuntimeGroupExec>,
         config: &ConfigOptions,
     ) -> Result<Transformed<Arc<dyn ExecutionPlan>>> {
-        let handle_children = |children: Vec<RuntimeGroupExec>| -> Result<Arc<dyn ExecutionPlan>> {
-            if children.len() == 1 {
-                self.optimize(children.get(0).unwrap().clone().child, config)
-            } else {
-                Ok(Arc::new(UnionExec::new(
-                    children
-                        .into_iter()
-                        .map(|x| self.optimize(x.child, config))
-                        .collect::<Result<_>>()?,
-                )))
-            }
-        };
+        let handle_children =
+            |children: Vec<RuntimeGroupExec>| -> Result<Option<Arc<dyn ExecutionPlan>>> {
+                if children.is_empty() {
+                    return Ok(None);
+                }
+                Ok(Some(if children.len() == 1 {
+                    self.optimize(children.get(0).unwrap().clone().child, config)?
+                } else {
+                    Arc::new(UnionExec::new(
+                        children
+                            .into_iter()
+                            .map(|x| self.optimize(x.child, config))
+                            .collect::<Result<_>>()?,
+                    ))
+                }))
+            };
 
         let it = children.into_iter();
         let mut remote = Vec::new();
@@ -54,23 +58,30 @@ impl RuntimeGroupPullUp {
             match child.preference {
                 RuntimePreference::Remote => remote.push(child),
                 RuntimePreference::Local => local.push(child),
-                RuntimePreference::Unspecified => todo!("unspecified runtime preference"),
+                RuntimePreference::Unspecified => return Ok(Transformed::No(plan)),
             }
         }
 
-        // if the plan only contains one runtime, we can just return it as is.
-        if (local.len() | remote.len()) == 0 {
-            return Ok(Transformed::No(plan));
-        }
+        let res = match (handle_children(remote)?, handle_children(local)?) {
+            (None, None) => {
+                return Err(DataFusionError::Plan(
+                    "empty union not expected during union optimization".to_string(),
+                ))
+            }
+            (None, Some(local)) => {
+                Arc::new(RuntimeGroupExec::new(RuntimePreference::Local, local)) as _
+            }
+            (Some(remote), None) => {
+                Arc::new(RuntimeGroupExec::new(RuntimePreference::Remote, remote)) as _
+            }
+            (Some(remote), Some(local)) => {
+                let remote = Arc::new(RuntimeGroupExec::new(RuntimePreference::Remote, remote));
+                let local = Arc::new(RuntimeGroupExec::new(RuntimePreference::Local, local));
 
-        let (remote, local) = (handle_children(remote)?, handle_children(local)?);
-
-        let remote = Arc::new(RuntimeGroupExec::new(RuntimePreference::Remote, remote));
-        let local = Arc::new(RuntimeGroupExec::new(RuntimePreference::Local, local));
-
-        Ok(Transformed::Yes(
-            Arc::new(UnionExec::new(vec![local, remote])) as _,
-        ))
+                Arc::new(UnionExec::new(vec![local, remote])) as _
+            }
+        };
+        Ok(Transformed::Yes(res))
     }
 }
 
@@ -169,10 +180,10 @@ mod tests {
     use super::*;
 
     /// Assert two plans are equal by checking explain strings.
-    fn assert_plans_equal_str(a: Arc<dyn ExecutionPlan>, b: Arc<dyn ExecutionPlan>) {
-        let a = displayable(a.as_ref()).indent(true).to_string();
-        let b = displayable(b.as_ref()).indent(true).to_string();
-        assert_eq!(a, b)
+    fn assert_plans_equal_str(actual: Arc<dyn ExecutionPlan>, expected: Arc<dyn ExecutionPlan>) {
+        let actual = displayable(actual.as_ref()).indent(true).to_string();
+        let expected = displayable(expected.as_ref()).indent(true).to_string();
+        assert_eq!(actual, expected)
     }
 
     fn test_schema() -> Arc<Schema> {
