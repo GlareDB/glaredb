@@ -83,7 +83,10 @@ impl RunCommand for ServerArgs {
         let segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
 
         let auth: Box<dyn LocalAuthenticator> = match password {
-            Some(password) => Box::new(SingleUserAuthenticator { user, password }),
+            Some(password) => Box::new(SingleUserAuthenticator {
+                user: user,
+                password,
+            }),
             None => Box::new(PasswordlessAuthenticator {
                 drop_auth_messages: ignore_pg_auth,
             }),
