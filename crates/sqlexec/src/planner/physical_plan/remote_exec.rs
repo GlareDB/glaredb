@@ -164,9 +164,12 @@ impl Stream for ExecutionResponseBatchStream {
                         None => Poll::Ready(None),
                     }
                 }
-                Err(e) => Poll::Ready(Some(Err(DataFusionError::Execution(format!(
-                    "failed to pull next batch from stream: {e}"
-                ))))),
+                Err(e) => {
+                    let msg = e.message();
+                    Poll::Ready(Some(Err(DataFusionError::Execution(format!(
+                        "Remote node error: {msg}"
+                    )))))
+                }
             },
             Poll::Pending => Poll::Pending,
             Poll::Ready(None) => Poll::Ready(None),
