@@ -82,7 +82,6 @@ impl PhysicalOptimizerRule for RuntimeGroupPullUp {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         plan.transform_up(&|plan| {
             if !can_pull_through_node(plan.as_ref()) {
-                println!("can't pull through node");
                 return Ok(Transformed::No(plan));
             }
 
