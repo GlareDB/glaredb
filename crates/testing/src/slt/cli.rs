@@ -95,7 +95,7 @@ impl Cli {
             return Err(anyhow!("No tests to run. Exiting..."));
         }
 
-        logutil::init(cli.verbose, false);
+        logutil::init(cli.verbose, Default::default());
 
         // Abort the program on panic. This will ensure that slt tests will
         // never pass if there's a panic somewhere.

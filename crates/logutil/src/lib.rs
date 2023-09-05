@@ -1,9 +1,12 @@
 //! Utilities for logging and tracing.
-use tracing::{info, subscriber, Level, Subscriber};
+use tracing::{info, subscriber, Level};
 use tracing_subscriber::{
-    filter::{EnvFilter, LevelFilter},
-    fmt::SubscriberBuilder,
-    prelude::*,
+    filter::EnvFilter,
+    fmt::{
+        format::{Compact, DefaultFields, Format, Json, JsonFields, Pretty, Writer},
+        time::FormatTime,
+        SubscriberBuilder,
+    },
     FmtSubscriber,
 };
 
@@ -33,6 +36,13 @@ impl From<Verbosity> for Level {
         }
     }
 }
+#[derive(Default)]
+pub enum LoggingMode {
+    #[default]
+    Pretty,
+    Json,
+    Compact,
+}
 
 /// Initialize a trace subsriber for a test.
 pub fn init_test() {
@@ -48,8 +58,8 @@ pub fn init_test() {
         .with_thread_names(true)
         .with_file(true)
         .with_line_number(true)
+        .with_env_filter(env_filter(Level::TRACE))
         .finish();
-    let subscriber = with_env_filter(subscriber);
     // Failing to set the default is fine, errors if there's already a
     // subscriber set.
     let _ = subscriber::set_global_default(subscriber);
@@ -61,15 +71,64 @@ pub fn init_test() {
 
 /// Initialize a trace subsriber printing to the console using the given
 /// verbosity count.
-pub fn init(verbosity: impl Into<Verbosity>, json: bool) {
-    let verbosity = verbosity.into();
+pub fn init(verbosity: impl Into<Verbosity>, mode: LoggingMode) {
+    let verbosity: Verbosity = verbosity.into();
     let level: Level = verbosity.into();
 
     // TODO: Currently with this enabled, we get a _ton_ of logs.
     // LogTracer::init().unwrap();
+    let env_filter = env_filter(level);
+    match mode {
+        LoggingMode::Json => {
+            let subscriber = json_fmt(level).with_env_filter(env_filter).finish();
+            subscriber::set_global_default(subscriber)
+        }
+        LoggingMode::Pretty => {
+            let subscriber = pretty_fmt(level).with_env_filter(env_filter).finish();
+            subscriber::set_global_default(subscriber)
+        }
+        LoggingMode::Compact => {
+            let subscriber = compact_fmt(level).with_env_filter(env_filter).finish();
+            subscriber::set_global_default(subscriber)
+        }
+    }
+    .unwrap();
 
-    if json {
-        let mut builder = default_fmt_builder(level).json();
+    info!(set_level = %level, "log level set");
+}
+
+struct PrettyTime;
+impl FormatTime for PrettyTime {
+    fn format_time(&self, w: &mut Writer<'_>) -> std::fmt::Result {
+        write!(w, "{}", chrono::Local::now().format("%H:%M:%S%.3f"))
+    }
+}
+
+fn compact_fmt(level: Level) -> SubscriberBuilder<DefaultFields, Format<Compact, PrettyTime>> {
+    FmtSubscriber::builder()
+        .with_max_level(level)
+        .with_line_number(false)
+        .with_file(false)
+        .with_timer(PrettyTime)
+        .compact()
+}
+
+fn standard_fmt(level: Level) -> SubscriberBuilder {
+    FmtSubscriber::builder()
+        .with_max_level(level)
+        .with_thread_ids(true)
+        .with_thread_names(true)
+        .with_line_number(true)
+        .with_file(true)
+}
+
+fn pretty_fmt(level: Level) -> SubscriberBuilder<Pretty, Format<Pretty>> {
+    standard_fmt(level).pretty()
+}
+
+fn json_fmt(level: Level) -> SubscriberBuilder<JsonFields, Format<Json>> {
+    standard_fmt(level)
+        .json()
         // Flatten fields into the top-level json. This is primarily done such
         // that GCP can pull out the 'message' field and display those nicely.
         //
@@ -97,25 +156,7 @@ pub fn init(verbosity: impl Into<Verbosity>, json: bool) {
         // with a custom format. We _may_ end up doing that in the future when
         // we need more control over log formatting, but flattening everything
         // is sufficient for now.
-        builder = builder.flatten_event(true);
-        let subscriber = with_env_filter(builder.finish());
-        subscriber::set_global_default(subscriber).unwrap();
-    } else {
-        let builder = default_fmt_builder(level).pretty();
-        let subscriber = with_env_filter(builder.finish());
-        subscriber::set_global_default(subscriber).unwrap();
-    }
-
-    info!(set_level = %level, "log level set");
-}
-
-fn default_fmt_builder(level: Level) -> SubscriberBuilder {
-    FmtSubscriber::builder()
-        .with_max_level(level)
-        .with_thread_ids(true)
-        .with_thread_names(true)
-        .with_line_number(true)
-        .with_file(true)
+        .flatten_event(true)
 }
 
 /// Add an env filter to a subscriber, with some default filters in place.
@@ -124,11 +165,10 @@ fn default_fmt_builder(level: Level) -> SubscriberBuilder {
 /// - Default to TRACE if filter not specified via RUST_LOG
 /// - Raise h2 to INFO, since it's very noisy at lower levels.
 /// - Raise hyper to INFO, since it's very noisy at lower levels.
-fn with_env_filter(subscriber: impl Subscriber) -> impl Subscriber {
-    let filter = EnvFilter::builder()
-        .with_default_directive(LevelFilter::TRACE.into())
+fn env_filter(level: Level) -> EnvFilter {
+    EnvFilter::builder()
+        .with_default_directive(level.into())
         .from_env_lossy()
         .add_directive("h2=info".parse().unwrap())
-        .add_directive("hyper=info".parse().unwrap());
-    subscriber.with(filter)
+        .add_directive("hyper=info".parse().unwrap())
 }
