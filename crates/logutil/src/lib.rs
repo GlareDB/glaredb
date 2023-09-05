@@ -39,7 +39,7 @@ impl From<Verbosity> for Level {
 #[derive(Default)]
 pub enum LoggingMode {
     #[default]
-    Pretty,
+    Full,
     Json,
     Compact,
 }
@@ -83,8 +83,8 @@ pub fn init(verbosity: impl Into<Verbosity>, mode: LoggingMode) {
             let subscriber = json_fmt(level).with_env_filter(env_filter).finish();
             subscriber::set_global_default(subscriber)
         }
-        LoggingMode::Pretty => {
-            let subscriber = pretty_fmt(level).with_env_filter(env_filter).finish();
+        LoggingMode::Full => {
+            let subscriber = full_fmt(level).with_env_filter(env_filter).finish();
             subscriber::set_global_default(subscriber)
         }
         LoggingMode::Compact => {
@@ -122,7 +122,7 @@ fn standard_fmt(level: Level) -> SubscriberBuilder {
         .with_file(true)
 }
 
-fn pretty_fmt(level: Level) -> SubscriberBuilder<Pretty, Format<Pretty>> {
+fn full_fmt(level: Level) -> SubscriberBuilder<Pretty, Format<Pretty>> {
     standard_fmt(level).pretty()
 }
 

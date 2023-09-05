@@ -5,7 +5,7 @@ use glaredb::commands::Commands;
 #[derive(Debug, Clone, Copy, ValueEnum, Default)]
 enum LoggingMode {
     #[default]
-    Pretty,
+    Full,
     Json,
     Compact,
 }
@@ -13,7 +13,7 @@ enum LoggingMode {
 impl From<LoggingMode> for logutil::LoggingMode {
     fn from(mode: LoggingMode) -> Self {
         match mode {
-            LoggingMode::Pretty => logutil::LoggingMode::Pretty,
+            LoggingMode::Full => logutil::LoggingMode::Full,
             LoggingMode::Json => logutil::LoggingMode::Json,
             LoggingMode::Compact => logutil::LoggingMode::Compact,
         }
