@@ -84,7 +84,7 @@ impl RunCommand for ServerArgs {
 
         let auth: Box<dyn LocalAuthenticator> = match password {
             Some(password) => Box::new(SingleUserAuthenticator {
-                user: user,
+                user,
                 password,
             }),
             None => Box::new(PasswordlessAuthenticator {
