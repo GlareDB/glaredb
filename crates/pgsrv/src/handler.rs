@@ -216,24 +216,28 @@ impl ProtocolHandler {
                 }
             }
             PasswordMode::NoPassword { drop_auth_messages } => {
-                // Nothin to do.
-                framed.send(BackendMessage::AuthenticationOk).await?;
-
-                // Continually read all auth messages from the frontend. These
-                // are ignored.
                 if drop_auth_messages {
-                    loop {
-                        let msg = framed.peek().await?;
-                        match msg {
-                            Some(msg) if msg.is_auth_message() => {
-                                let dropped = framed.read().await?; // Drop auth message.
-                                warn!(?dropped, "dropping authentication message");
-                            }
-                            Some(_msg) => break, // We peeked a message not related to auth.
-                            None => return Ok(()), // Connection closed.
+                    // Send the message to frontend to ask for an auth message.
+                    // We will drop this message later on.
+                    framed
+                        .send(BackendMessage::AuthenticationCleartextPassword)
+                        .await?;
+
+                    // Read the auth message from the frontend. This will be
+                    // ignored.
+                    let msg = framed.peek().await?;
+                    match msg {
+                        Some(msg) if msg.is_auth_message() => {
+                            let dropped = framed.read().await?; // Drop auth message.
+                            warn!(?dropped, "dropping authentication message");
                         }
+                        Some(_msg) => (), // We peeked a message not related to auth.
+                        None => return Ok(()), // Connection closed
                     }
                 }
+
+                // Nothin to do.
+                framed.send(BackendMessage::AuthenticationOk).await?;
             }
         }
         let mut vars = SessionVars::default()
