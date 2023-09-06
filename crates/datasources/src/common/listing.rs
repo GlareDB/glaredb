@@ -4,6 +4,7 @@
 //! data source. These essentially provide a trimmed down information schema.
 
 use async_trait::async_trait;
+use datafusion::arrow::datatypes::Fields;
 
 use super::errors::Result;
 
@@ -20,4 +21,7 @@ pub trait VirtualLister: Sync + Send {
 
     /// List tables for a data source.
     async fn list_tables(&self, schema: &str) -> Result<Vec<String>>;
+
+    /// List columns for a specific table in the datasource.
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields>;
 }

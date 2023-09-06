@@ -31,5 +31,16 @@ SELECT table_name
 ----
 BIKESHARE_STATIONS
 
+query TTT rowsort
+SELECT column_name, data_type, nullable
+	FROM list_columns(external_db, "PUBLIC", "BIKESHARE_STATIONS")
+	WHERE data_type = 'Decimal128(38, 0)';
+----
+city_asset_number	Decimal128(38, 0)	t
+council_district	Decimal128(38, 0)	t
+footprint_length	Decimal128(38, 0)	t
+number_of_docks		Decimal128(38, 0)	t
+station_id			Decimal128(38, 0)	t
+
 statement ok
 DROP DATABASE external_db;

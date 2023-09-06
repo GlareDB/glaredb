@@ -12,7 +12,7 @@ use chrono::naive::{NaiveDateTime, NaiveTime};
 use chrono::{DateTime, NaiveDate, Timelike, Utc};
 use datafusion::arrow::array::Decimal128Builder;
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
@@ -461,6 +461,21 @@ WHERE
             virtual_tables.push(table);
         }
         Ok(virtual_tables)
+    }
+
+    async fn list_columns(
+        &self,
+        schema: &str,
+        table: &str,
+    ) -> Result<Fields, DatasourceCommonError> {
+        use DatasourceCommonError::ListingErrBoxed;
+
+        let (schema, _) = self
+            .get_table_schema(schema, table)
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        Ok(schema.fields)
     }
 }
 
