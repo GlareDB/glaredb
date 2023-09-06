@@ -79,14 +79,14 @@ impl LocalSession {
                 let u = &url.to_string();
                 (
                     RemoteClient::connect(url).await?,
-                    format!("Connected to remote GlareDB server: {}", u.bright_cyan()),
+                    format!("Connected to remote GlareDB server: {}", u.cyan()),
                 )
             } else {
                 let client = RemoteClient::connect_with_proxy_destination(url.try_into()?).await?;
 
                 let msg = format!(
                     "Connected to Cloud deployment: {}",
-                    client.get_deployment_name().bright_cyan()
+                    client.get_deployment_name().cyan()
                 );
 
                 (client, msg)
