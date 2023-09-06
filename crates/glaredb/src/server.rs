@@ -1,8 +1,3 @@
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::{env, fs};
-
 use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
 use pgsrv::auth::LocalAuthenticator;
@@ -10,6 +5,10 @@ use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use rpcsrv::handler::RpcHandler;
 use sqlexec::engine::{Engine, EngineStorageConfig};
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::{env, fs};
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
 use tokio::signal;
@@ -18,6 +17,7 @@ use tonic::transport::Server;
 use tracing::{debug, debug_span, error, info, Instrument};
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct ServerConfig {
     /// Listener to use for pg handler.
     pub pg_listener: TcpListener,
@@ -51,7 +51,7 @@ impl ComputeServer {
         // Our bare container image doesn't have a '/tmp' dir on startup (nor
         // does it specify an alternate dir to use via `TMPDIR`).
         let env_tmp = env::temp_dir();
-        info!(?env_tmp, "ensuring temp dir");
+        debug!(?env_tmp, "ensuring temp dir");
         fs::create_dir_all(&env_tmp)?;
 
         // Connect to metastore.
@@ -60,11 +60,11 @@ impl ComputeServer {
 
         let tracker = match segment_key {
             Some(key) => {
-                info!("initializing segment telemetry tracker");
+                debug!("initializing segment telemetry tracker");
                 SegmentTracker::new(key).into()
             }
             None => {
-                info!("skipping telementry initialization");
+                debug!("skipping telementry initialization");
                 Tracker::Nop
             }
         };
@@ -115,7 +115,18 @@ impl ComputeServer {
 
     /// Serve using the provided config.
     pub async fn serve(self, conf: ServerConfig) -> Result<()> {
-        info!("GlareDB listening...");
+        let rpc_msg = if let Some(addr) = conf.rpc_addr {
+            format!("\nConnect via RPC: {}\n", addr)
+        } else {
+            "".to_string()
+        };
+
+        info!(
+            "Starting GlareDB {}\nConnect via Postgres: postgresql://{}{}",
+            env!("CARGO_PKG_VERSION"),
+            conf.pg_listener.local_addr()?,
+            rpc_msg
+        );
 
         // Shutdown handler.
         let (tx, mut rx) = oneshot::channel();
@@ -166,7 +177,6 @@ impl ComputeServer {
                 self.disable_rpc_auth,
                 self.integration_testing,
             );
-            info!("Starting rpc service");
             tokio::spawn(async move {
                 if let Err(e) = Server::builder()
                     .trace_fn(|_| debug_span!("rpc_service_request"))
