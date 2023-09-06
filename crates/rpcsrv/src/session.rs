@@ -21,13 +21,21 @@ pub struct RemoteSession {
     /// Wrapped in an Arc and Mutex since the lifetime of the session is not
     /// tied to a single connection, and so needs to be tracked in a shared map.
     session: Arc<Mutex<RemoteSessionContext>>,
+
+    /// Database this context is for.
+    database_id: Uuid,
 }
 
 impl RemoteSession {
-    pub fn new(context: RemoteSessionContext) -> Self {
+    pub fn new(context: RemoteSessionContext, db_id: Uuid) -> Self {
         RemoteSession {
             session: Arc::new(Mutex::new(context)),
+            database_id: db_id,
         }
+    }
+
+    pub fn get_db_id(&self) -> &Uuid {
+        &self.database_id
     }
 
     /// Get the catalog state suitable for sending back to the requesting

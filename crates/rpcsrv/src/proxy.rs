@@ -10,7 +10,7 @@ use protogen::rpcsrv::types::service::{
 };
 use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, ServiceProtocol};
 use proxyutil::metadata_constants::{
-    COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
+    COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, PROXIED_FOR_DATABASE, USER_KEY,
 };
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -158,6 +158,18 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
             service: ServiceProtocol::RpcSrv,
         })
     }
+
+    /// Adds additional metadata for the connection which indicates that the
+    /// connection is being proxied for a given database.
+    fn add_proxied_for_db_params(meta: &mut MetadataMap, details: &DatabaseDetails) {
+        meta.insert(
+            PROXIED_FOR_DATABASE,
+            details
+                .database_id
+                .parse()
+                .expect("should be an ascii string"),
+        );
+    }
 }
 
 #[async_trait]
@@ -180,28 +192,31 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
 
     async fn fetch_catalog(
         &self,
-        request: Request<service::FetchCatalogRequest>,
+        mut request: Request<service::FetchCatalogRequest>,
     ) -> Result<Response<service::FetchCatalogResponse>, Status> {
         info!("fetching catalog (proxy)");
-        let (_, mut client) = self.connect(request.metadata()).await?;
+        let (details, mut client) = self.connect(request.metadata()).await?;
+        Self::add_proxied_for_db_params(request.metadata_mut(), &details);
         client.fetch_catalog(request).await
     }
 
     async fn dispatch_access(
         &self,
-        request: Request<service::DispatchAccessRequest>,
+        mut request: Request<service::DispatchAccessRequest>,
     ) -> Result<Response<service::TableProviderResponse>, Status> {
         info!("dispatch access (proxy)");
-        let (_, mut client) = self.connect(request.metadata()).await?;
+        let (details, mut client) = self.connect(request.metadata()).await?;
+        Self::add_proxied_for_db_params(request.metadata_mut(), &details);
         client.dispatch_access(request).await
     }
 
     async fn physical_plan_execute(
         &self,
-        request: Request<service::PhysicalPlanExecuteRequest>,
+        mut request: Request<service::PhysicalPlanExecuteRequest>,
     ) -> Result<Response<Self::PhysicalPlanExecuteStream>, Status> {
         info!("physical plan execute (proxy)");
-        let (_, mut client) = self.connect(request.metadata()).await?;
+        let (details, mut client) = self.connect(request.metadata()).await?;
+        Self::add_proxied_for_db_params(request.metadata_mut(), &details);
         client.physical_plan_execute(request).await
     }
 
@@ -211,19 +226,19 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
     ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
         info!("broadcast exchange (proxy)");
         let metadata = request.metadata();
-        let (_, mut client) = self.connect(metadata).await?;
-        let request = request.into_inner();
-        client
-            .broadcast_exchange(ProxiedRequestStream::new(request))
-            .await
+        let (details, mut client) = self.connect(metadata).await?;
+        let mut request = Request::new(ProxiedRequestStream::new(request.into_inner()));
+        Self::add_proxied_for_db_params(request.metadata_mut(), &details);
+        client.broadcast_exchange(request).await
     }
 
     async fn close_session(
         &self,
-        request: Request<service::CloseSessionRequest>,
+        mut request: Request<service::CloseSessionRequest>,
     ) -> Result<Response<service::CloseSessionResponse>, Status> {
         info!("close session (proxy)");
-        let (_, mut client) = self.connect(request.metadata()).await?;
+        let (details, mut client) = self.connect(request.metadata()).await?;
+        Self::add_proxied_for_db_params(request.metadata_mut(), &details);
         client.close_session(request).await
     }
 }

@@ -17,6 +17,7 @@ use protogen::{
         PhysicalPlanExecuteRequest, TableProviderResponse,
     },
 };
+use proxyutil::metadata_constants::PROXIED_FOR_DATABASE;
 use sqlexec::{
     engine::{Engine, SessionStorageConfig},
     remote::exchange_stream::ClientExchangeRecvStream,
@@ -27,7 +28,7 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
-use tonic::{Request, Response, Status, Streaming};
+use tonic::{metadata::MetadataMap, Request, Response, Status, Streaming};
 use tracing::info;
 use uuid::Uuid;
 
@@ -38,29 +39,36 @@ pub struct RpcHandler {
     /// Open sessions.
     sessions: DashMap<Uuid, RemoteSession>,
 
-    /// Allow initialize session messages from client.
+    /// Allows messages from client.
     ///
     /// By default only messages from proxy are accepted.
-    allow_client_init: bool,
+    allow_client_messages: bool,
 
     /// Whether we're running in itegration testing mode.
     integration_testing: bool,
 }
 
 impl RpcHandler {
-    pub fn new(engine: Arc<Engine>, allow_client_init: bool, integration_testing: bool) -> Self {
+    pub fn new(
+        engine: Arc<Engine>,
+        allow_client_messages: bool,
+        integration_testing: bool,
+    ) -> Self {
         RpcHandler {
             engine,
             sessions: DashMap::new(),
-            allow_client_init,
+            allow_client_messages,
             integration_testing,
         }
     }
 
     async fn initialize_session_inner(
         &self,
-        req: InitializeSessionRequest,
+        request: Request<service::InitializeSessionRequest>,
     ) -> Result<InitializeSessionResponse> {
+        let (_, _, request) = request.into_parts();
+        let req: InitializeSessionRequest = request.try_into()?;
+
         // Get db id and storage config from the request.
         //
         // This will check that we actually received a proxy request, and not a
@@ -72,7 +80,7 @@ impl RpcHandler {
                 };
                 (req.db_id, storage_conf)
             }
-            InitializeSessionRequest::Client(req) if self.allow_client_init => {
+            InitializeSessionRequest::Client(req) if self.allow_client_messages => {
                 let mut db_id = Uuid::nil();
                 if let Some(test_db_id) = req.test_db_id {
                     if self.integration_testing {
@@ -101,7 +109,7 @@ impl RpcHandler {
             .new_remote_session_context(vars, storage_conf)
             .await?;
 
-        let sess = RemoteSession::new(context);
+        let sess = RemoteSession::new(context, db_id);
         let initial_state = sess.get_refreshed_catalog_state().await?;
 
         self.sessions.insert(conn_id, sess);
@@ -112,8 +120,15 @@ impl RpcHandler {
         })
     }
 
-    async fn fetch_catalog_inner(&self, req: FetchCatalogRequest) -> Result<FetchCatalogResponse> {
-        let session = self.get_session(req.session_id)?;
+    async fn fetch_catalog_inner(
+        &self,
+        request: Request<service::FetchCatalogRequest>,
+    ) -> Result<FetchCatalogResponse> {
+        let (metadata, _, request) = request.into_parts();
+        let req: FetchCatalogRequest = request.try_into()?;
+
+        let session = self.get_session_with_proxy_check(req.session_id, metadata)?;
+
         let catalog = session.get_refreshed_catalog_state().await?;
 
         info!(session_id=%req.session_id, version = %catalog.version, "fetching catalog");
@@ -123,8 +138,13 @@ impl RpcHandler {
 
     async fn dispatch_access_inner(
         &self,
-        req: DispatchAccessRequest,
+        request: Request<service::DispatchAccessRequest>,
     ) -> Result<TableProviderResponse> {
+        let (metadata, _, request) = request.into_parts();
+        let req: DispatchAccessRequest = request.try_into()?;
+
+        let session = self.get_session_with_proxy_check(req.session_id, metadata)?;
+
         info!(session_id=%req.session_id, table_ref=%req.table_ref, "dispatching table access");
         let args = req
             .args
@@ -144,18 +164,21 @@ impl RpcHandler {
             })
             .transpose()?;
 
-        let session = self.get_session(req.session_id)?;
         let (id, schema) = session.dispatch_access(req.table_ref, args, opts).await?;
         Ok(TableProviderResponse { id, schema })
     }
 
     async fn physical_plan_execute_inner(
         &self,
-        req: PhysicalPlanExecuteRequest,
+        request: Request<service::PhysicalPlanExecuteRequest>,
     ) -> Result<ExecutionResponseBatchStream> {
+        let (metadata, _, request) = request.into_parts();
+        let req: PhysicalPlanExecuteRequest = request.try_into()?;
+
+        let session = self.get_session_with_proxy_check(req.session_id, metadata)?;
+
         info!(session_id=%req.session_id, "executing physical plan");
 
-        let session = self.get_session(req.session_id)?;
         let batches = session.physical_plan_execute(req.physical_plan).await?;
         Ok(ExecutionResponseBatchStream {
             batches,
@@ -165,14 +188,16 @@ impl RpcHandler {
 
     async fn broadcast_exchange_inner(
         &self,
-        req: Streaming<service::BroadcastExchangeRequest>,
+        request: Request<Streaming<service::BroadcastExchangeRequest>>,
     ) -> Result<BroadcastExchangeResponse> {
-        let stream = ClientExchangeRecvStream::try_new(req).await?;
+        let (metadata, _, request) = request.into_parts();
+
+        let stream = ClientExchangeRecvStream::try_new(request).await?;
         let session_id = stream.session_id();
 
-        info!(session_id=%session_id, broadcast_id=%stream.broadcast_id(), "beginning client exchange stream");
+        let session = self.get_session_with_proxy_check(session_id, metadata)?;
 
-        let session = self.get_session(session_id)?;
+        info!(session_id=%session_id, broadcast_id=%stream.broadcast_id(), "beginning client exchange stream");
 
         session.register_broadcast_stream(stream).await?;
 
@@ -181,17 +206,61 @@ impl RpcHandler {
         Ok(BroadcastExchangeResponse {})
     }
 
-    fn close_session_inner(&self, req: CloseSessionRequest) -> Result<CloseSessionResponse> {
+    fn close_session_inner(
+        &self,
+        request: Request<service::CloseSessionRequest>,
+    ) -> Result<CloseSessionResponse> {
+        let (metadata, _, request) = request.into_parts();
+        let req: CloseSessionRequest = request.try_into()?;
+
+        let _session = self.get_session_with_proxy_check(req.session_id, metadata)?;
+
         info!(session_id=%req.session_id, "Closing Session");
         self.sessions.remove(&req.session_id);
         Ok(CloseSessionResponse {})
     }
 
-    fn get_session(&self, session_id: Uuid) -> Result<RemoteSession> {
-        self.sessions
+    /// Gets a session with the given id.
+    ///
+    /// This will also check that the metadata for the request indicates that
+    /// we're connecting to the correct database via the `proxied_for_database`
+    /// header. This should be set by rpcproxy. This check is to avoid the case
+    /// where the user provides a valid set of credentials, but specifies a
+    /// session that does not belong to the correct database.
+    ///
+    /// If `allow_client_messages` is set to true, the database check is skipped
+    /// (as we don't support any form of authentication when connecting directly
+    /// to the server).
+    fn get_session_with_proxy_check(
+        &self,
+        session_id: Uuid,
+        metadata: MetadataMap,
+    ) -> Result<RemoteSession> {
+        let session = self
+            .sessions
             .get(&session_id)
             .ok_or_else(|| RpcsrvError::MissingSession(session_id))
-            .map(|s| s.value().clone())
+            .map(|s| s.value().clone())?;
+
+        if self.allow_client_messages {
+            return Ok(session);
+        }
+
+        let proxied_for_db = Uuid::parse_str(
+            metadata
+                .get(PROXIED_FOR_DATABASE)
+                .ok_or(RpcsrvError::MissingAuthKey(PROXIED_FOR_DATABASE))?
+                .to_str()?,
+        )
+        .map_err(|e| RpcsrvError::InvalidId("database", e))?;
+
+        if &proxied_for_db != session.get_db_id() {
+            return Err(RpcsrvError::String(
+                "Invalid database for session".to_string(),
+            ));
+        }
+
+        Ok(session)
     }
 }
 
@@ -204,9 +273,7 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
         &self,
         request: Request<service::InitializeSessionRequest>,
     ) -> Result<Response<service::InitializeSessionResponse>, Status> {
-        let resp = self
-            .initialize_session_inner(request.into_inner().try_into()?)
-            .await?;
+        let resp = self.initialize_session_inner(request).await?;
         Ok(Response::new(resp.try_into()?))
     }
 
@@ -214,9 +281,7 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
         &self,
         request: Request<service::FetchCatalogRequest>,
     ) -> Result<Response<service::FetchCatalogResponse>, Status> {
-        let resp = self
-            .fetch_catalog_inner(request.into_inner().try_into()?)
-            .await?;
+        let resp = self.fetch_catalog_inner(request).await?;
         Ok(Response::new(resp.try_into()?))
     }
 
@@ -224,9 +289,7 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
         &self,
         request: Request<service::DispatchAccessRequest>,
     ) -> Result<Response<service::TableProviderResponse>, Status> {
-        let resp = self
-            .dispatch_access_inner(request.into_inner().try_into()?)
-            .await?;
+        let resp = self.dispatch_access_inner(request).await?;
         Ok(Response::new(resp.try_into()?))
     }
 
@@ -234,9 +297,7 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
         &self,
         request: Request<service::PhysicalPlanExecuteRequest>,
     ) -> Result<Response<Self::PhysicalPlanExecuteStream>, Status> {
-        let resp = self
-            .physical_plan_execute_inner(request.into_inner().try_into()?)
-            .await?;
+        let resp = self.physical_plan_execute_inner(request).await?;
         Ok(Response::new(Box::pin(resp)))
     }
 
@@ -244,7 +305,7 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
         &self,
         request: Request<Streaming<service::BroadcastExchangeRequest>>,
     ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
-        let resp = self.broadcast_exchange_inner(request.into_inner()).await?;
+        let resp = self.broadcast_exchange_inner(request).await?;
         Ok(Response::new(resp))
     }
 
@@ -252,7 +313,7 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
         &self,
         request: Request<service::CloseSessionRequest>,
     ) -> Result<Response<service::CloseSessionResponse>, Status> {
-        let resp = self.close_session_inner(request.into_inner().try_into()?)?;
+        let resp = self.close_session_inner(request)?;
         Ok(Response::new(resp.into()))
     }
 }

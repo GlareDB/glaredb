@@ -52,6 +52,9 @@ pub enum RpcsrvError {
     TonicStatus(#[from] tonic::Status),
 
     #[error("{0}")]
+    String(String),
+
+    #[error("{0}")]
     Internal(String),
 }
 

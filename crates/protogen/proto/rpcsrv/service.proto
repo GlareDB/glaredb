@@ -35,6 +35,14 @@
 // connection authentication. The response from Cloud indicates if the
 // connection is authenticated. Cloud also returns additional data about how to
 // connect to the remote compute engine.
+//
+// The proxy will then set the following headers in the metadata map:
+//
+// - "proxied_for_database"
+//
+// Where the value is the UUID of the database (as a string, since that's what
+// we get back from Cloud). The receiving node will then check to ensure that
+// this database matches the database of the session being connected to.
 
 syntax = "proto3";
 
@@ -97,7 +105,7 @@ message DispatchAccessRequest {
   repeated bytes args = 3;
   // gRPC doesn't really provide a way for Option<Vec<T>> or Option<Map<K,V>>
   // so we use a map and just check if it's empty or not in rust.
-  map < string, bytes > options = 4;
+  map<string, bytes> options = 4;
 }
 
 // Execute a physical plan and get the stream.
