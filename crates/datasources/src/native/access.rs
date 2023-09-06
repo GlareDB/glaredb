@@ -1,7 +1,7 @@
 use crate::native::errors::{NativeError, Result};
 use crate::native::insert::NativeTableInsertExec;
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::Schema as ArrowSchema;
+use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema, TimeUnit};
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::SessionState;
@@ -21,7 +21,9 @@ use object_store::prefix::PrefixStore;
 use object_store::ObjectStore;
 use object_store_util::{conf::StorageConfig, shared::SharedObjectStore};
 use protogen::metastore::types::catalog::TableEntry;
-use protogen::metastore::types::options::{TableOptions, TableOptionsInternal};
+use protogen::metastore::types::options::{
+    InternalColumnDefinition, TableOptions, TableOptionsInternal,
+};
 use std::any::Any;
 use std::sync::Arc;
 use tokio::fs;
@@ -84,8 +86,20 @@ impl NativeTableStorage {
             .with_object_store(delta_store)
             .with_save_mode(SaveMode::ErrorIfExists);
         for col in &opts.columns {
-            builder =
-                builder.with_column(&col.name, (&col.arrow_type).try_into()?, col.nullable, None);
+            let column = match col.arrow_type.clone() {
+                DataType::Timestamp(_, tz) => InternalColumnDefinition {
+                    name: col.name.clone(),
+                    nullable: col.nullable,
+                    arrow_type: DataType::Timestamp(TimeUnit::Microsecond, tz),
+                },
+                _ => col.to_owned(),
+            };
+            builder = builder.with_column(
+                column.name.clone(),
+                (&column.arrow_type).try_into()?,
+                column.nullable,
+                None,
+            );
         }
 
         // TODO: Partitioning
