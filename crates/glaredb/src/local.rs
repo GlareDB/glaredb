@@ -1,9 +1,10 @@
+use crate::args::{LocalClientOpts, OutputMode};
 use crate::highlighter::{SQLHighlighter, SQLHinter, SQLValidator};
 use crate::prompt::SQLPrompt;
 use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
 use arrow_util::pretty::pretty_format_batches;
-use clap::{Parser, ValueEnum};
+use clap::ValueEnum;
 use colored::Colorize;
 use datafusion::arrow::csv::writer::WriterBuilder as CsvWriterBuilder;
 use datafusion::arrow::error::ArrowError;
@@ -23,96 +24,12 @@ use sqlexec::parser;
 use sqlexec::remote::client::RemoteClient;
 use sqlexec::session::ExecutionResult;
 use std::env;
-use std::fmt::Write as _;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 use telemetry::Tracker;
 use tracing::error;
 use url::Url;
-
-#[derive(Debug, Clone, Copy, ValueEnum)]
-pub enum OutputMode {
-    Table,
-    Json,
-    Ndjson,
-    Csv,
-}
-
-#[derive(Debug, Clone, Parser)]
-pub struct LocalClientOpts {
-    /// Address to the Metastore.
-    ///
-    /// If not provided, an in-process metastore will be started.
-    #[clap(short, long, value_parser)]
-    pub metastore_addr: Option<String>,
-
-    /// Path to spill temporary files to.
-    #[clap(long, value_parser)]
-    pub spill_path: Option<PathBuf>,
-
-    /// Optional file path for persisting data.
-    ///
-    /// Catalog data and user data will be stored in this directory. If the
-    /// `--cloud-url` option is provided, nothing will be persisted in this
-    /// directory.
-    #[clap(short = 'f', long, value_parser)]
-    pub data_dir: Option<PathBuf>,
-
-    /// URL for connecting to a GlareDB Cloud deployment.
-    #[clap(short = 'c', long, value_parser)]
-    pub cloud_url: Option<Url>,
-
-    /// Ignores the proxy and directly goes to the server for remote execution.
-    ///
-    /// (Internal)
-    ///
-    /// Note that:
-    /// * `cloud_url` in this case should be a valid HTTP RPC URL (`--rpc-bind`
-    ///   for the server).
-    /// * Server should be started with `--allow-client-rpc-init` arg as well.
-    #[clap(long, hide = true)]
-    pub ignore_rpc_auth: bool,
-
-    /// Display output mode.
-    #[arg(long, value_enum, default_value_t=OutputMode::Table)]
-    pub mode: OutputMode,
-
-    /// Max width for tables to display.
-    #[clap(long)]
-    pub width: Option<usize>,
-
-    /// Max number of rows to display.
-    #[arg(long)]
-    pub max_rows: Option<usize>,
-
-    /// Max number of columns to display.
-    #[arg(long)]
-    pub max_columns: Option<usize>,
-}
-
-impl LocalClientOpts {
-    fn help_string() -> Result<String> {
-        let pairs = [
-            ("\\help", "Show this help text"),
-            (
-                "\\mode MODE",
-                "Set the output mode [table, json, ndjson, csv]",
-            ),
-            ("\\max-rows NUM", "Max number of rows to display"),
-            ("\\max-columns NUM", "Max number of columns to display"),
-            ("\\open PATH", "Open a database at the given path"),
-            ("\\quit", "Quit this session"),
-        ];
-
-        let mut buf = String::new();
-        for (cmd, help) in pairs {
-            writeln!(&mut buf, "{cmd: <15} {help}")?;
-        }
-
-        Ok(buf)
-    }
-}
 
 #[derive(Debug, Clone, Copy)]
 enum ClientCommandResult {
@@ -158,10 +75,21 @@ impl LocalSession {
         .await?;
 
         let sess = if let Some(url) = opts.cloud_url.clone() {
-            let exec_client = if opts.ignore_rpc_auth {
-                RemoteClient::connect(url).await?
+            let (exec_client, info_msg) = if opts.ignore_rpc_auth {
+                let u = &url.to_string();
+                (
+                    RemoteClient::connect(url).await?,
+                    format!("Connected to remote GlareDB server: {}", u.cyan()),
+                )
             } else {
-                RemoteClient::connect_with_proxy_destination(url.try_into()?).await?
+                let client = RemoteClient::connect_with_proxy_destination(url.try_into()?).await?;
+
+                let msg = format!(
+                    "Connected to Cloud deployment: {}",
+                    client.get_deployment_name().cyan()
+                );
+
+                (client, msg)
             };
             let mut sess = engine
                 .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
@@ -169,11 +97,7 @@ impl LocalSession {
             sess.attach_remote_session(exec_client.clone(), None)
                 .await?;
 
-            let info = format!(
-                "Connected to Cloud deployment: {}",
-                exec_client.get_deployment_name()
-            );
-            println!("{}", info.bold());
+            println!("{}", info_msg);
 
             sess
         } else {
@@ -206,28 +130,30 @@ impl LocalSession {
     }
 
     async fn run_interactive(&mut self) -> Result<()> {
+        let info = match (&self.opts.metastore_addr, &self.opts.data_dir) {
+            (Some(addr), None) => {
+                format!("Persisting catalog on remote metastore: {}", addr.bold())
+            } // TODO: Should we continue to allow this?
+            (None, Some(path)) => format!("Persisting database at path: {}", path.display()),
+            (None, None) => "Using in-memory catalog".to_string(),
+            _ => unreachable!(),
+        };
+
+        println!("{info}");
+
+        println!("Type {} for help.", "\\help".bold().italic());
+
         let history = Box::new(
             FileBackedHistory::with_file(100, get_history_path())
                 .expect("Error configuring history with file"),
         );
 
-        let mut line_editor = Reedline::create().with_history(history);
-
-        line_editor = line_editor
+        let mut line_editor = Reedline::create()
+            .with_history(history)
             .with_hinter(Box::new(SQLHinter::new()))
             .with_highlighter(Box::new(SQLHighlighter))
             .with_validator(Box::new(SQLValidator));
 
-        println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
-        println!("Type \\help for help.");
-
-        let info = match (&self.opts.metastore_addr, &self.opts.data_dir) {
-            (Some(addr), None) => format!("Persisting catalog on remote metastore: {addr}"), // TODO: Should we continue to allow this?
-            (None, Some(path)) => format!("Persisting database at path: {}", path.display()),
-            (None, None) => "Using in-memory catalog".to_string(),
-            _ => unreachable!(),
-        };
-        println!("{}", info.bold());
         let prompt = SQLPrompt {};
         let mut scratch = String::with_capacity(1024);
 
