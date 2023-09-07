@@ -30,8 +30,7 @@ impl MetastoreClientMode {
                 "Only one of metastore address or metastore path may be provided."
             )),
             (Some(addr), None) => Ok(MetastoreClientMode::Remote { addr }),
-            (_, Some(path)) => Ok(MetastoreClientMode::LocalDisk { path }),
-            (_, _) => Ok(MetastoreClientMode::LocalInMemory),
+            _ => Self::new_local(local_path),
         }
     }
 
