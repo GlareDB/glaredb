@@ -25,7 +25,7 @@ impl MetastoreClientMode {
         }
     }
     pub fn new_from_options(addr: Option<String>, local_path: Option<PathBuf>) -> Result<Self> {
-        match (addr, local_path) {
+        match (addr, &local_path) {
             (Some(_), Some(_)) => Err(anyhow!(
                 "Only one of metastore address or metastore path may be provided."
             )),
