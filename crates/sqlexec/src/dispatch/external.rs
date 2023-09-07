@@ -412,7 +412,11 @@ impl<'a> ExternalDispatcher<'a> {
 
         let ft: FileType = file_type.parse()?;
         let ft: Arc<dyn FileFormat> = match ft {
-            FileType::CSV => Arc::new(CsvFormat::default().with_file_compression_type(compression)),
+            FileType::CSV => Arc::new(
+                CsvFormat::default()
+                    .with_file_compression_type(compression)
+                    .with_schema_infer_max_rec(Some(20480)),
+            ),
             FileType::PARQUET => Arc::new(ParquetFormat::default()),
             FileType::JSON => {
                 Arc::new(JsonFormat::default().with_file_compression_type(compression))
