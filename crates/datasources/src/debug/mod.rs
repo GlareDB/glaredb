@@ -6,7 +6,7 @@ use crate::common::listing::VirtualLister;
 use async_trait::async_trait;
 use datafusion::arrow::array::Int32Array;
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
+    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
 };
 use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -157,6 +157,25 @@ impl VirtualLister for DebugVirtualLister {
     async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
         let tables = (0..2).map(|i| format!("{schema}_table_{i}")).collect();
         Ok(tables)
+    }
+
+    async fn list_columns(
+        &self,
+        schema: &str,
+        table: &str,
+    ) -> Result<Fields, DatasourceCommonError> {
+        Ok((0..2)
+            .map(|i| {
+                let name = format!("{schema}_{table}_col_{i}");
+                let datatype = if i % 2 == 0 {
+                    DataType::Utf8
+                } else {
+                    DataType::Int64
+                };
+                let nullable = i % 2 == 0;
+                Field::new(name, datatype, nullable)
+            })
+            .collect())
     }
 }
 

@@ -27,7 +27,7 @@ use self::mysql::ReadMysql;
 use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
-use self::virtual_listing::{ListSchemas, ListTables};
+use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
 
 /// Builtin table returning functions available for all sessions.
 pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
@@ -58,6 +58,7 @@ impl BuiltinTableFuncs {
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),
+            Arc::new(ListColumns),
             // Series generating
             Arc::new(GenerateSeries),
         ];

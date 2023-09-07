@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use datafusion::arrow::array::StringArray;
+use datafusion::arrow::array::{BooleanBuilder, StringArray, StringBuilder};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
@@ -30,6 +30,7 @@ impl TableFunc for ListSchemas {
         // Currently all of our db's are "external" so it'd never be preferred to run this locally.
         RuntimePreference::Remote
     }
+
     fn name(&self) -> &str {
         "list_schemas"
     }
@@ -76,6 +77,7 @@ impl TableFunc for ListTables {
         // Currently all of our db's are "external" so it'd never be preferred to run this locally.
         RuntimePreference::Remote
     }
+
     fn name(&self) -> &str {
         "list_tables"
     }
@@ -114,6 +116,82 @@ impl TableFunc for ListTables {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ListColumns;
+
+#[async_trait]
+impl TableFunc for ListColumns {
+    fn runtime_preference(&self) -> RuntimePreference {
+        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
+        RuntimePreference::Remote
+    }
+
+    fn name(&self) -> &str {
+        "list_columns"
+    }
+
+    async fn create_provider(
+        &self,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        match args.len() {
+            3 => {
+                let mut args = args.into_iter();
+                let database: IdentValue = args.next().unwrap().param_into()?;
+                let schema_name: IdentValue = args.next().unwrap().param_into()?;
+                let table_name: IdentValue = args.next().unwrap().param_into()?;
+
+                let fields = vec![
+                    Field::new("column_name", DataType::Utf8, false),
+                    Field::new("data_type", DataType::Utf8, false),
+                    Field::new("nullable", DataType::Boolean, false),
+                ];
+                let schema = Arc::new(Schema::new(fields));
+
+                let lister = get_db_lister(ctx, database.into()).await?;
+                let columns_list = lister
+                    .list_columns(schema_name.as_str(), table_name.as_str())
+                    .await
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+
+                let (mut column_name_list, (mut data_type_list, mut nullable_list)): (
+                    StringBuilder,
+                    (StringBuilder, BooleanBuilder),
+                ) = columns_list
+                    .into_iter()
+                    .map(|field| {
+                        (
+                            Some(field.name().to_owned()),
+                            (
+                                Some(field.data_type().to_string()),
+                                Some(field.is_nullable()),
+                            ),
+                        )
+                    })
+                    .unzip();
+
+                let batch = RecordBatch::try_new(
+                    Arc::clone(&schema),
+                    vec![
+                        Arc::new(column_name_list.finish()),
+                        Arc::new(data_type_list.finish()),
+                        Arc::new(nullable_list.finish()),
+                    ],
+                )
+                .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+
+                let provider = MemTable::try_new(schema, vec![vec![batch]])
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+
+                Ok(Arc::new(provider))
+            }
+            _ => Err(ExtensionError::InvalidNumArgs),
+        }
+    }
+}
+
 async fn get_db_lister(
     ctx: &dyn TableFuncContextProvider,
     dbname: String,
@@ -126,7 +204,12 @@ async fn get_db_lister(
         })?;
 
     let lister: Box<dyn VirtualLister> = match &db.options {
-        DatabaseOptions::Internal(_) => unimplemented!(), // TODO: https://github.com/GlareDB/glaredb/issues/1153
+        DatabaseOptions::Internal(_) => {
+            // TODO: https://github.com/GlareDB/glaredb/issues/1153
+            return Err(ExtensionError::Unimplemented(
+                "native table information listing",
+            ));
+        }
         DatabaseOptions::Debug(_) => Box::new(DebugVirtualLister),
         DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
             // TODO: We're not using the configured tunnel?

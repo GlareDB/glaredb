@@ -187,13 +187,17 @@ impl VirtualLister for BigQueryAccessor {
         Ok(schemas)
     }
 
-    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
+    async fn list_tables(&self, dataset_id: &str) -> Result<Vec<String>, DatasourceCommonError> {
         use DatasourceCommonError::ListingErrBoxed;
 
         let tables = self
             .metadata
             .table()
-            .list(&self.gcp_project_id, schema, table::ListOptions::default())
+            .list(
+                &self.gcp_project_id,
+                dataset_id,
+                table::ListOptions::default(),
+            )
             .await
             .map_err(|e| ListingErrBoxed(Box::new(BigQueryError::from(e))))?;
 
@@ -205,6 +209,26 @@ impl VirtualLister for BigQueryAccessor {
             .collect();
 
         Ok(tables)
+    }
+
+    async fn list_columns(
+        &self,
+        dataset_id: &str,
+        table_id: &str,
+    ) -> Result<Fields, DatasourceCommonError> {
+        use DatasourceCommonError::ListingErrBoxed;
+
+        let table_meta = self
+            .metadata
+            .table()
+            .get(&self.gcp_project_id, dataset_id, table_id, None)
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        let schema = bigquery_table_to_arrow_schema(&table_meta)
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        Ok(schema.fields)
     }
 }
 

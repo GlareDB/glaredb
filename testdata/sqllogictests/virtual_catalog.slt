@@ -17,5 +17,13 @@ SELECT * FROM list_tables(virt_cat, debug_schema);
 debug_schema_table_0
 debug_schema_table_1
 
+# Test list_columns
+
+query TTT
+SELECT * FROM list_columns(virt_cat, debug_schema, "DebugTable");
+----
+debug_schema_DebugTable_col_0	Utf8	t
+debug_schema_DebugTable_col_1	Int64	f
+
 statement ok
 DROP DATABASE virt_cat;

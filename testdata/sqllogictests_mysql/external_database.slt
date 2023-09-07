@@ -46,5 +46,16 @@ SELECT table_name
 ----
 bikeshare_stations
 
+query TTT rowsort
+SELECT column_name, data_type, nullable
+	FROM list_columns(external_database, glaredb_test, bikeshare_stations)
+	WHERE data_type = 'Int32';
+----
+city_asset_number	Int32	t
+council_district	Int32	t
+footprint_length	Int32	t
+number_of_docks		Int32	t
+station_id			Int32	t
+
 statement ok
 DROP DATABASE external_database;

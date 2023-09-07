@@ -10,6 +10,7 @@ use crate::common::errors::DatasourceCommonError;
 use crate::common::listing::VirtualLister;
 use crate::common::util;
 use async_trait::async_trait;
+use datafusion::arrow::datatypes::Fields;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
@@ -99,15 +100,17 @@ impl SnowflakeAccessor {
         let _res = accessor.conn.query_sync(query, vec![]).await?;
 
         // Get table schema
-        accessor.get_table_schema(table_access).await
+        accessor
+            .get_table_schema(&table_access.schema_name, &table_access.table_name)
+            .await
     }
 
-    async fn get_table_schema(&self, table_access: &SnowflakeTableAccess) -> Result<ArrowSchema> {
+    async fn get_table_schema(&self, schema_name: &str, table_name: &str) -> Result<ArrowSchema> {
         // Snowflake stores data as upper-case. Maybe this won't be an issue
         // when we use bindings but for now, manually transform everything to
         // uppercase values.
-        let table_schema = table_access.schema_name.to_uppercase();
-        let table_name = table_access.table_name.to_uppercase();
+        let table_schema = schema_name.to_uppercase();
+        let table_name = table_name.to_uppercase();
 
         let res = self
             .conn
@@ -174,7 +177,9 @@ WHERE
         table_access: SnowflakeTableAccess,
         predicate_pushdown: bool,
     ) -> Result<SnowflakeTableProvider> {
-        let arrow_schema = self.get_table_schema(&table_access).await?;
+        let arrow_schema = self
+            .get_table_schema(&table_access.schema_name, &table_access.table_name)
+            .await?;
 
         Ok(SnowflakeTableProvider {
             predicate_pushdown,
@@ -264,6 +269,21 @@ impl VirtualLister for SnowflakeAccessor {
         }
 
         Ok(tables_list)
+    }
+
+    async fn list_columns(
+        &self,
+        schema_name: &str,
+        table_name: &str,
+    ) -> Result<Fields, DatasourceCommonError> {
+        use DatasourceCommonError::ListingErrBoxed;
+
+        let schema = self
+            .get_table_schema(schema_name, table_name)
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        Ok(schema.fields)
     }
 }
 

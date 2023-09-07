@@ -23,10 +23,21 @@ ${BIGQUERY_DATASET_ID}
 
 query T
 SELECT table_name
-	FROM list_tables(external_db, ${BIGQUERY_DATASET_ID})
+	FROM list_tables(external_db, "${BIGQUERY_DATASET_ID}")
 	WHERE table_name = 'bikeshare_stations';
 ----
 bikeshare_stations
+
+query TTT rowsort
+SELECT column_name, data_type, nullable
+	FROM list_columns(external_db, "${BIGQUERY_DATASET_ID}", bikeshare_stations)
+	WHERE data_type = 'Int64';
+----
+city_asset_number	Int64	t
+council_district	Int64	t
+footprint_length	Int64	t
+number_of_docks		Int64	t
+station_id			Int64	t
 
 statement ok
 DROP DATABASE external_db;

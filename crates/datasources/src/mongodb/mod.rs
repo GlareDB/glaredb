@@ -12,7 +12,7 @@ use infer::TableSampler;
 use crate::common::errors::DatasourceCommonError;
 use crate::common::listing::VirtualLister;
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
+use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DatafusionResult;
 use datafusion::execution::context::SessionState;
@@ -158,16 +158,34 @@ impl VirtualLister for MongoAccessor {
         Ok(databases)
     }
 
-    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
+    async fn list_tables(&self, database: &str) -> Result<Vec<String>, DatasourceCommonError> {
         use DatasourceCommonError::ListingErrBoxed;
 
-        let database = self.client.database(schema);
+        let database = self.client.database(database);
         let collections = database
             .list_collection_names(/* filter: */ None)
             .await
             .map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
         Ok(collections)
+    }
+
+    async fn list_columns(
+        &self,
+        database: &str,
+        collection: &str,
+    ) -> Result<Fields, DatasourceCommonError> {
+        use DatasourceCommonError::ListingErrBoxed;
+
+        let collection = self.client.database(database).collection(collection);
+        let sampler = TableSampler::new(collection);
+
+        let schema = sampler
+            .infer_schema_from_sample()
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        Ok(schema.fields)
     }
 }
 

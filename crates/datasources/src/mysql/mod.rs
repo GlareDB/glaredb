@@ -15,7 +15,7 @@ use async_stream::stream;
 use async_trait::async_trait;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
@@ -187,19 +187,13 @@ impl MysqlAccessor {
         Ok(())
     }
 
-    pub async fn into_table_provider(
-        mut self,
-        table_access: MysqlTableAccess,
-        predicate_pushdown: bool,
-    ) -> Result<MysqlTableProvider> {
-        let conn = self.conn.get_mut();
+    /// Get the arrow schema for the MySQL table.
+    async fn get_table_schema(&self, schema: &str, table: &str) -> Result<ArrowSchema> {
+        let mut conn = self.conn.write().await;
 
         let cols = conn
             .exec_iter(
-                format!(
-                    "SELECT * FROM {}.{} where false",
-                    table_access.schema, table_access.name
-                ),
+                format!("SELECT * FROM {}.{} where false", schema, table),
                 (),
             )
             .await?;
@@ -207,7 +201,17 @@ impl MysqlAccessor {
 
         // Genrate arrow schema from table schema
         let arrow_schema = try_create_arrow_schema(cols)?;
-        trace!(?arrow_schema);
+        Ok(arrow_schema)
+    }
+
+    pub async fn into_table_provider(
+        self,
+        table_access: MysqlTableAccess,
+        predicate_pushdown: bool,
+    ) -> Result<MysqlTableProvider> {
+        let arrow_schema = self
+            .get_table_schema(&table_access.schema, &table_access.name)
+            .await?;
 
         Ok(MysqlTableProvider {
             predicate_pushdown,
@@ -260,6 +264,21 @@ impl VirtualLister for MysqlAccessor {
             .map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
         Ok(cols)
+    }
+
+    async fn list_columns(
+        &self,
+        schema: &str,
+        table: &str,
+    ) -> Result<Fields, DatasourceCommonError> {
+        use DatasourceCommonError::ListingErrBoxed;
+
+        let schema = self
+            .get_table_schema(schema, table)
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        Ok(schema.fields)
     }
 }
 
