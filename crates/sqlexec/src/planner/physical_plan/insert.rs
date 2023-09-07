@@ -128,14 +128,7 @@ impl InsertExec {
             .get_temp_table_provider(&self.table.meta.name)
             .ok_or_else(|| DataFusionError::Execution("missing temp table".to_string()))?;
 
-        // InsertExec for mem table expects only a single input partition.
-        let source = if self.source.output_partitioning().partition_count() != 1 {
-            Arc::new(CoalescePartitionsExec::new(self.source))
-        } else {
-            self.source
-        };
-
-        Self::do_insert(provider, source, context).await
+        Self::do_insert(provider, self.source, context).await
     }
 
     pub async fn do_insert(
@@ -145,6 +138,12 @@ impl InsertExec {
     ) -> DataFusionResult<RecordBatch> {
         let state =
             SessionState::with_config_rt(context.session_config().clone(), context.runtime_env());
+
+        let source = if source.output_partitioning().partition_count() != 1 {
+            Arc::new(CoalescePartitionsExec::new(source))
+        } else {
+            source
+        };
 
         let exec = table.insert_into(&state, source, false).await?;
 
