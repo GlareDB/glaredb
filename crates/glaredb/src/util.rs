@@ -18,6 +18,12 @@ pub enum MetastoreClientMode {
 }
 
 impl MetastoreClientMode {
+    pub fn new_local(local_path: Option<PathBuf>) -> Result<Self> {
+        match local_path {
+            Some(path) => Ok(MetastoreClientMode::LocalDisk { path }),
+            None => Ok(MetastoreClientMode::LocalInMemory),
+        }
+    }
     pub fn new_from_options(addr: Option<String>, local_path: Option<PathBuf>) -> Result<Self> {
         match (addr, local_path) {
             (Some(_), Some(_)) => Err(anyhow!(

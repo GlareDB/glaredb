@@ -15,12 +15,6 @@ pub struct LocalArgs {
 
 #[derive(Debug, Clone, Parser)]
 pub struct LocalClientOpts {
-    /// Address to the Metastore.
-    ///
-    /// If not provided, an in-process metastore will be started.
-    #[clap(short, long, value_parser)]
-    pub metastore_addr: Option<String>,
-
     /// Path to spill temporary files to.
     #[clap(long, value_parser)]
     pub spill_path: Option<PathBuf>,
