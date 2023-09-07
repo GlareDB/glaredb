@@ -47,17 +47,8 @@ pub struct LocalSession {
 
 impl LocalSession {
     pub async fn connect(opts: LocalClientOpts) -> Result<Self> {
-        if opts.metastore_addr.is_some() && opts.data_dir.is_some() {
-            return Err(anyhow!(
-                "Cannot specify both a metastore address and a local file path"
-            ));
-        }
-
         // Connect to metastore.
-        let mode = MetastoreClientMode::new_from_options(
-            opts.metastore_addr.clone(),
-            opts.data_dir.clone(),
-        )?;
+        let mode = MetastoreClientMode::new_local(opts.data_dir.clone())?;
         let metastore_client = mode.into_client().await?;
         let tracker = Arc::new(Tracker::Nop);
 
@@ -130,13 +121,9 @@ impl LocalSession {
     }
 
     async fn run_interactive(&mut self) -> Result<()> {
-        let info = match (&self.opts.metastore_addr, &self.opts.data_dir) {
-            (Some(addr), None) => {
-                format!("Persisting catalog on remote metastore: {}", addr.bold())
-            } // TODO: Should we continue to allow this?
-            (None, Some(path)) => format!("Persisting database at path: {}", path.display()),
-            (None, None) => "Using in-memory catalog".to_string(),
-            _ => unreachable!(),
+        let info = match &self.opts.data_dir {
+            Some(path) => format!("Persisting database at path: {}", path.display()),
+            None => "Using in-memory catalog".to_string(),
         };
 
         println!("{info}");
@@ -262,7 +249,6 @@ impl LocalSession {
                 if let Ok(url) = Url::parse(path) {
                     let new_opts = LocalClientOpts {
                         data_dir: None,
-                        metastore_addr: None,
                         cloud_url: Some(url),
                         ..self.opts.clone()
                     };
@@ -271,7 +257,6 @@ impl LocalSession {
                 } else {
                     let new_opts = LocalClientOpts {
                         data_dir: Some(PathBuf::from(path)),
-                        metastore_addr: None,
                         cloud_url: None,
                         ..self.opts.clone()
                     };
