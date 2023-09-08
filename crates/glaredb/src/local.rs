@@ -290,6 +290,7 @@ async fn print_stream(
     max_rows: Option<usize>,
     max_columns: Option<usize>,
 ) -> Result<()> {
+    let schema = stream.schema();
     let batches = process_stream(stream).await?;
 
     fn write_json<F: JsonFormat>(batches: &[RecordBatch]) -> Result<()> {
@@ -310,7 +311,8 @@ async fn print_stream(
             // If width not explicitly set by the user, try to get the width of ther
             // terminal.
             let width = width.unwrap_or(term_width());
-            let disp = pretty_format_batches(&batches, Some(width), max_rows, max_columns)?;
+            let disp =
+                pretty_format_batches(&schema, &batches, Some(width), max_rows, max_columns)?;
             println!("{disp}");
         }
         OutputMode::Csv => {

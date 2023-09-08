@@ -1,5 +1,5 @@
 use comfy_table::{Cell, ColumnConstraint, ContentArrangement, Table};
-use datafusion::arrow::datatypes::{DataType, Field, TimeUnit};
+use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow::util::display::{ArrayFormatter, FormatOptions};
@@ -19,12 +19,20 @@ static TABLE_FORMAT_OPTS: Lazy<FormatOptions> = Lazy::new(|| {
 
 /// Pretty format record batches.
 pub fn pretty_format_batches(
+    schema: &Schema,
     batches: &[RecordBatch],
     width: Option<usize>,
     max_rows: Option<usize>,
     max_columns: Option<usize>,
 ) -> Result<impl Display, ArrowError> {
-    create_table(batches, &TABLE_FORMAT_OPTS, width, max_rows, max_columns)
+    create_table(
+        schema,
+        batches,
+        &TABLE_FORMAT_OPTS,
+        width,
+        max_rows,
+        max_columns,
+    )
 }
 
 fn default_table() -> Table {
@@ -35,24 +43,21 @@ fn default_table() -> Table {
 }
 
 fn create_table(
+    schema: &Schema,
     batches: &[RecordBatch],
     opts: &FormatOptions,
     width: Option<usize>,
     max_rows: Option<usize>,
     max_columns: Option<usize>,
 ) -> Result<Table, ArrowError> {
-    if batches.is_empty() || batches[0].schema().fields().is_empty() {
-        return Ok(default_table());
-    }
-    let num_columns = batches[0].num_columns();
+    let num_columns = schema.fields.len();
     let total_rows = batches.iter().map(|b| b.num_rows()).sum::<usize>();
     let str_truncate = 32;
     let mut max_cols = max_columns.unwrap_or_else(|| {
         if let Some(width) = width {
             // sum the length of all the column names
             // and divide by the number of columns
-            let avg_colum_len = batches[0]
-                .schema()
+            let avg_colum_len = schema
                 .fields()
                 .iter()
                 .map(|f| f.name().len())
@@ -115,7 +120,7 @@ fn create_table(
 
     process_header(
         &mut table,
-        &batches[0],
+        schema,
         column_ranges.clone(),
         reduce_columns,
         str_truncate,
@@ -226,12 +231,11 @@ fn field_to_str(f: &Field, str_truncate: usize) -> String {
 
 fn process_header(
     table: &mut Table,
-    batch: &RecordBatch,
+    schema: &Schema,
     column_ranges: (Range<usize>, Range<usize>),
     reduce_columns: bool,
     str_truncate: usize,
 ) -> Result<(), ArrowError> {
-    let schema = batch.schema();
     let fields = schema.fields();
     let first_range = &fields[column_ranges.0];
     let second_range = &fields[column_ranges.1];
