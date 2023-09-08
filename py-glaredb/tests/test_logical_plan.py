@@ -8,7 +8,7 @@ def test_compose():
     con.execute("insert into tbl values (1, 2);")
     con.execute("insert into tbl values (3, 4);")
     con.execute("insert into tbl values (5, 6);")
-    intermediate = con.sql("select * from tbl where a > 2;")
+    intermediate = con.sql("select * from tbl where a > 2 order by a;")
     out_1 = intermediate.to_arrow().to_pydict()
     expected = {"a": [3, 5], "b": [4, 6]}
     assert out_1 == expected
