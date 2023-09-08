@@ -6,7 +6,9 @@ use mongodb::Collection;
 use std::collections::HashMap;
 
 const SAMPLE_PCT: f32 = 0.01;
+
 const MAX_SAMPLE_SIZE: usize = 30;
+const MIN_SAMPLE_SIZE: usize = 10;
 
 /// Recursion limit for inferring the schema for nested documents.
 const RECURSION_LIMIT: usize = 5;
@@ -30,14 +32,7 @@ impl TableSampler {
     #[tracing::instrument(skip(self))]
     pub async fn infer_schema_from_sample(&self) -> Result<ArrowSchema> {
         let count = self.collection.estimated_document_count(None).await?;
-        let mut sample_count = (count as f32 * SAMPLE_PCT) as i64;
-        if sample_count as usize > MAX_SAMPLE_SIZE {
-            sample_count = MAX_SAMPLE_SIZE as i64;
-        }
-        // Very small table.
-        if sample_count == 0 {
-            sample_count = MAX_SAMPLE_SIZE as i64;
-        }
+        let sample_count = Self::sample_size(count as usize) as i64;
 
         let sample_pipeline = [doc! {
             "$sample": {"size": sample_count}
@@ -51,13 +46,27 @@ impl TableSampler {
             schemas.push(schema);
         }
 
-        // Note that we're not using `try_merge` since that errors on type
-        // mismatch. Since mongo is schemaless, we want to be best effort with
-        // defining a schema, so we merge schemas in such a way that each field
-        // has its data type set to the "widest" type that we encountered.
+        // Note that we're not using arrow's `try_merge` since that errors on
+        // type mismatch. Since mongo is schemaless, we want to be best effort
+        // with defining a schema, so we merge schemas in such a way that each
+        // field has its data type set to the "widest" type that we encountered.
         let merged = merge_schemas(schemas)?;
 
         Ok(merged)
+    }
+
+    fn sample_size(doc_count: usize) -> usize {
+        let mut sample_count = (doc_count as f32 * SAMPLE_PCT) as usize;
+        if sample_count > MAX_SAMPLE_SIZE {
+            sample_count = MAX_SAMPLE_SIZE;
+        }
+
+        // Very small table.
+        if sample_count < MIN_SAMPLE_SIZE {
+            sample_count = MIN_SAMPLE_SIZE;
+        }
+
+        sample_count
     }
 }
 
