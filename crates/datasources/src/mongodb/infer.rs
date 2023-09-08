@@ -11,6 +11,7 @@ const MAX_SAMPLE_SIZE: usize = 30;
 /// Recursion limit for inferring the schema for nested documents.
 const RECURSION_LIMIT: usize = 5;
 
+/// Sample a table to allow inferring the table's schema.
 pub struct TableSampler {
     collection: Collection<Document>,
 }
@@ -20,6 +21,12 @@ impl TableSampler {
         TableSampler { collection }
     }
 
+    /// Infer the schema by sampling the table.
+    ///
+    /// This will map bson value types to arrow data types, attempting to widen
+    /// to the widest type encountered. For example, if we encounter an "Int64"
+    /// and a "Utf8", the type will be automatically widened to "Utf8" in the
+    /// final schema.
     #[tracing::instrument(skip(self))]
     pub async fn infer_schema_from_sample(&self) -> Result<ArrowSchema> {
         let count = self.collection.estimated_document_count(None).await?;
@@ -81,7 +88,21 @@ fn fields_from_document(depth: usize, doc: &Document) -> Result<Vec<Field>> {
 fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
     let arrow_typ = match bson {
         Bson::Double(_) => DataType::Float64,
-        Bson::String(_) => DataType::Utf8,
+        Bson::String(val) => {
+            if val.is_empty() {
+                // TODO: We'll want to determine if this is something we should
+                // keep in. Currently when we load in the test file, we're
+                // loading a csv that might have empty values (null). Mongo
+                // reads those in and puts them as empty strings.
+                //
+                // During schema merges, we'll widen "null" types to whatever
+                // type we're merging with. This _should_ be more resilient to
+                // empty values.
+                DataType::Null
+            } else {
+                DataType::Utf8
+            }
+        }
         Bson::Array(_) => DataType::Utf8, // TODO: Proper type.
         Bson::Document(nested) => {
             let fields = fields_from_document(depth + 1, nested)?;
@@ -133,7 +154,22 @@ fn merge_schemas(schemas: impl IntoIterator<Item = ArrowSchema>) -> Result<Arrow
     let mut fields: Vec<_> = fields.into_values().collect();
     fields.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
-    let fields: Vec<_> = fields.into_iter().map(|f| f.1).collect();
+    // Collect all fields.
+    //
+    // Note there's special handling for null types in that we'll just set those
+    // to strings since we're able to handle that better when actually building
+    // the columns.
+    let fields: Vec<_> = fields
+        .into_iter()
+        .map(|f| {
+            if f.1.data_type() == &DataType::Null {
+                f.1.with_data_type(DataType::Utf8)
+            } else {
+                f.1
+            }
+        })
+        .collect();
+
     Ok(ArrowSchema::new(fields))
 }
 
