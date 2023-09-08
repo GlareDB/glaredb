@@ -27,7 +27,9 @@ pub struct LocalClientOpts {
     #[clap(short = 'f', long, value_parser)]
     pub data_dir: Option<PathBuf>,
 
-    /// URL for connecting to a GlareDB Cloud deployment or self hosted server.
+    /// URL for connecting to a GlareDB Cloud deployment.
+    ///
+    /// Has the form of glaredb://user:pass@host:port/deployment
     #[clap(short = 'c', long, value_parser)]
     pub cloud_url: Option<Url>,
 
