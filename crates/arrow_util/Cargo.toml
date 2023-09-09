@@ -9,3 +9,4 @@ edition.workspace = true
 datafusion = { workspace = true }
 comfy-table = "7.0.1"
 once_cell = "1.18.0"
+textwrap = { version = "0.16.0", default-features = false, features = ["unicode-width"] }
