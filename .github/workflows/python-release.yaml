@@ -31,7 +31,7 @@ jobs:
         run: just protoc
       - uses: actions/setup-python@v4
         with:
-          python-version: {{ env.PYTHON_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
