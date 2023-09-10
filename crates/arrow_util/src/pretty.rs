@@ -113,7 +113,7 @@ impl PrettyTable {
 
         let mut header_vals: Vec<_> = col_headers.iter().map(|h| h.formatted_string()).collect();
         if has_ellided {
-            header_vals.insert(header_vals.len() / 2, "…".to_string());
+            header_vals.insert(elide_index(&header_vals), "…".to_string());
         }
         table.set_header(header_vals);
 
@@ -126,7 +126,7 @@ impl PrettyTable {
         // Set column alignments.
         let mut alignments: Vec<_> = col_headers.iter().map(|h| h.alignment).collect();
         if has_ellided {
-            alignments.insert(alignments.len() / 2, CellAlignment::Left);
+            alignments.insert(elide_index(&alignments), CellAlignment::Left);
         }
         for (col, alignment) in table.column_iter_mut().zip(alignments.into_iter()) {
             col.set_cell_alignment(alignment);
@@ -535,7 +535,7 @@ fn process_batch(
         }
 
         if format.has_ellided() {
-            cells.insert(cells.len() / 2, "…".to_string());
+            cells.insert(elide_index(&cells), "…".to_string());
         }
 
         table.add_row(cells);
@@ -544,8 +544,20 @@ fn process_batch(
     Ok(())
 }
 
+/// Return the index where a '...' should be inserted.
+const fn elide_index<T>(v: &[T]) -> usize {
+    let mid = v.len() / 2;
+    if v.len() % 2 == 0 {
+        mid
+    } else {
+        mid + 1
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use datafusion::arrow::array::{Int32Array, StringArray};
+
     use super::*;
 
     #[test]
@@ -573,6 +585,16 @@ mod tests {
                 truncate: 3,
                 expected: "te…",
             },
+            TestCase {
+                input: "hello\nworld",
+                truncate: 8,
+                expected: "hello↵\nworld",
+            },
+            TestCase {
+                input: "hello\nworld",
+                truncate: 3,
+                expected: "he↵\nll↵\no↵\nwo↵\nrl↵\nd",
+            },
         ];
 
         for tc in test_cases {
@@ -581,6 +603,397 @@ mod tests {
             assert_eq!(tc.expected, &s, "test case: {tc:?}");
         }
     }
-}
 
-//  LocalWords:  ellided
+    /// Assert equality and place both values in the assert message for easier
+    /// of test failures.
+    fn assert_eq_print<S: AsRef<str>>(expected: S, got: S) {
+        let expected = expected.as_ref();
+        let got = got.as_ref();
+        assert_eq!(expected, got, "\nexpected:\n{expected}\ngot:\n{got}")
+    }
+
+    #[test]
+    fn simple_no_batches() {
+        let schema = Schema::new(vec![
+            Field::new("a", DataType::Int64, false),
+            Field::new("b", DataType::Utf8, false),
+        ]);
+
+        let table = pretty_format_batches(&schema, &[], None, None).unwrap();
+        let expected = vec![
+            "┌───────┬──────┐",
+            "│     a │ b    │",
+            "│    ── │ ──   │",
+            "│ Int64 │ Utf8 │",
+            "╞═══════╪══════╡",
+            "└───────┴──────┘",
+        ]
+        .join("\n");
+
+        assert_eq_print(expected, table.to_string())
+    }
+
+    #[test]
+    fn simple_single_batch() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("b", DataType::Int32, true),
+        ]));
+
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec![
+                    Some("a"),
+                    Some("b"),
+                    None,
+                    Some("d"),
+                ])),
+                Arc::new(Int32Array::from(vec![Some(1), None, Some(10), Some(100)])),
+            ],
+        )
+        .unwrap();
+
+        let table = pretty_format_batches(&schema, &[batch], None, None).unwrap();
+
+        let expected = vec![
+            "┌──────┬───────┐",
+            "│ a    │     b │",
+            "│ ──   │    ── │",
+            "│ Utf8 │ Int32 │",
+            "╞══════╪═══════╡",
+            "│ a    │     1 │",
+            "│ b    │  NULL │",
+            "│ NULL │    10 │",
+            "│ d    │   100 │",
+            "└──────┴───────┘",
+        ]
+        .join("\n");
+
+        assert_eq_print(expected, table.to_string())
+    }
+
+    #[test]
+    fn multiple_small_batches() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("b", DataType::Int32, true),
+        ]));
+
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec![Some("a")])),
+                Arc::new(Int32Array::from(vec![Some(1)])),
+            ],
+        )
+        .unwrap();
+
+        let batches = vec![batch; 4];
+
+        let table = pretty_format_batches(&schema, &batches, None, None).unwrap();
+
+        let expected = vec![
+            "┌──────┬───────┐",
+            "│ a    │     b │",
+            "│ ──   │    ── │",
+            "│ Utf8 │ Int32 │",
+            "╞══════╪═══════╡",
+            "│ a    │     1 │",
+            "│ a    │     1 │",
+            "│ a    │     1 │",
+            "│ a    │     1 │",
+            "└──────┴───────┘",
+        ]
+        .join("\n");
+
+        assert_eq_print(expected, table.to_string())
+    }
+
+    #[test]
+    fn multiple_small_batches_with_max_rows() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("b", DataType::Int32, true),
+        ]));
+
+        let create_batch = |s, n| {
+            RecordBatch::try_new(
+                schema.clone(),
+                vec![
+                    Arc::new(StringArray::from(vec![Some(s)])),
+                    Arc::new(Int32Array::from(vec![Some(n)])),
+                ],
+            )
+            .unwrap()
+        };
+
+        let batches = vec![
+            create_batch("a", 1),
+            create_batch("b", 2),
+            create_batch("c", 3),
+            create_batch("d", 4),
+            create_batch("e", 5),
+            create_batch("f", 6),
+        ];
+
+        let table = pretty_format_batches(&schema, &batches, None, Some(4)).unwrap();
+
+        let expected = vec![
+            "┌──────┬───────┐",
+            "│ a    │     b │",
+            "│ ──   │    ── │",
+            "│ Utf8 │ Int32 │",
+            "╞══════╪═══════╡",
+            "│ a    │     1 │",
+            "│ b    │     2 │",
+            "│ …    │     … │",
+            "│ e    │     5 │",
+            "│ f    │     6 │",
+            "└──────┴───────┘",
+            " 6 rows (4 shown)",
+        ]
+        .join("\n");
+
+        assert_eq_print(expected, table.to_string())
+    }
+
+    #[test]
+    fn large_batch_with_max_rows() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("b", DataType::Int32, true),
+        ]));
+
+        let a_vals: Vec<_> = (0..10).map(|v| Some(v.to_string())).collect();
+        let b_vals: Vec<_> = (0..10).map(|v| Some(v)).collect();
+
+        let batches = vec![RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(a_vals)),
+                Arc::new(Int32Array::from(b_vals)),
+            ],
+        )
+        .unwrap()];
+
+        let table = pretty_format_batches(&schema, &batches, None, Some(4)).unwrap();
+
+        let expected = vec![
+            "┌──────┬───────┐",
+            "│ a    │     b │",
+            "│ ──   │    ── │",
+            "│ Utf8 │ Int32 │",
+            "╞══════╪═══════╡",
+            "│ 0    │     0 │",
+            "│ 1    │     1 │",
+            "│ …    │     … │",
+            "│ 8    │     8 │",
+            "│ 9    │     9 │",
+            "└──────┴───────┘",
+            " 10 rows (4 shown)",
+        ]
+        .join("\n");
+
+        assert_eq_print(expected, table.to_string())
+    }
+
+    #[test]
+    fn multiple_small_batches_with_max_width_and_long_value() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("b", DataType::Int32, true),
+            Field::new("c", DataType::Utf8, true),
+            Field::new("d", DataType::Utf8, true),
+        ]));
+
+        let create_batch = |a, b, c, d| {
+            RecordBatch::try_new(
+                schema.clone(),
+                vec![
+                    Arc::new(StringArray::from(vec![Some(a)])),
+                    Arc::new(Int32Array::from(vec![Some(b)])),
+                    Arc::new(StringArray::from(vec![Some(c)])),
+                    Arc::new(StringArray::from(vec![Some(d)])),
+                ],
+            )
+            .unwrap()
+        };
+
+        let batches = vec![
+            create_batch("a", 1, "c", "d"),
+            create_batch("a", 2, "ccccc", "d"),
+            create_batch("a", 3, "cccccccccc", "d"),
+            create_batch("a", 4, "cccccccccccccccccc", "d"),
+        ];
+
+        let table = pretty_format_batches(&schema, &batches, Some(40), None).unwrap();
+
+        // Note this doesn't grow great since we're only computing column stats
+        // on the first batch. The next test shows the growth behavior better by
+        // having the first batch have the longest value.
+        let expected = vec![
+            "┌──────┬───────┬──────┬──────┐",
+            "│ a    │     b │ c    │ d    │",
+            "│ ──   │    ── │ ──   │ ──   │",
+            "│ Utf8 │ Int32 │ Utf8 │ Utf8 │",
+            "╞══════╪═══════╪══════╪══════╡",
+            "│ a    │     1 │ c    │ d    │",
+            "│ a    │     2 │ ccc… │ d    │",
+            "│ a    │     3 │ ccc… │ d    │",
+            "│ a    │     4 │ ccc… │ d    │",
+            "└──────┴───────┴──────┴──────┘",
+        ];
+
+        // I'm just copy pasting output I'm getting. This is here to make sure
+        // what's expected is actually correct.
+        assert!(display_width(expected[0]) <= 40);
+
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn multiple_small_batches_with_max_width_and_long_value_first() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("b", DataType::Int32, true),
+            Field::new("c", DataType::Utf8, true),
+            Field::new("d", DataType::Utf8, true),
+        ]));
+
+        let create_batch = |a, b, c, d| {
+            RecordBatch::try_new(
+                schema.clone(),
+                vec![
+                    Arc::new(StringArray::from(vec![Some(a)])),
+                    Arc::new(Int32Array::from(vec![Some(b)])),
+                    Arc::new(StringArray::from(vec![Some(c)])),
+                    Arc::new(StringArray::from(vec![Some(d)])),
+                ],
+            )
+            .unwrap()
+        };
+
+        let batches = vec![
+            create_batch("a", 4, "cccccccccccccccccc", "d"),
+            create_batch("a", 3, "cccccccccc", "d"),
+            create_batch("a", 2, "ccccc", "d"),
+            create_batch("a", 1, "c", "d"),
+        ];
+
+        let table = pretty_format_batches(&schema, &batches, Some(40), None).unwrap();
+
+        let expected = vec![
+            "┌──────┬───────┬────────────────┬──────┐",
+            "│ a    │     b │ c              │ d    │",
+            "│ ──   │    ── │ ──             │ ──   │",
+            "│ Utf8 │ Int32 │ Utf8           │ Utf8 │",
+            "╞══════╪═══════╪════════════════╪══════╡",
+            "│ a    │     4 │ ccccccccccccc… │ d    │",
+            "│ a    │     3 │ cccccccccc     │ d    │",
+            "│ a    │     2 │ ccccc          │ d    │",
+            "│ a    │     1 │ c              │ d    │",
+            "└──────┴───────┴────────────────┴──────┘",
+        ];
+
+        assert!(display_width(expected[0]) <= 40); // See above test.
+
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn multiple_small_batches_with_max_width_and_long_column_name() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("thisisasomewhatlongcolumn", DataType::Int32, true),
+            Field::new("c", DataType::Utf8, true),
+        ]));
+
+        let create_batch = |a, b, c| {
+            RecordBatch::try_new(
+                schema.clone(),
+                vec![
+                    Arc::new(StringArray::from(vec![Some(a)])),
+                    Arc::new(Int32Array::from(vec![Some(b)])),
+                    Arc::new(StringArray::from(vec![Some(c)])),
+                ],
+            )
+            .unwrap()
+        };
+
+        let batches = vec![
+            create_batch("a", 4, "cccccccccccccccccc"),
+            create_batch("a", 3, "cccccccccc"),
+            create_batch("a", 2, "ccccc"),
+            create_batch("a", 1, "c"),
+        ];
+
+        let table = pretty_format_batches(&schema, &batches, Some(40), None).unwrap();
+
+        let expected = vec![
+            "┌──────┬───┬────────────────┐",
+            "│ a    │ … │ c              │",
+            "│ ──   │   │ ──             │",
+            "│ Utf8 │   │ Utf8           │",
+            "╞══════╪═══╪════════════════╡",
+            "│ a    │ … │ ccccccccccccc… │",
+            "│ a    │ … │ cccccccccc     │",
+            "│ a    │ … │ ccccc          │",
+            "│ a    │ … │ c              │",
+            "└──────┴───┴────────────────┘",
+        ];
+
+        assert!(display_width(expected[0]) <= 40);
+
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn multiple_small_batches_with_max_width_and_long_column_name_even_num_cols() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("thisisasomewhatlongcolumn", DataType::Int32, true),
+            Field::new("c", DataType::Utf8, true),
+            Field::new("d", DataType::Utf8, true),
+        ]));
+
+        let create_batch = |a, b, c, d| {
+            RecordBatch::try_new(
+                schema.clone(),
+                vec![
+                    Arc::new(StringArray::from(vec![Some(a)])),
+                    Arc::new(Int32Array::from(vec![Some(b)])),
+                    Arc::new(StringArray::from(vec![Some(c)])),
+                    Arc::new(StringArray::from(vec![Some(d)])),
+                ],
+            )
+            .unwrap()
+        };
+
+        let batches = vec![
+            create_batch("a", 4, "cccccccccccccccccc", "d"),
+            create_batch("a", 3, "cccccccccc", "d"),
+            create_batch("a", 2, "ccccc", "d"),
+            create_batch("a", 1, "c", "d"),
+        ];
+
+        let table = pretty_format_batches(&schema, &batches, Some(40), None).unwrap();
+
+        let expected = vec![
+            "┌──────┬──────────┬───┬──────┐",
+            "│ a    │ thisisa… │ … │ d    │",
+            "│ ──   │       ── │   │ ──   │",
+            "│ Utf8 │    Int32 │   │ Utf8 │",
+            "╞══════╪══════════╪═══╪══════╡",
+            "│ a    │        4 │ … │ d    │",
+            "│ a    │        3 │ … │ d    │",
+            "│ a    │        2 │ … │ d    │",
+            "│ a    │        1 │ … │ d    │",
+            "└──────┴──────────┴───┴──────┘",
+        ];
+
+        assert!(display_width(expected[0]) <= 40);
+
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+}
