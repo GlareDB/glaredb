@@ -52,15 +52,11 @@ pub struct LocalClientOpts {
 
     /// Max width for tables to display.
     #[clap(long)]
-    pub width: Option<usize>,
+    pub max_width: Option<usize>,
 
     /// Max number of rows to display.
     #[arg(long)]
     pub max_rows: Option<usize>,
-
-    /// Max number of columns to display.
-    #[arg(long)]
-    pub max_columns: Option<usize>,
 }
 
 impl LocalClientOpts {
@@ -72,7 +68,10 @@ impl LocalClientOpts {
                 "Set the output mode [table, json, ndjson, csv]",
             ),
             ("\\max-rows NUM", "Max number of rows to display"),
-            ("\\max-columns NUM", "Max number of columns to display"),
+            (
+                "\\max-width NUM",
+                "Maximum width of the output table to display. Defaults to terminal size.",
+            ),
             ("\\open PATH", "Open a database at the given path"),
             ("\\quit", "Quit this session"),
         ];

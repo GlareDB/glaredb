@@ -218,9 +218,8 @@ impl LocalSession {
                     print_stream(
                         stream,
                         self.opts.mode,
-                        self.opts.width,
+                        self.opts.max_width,
                         self.opts.max_rows,
-                        self.opts.max_columns,
                     )
                     .await?
                 }
@@ -244,7 +243,7 @@ impl LocalSession {
                     .map_err(|s| anyhow!("Unable to set output mode: {s}"))?;
             }
             ("\\max-rows", Some(val)) => self.opts.max_rows = Some(val.parse()?),
-            ("\\max-columns", Some(val)) => self.opts.max_rows = Some(val.parse()?),
+            ("\\max-width", Some(val)) => self.opts.max_width = Some(val.parse()?),
             ("\\open", Some(path)) => {
                 if let Ok(url) = Url::parse(path) {
                     let new_opts = LocalClientOpts {
@@ -286,10 +285,10 @@ async fn process_stream(stream: SendableRecordBatchStream) -> Result<Vec<RecordB
 async fn print_stream(
     stream: SendableRecordBatchStream,
     mode: OutputMode,
-    width: Option<usize>,
+    max_width: Option<usize>,
     max_rows: Option<usize>,
-    max_columns: Option<usize>,
 ) -> Result<()> {
+    let schema = stream.schema();
     let batches = process_stream(stream).await?;
 
     fn write_json<F: JsonFormat>(batches: &[RecordBatch]) -> Result<()> {
@@ -309,8 +308,8 @@ async fn print_stream(
         OutputMode::Table => {
             // If width not explicitly set by the user, try to get the width of ther
             // terminal.
-            let width = width.unwrap_or(term_width());
-            let disp = pretty_format_batches(&batches, Some(width), max_rows, max_columns)?;
+            let width = max_width.unwrap_or(term_width());
+            let disp = pretty_format_batches(&schema, &batches, Some(width), max_rows)?;
             println!("{disp}");
         }
         OutputMode::Csv => {
