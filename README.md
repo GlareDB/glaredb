@@ -30,11 +30,7 @@ get the insights you need.
 **GlareDB is designed to query your data wherever it lives using SQL that you
 already know.**
 
-## Getting started
-
-Getting started with local CLI usage, Hybrid Execution and Python!
-
-### Install
+## Install
 
 1. Install/update `glaredb` in the **current directory**:
 
@@ -45,8 +41,17 @@ Getting started with local CLI usage, Hybrid Execution and Python!
    It may be helpful to install the binary in a location on your `PATH`. For
    example, `~/.local/bin`.
 
-   If you prefer manual installation, download, extract and run the GlareDB binary from a release in our
-   [releases page](https://github.com/GlareDB/glaredb/releases).
+   If you prefer manual installation, download, extract and run the GlareDB
+   binary from a release in our [releases page].
+
+## Getting started
+
+After [Installing](#install), get up and running with:
+
+- [**CLI**](#local-cli)
+  - [Run GlareDB server](#local-server)
+- [**Hybrid Execution**](#hybrid-execution)
+- [**Python**](#using-glaredb-in-python)
 
 ### Local CLI
 
@@ -181,8 +186,8 @@ WHERE l_shipdate <= date '1998-12-01' - INTERVAL '90'
 LIMIT 5;
 ```
 
-Check out the docs to learn about all [supported data sources](https://docs.glaredb.com/docs/data-sources/supported/). Many
-data sources can be connected to the same GlareDB instance.
+Check out the docs to learn about all [supported data sources]. Many data
+sources can be connected to the same GlareDB instance.
 
 Done with this data source? Remove it with the following command:
 
@@ -223,7 +228,9 @@ GlareDB is proudly powered by [Apache Datafusion](https://arrow.apache.org/dataf
 [Postgres]: https://docs.glaredb.com/docs/data-sources/supported/postgres.html
 [Snowflake]: https://docs.glaredb.com/docs/data-sources/supported/snowflake.html
 [files in S3]: https://docs.glaredb.com/docs/data-sources/supported/s3
+[releases page]: https://github.com/GlareDB/glaredb/releases
 [announcement on Hybrid Execution]: https://glaredb.com/blog/hybrid-execution
 [GlareDB Python library]: https://pypi.org/project/glaredb/
 [Pandas]: https://github.com/pandas-dev/pandas
 [Polars]: https://github.com/pola-rs/polars
+[supported data sources]: https://docs.glaredb.com/docs/data-sources/supported/
