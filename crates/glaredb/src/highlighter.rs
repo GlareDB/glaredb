@@ -129,6 +129,7 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) -> std::io::Res
                 | Keyword::DELETE
                 | Keyword::VIEW
                 | Keyword::EXCEPT
+                | Keyword::EXPLAIN
                 | Keyword::EXCLUDE => {
                     st.push((new_style().fg(Color::LightGreen), format!("{w}")));
                 }
