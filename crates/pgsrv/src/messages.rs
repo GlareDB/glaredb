@@ -333,12 +333,6 @@ impl<'a> FieldDescriptionBuilder<'a> {
     }
 
     pub fn build(self) -> Result<FieldDescription> {
-        if self.name.is_empty() {
-            return Err(PgSrvError::InternalError(
-                "name of the field in field description cannot be empty".to_string(),
-            ));
-        }
-
         let pg_type = self.pg_type.ok_or(PgSrvError::InternalError(
             "type cannot be `None` in field description".to_string(),
         ))?;
