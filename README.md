@@ -32,17 +32,17 @@ already know.**
 
 ## Install
 
-1. Install/update `glaredb` in the **current directory**:
+Install/update `glaredb` in the **current directory**:
 
-   ```shell
-   curl https://glaredb.com/install.sh | sh
-   ```
+```shell
+curl https://glaredb.com/install.sh | sh
+```
 
-   It may be helpful to install the binary in a location on your `PATH`. For
-   example, `~/.local/bin`.
+It may be helpful to install the binary in a location on your `PATH`. For
+example, `~/.local/bin`.
 
-   If you prefer manual installation, download, extract and run the GlareDB
-   binary from a release in our [releases page].
+If you prefer manual installation, download, extract and run the GlareDB binary
+from a release in our [releases page].
 
 ## Getting started
 
