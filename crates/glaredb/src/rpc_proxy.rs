@@ -1,9 +1,9 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use proxyutil::cloudauth::CloudAuthenticator;
 use rpcsrv::proxy::RpcProxyHandler;
 use std::net::SocketAddr;
-use tonic::transport::Server;
+use tonic::transport::{Identity, Server, ServerTlsConfig};
 use tracing::{debug_span, info};
 
 pub struct RpcProxy {
@@ -18,8 +18,29 @@ impl RpcProxy {
         })
     }
 
-    pub async fn serve(self, addr: SocketAddr) -> Result<()> {
+    pub async fn serve(
+        self,
+        addr: SocketAddr,
+        rpc_server_cert: Option<String>,
+        rpc_server_key: Option<String>,
+    ) -> Result<()> {
         info!("starting rpc proxy service");
+
+        // tls client config
+        let tls_conf = match (rpc_server_cert, rpc_server_key) {
+            (Some(cert), Some(key)) => {
+                let cert = std::fs::read_to_string(cert)?;
+                let key = std::fs::read_to_string(key).expect("msg");
+                let identity = Identity::from_pem(cert, key);
+                ServerTlsConfig::new().identity(identity)
+            }
+            (None, None) => ServerTlsConfig::new(),
+            _ => {
+                return Err(anyhow!(
+                    "both or neither of the server key and cert must be provided"
+                ))
+            }
+        };
 
         // Note that we don't need a shutdown handler to prevent exits on active
         // connections. GRPC works over multiple connections, so the client
@@ -29,6 +50,7 @@ impl RpcProxy {
         // later.
 
         Server::builder()
+            .tls_config(tls_conf)?
             .trace_fn(|_| debug_span!("rpc_proxy_service_request"))
             .add_service(ExecutionServiceServer::new(self.handler))
             .serve(addr)

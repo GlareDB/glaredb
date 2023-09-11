@@ -49,6 +49,14 @@ pub struct RpcProxyArgs {
     /// Authorization code for communicating with Cloud.
     #[clap(long)]
     pub cloud_auth_code: String,
+
+    /// Path to server cert to use.
+    #[clap(long)]
+    pub rpc_server_cert: Option<String>,
+
+    /// Path to server key to use.
+    #[clap(long)]
+    pub rpc_server_key: Option<String>,
 }
 
 #[derive(Parser)]
