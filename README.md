@@ -23,7 +23,7 @@
 ## About
 
 Data exists everywhere: your laptop, [Postgres], [Snowflake] and as
-[files in GCS]. It exists in various formats such as Parquet, CSV and JSON.
+[files in S3]. It exists in various formats such as Parquet, CSV and JSON.
 Regardless, there will always be multiple steps spanning several destinations to
 get the insights you need.
 
@@ -222,7 +222,7 @@ GlareDB is proudly powered by [Apache Datafusion](https://arrow.apache.org/dataf
 
 [Postgres]: https://docs.glaredb.com/docs/data-sources/supported/postgres.html
 [Snowflake]: https://docs.glaredb.com/docs/data-sources/supported/snowflake.html
-[files in GCS]: https://docs.glaredb.com/docs/data-sources/supported/gcs
+[files in S3]: https://docs.glaredb.com/docs/data-sources/supported/s3
 [announcement on Hybrid Execution]: https://glaredb.com/blog/hybrid-execution
 [GlareDB Python library]: https://pypi.org/project/glaredb/
 [Pandas]: https://github.com/pandas-dev/pandas
