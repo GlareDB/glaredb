@@ -117,7 +117,20 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) -> std::io::Res
                 | Keyword::DROP
                 | Keyword::CREDENTIALS
                 | Keyword::OPTIONS
-                | Keyword::VALUES => {
+                | Keyword::VALUES
+                | Keyword::CASE
+                | Keyword::WHEN
+                | Keyword::THEN
+                | Keyword::IF
+                | Keyword::ELSE
+                | Keyword::END
+                | Keyword::UPDATE
+                | Keyword::SET
+                | Keyword::DELETE
+                | Keyword::VIEW
+                | Keyword::EXCEPT
+                | Keyword::EXPLAIN
+                | Keyword::EXCLUDE => {
                     st.push((new_style().fg(Color::LightGreen), format!("{w}")));
                 }
                 Keyword::NoKeyword => match w.value.to_uppercase().as_str() {
