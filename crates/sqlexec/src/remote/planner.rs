@@ -360,6 +360,7 @@ impl<'a> RemotePhysicalPlanner<'a> {
 
         Ok((plan, sends))
     }
+
 }
 
 #[async_trait]
@@ -384,6 +385,7 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         // the custom table providers meaning we'll have the
         // correct exec refs.
         let catalog_version = self.catalog.version();
+
         let physical = DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(
             DDLExtensionPlanner::new(catalog_version),
         )])
@@ -473,12 +475,19 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         input_schema: &Schema,
         session_state: &SessionState,
     ) -> Result<Arc<dyn PhysicalExpr>> {
-        DefaultPhysicalPlanner::default().create_physical_expr(
-            expr,
-            input_dfschema,
-            input_schema,
-            session_state,
-        )
+        println!("create_physical_expr");
+        match expr {
+            Expr::ScalarUDF(udf) => {
+                println!("udf: {:?}", udf);
+                todo!()
+            }
+            expr => DefaultPhysicalPlanner::default().create_physical_expr(
+                expr,
+                input_dfschema,
+                input_schema,
+                session_state,
+            ),
+        }
     }
 }
 

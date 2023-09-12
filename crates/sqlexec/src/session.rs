@@ -5,12 +5,12 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
+use crate::planner::default_planner::CustomPhysicalPlanner;
 use crate::planner::physical_plan::{
     get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
     GENERIC_OPERATION_PHYSICAL_SCHEMA,
 };
 use crate::remote::client::RemoteClient;
-use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -18,7 +18,7 @@ use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::{
     execute_stream, ExecutionPlan, RecordBatchStream, SendableRecordBatchStream,
 };
-use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
+use datafusion::physical_planner::PhysicalPlanner;
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
@@ -397,20 +397,12 @@ impl Session {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();
         let plan = state.optimize(&plan)?;
-        if let Some(client) = self.ctx.exec_client() {
-            let planner = RemotePhysicalPlanner {
-                remote_client: client,
-                catalog: self.ctx.get_session_catalog(),
-            };
-            let plan = planner.create_physical_plan(&plan, &state).await?;
-            Ok(plan)
-        } else {
-            let ddl_planner = DDLExtensionPlanner::new(self.ctx.get_session_catalog().version());
-            let planner =
-                DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(ddl_planner)]);
-            let plan = planner.create_physical_plan(&plan, &state).await?;
-            Ok(plan)
-        }
+
+        let planner =
+            CustomPhysicalPlanner::new(self.ctx.get_session_catalog(), self.ctx.exec_client());
+
+        let plan = planner.create_physical_plan(&plan, &state).await?;
+        Ok(plan)
     }
 
     /// Execute a datafusion physical plan.
