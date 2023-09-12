@@ -148,6 +148,10 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 return Ok(Expr::ScalarUDF(ScalarUDF::new(fm, args)));
             }
 
+            if let Some(expr) = self.schema_provider.get_static_function_meta(&name).await {
+                return Ok(expr);
+            }
+
             // User defined aggregate functions
             if let Some(fm) = self.schema_provider.get_aggregate_meta(&name).await {
                 let args = self

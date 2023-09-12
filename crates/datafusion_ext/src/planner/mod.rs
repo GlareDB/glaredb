@@ -64,6 +64,7 @@ pub trait AsyncContextProvider: Send + Sync {
     ) -> Result<Arc<dyn TableSource>>;
     /// Getter for a UDF description
     async fn get_function_meta(&mut self, name: &str) -> Option<Arc<ScalarUDF>>;
+    async fn get_static_function_meta(&mut self, name: &str) -> Option<Expr>;
     /// Getter for a UDAF description
     async fn get_aggregate_meta(&mut self, name: &str) -> Option<Arc<AggregateUDF>>;
     /// Getter for system/user-defined variable type

@@ -2,8 +2,6 @@ use crate::context::local::LocalSessionContext;
 use crate::dispatch::DispatchError;
 use crate::dispatch::Dispatcher;
 use crate::errors::ExecError;
-use crate::functions::BuiltinScalarFunction;
-use crate::functions::PgFunctionBuilder;
 use crate::planner::errors::PlanError;
 use crate::remote::client::RemoteSessionClient;
 use crate::resolve::EntryResolver;
@@ -15,9 +13,14 @@ use datafusion::config::ConfigOptions;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
+use datafusion::execution::FunctionRegistry;
+use datafusion::logical_expr::expr::Placeholder;
 use datafusion::logical_expr::AggregateUDF;
+use datafusion::logical_expr::Literal;
 use datafusion::logical_expr::ScalarUDF;
 use datafusion::logical_expr::TableSource;
+use datafusion::prelude::lit;
+use datafusion::prelude::Expr;
 use datafusion::sql::TableReference;
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_ext::planner::AsyncContextProvider;
@@ -406,12 +409,13 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
     }
 
     async fn get_function_meta(&mut self, name: &str) -> Option<Arc<ScalarUDF>> {
-        // TODO: We can build these async too.
-        match BuiltinScalarFunction::try_from_name(name)
-            .map(|f| Arc::new(f.build_scalar_udf(self.ctx)))
-        {
-            Some(func) => Some(func),
-            None => PgFunctionBuilder::try_from_name(self.ctx, name, true),
+        self.ctx.df_ctx().udf(name).ok()
+    }
+
+    async fn get_static_function_meta(&mut self, name: &str) -> Option<Expr> {
+        match name {
+            "version" => Some(lit("__GLAREDB_VERSION__")),
+            _ => None,
         }
     }
 

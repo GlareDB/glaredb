@@ -21,7 +21,6 @@ use datafusion::logical_expr::expr_rewriter::{unalias, unnormalize_cols};
 use datafusion::logical_expr::logical_plan::builder::wrap_projection_for_join_if_necessary;
 use datafusion::logical_expr::StringifiedPlan;
 use datafusion::logical_expr::{Limit, Values};
-use datafusion::physical_expr::create_physical_expr;
 use datafusion::physical_optimizer::optimizer::PhysicalOptimizerRule;
 use datafusion::physical_plan::aggregates::{AggregateExec, AggregateMode, PhysicalGroupBy};
 use datafusion::physical_plan::analyze::AnalyzeExec;
@@ -54,6 +53,7 @@ use datafusion::{
 use datafusion_ext::runtime::group_pull_up::RuntimeGroupPullUp;
 use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use datafusion_ext::transform::TreeNodeExt;
+use datafusion_ext::vars::SessionVars;
 use futures::future::BoxFuture;
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use itertools::{multiunzip, Itertools};
@@ -67,9 +67,9 @@ use crate::metastore::catalog::SessionCatalog;
 use crate::remote::client::RemoteSessionClient;
 
 use super::expr_planner::{
-    create_aggregate_expr_and_maybe_filter, create_cube_physical_expr, create_physical_sort_expr,
-    create_rollup_physical_expr, create_window_expr, merge_grouping_set_physical_expr,
-    physical_name,
+    create_aggregate_expr_and_maybe_filter, create_cube_physical_expr, create_physical_expr,
+    create_physical_sort_expr, create_rollup_physical_expr, create_window_expr,
+    merge_grouping_set_physical_expr, physical_name,
 };
 use super::extension::ExtensionType;
 
@@ -112,15 +112,21 @@ use crate::planner::logical_plan::{
 pub struct CustomPhysicalPlanner<'a> {
     pub remote_client: Option<RemoteSessionClient>,
     pub catalog: &'a SessionCatalog,
+    session_vars: SessionVars,
     catalog_version: u64,
 }
 
 impl<'a> CustomPhysicalPlanner<'a> {
-    pub fn new(catalog: &'a SessionCatalog, remote_client: Option<RemoteSessionClient>) -> Self {
+    pub fn new(
+        catalog: &'a SessionCatalog,
+        remote_client: Option<RemoteSessionClient>,
+        session_vars: SessionVars,
+    ) -> Self {
         Self {
             catalog_version: catalog.version(),
             catalog,
             remote_client,
+            session_vars,
         }
     }
 }
@@ -164,6 +170,7 @@ impl PhysicalPlanner for CustomPhysicalPlanner<'_> {
             input_dfschema,
             input_schema,
             session_state.execution_props(),
+            &self.session_vars,
         )
     }
 }
@@ -233,6 +240,7 @@ impl CustomPhysicalPlanner<'_> {
         input_dfschema: &DFSchema,
         input_schema: &Schema,
         session_state: &SessionState,
+        session_vars: &SessionVars,
     ) -> Result<PhysicalGroupBy> {
         if group_expr.len() == 1 {
             match &group_expr[0] {
@@ -242,16 +250,31 @@ impl CustomPhysicalPlanner<'_> {
                         input_dfschema,
                         input_schema,
                         session_state,
+                        session_vars,
                     )
                 }
-                Expr::GroupingSet(GroupingSet::Cube(exprs)) => {
-                    create_cube_physical_expr(exprs, input_dfschema, input_schema, session_state)
-                }
-                Expr::GroupingSet(GroupingSet::Rollup(exprs)) => {
-                    create_rollup_physical_expr(exprs, input_dfschema, input_schema, session_state)
-                }
+                Expr::GroupingSet(GroupingSet::Cube(exprs)) => create_cube_physical_expr(
+                    exprs,
+                    input_dfschema,
+                    input_schema,
+                    session_state,
+                    session_vars,
+                ),
+                Expr::GroupingSet(GroupingSet::Rollup(exprs)) => create_rollup_physical_expr(
+                    exprs,
+                    input_dfschema,
+                    input_schema,
+                    session_state,
+                    session_vars,
+                ),
                 expr => Ok(PhysicalGroupBy::new_single(vec![tuple_err((
-                    self.create_physical_expr(expr, input_dfschema, input_schema, session_state),
+                    create_physical_expr(
+                        expr,
+                        input_dfschema,
+                        input_schema,
+                        session_state.execution_props(),
+                        session_vars,
+                    ),
                     physical_name(expr),
                 ))?])),
             }
@@ -606,6 +629,7 @@ impl CustomPhysicalPlanner<'_> {
                             logical_input_schema,
                             &physical_input_schema,
                             session_state.execution_props(),
+                            &self.session_vars,
                         )
                     })
                     .collect::<Result<Vec<_>>>()?;
@@ -646,6 +670,7 @@ impl CustomPhysicalPlanner<'_> {
                     logical_input_schema,
                     &physical_input_schema,
                     session_state,
+                    &self.session_vars,
                 )?;
 
                 let agg_filter = aggr_expr
@@ -656,6 +681,7 @@ impl CustomPhysicalPlanner<'_> {
                             logical_input_schema,
                             &physical_input_schema,
                             session_state.execution_props(),
+                            &self.session_vars,
                         )
                     })
                     .collect::<Result<Vec<_>>>()?;
@@ -848,6 +874,7 @@ impl CustomPhysicalPlanner<'_> {
                             input_dfschema,
                             &input_schema,
                             session_state.execution_props(),
+                            &self.session_vars,
                         )
                     })
                     .collect::<Result<Vec<_>>>()?;
@@ -993,6 +1020,7 @@ impl CustomPhysicalPlanner<'_> {
                             &filter_df_schema,
                             &filter_schema,
                             session_state.execution_props(),
+                            &self.session_vars,
                         )?;
                         let column_indices = join_utils::JoinFilter::build_column_indices(
                             left_field_indices,

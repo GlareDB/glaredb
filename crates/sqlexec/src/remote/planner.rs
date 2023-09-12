@@ -360,7 +360,6 @@ impl<'a> RemotePhysicalPlanner<'a> {
 
         Ok((plan, sends))
     }
-
 }
 
 #[async_trait]

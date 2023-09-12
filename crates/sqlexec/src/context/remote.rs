@@ -1,8 +1,10 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use datafusion::{
+    arrow::datatypes::DataType,
     datasource::TableProvider,
     execution::context::{SessionConfig, SessionContext as DfSessionContext},
+    logical_expr::{ScalarUDF, Signature, TypeSignature, Volatility},
     physical_plan::{execute_stream, ExecutionPlan, SendableRecordBatchStream},
 };
 use datafusion_ext::{functions::FuncParamValue, vars::SessionVars};
@@ -65,6 +67,13 @@ impl RemoteSessionContext {
         // TODO: Query planners for handling custom plans.
 
         let df_ctx = DfSessionContext::with_config_rt(conf, Arc::new(runtime));
+
+        df_ctx.register_udf(ScalarUDF {
+            name: "current_schema".to_string(),
+            signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
+            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+            fun: Arc::new(move |_input| todo!("remote")),
+        });
 
         Ok(RemoteSessionContext {
             catalog,

@@ -12,6 +12,8 @@ use datafusion::common::SchemaReference;
 use datafusion::execution::context::{
     SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
 };
+use datafusion::logical_expr::{ScalarUDF, Signature, TypeSignature, Volatility};
+use datafusion::physical_plan::internal_err;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datafusion::variable::VarType;
@@ -20,6 +22,7 @@ use datasources::native::access::NativeTableStorage;
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 
+use datafusion::common::DataFusionError;
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromClient,
 };
@@ -128,6 +131,13 @@ impl LocalSessionContext {
             .with_extension(Arc::new(TempCatalog::default()));
         let state = SessionState::with_config_rt(conf, runtime);
         let df_ctx = DfSessionContext::with_state(state);
+        df_ctx.register_udf(ScalarUDF {
+            name: "current_schema".to_string(),
+            signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
+            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+
+            fun: Arc::new(move |_input| internal_err!("remote")),
+        });
 
         self.exec_client = Some(client.clone());
         self.df_ctx = df_ctx;

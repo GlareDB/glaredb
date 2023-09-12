@@ -1,27 +1,504 @@
 use datafusion::execution::context::{ExecutionProps, SessionState};
 
-use datafusion::logical_expr::{BinaryExpr, Expr};
+use datafusion::logical_expr::{BinaryExpr, Expr, Operator};
 
 use datafusion::arrow::compute::SortOptions;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::common::{internal_err, not_impl_err, plan_err, DFSchema, ScalarValue};
 use datafusion::logical_expr::expr::{
     self, AggregateFunction, AggregateUDF, Alias, Between, Cast, GetFieldAccess, GetIndexedField,
-    GroupingSet, InList, Like, ScalarUDF, TryCast, WindowFunction,
+    GroupingSet, InList, Like, ScalarFunction, ScalarUDF, TryCast, WindowFunction,
 };
 use datafusion::logical_expr::{WindowFrame, WindowFrameBound};
-use datafusion::physical_expr::create_physical_expr;
 use datafusion::physical_expr::expressions::Literal;
+use datafusion::physical_expr::var_provider::is_system_variables;
 use datafusion::physical_plan::aggregates::PhysicalGroupBy;
-use datafusion::physical_plan::expressions::PhysicalSortExpr;
+use datafusion::physical_plan::expressions::{
+    self, binary, like, Column, GetFieldAccessExpr, GetIndexedFieldExpr, PhysicalSortExpr,
+};
 
-use datafusion::physical_plan::{aggregates, udaf, windows};
+use datafusion::physical_plan::{aggregates, functions, udaf, udf, windows};
 use datafusion::physical_plan::{AggregateExpr, PhysicalExpr, WindowExpr};
 
 use datafusion::error::{DataFusionError, Result};
+use datafusion::prelude::binary_expr;
+use datafusion::variable::VarType;
+use datafusion_ext::vars::SessionVars;
 use itertools::Itertools;
 use std::fmt::Write;
 use std::sync::Arc;
+
+/// Create a physical expression from a logical expression ([Expr]).
+///
+/// # Arguments
+///
+/// * `e` - The logical expression
+/// * `input_dfschema` - The DataFusion schema for the input, used to resolve `Column` references
+///                      to qualified or unqualified fields by name.
+/// * `input_schema` - The Arrow schema for the input, used for determining expression data types
+///                    when performing type coercion.
+pub fn create_physical_expr(
+    e: &Expr,
+    input_dfschema: &DFSchema,
+    input_schema: &Schema,
+    execution_props: &ExecutionProps,
+    session_vars: &SessionVars,
+) -> Result<Arc<dyn PhysicalExpr>> {
+    println!("create_physical_expr: {:?}", e);
+    if input_schema.fields.len() != input_dfschema.fields().len() {
+        return internal_err!(
+            "create_physical_expr expected same number of fields, got \
+                     Arrow schema with {}  and DataFusion schema with {}",
+            input_schema.fields.len(),
+            input_dfschema.fields().len()
+        );
+    }
+    match e {
+        Expr::Literal(ScalarValue::Utf8(Some(s))) if s == "__GLAREDB_VERSION__" => {
+            todo!("Placeholder")
+            // let index = p.index;
+            // let data_type = input_schema.field(index).data_type().clone();
+            // Ok(Arc::new(expressions::placeholder(data_type, index)))
+        }
+        Expr::Alias(Alias { expr, .. }) => Ok(create_physical_expr(
+            expr,
+            input_dfschema,
+            input_schema,
+            execution_props,
+            session_vars,
+        )?),
+        Expr::Column(c) => {
+            let idx = input_dfschema.index_of_column(c)?;
+            Ok(Arc::new(Column::new(&c.name, idx)))
+        }
+        Expr::Literal(value) => Ok(Arc::new(Literal::new(value.clone()))),
+        Expr::ScalarVariable(_, variable_names) => {
+            if is_system_variables(variable_names) {
+                match execution_props.get_var_provider(VarType::System) {
+                    Some(provider) => {
+                        let scalar_value = provider.get_value(variable_names.clone())?;
+                        Ok(Arc::new(Literal::new(scalar_value)))
+                    }
+                    _ => plan_err!("No system variable provider found"),
+                }
+            } else {
+                match execution_props.get_var_provider(VarType::UserDefined) {
+                    Some(provider) => {
+                        let scalar_value = provider.get_value(variable_names.clone())?;
+                        Ok(Arc::new(Literal::new(scalar_value)))
+                    }
+                    _ => plan_err!("No user defined variable provider found"),
+                }
+            }
+        }
+        Expr::IsTrue(expr) => {
+            let binary_op = binary_expr(
+                expr.as_ref().clone(),
+                Operator::IsNotDistinctFrom,
+                Expr::Literal(ScalarValue::Boolean(Some(true))),
+            );
+            create_physical_expr(
+                &binary_op,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )
+        }
+        Expr::IsNotTrue(expr) => {
+            let binary_op = binary_expr(
+                expr.as_ref().clone(),
+                Operator::IsDistinctFrom,
+                Expr::Literal(ScalarValue::Boolean(Some(true))),
+            );
+            create_physical_expr(
+                &binary_op,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )
+        }
+        Expr::IsFalse(expr) => {
+            let binary_op = binary_expr(
+                expr.as_ref().clone(),
+                Operator::IsNotDistinctFrom,
+                Expr::Literal(ScalarValue::Boolean(Some(false))),
+            );
+            create_physical_expr(
+                &binary_op,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )
+        }
+        Expr::IsNotFalse(expr) => {
+            let binary_op = binary_expr(
+                expr.as_ref().clone(),
+                Operator::IsDistinctFrom,
+                Expr::Literal(ScalarValue::Boolean(Some(false))),
+            );
+            create_physical_expr(
+                &binary_op,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )
+        }
+        Expr::IsUnknown(expr) => {
+            let binary_op = binary_expr(
+                expr.as_ref().clone(),
+                Operator::IsNotDistinctFrom,
+                Expr::Literal(ScalarValue::Boolean(None)),
+            );
+            create_physical_expr(
+                &binary_op,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )
+        }
+        Expr::IsNotUnknown(expr) => {
+            let binary_op = binary_expr(
+                expr.as_ref().clone(),
+                Operator::IsDistinctFrom,
+                Expr::Literal(ScalarValue::Boolean(None)),
+            );
+            create_physical_expr(
+                &binary_op,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )
+        }
+        Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
+            // Create physical expressions for left and right operands
+            let lhs = create_physical_expr(
+                left,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )?;
+            let rhs = create_physical_expr(
+                right,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )?;
+            // Note that the logical planner is responsible
+            // for type coercion on the arguments (e.g. if one
+            // argument was originally Int32 and one was
+            // Int64 they will both be coerced to Int64).
+            //
+            // There should be no coercion during physical
+            // planning.
+            binary(lhs, *op, rhs, input_schema)
+        }
+        Expr::Like(Like {
+            negated,
+            expr,
+            pattern,
+            escape_char,
+            case_insensitive,
+        }) => {
+            if escape_char.is_some() {
+                return Err(DataFusionError::Execution(
+                    "LIKE does not support escape_char".to_string(),
+                ));
+            }
+            let physical_expr = create_physical_expr(
+                expr,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )?;
+            let physical_pattern = create_physical_expr(
+                pattern,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )?;
+            like(
+                *negated,
+                *case_insensitive,
+                physical_expr,
+                physical_pattern,
+                input_schema,
+            )
+        }
+        Expr::Case(case) => {
+            let expr: Option<Arc<dyn PhysicalExpr>> = if let Some(e) = &case.expr {
+                Some(create_physical_expr(
+                    e.as_ref(),
+                    input_dfschema,
+                    input_schema,
+                    execution_props,
+                    session_vars,
+                )?)
+            } else {
+                None
+            };
+            let when_expr = case
+                .when_then_expr
+                .iter()
+                .map(|(w, _)| {
+                    create_physical_expr(
+                        w.as_ref(),
+                        input_dfschema,
+                        input_schema,
+                        execution_props,
+                        session_vars,
+                    )
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let then_expr = case
+                .when_then_expr
+                .iter()
+                .map(|(_, t)| {
+                    create_physical_expr(
+                        t.as_ref(),
+                        input_dfschema,
+                        input_schema,
+                        execution_props,
+                        session_vars,
+                    )
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let when_then_expr: Vec<(Arc<dyn PhysicalExpr>, Arc<dyn PhysicalExpr>)> = when_expr
+                .iter()
+                .zip(then_expr.iter())
+                .map(|(w, t)| (w.clone(), t.clone()))
+                .collect();
+            let else_expr: Option<Arc<dyn PhysicalExpr>> = if let Some(e) = &case.else_expr {
+                Some(create_physical_expr(
+                    e.as_ref(),
+                    input_dfschema,
+                    input_schema,
+                    execution_props,
+                    session_vars,
+                )?)
+            } else {
+                None
+            };
+            Ok(expressions::case(expr, when_then_expr, else_expr)?)
+        }
+        Expr::Cast(Cast { expr, data_type }) => expressions::cast(
+            create_physical_expr(
+                expr,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )?,
+            input_schema,
+            data_type.clone(),
+        ),
+        Expr::TryCast(TryCast { expr, data_type }) => expressions::try_cast(
+            create_physical_expr(
+                expr,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )?,
+            input_schema,
+            data_type.clone(),
+        ),
+        Expr::Not(expr) => expressions::not(create_physical_expr(
+            expr,
+            input_dfschema,
+            input_schema,
+            execution_props,
+            session_vars,
+        )?),
+        Expr::Negative(expr) => expressions::negative(
+            create_physical_expr(
+                expr,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )?,
+            input_schema,
+        ),
+        Expr::IsNull(expr) => expressions::is_null(create_physical_expr(
+            expr,
+            input_dfschema,
+            input_schema,
+            execution_props,
+            session_vars,
+        )?),
+        Expr::IsNotNull(expr) => expressions::is_not_null(create_physical_expr(
+            expr,
+            input_dfschema,
+            input_schema,
+            execution_props,
+            session_vars,
+        )?),
+        Expr::GetIndexedField(GetIndexedField { expr, field }) => {
+            let field = match field {
+                GetFieldAccess::NamedStructField { name } => {
+                    GetFieldAccessExpr::NamedStructField { name: name.clone() }
+                }
+                GetFieldAccess::ListIndex { key } => GetFieldAccessExpr::ListIndex {
+                    key: create_physical_expr(
+                        key,
+                        input_dfschema,
+                        input_schema,
+                        execution_props,
+                        session_vars,
+                    )?,
+                },
+                GetFieldAccess::ListRange { start, stop } => GetFieldAccessExpr::ListRange {
+                    start: create_physical_expr(
+                        start,
+                        input_dfschema,
+                        input_schema,
+                        execution_props,
+                        session_vars,
+                    )?,
+                    stop: create_physical_expr(
+                        stop,
+                        input_dfschema,
+                        input_schema,
+                        execution_props,
+                        session_vars,
+                    )?,
+                },
+            };
+            Ok(Arc::new(GetIndexedFieldExpr::new(
+                create_physical_expr(
+                    expr,
+                    input_dfschema,
+                    input_schema,
+                    execution_props,
+                    session_vars,
+                )?,
+                field,
+            )))
+        }
+
+        Expr::ScalarFunction(ScalarFunction { fun, args }) => {
+            let physical_args = args
+                .iter()
+                .map(|e| {
+                    create_physical_expr(
+                        e,
+                        input_dfschema,
+                        input_schema,
+                        execution_props,
+                        session_vars,
+                    )
+                })
+                .collect::<Result<Vec<_>>>()?;
+            functions::create_physical_expr(fun, &physical_args, input_schema, execution_props)
+        }
+        Expr::ScalarUDF(ScalarUDF { fun, args }) => {
+            println!("ScalarUDF: {:?}", fun);
+
+            let mut physical_args = vec![];
+            for e in args {
+                physical_args.push(create_physical_expr(
+                    e,
+                    input_dfschema,
+                    input_schema,
+                    execution_props,
+                    session_vars,
+                )?);
+            }
+            // udfs with zero params expect null array as input
+            if args.is_empty() {
+                physical_args.push(Arc::new(Literal::new(ScalarValue::Null)));
+            }
+            udf::create_physical_expr(fun.clone().as_ref(), &physical_args, input_schema)
+        }
+        Expr::Between(Between {
+            expr,
+            negated,
+            low,
+            high,
+        }) => {
+            let value_expr = create_physical_expr(
+                expr,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )?;
+            let low_expr = create_physical_expr(
+                low,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )?;
+            let high_expr = create_physical_expr(
+                high,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )?;
+
+            // rewrite the between into the two binary operators
+            let binary_expr = binary(
+                binary(value_expr.clone(), Operator::GtEq, low_expr, input_schema)?,
+                Operator::And,
+                binary(value_expr.clone(), Operator::LtEq, high_expr, input_schema)?,
+                input_schema,
+            );
+
+            if *negated {
+                expressions::not(binary_expr?)
+            } else {
+                binary_expr
+            }
+        }
+        Expr::InList(InList {
+            expr,
+            list,
+            negated,
+        }) => match expr.as_ref() {
+            Expr::Literal(ScalarValue::Utf8(None)) => {
+                Ok(expressions::lit(ScalarValue::Boolean(None)))
+            }
+            _ => {
+                let value_expr = create_physical_expr(
+                    expr,
+                    input_dfschema,
+                    input_schema,
+                    execution_props,
+                    session_vars,
+                )?;
+
+                let list_exprs = list
+                    .iter()
+                    .map(|expr| {
+                        create_physical_expr(
+                            expr,
+                            input_dfschema,
+                            input_schema,
+                            execution_props,
+                            session_vars,
+                        )
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                expressions::in_list(value_expr, list_exprs, negated, input_schema)
+            }
+        },
+        other => {
+            not_impl_err!("Physical plan does not support logical expression {other:?}")
+        }
+    }
+}
 
 fn create_function_physical_name(fun: &str, distinct: bool, args: &[Expr]) -> Result<String> {
     let names: Vec<String> = args
@@ -140,6 +617,8 @@ fn create_physical_name(e: &Expr, is_first_expr: bool) -> Result<String> {
             create_function_physical_name(&func.fun.to_string(), false, &func.args)
         }
         Expr::ScalarUDF(ScalarUDF { fun, args }) => {
+            println!("ScalarUDF: {:?}", fun);
+
             create_function_physical_name(&fun.name, false, args)
         }
         Expr::WindowFunction(WindowFunction { fun, args, .. }) => {
@@ -310,6 +789,7 @@ pub(super) fn merge_grouping_set_physical_expr(
     input_dfschema: &DFSchema,
     input_schema: &Schema,
     session_state: &SessionState,
+    session_vars: &SessionVars,
 ) -> Result<PhysicalGroupBy> {
     let num_groups = grouping_sets.len();
     let mut all_exprs: Vec<Expr> = vec![];
@@ -325,6 +805,7 @@ pub(super) fn merge_grouping_set_physical_expr(
                 input_dfschema,
                 input_schema,
                 session_state,
+                session_vars,
             )?);
 
             null_exprs.push(get_null_physical_expr_pair(
@@ -332,6 +813,7 @@ pub(super) fn merge_grouping_set_physical_expr(
                 input_dfschema,
                 input_schema,
                 session_state,
+                session_vars,
             )?);
         }
     }
@@ -361,6 +843,7 @@ pub(super) fn create_cube_physical_expr(
     input_dfschema: &DFSchema,
     input_schema: &Schema,
     session_state: &SessionState,
+    session_vars: &SessionVars,
 ) -> Result<PhysicalGroupBy> {
     let num_of_exprs = exprs.len();
     let num_groups = num_of_exprs * num_of_exprs;
@@ -374,6 +857,7 @@ pub(super) fn create_cube_physical_expr(
             input_dfschema,
             input_schema,
             session_state,
+            session_vars,
         )?);
 
         all_exprs.push(get_physical_expr_pair(
@@ -381,6 +865,7 @@ pub(super) fn create_cube_physical_expr(
             input_dfschema,
             input_schema,
             session_state,
+            session_vars,
         )?)
     }
 
@@ -406,6 +891,7 @@ pub(super) fn create_rollup_physical_expr(
     input_dfschema: &DFSchema,
     input_schema: &Schema,
     session_state: &SessionState,
+    session_vars: &SessionVars,
 ) -> Result<PhysicalGroupBy> {
     let num_of_exprs = exprs.len();
 
@@ -420,6 +906,7 @@ pub(super) fn create_rollup_physical_expr(
             input_dfschema,
             input_schema,
             session_state,
+            session_vars,
         )?);
 
         all_exprs.push(get_physical_expr_pair(
@@ -427,6 +914,7 @@ pub(super) fn create_rollup_physical_expr(
             input_dfschema,
             input_schema,
             session_state,
+            session_vars,
         )?)
     }
 
@@ -453,12 +941,16 @@ fn get_null_physical_expr_pair(
     input_dfschema: &DFSchema,
     input_schema: &Schema,
     session_state: &SessionState,
+    session_vars: &SessionVars,
 ) -> Result<(Arc<dyn PhysicalExpr>, String)> {
+    println!("get_null_physical_expr_pair: {:?}", expr);
+
     let physical_expr = create_physical_expr(
         expr,
         input_dfschema,
         input_schema,
         session_state.execution_props(),
+        session_vars,
     )?;
     let physical_name = physical_name(&expr.clone())?;
 
@@ -474,12 +966,16 @@ fn get_physical_expr_pair(
     input_dfschema: &DFSchema,
     input_schema: &Schema,
     session_state: &SessionState,
+    session_vars: &SessionVars,
 ) -> Result<(Arc<dyn PhysicalExpr>, String)> {
+    println!("get_physical_expr_pair: {:?}", expr);
+
     let physical_expr = create_physical_expr(
         expr,
         input_dfschema,
         input_schema,
         session_state.execution_props(),
+        session_vars,
     )?;
     let physical_name = physical_name(expr)?;
     Ok((physical_expr, physical_name))
@@ -512,7 +1008,10 @@ pub fn create_window_expr_with_name(
     logical_input_schema: &DFSchema,
     physical_input_schema: &Schema,
     execution_props: &ExecutionProps,
+    session_vars: &SessionVars,
 ) -> Result<Arc<dyn WindowExpr>> {
+    println!("create_window_expr_with_name: {:?}", e);
+
     let name = name.into();
     match e {
         Expr::WindowFunction(WindowFunction {
@@ -530,6 +1029,7 @@ pub fn create_window_expr_with_name(
                         logical_input_schema,
                         physical_input_schema,
                         execution_props,
+                        session_vars,
                     )
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -541,6 +1041,7 @@ pub fn create_window_expr_with_name(
                         logical_input_schema,
                         physical_input_schema,
                         execution_props,
+                        session_vars,
                     )
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -552,6 +1053,7 @@ pub fn create_window_expr_with_name(
                         logical_input_schema,
                         physical_input_schema,
                         execution_props,
+                        session_vars,
                     )
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -584,6 +1086,7 @@ pub fn create_window_expr(
     logical_input_schema: &DFSchema,
     physical_input_schema: &Schema,
     execution_props: &ExecutionProps,
+    session_vars: &SessionVars,
 ) -> Result<Arc<dyn WindowExpr>> {
     // unpack aliased logical expressions, e.g. "sum(col) over () as total"
     let (name, e) = match e {
@@ -596,6 +1099,7 @@ pub fn create_window_expr(
         logical_input_schema,
         physical_input_schema,
         execution_props,
+        session_vars,
     )
 }
 
@@ -614,7 +1118,9 @@ pub fn create_aggregate_expr_with_name_and_maybe_filter(
     logical_input_schema: &DFSchema,
     physical_input_schema: &Schema,
     execution_props: &ExecutionProps,
+    session_vars: &SessionVars,
 ) -> Result<AggregateExprWithOptionalArgs> {
+    println!("create_aggregate_expr_with_name_and_maybe_filter: {:?}", e);
     match e {
         Expr::AggregateFunction(AggregateFunction {
             fun,
@@ -631,6 +1137,7 @@ pub fn create_aggregate_expr_with_name_and_maybe_filter(
                         logical_input_schema,
                         physical_input_schema,
                         execution_props,
+                        session_vars,
                     )
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -640,6 +1147,7 @@ pub fn create_aggregate_expr_with_name_and_maybe_filter(
                     logical_input_schema,
                     physical_input_schema,
                     execution_props,
+                    session_vars,
                 )?),
                 None => None,
             };
@@ -652,6 +1160,7 @@ pub fn create_aggregate_expr_with_name_and_maybe_filter(
                                 logical_input_schema,
                                 physical_input_schema,
                                 execution_props,
+                                session_vars,
                             )
                         })
                         .collect::<Result<Vec<_>>>()?,
@@ -683,6 +1192,7 @@ pub fn create_aggregate_expr_with_name_and_maybe_filter(
                         logical_input_schema,
                         physical_input_schema,
                         execution_props,
+                        session_vars,
                     )
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -693,6 +1203,7 @@ pub fn create_aggregate_expr_with_name_and_maybe_filter(
                     logical_input_schema,
                     physical_input_schema,
                     execution_props,
+                    session_vars,
                 )?),
                 None => None,
             };
@@ -705,6 +1216,7 @@ pub fn create_aggregate_expr_with_name_and_maybe_filter(
                                 logical_input_schema,
                                 physical_input_schema,
                                 execution_props,
+                                session_vars,
                             )
                         })
                         .collect::<Result<Vec<_>>>()?,
@@ -725,6 +1237,7 @@ pub fn create_aggregate_expr_and_maybe_filter(
     logical_input_schema: &DFSchema,
     physical_input_schema: &Schema,
     execution_props: &ExecutionProps,
+    session_vars: &SessionVars,
 ) -> Result<AggregateExprWithOptionalArgs> {
     // unpack (nested) aliased logical expressions, e.g. "sum(col) as total"
     let (name, e) = match e {
@@ -738,6 +1251,7 @@ pub fn create_aggregate_expr_and_maybe_filter(
         logical_input_schema,
         physical_input_schema,
         execution_props,
+        session_vars,
     )
 }
 
@@ -747,6 +1261,7 @@ pub fn create_physical_sort_expr(
     input_dfschema: &DFSchema,
     input_schema: &Schema,
     execution_props: &ExecutionProps,
+    session_vars: &SessionVars,
 ) -> Result<PhysicalSortExpr> {
     if let Expr::Sort(expr::Sort {
         expr,
@@ -755,7 +1270,13 @@ pub fn create_physical_sort_expr(
     }) = e
     {
         Ok(PhysicalSortExpr {
-            expr: create_physical_expr(expr, input_dfschema, input_schema, execution_props)?,
+            expr: create_physical_expr(
+                expr,
+                input_dfschema,
+                input_schema,
+                execution_props,
+                session_vars,
+            )?,
             options: SortOptions {
                 descending: !asc,
                 nulls_first: *nulls_first,

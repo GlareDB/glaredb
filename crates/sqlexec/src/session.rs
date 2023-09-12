@@ -397,9 +397,11 @@ impl Session {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();
         let plan = state.optimize(&plan)?;
-
-        let planner =
-            CustomPhysicalPlanner::new(self.ctx.get_session_catalog(), self.ctx.exec_client());
+        let planner = CustomPhysicalPlanner::new(
+            self.ctx.get_session_catalog(),
+            self.ctx.exec_client(),
+            self.get_session_vars(),
+        );
 
         let plan = planner.create_physical_plan(&plan, &state).await?;
         Ok(plan)
