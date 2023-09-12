@@ -18,13 +18,20 @@ use datafusion::{
         memory_pool::GreedyMemoryPool,
         runtime_env::{RuntimeConfig, RuntimeEnv},
     },
+    prelude::SessionContext,
 };
 use datafusion_ext::vars::SessionVars;
 use datasources::object_store::init_session_registry;
 use protogen::metastore::types::catalog::CatalogEntry;
 
-use crate::{errors::Result, metastore::catalog::SessionCatalog};
+use crate::{errors::Result, functions::get_pg_udfs, metastore::catalog::SessionCatalog};
 
+pub(crate) fn register_udfs(ctx: SessionContext) -> SessionContext {
+    for udf in get_pg_udfs() {
+        ctx.register_udf(udf);
+    }
+    ctx
+}
 /// Create a new datafusion runtime env common to both remote and local
 /// sessions.
 ///
@@ -76,7 +83,7 @@ pub(crate) fn new_datafusion_runtime_env(
 
 /// Create a new datafusion config opts common to both local and remote
 /// sessions.
-pub(crate) fn new_datafusion_session_config_opts(vars: SessionVars) -> ConfigOptions {
+pub(crate) fn new_datafusion_session_config_opts(vars: &SessionVars) -> ConfigOptions {
     // NOTE: We handle catalog/schema defaults and information schemas
     // ourselves.
     let mut catalog_opts = CatalogOptions::default();
@@ -91,7 +98,7 @@ pub(crate) fn new_datafusion_session_config_opts(vars: SessionVars) -> ConfigOpt
 
     // Insert extensions common to both local and remote sessions.
     let mut e = Extensions::new();
-    e.insert(vars);
+    e.insert(vars.clone());
     config_opts = config_opts.with_extensions(e);
 
     config_opts

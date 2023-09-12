@@ -1,10 +1,8 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use datafusion::{
-    arrow::datatypes::DataType,
     datasource::TableProvider,
     execution::context::{SessionConfig, SessionContext as DfSessionContext},
-    logical_expr::{ScalarUDF, Signature, TypeSignature, Volatility},
     physical_plan::{execute_stream, ExecutionPlan, SendableRecordBatchStream},
 };
 use datafusion_ext::{functions::FuncParamValue, vars::SessionVars};
@@ -23,7 +21,7 @@ use crate::{
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
 
-use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
+use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts, register_udfs};
 
 /// A lightweight session context used during remote execution of physical
 /// plans.
@@ -54,7 +52,7 @@ impl RemoteSessionContext {
         spill_path: Option<PathBuf>,
     ) -> Result<Self> {
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
-        let opts = new_datafusion_session_config_opts(vars);
+        let opts = new_datafusion_session_config_opts(&vars);
         let mut conf: SessionConfig = opts.into();
 
         // Add in remote only extensions.
@@ -67,13 +65,8 @@ impl RemoteSessionContext {
         // TODO: Query planners for handling custom plans.
 
         let df_ctx = DfSessionContext::with_config_rt(conf, Arc::new(runtime));
-
-        df_ctx.register_udf(ScalarUDF {
-            name: "current_schema".to_string(),
-            signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |_input| todo!("remote")),
-        });
+        let df_ctx = register_udfs(df_ctx);
+        df_ctx.register_variable(datafusion::variable::VarType::System, Arc::new(vars));
 
         Ok(RemoteSessionContext {
             catalog,

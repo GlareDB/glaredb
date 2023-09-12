@@ -12,8 +12,6 @@ use datafusion::common::SchemaReference;
 use datafusion::execution::context::{
     SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
 };
-use datafusion::logical_expr::{ScalarUDF, Signature, TypeSignature, Volatility};
-use datafusion::physical_plan::internal_err;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datafusion::variable::VarType;
@@ -22,7 +20,6 @@ use datasources::native::access::NativeTableStorage;
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 
-use datafusion::common::DataFusionError;
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromClient,
 };
@@ -35,7 +32,7 @@ use tokio_postgres::types::Type as PgType;
 
 use uuid::Uuid;
 
-use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
+use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts, register_udfs};
 
 /// Context for a session used local execution and planning.
 ///
@@ -77,7 +74,8 @@ impl LocalSessionContext {
         background_jobs: JobRunner,
     ) -> Result<LocalSessionContext> {
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
-        let opts = new_datafusion_session_config_opts(vars);
+        let opts = new_datafusion_session_config_opts(&vars);
+
         let mut conf: SessionConfig = opts.into();
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
@@ -86,6 +84,8 @@ impl LocalSessionContext {
         let state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
         let df_ctx = DfSessionContext::with_state(state);
+        let df_ctx = register_udfs(df_ctx);
+        df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(LocalSessionContext {
             exec_client: None,
@@ -123,23 +123,15 @@ impl LocalSessionContext {
             .get_session_vars()
             .with_remote_session_id(client.session_id(), VarType::System);
         let runtime = self.df_ctx.runtime_env();
-        let opts = new_datafusion_session_config_opts(vars);
+        let opts = new_datafusion_session_config_opts(&vars);
         let mut conf: SessionConfig = opts.into();
         conf = conf
             .with_extension(Arc::new(CatalogMutator::empty()))
             .with_extension(Arc::new(self.get_native_tables().clone()))
             .with_extension(Arc::new(TempCatalog::default()));
         let state = SessionState::with_config_rt(conf, runtime);
-        
-        let df_ctx = DfSessionContext::with_state(state);
-        
-        df_ctx.register_udf(ScalarUDF {
-            name: "current_schema".to_string(),
-            signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
 
-            fun: Arc::new(move |_input| internal_err!("remote")),
-        });
+        let df_ctx = DfSessionContext::with_state(state);
 
         self.exec_client = Some(client.clone());
         self.df_ctx = df_ctx;

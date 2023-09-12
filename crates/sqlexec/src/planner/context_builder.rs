@@ -14,12 +14,9 @@ use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::FunctionRegistry;
-use datafusion::logical_expr::expr::Placeholder;
 use datafusion::logical_expr::AggregateUDF;
-use datafusion::logical_expr::Literal;
 use datafusion::logical_expr::ScalarUDF;
 use datafusion::logical_expr::TableSource;
-use datafusion::prelude::lit;
 use datafusion::prelude::Expr;
 use datafusion::sql::TableReference;
 use datafusion_ext::functions::FuncParamValue;
@@ -412,6 +409,8 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         self.ctx.df_ctx().udf(name).ok()
     }
 
+    // functions that are really just runtime variables
+    // such as version() and current_user()
     async fn get_static_function_meta(&mut self, name: &str) -> Option<Expr> {
         match name {
             "version" => Some(Expr::ScalarVariable(

@@ -11,7 +11,6 @@ use datafusion::logical_expr::expr::{
 };
 use datafusion::logical_expr::{WindowFrame, WindowFrameBound};
 use datafusion::physical_expr::expressions::Literal;
-use datafusion::physical_expr::var_provider::is_system_variables;
 use datafusion::physical_plan::aggregates::PhysicalGroupBy;
 use datafusion::physical_plan::expressions::{
     self, binary, like, Column, GetFieldAccessExpr, GetIndexedFieldExpr, PhysicalSortExpr,
