@@ -130,7 +130,9 @@ impl LocalSessionContext {
             .with_extension(Arc::new(self.get_native_tables().clone()))
             .with_extension(Arc::new(TempCatalog::default()));
         let state = SessionState::with_config_rt(conf, runtime);
+        
         let df_ctx = DfSessionContext::with_state(state);
+        
         df_ctx.register_udf(ScalarUDF {
             name: "current_schema".to_string(),
             signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),

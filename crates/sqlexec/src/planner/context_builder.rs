@@ -414,7 +414,18 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
 
     async fn get_static_function_meta(&mut self, name: &str) -> Option<Expr> {
         match name {
-            "version" => Some(lit("__GLAREDB_VERSION__")),
+            "version" => Some(Expr::ScalarVariable(
+                DataType::Utf8,
+                vec!["glaredb_version".to_string()],
+            )),
+            "current_user" | "current_role" | "user" => Some(Expr::ScalarVariable(
+                DataType::Utf8,
+                vec!["current_user".to_string()],
+            )),
+            "current_schema" => Some(Expr::ScalarVariable(
+                DataType::Utf8,
+                vec!["current_schema".to_string()],
+            )),
             _ => None,
         }
     }

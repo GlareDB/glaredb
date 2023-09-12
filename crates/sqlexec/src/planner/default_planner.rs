@@ -165,13 +165,12 @@ impl PhysicalPlanner for CustomPhysicalPlanner<'_> {
         input_schema: &Schema,
         session_state: &SessionState,
     ) -> Result<Arc<dyn PhysicalExpr>> {
-        create_physical_expr(
-            expr,
-            input_dfschema,
-            input_schema,
-            session_state.execution_props(),
-            &self.session_vars,
-        )
+        let mut props = session_state.execution_props().clone();
+        props.add_var_provider(
+            datafusion::variable::VarType::System,
+            Arc::new(self.session_vars.clone()),
+        );
+        create_physical_expr(expr, input_dfschema, input_schema, &props)
     }
 }
 
@@ -240,7 +239,6 @@ impl CustomPhysicalPlanner<'_> {
         input_dfschema: &DFSchema,
         input_schema: &Schema,
         session_state: &SessionState,
-        session_vars: &SessionVars,
     ) -> Result<PhysicalGroupBy> {
         if group_expr.len() == 1 {
             match &group_expr[0] {
@@ -250,31 +248,16 @@ impl CustomPhysicalPlanner<'_> {
                         input_dfschema,
                         input_schema,
                         session_state,
-                        session_vars,
                     )
                 }
-                Expr::GroupingSet(GroupingSet::Cube(exprs)) => create_cube_physical_expr(
-                    exprs,
-                    input_dfschema,
-                    input_schema,
-                    session_state,
-                    session_vars,
-                ),
-                Expr::GroupingSet(GroupingSet::Rollup(exprs)) => create_rollup_physical_expr(
-                    exprs,
-                    input_dfschema,
-                    input_schema,
-                    session_state,
-                    session_vars,
-                ),
+                Expr::GroupingSet(GroupingSet::Cube(exprs)) => {
+                    create_cube_physical_expr(exprs, input_dfschema, input_schema, session_state)
+                }
+                Expr::GroupingSet(GroupingSet::Rollup(exprs)) => {
+                    create_rollup_physical_expr(exprs, input_dfschema, input_schema, session_state)
+                }
                 expr => Ok(PhysicalGroupBy::new_single(vec![tuple_err((
-                    create_physical_expr(
-                        expr,
-                        input_dfschema,
-                        input_schema,
-                        session_state.execution_props(),
-                        session_vars,
-                    ),
+                    self.create_physical_expr(expr, input_dfschema, input_schema, session_state),
                     physical_name(expr),
                 ))?])),
             }
@@ -621,16 +604,15 @@ impl CustomPhysicalPlanner<'_> {
 
                 let logical_input_schema = input.schema();
                 let physical_input_schema = input_exec.schema();
+                let mut props = session_state.execution_props().clone();
+                props.add_var_provider(
+                    datafusion::variable::VarType::System,
+                    Arc::new(self.session_vars.clone()),
+                );
                 let window_expr = window_expr
                     .iter()
                     .map(|e| {
-                        create_window_expr(
-                            e,
-                            logical_input_schema,
-                            &physical_input_schema,
-                            session_state.execution_props(),
-                            &self.session_vars,
-                        )
+                        create_window_expr(e, logical_input_schema, &physical_input_schema, &props)
                     })
                     .collect::<Result<Vec<_>>>()?;
 
@@ -670,8 +652,12 @@ impl CustomPhysicalPlanner<'_> {
                     logical_input_schema,
                     &physical_input_schema,
                     session_state,
-                    &self.session_vars,
                 )?;
+                let mut props = session_state.execution_props().clone();
+                props.add_var_provider(
+                    datafusion::variable::VarType::System,
+                    Arc::new(self.session_vars.clone()),
+                );
 
                 let agg_filter = aggr_expr
                     .iter()
@@ -680,8 +666,7 @@ impl CustomPhysicalPlanner<'_> {
                             e,
                             logical_input_schema,
                             &physical_input_schema,
-                            session_state.execution_props(),
-                            &self.session_vars,
+                            &props,
                         )
                     })
                     .collect::<Result<Vec<_>>>()?;
@@ -866,17 +851,14 @@ impl CustomPhysicalPlanner<'_> {
                 let physical_input = self.create_initial_plan(input, session_state).await?;
                 let input_schema = physical_input.as_ref().schema();
                 let input_dfschema = input.as_ref().schema();
+                let mut props = session_state.execution_props().clone();
+                props.add_var_provider(
+                    datafusion::variable::VarType::System,
+                    Arc::new(self.session_vars.clone()),
+                );
                 let sort_expr = expr
                     .iter()
-                    .map(|e| {
-                        create_physical_sort_expr(
-                            e,
-                            input_dfschema,
-                            &input_schema,
-                            session_state.execution_props(),
-                            &self.session_vars,
-                        )
-                    })
+                    .map(|e| create_physical_sort_expr(e, input_dfschema, &input_schema, &props))
                     .collect::<Result<Vec<_>>>()?;
                 let new_sort = SortExec::new(sort_expr, physical_input).with_fetch(*fetch);
                 Ok(Arc::new(new_sort))
@@ -1015,13 +997,13 @@ impl CustomPhysicalPlanner<'_> {
                             DFSchema::new_with_metadata(filter_df_fields, HashMap::new())?;
                         let filter_schema =
                             Schema::new_with_metadata(filter_fields, HashMap::new());
-                        let filter_expr = create_physical_expr(
-                            expr,
-                            &filter_df_schema,
-                            &filter_schema,
-                            session_state.execution_props(),
-                            &self.session_vars,
-                        )?;
+                        let mut props = session_state.execution_props().clone();
+                        props.add_var_provider(
+                            datafusion::variable::VarType::System,
+                            Arc::new(self.session_vars.clone()),
+                        );
+                        let filter_expr =
+                            create_physical_expr(expr, &filter_df_schema, &filter_schema, &props)?;
                         let column_indices = join_utils::JoinFilter::build_column_indices(
                             left_field_indices,
                             right_field_indices,

@@ -182,7 +182,7 @@ impl PgFunctionBuilder {
                 let db_name = ctx.get_session_vars().database_name();
                 pg_current_database(&db_name)
             }
-            // "current_schema" => pg_current_schema(ctx.search_paths().get(0).map(|s| s.as_str())),
+            "current_schema" => pg_current_schema(ctx.search_paths().get(0).map(|s| s.as_str())),
             "current_user" | "current_role" | "user" => {
                 let user = ctx.get_session_vars().user_name();
                 pg_current_user(&user)

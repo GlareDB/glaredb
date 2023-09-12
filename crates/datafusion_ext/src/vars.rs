@@ -6,9 +6,10 @@ mod utils;
 mod value;
 use constants::*;
 use datafusion::config::{ConfigExtension, ExtensionOptions};
+use datafusion::scalar::ScalarValue;
 use utils::*;
 
-use datafusion::variable::VarType;
+use datafusion::variable::{VarProvider, VarType};
 use inner::*;
 use uuid::Uuid;
 
@@ -218,5 +219,27 @@ impl ExtensionOptions for SessionVars {
 
     fn entries(&self) -> Vec<datafusion::config::ConfigEntry> {
         self.read().entries()
+    }
+}
+
+impl VarProvider for SessionVars {
+    fn get_value(
+        &self,
+        var_names: Vec<String>,
+    ) -> datafusion::error::Result<datafusion::scalar::ScalarValue> {
+        Ok(match var_names[0].as_str() {
+            "glaredb_version" => ScalarValue::Utf8(Some(self.glaredb_version())),
+            "current_user" | "current_role" | "user" => ScalarValue::Utf8(Some(self.user_name())),
+            "current_database" | "current_catalog" => ScalarValue::Utf8(Some(self.database_name())),
+            "current_schema" => ScalarValue::Utf8(self.search_path().get(0).cloned()),
+            _ => todo!("not found"),
+        })
+    }
+
+    fn get_type(&self, var_names: &[String]) -> Option<datafusion::arrow::datatypes::DataType> {
+        match var_names[0].as_str() {
+            "glaredb_version" => Some(datafusion::arrow::datatypes::DataType::Utf8),
+            _ => None,
+        }
     }
 }
