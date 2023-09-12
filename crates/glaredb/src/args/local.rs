@@ -57,6 +57,14 @@ pub struct LocalClientOpts {
     /// Max number of rows to display.
     #[arg(long)]
     pub max_rows: Option<usize>,
+
+    /// Path to CA certificate for TLS (required for TLS protocol).
+    #[arg(long)]
+    pub ca_cert_path: Option<String>,
+
+    /// Domain name against which to verify the server’s TLS certificate (required for TLS protocol).
+    #[arg(long)]
+    pub domain: Option<String>,
 }
 
 impl LocalClientOpts {

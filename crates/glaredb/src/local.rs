@@ -21,7 +21,7 @@ use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
-use sqlexec::remote::client::RemoteClient;
+use sqlexec::remote::client::{ProxyDestination, RemoteClient, TlsConfig};
 use sqlexec::session::ExecutionResult;
 use std::env;
 use std::io::Write;
@@ -73,7 +73,22 @@ impl LocalSession {
                     format!("Connected to remote GlareDB server: {}", u.cyan()),
                 )
             } else {
-                let client = RemoteClient::connect_with_proxy_destination(url.try_into()?).await?;
+                let tls_conf = match (opts.ca_cert_path.clone(), opts.domain.clone()) {
+                    (Some(ca_cert_path), Some(domain)) => Some(TlsConfig {
+                        ca_cert_path,
+                        domain,
+                    }),
+                    (None, None) => None,
+                    _ => {
+                        return Err(anyhow!(
+                            "both or neither of the ca cert and domain must be provided"
+                        ))
+                    }
+                };
+
+                let mut url: ProxyDestination = url.try_into()?;
+                url = url.with_tls(tls_conf);
+                let client = RemoteClient::connect_with_proxy_destination(url).await?;
 
                 let msg = format!(
                     "Connected to Cloud deployment: {}",

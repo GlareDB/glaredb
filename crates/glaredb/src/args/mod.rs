@@ -50,11 +50,11 @@ pub struct RpcProxyArgs {
     #[clap(long)]
     pub cloud_auth_code: String,
 
-    /// Path to server cert to use.
+    /// Path to server cert to use for TLS (required for TLS protocol).
     #[clap(long)]
     pub rpc_server_cert: Option<String>,
 
-    /// Path to server key to use.
+    /// Path to server key to use for TLS (required for TLS protocol).
     #[clap(long)]
     pub rpc_server_key: Option<String>,
 }

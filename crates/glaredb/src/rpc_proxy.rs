@@ -26,22 +26,6 @@ impl RpcProxy {
     ) -> Result<()> {
         info!("starting rpc proxy service");
 
-        // tls client config
-        let tls_conf = match (rpc_server_cert, rpc_server_key) {
-            (Some(cert), Some(key)) => {
-                let cert = std::fs::read_to_string(cert)?;
-                let key = std::fs::read_to_string(key).expect("msg");
-                let identity = Identity::from_pem(cert, key);
-                ServerTlsConfig::new().identity(identity)
-            }
-            (None, None) => ServerTlsConfig::new(),
-            _ => {
-                return Err(anyhow!(
-                    "both or neither of the server key and cert must be provided"
-                ))
-            }
-        };
-
         // Note that we don't need a shutdown handler to prevent exits on active
         // connections. GRPC works over multiple connections, so the client
         // would just retry if the connection goes away.
@@ -49,12 +33,33 @@ impl RpcProxy {
         // This _may_ end up killing inflight queries, but we can handle that
         // later.
 
-        Server::builder()
-            .tls_config(tls_conf)?
-            .trace_fn(|_| debug_span!("rpc_proxy_service_request"))
-            .add_service(ExecutionServiceServer::new(self.handler))
-            .serve(addr)
-            .await?;
+        let mut server = Server::builder().trace_fn(|_| debug_span!("rpc_proxy_service_request"));
+
+        match (rpc_server_cert, rpc_server_key) {
+            (Some(cert), Some(key)) => {
+                let cert = std::fs::read_to_string(cert)?;
+                let key = std::fs::read_to_string(key)?;
+                let identity = Identity::from_pem(cert, key);
+                let tls_conf = ServerTlsConfig::new().identity(identity);
+                server
+                    .tls_config(tls_conf)?
+                    .add_service(ExecutionServiceServer::new(self.handler))
+                    .serve(addr)
+                    .await?;
+            }
+            (None, None) => {
+                server
+                    .add_service(ExecutionServiceServer::new(self.handler))
+                    .serve(addr)
+                    .await?
+            }
+            _ => {
+                return Err(anyhow!(
+                    "both or neither of the server key and cert must be provided"
+                ))
+            }
+        };
+
         Ok(())
     }
 }
