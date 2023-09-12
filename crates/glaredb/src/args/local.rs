@@ -58,11 +58,11 @@ pub struct LocalClientOpts {
     #[arg(long)]
     pub max_rows: Option<usize>,
 
-    /// Path to CA certificate for TLS (required for TLS protocol).
+    /// Path to CA certificate for rpcsrv proxy TLS (required for TLS protocol).
     #[arg(long)]
     pub ca_cert_path: Option<String>,
 
-    /// Domain name against which to verify the server’s TLS certificate (required for TLS protocol).
+    /// Domain name against which to verify the rpcsrv proxy server’s TLS certificate (required for TLS protocol).
     #[arg(long)]
     pub domain: Option<String>,
 }
