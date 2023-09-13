@@ -1,13 +1,26 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use proxyutil::cloudauth::CloudAuthenticator;
 use rpcsrv::proxy::RpcProxyHandler;
+use serde::Deserialize;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 use tracing::{debug_span, info};
 
 pub struct RpcProxy {
     handler: RpcProxyHandler<CloudAuthenticator>,
+}
+
+#[derive(Deserialize)]
+struct Config {
+    rpc_tls: TlsConfig,
+}
+
+#[derive(Deserialize)]
+struct TlsConfig {
+    server_cert_path: String,
+    server_key_path: String,
 }
 
 impl RpcProxy {
@@ -21,8 +34,8 @@ impl RpcProxy {
     pub async fn serve(
         self,
         addr: SocketAddr,
-        rpc_server_cert: Option<String>,
-        rpc_server_key: Option<String>,
+        tls_conf_path: PathBuf,
+        disable_tls: bool,
     ) -> Result<()> {
         info!("starting rpc proxy service");
 
@@ -35,30 +48,28 @@ impl RpcProxy {
 
         let mut server = Server::builder().trace_fn(|_| debug_span!("rpc_proxy_service_request"));
 
-        match (rpc_server_cert, rpc_server_key) {
-            (Some(cert), Some(key)) => {
-                let cert = std::fs::read_to_string(cert)?;
-                let key = std::fs::read_to_string(key)?;
-                let identity = Identity::from_pem(cert, key);
-                let tls_conf = ServerTlsConfig::new().identity(identity);
-                server
-                    .tls_config(tls_conf)?
-                    .add_service(ExecutionServiceServer::new(self.handler))
-                    .serve(addr)
-                    .await?;
-            }
-            (None, None) => {
-                server
-                    .add_service(ExecutionServiceServer::new(self.handler))
-                    .serve(addr)
-                    .await?
-            }
-            _ => {
-                return Err(anyhow!(
-                    "both or neither of the server key and cert must be provided"
-                ))
-            }
-        };
+        if disable_tls {
+            server
+                .add_service(ExecutionServiceServer::new(self.handler))
+                .serve(addr)
+                .await?
+        } else {
+            // load the config toml file as a string
+            let conf = std::fs::read_to_string(tls_conf_path)?;
+            // deserialize the config into required structs
+            let config: Config = toml::from_str(conf.as_str()).unwrap();
+
+            let cert = std::fs::read_to_string(config.rpc_tls.server_cert_path)?;
+            let key = std::fs::read_to_string(config.rpc_tls.server_key_path)?;
+            let identity = Identity::from_pem(cert, key);
+            let tls_conf = ServerTlsConfig::new().identity(identity);
+
+            server
+                .tls_config(tls_conf)?
+                .add_service(ExecutionServiceServer::new(self.handler))
+                .serve(addr)
+                .await?;
+        }
 
         Ok(())
     }
