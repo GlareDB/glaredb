@@ -971,6 +971,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::RuntimeGroupExec(proto::RuntimeGroupExec {})
         } else if let Some(exec) = node.as_any().downcast_ref::<AnalyzeExec>() {
             // verbose is not a pub in datafusion, so we can either set it true or false
+            // TODO: update this once verbose is set to pub in datafusion
             proto::ExecutionPlanExtensionType::AnalyzeExec(proto::AnalyzeExec {
                 verbose: true,
                 schema: Some(exec.schema().try_into()?),
