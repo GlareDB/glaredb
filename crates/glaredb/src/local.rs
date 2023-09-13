@@ -1,4 +1,5 @@
 use crate::args::{LocalClientOpts, OutputMode};
+use crate::config::Config;
 use crate::highlighter::{SQLHighlighter, SQLHinter, SQLValidator};
 use crate::prompt::SQLPrompt;
 use crate::util::MetastoreClientMode;
@@ -73,16 +74,22 @@ impl LocalSession {
                     format!("Connected to remote GlareDB server: {}", u.cyan()),
                 )
             } else {
-                let tls_conf = match (opts.ca_cert_path.clone(), opts.domain.clone()) {
-                    (Some(ca_cert_path), Some(domain)) => Some(TlsConfig {
-                        ca_cert_path,
-                        domain,
-                    }),
-                    (None, None) => None,
-                    _ => {
+                let tls_conf = if opts.disable_tls {
+                    None
+                } else {
+                    // load the config toml file as a string
+                    let conf = std::fs::read_to_string(opts.tls_conf_path.clone())?;
+                    // deserialize the config into required structs
+                    let config: Config = toml::from_str(conf.as_str()).unwrap();
+                    if let Some(tls_client_conf) = config.rpc_client_tls {
+                        Some(TlsConfig {
+                            ca_cert_path: tls_client_conf.ca_cert_path,
+                            domain: tls_client_conf.domain,
+                        })
+                    } else {
                         return Err(anyhow!(
-                            "both or neither of the ca cert and domain must be provided"
-                        ))
+                            "Specify ca_cert_path and domain in rpc_client_tls in /etc/glaredb.conf in TOML format"
+                        ));
                     }
                 };
 

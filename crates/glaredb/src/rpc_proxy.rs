@@ -1,8 +1,8 @@
-use anyhow::Result;
+use crate::config::Config;
+use anyhow::{anyhow, Result};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use proxyutil::cloudauth::CloudAuthenticator;
 use rpcsrv::proxy::RpcProxyHandler;
-use serde::Deserialize;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
@@ -10,17 +10,6 @@ use tracing::{debug_span, info};
 
 pub struct RpcProxy {
     handler: RpcProxyHandler<CloudAuthenticator>,
-}
-
-#[derive(Deserialize)]
-struct Config {
-    rpc_tls: TlsConfig,
-}
-
-#[derive(Deserialize)]
-struct TlsConfig {
-    server_cert_path: String,
-    server_key_path: String,
 }
 
 impl RpcProxy {
@@ -58,17 +47,22 @@ impl RpcProxy {
             let conf = std::fs::read_to_string(tls_conf_path)?;
             // deserialize the config into required structs
             let config: Config = toml::from_str(conf.as_str()).unwrap();
+            if let Some(tls_conf) = config.rpc_tls {
+                let cert = std::fs::read_to_string(tls_conf.server_cert_path)?;
+                let key = std::fs::read_to_string(tls_conf.server_key_path)?;
+                let identity = Identity::from_pem(cert, key);
+                let tls_conf = ServerTlsConfig::new().identity(identity);
 
-            let cert = std::fs::read_to_string(config.rpc_tls.server_cert_path)?;
-            let key = std::fs::read_to_string(config.rpc_tls.server_key_path)?;
-            let identity = Identity::from_pem(cert, key);
-            let tls_conf = ServerTlsConfig::new().identity(identity);
-
-            server
-                .tls_config(tls_conf)?
-                .add_service(ExecutionServiceServer::new(self.handler))
-                .serve(addr)
-                .await?;
+                server
+                    .tls_config(tls_conf)?
+                    .add_service(ExecutionServiceServer::new(self.handler))
+                    .serve(addr)
+                    .await?;
+            } else {
+                return Err(anyhow!(
+                    "Specify server_cert_path and server_key_path in rpc_tls in /etc/glaredb.conf in TOML format"
+                ));
+            }
         }
 
         Ok(())
