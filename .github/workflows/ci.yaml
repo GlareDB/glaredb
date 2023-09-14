@@ -21,7 +21,7 @@ jobs:
 
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@1.72.0
-        components: clippy,rstfmt
+        components: clippy,rustfmt
 
       - name: Cache
         uses: Swatinem/rust-cache@v2
