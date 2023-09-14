@@ -65,7 +65,7 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) -> std::io::Res
             Token::LParen => st.push((new_style().fg(Color::Purple), "(".to_string())),
             Token::RParen => st.push((new_style().fg(Color::Purple), ")".to_string())),
             Token::Comma => st.push((new_style().fg(Color::Purple), ",".to_string())),
-            Token::SemiColon => st.push((new_style().fg(Color::White).bold(), ";".to_string())),
+            Token::SemiColon => st.push((new_style().fg(Color::Blue).bold(), ";".to_string())),
             Token::SingleQuotedString(s) => {
                 st.push((new_style().fg(Color::Yellow).italic(), format!("'{}'", s)))
             }
