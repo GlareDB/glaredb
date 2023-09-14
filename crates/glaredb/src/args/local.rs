@@ -58,9 +58,13 @@ pub struct LocalClientOpts {
     #[arg(long)]
     pub max_rows: Option<usize>,
 
-    /// Domain name against which to verify the rpcsrv proxy server’s TLS certificate (required for TLS protocol).
-    #[arg(long, value_parser, default_value = "/etc/glaredb.conf", hide = true)]
-    pub tls_conf_path: PathBuf,
+    /// CA Certificate against which to verify the server’s TLS certificate.
+    #[arg(long, value_parser, default_value = "ca.pem", hide = true)]
+    pub ca_cert_path: Option<String>,
+
+    /// Domain name against which to verify the server’s TLS certificate.
+    #[arg(long, value_parser, default_value = "example.com", hide = true)]
+    pub domain: Option<String>,
 
     /// Path to CA certificate for rpcsrv proxy TLS (required for TLS protocol).
     #[arg(long, hide = true)]

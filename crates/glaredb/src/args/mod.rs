@@ -50,9 +50,13 @@ pub struct RpcProxyArgs {
     #[clap(long)]
     pub cloud_auth_code: String,
 
-    /// Custom path for tls config
-    #[clap(long, value_parser, default_value = "/etc/glaredb.conf", hide = true)]
-    pub tls_conf_path: PathBuf,
+    /// Custom path for server certificate for TLS
+    #[clap(long, value_parser, default_value = "server.pem", hide = true)]
+    pub server_cert_path: Option<PathBuf>,
+
+    /// Custom path for server certificate key for TLS
+    #[clap(long, value_parser, default_value = "server.key", hide = true)]
+    pub server_key_path: Option<PathBuf>,
 
     /// Disable TLS.
     #[clap(long, hide = true)]

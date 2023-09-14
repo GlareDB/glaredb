@@ -1,4 +1,3 @@
-use crate::config::Config;
 use anyhow::{anyhow, Result};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use proxyutil::cloudauth::CloudAuthenticator;
@@ -23,7 +22,8 @@ impl RpcProxy {
     pub async fn serve(
         self,
         addr: SocketAddr,
-        tls_conf_path: PathBuf,
+        server_cert_path: Option<PathBuf>,
+        server_key_path: Option<PathBuf>,
         disable_tls: bool,
     ) -> Result<()> {
         info!("starting rpc proxy service");
@@ -43,13 +43,11 @@ impl RpcProxy {
                 .serve(addr)
                 .await?
         } else {
-            // load the config toml file as a string
-            let conf = std::fs::read_to_string(tls_conf_path)?;
-            // deserialize the config into required structs
-            let config: Config = toml::from_str(conf.as_str()).unwrap();
-            if let Some(tls_conf) = config.rpc_tls {
-                let cert = std::fs::read_to_string(tls_conf.server_cert_path)?;
-                let key = std::fs::read_to_string(tls_conf.server_key_path)?;
+            if let (Some(server_cert_path), Some(server_key_path)) =
+                (server_cert_path, server_key_path)
+            {
+                let cert = std::fs::read_to_string(server_cert_path)?;
+                let key = std::fs::read_to_string(server_key_path)?;
                 let identity = Identity::from_pem(cert, key);
                 let tls_conf = ServerTlsConfig::new().identity(identity);
 
@@ -60,7 +58,7 @@ impl RpcProxy {
                     .await?;
             } else {
                 return Err(anyhow!(
-                    "Specify server_cert_path and server_key_path in rpc_tls in /etc/glaredb.conf in TOML format"
+                    "Specify server_cert_path and server_key_path in --args for TLS"
                 ));
             }
         }

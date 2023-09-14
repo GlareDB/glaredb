@@ -1,5 +1,4 @@
 pub mod commands;
-pub mod config;
 pub mod local;
 pub mod metastore;
 pub mod pg_proxy;
