@@ -67,7 +67,7 @@ pub struct LocalClientOpts {
     pub domain: Option<String>,
 
     /// Path to CA certificate for rpcsrv proxy TLS (required for TLS protocol).
-    #[clap(long, hide = true)]
+    #[clap(long, default_value = "true", hide = true)]
     pub disable_tls: bool,
 }
 
