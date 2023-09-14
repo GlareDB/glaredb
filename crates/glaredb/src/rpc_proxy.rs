@@ -42,25 +42,23 @@ impl RpcProxy {
                 .add_service(ExecutionServiceServer::new(self.handler))
                 .serve(addr)
                 .await?
-        } else {
-            if let (Some(server_cert_path), Some(server_key_path)) =
-                (server_cert_path, server_key_path)
-            {
-                let cert = std::fs::read_to_string(server_cert_path)?;
-                let key = std::fs::read_to_string(server_key_path)?;
-                let identity = Identity::from_pem(cert, key);
-                let tls_conf = ServerTlsConfig::new().identity(identity);
+        } else if let (Some(server_cert_path), Some(server_key_path)) =
+            (server_cert_path, server_key_path)
+        {
+            let cert = std::fs::read_to_string(server_cert_path)?;
+            let key = std::fs::read_to_string(server_key_path)?;
+            let identity = Identity::from_pem(cert, key);
+            let tls_conf = ServerTlsConfig::new().identity(identity);
 
-                server
-                    .tls_config(tls_conf)?
-                    .add_service(ExecutionServiceServer::new(self.handler))
-                    .serve(addr)
-                    .await?;
-            } else {
-                return Err(anyhow!(
-                    "Specify server_cert_path and server_key_path in --args for TLS"
-                ));
-            }
+            server
+                .tls_config(tls_conf)?
+                .add_service(ExecutionServiceServer::new(self.handler))
+                .serve(addr)
+                .await?;
+        } else {
+            return Err(anyhow!(
+                "Specify server-cert-path and server-key-path in --args for TLS"
+            ));
         }
 
         Ok(())

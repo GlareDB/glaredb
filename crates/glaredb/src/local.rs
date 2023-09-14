@@ -83,7 +83,7 @@ impl LocalSession {
                         }),
                         _ => {
                             return Err(anyhow!(
-                                "Specify ca_cert_path and domain in --args for TLS"
+                                "Specify ca-cert-path and domain in --args for TLS"
                             ));
                         }
                     }
