@@ -120,6 +120,13 @@ impl SessionVars {
             .collect()
     }
 
+    pub fn implicit_search_path_iter(&self) -> impl Iterator<Item = String> + '_ {
+        IMPLICIT_SCHEMAS
+            .into_iter()
+            .map(|s| s.to_string())
+            .chain(self.search_path())
+    }
+
     /// Get the first non-implicit schema.
     pub fn first_nonimplicit_schema(&self) -> Option<String> {
         self.search_path().get(0).cloned()
@@ -244,7 +251,17 @@ impl VarProvider for SessionVars {
                     .collect::<Vec<_>>();
                 ScalarValue::List(
                     Some(schemas),
-                    Field::new("current_schemas", DataType::Utf8, true).into(),
+                    Field::new("item", DataType::Utf8, true).into(),
+                )
+            }
+            "current_schemas_include_implicit" => {
+                let schemas = self
+                    .implicit_search_path_iter()
+                    .map(|path| ScalarValue::Utf8(Some(path)))
+                    .collect::<Vec<_>>();
+                ScalarValue::List(
+                    Some(schemas),
+                    Field::new("item", DataType::Utf8, true).into(),
                 )
             }
             s => Err(datafusion::error::DataFusionError::External(
@@ -257,7 +274,7 @@ impl VarProvider for SessionVars {
         match var_names[0].as_str() {
             "version" | "current_user" | "current_role" | "user" | "current_database"
             | "current_catalog" | "current_schema" | "connection_id" => Some(DataType::Utf8),
-            "current_schemas" => Some(DataType::List(
+            "current_schemas" | "current_schemas_include_implicit" => Some(DataType::List(
                 Field::new("current_schemas", DataType::Utf8, true).into(),
             )),
 

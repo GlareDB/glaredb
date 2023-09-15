@@ -69,27 +69,68 @@ pub enum BuiltinScalarFunction {
     /// select current_catalog();
     /// ```
     CurrentCatalog,
-    /// SQL function `current_schemas`
-    ///
-    /// `current_schemas()` -> `String[]`
-    ///  current_schemas (include_implicit boolean) -> String[]
-    ///
-    /// (Postgres)
-    /// Get a list of schemas in the current search path.
-    CurrentSchemas,
+    /// postgres functions
+    /// All of these functions are  in the `pg_catalog` schema.
     Pg(BuiltinPostgresFunctions),
 }
 
 #[derive(Debug, Copy, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum BuiltinPostgresFunctions {
+    /// SQL function `pg_get_userbyid`
+    ///
+    /// `pg_get_userbyid(userid int)` -> `String`
+    /// ```sql
+    /// select pg_get_userbyid(1);
+    /// ```
     GetUserById,
+    /// SQL function `pg_table_is_visible`
+    ///     
+    /// `pg_table_is_visible(table_oid int)` -> `Boolean`
+    /// ```sql
+    /// select pg_table_is_visible(1);
+    /// ```
     TableIsVisible,
+    /// SQL function `pg_encoding_to_char`
+    ///
+    /// `pg_encoding_to_char(encoding int)` -> `String`
+    /// ```sql
+    /// select pg_encoding_to_char(1);
+    /// ```
     EncodingToChar,
+    /// SQL function `array_to_string`
+    ///
+    /// `array_to_string(array anyarray, delimiter text [, null_string text])` -> `String`
+    /// ```sql
+    /// select array_to_string(array[1,2,3], ',');
+    /// ```
     ArrayToString,
+    /// SQL function `has_schema_privilege`
+    ///
+    /// `has_schema_privilege(user_name text, schema_name text, privilege text) -> Boolean`
+    /// ```sql
     HasSchemaPrivilege,
+    /// SQL function `has_database_privilege`
+    ///     
+    /// `has_database_privilege(user_name text, database_name text, privilege text) -> Boolean`
+    /// ```sql
+    /// select has_database_privilege('foo', 'bar', 'baz');
+    /// ```
     HasDatabasePrivilege,
+    /// SQL function `has_table_privilege`
+    ///
+    /// `has_table_privilege(user_name text, table_name text, privilege text) -> Boolean`
+    /// ```sql
+    /// select has_table_privilege('foo', 'bar', 'baz');
+    /// ```
     HasTablePrivilege,
+    /// SQL function `current_schemas`
+    ///
+    /// `current_schemas()` -> `String[]`
+    ///  current_schemas (include_implicit boolean) -> String[]
+    ///
+    /// Get a list of schemas in the current search path.
+    CurrentSchemas,
 }
 
 impl BuiltinPostgresFunctions {
@@ -102,6 +143,22 @@ impl BuiltinPostgresFunctions {
             Self::HasSchemaPrivilege => pg_has_schema_privilege(),
             Self::HasDatabasePrivilege => pg_has_database_privilege(),
             Self::HasTablePrivilege => pg_has_table_privilege(),
+            Self::CurrentSchemas => {
+                // There's no good way to handle the `include_implicit` argument,
+                // but since its a binary value (true/false),
+                // we can just assign it to a different variable
+                let var_name = if let Expr::Literal(ScalarValue::Boolean(Some(true))) = &args[0] {
+                    "current_schemas_include_implicit".to_string()
+                } else {
+                    "current_schemas".to_string()
+                };
+
+                return Expr::ScalarVariable(
+                    DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+                    vec![var_name],
+                )
+                .alias("current_schemas");
+            }
         };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
             udf.into(),
@@ -121,17 +178,9 @@ impl BuiltinScalarFunction {
             Expr::ScalarVariable(DataType::Utf8, vec![s.to_string()])
         }
 
-        fn list_var(s: &str) -> Expr {
-            Expr::ScalarVariable(
-                DataType::List(Arc::new(Field::new(s, DataType::Utf8, true))),
-                vec![s.to_string()],
-            )
-        }
-
         match self {
             ConnectionId => string_var("connection_id"),
             Version => string_var("version"),
-            CurrentSchemas => list_var("current_schemas"),
             CurrentUser => string_var("current_user"),
             CurrentRole => string_var("current_role"),
             CurrentCatalog => string_var("current_catalog"),
@@ -161,6 +210,7 @@ impl FromStr for BuiltinPostgresFunctions {
             "has_schema_privilege" => Ok(Self::HasSchemaPrivilege),
             "has_database_privilege" => Ok(Self::HasDatabasePrivilege),
             "has_table_privilege" => Ok(Self::HasTablePrivilege),
+            "current_schemas" => Ok(Self::CurrentSchemas),
             s => {
                 let idents: Vec<_> = s.split('.').collect();
                 if idents.len() != 2 {
@@ -189,7 +239,6 @@ impl FromStr for BuiltinScalarFunction {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "connection_id" => Ok(Self::ConnectionId),
-            "current_schemas" => Ok(Self::CurrentSchemas),
             "version" => Ok(Self::Version),
             "current_user" => Ok(Self::CurrentUser),
             "current_role" => Ok(Self::CurrentRole),
@@ -343,7 +392,7 @@ mod tests {
 
         let pairs = vec![
             ("connection_id", ConnectionId),
-            ("current_schemas", CurrentSchemas),
+            ("current_schemas", CurrentSchemas.into()),
             ("current_catalog", CurrentCatalog),
             ("pg_get_userbyid", GetUserById.into()),
             ("pg_table_is_visible", TableIsVisible.into()),
