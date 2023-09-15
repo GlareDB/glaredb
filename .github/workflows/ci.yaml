@@ -7,36 +7,45 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: build-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    name: Build and Test
+    name: Build
     runs-on: ubuntu-latest-8-cores
-    concurrency:
-      group: build-ci-${{ github.ref }}
-      cancel-in-progress: true
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@1.72.0
-        with: 
+        with:
           components: clippy,rustfmt
 
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-
       - uses: extractions/setup-just@v1
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
+          cache-all-crates: true
 
       - name: Build
         run: just build
 
-      - name: Unit Tests
-        run: just unit-tests
-
-      - name: Doc Tests
-        run: just doc-tests
+  static-analysis:
+    name: Lint and Format
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
+          cache-all-crates: true
 
       - name: Clippy
         run: just clippy
@@ -44,13 +53,66 @@ jobs:
       - name: Format
         run: just fmt-check
 
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
+          cache-all-crates: true
+
+      - name: Unit Tests
+        run: just unit-tests
+
+      - name: Doc Tests
+        run: just doc-tests
+
+  python-binding-tests:
+    name: Python Binding Tests
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
+          cache-all-crates: true
+
+      - name: Python Bindings Tests
+        run: |
+          just python build
+          just python test
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
+          cache-all-crates: true
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
         if: github.repository_owner == 'glaredb'
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
-      - name: Setup snowsql
+      - name: Setup SnowSQL
         if: github.repository_owner == 'glaredb'
         run: |
           curl -o snowsql.bash \
@@ -58,14 +120,14 @@ jobs:
           mkdir -p ~/bin
           SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
 
-      - name: Download testdata
+      - name: Download Testdata
         run: ./scripts/prepare-testdata.sh
 
-      - name: Setup gcloud
+      - name: Setup GCP
         uses: google-github-actions/setup-gcloud@v1
         if: github.repository_owner == 'glaredb'
 
-      - name: SQL Logic Tests public
+      - name: SQL Logic Tests Public
         if: github.repository_owner != 'glaredb'
         run: just slt -v 'sqllogictests/*'
 
@@ -169,10 +231,22 @@ jobs:
 
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
 
-      - name: PG Protocol Tests
-        run: ./scripts/protocol-test.sh
+  pg-protocol:
+    name: PG Protocol Tests
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@1.72.0
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
+          cache-all-crates: true
 
-      - name: Python bindings tests
+      - name: PG Protocol Tests
         run: |
-          just python build
-          just python test
+          PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh

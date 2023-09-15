@@ -7,7 +7,12 @@
 
 set -e
 
+export RUST_BACKTRACE=1
+
 run_id=${RANDOM}
+
+# build once...
+just build || true
 
 # Start up GlareDB.
 glaredb_log_file="/tmp/glaredb.log-${run_id}"
@@ -30,7 +35,7 @@ cargo run --bin pgprototest -- \
     -v || ret=$?
 
 # Kill GlareDB.
-kill "${glaredb_pid}"
+kill "${glaredb_pid}" || true
 
 # Print out log if failed.
 if [[ "${ret}" -ne 0 ]]; then
@@ -39,4 +44,3 @@ if [[ "${ret}" -ne 0 ]]; then
 
     exit "${ret}"
 fi
-
