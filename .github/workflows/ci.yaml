@@ -20,7 +20,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.72.0
+        with: 
+          components: clippy,rustfmt
 
       - name: Cache
         uses: Swatinem/rust-cache@v2
