@@ -1,34 +1,81 @@
 //! Built-in functions.
-use crate::context::local::LocalSessionContext;
-use datafusion::arrow::array::StringBuilder;
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::ScalarValue;
-use datafusion::logical_expr::expr_rewriter::normalize_cols;
-use datafusion::logical_expr::{
-    ColumnarValue, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF, Signature,
-    TypeSignature, Volatility,
-};
+use datafusion::error::Result;
+use datafusion::logical_expr::{ColumnarValue, ScalarUDF, Signature, TypeSignature, Volatility};
+use datafusion::prelude::Expr;
 use sqlbuiltins::builtins::POSTGRES_SCHEMA;
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::warn;
 
 /// Additional built-in scalar functions.
 #[derive(Debug, Copy, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum BuiltinScalarFunction {
-    /// 'connection_id' -> String
-    /// Get the connection id that this session was started with.
+    /// SQL function `connection_id`
+    ///
+    /// `connection_id()` -> `String`
+    /// ```sql
+    /// select connection_id();
+    /// ```
     ConnectionId,
+    /// SQL function `version`
+    ///
+    /// `version()` -> `String`
+    /// ```sql
+    /// select version();
+    /// ```
+    Version,
+    /// SQL function `current_user`
+    ///
+    /// `current_user()` -> `String`
+    /// ```sql
+    /// select current_user();
+    /// ```
+    CurrentUser,
+    /// SQL function `current_role`
+    ///
+    /// `current_role()` -> `String`
+    /// ```sql
+    /// select current_role();
+    /// ```
+    CurrentRole,
+    /// SQL function `user`
+    ///
+    /// `user()` -> `String`
+    /// ```sql
+    /// select user();
+    /// ```
+    User,
+    /// SQL function `current_schema`
+    ///
+    /// `current_schema()` -> `String`
+    /// ```sql
+    /// select current_schema();
+    /// ```
+    CurrentSchema,
+    /// SQL function `current_database`
+    ///
+    /// `current_database()` -> `String`
+    /// ```sql
+    /// select current_database();
+    /// ```
+    CurrentDatabase,
 
-    /// current_schemas (include_implicit boolean) -> String[]
-    /// current_schemas () -> String[]
+    /// SQL function `current_schemas`
+    ///
+    /// `current_schemas()` -> `String[]`
+    ///  current_schemas (include_implicit boolean) -> String[]
     ///
     /// (Postgres)
     /// Get a list of schemas in the current search path.
     CurrentSchemas,
-    PgFunction(BuiltinPostgresFunctions),
+    Pg(BuiltinPostgresFunctions),
 }
 
 #[derive(Debug, Copy, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum BuiltinPostgresFunctions {
     GetUserById,
     TableIsVisible,
@@ -39,44 +86,112 @@ pub enum BuiltinPostgresFunctions {
     HasTablePrivilege,
 }
 
-impl BuiltinScalarFunction {}
+impl BuiltinPostgresFunctions {
+    fn into_expr(self, args: Vec<Expr>) -> Expr {
+        let udf = match self {
+            Self::GetUserById => pg_get_userbyid(),
+            Self::TableIsVisible => pg_table_is_visible(),
+            Self::EncodingToChar => pg_encoding_to_char(),
+            Self::ArrayToString => pg_array_to_string(),
+            Self::HasSchemaPrivilege => pg_has_schema_privilege(),
+            Self::HasDatabasePrivilege => pg_has_database_privilege(),
+            Self::HasTablePrivilege => pg_has_table_privilege(),
+        };
+        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
+            udf.into(),
+            args,
+        ))
+    }
+}
 
-#[derive(Debug, Clone)]
-pub struct PgFunctionBuilder;
+impl BuiltinScalarFunction {
+    pub fn find_function(name: &str) -> Option<Self> {
+        Self::from_str(name).ok()
+    }
+    pub fn into_expr(self, args: Vec<Expr>) -> Expr {
+        use BuiltinScalarFunction::*;
 
-impl PgFunctionBuilder {
-    /// Try to get a postres function by name.
-    ///
-    /// If `implicit_pg_schema` is true, try to resolve the function as if the
-    /// postgres schema is in the search path.
-    pub fn try_from_name(
-        ctx: &LocalSessionContext,
-        name: &str,
-        implicit_pg_schema: bool,
-    ) -> Option<Arc<ScalarUDF>> {
-        todo!()
-        // if implicit_pg_schema {
-        //     if let Some(func) = Self::try_from_unqualified(ctx, name) {
-        //         return Some(func);
-        //     }
-        // }
+        fn make_str(s: &str) -> Expr {
+            Expr::ScalarVariable(DataType::Utf8, vec![s.to_string()])
+        }
 
-        // let idents: Vec<_> = name.split('.').collect();
-        // if idents.len() == 1 {
-        //     // No qualification.
-        //     return None;
-        // }
-        // if idents.len() != 2 {
-        //     warn!(
-        //         ?idents,
-        //         "received pg function name with more than two idents"
-        //     );
-        //     return None;
-        // }
-        // if idents[0] != POSTGRES_SCHEMA {
-        //     return None;
-        // }
-        // Self::try_from_unqualified(ctx, idents[1])
+        fn make_str_lst(s: &str) -> Expr {
+            Expr::ScalarVariable(
+                DataType::List(Arc::new(Field::new(s, DataType::Utf8, true))),
+                vec![s.to_string()],
+            )
+        }
+
+        match self {
+            ConnectionId => make_str("connection_id"),
+            Version => make_str("version"),
+            CurrentSchemas => make_str_lst("current_schemas"),
+            CurrentUser => make_str("current_user"),
+            CurrentRole => make_str("current_role"),
+            User => make_str("user"),
+            CurrentSchema => make_str("current_schema"),
+            CurrentDatabase => make_str("current_database"),
+            Pg(pg) => pg.into_expr(args),
+        }
+    }
+}
+
+impl From<BuiltinPostgresFunctions> for BuiltinScalarFunction {
+    fn from(f: BuiltinPostgresFunctions) -> Self {
+        Self::Pg(f)
+    }
+}
+
+impl FromStr for BuiltinPostgresFunctions {
+    type Err = datafusion::common::DataFusionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "pg_get_userbyid" => Ok(Self::GetUserById),
+            "pg_table_is_visible" => Ok(Self::TableIsVisible),
+            "pg_encoding_to_char" => Ok(Self::EncodingToChar),
+            "array_to_string" => Ok(Self::ArrayToString),
+            "has_schema_privilege" => Ok(Self::HasSchemaPrivilege),
+            "has_database_privilege" => Ok(Self::HasDatabasePrivilege),
+            "has_table_privilege" => Ok(Self::HasTablePrivilege),
+            s => {
+                let idents: Vec<_> = s.split('.').collect();
+                if idents.len() != 2 {
+                    warn!(
+                        ?idents,
+                        "received pg function name with more than two idents"
+                    );
+                    return Err(datafusion::common::DataFusionError::NotImplemented(
+                        format!("BuiltinScalarFunction::from_str({})", s),
+                    ));
+                }
+                if idents[0] != POSTGRES_SCHEMA {
+                    return Err(datafusion::common::DataFusionError::NotImplemented(
+                        format!("BuiltinScalarFunction::from_str({})", s),
+                    ));
+                }
+                Self::from_str(idents[1])
+            }
+        }
+    }
+}
+
+impl FromStr for BuiltinScalarFunction {
+    type Err = datafusion::common::DataFusionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "connection_id" => Ok(Self::ConnectionId),
+            "current_schemas" => Ok(Self::CurrentSchemas),
+            "version" => Ok(Self::Version),
+            "current_user" => Ok(Self::CurrentUser),
+            "current_role" => Ok(Self::CurrentRole),
+            "user" => Ok(Self::User),
+            "current_schema" => Ok(Self::CurrentSchema),
+            "current_database" => Ok(Self::CurrentDatabase),
+
+            s => BuiltinPostgresFunctions::from_str(s).map(Self::Pg),
+        }
     }
 }
 
@@ -208,15 +323,52 @@ fn get_nth_scalar_value(input: &[ColumnarValue], n: usize) -> Option<ScalarValue
         None => None,
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
 
-pub fn get_pg_udfs() -> Vec<ScalarUDF> {
-    vec![
-        pg_array_to_string(),
-        pg_has_database_privilege(),
-        pg_has_schema_privilege(),
-        pg_has_table_privilege(),
-        pg_encoding_to_char(),
-        pg_get_userbyid(),
-        pg_table_is_visible(),
-    ]
+    #[test]
+    fn test_funcs_from_str() {
+        use BuiltinPostgresFunctions::*;
+        use BuiltinScalarFunction::*;
+
+        let pairs = vec![
+            ("connection_id", ConnectionId),
+            ("current_schemas", CurrentSchemas),
+            ("pg_get_userbyid", GetUserById.into()),
+            ("pg_table_is_visible", TableIsVisible.into()),
+            ("pg_encoding_to_char", EncodingToChar.into()),
+            ("array_to_string", ArrayToString.into()),
+            ("has_schema_privilege", HasSchemaPrivilege.into()),
+            ("has_database_privilege", HasDatabasePrivilege.into()),
+            ("has_table_privilege", HasTablePrivilege.into()),
+            ("pg_catalog.pg_get_userbyid", GetUserById.into()),
+            ("pg_catalog.pg_table_is_visible", TableIsVisible.into()),
+            ("pg_catalog.pg_encoding_to_char", EncodingToChar.into()),
+            ("pg_catalog.array_to_string", ArrayToString.into()),
+            ("pg_catalog.has_schema_privilege", HasSchemaPrivilege.into()),
+            (
+                "pg_catalog.has_database_privilege",
+                HasDatabasePrivilege.into(),
+            ),
+            ("pg_catalog.has_table_privilege", HasTablePrivilege.into()),
+        ];
+        for (s, expected) in pairs {
+            let func = BuiltinScalarFunction::from_str(s).unwrap();
+            assert_eq!(func, expected);
+        }
+
+        let failures = vec![
+            "pg_get_userby",
+            "pg_get_userbyid.foo",
+            "pg_catalo.pg_get_userbyid.",
+            "test.pg_catalog.pg_get_userbyid",
+        ];
+
+        for s in failures {
+            let func = BuiltinScalarFunction::from_str(s);
+            assert!(func.is_err());
+        }
+    }
 }

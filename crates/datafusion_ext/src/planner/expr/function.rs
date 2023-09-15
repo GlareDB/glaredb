@@ -17,7 +17,7 @@
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use datafusion::common::{DFSchema, DataFusionError, Result};
-use datafusion::logical_expr::expr::{ScalarFunction, ScalarUDF};
+use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::utils::COUNT_STAR_EXPANSION;
 use datafusion::logical_expr::window_frame::regularize;
 use datafusion::logical_expr::{
@@ -124,51 +124,46 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 };
                 return Ok(expr);
             }
-        } else {
-            // next, aggregate built-ins
-            if let Ok(fun) = AggregateFunction::from_str(&name) {
-                let distinct = function.distinct;
-                let order_by = self
-                    .order_by_to_sort_expr(&function.order_by, schema, planner_context)
-                    .await?;
-                let order_by = (!order_by.is_empty()).then_some(order_by);
-                let (fun, args) = self
-                    .aggregate_fn_to_expr(fun, function.args, schema, planner_context)
-                    .await?;
-                return Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
-                    fun, args, distinct, None, order_by,
-                )));
-            };
+        }
+        // next, aggregate built-ins
+        if let Ok(fun) = AggregateFunction::from_str(&name) {
+            let distinct = function.distinct;
+            let order_by = self
+                .order_by_to_sort_expr(&function.order_by, schema, planner_context)
+                .await?;
+            let order_by = (!order_by.is_empty()).then_some(order_by);
+            let (fun, args) = self
+                .aggregate_fn_to_expr(fun, function.args, schema, planner_context)
+                .await?;
+            return Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
+                fun, args, distinct, None, order_by,
+            )));
+        };
+        // User defined aggregate functions
+        if let Some(fm) = self.schema_provider.get_aggregate_meta(&name).await {
+            let args = self
+                .function_args_to_expr(function.args, schema, planner_context)
+                .await?;
+            return Ok(Expr::AggregateUDF(expr::AggregateUDF::new(
+                fm, args, None, None,
+            )));
+        }
 
-            // finally, user-defined functions (UDF) and UDAF
-            if let Some(fm) = self.schema_provider.get_function_meta(&name).await {
-                let args = self
-                    .function_args_to_expr(function.args, schema, planner_context)
-                    .await?;
-                return Ok(Expr::ScalarUDF(ScalarUDF::new(fm, args)));
-            }
+        // Special case arrow_cast (as its type is dependent on its argument value)
+        if name == ARROW_CAST_NAME {
+            let args = self
+                .function_args_to_expr(function.args, schema, planner_context)
+                .await?;
+            return super::arrow_cast::create_arrow_cast(args, schema);
+        }
 
-            if let Some(expr) = self.schema_provider.get_static_function_meta(&name).await {
-                return Ok(expr);
-            }
+        // finally, user-defined functions (UDF) and UDAF
+        let args = self
+            .function_args_to_expr(function.args, schema, planner_context)
+            .await?;
 
-            // User defined aggregate functions
-            if let Some(fm) = self.schema_provider.get_aggregate_meta(&name).await {
-                let args = self
-                    .function_args_to_expr(function.args, schema, planner_context)
-                    .await?;
-                return Ok(Expr::AggregateUDF(expr::AggregateUDF::new(
-                    fm, args, None, None,
-                )));
-            }
-
-            // Special case arrow_cast (as its type is dependent on its argument value)
-            if name == ARROW_CAST_NAME {
-                let args = self
-                    .function_args_to_expr(function.args, schema, planner_context)
-                    .await?;
-                return super::arrow_cast::create_arrow_cast(args, schema);
-            }
+        if let Some(expr) = self.schema_provider.get_builtin(&name, args) {
+            return Ok(expr);
         }
 
         // Could not find the relevant function, so return an error

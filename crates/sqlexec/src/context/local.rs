@@ -32,7 +32,7 @@ use tokio_postgres::types::Type as PgType;
 
 use uuid::Uuid;
 
-use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts, register_udfs};
+use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 
 /// Context for a session used local execution and planning.
 ///
@@ -84,7 +84,6 @@ impl LocalSessionContext {
         let state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
         let df_ctx = DfSessionContext::with_state(state);
-        let df_ctx = register_udfs(df_ctx);
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(LocalSessionContext {
@@ -132,6 +131,7 @@ impl LocalSessionContext {
         let state = SessionState::with_config_rt(conf, runtime);
 
         let df_ctx = DfSessionContext::with_state(state);
+        df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         self.exec_client = Some(client.clone());
         self.df_ctx = df_ctx;
@@ -361,11 +361,6 @@ impl LocalSessionContext {
             },
         };
         Ok(r)
-    }
-
-    /// Iterate over all values in the search path.
-    pub(crate) fn search_paths(&self) -> Vec<String> {
-        self.get_session_vars().search_path()
     }
 
     /// Iterate over the implicit search path. This will have all implicit

@@ -2,6 +2,7 @@ use crate::context::local::LocalSessionContext;
 use crate::dispatch::DispatchError;
 use crate::dispatch::Dispatcher;
 use crate::errors::ExecError;
+use crate::functions::BuiltinScalarFunction;
 use crate::planner::errors::PlanError;
 use crate::remote::client::RemoteSessionClient;
 use crate::resolve::EntryResolver;
@@ -13,9 +14,7 @@ use datafusion::config::ConfigOptions;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
-use datafusion::execution::FunctionRegistry;
 use datafusion::logical_expr::AggregateUDF;
-use datafusion::logical_expr::ScalarUDF;
 use datafusion::logical_expr::TableSource;
 use datafusion::prelude::Expr;
 use datafusion::sql::TableReference;
@@ -405,28 +404,8 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         Ok(Arc::new(DefaultTableSource::new(Arc::new(provider))))
     }
 
-    async fn get_function_meta(&mut self, name: &str) -> Option<Arc<ScalarUDF>> {
-        self.ctx.df_ctx().udf(name).ok()
-    }
-
-    // functions that are really just runtime variables
-    // such as version() and current_user()
-    async fn get_static_function_meta(&mut self, name: &str) -> Option<Expr> {
-        match name {
-            "version" => Some(Expr::ScalarVariable(
-                DataType::Utf8,
-                vec!["glaredb_version".to_string()],
-            )),
-            "current_user" | "current_role" | "user" => Some(Expr::ScalarVariable(
-                DataType::Utf8,
-                vec!["current_user".to_string()],
-            )),
-            "current_schema" => Some(Expr::ScalarVariable(
-                DataType::Utf8,
-                vec!["current_schema".to_string()],
-            )),
-            _ => None,
-        }
+    fn get_builtin(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr> {
+        BuiltinScalarFunction::find_function(name).map(|f| f.into_expr(args))
     }
 
     async fn get_variable_type(&mut self, _variable_names: &[String]) -> Option<DataType> {

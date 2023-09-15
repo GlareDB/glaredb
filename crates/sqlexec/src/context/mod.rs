@@ -18,20 +18,13 @@ use datafusion::{
         memory_pool::GreedyMemoryPool,
         runtime_env::{RuntimeConfig, RuntimeEnv},
     },
-    prelude::SessionContext,
 };
 use datafusion_ext::vars::SessionVars;
 use datasources::object_store::init_session_registry;
 use protogen::metastore::types::catalog::CatalogEntry;
 
-use crate::{errors::Result, functions::get_pg_udfs, metastore::catalog::SessionCatalog};
+use crate::{errors::Result, metastore::catalog::SessionCatalog};
 
-pub(crate) fn register_udfs(ctx: SessionContext) -> SessionContext {
-    for udf in get_pg_udfs() {
-        ctx.register_udf(udf);
-    }
-    ctx
-}
 /// Create a new datafusion runtime env common to both remote and local
 /// sessions.
 ///

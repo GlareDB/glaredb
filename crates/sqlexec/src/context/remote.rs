@@ -21,7 +21,7 @@ use crate::{
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
 
-use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts, register_udfs};
+use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 
 /// A lightweight session context used during remote execution of physical
 /// plans.
@@ -65,8 +65,7 @@ impl RemoteSessionContext {
         // TODO: Query planners for handling custom plans.
 
         let df_ctx = DfSessionContext::with_config_rt(conf, Arc::new(runtime));
-        let df_ctx = register_udfs(df_ctx);
-        df_ctx.register_variable(datafusion::variable::VarType::System, Arc::new(vars));
+        df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(RemoteSessionContext {
             catalog,
