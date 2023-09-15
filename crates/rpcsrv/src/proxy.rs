@@ -15,6 +15,7 @@ use proxyutil::metadata_constants::{
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{hash::Hash, time::Duration};
+use tonic::transport::{Certificate, ClientTlsConfig};
 use tonic::{
     metadata::MetadataMap,
     transport::{Channel, Endpoint},
@@ -76,11 +77,26 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
             return Ok((details, conn));
         }
 
-        // Otherwise need to create it.
-        //
-        // TODO: Assumes http, do we want https internally?
-        let url = format!("http://{}:{}", key.ip, key.port);
-        let channel = Endpoint::new(url)?
+        let endpoint = if meta.contains_key("ca_cert_path") && meta.contains_key("domain") {
+            // setup tls
+            let url = format!("https://{}:{}", key.ip, key.port);
+            let ca = std::fs::read_to_string(
+                meta.get("ca_cert_path")
+                    .map(|s| s.to_str())
+                    .transpose()?
+                    .unwrap(),
+            )
+            .unwrap();
+            let tls_conf = ClientTlsConfig::new()
+                .ca_certificate(Certificate::from_pem(ca))
+                .domain_name(meta.get("domain").map(|s| s.to_str()).transpose()?.unwrap());
+            Endpoint::new(url)?.tls_config(tls_conf)?
+        } else {
+            let url = format!("http://{}:{}", key.ip, key.port);
+            Endpoint::new(url)?
+        };
+
+        let channel = endpoint
             .tcp_keepalive(Some(Duration::from_secs(600)))
             .tcp_nodelay(true)
             .keep_alive_while_idle(true)

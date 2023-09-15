@@ -1,9 +1,10 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use proxyutil::cloudauth::CloudAuthenticator;
 use rpcsrv::proxy::RpcProxyHandler;
 use std::net::SocketAddr;
-use tonic::transport::Server;
+use std::path::PathBuf;
+use tonic::transport::{Identity, Server, ServerTlsConfig};
 use tracing::{debug_span, info};
 
 pub struct RpcProxy {
@@ -18,7 +19,13 @@ impl RpcProxy {
         })
     }
 
-    pub async fn serve(self, addr: SocketAddr) -> Result<()> {
+    pub async fn serve(
+        self,
+        addr: SocketAddr,
+        server_cert_path: Option<PathBuf>,
+        server_key_path: Option<PathBuf>,
+        disable_tls: bool,
+    ) -> Result<()> {
         info!("starting rpc proxy service");
 
         // Note that we don't need a shutdown handler to prevent exits on active
@@ -28,11 +35,32 @@ impl RpcProxy {
         // This _may_ end up killing inflight queries, but we can handle that
         // later.
 
-        Server::builder()
-            .trace_fn(|_| debug_span!("rpc_proxy_service_request"))
-            .add_service(ExecutionServiceServer::new(self.handler))
-            .serve(addr)
-            .await?;
+        let mut server = Server::builder().trace_fn(|_| debug_span!("rpc_proxy_service_request"));
+
+        if disable_tls {
+            server
+                .add_service(ExecutionServiceServer::new(self.handler))
+                .serve(addr)
+                .await?
+        } else if let (Some(server_cert_path), Some(server_key_path)) =
+            (server_cert_path, server_key_path)
+        {
+            let cert = std::fs::read_to_string(server_cert_path)?;
+            let key = std::fs::read_to_string(server_key_path)?;
+            let identity = Identity::from_pem(cert, key);
+            let tls_conf = ServerTlsConfig::new().identity(identity);
+
+            server
+                .tls_config(tls_conf)?
+                .add_service(ExecutionServiceServer::new(self.handler))
+                .serve(addr)
+                .await?;
+        } else {
+            return Err(anyhow!(
+                "Specify server-cert-path and server-key-path in --args for TLS"
+            ));
+        }
+
         Ok(())
     }
 }

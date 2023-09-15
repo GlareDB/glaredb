@@ -16,12 +16,12 @@ use protogen::{
     },
 };
 use proxyutil::metadata_constants::{
-    COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
+    CA_CERT_PATH, COMPUTE_ENGINE_KEY, DB_NAME_KEY, DOMAIN, ORG_KEY, PASSWORD_KEY, USER_KEY,
 };
 use std::{collections::HashMap, sync::Arc};
 use tonic::{
     metadata::MetadataMap,
-    transport::{Channel, Endpoint},
+    transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
     IntoRequest, Streaming,
 };
 use url::Url;
@@ -46,11 +46,30 @@ pub struct ProxyAuthParams {
     pub compute_engine: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TlsConfig {
+    pub ca_cert_path: String,
+    pub domain: String,
+}
+
 /// Auth params and destination to use when connecting the client.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProxyDestination {
     pub params: ProxyAuthParams,
     pub dst: Url,
+    pub tls_conf: Option<TlsConfig>,
+}
+
+impl ProxyDestination {
+    pub fn with_tls(mut self, tls_conf: Option<TlsConfig>) -> Self {
+        if let Some(tls_conf) = tls_conf {
+            self.dst
+                .set_scheme("https")
+                .expect("not able to convert http to https");
+            self.tls_conf = Some(tls_conf);
+        }
+        self
+    }
 }
 
 impl TryFrom<Url> for ProxyDestination {
@@ -112,7 +131,11 @@ impl TryFrom<Url> for ProxyDestination {
             compute_engine: compute_engine.map(String::from),
         };
 
-        Ok(ProxyDestination { params, dst })
+        Ok(ProxyDestination {
+            params,
+            dst,
+            tls_conf: None,
+        })
     }
 }
 
@@ -151,13 +174,14 @@ impl RemoteClient {
 
     /// Connect to a proxy destination.
     pub async fn connect_with_proxy_destination(dst: ProxyDestination) -> Result<Self> {
-        Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params).await
+        Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params, dst.tls_conf).await
     }
 
     /// Connect to a destination with the provided authentication params.
     async fn connect_with_proxy_auth_params<'a>(
         dst: impl TryInto<Endpoint, Error = tonic::transport::Error>,
         params: ProxyAuthParams,
+        tls_conf: Option<TlsConfig>,
     ) -> Result<Self> {
         let mut metadata = MetadataMap::new();
         metadata.insert(USER_KEY, params.user.parse()?);
@@ -166,6 +190,18 @@ impl RemoteClient {
         metadata.insert(ORG_KEY, params.org.parse()?);
         if let Some(compute_engine) = params.compute_engine {
             metadata.insert(COMPUTE_ENGINE_KEY, compute_engine.parse()?);
+        }
+
+        let mut dst: Endpoint = dst.try_into()?;
+        if let Some(tls_conf) = tls_conf {
+            metadata.insert(CA_CERT_PATH, tls_conf.ca_cert_path.parse()?);
+            metadata.insert(DOMAIN, tls_conf.domain.parse()?);
+            let ca = std::fs::read_to_string(tls_conf.ca_cert_path)?;
+            dst = dst.tls_config(
+                ClientTlsConfig::new()
+                    .ca_certificate(Certificate::from_pem(ca))
+                    .domain_name(tls_conf.domain),
+            )?;
         }
 
         let client = ExecutionServiceClient::connect(dst).await?;
@@ -380,6 +416,7 @@ mod tests {
                 compute_engine: None,
             },
             dst: Url::parse("http://remote.glaredb.com:6443").unwrap(),
+            tls_conf: None,
         };
 
         assert_eq!(expected, out);
@@ -401,6 +438,7 @@ mod tests {
                 compute_engine: Some("engine".to_string()),
             },
             dst: Url::parse("http://remote.glaredb.com:4444").unwrap(),
+            tls_conf: None,
         };
 
         assert_eq!(expected, out);

@@ -49,6 +49,18 @@ pub struct RpcProxyArgs {
     /// Authorization code for communicating with Cloud.
     #[clap(long)]
     pub cloud_auth_code: String,
+
+    /// Custom path for server certificate for TLS
+    #[clap(long, value_parser, default_value = "/etc/certs/tls.pem", hide = true)]
+    pub server_cert_path: Option<PathBuf>,
+
+    /// Custom path for server certificate key for TLS
+    #[clap(long, value_parser, default_value = "/etc/certs/tls.key", hide = true)]
+    pub server_key_path: Option<PathBuf>,
+
+    /// Disable TLS.
+    #[clap(long, hide = true)]
+    pub disable_tls: bool,
 }
 
 #[derive(Parser)]

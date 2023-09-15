@@ -47,7 +47,7 @@ pub struct LocalClientOpts {
     pub ignore_rpc_auth: bool,
 
     /// Display output mode.
-    #[arg(long, value_enum, default_value_t=OutputMode::Table)]
+    #[clap(long, value_enum, default_value_t=OutputMode::Table)]
     pub mode: OutputMode,
 
     /// Max width for tables to display.
@@ -55,8 +55,20 @@ pub struct LocalClientOpts {
     pub max_width: Option<usize>,
 
     /// Max number of rows to display.
-    #[arg(long)]
+    #[clap(long)]
     pub max_rows: Option<usize>,
+
+    /// CA Certificate against which to verify the server’s TLS certificate.
+    #[clap(long, value_parser, default_value = "/etc/certs/ca.pem", hide = true)]
+    pub ca_cert_path: Option<String>,
+
+    /// Domain name against which to verify the server’s TLS certificate.
+    #[clap(long, value_parser, default_value = "glaredb.com", hide = true)]
+    pub domain: Option<String>,
+
+    /// Path to CA certificate for rpcsrv proxy TLS (required for TLS protocol).
+    #[clap(long, default_value = "true", hide = true)]
+    pub disable_tls: bool,
 }
 
 impl LocalClientOpts {

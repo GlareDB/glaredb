@@ -1,27 +1,27 @@
 [package]
 name = "glaredb"
-version = {workspace = true}
-edition = {workspace = true}
+version = { workspace = true }
+edition = { workspace = true }
 
 [[bin]]
 name = "glaredb"
 path = "src/bin/main.rs"
 
 [dependencies]
-arrow_util = {path = "../arrow_util"}
-logutil = {path = "../logutil"}
-sqlexec = {path = "../sqlexec"}
-telemetry = {path = "../telemetry"}
-datafusion_ext = {path = "../datafusion_ext"}
-datafusion = {workspace = true}
-pgsrv = {path = "../pgsrv"}
-proxyutil = {path = "../proxyutil"}
-rpcsrv = {path = "../rpcsrv"}
-pgrepr = {path = "../pgrepr"}
-protogen = {path = "../protogen"}
+arrow_util = { path = "../arrow_util" }
+logutil = { path = "../logutil" }
+sqlexec = { path = "../sqlexec" }
+telemetry = { path = "../telemetry" }
+datafusion_ext = { path = "../datafusion_ext" }
+datafusion = { workspace = true }
+pgsrv = { path = "../pgsrv" }
+proxyutil = { path = "../proxyutil" }
+rpcsrv = { path = "../rpcsrv" }
+pgrepr = { path = "../pgrepr" }
+protogen = { path = "../protogen" }
 object_store = { workspace = true, features = ["gcp"] }
 object_store_util = { path = "../object_store_util" }
-metastore = {path = "../metastore"}
+metastore = { path = "../metastore" }
 anyhow = "1.0"
 tokio = { version = "1", features = ["full"] }
 clap = { version = "4.3.19", features = ["derive"] }

@@ -120,3 +120,6 @@ select b, a from t1665;
 ----
 a-thing  1
 b-thing  2
+
+statement ok
+explain analyze select 1;

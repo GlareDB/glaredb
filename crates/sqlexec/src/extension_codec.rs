@@ -12,6 +12,7 @@ use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::{FunctionRegistry, TaskContext};
 use datafusion::logical_expr::{AggregateUDF, Extension, LogicalPlan, ScalarUDF, WindowUDF};
+use datafusion::physical_plan::analyze::AnalyzeExec;
 use datafusion::physical_plan::union::InterleaveExec;
 use datafusion::physical_plan::values::ValuesExec;
 use datafusion::physical_plan::{displayable, ExecutionPlan};
@@ -698,6 +699,20 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                         .clone(),
                 ))
             }
+            proto::ExecutionPlanExtensionType::AnalyzeExec(ext) => {
+                let input = inputs
+                    .get(0)
+                    .ok_or_else(|| DataFusionError::Internal("missing input source".to_string()))?
+                    .clone();
+                let schema = ext
+                    .schema
+                    .ok_or_else(|| DataFusionError::Internal("missing schema".to_string()))?;
+                Arc::new(AnalyzeExec::new(
+                    ext.verbose,
+                    input.clone(),
+                    Arc::new((&schema).try_into()?),
+                ))
+            }
         };
 
         Ok(plan)
@@ -954,6 +969,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::InterleaveExec(proto::InterleaveExec {})
         } else if let Some(_exec) = node.as_any().downcast_ref::<RuntimeGroupExec>() {
             proto::ExecutionPlanExtensionType::RuntimeGroupExec(proto::RuntimeGroupExec {})
+        } else if let Some(exec) = node.as_any().downcast_ref::<AnalyzeExec>() {
+            // verbose is not a pub in datafusion, so we can either set it true or false
+            // TODO: update this once verbose is set to pub in datafusion
+            proto::ExecutionPlanExtensionType::AnalyzeExec(proto::AnalyzeExec {
+                verbose: true,
+                schema: Some(exec.schema().try_into()?),
+            })
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {}",
