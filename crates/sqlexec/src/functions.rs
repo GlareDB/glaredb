@@ -27,48 +27,6 @@ pub enum BuiltinScalarFunction {
     /// select version();
     /// ```
     Version,
-    /// SQL function `current_user`
-    ///
-    /// `current_user()` -> `String`
-    /// ```sql
-    /// select current_user();
-    /// ```
-    CurrentUser,
-    /// SQL function `current_role`
-    ///
-    /// `current_role()` -> `String`
-    /// ```sql
-    /// select current_role();
-    /// ```
-    CurrentRole,
-    /// SQL function `user`
-    ///
-    /// `user()` -> `String`
-    /// ```sql
-    /// select user();
-    /// ```
-    User,
-    /// SQL function `current_schema`
-    ///
-    /// `current_schema()` -> `String`
-    /// ```sql
-    /// select current_schema();
-    /// ```
-    CurrentSchema,
-    /// SQL function `current_database`
-    ///
-    /// `current_database()` -> `String`
-    /// ```sql
-    /// select current_database();
-    /// ```
-    CurrentDatabase,
-    /// SQL function `current_catalog`
-    ///
-    /// `current_catalog()` -> `String`
-    /// ```sql
-    /// select current_catalog();
-    /// ```
-    CurrentCatalog,
     /// postgres functions
     /// All of these functions are  in the `pg_catalog` schema.
     Pg(BuiltinPostgresFunctions),
@@ -131,18 +89,66 @@ pub enum BuiltinPostgresFunctions {
     ///
     /// Get a list of schemas in the current search path.
     CurrentSchemas,
+    /// SQL function `current_user`
+    ///
+    /// `current_user()` -> `String`
+    /// ```sql
+    /// select current_user();
+    /// ```
+    CurrentUser,
+    /// SQL function `current_role`
+    ///
+    /// `current_role()` -> `String`
+    /// ```sql
+    /// select current_role();
+    /// ```
+    CurrentRole,
+    /// SQL function `user`
+    ///
+    /// `user()` -> `String`
+    /// ```sql
+    /// select user();
+    /// ```
+    User,
+    /// SQL function `current_schema`
+    ///
+    /// `current_schema()` -> `String`
+    /// ```sql
+    /// select current_schema();
+    /// ```
+    CurrentSchema,
+    /// SQL function `current_database`
+    ///
+    /// `current_database()` -> `String`
+    /// ```sql
+    /// select current_database();
+    /// ```
+    CurrentDatabase,
+    /// SQL function `current_catalog`
+    ///
+    /// `current_catalog()` -> `String`
+    /// ```sql
+    /// select current_catalog();
+    /// ```
+    CurrentCatalog,
 }
 
 impl BuiltinPostgresFunctions {
     fn into_expr(self, args: Vec<Expr>) -> Expr {
-        let udf = match self {
-            Self::GetUserById => pg_get_userbyid(),
-            Self::TableIsVisible => pg_table_is_visible(),
-            Self::EncodingToChar => pg_encoding_to_char(),
-            Self::ArrayToString => pg_array_to_string(),
-            Self::HasSchemaPrivilege => pg_has_schema_privilege(),
-            Self::HasDatabasePrivilege => pg_has_database_privilege(),
-            Self::HasTablePrivilege => pg_has_table_privilege(),
+        match self {
+            Self::GetUserById => udf_to_expr(pg_get_userbyid(), args),
+            Self::TableIsVisible => udf_to_expr(pg_table_is_visible(), args),
+            Self::EncodingToChar => udf_to_expr(pg_encoding_to_char(), args),
+            Self::ArrayToString => udf_to_expr(pg_array_to_string(), args),
+            Self::HasSchemaPrivilege => udf_to_expr(pg_has_schema_privilege(), args),
+            Self::HasDatabasePrivilege => udf_to_expr(pg_has_database_privilege(), args),
+            Self::HasTablePrivilege => udf_to_expr(pg_has_table_privilege(), args),
+            Self::CurrentUser => string_var("current_user"),
+            Self::CurrentRole => string_var("current_role"),
+            Self::CurrentCatalog => string_var("current_catalog"),
+            Self::User => string_var("user"),
+            Self::CurrentSchema => string_var("current_schema"),
+            Self::CurrentDatabase => string_var("current_database"),
             Self::CurrentSchemas => {
                 // There's no good way to handle the `include_implicit` argument,
                 // but since its a binary value (true/false),
@@ -153,17 +159,13 @@ impl BuiltinPostgresFunctions {
                     "current_schemas".to_string()
                 };
 
-                return Expr::ScalarVariable(
+                Expr::ScalarVariable(
                     DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
                     vec![var_name],
                 )
-                .alias("current_schemas");
+                .alias("current_schemas")
             }
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            udf.into(),
-            args,
-        ))
+        }
     }
 }
 
@@ -172,22 +174,10 @@ impl BuiltinScalarFunction {
         Self::from_str(name).ok()
     }
     pub fn into_expr(self, args: Vec<Expr>) -> Expr {
-        use BuiltinScalarFunction::*;
-
-        fn string_var(s: &str) -> Expr {
-            Expr::ScalarVariable(DataType::Utf8, vec![s.to_string()])
-        }
-
         match self {
-            ConnectionId => string_var("connection_id"),
-            Version => string_var("version"),
-            CurrentUser => string_var("current_user"),
-            CurrentRole => string_var("current_role"),
-            CurrentCatalog => string_var("current_catalog"),
-            User => string_var("user"),
-            CurrentSchema => string_var("current_schema"),
-            CurrentDatabase => string_var("current_database"),
-            Pg(pg) => pg.into_expr(args),
+            Self::ConnectionId => string_var("connection_id"),
+            Self::Version => string_var("version"),
+            Self::Pg(pg) => pg.into_expr(args),
         }
     }
 }
@@ -211,6 +201,12 @@ impl FromStr for BuiltinPostgresFunctions {
             "has_database_privilege" => Ok(Self::HasDatabasePrivilege),
             "has_table_privilege" => Ok(Self::HasTablePrivilege),
             "current_schemas" => Ok(Self::CurrentSchemas),
+            "current_user" => Ok(Self::CurrentUser),
+            "current_role" => Ok(Self::CurrentRole),
+            "current_catalog" => Ok(Self::CurrentCatalog),
+            "user" => Ok(Self::User),
+            "current_schema" => Ok(Self::CurrentSchema),
+            "current_database" => Ok(Self::CurrentDatabase),
             s => {
                 let idents: Vec<_> = s.split('.').collect();
                 if idents.len() != 2 {
@@ -240,16 +236,16 @@ impl FromStr for BuiltinScalarFunction {
         match s.to_lowercase().as_str() {
             "connection_id" => Ok(Self::ConnectionId),
             "version" => Ok(Self::Version),
-            "current_user" => Ok(Self::CurrentUser),
-            "current_role" => Ok(Self::CurrentRole),
-            "current_catalog" => Ok(Self::CurrentCatalog),
-            "user" => Ok(Self::User),
-            "current_schema" => Ok(Self::CurrentSchema),
-            "current_database" => Ok(Self::CurrentDatabase),
-
             s => BuiltinPostgresFunctions::from_str(s).map(Self::Pg),
         }
     }
+}
+
+fn udf_to_expr(udf: ScalarUDF, args: Vec<Expr>) -> Expr {
+    Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
+        udf.into(),
+        args,
+    ))
 }
 
 fn pg_get_userbyid() -> ScalarUDF {
@@ -393,7 +389,7 @@ mod tests {
         let pairs = vec![
             ("connection_id", ConnectionId),
             ("current_schemas", CurrentSchemas.into()),
-            ("current_catalog", CurrentCatalog),
+            ("current_catalog", CurrentCatalog.into()),
             ("pg_get_userbyid", GetUserById.into()),
             ("pg_table_is_visible", TableIsVisible.into()),
             ("pg_encoding_to_char", EncodingToChar.into()),
@@ -429,4 +425,8 @@ mod tests {
             assert!(func.is_err());
         }
     }
+}
+
+fn string_var(s: &str) -> Expr {
+    Expr::ScalarVariable(DataType::Utf8, vec![s.to_string()])
 }
