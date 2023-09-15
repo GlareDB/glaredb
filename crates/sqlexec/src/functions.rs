@@ -117,11 +117,11 @@ impl BuiltinScalarFunction {
     pub fn into_expr(self, args: Vec<Expr>) -> Expr {
         use BuiltinScalarFunction::*;
 
-        fn make_str(s: &str) -> Expr {
+        fn string_var(s: &str) -> Expr {
             Expr::ScalarVariable(DataType::Utf8, vec![s.to_string()])
         }
 
-        fn make_str_lst(s: &str) -> Expr {
+        fn list_var(s: &str) -> Expr {
             Expr::ScalarVariable(
                 DataType::List(Arc::new(Field::new(s, DataType::Utf8, true))),
                 vec![s.to_string()],
@@ -129,15 +129,15 @@ impl BuiltinScalarFunction {
         }
 
         match self {
-            ConnectionId => make_str("connection_id"),
-            Version => make_str("version"),
-            CurrentSchemas => make_str_lst("current_schemas"),
-            CurrentUser => make_str("current_user"),
-            CurrentRole => make_str("current_role"),
-            CurrentCatalog => make_str("current_catalog"),
-            User => make_str("user"),
-            CurrentSchema => make_str("current_schema"),
-            CurrentDatabase => make_str("current_database"),
+            ConnectionId => string_var("connection_id"),
+            Version => string_var("version"),
+            CurrentSchemas => list_var("current_schemas"),
+            CurrentUser => string_var("current_user"),
+            CurrentRole => string_var("current_role"),
+            CurrentCatalog => string_var("current_catalog"),
+            User => string_var("user"),
+            CurrentSchema => string_var("current_schema"),
+            CurrentDatabase => string_var("current_database"),
             Pg(pg) => pg.into_expr(args),
         }
     }
