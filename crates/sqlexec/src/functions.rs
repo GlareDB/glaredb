@@ -1,207 +1,252 @@
 //! Built-in functions.
-use crate::context::local::LocalSessionContext;
-use datafusion::arrow::array::StringBuilder;
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::ScalarValue;
-use datafusion::logical_expr::{
-    ColumnarValue, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF, Signature,
-    TypeSignature, Volatility,
-};
+use datafusion::error::Result;
+use datafusion::logical_expr::{ColumnarValue, ScalarUDF, Signature, TypeSignature, Volatility};
+use datafusion::prelude::Expr;
 use sqlbuiltins::builtins::POSTGRES_SCHEMA;
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::warn;
 
 /// Additional built-in scalar functions.
 #[derive(Debug, Copy, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum BuiltinScalarFunction {
-    /// 'connection_id' -> String
-    /// Get the connection id that this session was started with.
-    ConnectionId,
-
-    /// current_schemas (include_implicit boolean) -> String[]
-    /// current_schemas () -> String[]
+    /// SQL function `connection_id`
     ///
-    /// (Postgres)
+    /// `connection_id()` -> `String`
+    /// ```sql
+    /// select connection_id();
+    /// ```
+    ConnectionId,
+    /// SQL function `version`
+    ///
+    /// `version()` -> `String`
+    /// ```sql
+    /// select version();
+    /// ```
+    Version,
+    /// postgres functions
+    /// All of these functions are  in the `pg_catalog` schema.
+    Pg(BuiltinPostgresFunctions),
+}
+
+#[derive(Debug, Copy, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
+pub enum BuiltinPostgresFunctions {
+    /// SQL function `pg_get_userbyid`
+    ///
+    /// `pg_get_userbyid(userid int)` -> `String`
+    /// ```sql
+    /// select pg_get_userbyid(1);
+    /// ```
+    GetUserById,
+    /// SQL function `pg_table_is_visible`
+    ///     
+    /// `pg_table_is_visible(table_oid int)` -> `Boolean`
+    /// ```sql
+    /// select pg_table_is_visible(1);
+    /// ```
+    TableIsVisible,
+    /// SQL function `pg_encoding_to_char`
+    ///
+    /// `pg_encoding_to_char(encoding int)` -> `String`
+    /// ```sql
+    /// select pg_encoding_to_char(1);
+    /// ```
+    EncodingToChar,
+    /// SQL function `array_to_string`
+    ///
+    /// `array_to_string(array anyarray, delimiter text [, null_string text])` -> `String`
+    /// ```sql
+    /// select array_to_string(array[1,2,3], ',');
+    /// ```
+    ArrayToString,
+    /// SQL function `has_schema_privilege`
+    ///
+    /// `has_schema_privilege(user_name text, schema_name text, privilege text) -> Boolean`
+    /// ```sql
+    HasSchemaPrivilege,
+    /// SQL function `has_database_privilege`
+    ///     
+    /// `has_database_privilege(user_name text, database_name text, privilege text) -> Boolean`
+    /// ```sql
+    /// select has_database_privilege('foo', 'bar', 'baz');
+    /// ```
+    HasDatabasePrivilege,
+    /// SQL function `has_table_privilege`
+    ///
+    /// `has_table_privilege(user_name text, table_name text, privilege text) -> Boolean`
+    /// ```sql
+    /// select has_table_privilege('foo', 'bar', 'baz');
+    /// ```
+    HasTablePrivilege,
+    /// SQL function `current_schemas`
+    ///
+    /// `current_schemas()` -> `String[]`
+    ///  current_schemas (include_implicit boolean) -> String[]
+    ///
     /// Get a list of schemas in the current search path.
     CurrentSchemas,
+    /// SQL function `current_user`
+    ///
+    /// `current_user()` -> `String`
+    /// ```sql
+    /// select current_user();
+    /// ```
+    CurrentUser,
+    /// SQL function `current_role`
+    ///
+    /// `current_role()` -> `String`
+    /// ```sql
+    /// select current_role();
+    /// ```
+    CurrentRole,
+    /// SQL function `user`
+    ///
+    /// `user()` -> `String`
+    /// ```sql
+    /// select user();
+    /// ```
+    User,
+    /// SQL function `current_schema`
+    ///
+    /// `current_schema()` -> `String`
+    /// ```sql
+    /// select current_schema();
+    /// ```
+    CurrentSchema,
+    /// SQL function `current_database`
+    ///
+    /// `current_database()` -> `String`
+    /// ```sql
+    /// select current_database();
+    /// ```
+    CurrentDatabase,
+    /// SQL function `current_catalog`
+    ///
+    /// `current_catalog()` -> `String`
+    /// ```sql
+    /// select current_catalog();
+    /// ```
+    CurrentCatalog,
+}
+
+impl BuiltinPostgresFunctions {
+    fn into_expr(self, args: Vec<Expr>) -> Expr {
+        match self {
+            Self::GetUserById => udf_to_expr(pg_get_userbyid(), args),
+            Self::TableIsVisible => udf_to_expr(pg_table_is_visible(), args),
+            Self::EncodingToChar => udf_to_expr(pg_encoding_to_char(), args),
+            Self::ArrayToString => udf_to_expr(pg_array_to_string(), args),
+            Self::HasSchemaPrivilege => udf_to_expr(pg_has_schema_privilege(), args),
+            Self::HasDatabasePrivilege => udf_to_expr(pg_has_database_privilege(), args),
+            Self::HasTablePrivilege => udf_to_expr(pg_has_table_privilege(), args),
+            Self::CurrentUser => string_var("current_user"),
+            Self::CurrentRole => string_var("current_role"),
+            Self::CurrentCatalog => string_var("current_catalog"),
+            Self::User => string_var("user"),
+            Self::CurrentSchema => string_var("current_schema"),
+            Self::CurrentDatabase => string_var("current_database"),
+            Self::CurrentSchemas => {
+                // There's no good way to handle the `include_implicit` argument,
+                // but since its a binary value (true/false),
+                // we can just assign it to a different variable
+                let var_name =
+                    if let Some(Expr::Literal(ScalarValue::Boolean(Some(true)))) = args.get(0) {
+                        "current_schemas_include_implicit".to_string()
+                    } else {
+                        "current_schemas".to_string()
+                    };
+
+                Expr::ScalarVariable(
+                    DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+                    vec![var_name],
+                )
+                .alias("current_schemas")
+            }
+        }
+    }
 }
 
 impl BuiltinScalarFunction {
-    /// Try to get the built-in scalar function from the name.
-    pub fn try_from_name(name: &str) -> Option<BuiltinScalarFunction> {
-        // TODO: We can probably move to some fancier function resolution in the
-        // future.
-        Some(match name {
-            "connection_id" => BuiltinScalarFunction::ConnectionId,
-
-            // Postgres system functions.
-            "pg_catalog.current_schemas" => BuiltinScalarFunction::CurrentSchemas,
-
-            // Always fall back to trying to bare pg functions. Longer term will
-            // want to ensure functions are scoped to schemas and do proper
-            // search path resolution.
-            _ => return Self::try_from_name_implicit_pg_catalog(name),
-        })
+    pub fn find_function(name: &str) -> Option<Self> {
+        Self::from_str(name).ok()
     }
-
-    fn try_from_name_implicit_pg_catalog(name: &str) -> Option<BuiltinScalarFunction> {
-        match name {
-            "current_schemas" => Some(BuiltinScalarFunction::CurrentSchemas),
-            _ => None,
-        }
-    }
-
-    /// Build the scalar function. The session context is used for functions
-    /// that rely on session state.
-    pub fn build_scalar_udf(self, sess: &LocalSessionContext) -> ScalarUDF {
-        ScalarUDF {
-            name: self.name().to_string(),
-            signature: self.signature(),
-            return_type: self.return_type(),
-            fun: self.impl_function(sess),
-        }
-    }
-
-    /// Get the name of the built-in function.
-    fn name(&self) -> &'static str {
+    pub fn into_expr(self, args: Vec<Expr>) -> Expr {
         match self {
-            BuiltinScalarFunction::ConnectionId => "connection_id",
-            BuiltinScalarFunction::CurrentSchemas => "current_schemas",
+            Self::ConnectionId => string_var("connection_id"),
+            Self::Version => string_var("version"),
+            Self::Pg(pg) => pg.into_expr(args),
         }
     }
+}
 
-    /// Get the signature for a function.
-    fn signature(&self) -> Signature {
-        match self {
-            BuiltinScalarFunction::ConnectionId => {
-                Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable)
-            }
-            BuiltinScalarFunction::CurrentSchemas => Signature::new(
-                TypeSignature::OneOf(vec![
-                    TypeSignature::Any(0),
-                    TypeSignature::Exact(vec![DataType::Boolean]), // TODO: This isn't exact? I can supply more than one arg.
-                ]),
-                Volatility::Stable,
-            ),
-        }
+impl From<BuiltinPostgresFunctions> for BuiltinScalarFunction {
+    fn from(f: BuiltinPostgresFunctions) -> Self {
+        Self::Pg(f)
     }
+}
 
-    /// Get the return type for a function.
-    fn return_type(&self) -> ReturnTypeFunction {
-        match self {
-            BuiltinScalarFunction::CurrentSchemas => Arc::new(|_| {
-                Ok(Arc::new(DataType::List(Arc::new(Field::new(
-                    "",
-                    DataType::Utf8,
-                    false,
-                )))))
-            }),
-            BuiltinScalarFunction::ConnectionId => Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-        }
-    }
+impl FromStr for BuiltinPostgresFunctions {
+    type Err = datafusion::common::DataFusionError;
 
-    /// Return the function implementation.
-    ///
-    /// Accepts a session context for functions that rely on values set inside
-    /// the session (e.g. retrieving configuration values).
-    fn impl_function(&self, sess: &LocalSessionContext) -> ScalarFunctionImplementation {
-        match self {
-            BuiltinScalarFunction::CurrentSchemas => {
-                let schemas: Vec<_> = sess
-                    .get_session_vars()
-                    .search_path()
-                    .into_iter()
-                    .map(|path| ScalarValue::Utf8(Some(path)))
-                    .collect();
-                Arc::new(move |_| {
-                    // TODO: Actually look at argument.
-                    //
-                    // When 'true', we'll want to include implicit schemas as
-                    // well (namely `pg_catalog`).
-
-                    let schemas = schemas.clone();
-                    Ok(ColumnarValue::Scalar(ScalarValue::List(
-                        Some(schemas),
-                        Arc::new(Field::new("", DataType::Utf8, false)),
-                    )))
-                })
-            }
-            BuiltinScalarFunction::ConnectionId => {
-                let id = sess.get_session_vars().connection_id();
-                Arc::new(move |_| {
-                    Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
-                        id.to_string(),
-                    ))))
-                })
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "pg_get_userbyid" => Ok(Self::GetUserById),
+            "pg_table_is_visible" => Ok(Self::TableIsVisible),
+            "pg_encoding_to_char" => Ok(Self::EncodingToChar),
+            "array_to_string" => Ok(Self::ArrayToString),
+            "has_schema_privilege" => Ok(Self::HasSchemaPrivilege),
+            "has_database_privilege" => Ok(Self::HasDatabasePrivilege),
+            "has_table_privilege" => Ok(Self::HasTablePrivilege),
+            "current_schemas" => Ok(Self::CurrentSchemas),
+            "current_user" => Ok(Self::CurrentUser),
+            "current_role" => Ok(Self::CurrentRole),
+            "current_catalog" => Ok(Self::CurrentCatalog),
+            "user" => Ok(Self::User),
+            "current_schema" => Ok(Self::CurrentSchema),
+            "current_database" => Ok(Self::CurrentDatabase),
+            s => {
+                let idents: Vec<_> = s.split('.').collect();
+                if idents.len() != 2 {
+                    warn!(
+                        ?idents,
+                        "received pg function name with more than two idents"
+                    );
+                    return Err(datafusion::common::DataFusionError::NotImplemented(
+                        format!("BuiltinScalarFunction::from_str({})", s),
+                    ));
+                }
+                if idents[0] != POSTGRES_SCHEMA {
+                    return Err(datafusion::common::DataFusionError::NotImplemented(
+                        format!("BuiltinScalarFunction::from_str({})", s),
+                    ));
+                }
+                Self::from_str(idents[1])
             }
         }
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct PgFunctionBuilder;
+impl FromStr for BuiltinScalarFunction {
+    type Err = datafusion::common::DataFusionError;
 
-impl PgFunctionBuilder {
-    /// Try to get a postres function by name.
-    ///
-    /// If `implicit_pg_schema` is true, try to resolve the function as if the
-    /// postgres schema is in the search path.
-    pub fn try_from_name(
-        ctx: &LocalSessionContext,
-        name: &str,
-        implicit_pg_schema: bool,
-    ) -> Option<Arc<ScalarUDF>> {
-        if implicit_pg_schema {
-            if let Some(func) = Self::try_from_unqualified(ctx, name) {
-                return Some(func);
-            }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "connection_id" => Ok(Self::ConnectionId),
+            "version" => Ok(Self::Version),
+            s => BuiltinPostgresFunctions::from_str(s).map(Self::Pg),
         }
-
-        let idents: Vec<_> = name.split('.').collect();
-        if idents.len() == 1 {
-            // No qualification.
-            return None;
-        }
-        if idents.len() != 2 {
-            warn!(
-                ?idents,
-                "received pg function name with more than two idents"
-            );
-            return None;
-        }
-        if idents[0] != POSTGRES_SCHEMA {
-            return None;
-        }
-        Self::try_from_unqualified(ctx, idents[1])
     }
+}
 
-    fn try_from_unqualified(ctx: &LocalSessionContext, name: &str) -> Option<Arc<ScalarUDF>> {
-        let func = match name {
-            "array_to_string" => pg_array_to_string(),
-            "current_database" | "current_catalog" => {
-                let db_name = ctx.get_session_vars().database_name();
-                pg_current_database(&db_name)
-            }
-            "current_schema" => pg_current_schema(ctx.search_paths().get(0).map(|s| s.as_str())),
-            "current_user" | "current_role" | "user" => {
-                let user = ctx.get_session_vars().user_name();
-                pg_current_user(&user)
-            }
-            "has_database_privilege" => pg_has_database_privilege(),
-            "has_schema_privilege" => pg_has_schema_privilege(),
-            "has_table_privilege" => pg_has_table_privilege(),
-            "pg_encoding_to_char" => pg_encoding_to_char(),
-            "pg_get_userbyid" => pg_get_userbyid(),
-            "pg_table_is_visible" => pg_table_is_visible(),
-            "version" => {
-                let version = ctx.get_session_vars().glaredb_version();
-                pg_version(&version)
-            }
-            _ => return None,
-        };
-
-        Some(Arc::new(func))
-    }
+fn udf_to_expr(udf: ScalarUDF, args: Vec<Expr>) -> Expr {
+    Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
+        udf.into(),
+        args,
+    ))
 }
 
 fn pg_get_userbyid() -> ScalarUDF {
@@ -323,54 +368,6 @@ fn pg_has_table_privilege() -> ScalarUDF {
     }
 }
 
-fn pg_current_user(user: &str) -> ScalarUDF {
-    let mut builder = StringBuilder::new();
-    builder.append_value(user);
-    let arr = Arc::new(builder.finish());
-    ScalarUDF {
-        name: "current_user".to_string(),
-        signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
-        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-        fun: Arc::new(move |_input| Ok(ColumnarValue::Array(arr.clone()))),
-    }
-}
-
-fn pg_current_database(database: &str) -> ScalarUDF {
-    let mut builder = StringBuilder::new();
-    builder.append_value(database);
-    let arr = Arc::new(builder.finish());
-    ScalarUDF {
-        name: "current_database".to_string(),
-        signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
-        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-        fun: Arc::new(move |_input| Ok(ColumnarValue::Array(arr.clone()))),
-    }
-}
-
-fn pg_current_schema(schema: Option<&str>) -> ScalarUDF {
-    let mut builder = StringBuilder::new();
-    builder.append_option(schema);
-    let arr = Arc::new(builder.finish());
-    ScalarUDF {
-        name: "current_schema".to_string(),
-        signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
-        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-        fun: Arc::new(move |_input| Ok(ColumnarValue::Array(arr.clone()))),
-    }
-}
-
-fn pg_version(version: &str) -> ScalarUDF {
-    let mut builder = StringBuilder::new();
-    builder.append_value(version);
-    let arr = Arc::new(builder.finish());
-    ScalarUDF {
-        name: "version".to_string(),
-        signature: Signature::new(TypeSignature::Exact(Vec::new()), Volatility::Immutable),
-        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-        fun: Arc::new(move |_input| Ok(ColumnarValue::Array(arr.clone()))),
-    }
-}
-
 fn get_nth_scalar_value(input: &[ColumnarValue], n: usize) -> Option<ScalarValue> {
     match input.get(n) {
         Some(input) => match input {
@@ -379,4 +376,58 @@ fn get_nth_scalar_value(input: &[ColumnarValue], n: usize) -> Option<ScalarValue
         },
         None => None,
     }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_funcs_from_str() {
+        use BuiltinPostgresFunctions::*;
+        use BuiltinScalarFunction::*;
+
+        let pairs = vec![
+            ("connection_id", ConnectionId),
+            ("current_schemas", CurrentSchemas.into()),
+            ("current_catalog", CurrentCatalog.into()),
+            ("pg_get_userbyid", GetUserById.into()),
+            ("pg_table_is_visible", TableIsVisible.into()),
+            ("pg_encoding_to_char", EncodingToChar.into()),
+            ("array_to_string", ArrayToString.into()),
+            ("has_schema_privilege", HasSchemaPrivilege.into()),
+            ("has_database_privilege", HasDatabasePrivilege.into()),
+            ("has_table_privilege", HasTablePrivilege.into()),
+            ("pg_catalog.pg_get_userbyid", GetUserById.into()),
+            ("pg_catalog.pg_table_is_visible", TableIsVisible.into()),
+            ("pg_catalog.pg_encoding_to_char", EncodingToChar.into()),
+            ("pg_catalog.array_to_string", ArrayToString.into()),
+            ("pg_catalog.has_schema_privilege", HasSchemaPrivilege.into()),
+            (
+                "pg_catalog.has_database_privilege",
+                HasDatabasePrivilege.into(),
+            ),
+            ("pg_catalog.has_table_privilege", HasTablePrivilege.into()),
+        ];
+        for (s, expected) in pairs {
+            let func = BuiltinScalarFunction::from_str(s).unwrap();
+            assert_eq!(func, expected);
+        }
+
+        let failures = vec![
+            "pg_get_userby",
+            "pg_get_userbyid.foo",
+            "pg_catalo.pg_get_userbyid.",
+            "test.pg_catalog.pg_get_userbyid",
+        ];
+
+        for s in failures {
+            let func = BuiltinScalarFunction::from_str(s);
+            assert!(func.is_err());
+        }
+    }
+}
+
+fn string_var(s: &str) -> Expr {
+    Expr::ScalarVariable(DataType::Utf8, vec![s.to_string()])
 }

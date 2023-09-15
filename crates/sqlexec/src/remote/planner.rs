@@ -384,6 +384,7 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         // the custom table providers meaning we'll have the
         // correct exec refs.
         let catalog_version = self.catalog.version();
+
         let physical = DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(
             DDLExtensionPlanner::new(catalog_version),
         )])

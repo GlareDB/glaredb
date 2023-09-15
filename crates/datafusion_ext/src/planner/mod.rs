@@ -42,7 +42,7 @@ use datafusion::common::{OwnedTableReference, TableReference};
 use datafusion::logical_expr::logical_plan::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::logical_expr::utils::find_column_exprs;
 use datafusion::logical_expr::TableSource;
-use datafusion::logical_expr::{col, AggregateUDF, Expr, ScalarUDF, SubqueryAlias};
+use datafusion::logical_expr::{col, AggregateUDF, Expr, SubqueryAlias};
 use datafusion::sql::planner::object_name_to_table_reference;
 use datafusion::sql::planner::IdentNormalizer;
 use datafusion::sql::planner::ParserOptions;
@@ -62,8 +62,9 @@ pub trait AsyncContextProvider: Send + Sync {
         &mut self,
         name: TableReference<'_>,
     ) -> Result<Arc<dyn TableSource>>;
+
     /// Getter for a UDF description
-    async fn get_function_meta(&mut self, name: &str) -> Option<Arc<ScalarUDF>>;
+    fn get_builtin(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr>;
     /// Getter for a UDAF description
     async fn get_aggregate_meta(&mut self, name: &str) -> Option<Arc<AggregateUDF>>;
     /// Getter for system/user-defined variable type

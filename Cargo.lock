@@ -5779,6 +5779,7 @@ dependencies = [
  "datafusion_ext",
  "datasources",
  "futures",
+ "itertools 0.11.0",
  "logutil",
  "metastore",
  "object_store",

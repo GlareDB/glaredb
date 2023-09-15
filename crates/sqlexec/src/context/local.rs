@@ -74,7 +74,8 @@ impl LocalSessionContext {
         background_jobs: JobRunner,
     ) -> Result<LocalSessionContext> {
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
-        let opts = new_datafusion_session_config_opts(vars);
+        let opts = new_datafusion_session_config_opts(&vars);
+
         let mut conf: SessionConfig = opts.into();
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
@@ -83,6 +84,7 @@ impl LocalSessionContext {
         let state = SessionState::with_config_rt(conf, Arc::new(runtime));
 
         let df_ctx = DfSessionContext::with_state(state);
+        df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(LocalSessionContext {
             exec_client: None,
@@ -120,14 +122,16 @@ impl LocalSessionContext {
             .get_session_vars()
             .with_remote_session_id(client.session_id(), VarType::System);
         let runtime = self.df_ctx.runtime_env();
-        let opts = new_datafusion_session_config_opts(vars);
+        let opts = new_datafusion_session_config_opts(&vars);
         let mut conf: SessionConfig = opts.into();
         conf = conf
             .with_extension(Arc::new(CatalogMutator::empty()))
             .with_extension(Arc::new(self.get_native_tables().clone()))
             .with_extension(Arc::new(TempCatalog::default()));
         let state = SessionState::with_config_rt(conf, runtime);
+
         let df_ctx = DfSessionContext::with_state(state);
+        df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         self.exec_client = Some(client.clone());
         self.df_ctx = df_ctx;
@@ -357,11 +361,6 @@ impl LocalSessionContext {
             },
         };
         Ok(r)
-    }
-
-    /// Iterate over all values in the search path.
-    pub(crate) fn search_paths(&self) -> Vec<String> {
-        self.get_session_vars().search_path()
     }
 
     /// Iterate over the implicit search path. This will have all implicit

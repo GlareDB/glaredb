@@ -52,7 +52,7 @@ impl RemoteSessionContext {
         spill_path: Option<PathBuf>,
     ) -> Result<Self> {
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
-        let opts = new_datafusion_session_config_opts(vars);
+        let opts = new_datafusion_session_config_opts(&vars);
         let mut conf: SessionConfig = opts.into();
 
         // Add in remote only extensions.
@@ -65,6 +65,7 @@ impl RemoteSessionContext {
         // TODO: Query planners for handling custom plans.
 
         let df_ctx = DfSessionContext::with_config_rt(conf, Arc::new(runtime));
+        df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(RemoteSessionContext {
             catalog,
