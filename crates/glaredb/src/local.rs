@@ -18,10 +18,11 @@ use pgrepr::format::Format;
 use reedline::{FileBackedHistory, Reedline, Signal};
 
 use datafusion_ext::vars::SessionVars;
+use reqwest;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
-use sqlexec::remote::client::{ProxyDestination, RemoteClient, TlsConfig};
+use sqlexec::remote::client::{ProxyDestination, RemoteClient};
 use sqlexec::session::ExecutionResult;
 use std::env;
 use std::io::Write;
@@ -73,24 +74,13 @@ impl LocalSession {
                     format!("Connected to remote GlareDB server: {}", u.cyan()),
                 )
             } else {
-                let tls_conf = if opts.disable_tls {
-                    None
-                } else {
-                    match (opts.ca_cert_path.clone(), opts.domain.clone()) {
-                        (Some(ca_cert_path), Some(domain)) => Some(TlsConfig {
-                            ca_cert_path,
-                            domain,
-                        }),
-                        _ => {
-                            return Err(anyhow!(
-                                "Specify ca-cert-path and domain in --args for TLS"
-                            ));
-                        }
-                    }
-                };
+                let url: ProxyDestination = url.try_into()?;
 
-                let mut url: ProxyDestination = url.try_into()?;
-                url = url.with_tls(tls_conf);
+                if !opts.disable_tls {
+                    let ca_cert = reqwest::get("https://TODO").await?.text().await?;
+                    println!("ca_cert: {:?}", ca_cert)
+                }
+
                 let client = RemoteClient::connect_with_proxy_destination(url).await?;
 
                 let msg = format!(
