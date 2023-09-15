@@ -474,19 +474,12 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         input_schema: &Schema,
         session_state: &SessionState,
     ) -> Result<Arc<dyn PhysicalExpr>> {
-        println!("create_physical_expr");
-        match expr {
-            Expr::ScalarUDF(udf) => {
-                println!("udf: {:?}", udf);
-                todo!()
-            }
-            expr => DefaultPhysicalPlanner::default().create_physical_expr(
-                expr,
-                input_dfschema,
-                input_schema,
-                session_state,
-            ),
-        }
+        DefaultPhysicalPlanner::default().create_physical_expr(
+            expr,
+            input_dfschema,
+            input_schema,
+            session_state,
+        )
     }
 }
 
