@@ -62,7 +62,13 @@ pub enum BuiltinScalarFunction {
     /// select current_database();
     /// ```
     CurrentDatabase,
-
+    /// SQL function `current_catalog`
+    ///
+    /// `current_catalog()` -> `String`
+    /// ```sql
+    /// select current_catalog();
+    /// ```
+    CurrentCatalog,
     /// SQL function `current_schemas`
     ///
     /// `current_schemas()` -> `String[]`
@@ -128,6 +134,7 @@ impl BuiltinScalarFunction {
             CurrentSchemas => make_str_lst("current_schemas"),
             CurrentUser => make_str("current_user"),
             CurrentRole => make_str("current_role"),
+            CurrentCatalog => make_str("current_catalog"),
             User => make_str("user"),
             CurrentSchema => make_str("current_schema"),
             CurrentDatabase => make_str("current_database"),
@@ -186,6 +193,7 @@ impl FromStr for BuiltinScalarFunction {
             "version" => Ok(Self::Version),
             "current_user" => Ok(Self::CurrentUser),
             "current_role" => Ok(Self::CurrentRole),
+            "current_catalog" => Ok(Self::CurrentCatalog),
             "user" => Ok(Self::User),
             "current_schema" => Ok(Self::CurrentSchema),
             "current_database" => Ok(Self::CurrentDatabase),
@@ -336,6 +344,7 @@ mod tests {
         let pairs = vec![
             ("connection_id", ConnectionId),
             ("current_schemas", CurrentSchemas),
+            ("current_catalog", CurrentCatalog),
             ("pg_get_userbyid", GetUserById.into()),
             ("pg_table_is_visible", TableIsVisible.into()),
             ("pg_encoding_to_char", EncodingToChar.into()),
