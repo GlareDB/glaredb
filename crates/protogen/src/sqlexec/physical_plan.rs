@@ -296,7 +296,9 @@ pub struct RuntimeGroupExec {}
 pub struct AnalyzeExec {
     #[prost(bool, tag = "1")]
     pub verbose: bool,
-    #[prost(message, tag = "2")]
+    #[prost(bool, tag = "2")]
+    pub show_statistics: bool,
+    #[prost(message, tag = "3")]
     pub schema: Option<Schema>,
 }
 

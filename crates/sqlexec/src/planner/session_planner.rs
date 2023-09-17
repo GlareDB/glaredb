@@ -1526,22 +1526,24 @@ fn convert_data_type(sql_type: &ast::DataType) -> Result<DataType> {
     }
 }
 
+// TODO: We already copy this in by way of the `datafusion_ext` crate. Is there
+// a way to ensure we only have a single copy?
 fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
     match sql_type {
-            ast::DataType::Boolean => Ok(DataType::Boolean),
+            ast::DataType::Boolean | ast::DataType::Bool => Ok(DataType::Boolean),
             ast::DataType::TinyInt(_) => Ok(DataType::Int8),
-            ast::DataType::SmallInt(_) => Ok(DataType::Int16),
-            ast::DataType::Int(_) | ast::DataType::Integer(_) => Ok(DataType::Int32),
-            ast::DataType::BigInt(_) => Ok(DataType::Int64),
+            ast::DataType::SmallInt(_) | ast::DataType::Int2(_) => Ok(DataType::Int16),
+            ast::DataType::Int(_) | ast::DataType::Integer(_) | ast::DataType::Int4(_) => Ok(DataType::Int32),
+            ast::DataType::BigInt(_) | ast::DataType::Int8(_) => Ok(DataType::Int64),
             ast::DataType::UnsignedTinyInt(_) => Ok(DataType::UInt8),
-            ast::DataType::UnsignedSmallInt(_) => Ok(DataType::UInt16),
-            ast::DataType::UnsignedInt(_) | ast::DataType::UnsignedInteger(_) => {
+            ast::DataType::UnsignedSmallInt(_) | ast::DataType::UnsignedInt2(_) => Ok(DataType::UInt16),
+            ast::DataType::UnsignedInt(_) | ast::DataType::UnsignedInteger(_) | ast::DataType::UnsignedInt4(_) => {
                 Ok(DataType::UInt32)
             }
-            ast::DataType::UnsignedBigInt(_) => Ok(DataType::UInt64),
+            ast::DataType::UnsignedBigInt(_) | ast::DataType::UnsignedInt8(_) => Ok(DataType::UInt64),
             ast::DataType::Float(_) => Ok(DataType::Float32),
-            ast::DataType::Real => Ok(DataType::Float32),
-            ast::DataType::Double | ast::DataType::DoublePrecision => Ok(DataType::Float64),
+            ast::DataType::Real | ast::DataType::Float4 => Ok(DataType::Float32),
+            ast::DataType::Double | ast::DataType::DoublePrecision | ast::DataType::Float8 => Ok(DataType::Float64),
             ast::DataType::Char(_)
             | ast::DataType::Varchar(_)
             | ast::DataType::Text

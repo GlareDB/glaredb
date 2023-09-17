@@ -116,13 +116,7 @@ impl NativeTableStorage {
         let _ = Self::opts_from_ent(table)?; // Check that this is the correct table type.
 
         let delta_store = self.create_delta_store_for_table(table).await?;
-        let mut table = DeltaTable::new(
-            delta_store,
-            DeltaTableConfig {
-                require_tombstones: true,
-                require_files: true,
-            },
-        );
+        let mut table = DeltaTable::new(delta_store, DeltaTableConfig::default());
 
         table.load().await?;
 
