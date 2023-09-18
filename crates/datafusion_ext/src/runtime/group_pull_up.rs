@@ -7,6 +7,7 @@ use datafusion::physical_plan::filter::FilterExec;
 use datafusion::physical_plan::joins::{HashJoinExec, NestedLoopJoinExec, SortMergeJoinExec};
 use datafusion::physical_plan::limit::{GlobalLimitExec, LocalLimitExec};
 use datafusion::physical_plan::projection::ProjectionExec;
+use datafusion::physical_plan::repartition::RepartitionExec;
 use datafusion::physical_plan::sorts::sort::SortExec;
 use datafusion::physical_plan::sorts::sort_preserving_merge::SortPreservingMergeExec;
 use datafusion::physical_plan::union::{InterleaveExec, UnionExec};
@@ -160,6 +161,7 @@ fn can_pull_through_node(plan: &dyn ExecutionPlan) -> bool {
         || plan_any.is::<LocalLimitExec>()
         || plan_any.is::<AggregateExec>()
         || plan_any.is::<AggregateExec>()
+        || plan_any.is::<RepartitionExec>()
         || plan_any.is::<SortExec>()
         || plan_any.is::<SortPreservingMergeExec>()
         || plan_any.is::<InterleaveExec>()
@@ -169,8 +171,9 @@ fn can_pull_through_node(plan: &dyn ExecutionPlan) -> bool {
 #[cfg(test)]
 mod tests {
     use datafusion::arrow::datatypes::{DataType, Field};
-    use datafusion::physical_plan::displayable;
+    use datafusion::physical_plan::repartition::RepartitionExec;
     use datafusion::physical_plan::union::UnionExec;
+    use datafusion::physical_plan::{displayable, Partitioning};
     use datafusion::{
         arrow::datatypes::Schema,
         physical_plan::{empty::EmptyExec, expressions::Column, filter::FilterExec},
@@ -325,6 +328,55 @@ mod tests {
                 ),
             )),
         ]));
+
+        assert_plans_equal_str(out, expected);
+    }
+
+    #[test]
+    fn deep_pull_up_through_several_nodes() {
+        let exec = Arc::new(
+            FilterExec::try_new(
+                Arc::new(Column::new("c", 0)),
+                Arc::new(
+                    RepartitionExec::try_new(
+                        Arc::new(LocalLimitExec::new(
+                            Arc::new(RuntimeGroupExec::new(
+                                RuntimePreference::Remote,
+                                Arc::new(EmptyExec::new(true, test_schema())),
+                            )),
+                            1,
+                        )),
+                        Partitioning::RoundRobinBatch(8),
+                    )
+                    .unwrap(),
+                ),
+            )
+            .unwrap(),
+        );
+
+        let out = RuntimeGroupPullUp::new()
+            .optimize(exec, &ConfigOptions::default())
+            .unwrap();
+
+        let expected = Arc::new(RuntimeGroupExec::new(
+            RuntimePreference::Remote,
+            Arc::new(
+                FilterExec::try_new(
+                    Arc::new(Column::new("c", 0)),
+                    Arc::new(
+                        RepartitionExec::try_new(
+                            Arc::new(LocalLimitExec::new(
+                                Arc::new(EmptyExec::new(true, test_schema())),
+                                1,
+                            )),
+                            Partitioning::RoundRobinBatch(8),
+                        )
+                        .unwrap(),
+                    ),
+                )
+                .unwrap(),
+            ),
+        ));
 
         assert_plans_equal_str(out, expected);
     }
