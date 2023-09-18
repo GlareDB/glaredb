@@ -22,13 +22,20 @@ jobs:
         uses: dtolnay/rust-toolchain@1.72.0
         with:
           components: clippy,rustfmt
-
       - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: Cache
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
-          cache-all-crates: true
 
       - name: Build
         run: just build
@@ -41,6 +48,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: Cache
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
@@ -61,6 +77,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: Cache
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
@@ -81,6 +106,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: Cache
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
@@ -100,6 +134,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: Cache
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
@@ -239,13 +282,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.72.0
+      - uses: actions/cache@v3
+        name: Cache
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
           cache-all-crates: true
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@1.72.0
 
       - name: PG Protocol Tests
         run: |
