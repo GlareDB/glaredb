@@ -59,7 +59,7 @@ pub struct RpcProxyArgs {
     pub server_key_path: Option<PathBuf>,
 
     /// Disable TLS.
-    #[clap(long, hide = true)]
+    #[clap(long, default_value = "true", hide = true)]
     pub disable_tls: bool,
 }
 
