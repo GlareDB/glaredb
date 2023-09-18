@@ -11,6 +11,9 @@ export RUST_BACKTRACE=1
 
 run_id=${RANDOM}
 
+# build once...
+just build || true
+
 # Start up GlareDB.
 glaredb_log_file="/tmp/glaredb.log-${run_id}"
 nohup cargo run --bin glaredb -- -v server --user glaredb --password dummy > "${glaredb_log_file}" 2>&1 &
