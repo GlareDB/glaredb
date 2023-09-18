@@ -30,10 +30,6 @@ jobs:
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
 
       - name: Build
         run: just build
@@ -53,11 +49,6 @@ jobs:
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
-          cache-all-crates: true
 
       - name: Clippy
         run: just clippy
@@ -107,11 +98,6 @@ jobs:
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
-          cache-all-crates: true
 
       - name: Python Bindings Tests
         run: |
@@ -133,11 +119,6 @@ jobs:
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
-          cache-all-crates: true
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
@@ -279,11 +260,6 @@ jobs:
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
-          cache-all-crates: true
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@1.72.0
 
