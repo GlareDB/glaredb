@@ -190,10 +190,14 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
                 .list_globbed(&store, &loc.path())
                 .await
                 .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-            if !list.is_empty() {
-                objects.push(list);
+            if list.is_empty() {
+                let e = object_store::path::Error::InvalidPath {
+                    path: loc.to_string().into(),
+                };
+                return Err(ObjectStoreSourceError::ObjectStorePath(e));
             }
+
+            objects.push(list);
         }
         let objects = objects.into_iter().flatten().collect::<Vec<_>>();
 
@@ -294,15 +298,18 @@ impl TableProvider for ObjStoreTableProvider {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        let statistics = self
-            .file_format
-            .infer_stats(
-                ctx,
-                &self.store,
-                self.arrow_schema.clone(),
-                &self.objects[0],
-            )
-            .await?;
+        let statistics = if !self.objects.is_empty() {
+            self.file_format
+                .infer_stats(
+                    ctx,
+                    &self.store,
+                    self.arrow_schema.clone(),
+                    &self.objects[0],
+                )
+                .await?
+        } else {
+            Default::default()
+        };
 
         let config = FileScanConfig {
             object_store_url: self.base_url.clone(),
