@@ -134,7 +134,7 @@ impl ObjStoreAccess for HttpStoreAccess {
             let arrow_schema = arrow_schema.clone();
             let file_format = file_format.clone();
             let prov = self
-                .into_table_provider_single(loc, store, arrow_schema, file_format)
+                .create_table_provider_single(loc, store, arrow_schema, file_format)
                 .await?;
 
             providers.push(Arc::new(prov));
@@ -144,7 +144,7 @@ impl ObjStoreAccess for HttpStoreAccess {
 }
 
 impl HttpStoreAccess {
-    async fn into_table_provider_single(
+    async fn create_table_provider_single(
         &self,
         url: DatasourceUrl,
         store: Arc<dyn ObjectStore>,
