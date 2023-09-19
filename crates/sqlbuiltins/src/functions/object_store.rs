@@ -1,21 +1,14 @@
-use std::any::Any;
 use std::collections::HashMap;
 use std::{sync::Arc, vec};
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::common::{FileCompressionType, FileType};
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::TableProvider;
-use datafusion::execution::context::SessionState;
 use datafusion::execution::object_store::ObjectStoreUrl;
-use datafusion::logical_expr::TableType;
-use datafusion::physical_plan::union::UnionExec;
-use datafusion::physical_plan::ExecutionPlan;
-use datafusion::prelude::Expr;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
     FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
@@ -26,7 +19,7 @@ use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
+use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess};
 use futures::TryStreamExt;
 use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::CredentialsOptions;
@@ -39,74 +32,6 @@ pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson
 
 #[derive(Debug, Clone)]
 pub struct ObjScanTableFunc(FileType, &'static str);
-
-pub struct MultiSourceTableProvider {
-    sources: Vec<Arc<dyn TableProvider>>,
-}
-impl MultiSourceTableProvider {
-    pub fn new<T: IntoIterator<Item = Arc<dyn TableProvider>>>(sources: T) -> Self {
-        Self {
-            sources: sources.into_iter().collect(),
-        }
-    }
-}
-
-#[async_trait]
-impl TableProvider for MultiSourceTableProvider {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn schema(&self) -> SchemaRef {
-        self.sources.first().unwrap().schema()
-    }
-
-    fn table_type(&self) -> TableType {
-        TableType::View
-    }
-
-    async fn scan(
-        &self,
-        state: &SessionState,
-        projection: Option<&Vec<usize>>,
-        filters: &[Expr],
-        // limit can be used to reduce the amount scanned
-        // from the datasource as a performance optimization.
-        // If set, it contains the amount of rows needed by the `LogicalPlan`,
-        // The datasource should return *at least* this number of rows if available.
-        limit: Option<usize>,
-    ) -> datafusion::common::Result<Arc<dyn ExecutionPlan>> {
-        if self.sources.is_empty() {
-            return Err(datafusion::error::DataFusionError::Execution(
-                "no sources found".to_string(),
-            ));
-        }
-        if self
-            .sources
-            .as_slice()
-            .windows(2)
-            .any(|w| w[0].schema() != w[1].schema())
-        {
-            return Err(datafusion::error::DataFusionError::Execution(
-                "schemas of sources do not match".to_string(),
-            ));
-        }
-        let mut plans = Vec::new();
-        for source in &self.sources {
-            let plan = source
-                .scan(state, projection, filters, limit)
-                .await
-                .map_err(|e| datafusion::error::DataFusionError::Execution(e.to_string()))?;
-            plans.push(plan);
-        }
-
-        if plans.len() == 1 {
-            Ok(plans.pop().unwrap())
-        } else {
-            Ok(Arc::new(UnionExec::new(plans)))
-        }
-    }
-}
 
 #[async_trait]
 impl TableFunc for ObjScanTableFunc {
@@ -256,35 +181,12 @@ async fn get_table_provider(
     locations: impl Iterator<Item = DatasourceUrl>,
 ) -> Result<Arc<dyn TableProvider>> {
     let state = ctx.get_session_state();
-    let accessor =
-        ObjStoreAccessor::new(access).map_err(|e| ExtensionError::Access(Box::new(e)))?;
-
-    let mut objects = Vec::new();
-    for loc in locations {
-        let list = accessor
-            .list_globbed(loc.path())
-            .await
-            .map_err(|e| ExtensionError::Access(Box::new(e)))?;
-        if list.is_empty() {
-            return Err(ExtensionError::String(format!(
-                "{} is an invalid location",
-                loc
-            )));
-        }
-        objects.push(list);
-    }
-
-    let provider = accessor
-        .into_table_provider(
-            &state,
-            ft,
-            objects.into_iter().flatten().collect(),
-            /* predicate_pushdown = */ true,
-        )
+    let prov = access
+        .into_table_provider(&state, ft, locations.collect())
         .await
         .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
-    Ok(provider)
+    Ok(prov)
 }
 
 fn get_store_access(
