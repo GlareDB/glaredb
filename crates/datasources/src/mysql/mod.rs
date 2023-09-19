@@ -581,7 +581,7 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> =
                         row.get_opt(col_idx).expect("row value should exist")?;
-                    let val = val.map(|v| v.timestamp_nanos());
+                    let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
@@ -591,7 +591,7 @@ fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Res
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> =
                         row.get_opt(col_idx).expect("row value should exist")?;
-                    let val = val.map(|v| v.timestamp_nanos());
+                    let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())

@@ -5,12 +5,10 @@ use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan as DfLogicalPlan, UserDefinedLogicalNode};
-use datafusion::physical_optimizer::PhysicalOptimizerRule;
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
 use datafusion::physical_planner::{DefaultPhysicalPlanner, ExtensionPlanner, PhysicalPlanner};
 use datafusion::prelude::Expr;
-use datafusion_ext::runtime::group_pull_up::RuntimeGroupPullUp;
 use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use datafusion_ext::transform::TreeNodeExt;
 use protogen::metastore::types::catalog::RuntimePreference;
@@ -369,14 +367,8 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         logical_plan: &DfLogicalPlan,
         session_state: &SessionState,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        // TODO: This can be refactored a bit to better handle explains.
-        // Unfortunately datafusion's handling of explains isn't really
-        // accessible to us here, as there's an expectation that we register our
-        // planner and optimization rules with the session context, and have
-        // their default planner do everything for us.
-
-        // Rewrite any DDL that needs to prcess locally so we can only send the
-        // query on remote and process is later on.
+        // Rewrite any DDL that needs to process locally so we can only send the
+        // query on remote and process it later on.
         let mut ddl_rewriter = DDLRewriter::default();
         let logical_plan = logical_plan.clone().rewrite(&mut ddl_rewriter)?;
 
@@ -391,21 +383,7 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         .create_physical_plan(&logical_plan, session_state)
         .await?;
 
-        // use datafusion::physical_plan::displayable;
-        // println!(
-        //     "before pull up:\n {}",
-        //     displayable(physical.as_ref()).indent(true)
-        // );
-
-        let optimized =
-            RuntimeGroupPullUp::new().optimize(physical, session_state.config().options())?;
-
-        let (physical, send_execs) = self.replace_local_runtime_groups(optimized)?;
-
-        // println!(
-        //     "before wrap:\n {}",
-        //     displayable(physical.as_ref()).indent(true)
-        // );
+        let (physical, send_execs) = self.replace_local_runtime_groups(physical)?;
 
         // If the root of the plan indicates a local runtime preference, then we
         // can just execute everything locally by omitting the remote execution
@@ -436,8 +414,6 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
                 Arc::new(SendRecvJoinExec::new(physical, send_execs))
             }
         };
-
-        // println!("after:\n {}", displayable(physical.as_ref()).indent(true));
 
         // Execute the some plans into locally.
         let physical: Arc<dyn ExecutionPlan> = match ddl_rewriter {

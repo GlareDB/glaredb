@@ -20,7 +20,8 @@ use crate::utils::{
     check_columns_satisfy_exprs, extract_aliases, rebase_expr, resolve_aliases_to_exprs,
     resolve_columns, resolve_positions_to_exprs,
 };
-use datafusion::common::{DataFusionError, Result};
+use async_recursion::async_recursion;
+use datafusion::common::{plan_err, DataFusionError, Result};
 use datafusion::logical_expr::expr::Alias;
 use datafusion::logical_expr::expr_rewriter::{
     normalize_col, normalize_col_with_schemas_and_ambiguity_check,
@@ -33,9 +34,11 @@ use datafusion::logical_expr::utils::{
 use datafusion::logical_expr::{
     Expr, Filter, GroupingSet, LogicalPlan, LogicalPlanBuilder, Partitioning,
 };
+use datafusion::prelude::Column;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
-    Distinct, Expr as SQLExpr, NamedWindowDefinition, WildcardAdditionalOptions, WindowType,
+    Distinct, Expr as SQLExpr, NamedWindowDefinition, ReplaceSelectItem, WildcardAdditionalOptions,
+    WindowType,
 };
 use datafusion::sql::sqlparser::ast::{Select, SelectItem, TableWithJoins};
 use std::collections::HashSet;
@@ -321,6 +324,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     }
 
     /// Generate a relational expression from a select SQL expression
+    #[async_recursion]
     async fn sql_select_to_rex(
         &mut self,
         sql: SelectItem,
@@ -356,18 +360,33 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 Self::check_wildcard_options(&options)?;
 
                 if empty_from {
-                    return Err(DataFusionError::Plan(
-                        "SELECT * with no tables specified is not valid".to_string(),
-                    ));
+                    return plan_err!("SELECT * with no tables specified is not valid");
                 }
                 // do not expand from outer schema
-                expand_wildcard(plan.schema().as_ref(), plan, Some(options))
+                let expanded_exprs = expand_wildcard(plan.schema().as_ref(), plan, Some(&options))?;
+                // If there is a REPLACE statement, replace that column with the given
+                // replace expression. Column name remains the same.
+                if let Some(replace) = options.opt_replace {
+                    self.replace_columns(plan, empty_from, planner_context, expanded_exprs, replace)
+                        .await
+                } else {
+                    Ok(expanded_exprs)
+                }
             }
             SelectItem::QualifiedWildcard(ref object_name, options) => {
                 Self::check_wildcard_options(&options)?;
                 let qualifier = format!("{object_name}");
                 // do not expand from outer schema
-                expand_qualified_wildcard(&qualifier, plan.schema().as_ref(), Some(options))
+                let expanded_exprs =
+                    expand_qualified_wildcard(&qualifier, plan.schema().as_ref(), Some(&options))?;
+                // If there is a REPLACE statement, replace that column with the given
+                // replace expression. Column name remains the same.
+                if let Some(replace) = options.opt_replace {
+                    self.replace_columns(plan, empty_from, planner_context, expanded_exprs, replace)
+                        .await
+                } else {
+                    Ok(expanded_exprs)
+                }
             }
         }
     }
@@ -388,6 +407,44 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         } else {
             Ok(())
         }
+    }
+
+    /// If there is a REPLACE statement in the projected expression in the form of
+    /// "REPLACE (some_column_within_an_expr AS some_column)", this function replaces
+    /// that column with the given replace expression. Column name remains the same.
+    /// Multiple REPLACEs are also possible with comma separations.
+    async fn replace_columns(
+        &mut self,
+        plan: &LogicalPlan,
+        empty_from: bool,
+        planner_context: &mut PlannerContext,
+        mut exprs: Vec<Expr>,
+        replace: ReplaceSelectItem,
+    ) -> Result<Vec<Expr>> {
+        for expr in exprs.iter_mut() {
+            if let Expr::Column(Column { name, .. }) = expr {
+                if let Some(item) = replace
+                    .items
+                    .iter()
+                    .find(|item| item.column_name.value == *name)
+                {
+                    let new_expr = self
+                        .sql_select_to_rex(
+                            SelectItem::UnnamedExpr(item.expr.clone()),
+                            plan,
+                            empty_from,
+                            planner_context,
+                        )
+                        .await?[0]
+                        .clone();
+                    *expr = Expr::Alias(Alias {
+                        expr: Box::new(new_expr),
+                        name: name.clone(),
+                    });
+                }
+            }
+        }
+        Ok(exprs)
     }
 
     /// Wrap a plan in a projection
