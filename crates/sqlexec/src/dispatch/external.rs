@@ -10,7 +10,7 @@ use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
 use datafusion::prelude::SessionContext;
-use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, VirtualLister};
 use datafusion_ext::vars::SessionVars;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::debug::DebugTableType;
@@ -38,6 +38,7 @@ use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 
 use crate::metastore::catalog::SessionCatalog;
 
+use super::listing::CatalogLister;
 use super::{DispatchError, Result};
 
 /// Dispatch to external tables and databases.
@@ -66,6 +67,10 @@ impl<'a> TableFuncContextProvider for ExternalDispatcher<'a> {
 
     fn get_session_state(&self) -> SessionState {
         self.df_ctx.state()
+    }
+
+    fn get_catalog_lister(&self) -> Box<dyn VirtualLister> {
+        Box::new(CatalogLister::new(self.catalog.clone(), true))
     }
 }
 

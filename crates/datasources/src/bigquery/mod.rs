@@ -1,7 +1,7 @@
 //! BigQuery external table implementation.
 pub mod errors;
 
-use crate::common::{errors::DatasourceCommonError, listing::VirtualLister, util};
+use crate::common::util;
 use async_channel::Receiver;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -29,6 +29,7 @@ use datafusion::{
     },
     physical_plan::memory::MemoryExec,
 };
+use datafusion_ext::{errors::ExtensionError, functions::VirtualLister};
 use errors::{BigQueryError, Result};
 use futures::{Stream, StreamExt};
 use gcp_bigquery_client::model::table_field_schema::TableFieldSchema as BigQuerySchema;
@@ -168,8 +169,8 @@ impl BigQueryAccessor {
 
 #[async_trait]
 impl VirtualLister for BigQueryAccessor {
-    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let datasets = self
             .metadata
@@ -187,8 +188,8 @@ impl VirtualLister for BigQueryAccessor {
         Ok(schemas)
     }
 
-    async fn list_tables(&self, dataset_id: &str) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_tables(&self, dataset_id: &str) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let tables = self
             .metadata
@@ -215,8 +216,8 @@ impl VirtualLister for BigQueryAccessor {
         &self,
         dataset_id: &str,
         table_id: &str,
-    ) -> Result<Fields, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    ) -> Result<Fields, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let table_meta = self
             .metadata

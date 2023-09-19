@@ -6,8 +6,6 @@ use std::sync::Mutex;
 use std::task::{Context, Poll};
 use std::{any::Any, sync::Arc};
 
-use crate::common::errors::DatasourceCommonError;
-use crate::common::listing::VirtualLister;
 use crate::common::util;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::Fields;
@@ -26,6 +24,8 @@ use datafusion::{
     logical_expr::{Expr, TableProviderFilterPushDown, TableType},
     physical_plan::ExecutionPlan,
 };
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
 use futures::{Stream, StreamExt};
 use snowflake_connector::{
     datatype::SnowflakeDataType, snowflake_to_arrow_datatype, Connection as SnowflakeConnection,
@@ -192,8 +192,8 @@ WHERE
 
 #[async_trait]
 impl VirtualLister for SnowflakeAccessor {
-    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let res = self
             .conn
@@ -230,8 +230,8 @@ impl VirtualLister for SnowflakeAccessor {
         Ok(schema_list)
     }
 
-    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let (query, bindings) = (
             "SELECT table_name FROM information_schema.tables WHERE table_schema = ?".to_owned(),
@@ -275,8 +275,8 @@ impl VirtualLister for SnowflakeAccessor {
         &self,
         schema_name: &str,
         table_name: &str,
-    ) -> Result<Fields, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    ) -> Result<Fields, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let schema = self
             .get_table_schema(schema_name, table_name)
