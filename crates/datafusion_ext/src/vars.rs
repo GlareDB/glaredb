@@ -5,10 +5,12 @@ mod inner;
 mod utils;
 mod value;
 use constants::*;
+use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::config::{ConfigExtension, ExtensionOptions};
+use datafusion::scalar::ScalarValue;
 use utils::*;
 
-use datafusion::variable::VarType;
+use datafusion::variable::{VarProvider, VarType};
 use inner::*;
 use uuid::Uuid;
 
@@ -19,6 +21,8 @@ use std::borrow::ToOwned;
 use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
+
+use self::error::VarError;
 
 #[derive(Debug, Clone)]
 pub struct SessionVars {
@@ -114,6 +118,13 @@ impl SessionVars {
             .map(|s| s.to_string())
             .chain(self.search_path())
             .collect()
+    }
+
+    pub fn implicit_search_path_iter(&self) -> impl Iterator<Item = String> + '_ {
+        IMPLICIT_SCHEMAS
+            .into_iter()
+            .map(|s| s.to_string())
+            .chain(self.search_path())
     }
 
     /// Get the first non-implicit schema.
@@ -218,5 +229,56 @@ impl ExtensionOptions for SessionVars {
 
     fn entries(&self) -> Vec<datafusion::config::ConfigEntry> {
         self.read().entries()
+    }
+}
+
+impl VarProvider for SessionVars {
+    fn get_value(
+        &self,
+        var_names: Vec<String>,
+    ) -> datafusion::error::Result<datafusion::scalar::ScalarValue> {
+        Ok(match var_names[0].as_str() {
+            "version" => ScalarValue::Utf8(Some(self.glaredb_version())),
+            "current_user" | "current_role" | "user" => ScalarValue::Utf8(Some(self.user_name())),
+            "current_database" | "current_catalog" => ScalarValue::Utf8(Some(self.database_name())),
+            "current_schema" => ScalarValue::Utf8(self.search_path().get(0).cloned()),
+            "connection_id" => ScalarValue::Utf8(Some(self.connection_id().to_string())),
+            "current_schemas" => {
+                let schemas = self
+                    .search_path()
+                    .into_iter()
+                    .map(|path| ScalarValue::Utf8(Some(path)))
+                    .collect::<Vec<_>>();
+                ScalarValue::List(
+                    Some(schemas),
+                    Field::new("item", DataType::Utf8, true).into(),
+                )
+            }
+            "current_schemas_include_implicit" => {
+                let schemas = self
+                    .implicit_search_path_iter()
+                    .map(|path| ScalarValue::Utf8(Some(path)))
+                    .collect::<Vec<_>>();
+                ScalarValue::List(
+                    Some(schemas),
+                    Field::new("item", DataType::Utf8, true).into(),
+                )
+            }
+            s => Err(datafusion::error::DataFusionError::External(
+                VarError::UnknownVariable(s.to_string()).into(),
+            ))?,
+        })
+    }
+
+    fn get_type(&self, var_names: &[String]) -> Option<DataType> {
+        match var_names[0].as_str() {
+            "version" | "current_user" | "current_role" | "user" | "current_database"
+            | "current_catalog" | "current_schema" | "connection_id" => Some(DataType::Utf8),
+            "current_schemas" | "current_schemas_include_implicit" => Some(DataType::List(
+                Field::new("current_schemas", DataType::Utf8, true).into(),
+            )),
+
+            _ => None,
+        }
     }
 }

@@ -76,7 +76,7 @@ pub(crate) fn new_datafusion_runtime_env(
 
 /// Create a new datafusion config opts common to both local and remote
 /// sessions.
-pub(crate) fn new_datafusion_session_config_opts(vars: SessionVars) -> ConfigOptions {
+pub(crate) fn new_datafusion_session_config_opts(vars: &SessionVars) -> ConfigOptions {
     // NOTE: We handle catalog/schema defaults and information schemas
     // ourselves.
     let mut catalog_opts = CatalogOptions::default();
@@ -91,7 +91,7 @@ pub(crate) fn new_datafusion_session_config_opts(vars: SessionVars) -> ConfigOpt
 
     // Insert extensions common to both local and remote sessions.
     let mut e = Extensions::new();
-    e.insert(vars);
+    e.insert(vars.clone());
     config_opts = config_opts.with_extensions(e);
 
     config_opts

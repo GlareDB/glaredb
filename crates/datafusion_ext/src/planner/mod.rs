@@ -42,7 +42,7 @@ use datafusion::common::{OwnedTableReference, TableReference};
 use datafusion::logical_expr::logical_plan::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::logical_expr::utils::find_column_exprs;
 use datafusion::logical_expr::TableSource;
-use datafusion::logical_expr::{col, AggregateUDF, Expr, ScalarUDF, SubqueryAlias};
+use datafusion::logical_expr::{col, AggregateUDF, Expr, SubqueryAlias};
 use datafusion::sql::planner::object_name_to_table_reference;
 use datafusion::sql::planner::IdentNormalizer;
 use datafusion::sql::planner::ParserOptions;
@@ -62,8 +62,9 @@ pub trait AsyncContextProvider: Send + Sync {
         &mut self,
         name: TableReference<'_>,
     ) -> Result<Arc<dyn TableSource>>;
+
     /// Getter for a UDF description
-    async fn get_function_meta(&mut self, name: &str) -> Option<Arc<ScalarUDF>>;
+    fn get_builtin(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr>;
     /// Getter for a UDAF description
     async fn get_aggregate_meta(&mut self, name: &str) -> Option<Arc<AggregateUDF>>;
     /// Getter for system/user-defined variable type
@@ -210,20 +211,20 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 
     fn convert_simple_data_type(&self, sql_type: &SQLDataType) -> Result<DataType> {
         match sql_type {
-            SQLDataType::Boolean => Ok(DataType::Boolean),
+            SQLDataType::Boolean | SQLDataType::Bool => Ok(DataType::Boolean),
             SQLDataType::TinyInt(_) => Ok(DataType::Int8),
-            SQLDataType::SmallInt(_) => Ok(DataType::Int16),
-            SQLDataType::Int(_) | SQLDataType::Integer(_) => Ok(DataType::Int32),
-            SQLDataType::BigInt(_) => Ok(DataType::Int64),
+            SQLDataType::SmallInt(_) | SQLDataType::Int2(_) => Ok(DataType::Int16),
+            SQLDataType::Int(_) | SQLDataType::Integer(_) | SQLDataType::Int4(_) => Ok(DataType::Int32),
+            SQLDataType::BigInt(_) | SQLDataType::Int8(_) => Ok(DataType::Int64),
             SQLDataType::UnsignedTinyInt(_) => Ok(DataType::UInt8),
-            SQLDataType::UnsignedSmallInt(_) => Ok(DataType::UInt16),
-            SQLDataType::UnsignedInt(_) | SQLDataType::UnsignedInteger(_) => {
+            SQLDataType::UnsignedSmallInt(_) | SQLDataType::UnsignedInt2(_) => Ok(DataType::UInt16),
+            SQLDataType::UnsignedInt(_) | SQLDataType::UnsignedInteger(_) | SQLDataType::UnsignedInt4(_) => {
                 Ok(DataType::UInt32)
             }
-            SQLDataType::UnsignedBigInt(_) => Ok(DataType::UInt64),
+            SQLDataType::UnsignedBigInt(_) | SQLDataType::UnsignedInt8(_) => Ok(DataType::UInt64),
             SQLDataType::Float(_) => Ok(DataType::Float32),
-            SQLDataType::Real => Ok(DataType::Float32),
-            SQLDataType::Double | SQLDataType::DoublePrecision => Ok(DataType::Float64),
+            SQLDataType::Real | SQLDataType::Float4 => Ok(DataType::Float32),
+            SQLDataType::Double | SQLDataType::DoublePrecision | SQLDataType::Float8 => Ok(DataType::Float64),
             SQLDataType::Char(_)
             | SQLDataType::Varchar(_)
             | SQLDataType::Text

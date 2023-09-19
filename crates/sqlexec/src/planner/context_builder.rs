@@ -3,7 +3,6 @@ use crate::dispatch::DispatchError;
 use crate::dispatch::Dispatcher;
 use crate::errors::ExecError;
 use crate::functions::BuiltinScalarFunction;
-use crate::functions::PgFunctionBuilder;
 use crate::planner::errors::PlanError;
 use crate::remote::client::RemoteSessionClient;
 use crate::resolve::EntryResolver;
@@ -16,8 +15,8 @@ use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::AggregateUDF;
-use datafusion::logical_expr::ScalarUDF;
 use datafusion::logical_expr::TableSource;
+use datafusion::prelude::Expr;
 use datafusion::sql::TableReference;
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_ext::planner::AsyncContextProvider;
@@ -405,14 +404,8 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         Ok(Arc::new(DefaultTableSource::new(Arc::new(provider))))
     }
 
-    async fn get_function_meta(&mut self, name: &str) -> Option<Arc<ScalarUDF>> {
-        // TODO: We can build these async too.
-        match BuiltinScalarFunction::try_from_name(name)
-            .map(|f| Arc::new(f.build_scalar_udf(self.ctx)))
-        {
-            Some(func) => Some(func),
-            None => PgFunctionBuilder::try_from_name(self.ctx, name, true),
-        }
+    fn get_builtin(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr> {
+        BuiltinScalarFunction::find_function(name).map(|f| f.into_expr(args))
     }
 
     async fn get_variable_type(&mut self, _variable_names: &[String]) -> Option<DataType> {

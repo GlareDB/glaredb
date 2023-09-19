@@ -77,7 +77,7 @@ To see all options use `--help`:
 
 ### Hybrid Execution
 
-1. Sign up at <https://console.cloud.com> for a **free** fully-managed
+1. Sign up at <https://console.glaredb.com> for a **free** fully-managed
    deployment of GlareDB
 2. Copy the connection string from GlareDB Cloud, for example:
 
