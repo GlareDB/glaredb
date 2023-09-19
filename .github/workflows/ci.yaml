@@ -104,6 +104,27 @@ jobs:
           just python build
           just python test
 
+  pg-protocol:
+    name: PG Protocol Tests
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: Cache
+        with:
+          path: |
+            ~/.cargo/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@1.72.0
+      - name: PG Protocol Tests
+        run: |
+          PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
+
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest-8-cores
@@ -244,25 +265,3 @@ jobs:
           export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
 
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
-
-  pg-protocol:
-    name: PG Protocol Tests
-    runs-on: ubuntu-latest-8-cores
-    needs: ["build"]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-      - uses: actions/cache@v3
-        name: Cache
-        with:
-          path: |
-            ~/.cargo/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.72.0
-
-      - name: PG Protocol Tests
-        run: |
-          PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
