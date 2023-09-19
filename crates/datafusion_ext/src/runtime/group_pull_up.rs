@@ -8,13 +8,13 @@ use datafusion::physical_plan::filter::FilterExec;
 use datafusion::physical_plan::joins::{HashJoinExec, NestedLoopJoinExec, SortMergeJoinExec};
 use datafusion::physical_plan::limit::{GlobalLimitExec, LocalLimitExec};
 use datafusion::physical_plan::projection::ProjectionExec;
+use datafusion::physical_plan::repartition::RepartitionExec;
 use datafusion::physical_plan::sorts::sort::SortExec;
 use datafusion::physical_plan::sorts::sort_preserving_merge::SortPreservingMergeExec;
 use datafusion::physical_plan::union::{InterleaveExec, UnionExec};
 use datafusion::physical_plan::ExecutionPlan;
 use protogen::metastore::types::catalog::RuntimePreference;
 use std::sync::Arc;
-use datafusion::physical_plan::repartition::RepartitionExec;
 
 use crate::runtime::runtime_group::RuntimeGroupExec;
 
@@ -172,8 +172,8 @@ fn can_pull_through_node(plan: &dyn ExecutionPlan) -> bool {
 #[cfg(test)]
 mod tests {
     use datafusion::arrow::datatypes::{DataType, Field};
-    use datafusion::physical_plan::union::UnionExec;
     use datafusion::physical_plan::displayable;
+    use datafusion::physical_plan::union::UnionExec;
     use datafusion::{
         arrow::datatypes::Schema,
         physical_plan::{empty::EmptyExec, expressions::Column, filter::FilterExec},
