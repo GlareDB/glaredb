@@ -519,6 +519,13 @@ fn process_batch(
     batch: &RecordBatch,
     rows: Range<usize>,
 ) -> Result<(), ArrowError> {
+    if rows.is_empty() {
+        return Ok(());
+    }
+
+    // Avoid trying to process the entire batch.
+    let batch = batch.slice(rows.start, rows.len());
+
     let mut col_vals = Vec::new();
     for (idx, col) in batch.columns().iter().enumerate() {
         if format.is_elided[idx] {
@@ -528,10 +535,11 @@ fn process_batch(
         col_vals.push(vals);
     }
 
-    for row in rows {
+    // Note this is starting from the beginning of the sliced batch.
+    for batch_idx in 0..batch.num_rows() {
         let mut cells = Vec::with_capacity(col_vals.len());
         for col in col_vals.iter_mut() {
-            cells.push(std::mem::take(col.vals.get_mut(row).unwrap()));
+            cells.push(std::mem::take(col.vals.get_mut(batch_idx).unwrap()));
         }
 
         if format.has_ellided() {
