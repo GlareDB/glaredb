@@ -20,6 +20,14 @@ CREATE TABLE basic (
   modified_date     TIMESTAMP,
 )
 
+query TTT rowsort
+select * from list_columns(default, public, basic) where data_type = 'Int64';
+----
+council_district  Int64 t
+footprint_length  Int64 t
+number_of_docks   Int64 t
+station_id        Int64 t
+
 # TODO: Needs `read_csv` (or whatever we're calling it)
 statement ok
 INSERT INTO basic SELECT * FROM read_csv('file://${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
