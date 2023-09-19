@@ -91,7 +91,7 @@ impl ObjStoreAccess for HttpStoreAccess {
         })
     }
 
-    async fn into_table_provider(
+    async fn create_table_provider(
         &self,
         state: &SessionState,
         file_format: Arc<dyn FileFormat>,

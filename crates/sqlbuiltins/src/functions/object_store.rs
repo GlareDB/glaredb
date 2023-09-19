@@ -182,7 +182,7 @@ async fn get_table_provider(
 ) -> Result<Arc<dyn TableProvider>> {
     let state = ctx.get_session_state();
     let prov = access
-        .into_table_provider(&state, ft, locations.collect())
+        .create_table_provider(&state, ft, locations.collect())
         .await
         .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 

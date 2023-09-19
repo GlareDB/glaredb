@@ -177,7 +177,7 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
         Ok(store.head(location).await?)
     }
 
-    async fn into_table_provider(
+    async fn create_table_provider(
         &self,
         state: &SessionState,
         file_format: Arc<dyn FileFormat>,
