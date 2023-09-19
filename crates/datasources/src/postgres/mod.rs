@@ -2,8 +2,6 @@ pub mod errors;
 
 mod tls;
 
-use crate::common::errors::DatasourceCommonError;
-use crate::common::listing::VirtualLister;
 use crate::common::ssh::session::SshTunnelSession;
 use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
 use crate::common::util;
@@ -25,6 +23,8 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
 use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use protogen::metastore::types::options::TunnelOptions;
@@ -415,8 +415,8 @@ ORDER BY attnum;
 
 #[async_trait]
 impl VirtualLister for PostgresAccessState {
-    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let rows = self
             .client
@@ -435,8 +435,8 @@ impl VirtualLister for PostgresAccessState {
         Ok(schema_names)
     }
 
-    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let rows = self
             .client
@@ -463,12 +463,8 @@ WHERE
         Ok(virtual_tables)
     }
 
-    async fn list_columns(
-        &self,
-        schema: &str,
-        table: &str,
-    ) -> Result<Fields, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let (schema, _) = self
             .get_table_schema(schema, table)

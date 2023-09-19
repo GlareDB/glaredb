@@ -5,6 +5,7 @@ use std::sync::Arc;
 use crate::errors::{ExtensionError, Result};
 use crate::vars::SessionVars;
 use async_trait::async_trait;
+use datafusion::arrow::datatypes::Fields;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
 use decimal::Decimal128;
@@ -41,6 +42,19 @@ pub trait TableFuncContextProvider: Sync + Send {
     fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
     fn get_session_vars(&self) -> SessionVars;
     fn get_session_state(&self) -> SessionState;
+    fn get_catalog_lister(&self) -> Box<dyn VirtualLister>;
+}
+
+#[async_trait]
+pub trait VirtualLister: Sync + Send {
+    /// List schemas for a data source.
+    async fn list_schemas(&self) -> Result<Vec<String>>;
+
+    /// List tables for a data source.
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>>;
+
+    /// List columns for a specific table in the datasource.
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields>;
 }
 
 use std::fmt;

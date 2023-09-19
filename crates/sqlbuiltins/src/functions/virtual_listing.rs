@@ -7,9 +7,10 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{
+    FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider, VirtualLister,
+};
 use datasources::bigquery::BigQueryAccessor;
-use datasources::common::listing::VirtualLister;
 use datasources::debug::DebugVirtualLister;
 use datasources::mongodb::MongoAccessor;
 use datasources::mysql::MysqlAccessor;
@@ -206,9 +207,7 @@ async fn get_db_lister(
     let lister: Box<dyn VirtualLister> = match &db.options {
         DatabaseOptions::Internal(_) => {
             // TODO: https://github.com/GlareDB/glaredb/issues/1153
-            return Err(ExtensionError::Unimplemented(
-                "native table information listing",
-            ));
+            ctx.get_catalog_lister()
         }
         DatabaseOptions::Debug(_) => Box::new(DebugVirtualLister),
         DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {

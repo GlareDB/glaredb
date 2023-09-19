@@ -1,5 +1,6 @@
 //! Various table dispatchers.
 pub mod external;
+pub mod listing;
 pub mod system;
 
 use std::collections::HashMap;
@@ -11,7 +12,7 @@ use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::SessionContext as DfSessionContext;
 use datafusion::prelude::{Column, Expr};
-use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, VirtualLister};
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{
@@ -30,6 +31,7 @@ use crate::{
 };
 
 use self::external::ExternalDispatcher;
+use self::listing::CatalogLister;
 
 type Result<T, E = DispatchError> = std::result::Result<T, E>;
 
@@ -290,5 +292,9 @@ impl<'a> TableFuncContextProvider for Dispatcher<'a> {
 
     fn get_session_state(&self) -> SessionState {
         self.df_ctx.state()
+    }
+
+    fn get_catalog_lister(&self) -> Box<dyn VirtualLister> {
+        Box::new(CatalogLister::new(self.catalog.clone(), false))
     }
 }
