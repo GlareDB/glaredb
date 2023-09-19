@@ -709,6 +709,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .ok_or_else(|| DataFusionError::Internal("missing schema".to_string()))?;
                 Arc::new(AnalyzeExec::new(
                     ext.verbose,
+                    ext.show_statistics,
                     input.clone(),
                     Arc::new((&schema).try_into()?),
                 ))
@@ -974,6 +975,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             // TODO: update this once verbose is set to pub in datafusion
             proto::ExecutionPlanExtensionType::AnalyzeExec(proto::AnalyzeExec {
                 verbose: true,
+                show_statistics: true,
                 schema: Some(exec.schema().try_into()?),
             })
         } else {
