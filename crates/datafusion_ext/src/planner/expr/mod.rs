@@ -418,6 +418,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 expr,
                 substring_from,
                 substring_for,
+                special: false,
             } => {
                 self.sql_substring_to_expr(
                     expr,
