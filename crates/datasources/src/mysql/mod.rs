@@ -6,8 +6,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::common::errors::DatasourceCommonError;
-use crate::common::listing::VirtualLister;
 use crate::common::ssh::session::SshTunnelSession;
 use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
 use crate::common::util;
@@ -27,6 +25,8 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
 use futures::{Stream, StreamExt, TryStreamExt};
 use mysql_async::consts::{ColumnFlags, ColumnType};
 use mysql_async::prelude::Queryable;
@@ -224,8 +224,8 @@ impl MysqlAccessor {
 
 #[async_trait]
 impl VirtualLister for MysqlAccessor {
-    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let mut conn = self.conn.write().await;
 
@@ -242,8 +242,8 @@ impl VirtualLister for MysqlAccessor {
         Ok(cols)
     }
 
-    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let mut conn = self.conn.write().await;
 
@@ -266,12 +266,8 @@ impl VirtualLister for MysqlAccessor {
         Ok(cols)
     }
 
-    async fn list_columns(
-        &self,
-        schema: &str,
-        table: &str,
-    ) -> Result<Fields, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let schema = self
             .get_table_schema(schema, table)
