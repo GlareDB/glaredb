@@ -22,11 +22,13 @@ impl VirtualLister for CatalogLister {
     async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
         let catalog_state = self.catalog.get_state();
         let mut schemas: Vec<String> = Vec::new();
-        for (_id, ent) in &catalog_state.entries {
-            let name = ent.get_meta().name.clone();
-            match ent {
-                CatalogEntry::Schema(_) => schemas.push(name),
-                _ => {}
+        for ent in catalog_state.entries.values() {
+            if let CatalogEntry::Schema(_) = ent {
+                let name = ent.get_meta().name.clone();
+                let external = ent.get_meta().external;
+                if external == self.external {
+                    schemas.push(name)
+                }
             }
         }
         Ok(schemas)
@@ -36,23 +38,29 @@ impl VirtualLister for CatalogLister {
         let catalog_state = self.catalog.get_state();
         let schema_id = self.catalog.resolve_schema(schema).unwrap().meta.id;
         let mut tables: Vec<String> = Vec::new();
-        for (_id, ent) in &catalog_state.entries {
-            let name = ent.get_meta().name.clone();
-            match ent {
-                CatalogEntry::Table(_) if ent.get_meta().parent == schema_id => tables.push(name),
-                _ => {}
+        for ent in catalog_state.entries.values() {
+            if let CatalogEntry::Table(_) = ent {
+                if ent.get_meta().parent == schema_id {
+                    let name = ent.get_meta().name.clone();
+                    let external = ent.get_meta().external;
+                    if external == self.external {
+                        tables.push(name)
+                    }
+                }
             }
         }
         Ok(tables)
     }
 
     async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
-        let table_entry = self
-            .catalog
-            .resolve_entry(DEFAULT_CATALOG, schema, table)
-            .unwrap();
-        match table_entry {
-            CatalogEntry::Table(ent) => {
+        let table_entry = self.catalog.resolve_entry(DEFAULT_CATALOG, schema, table);
+        if let Some(CatalogEntry::Table(ent)) = table_entry {
+            let external = ent.meta.external;
+            if external {
+                return Err(ExtensionError::Unimplemented(
+                    "list_columns for external tables",
+                ));
+            } else {
                 let cols = ent.get_internal_columns();
                 if let Some(cols) = cols {
                     let fields: Vec<Field> = cols
@@ -61,10 +69,13 @@ impl VirtualLister for CatalogLister {
                         .collect();
                     Ok(Fields::from(fields))
                 } else {
-                    return Err(ExtensionError::String("test".to_string()));
+                    return Err(ExtensionError::String(
+                        "No such information present".to_string(),
+                    ));
                 }
             }
-            _ => return Err(ExtensionError::String("test".to_string())),
+        } else {
+            return Err(ExtensionError::String("No such table exists".to_string()));
         }
     }
 }
