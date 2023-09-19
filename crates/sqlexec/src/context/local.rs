@@ -30,6 +30,7 @@ use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
 
+use datafusion_ext::runtime::group_pull_up::RuntimeGroupPullUp;
 use uuid::Uuid;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
@@ -81,7 +82,8 @@ impl LocalSessionContext {
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
             .with_extension(Arc::new(TempCatalog::default()));
-        let state = SessionState::with_config_rt(conf, Arc::new(runtime));
+        let state = SessionState::with_config_rt(conf, Arc::new(runtime))
+            .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
         let df_ctx = DfSessionContext::with_state(state);
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
