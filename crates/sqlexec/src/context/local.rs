@@ -130,7 +130,8 @@ impl LocalSessionContext {
             .with_extension(Arc::new(CatalogMutator::empty()))
             .with_extension(Arc::new(self.get_native_tables().clone()))
             .with_extension(Arc::new(TempCatalog::default()));
-        let state = SessionState::with_config_rt(conf, runtime);
+        let state = SessionState::with_config_rt(conf, runtime)
+            .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
         let df_ctx = DfSessionContext::with_state(state);
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
