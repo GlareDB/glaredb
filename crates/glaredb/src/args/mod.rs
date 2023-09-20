@@ -61,6 +61,10 @@ pub struct RpcProxyArgs {
     /// Disable TLS.
     #[clap(long, default_value = "true", hide = true)]
     pub disable_tls: bool,
+
+    // CA Domain to authenticate connections
+    #[clap(long, default_value = "glaredb.com", hide = true)]
+    pub ca_domain: Option<String>,
 }
 
 #[derive(Parser)]

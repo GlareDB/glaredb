@@ -37,13 +37,15 @@ pub struct RpcProxyHandler<A> {
     authenticator: A,
     /// Connections to compute nodes.
     conns: DashMap<ConnKey, ExecutionServiceClient<Channel>>,
+    ca_domain: Option<String>,
 }
 
 impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
-    pub fn new(authenticator: A) -> Self {
+    pub fn new(authenticator: A, ca_domain: Option<String>) -> Self {
         RpcProxyHandler {
             authenticator,
             conns: DashMap::new(),
+            ca_domain,
         }
     }
 
@@ -77,20 +79,25 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
             return Ok((details, conn));
         }
 
-        let endpoint = if meta.contains_key("ca_cert_path") && meta.contains_key("domain") {
-            // setup tls
-            let url = format!("https://{}:{}", key.ip, key.port);
-            let ca = std::fs::read_to_string(
-                meta.get("ca_cert_path")
+        let endpoint = if meta.contains_key("ca_cert") {
+            if let Some(ca_domain) = self.ca_domain.clone() {
+                // setup tls
+                let url = format!("https://{}:{}", key.ip, key.port);
+                let ca = meta
+                    .get("ca_cert")
                     .map(|s| s.to_str())
                     .transpose()?
-                    .unwrap(),
-            )
-            .unwrap();
-            let tls_conf = ClientTlsConfig::new()
-                .ca_certificate(Certificate::from_pem(ca))
-                .domain_name(meta.get("domain").map(|s| s.to_str()).transpose()?.unwrap());
-            Endpoint::new(url)?.tls_config(tls_conf)?
+                    .unwrap();
+
+                let tls_conf = ClientTlsConfig::new()
+                    .ca_certificate(Certificate::from_pem(ca))
+                    .domain_name(ca_domain);
+                Endpoint::new(url)?.tls_config(tls_conf)?
+            } else {
+                return Err(RpcsrvError::Internal(
+                    "Did not provide the --ca-domain arg".to_string(),
+                ));
+            }
         } else {
             let url = format!("http://{}:{}", key.ip, key.port);
             Endpoint::new(url)?

@@ -16,12 +16,13 @@ use protogen::{
     },
 };
 use proxyutil::metadata_constants::{
-    COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
+    CA_CERT, COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
 };
+use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 use tonic::{
     metadata::MetadataMap,
-    transport::{Channel, Endpoint},
+    transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
     IntoRequest, Streaming,
 };
 use url::Url;
@@ -116,6 +117,12 @@ impl TryFrom<Url> for ProxyDestination {
     }
 }
 
+#[derive(Clone, Deserialize)]
+pub struct CAInfo {
+    pub ca_cert: String,
+    pub ca_domain: String,
+}
+
 /// An execution service client that has additonal metadata attached to each
 /// request for authentication through the proxy.
 #[derive(Debug, Clone)]
@@ -150,14 +157,18 @@ impl RemoteClient {
     }
 
     /// Connect to a proxy destination.
-    pub async fn connect_with_proxy_destination(dst: ProxyDestination) -> Result<Self> {
-        Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params).await
+    pub async fn connect_with_proxy_destination(
+        dst: ProxyDestination,
+        ca_info: Option<CAInfo>,
+    ) -> Result<Self> {
+        Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params, ca_info).await
     }
 
     /// Connect to a destination with the provided authentication params.
     async fn connect_with_proxy_auth_params<'a>(
         dst: impl TryInto<Endpoint, Error = tonic::transport::Error>,
         params: ProxyAuthParams,
+        ca_info: Option<CAInfo>,
     ) -> Result<Self> {
         let mut metadata = MetadataMap::new();
         metadata.insert(USER_KEY, params.user.parse()?);
@@ -168,7 +179,16 @@ impl RemoteClient {
             metadata.insert(COMPUTE_ENGINE_KEY, compute_engine.parse()?);
         }
 
-        let dst: Endpoint = dst.try_into()?;
+        let mut dst: Endpoint = dst.try_into()?;
+
+        if let Some(ca_info) = ca_info {
+            metadata.insert(CA_CERT, ca_info.ca_cert.clone().parse()?);
+            dst = dst.tls_config(
+                ClientTlsConfig::new()
+                    .ca_certificate(Certificate::from_pem(ca_info.ca_cert))
+                    .domain_name(ca_info.ca_domain),
+            )?;
+        }
 
         let client = ExecutionServiceClient::connect(dst).await?;
 

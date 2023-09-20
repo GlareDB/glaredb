@@ -12,10 +12,14 @@ pub struct RpcProxy {
 }
 
 impl RpcProxy {
-    pub async fn new(api_addr: String, auth_code: String) -> Result<Self> {
+    pub async fn new(
+        api_addr: String,
+        auth_code: String,
+        ca_domain: Option<String>,
+    ) -> Result<Self> {
         let auth = CloudAuthenticator::new(api_addr, auth_code)?;
         Ok(RpcProxy {
-            handler: RpcProxyHandler::new(auth),
+            handler: RpcProxyHandler::new(auth, ca_domain),
         })
     }
 

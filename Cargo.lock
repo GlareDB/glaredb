@@ -2467,6 +2467,7 @@ dependencies = [
  "reedline",
  "reqwest",
  "rpcsrv",
+ "serde",
  "sqlexec",
  "telemetry",
  "tokio",
