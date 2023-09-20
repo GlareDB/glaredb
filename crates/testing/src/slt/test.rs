@@ -338,11 +338,11 @@ impl AsyncDB for TestClient {
                                                 row_output.push("(empty)".to_string())
                                             } else {
                                                 let scalar = String::from_utf8(buf.to_vec()).map_err(|e| {
-                                                ExecError::Internal(format!(
-                                                    "invalid text formatted result from pg encoder: {e}"
-                                                ))
-                                            })?;
-                                                row_output.push(scalar);
+                                                    ExecError::Internal(format!(
+                                                        "invalid text formatted result from pg encoder: {e}"
+                                                    ))
+                                                })?;
+                                                row_output.push(scalar.trim().to_owned());
                                             }
                                         }
                                     }
@@ -370,7 +370,7 @@ impl AsyncDB for TestClient {
                                         if v.is_empty() {
                                             row_output.push("(empty)".to_string());
                                         } else {
-                                            row_output.push(v.to_string());
+                                            row_output.push(v.to_string().trim().to_owned());
                                         }
                                     }
                                     None => row_output.push("NULL".to_string()),
