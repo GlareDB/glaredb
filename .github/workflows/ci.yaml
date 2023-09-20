@@ -104,8 +104,30 @@ jobs:
           just python build
           just python test
 
-  integration-tests:
-    name: Integration Tests
+  pg-protocol:
+    name: PG Protocol Tests
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: Cache
+        with:
+          path: |
+            ~/.cargo/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@1.72.0
+
+      - name: PG Protocol Tests
+        run: |
+          PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
+
+  sql-logic-tests:
+    name: SQL Logic Tests
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
@@ -141,11 +163,11 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
         if: github.repository_owner == 'glaredb'
 
-      - name: SQL Logic Tests Public
+      - name: Public SQL Logic Tests
         if: github.repository_owner != 'glaredb'
         run: just slt -v 'sqllogictests/*'
 
-      - name: SQL Logic Tests
+      - name: Setup SQL Logic Test Fixtures
         if: github.repository_owner == 'glaredb'
 
         env:
@@ -187,7 +209,7 @@ jobs:
           export AWS_S3_REGION=us-east-1
           export AWS_S3_BUCKET_NAME=glaredb-test
 
-          # Unset application default credentials. We don't want to unknowingle
+          # Unset application default credentials. We don't want to unknowingly
           # depend on this.
           unset GOOGLE_APPLICATION_CREDENTIALS
 
@@ -204,12 +226,13 @@ jobs:
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
+          echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
           just sql-logic-tests -v --exclude '*/tunnels/ssh'
+          echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
           just sql-logic-tests -v '*/tunnels/ssh'
-
-      - name: SQL Logic Tests (RPC)
-        run: |
-          just sql-logic-tests -v --rpc-test 'sqllogictests/cast/*' \
+          echo "-------------------------------- RPC TESTS --------------------------------"
+          just sql-logic-tests -v --rpc-test \
+                                             'sqllogictests/cast/*' \
                                              'sqllogictests/cte/*' \
                                              'sqllogictests/joins/*' \
                                              'sqllogictests/topn/*' \
@@ -244,25 +267,3 @@ jobs:
           export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
 
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
-
-  pg-protocol:
-    name: PG Protocol Tests
-    runs-on: ubuntu-latest-8-cores
-    needs: ["build"]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-      - uses: actions/cache@v3
-        name: Cache
-        with:
-          path: |
-            ~/.cargo/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.72.0
-
-      - name: PG Protocol Tests
-        run: |
-          PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
