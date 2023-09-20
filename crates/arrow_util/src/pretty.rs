@@ -524,6 +524,13 @@ fn process_batch(
     batch: &RecordBatch,
     rows: Range<usize>,
 ) -> Result<(), ArrowError> {
+    if rows.is_empty() {
+        return Ok(());
+    }
+
+    // Avoid trying to process the entire batch.
+    let batch = batch.slice(rows.start, rows.len());
+
     let mut col_vals = Vec::new();
     for (idx, col) in batch.columns().iter().enumerate() {
         if format.is_elided[idx] {
@@ -533,10 +540,11 @@ fn process_batch(
         col_vals.push(vals);
     }
 
-    for row in rows {
+    // Note this is starting from the beginning of the sliced batch.
+    for batch_idx in 0..batch.num_rows() {
         let mut cells = Vec::with_capacity(col_vals.len());
         for col in col_vals.iter_mut() {
-            cells.push(std::mem::take(col.vals.get_mut(row).unwrap()));
+            cells.push(std::mem::take(col.vals.get_mut(batch_idx).unwrap()));
         }
 
         if format.has_ellided() {
@@ -1021,6 +1029,69 @@ mod tests {
             "│ Int8 │ Int8 │   │ Int8 │ Int8 │",
             "╞══════╪══════╪═══╪══════╪══════╡",
             "└──────┴──────┴───┴──────┴──────┘",
+        ];
+
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn multiple_batches_with_slicing() {
+        // https://github.com/GlareDB/glaredb/pull/1788
+        //
+        // Make sure batch slicing is correct.
+        //
+        // - 3 batches, 2 records each
+        // - max rows is 2
+        // - first record of first batch and last record of last batch should be printed
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("b", DataType::Int32, true),
+        ]));
+
+        // First record should be printed.
+        let first = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec![Some("1"), Some("2")])),
+                Arc::new(Int32Array::from(vec![Some(1), Some(2)])),
+            ],
+        )
+        .unwrap();
+
+        // Nothing in this batch should be printed.
+        let middle = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec![Some("3"), Some("4")])),
+                Arc::new(Int32Array::from(vec![Some(3), Some(4)])),
+            ],
+        )
+        .unwrap();
+
+        // Last record should be printed.
+        let last = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec![Some("5"), Some("6")])),
+                Arc::new(Int32Array::from(vec![Some(5), Some(6)])),
+            ],
+        )
+        .unwrap();
+
+        let table = pretty_format_batches(&schema, &[first, middle, last], None, Some(2)).unwrap();
+
+        let expected = vec![
+            "┌──────┬───────┐",
+            "│ a    │     b │",
+            "│ ──   │    ── │",
+            "│ Utf8 │ Int32 │",
+            "╞══════╪═══════╡",
+            "│ 1    │     1 │",
+            "│ …    │     … │",
+            "│ 6    │     6 │",
+            "└──────┴───────┘",
+            " 6 rows (2 shown)",
         ];
 
         assert_eq_print(expected.join("\n"), table.to_string())
