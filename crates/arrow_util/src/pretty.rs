@@ -438,14 +438,19 @@ impl TableFormat {
     const fn compute_usable_width(max_width: usize, num_cols: usize, has_ellided: bool) -> usize {
         // For each column, subtract left and right padding, and the leading
         // border character. The extra '- 1' is for the last border.
-        let mut usable = max_width - (num_cols * 3) - 1;
+        //
+        // Note for small max widths and a large number of columns, there's a
+        // chance to underflow. So we should just clamp to '0' since there's no
+        // usable space.
+        let column_padding = num_cols * 3;
+        let mut usable = max_width.saturating_sub(column_padding).saturating_sub(1);
         if has_ellided {
             // Make sure we include the space taken up by the ... column.
             //
             // dots: 1 char
             // leading border: 1 char
             // padding: 2 chars
-            usable -= 4
+            usable = usable.saturating_sub(4);
         }
         usable
     }
@@ -1001,6 +1006,30 @@ mod tests {
         ];
 
         assert!(display_width(expected[0]) <= 40);
+
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn many_cols_small_max_width() {
+        // https://github.com/GlareDB/glaredb/issues/1790
+
+        let fields: Vec<_> = (0..30)
+            .map(|i| Field::new(i.to_string(), DataType::Int8, true))
+            .collect();
+
+        let schema = Arc::new(Schema::new(fields));
+
+        let table = pretty_format_batches(&schema, &[], Some(40), None).unwrap();
+
+        let expected = vec![
+            "┌──────┬──────┬───┬──────┬──────┐",
+            "│    0 │    1 │ … │   28 │   29 │",
+            "│   ── │   ── │   │   ── │   ── │",
+            "│ Int8 │ Int8 │   │ Int8 │ Int8 │",
+            "╞══════╪══════╪═══╪══════╪══════╡",
+            "└──────┴──────┴───┴──────┴──────┘",
+        ];
 
         assert_eq_print(expected.join("\n"), table.to_string())
     }
