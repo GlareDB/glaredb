@@ -5,12 +5,12 @@ mod builder;
 mod exec;
 mod infer;
 
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
 use errors::{MongoError, Result};
 use exec::MongoBsonExec;
 use infer::TableSampler;
 
-use crate::common::errors::DatasourceCommonError;
-use crate::common::listing::VirtualLister;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::datasource::TableProvider;
@@ -146,8 +146,8 @@ impl MongoAccessor {
 
 #[async_trait]
 impl VirtualLister for MongoAccessor {
-    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let databases = self
             .client
@@ -158,8 +158,8 @@ impl VirtualLister for MongoAccessor {
         Ok(databases)
     }
 
-    async fn list_tables(&self, database: &str) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_tables(&self, database: &str) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let database = self.client.database(database);
         let collections = database
@@ -174,8 +174,8 @@ impl VirtualLister for MongoAccessor {
         &self,
         database: &str,
         collection: &str,
-    ) -> Result<Fields, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    ) -> Result<Fields, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let collection = self.client.database(database).collection(collection);
         let sampler = TableSampler::new(collection);

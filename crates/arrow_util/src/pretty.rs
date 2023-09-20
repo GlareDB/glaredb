@@ -438,14 +438,19 @@ impl TableFormat {
     const fn compute_usable_width(max_width: usize, num_cols: usize, has_ellided: bool) -> usize {
         // For each column, subtract left and right padding, and the leading
         // border character. The extra '- 1' is for the last border.
-        let mut usable = max_width - (num_cols * 3) - 1;
+        //
+        // Note for small max widths and a large number of columns, there's a
+        // chance to underflow. So we should just clamp to '0' since there's no
+        // usable space.
+        let column_padding = num_cols * 3;
+        let mut usable = max_width.saturating_sub(column_padding).saturating_sub(1);
         if has_ellided {
             // Make sure we include the space taken up by the ... column.
             //
             // dots: 1 char
             // leading border: 1 char
             // padding: 2 chars
-            usable -= 4
+            usable = usable.saturating_sub(4);
         }
         usable
     }
@@ -519,6 +524,13 @@ fn process_batch(
     batch: &RecordBatch,
     rows: Range<usize>,
 ) -> Result<(), ArrowError> {
+    if rows.is_empty() {
+        return Ok(());
+    }
+
+    // Avoid trying to process the entire batch.
+    let batch = batch.slice(rows.start, rows.len());
+
     let mut col_vals = Vec::new();
     for (idx, col) in batch.columns().iter().enumerate() {
         if format.is_elided[idx] {
@@ -528,10 +540,11 @@ fn process_batch(
         col_vals.push(vals);
     }
 
-    for row in rows {
+    // Note this is starting from the beginning of the sliced batch.
+    for batch_idx in 0..batch.num_rows() {
         let mut cells = Vec::with_capacity(col_vals.len());
         for col in col_vals.iter_mut() {
-            cells.push(std::mem::take(col.vals.get_mut(row).unwrap()));
+            cells.push(std::mem::take(col.vals.get_mut(batch_idx).unwrap()));
         }
 
         if format.has_ellided() {
@@ -993,6 +1006,93 @@ mod tests {
         ];
 
         assert!(display_width(expected[0]) <= 40);
+
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn many_cols_small_max_width() {
+        // https://github.com/GlareDB/glaredb/issues/1790
+
+        let fields: Vec<_> = (0..30)
+            .map(|i| Field::new(i.to_string(), DataType::Int8, true))
+            .collect();
+
+        let schema = Arc::new(Schema::new(fields));
+
+        let table = pretty_format_batches(&schema, &[], Some(40), None).unwrap();
+
+        let expected = vec![
+            "┌──────┬──────┬───┬──────┬──────┐",
+            "│    0 │    1 │ … │   28 │   29 │",
+            "│   ── │   ── │   │   ── │   ── │",
+            "│ Int8 │ Int8 │   │ Int8 │ Int8 │",
+            "╞══════╪══════╪═══╪══════╪══════╡",
+            "└──────┴──────┴───┴──────┴──────┘",
+        ];
+
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn multiple_batches_with_slicing() {
+        // https://github.com/GlareDB/glaredb/pull/1788
+        //
+        // Make sure batch slicing is correct.
+        //
+        // - 3 batches, 2 records each
+        // - max rows is 2
+        // - first record of first batch and last record of last batch should be printed
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("b", DataType::Int32, true),
+        ]));
+
+        // First record should be printed.
+        let first = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec![Some("1"), Some("2")])),
+                Arc::new(Int32Array::from(vec![Some(1), Some(2)])),
+            ],
+        )
+        .unwrap();
+
+        // Nothing in this batch should be printed.
+        let middle = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec![Some("3"), Some("4")])),
+                Arc::new(Int32Array::from(vec![Some(3), Some(4)])),
+            ],
+        )
+        .unwrap();
+
+        // Last record should be printed.
+        let last = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec![Some("5"), Some("6")])),
+                Arc::new(Int32Array::from(vec![Some(5), Some(6)])),
+            ],
+        )
+        .unwrap();
+
+        let table = pretty_format_batches(&schema, &[first, middle, last], None, Some(2)).unwrap();
+
+        let expected = vec![
+            "┌──────┬───────┐",
+            "│ a    │     b │",
+            "│ ──   │    ── │",
+            "│ Utf8 │ Int32 │",
+            "╞══════╪═══════╡",
+            "│ 1    │     1 │",
+            "│ …    │     … │",
+            "│ 6    │     6 │",
+            "└──────┴───────┘",
+            " 6 rows (2 shown)",
+        ];
 
         assert_eq_print(expected.join("\n"), table.to_string())
     }

@@ -102,6 +102,7 @@ impl From<MetastoreClientHandle> for CatalogMutator {
 ///
 /// This catalog should be stored on the "client" side and periodically updated
 /// from the remote state provided by metastore.
+#[derive(Clone)]
 pub struct SessionCatalog {
     /// The state retrieved from a remote Metastore.
     state: Arc<CatalogState>,
@@ -404,7 +405,7 @@ impl SessionCatalog {
 }
 
 /// Holds names to object ids for a single schema.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct SchemaObjects {
     /// Maps names to ids in this schema.
     objects: HashMap<String, u32>,
