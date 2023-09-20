@@ -11,17 +11,35 @@ use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::{FunctionRegistry, TaskContext};
-use datafusion::logical_expr::{AggregateUDF, Extension, LogicalPlan, ScalarUDF, WindowUDF};
+use datafusion::logical_expr::{
+    AggregateUDF, Extension, LogicalPlan, ScalarUDF, WindowFunction, WindowUDF,
+};
+use datafusion::physical_expr::window::SlidingAggregateWindowExpr;
 use datafusion::physical_plan::analyze::AnalyzeExec;
+use datafusion::physical_plan::expressions::{
+    ApproxDistinct, ApproxMedian, ApproxPercentileCont, ApproxPercentileContWithWeight, ArrayAgg,
+    Avg, BitAnd, BitOr, BitXor, BoolAnd, BoolOr, Correlation, Count, Covariance, CovariancePop,
+    CumeDist, FirstValue, Grouping, LastValue, Literal, Max, Median, Min, NthValue, Ntile, Rank,
+    RankType, Regr, RowNumber, Stddev, StddevPop, Sum, Variance, VariancePop, WindowShift,
+};
 use datafusion::physical_plan::union::InterleaveExec;
 use datafusion::physical_plan::values::ValuesExec;
-use datafusion::physical_plan::{displayable, ExecutionPlan};
+use datafusion::physical_plan::windows::{
+    create_window_expr, BoundedWindowAggExec, BuiltInWindowExpr, PartitionSearchMode,
+    PlainAggregateWindowExpr, WindowAggExec,
+};
+use datafusion::physical_plan::{
+    displayable, AggregateExpr, ExecutionPlan, PhysicalExpr, WindowExpr,
+};
 use datafusion::prelude::{Expr, SessionContext};
 use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use datafusion_proto::logical_plan::from_proto::parse_expr;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
+use datafusion_proto::physical_plan::from_proto::{parse_physical_expr, parse_physical_sort_expr};
 use datafusion_proto::physical_plan::PhysicalExtensionCodec;
+use datafusion_proto::protobuf::physical_window_expr_node;
 use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::sqlexec::physical_plan::window_agg_exec_node;
 use uuid::Uuid;
 
 use crate::errors::ExecError;
@@ -714,6 +732,71 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     Arc::new((&schema).try_into()?),
                 ))
             }
+            proto::ExecutionPlanExtensionType::WindowFunc(ext) => {
+                let input = inputs
+                    .get(0)
+                    .ok_or_else(|| DataFusionError::Internal("missing input source".to_string()))?
+                    .clone();
+                let input_schema = ext
+                    .input_schema
+                    .as_ref()
+                    .ok_or_else(|| {
+                        DataFusionError::Internal(
+                            "input_schema in WindowAggrNode is missing.".to_owned(),
+                        )
+                    })?
+                    .clone();
+                let input_schema: SchemaRef = SchemaRef::new((&input_schema).try_into()?);
+
+                let physical_window_expr: Vec<Arc<dyn WindowExpr>> = ext
+                    .window_expr
+                    .iter()
+                    .map(|window_expr| {
+                        parse_physical_window_expr(window_expr, registry, input_schema.as_ref())
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let partition_keys = ext
+                    .partition_keys
+                    .iter()
+                    .map(|expr| parse_physical_expr(expr, registry, input.schema().as_ref()))
+                    .collect::<Result<Vec<Arc<dyn PhysicalExpr>>>>()?;
+
+                if let Some(partition_search_mode) = ext.partition_search_mode.as_ref() {
+                    let partition_search_mode = match partition_search_mode {
+                        window_agg_exec_node::PartitionSearchMode::Linear(_) => {
+                            PartitionSearchMode::Linear
+                        }
+                        window_agg_exec_node::PartitionSearchMode::PartiallySorted(
+                            partiall_sorted,
+                        ) => PartitionSearchMode::PartiallySorted(
+                            partiall_sorted
+                                .columns
+                                .iter()
+                                .map(|c| *c as usize)
+                                .collect(),
+                        ),
+                        window_agg_exec_node::PartitionSearchMode::Sorted(_) => {
+                            PartitionSearchMode::Sorted
+                        }
+                    };
+
+                    Arc::new(BoundedWindowAggExec::try_new(
+                        physical_window_expr,
+                        input,
+                        input_schema,
+                        partition_keys,
+                        partition_search_mode,
+                    )?)
+                } else {
+                    Arc::new(WindowAggExec::try_new(
+                        physical_window_expr,
+                        input,
+                        input_schema,
+                        partition_keys,
+                    )?)
+                }
+            }
         };
 
         Ok(plan)
@@ -978,6 +1061,73 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 show_statistics: true,
                 schema: Some(exec.schema().try_into()?),
             })
+        } else if let Some(exec) = node.as_any().downcast_ref::<WindowAggExec>() {
+            let input_schema: datafusion_proto::protobuf::Schema =
+                exec.input_schema().as_ref().try_into()?;
+
+            let window_expr = exec
+                .window_expr()
+                .iter()
+                .map(|e| try_from_window_expr(e.clone()))
+                .collect::<Result<Vec<protogen::sqlexec::physical_plan::GlarePhysicalWindowExprNode>>>()?;
+
+            let partition_keys = exec
+                .partition_keys
+                .iter()
+                .map(|e| e.clone().try_into())
+                .collect::<Result<Vec<datafusion_proto::protobuf::PhysicalExprNode>>>()?;
+            proto::ExecutionPlanExtensionType::WindowFunc(
+                protogen::sqlexec::physical_plan::WindowAggExecNode {
+                    // input: Some(Box::new(input)),
+                    window_expr,
+                    input_schema: Some(input_schema),
+                    partition_keys,
+                    partition_search_mode: None,
+                },
+            )
+        } else if let Some(exec) = node.as_any().downcast_ref::<BoundedWindowAggExec>() {
+            println!("{exec:#?}");
+
+            let input_schema: datafusion_proto::protobuf::Schema =
+                exec.input_schema().as_ref().try_into()?;
+
+            let window_expr = exec
+                .window_expr()
+                .iter()
+                .map(|e| try_from_window_expr(e.clone()))
+                .collect::<Result<Vec<protogen::sqlexec::physical_plan::GlarePhysicalWindowExprNode>>>()?;
+
+            let partition_keys = exec
+                .partition_keys
+                .iter()
+                .map(|e| e.clone().try_into())
+                .collect::<Result<Vec<datafusion_proto::protobuf::PhysicalExprNode>>>()?;
+
+            let partition_search_mode = match &exec.partition_search_mode {
+                PartitionSearchMode::Linear => window_agg_exec_node::PartitionSearchMode::Linear(
+                    datafusion_proto::protobuf::EmptyMessage {},
+                ),
+                PartitionSearchMode::PartiallySorted(columns) => {
+                    window_agg_exec_node::PartitionSearchMode::PartiallySorted(
+                        protogen::sqlexec::physical_plan::PartiallySortedPartitionSearchMode {
+                            columns: columns.iter().map(|c| *c as u64).collect(),
+                        },
+                    )
+                }
+                PartitionSearchMode::Sorted => window_agg_exec_node::PartitionSearchMode::Sorted(
+                    datafusion_proto::protobuf::EmptyMessage {},
+                ),
+            };
+
+            proto::ExecutionPlanExtensionType::WindowFunc(
+                protogen::sqlexec::physical_plan::WindowAggExecNode {
+                    // input: Some(Box::new(input)),
+                    window_expr,
+                    input_schema: Some(input_schema),
+                    partition_keys,
+                    partition_search_mode: Some(partition_search_mode),
+                },
+            )
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {}",
@@ -990,4 +1140,269 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         enc.encode(buf)
             .map_err(|e| DataFusionError::External(Box::new(e)))
     }
+}
+
+fn parse_physical_window_expr(
+    proto: &protogen::sqlexec::physical_plan::GlarePhysicalWindowExprNode,
+    registry: &dyn FunctionRegistry,
+    input_schema: &Schema,
+) -> Result<Arc<dyn WindowExpr>> {
+    let window_node_expr = proto
+        .args
+        .iter()
+        .map(|e| parse_physical_expr(e, registry, input_schema))
+        .collect::<Result<Vec<_>>>()?;
+
+    let partition_by = proto
+        .partition_by
+        .iter()
+        .map(|p| parse_physical_expr(p, registry, input_schema))
+        .collect::<Result<Vec<_>>>()?;
+
+    let order_by = proto
+        .order_by
+        .iter()
+        .map(|o| parse_physical_sort_expr(o, registry, input_schema))
+        .collect::<Result<Vec<_>>>()?;
+
+    let window_frame = proto
+        .window_frame
+        .as_ref()
+        .map(|wf| wf.clone().try_into())
+        .transpose()
+        .map_err(|e| DataFusionError::Internal(format!("{e}")))?
+        .ok_or_else(|| {
+            DataFusionError::Internal(
+                "Missing required field 'window_frame' in protobuf".to_string(),
+            )
+        })?;
+
+    let window_function: WindowFunction = proto
+        .window_function
+        .as_ref()
+        .ok_or_else(|| DataFusionError::Internal("missing window function".to_string()))?
+        .try_into()?;
+
+    create_window_expr(
+        &window_function,
+        proto.name.clone(),
+        &window_node_expr,
+        &partition_by,
+        &order_by,
+        Arc::new(window_frame),
+        input_schema,
+    )
+}
+
+fn try_from_window_expr(
+    window_expr: Arc<dyn WindowExpr>,
+) -> Result<protogen::sqlexec::physical_plan::GlarePhysicalWindowExprNode> {
+    let expr = window_expr.as_any();
+
+    let mut args = window_expr.expressions().to_vec();
+
+    let window_function = if let Some(built_in_window_expr) =
+        expr.downcast_ref::<BuiltInWindowExpr>()
+    {
+        let expr = built_in_window_expr.get_built_in_func_expr();
+        let built_in_fn_expr = expr.as_any();
+
+        let builtin_fn = if built_in_fn_expr.downcast_ref::<RowNumber>().is_some() {
+            datafusion_proto::protobuf::BuiltInWindowFunction::RowNumber
+        } else if let Some(rank_expr) = built_in_fn_expr.downcast_ref::<Rank>() {
+            match rank_expr.get_type() {
+                RankType::Basic => datafusion_proto::protobuf::BuiltInWindowFunction::Rank,
+                RankType::Dense => datafusion_proto::protobuf::BuiltInWindowFunction::DenseRank,
+                RankType::Percent => datafusion_proto::protobuf::BuiltInWindowFunction::PercentRank,
+            }
+        } else if built_in_fn_expr.downcast_ref::<CumeDist>().is_some() {
+            datafusion_proto::protobuf::BuiltInWindowFunction::CumeDist
+        } else if let Some(_ntile_expr) = built_in_fn_expr.downcast_ref::<Ntile>() {
+            args.insert(
+                0,
+                Arc::new(Literal::new(datafusion::common::ScalarValue::Int64(Some(
+                    0, // Can't get "n" without public fn
+                )))),
+            );
+            datafusion_proto::protobuf::BuiltInWindowFunction::Ntile
+        } else if let Some(window_shift_expr) = built_in_fn_expr.downcast_ref::<WindowShift>() {
+            args.insert(
+                1,
+                Arc::new(Literal::new(datafusion::common::ScalarValue::Int64(Some(
+                    window_shift_expr.get_shift_offset(),
+                )))),
+            );
+            // if let Some(default_value) = window_shift_expr.get_default_value() {
+            //     args.insert(2, Arc::new(Literal::new(default_value)));
+            // }
+            if window_shift_expr.get_shift_offset() >= 0 {
+                datafusion_proto::protobuf::BuiltInWindowFunction::Lag
+            } else {
+                datafusion_proto::protobuf::BuiltInWindowFunction::Lead
+            }
+        } else if let Some(_nth_value_expr) = built_in_fn_expr.downcast_ref::<NthValue>() {
+            // match nth_value_expr.get_kind() {
+            //     NthValueKind::First => {
+            //         datafusion_proto::protobuf::BuiltInWindowFunction::FirstValue
+            //     }
+            //     NthValueKind::Last => {
+            //         datafusion_proto::protobuf::BuiltInWindowFunction::LastValue
+            //     }
+            //     NthValueKind::Nth(n) => {
+            //         args.insert(
+            //             1,
+            //             Arc::new(Literal::new(datafusion_common::ScalarValue::Int64(Some(
+            //                 n as i64,
+            //             )))),
+            //         );
+            //         datafusion_proto::protobuf::BuiltInWindowFunction::NthValue
+            //     }
+            // }
+            args.insert(
+                1,
+                Arc::new(Literal::new(datafusion::common::ScalarValue::Int64(Some(
+                    // Can't get "n" without the kind (which isn't public yet)
+                    // Hardcoding for now...
+                    1,
+                )))),
+            );
+            datafusion_proto::protobuf::BuiltInWindowFunction::FirstValue
+        } else {
+            return Err(DataFusionError::Internal(
+                "Not Implemented: BuiltIn function not supported: {expr:?}".to_string(),
+            ));
+        };
+
+        physical_window_expr_node::WindowFunction::BuiltInFunction(builtin_fn as i32)
+    } else if let Some(plain_aggr_window_expr) = expr.downcast_ref::<PlainAggregateWindowExpr>() {
+        aggr_expr_to_window_fn(plain_aggr_window_expr.get_aggregate_expr().as_ref())?
+    } else if let Some(sliding_aggr_window_expr) = expr.downcast_ref::<SlidingAggregateWindowExpr>()
+    {
+        aggr_expr_to_window_fn(sliding_aggr_window_expr.get_aggregate_expr().as_ref())?
+    } else {
+        return Err(DataFusionError::Internal(
+            "Not Implemented: WindowExpr not supported: {window_expr:?}".to_string(),
+        ));
+    };
+
+    let args = args
+        .into_iter()
+        .map(|e| e.try_into())
+        .collect::<Result<Vec<datafusion_proto::protobuf::PhysicalExprNode>>>()?;
+
+    let partition_by = window_expr
+        .partition_by()
+        .iter()
+        .map(|p| p.clone().try_into())
+        .collect::<Result<Vec<datafusion_proto::protobuf::PhysicalExprNode>>>()?;
+
+    let order_by = window_expr
+        .order_by()
+        .iter()
+        .map(|o| o.clone().try_into())
+        .collect::<Result<Vec<datafusion_proto::protobuf::PhysicalSortExprNode>>>()?;
+
+    let window_frame: datafusion_proto::protobuf::WindowFrame = window_expr
+        .get_window_frame()
+        .as_ref()
+        .try_into()
+        .map_err(|e| DataFusionError::Internal(format!("{e}")))?;
+
+    let name = window_expr.name().to_string();
+
+    Ok(
+        protogen::sqlexec::physical_plan::GlarePhysicalWindowExprNode {
+            args,
+            partition_by,
+            order_by,
+            window_frame: Some(window_frame),
+            window_function: Some(window_function),
+            name,
+        },
+    )
+}
+
+fn aggr_expr_to_window_fn(
+    expr: &dyn AggregateExpr,
+) -> Result<physical_window_expr_node::WindowFunction> {
+    let aggr_expr = expr.as_any();
+    // TODO: `DistinctCount`, `DistinctSum`, `DistinctBitXor`,
+    // `DistinctArrayAgg`, `OrderSensitiveArrayAgg` ?
+    let func = if aggr_expr.downcast_ref::<Count>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::Count
+    } else if aggr_expr.downcast_ref::<Grouping>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::Grouping
+    } else if aggr_expr.downcast_ref::<BitAnd>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::BitAnd
+    } else if aggr_expr.downcast_ref::<BitOr>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::BitOr
+    } else if aggr_expr.downcast_ref::<BitXor>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::BitXor
+    } else if aggr_expr.downcast_ref::<BoolAnd>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::BoolAnd
+    } else if aggr_expr.downcast_ref::<BoolOr>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::BoolOr
+    } else if aggr_expr.downcast_ref::<Sum>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::Sum
+    } else if aggr_expr.downcast_ref::<ApproxDistinct>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::ApproxDistinct
+    } else if aggr_expr.downcast_ref::<ArrayAgg>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::ArrayAgg
+    } else if aggr_expr.downcast_ref::<Min>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::Min
+    } else if aggr_expr.downcast_ref::<Max>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::Max
+    } else if aggr_expr.downcast_ref::<Avg>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::Avg
+    } else if aggr_expr.downcast_ref::<Variance>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::Variance
+    } else if aggr_expr.downcast_ref::<VariancePop>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::VariancePop
+    } else if aggr_expr.downcast_ref::<Covariance>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::Covariance
+    } else if aggr_expr.downcast_ref::<CovariancePop>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::CovariancePop
+    } else if aggr_expr.downcast_ref::<Stddev>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::Stddev
+    } else if aggr_expr.downcast_ref::<StddevPop>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::StddevPop
+    } else if aggr_expr.downcast_ref::<Correlation>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::Correlation
+    } else if let Some(_regr_expr) = aggr_expr.downcast_ref::<Regr>() {
+        // Can't get regr_type without public RegrType
+        // match regr_expr.get_regr_type() {
+        //     RegrType::Slope => datafusion_proto::protobuf::AggregateFunction::RegrSlope,
+        //     RegrType::Intercept => datafusion_proto::protobuf::AggregateFunction::RegrIntercept,
+        //     RegrType::Count => datafusion_proto::protobuf::AggregateFunction::RegrCount,
+        //     RegrType::R2 => datafusion_proto::protobuf::AggregateFunction::RegrR2,
+        //     RegrType::AvgX => datafusion_proto::protobuf::AggregateFunction::RegrAvgx,
+        //     RegrType::AvgY => datafusion_proto::protobuf::AggregateFunction::RegrAvgy,
+        //     RegrType::SXX => datafusion_proto::protobuf::AggregateFunction::RegrSxx,
+        //     RegrType::SYY => datafusion_proto::protobuf::AggregateFunction::RegrSyy,
+        //     RegrType::SXY => datafusion_proto::protobuf::AggregateFunction::RegrSxy,
+        // }
+        datafusion_proto::protobuf::AggregateFunction::RegrSlope
+    } else if aggr_expr.downcast_ref::<ApproxPercentileCont>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::ApproxPercentileCont
+    } else if aggr_expr
+        .downcast_ref::<ApproxPercentileContWithWeight>()
+        .is_some()
+    {
+        datafusion_proto::protobuf::AggregateFunction::ApproxPercentileContWithWeight
+    } else if aggr_expr.downcast_ref::<ApproxMedian>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::ApproxMedian
+    } else if aggr_expr.downcast_ref::<Median>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::Median
+    } else if aggr_expr.downcast_ref::<FirstValue>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::FirstValueAgg
+    } else if aggr_expr.downcast_ref::<LastValue>().is_some() {
+        datafusion_proto::protobuf::AggregateFunction::LastValueAgg
+    } else {
+        return Err(DataFusionError::Internal(
+            "Not Implemented: Aggregate function not supported: {expr:?}".to_string(),
+        ));
+    };
+    Ok(physical_window_expr_node::WindowFunction::AggrFunction(
+        func as i32,
+    ))
 }

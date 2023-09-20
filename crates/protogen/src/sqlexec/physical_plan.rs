@@ -2,7 +2,10 @@ mod postgres;
 pub use postgres::*;
 
 use crate::gen::metastore::catalog::TableEntry;
-use datafusion_proto::protobuf::{LogicalExprNode, Schema};
+use datafusion_proto::protobuf::{
+    physical_window_expr_node, LogicalExprNode, PhysicalExprNode, PhysicalSortExprNode, Schema,
+    WindowFrame,
+};
 use prost::{Message, Oneof};
 
 use super::{
@@ -306,9 +309,64 @@ pub struct AnalyzeExec {
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct GlarePhysicalWindowExprNode {
+    #[prost(message, repeated, tag = "4")]
+    pub args: ::prost::alloc::vec::Vec<PhysicalExprNode>,
+    #[prost(message, repeated, tag = "5")]
+    pub partition_by: ::prost::alloc::vec::Vec<PhysicalExprNode>,
+    #[prost(message, repeated, tag = "6")]
+    pub order_by: ::prost::alloc::vec::Vec<PhysicalSortExprNode>,
+    #[prost(message, optional, tag = "7")]
+    pub window_frame: ::core::option::Option<WindowFrame>,
+    #[prost(string, tag = "8")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(oneof = "physical_window_expr_node::WindowFunction", tags = "1, 2")]
+    pub window_function: ::core::option::Option<physical_window_expr_node::WindowFunction>,
+}
+
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PartiallySortedPartitionSearchMode {
+    #[prost(uint64, repeated, tag = "6")]
+    pub columns: ::prost::alloc::vec::Vec<u64>,
+}
+
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WindowAggExecNode {
+    // We get the input as an argument.
+    // #[prost(message, optional, boxed, tag = "1")]
+    // pub input: ::core::option::Option<::prost::alloc::boxed::Box<PhysicalPlanNode>>,
+    #[prost(message, repeated, tag = "2")]
+    pub window_expr: ::prost::alloc::vec::Vec<GlarePhysicalWindowExprNode>,
+    #[prost(message, optional, tag = "4")]
+    pub input_schema: ::core::option::Option<Schema>,
+    #[prost(message, repeated, tag = "5")]
+    pub partition_keys: ::prost::alloc::vec::Vec<PhysicalExprNode>,
+    /// Set optional to `None` for `BoundedWindowAggExec`.
+    #[prost(oneof = "window_agg_exec_node::PartitionSearchMode", tags = "7, 8, 9")]
+    pub partition_search_mode: ::core::option::Option<window_agg_exec_node::PartitionSearchMode>,
+}
+
+/// Nested message and enum types in `WindowAggExecNode`.
+pub mod window_agg_exec_node {
+    use datafusion_proto::protobuf::EmptyMessage;
+
+    /// Set optional to `None` for `BoundedWindowAggExec`.
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum PartitionSearchMode {
+        #[prost(message, tag = "7")]
+        Linear(EmptyMessage),
+        #[prost(message, tag = "8")]
+        PartiallySorted(super::PartiallySortedPartitionSearchMode),
+        #[prost(message, tag = "9")]
+        Sorted(EmptyMessage),
+    }
 }
 
 #[derive(Clone, PartialEq, Oneof)]
@@ -376,4 +434,6 @@ pub enum ExecutionPlanExtensionType {
     RuntimeGroupExec(RuntimeGroupExec),
     #[prost(message, tag = "29")]
     AnalyzeExec(AnalyzeExec),
+    #[prost(message, tag = "30")]
+    WindowFunc(WindowAggExecNode),
 }
