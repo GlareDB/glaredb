@@ -38,7 +38,7 @@ impl ObjStoreAccess for LocalStoreAccess {
     /// `glob_with` from the crate to get metas for all objects.
     async fn list_globbed(
         &self,
-        _store: Arc<dyn ObjectStore>,
+        _store: &Arc<dyn ObjectStore>,
         pattern: &str,
     ) -> Result<Vec<ObjectMeta>> {
         let paths = glob_with(

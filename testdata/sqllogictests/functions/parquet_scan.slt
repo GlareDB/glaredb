@@ -39,7 +39,7 @@ select count(*) from parquet_scan([
 ----
 2000
 
-statement error is an invalid location
+statement error internal error: cannot execute simple query: db error: ERROR: External error: Unable to convert path "./testdata/parquet/userdata1.paruqet" to URL
 select * from parquet_scan('./testdata/parquet/userdata1.paruqet');
 
 # Ambiguous name.
