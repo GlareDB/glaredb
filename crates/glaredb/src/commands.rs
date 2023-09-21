@@ -140,10 +140,7 @@ impl RunCommand for RpcProxyArgs {
             bind,
             cloud_api_addr,
             cloud_auth_code,
-            server_cert_path,
-            server_key_path,
             disable_tls,
-            ca_domain,
         } = self;
 
         let runtime = build_runtime("rpcsrv")?;
