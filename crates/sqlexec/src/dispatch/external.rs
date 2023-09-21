@@ -221,13 +221,9 @@ impl<'a> ExternalDispatcher<'a> {
             }
             DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
                 catalog,
-                access_key_id,
-                secret_access_key,
-                region,
+                storage_options,
             }) => {
-                let accessor =
-                    DeltaLakeAccessor::connect(catalog, access_key_id, secret_access_key, region)
-                        .await?;
+                let accessor = DeltaLakeAccessor::connect(catalog, storage_options.clone()).await?;
                 let table = accessor.load_table(schema, name).await?;
                 Ok(Arc::new(table))
             }

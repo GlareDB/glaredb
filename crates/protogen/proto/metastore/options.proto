@@ -73,12 +73,7 @@ message DatabaseOptionsSnowflake {
 
 message DatabaseOptionsDeltaLake {
   oneof catalog { DeltaLakeUnityCatalog unity = 1; }
-
-  // TODO: Move these out into a separate "bucket auth" type. That could be
-  // shared with the other object storage stuff.
-  string access_key_id = 2;
-  string secret_access_key = 3;
-  string region = 4;
+  StorageOptions storage_options = 2;
 }
 
 // Parameters specific to the unity catalog.
@@ -86,6 +81,10 @@ message DeltaLakeUnityCatalog {
   string catalog_id = 1;
   string databricks_access_token = 2;
   string workspace_url = 3;
+}
+
+message StorageOptions {
+  map<string, string> inner = 1;
 }
 
 // Table options

@@ -7,6 +7,7 @@ use datafusion::{
     common::DFSchemaRef,
 };
 use proptest_derive::Arbitrary;
+use std::collections::BTreeMap;
 use std::fmt;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
@@ -341,20 +342,17 @@ impl From<DatabaseOptionsSnowflake> for options::DatabaseOptionsSnowflake {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsDeltaLake {
     pub catalog: DeltaLakeCatalog,
-    pub access_key_id: String,
-    pub secret_access_key: String,
-    pub region: String,
+    pub storage_options: StorageOptions,
 }
 
 impl TryFrom<options::DatabaseOptionsDeltaLake> for DatabaseOptionsDeltaLake {
     type Error = ProtoConvError;
     fn try_from(value: options::DatabaseOptionsDeltaLake) -> Result<Self, Self::Error> {
         let catalog: DeltaLakeCatalog = value.catalog.required("catalog")?;
+        let storage_options: StorageOptions = value.storage_options.required("storage_options")?;
         Ok(DatabaseOptionsDeltaLake {
             catalog,
-            access_key_id: value.access_key_id,
-            secret_access_key: value.secret_access_key,
-            region: value.region,
+            storage_options,
         })
     }
 }
@@ -363,9 +361,7 @@ impl From<DatabaseOptionsDeltaLake> for options::DatabaseOptionsDeltaLake {
     fn from(value: DatabaseOptionsDeltaLake) -> Self {
         options::DatabaseOptionsDeltaLake {
             catalog: Some(value.catalog.into()),
-            access_key_id: value.access_key_id,
-            secret_access_key: value.secret_access_key,
-            region: value.region,
+            storage_options: Some(value.storage_options.into()),
         }
     }
 }
@@ -421,6 +417,29 @@ impl From<DeltaLakeUnityCatalog> for options::DeltaLakeUnityCatalog {
             databricks_access_token: value.databricks_access_token,
             workspace_url: value.workspace_url,
         }
+    }
+}
+
+// Options for a generic `ObjectStore`; to make them as versatile and compact as possible it's just
+// a wrapper for a map, like in `delta-rs`, except here it's a `BTreeMap` instead of a `HashMap`,
+// since the former is Hash unlike the latter. This enables us to capture a variety of different
+// parameters across different object stores, as well as support different optional parameters in
+// differing use-cases (e.g. creating a Delta database vs a Delta table).
+#[derive(Debug, Default, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct StorageOptions {
+    pub inner: BTreeMap<String, String>,
+}
+
+impl TryFrom<options::StorageOptions> for StorageOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: options::StorageOptions) -> Result<Self, Self::Error> {
+        Ok(StorageOptions { inner: value.inner })
+    }
+}
+
+impl From<StorageOptions> for options::StorageOptions {
+    fn from(value: StorageOptions) -> Self {
+        options::StorageOptions { inner: value.inner }
     }
 }
 

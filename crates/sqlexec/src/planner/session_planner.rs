@@ -34,8 +34,8 @@ use protogen::metastore::types::options::{
     CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery,
     DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DeltaLakeCatalog, DeltaLakeUnityCatalog,
-    TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
-    TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
+    StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs,
+    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
     TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
     TunnelOptionsSsh,
 };
@@ -215,10 +215,6 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             DatabaseOptions::DELTA => {
-                let access_key_id: String = m.remove_required("access_key_id")?;
-                let secret_access_key: String = m.remove_required("secret_access_key")?;
-                let region: String = m.remove_required("region")?;
-
                 let catalog = match m.remove_required::<String>("catalog_type")?.as_str() {
                     "unity" => DeltaLakeCatalog::Unity(DeltaLakeUnityCatalog {
                         catalog_id: m.remove_required("catalog_id")?,
@@ -228,8 +224,10 @@ impl<'a> SessionPlanner<'a> {
                     other => return Err(internal!("Unknown catalog type: {}", other)),
                 };
 
+                let storage_options = StorageOptions::try_from(m)?;
+
                 // Try connecting to validate.
-                DeltaLakeAccessor::connect(&catalog, &access_key_id, &secret_access_key, &region)
+                DeltaLakeAccessor::connect(&catalog, storage_options.clone())
                     .await
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
@@ -237,9 +235,7 @@ impl<'a> SessionPlanner<'a> {
 
                 DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
                     catalog,
-                    access_key_id,
-                    secret_access_key,
-                    region,
+                    storage_options,
                 })
             }
             DatabaseOptions::DEBUG => {
