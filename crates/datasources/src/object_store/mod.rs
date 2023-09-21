@@ -13,6 +13,7 @@ use datafusion::execution::context::SessionState;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::logical_expr::TableType;
+use datafusion::physical_plan::union::UnionExec;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use errors::ObjectStoreSourceError;
@@ -25,6 +26,7 @@ use protogen::metastore::types::options::TableOptions;
 use errors::Result;
 
 use crate::common::exprs_to_phys_exprs;
+use crate::common::url::DatasourceUrl;
 use crate::object_store::gcs::GcsStoreAccess;
 use crate::object_store::local::LocalStoreAccess;
 use crate::object_store::s3::S3StoreAccess;
@@ -34,6 +36,74 @@ pub mod gcs;
 pub mod http;
 pub mod local;
 pub mod s3;
+
+pub struct MultiSourceTableProvider {
+    sources: Vec<Arc<dyn TableProvider>>,
+}
+impl MultiSourceTableProvider {
+    pub fn new<T: IntoIterator<Item = Arc<dyn TableProvider>>>(sources: T) -> Self {
+        Self {
+            sources: sources.into_iter().collect(),
+        }
+    }
+}
+
+#[async_trait]
+impl TableProvider for MultiSourceTableProvider {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> SchemaRef {
+        self.sources.first().unwrap().schema()
+    }
+
+    fn table_type(&self) -> TableType {
+        TableType::View
+    }
+
+    async fn scan(
+        &self,
+        state: &SessionState,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        // limit can be used to reduce the amount scanned
+        // from the datasource as a performance optimization.
+        // If set, it contains the amount of rows needed by the `LogicalPlan`,
+        // The datasource should return *at least* this number of rows if available.
+        limit: Option<usize>,
+    ) -> datafusion::common::Result<Arc<dyn ExecutionPlan>> {
+        if self.sources.is_empty() {
+            return Err(datafusion::error::DataFusionError::Execution(
+                "no sources found".to_string(),
+            ));
+        }
+        if self
+            .sources
+            .as_slice()
+            .windows(2)
+            .any(|w| w[0].schema() != w[1].schema())
+        {
+            return Err(datafusion::error::DataFusionError::Execution(
+                "schemas of sources do not match".to_string(),
+            ));
+        }
+        let mut plans = Vec::new();
+        for source in &self.sources {
+            let plan = source
+                .scan(state, projection, filters, limit)
+                .await
+                .map_err(|e| datafusion::error::DataFusionError::Execution(e.to_string()))?;
+            plans.push(plan);
+        }
+
+        if plans.len() == 1 {
+            Ok(plans.pop().unwrap())
+        } else {
+            Ok(Arc::new(UnionExec::new(plans)))
+        }
+    }
+}
 
 #[async_trait]
 pub trait ObjStoreAccess: Debug + Display + Send + Sync {
@@ -55,7 +125,7 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
     /// Gets a list of objects that match the glob pattern.
     async fn list_globbed(
         &self,
-        store: Arc<dyn ObjectStore>,
+        store: &Arc<dyn ObjectStore>,
         pattern: &str,
     ) -> Result<Vec<ObjectMeta>> {
         if let Some((prefix, _)) = pattern.split_once(['*', '?', '!', '[', ']']) {
@@ -101,10 +171,47 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
     /// Returns the object meta given location of the object.
     async fn object_meta(
         &self,
-        store: Arc<dyn ObjectStore>,
+        store: &Arc<dyn ObjectStore>,
         location: &ObjectStorePath,
     ) -> Result<ObjectMeta> {
         Ok(store.head(location).await?)
+    }
+
+    async fn create_table_provider(
+        &self,
+        state: &SessionState,
+        file_format: Arc<dyn FileFormat>,
+        locations: Vec<DatasourceUrl>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let store = self.create_store()?;
+        let mut objects = Vec::new();
+        for loc in locations {
+            let list = self
+                .list_globbed(&store, &loc.path())
+                .await
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+            if list.is_empty() {
+                let e = object_store::path::Error::InvalidPath {
+                    path: loc.to_string().into(),
+                };
+                return Err(ObjectStoreSourceError::ObjectStorePath(e));
+            }
+
+            objects.push(list);
+        }
+        let objects = objects.into_iter().flatten().collect::<Vec<_>>();
+
+        let arrow_schema = file_format.infer_schema(state, &store, &objects).await?;
+        let base_url = self.base_url()?;
+
+        Ok(Arc::new(ObjStoreTableProvider {
+            store,
+            arrow_schema,
+            base_url,
+            objects,
+            file_format,
+            _predicate_pushdown: true,
+        }))
     }
 }
 
@@ -132,7 +239,7 @@ impl ObjStoreAccessor {
     /// Returns a list of objects matching the globbed pattern.
     pub async fn list_globbed(&self, pattern: impl AsRef<str>) -> Result<Vec<ObjectMeta>> {
         self.access
-            .list_globbed(self.store.clone(), pattern.as_ref())
+            .list_globbed(&self.store, pattern.as_ref())
             .await
     }
 
@@ -159,6 +266,7 @@ impl ObjStoreAccessor {
     }
 }
 
+#[derive(Debug)]
 pub struct ObjStoreTableProvider {
     store: Arc<dyn ObjectStore>,
     arrow_schema: SchemaRef,
@@ -190,11 +298,24 @@ impl TableProvider for ObjStoreTableProvider {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        let statistics = if !self.objects.is_empty() {
+            self.file_format
+                .infer_stats(
+                    ctx,
+                    &self.store,
+                    self.arrow_schema.clone(),
+                    &self.objects[0],
+                )
+                .await?
+        } else {
+            Default::default()
+        };
+
         let config = FileScanConfig {
             object_store_url: self.base_url.clone(),
             file_schema: self.arrow_schema.clone(),
             file_groups: vec![self.objects.iter().map(|o| o.clone().into()).collect()],
-            statistics: Default::default(),
+            statistics,
             projection: projection.cloned(),
             limit,
             table_partition_cols: Vec::new(),
