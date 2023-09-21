@@ -15,7 +15,6 @@ use proxyutil::metadata_constants::{
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{hash::Hash, time::Duration};
-use tonic::transport::{Certificate, ClientTlsConfig};
 use tonic::{
     metadata::MetadataMap,
     transport::{Channel, Endpoint},
@@ -37,15 +36,13 @@ pub struct RpcProxyHandler<A> {
     authenticator: A,
     /// Connections to compute nodes.
     conns: DashMap<ConnKey, ExecutionServiceClient<Channel>>,
-    ca_domain: Option<String>,
 }
 
 impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
-    pub fn new(authenticator: A, ca_domain: Option<String>) -> Self {
+    pub fn new(authenticator: A) -> Self {
         RpcProxyHandler {
             authenticator,
             conns: DashMap::new(),
-            ca_domain,
         }
     }
 
@@ -79,31 +76,13 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
             return Ok((details, conn));
         }
 
-        let endpoint = if meta.contains_key("ca_cert") {
-            if let Some(ca_domain) = self.ca_domain.clone() {
-                // setup tls
-                let url = format!("https://{}:{}", key.ip, key.port);
-                let ca = meta
-                    .get("ca_cert")
-                    .map(|s| s.to_str())
-                    .transpose()?
-                    .unwrap();
-
-                let tls_conf = ClientTlsConfig::new()
-                    .ca_certificate(Certificate::from_pem(ca))
-                    .domain_name(ca_domain);
-                Endpoint::new(url)?.tls_config(tls_conf)?
-            } else {
-                return Err(RpcsrvError::Internal(
-                    "Did not provide the --ca-domain arg".to_string(),
-                ));
-            }
-        } else {
-            let url = format!("http://{}:{}", key.ip, key.port);
-            Endpoint::new(url)?
-        };
-
-        let channel = endpoint
+        // TLS is terminated at rpcsrv
+        //
+        // | Local |-gRPC-client <-- TLS --> gRPC-server-| rpcsrv | --> http2
+        //
+        // TODO: establish mTLS
+        let url = format!("http://{}:{}", key.ip, key.port);
+        let channel = Endpoint::new(url)?
             .tcp_keepalive(Some(Duration::from_secs(600)))
             .tcp_nodelay(true)
             .keep_alive_while_idle(true)
