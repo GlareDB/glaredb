@@ -26,6 +26,8 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use object_store::aws::AmazonS3ConfigKey;
+use object_store::gcp::GoogleConfigKey;
 use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
@@ -224,7 +226,31 @@ impl<'a> SessionPlanner<'a> {
                     other => return Err(internal!("Unknown catalog type: {}", other)),
                 };
 
-                let storage_options = StorageOptions::try_from(m)?;
+                let mut storage_options = StorageOptions::try_from(m)?;
+
+                // Update storage options with the provided credentials object contents
+                // TODO: Should probably extract this logic somewhere else
+                if let Some(opts) = creds_options {
+                    match opts {
+                        CredentialsOptions::Debug(_) => {} // Nothing to do here
+                        CredentialsOptions::Gcp(creds) => {
+                            storage_options.inner.insert(
+                                GoogleConfigKey::ServiceAccountKey.as_ref().to_string(),
+                                creds.service_account_key,
+                            );
+                        }
+                        CredentialsOptions::Aws(creds) => {
+                            storage_options.inner.insert(
+                                AmazonS3ConfigKey::AccessKeyId.as_ref().to_string(),
+                                creds.access_key_id,
+                            );
+                            storage_options.inner.insert(
+                                AmazonS3ConfigKey::SecretAccessKey.as_ref().to_string(),
+                                creds.secret_access_key,
+                            );
+                        }
+                    }
+                }
 
                 // Try connecting to validate.
                 DeltaLakeAccessor::connect(&catalog, storage_options.clone())
