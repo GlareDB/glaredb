@@ -58,7 +58,11 @@ pub struct LocalClientOpts {
     #[clap(long)]
     pub max_rows: Option<usize>,
 
-    /// Path to CA certificate for rpcsrv proxy TLS (required for TLS protocol).
+    /// Disables RPC TLS
+    ///
+    /// (Internal)
+    ///
+    /// TODO: remove default_value to turn on by default
     #[clap(long, default_value = "true", hide = true)]
     pub disable_tls: bool,
 }
