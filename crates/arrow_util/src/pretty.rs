@@ -363,13 +363,10 @@ impl TableFormat {
                 break;
             }
 
-            let mid = header_widths.len() / 2;
-            header_widths.remove(mid);
-            has_ellided = true;
-
             if header_widths.len() <= MIN_COLS {
                 let usable =
                     Self::compute_usable_width(max_width, header_widths.len(), has_ellided);
+
                 let per_col_width = usable / header_widths.len();
 
                 header_widths
@@ -377,6 +374,10 @@ impl TableFormat {
                     .for_each(|h| h.width = per_col_width);
                 break;
             }
+
+            let mid = header_widths.len() / 2;
+            header_widths.remove(mid);
+            has_ellided = true;
         }
 
         let stats: Vec<_> = batch_vals.iter().map(|v| v.size_stats()).collect();
