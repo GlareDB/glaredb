@@ -945,18 +945,17 @@ mod tests {
         let table = pretty_format_batches(&schema, &batches, Some(40), None).unwrap();
 
         let expected = vec![
-            "┌──────┬───┬────────────────┐",
-            "│ a    │ … │ c              │",
-            "│ ──   │   │ ──             │",
-            "│ Utf8 │   │ Utf8           │",
-            "╞══════╪═══╪════════════════╡",
-            "│ a    │ … │ ccccccccccccc… │",
-            "│ a    │ … │ cccccccccc     │",
-            "│ a    │ … │ ccccc          │",
-            "│ a    │ … │ c              │",
-            "└──────┴───┴────────────────┘",
+            "┌──────┬────────────┬────────────┐",
+            "│ a    │ thisisaso… │ c          │",
+            "│ ──   │         ── │ ──         │",
+            "│ Utf8 │      Int32 │ Utf8       │",
+            "╞══════╪════════════╪════════════╡",
+            "│ a    │          4 │ ccccccccc… │",
+            "│ a    │          3 │ cccccccccc │",
+            "│ a    │          2 │ ccccc      │",
+            "│ a    │          1 │ c          │",
+            "└──────┴────────────┴────────────┘",
         ];
-
         assert!(display_width(expected[0]) <= 40);
 
         assert_eq_print(expected.join("\n"), table.to_string())
