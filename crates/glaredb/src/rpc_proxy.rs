@@ -6,6 +6,9 @@ use std::net::SocketAddr;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 use tracing::{debug_span, info};
 
+// These paths exist in the cloud container running rpc proxy.
+//
+// TODO: Improve DX experience (for example, via ENV)
 const CERT_PATH: &str = "/etc/certs/tls.crt";
 const CERT_KEY_PATH: &str = "/etc/certs/tls.key";
 
