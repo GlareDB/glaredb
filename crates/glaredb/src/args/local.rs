@@ -62,7 +62,7 @@ pub struct LocalClientOpts {
     ///
     /// (Internal)
     ///
-    /// /// In the future, we'll swap this for disable_tls
+    /// In the future, we'll swap this for disable_tls
     #[clap(long, hide = true)]
     pub enable_tls: bool,
 }
