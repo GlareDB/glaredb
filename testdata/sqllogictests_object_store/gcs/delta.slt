@@ -12,7 +12,7 @@ select * from delta_scan('gs://${GCS_BUCKET_NAME}/delta/table1', gcp_creds) orde
 
 # Tests external delta table in gcs with credentials object.
 statement ok
-create external table delta_gcs_creds
+create external table delta_gcs_creds_and_opts
 from delta
 credentials gcp_creds
 options (
@@ -20,14 +20,14 @@ options (
 );
 
 query IT
-select * from delta_gcs_creds order by a;
+select * from delta_gcs_creds_and_opts order by a;
 ----
 1   hello
 2   world
 
 # Tests external delta table in gcs with explicit config options.
 statement ok
-create external table delta_gcs_options
+create external table delta_gcs_opts
 from delta
 options (
 	location 'gs://${GCS_BUCKET_NAME}/delta/table1',
@@ -35,7 +35,7 @@ options (
 );
 
 query IT
-select * from delta_gcs_options order by a;
+select * from delta_gcs_opts order by a;
 ----
 1   hello
 2   world
