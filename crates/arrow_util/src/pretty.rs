@@ -634,7 +634,7 @@ mod tests {
         ]);
 
         let table = pretty_format_batches(&schema, &[], None, None).unwrap();
-        let expected = vec![
+        let expected = [
             "┌───────┬──────┐",
             "│     a │ b    │",
             "│    ── │ ──   │",
@@ -670,7 +670,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &[batch], None, None).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┐",
             "│ a    │     b │",
             "│ ──   │    ── │",
@@ -707,7 +707,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, None, None).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┐",
             "│ a    │     b │",
             "│ ──   │    ── │",
@@ -753,7 +753,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, None, Some(4)).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┐",
             "│ a    │     b │",
             "│ ──   │    ── │",
@@ -780,7 +780,7 @@ mod tests {
         ]));
 
         let a_vals: Vec<_> = (0..10).map(|v| Some(v.to_string())).collect();
-        let b_vals: Vec<_> = (0..10).map(|v| Some(v)).collect();
+        let b_vals: Vec<_> = (0..10).map(Some).collect();
 
         let batches = vec![RecordBatch::try_new(
             schema.clone(),
@@ -793,7 +793,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, None, Some(4)).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┐",
             "│ a    │     b │",
             "│ ──   │    ── │",
@@ -846,7 +846,7 @@ mod tests {
         // Note this doesn't grow great since we're only computing column stats
         // on the first batch. The next test shows the growth behavior better by
         // having the first batch have the longest value.
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┬──────┬──────┐",
             "│ a    │     b │ c    │ d    │",
             "│ ──   │    ── │ ──   │ ──   │",
@@ -897,7 +897,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, Some(40), None).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┬────────────────┬──────┐",
             "│ a    │     b │ c              │ d    │",
             "│ ──   │    ── │ ──             │ ──   │",
@@ -944,7 +944,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, Some(40), None).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬────────────┬────────────┐",
             "│ a    │ thisisaso… │ c          │",
             "│ ──   │         ── │ ──         │",
@@ -992,7 +992,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, Some(40), None).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬──────────┬───┬──────┐",
             "│ a    │ thisisa… │ … │ d    │",
             "│ ──   │       ── │   │ ──   │",
@@ -1022,7 +1022,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &[], Some(40), None).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬──────┬───┬──────┬──────┐",
             "│    0 │    1 │ … │   28 │   29 │",
             "│   ── │   ── │   │   ── │   ── │",
@@ -1081,7 +1081,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &[first, middle, last], None, Some(2)).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┐",
             "│ a    │     b │",
             "│ ──   │    ── │",

@@ -352,7 +352,7 @@ pub fn init_session_registry<'a>(
     for opts in entries {
         let access: Arc<dyn ObjStoreAccess> = match opts {
             TableOptions::Local(_) => Arc::new(LocalStoreAccess),
-            // TODO: Consider consolidating Gcs, S3, Delta and Iceberg `TableOptions` and
+            // TODO: Consider consolidating Gcs, S3 and Delta and Iceberg `TableOptions` and
             // `ObjStoreAccess` since they largely overlap
             TableOptions::Gcs(opts) => Arc::new(GcsStoreAccess {
                 bucket: opts.bucket.clone(),
@@ -365,6 +365,10 @@ pub fn init_session_registry<'a>(
                 secret_access_key: opts.secret_access_key.clone(),
             }),
             TableOptions::Delta(TableOptionsObjectStore {
+                location,
+                storage_options,
+            })
+            | TableOptions::Iceberg(TableOptionsObjectStore {
                 location,
                 storage_options,
             }) => Arc::new(GenericStoreAccess::from(location, storage_options.clone())?),

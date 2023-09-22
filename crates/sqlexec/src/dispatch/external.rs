@@ -13,11 +13,14 @@ use datafusion::prelude::SessionContext;
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, VirtualLister};
 use datafusion_ext::vars::SessionVars;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
+use datasources::lake::iceberg::table::IcebergTable;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
+use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
@@ -401,8 +404,19 @@ impl<'a> ExternalDispatcher<'a> {
                 storage_options,
             }) => {
                 let provider =
-                    Arc::new(load_table_direct(&location, storage_options.clone()).await?);
+                    Arc::new(load_table_direct(location, storage_options.clone()).await?);
                 Ok(provider)
+            }
+            TableOptions::Iceberg(TableOptionsObjectStore {
+                location,
+                storage_options,
+            }) => {
+                let url = DatasourceUrl::try_new(location)?;
+                let store =
+                    GenericStoreAccess::from(location, storage_options.clone())?.create_store()?;
+                let table = IcebergTable::open(url, store).await?;
+                let reader = table.table_reader().await?;
+                Ok(reader)
             }
         }
     }

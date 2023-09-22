@@ -102,8 +102,9 @@ message TableOptions {
     TableOptionsMongo mongo = 9;
     TableOptionsSnowflake snowflake = 10;
     TableOptionsObjectStore delta = 11;
+    TableOptionsObjectStore iceberg = 12;
   }
-  // next: 12
+  // next: 13
 }
 
 message TableOptionsInternal {

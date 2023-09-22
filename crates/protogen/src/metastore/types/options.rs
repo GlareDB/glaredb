@@ -462,6 +462,7 @@ pub enum TableOptions {
     Mongo(TableOptionsMongo),
     Snowflake(TableOptionsSnowflake),
     Delta(TableOptionsObjectStore),
+    Iceberg(TableOptionsObjectStore),
 }
 
 impl TableOptions {
@@ -476,6 +477,7 @@ impl TableOptions {
     pub const MONGO: &str = "mongo";
     pub const SNOWFLAKE: &str = "snowflake";
     pub const DELTA: &str = "delta";
+    pub const ICEBERG: &str = "iceberg";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -494,6 +496,7 @@ impl TableOptions {
             TableOptions::Mongo(_) => Self::MONGO,
             TableOptions::Snowflake(_) => Self::SNOWFLAKE,
             TableOptions::Delta(_) => Self::DELTA,
+            TableOptions::Iceberg(_) => Self::ICEBERG,
         }
     }
 }
@@ -519,6 +522,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::Mongo(v) => TableOptions::Mongo(v.try_into()?),
             options::table_options::Options::Snowflake(v) => TableOptions::Snowflake(v.try_into()?),
             options::table_options::Options::Delta(v) => TableOptions::Delta(v.try_into()?),
+            options::table_options::Options::Iceberg(v) => TableOptions::Iceberg(v.try_into()?),
         })
     }
 }
@@ -545,6 +549,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Mongo(v) => options::table_options::Options::Mongo(v.into()),
             TableOptions::Snowflake(v) => options::table_options::Options::Snowflake(v.into()),
             TableOptions::Delta(v) => options::table_options::Options::Delta(v.into()),
+            TableOptions::Iceberg(v) => options::table_options::Options::Iceberg(v.into()),
         })
     }
 }

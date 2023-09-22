@@ -100,7 +100,7 @@ fn table_location_and_opts(
     let first = args.next().unwrap();
     let url: String = first.param_into()?;
     let source_url =
-        DatasourceUrl::try_new(&url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
+        DatasourceUrl::try_new(url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
     let mut maybe_cred_opts = None;
     // Check if a credentials object has been supplied

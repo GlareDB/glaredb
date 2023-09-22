@@ -67,7 +67,7 @@ pub fn storage_options_into_object_store(
             Ok(Arc::new(store))
         }
         DatasourceUrlType::Http => {
-            return Err(LakeStorageOptionsError::UnsupportedObjectStore(url.clone()));
+            Err(LakeStorageOptionsError::UnsupportedObjectStore(url.clone()))
         }
     }
 }

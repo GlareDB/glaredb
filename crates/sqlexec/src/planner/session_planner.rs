@@ -498,7 +498,7 @@ impl<'a> SessionPlanner<'a> {
                     compression: compression.map(|c| c.to_string()),
                 })
             }
-            TableOptions::DELTA => {
+            TableOptions::DELTA | TableOptions::ICEBERG => {
                 let location = m.remove_required("location")?;
 
                 let mut storage_options = StorageOptions::try_from(m)?;
@@ -506,10 +506,19 @@ impl<'a> SessionPlanner<'a> {
                     storage_options_with_credentials(&mut storage_options, creds);
                 }
 
-                TableOptions::Delta(TableOptionsObjectStore {
-                    location,
-                    storage_options,
-                })
+                // TODO: Perform a HEAD request to validate the provided config options?
+
+                if datasource.as_str() == TableOptions::DELTA {
+                    TableOptions::Delta(TableOptionsObjectStore {
+                        location,
+                        storage_options,
+                    })
+                } else {
+                    TableOptions::Iceberg(TableOptionsObjectStore {
+                        location,
+                        storage_options,
+                    })
+                }
             }
             TableOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
