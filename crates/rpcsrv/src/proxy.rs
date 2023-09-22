@@ -78,7 +78,7 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
 
         // TLS is terminated at rpcsrv
         //
-        // | Local |-gRPC-client <-- TLS --> gRPC-server-| rpcsrv | --> http2
+        // | Local |-gRPC-client <-- TLS --> gRPC-server-| rpcsrv | --> compute
         //
         // TODO: establish mTLS
         let url = format!("http://{}:{}", key.ip, key.port);

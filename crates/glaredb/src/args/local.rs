@@ -61,8 +61,6 @@ pub struct LocalClientOpts {
     /// Disables RPC TLS
     ///
     /// (Internal)
-    ///
-    /// TODO: remove default_value to turn on by default
     #[clap(long, hide = true)]
     pub disable_tls: bool,
 }

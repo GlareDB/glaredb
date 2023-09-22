@@ -22,7 +22,7 @@ use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 use tonic::{
     metadata::MetadataMap,
-    transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
+    transport::{Channel, Endpoint},
     IntoRequest, Streaming,
 };
 use url::Url;
@@ -179,12 +179,13 @@ impl RemoteClient {
             metadata.insert(COMPUTE_ENGINE_KEY, compute_engine.parse()?);
         }
 
-        // TODO: dst.host is in the form of:
-        //
-        //          remote.qa.glaredb.com ->      qa.glaredb.com
-        //          remote   .glaredb.com -> console.glaredb.com
+        let dst: Endpoint = dst.try_into()?;
 
-        let mut dst: Endpoint = dst.try_into()?;
+        let mut api_url = "https://console.glaredb.com/api/internal/authenticate/client";
+        let host = dst.uri().host().expect("invalid host");
+        if host.contains("qa.glaredb.com") {
+            api_url = "https://qa.glaredb.com/api/internal/authenticate/client";
+        }
 
         if !disable_tls {
             let mut body = HashMap::new();
@@ -195,18 +196,20 @@ impl RemoteClient {
 
             let client = reqwest::Client::new();
             let res = client
-                .post("https://qa.glaredb.com/api/internal/authenticate/client")
+                .post(api_url)
                 .json(&body)
                 .send()
                 .await?
                 .json::<AuthenticateClientResponse>()
                 .await?;
 
-            dst = dst.tls_config(
-                ClientTlsConfig::new()
-                    .ca_certificate(Certificate::from_pem(res.ca_cert))
-                    .domain_name(res.ca_domain),
-            )?;
+            println!("authenticate client response: {:?}", res);
+
+            // dst = dst.tls_config(
+            //     ClientTlsConfig::new()
+            //         .ca_certificate(Certificate::from_pem(res.ca_cert))
+            //         .domain_name(res.ca_domain),
+            // )?;
         }
 
         let client = ExecutionServiceClient::connect(dst).await?;

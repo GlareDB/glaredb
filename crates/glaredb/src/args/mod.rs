@@ -50,9 +50,11 @@ pub struct RpcProxyArgs {
     #[clap(long)]
     pub cloud_auth_code: String,
 
-    /// Disable TLS.
+    /// Enable TLS.
+    ///
+    /// In the future, we'll swap this for disable_tls
     #[clap(long, hide = true)]
-    pub disable_tls: bool,
+    pub enable_tls: bool,
 }
 
 #[derive(Parser)]
