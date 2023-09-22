@@ -161,6 +161,12 @@ impl RemoteClient {
         dst: ProxyDestination,
         disable_tls: bool,
     ) -> Result<Self> {
+        let mut dst: ProxyDestination = dst;
+        if !disable_tls {
+            dst.dst
+                .set_scheme("https")
+                .expect("failed to upgrade scheme from http to https");
+        }
         Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params, disable_tls).await
     }
 

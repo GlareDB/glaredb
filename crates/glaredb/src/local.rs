@@ -21,7 +21,7 @@ use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
-use sqlexec::remote::client::{ProxyDestination, RemoteClient};
+use sqlexec::remote::client::RemoteClient;
 use sqlexec::session::ExecutionResult;
 use std::env;
 use std::io::Write;
@@ -73,18 +73,9 @@ impl LocalSession {
                     format!("Connected to remote GlareDB server: {}", u.cyan()),
                 )
             } else {
-                let mut dst: ProxyDestination = url.try_into()?;
-
-                // Review: I had wanted to do this in
-                // RemoteClient::connect_with_proxy_auth_params
-                if opts.enable_tls {
-                    dst.dst
-                        .set_scheme("https")
-                        .expect("failed to upgrade scheme from http to https");
-                }
-
                 let client =
-                    RemoteClient::connect_with_proxy_destination(dst, !opts.enable_tls).await?;
+                    RemoteClient::connect_with_proxy_destination(url.try_into()?, !opts.enable_tls)
+                        .await?;
 
                 let msg = format!(
                     "Connected to Cloud deployment: {}",
