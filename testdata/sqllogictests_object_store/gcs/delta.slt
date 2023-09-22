@@ -1,0 +1,41 @@
+statement ok
+CREATE CREDENTIALS gcp_creds PROVIDER gcp
+	( service_account_key '${GCP_SERVICE_ACCOUNT_KEY}' );
+
+# Tests `delta_scan` with delta table in gcs.
+
+query IT
+select * from delta_scan('gs://${GCS_BUCKET_NAME}/delta/table1', gcp_creds) order by a;
+----
+1   hello
+2   world
+
+# Tests external delta table in gcs with credentials object.
+statement ok
+create external table delta_gcs_creds
+from delta
+credentials gcp_creds
+options (
+	location 'gs://${GCS_BUCKET_NAME}/delta/table1'
+);
+
+query IT
+select * from delta_gcs_creds order by a;
+----
+1   hello
+2   world
+
+# Tests external delta table in gcs with explicit config options.
+statement ok
+create external table delta_gcs_options
+from delta
+options (
+	location 'gs://${GCS_BUCKET_NAME}/delta/table1'
+	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}'
+);
+
+query IT
+select * from delta_gcs_options order by a;
+----
+1   hello
+2   world
