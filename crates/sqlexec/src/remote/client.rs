@@ -187,7 +187,7 @@ impl RemoteClient {
 
         let mut dst: Endpoint = dst.try_into()?;
 
-        let host = dst.uri().host()?;
+        let host = dst.uri().host().expect("invalid host");
         let api_url = if host.contains("qa.glaredb.com") {
             "https://qa.glaredb.com/api/internal/authenticate/client"
         } else {
