@@ -8,7 +8,7 @@ create external table iceberg_gcs_creds_and_opts
 from delta
 credentials gcp_creds
 options (
-	location 'gs://${GCS_BUCKET_NAME}/delta/tables/lineitem_partitioned'
+	location 'gs://${GCS_BUCKET_NAME}/iceberg/tables/lineitem_partitioned'
 );
 
 query TI
@@ -30,7 +30,7 @@ statement ok
 create external table iceberg_gcs_opts
 from delta
 options (
-	location 'gs://${GCS_BUCKET_NAME}/delta/tables/lineitem_partitioned',
+	location 'gs://${GCS_BUCKET_NAME}/iceberg/tables/lineitem_partitioned',
 	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}'
 );
 
