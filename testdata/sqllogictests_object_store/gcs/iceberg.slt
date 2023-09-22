@@ -5,7 +5,7 @@ CREATE CREDENTIALS gcp_creds PROVIDER gcp
 # Tests external iceberg table in gcs with credentials object.
 statement ok
 create external table iceberg_gcs_creds_and_opts
-from delta
+from iceberg
 credentials gcp_creds
 options (
 	location 'gs://${GCS_BUCKET_NAME}/iceberg/tables/lineitem_partitioned'
@@ -28,7 +28,7 @@ TRUCK      132
 # Tests external iceberg table in gcs with explicit config options.
 statement ok
 create external table iceberg_gcs_opts
-from delta
+from iceberg
 options (
 	location 'gs://${GCS_BUCKET_NAME}/iceberg/tables/lineitem_partitioned',
 	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}'
