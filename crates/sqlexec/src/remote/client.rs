@@ -16,7 +16,7 @@ use protogen::{
     },
 };
 use proxyutil::metadata_constants::{
-    CA_CERT, COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
+    COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
 };
 use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
@@ -117,8 +117,8 @@ impl TryFrom<Url> for ProxyDestination {
     }
 }
 
-#[derive(Clone, Deserialize)]
-pub struct CAInfo {
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct AuthenticateClientResponse {
     pub ca_cert: String,
     pub ca_domain: String,
 }
@@ -159,16 +159,16 @@ impl RemoteClient {
     /// Connect to a proxy destination.
     pub async fn connect_with_proxy_destination(
         dst: ProxyDestination,
-        ca_info: Option<CAInfo>,
+        disable_tls: bool,
     ) -> Result<Self> {
-        Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params, ca_info).await
+        Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params, disable_tls).await
     }
 
     /// Connect to a destination with the provided authentication params.
     async fn connect_with_proxy_auth_params<'a>(
         dst: impl TryInto<Endpoint, Error = tonic::transport::Error>,
         params: ProxyAuthParams,
-        ca_info: Option<CAInfo>,
+        disable_tls: bool,
     ) -> Result<Self> {
         let mut metadata = MetadataMap::new();
         metadata.insert(USER_KEY, params.user.parse()?);
@@ -179,14 +179,33 @@ impl RemoteClient {
             metadata.insert(COMPUTE_ENGINE_KEY, compute_engine.parse()?);
         }
 
+        // TODO: dst.host is in the form of:
+        //
+        //          remote.qa.glaredb.com ->      qa.glaredb.com
+        //          remote   .glaredb.com -> console.glaredb.com
+
         let mut dst: Endpoint = dst.try_into()?;
 
-        if let Some(ca_info) = ca_info {
-            metadata.insert(CA_CERT, ca_info.ca_cert.clone().parse()?);
+        if !disable_tls {
+            let mut body = HashMap::new();
+            body.insert("user", params.user);
+            body.insert("password", params.password);
+            body.insert("org_name", params.org);
+            body.insert("db_name", params.db_name);
+
+            let client = reqwest::Client::new();
+            let res = client
+                .post("https://qa.glaredb.com/api/internal/authenticate/client")
+                .json(&body)
+                .send()
+                .await?
+                .json::<AuthenticateClientResponse>()
+                .await?;
+
             dst = dst.tls_config(
                 ClientTlsConfig::new()
-                    .ca_certificate(Certificate::from_pem(ca_info.ca_cert))
-                    .domain_name(ca_info.ca_domain),
+                    .ca_certificate(Certificate::from_pem(res.ca_cert))
+                    .domain_name(res.ca_domain),
             )?;
         }
 

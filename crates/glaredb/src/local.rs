@@ -18,11 +18,10 @@ use pgrepr::format::Format;
 use reedline::{FileBackedHistory, Reedline, Signal};
 
 use datafusion_ext::vars::SessionVars;
-use reqwest;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
-use sqlexec::remote::client::{CAInfo, ProxyDestination, RemoteClient};
+use sqlexec::remote::client::{ProxyDestination, RemoteClient};
 use sqlexec::session::ExecutionResult;
 use std::env;
 use std::io::Write;
@@ -74,23 +73,19 @@ impl LocalSession {
                     format!("Connected to remote GlareDB server: {}", u.cyan()),
                 )
             } else {
-                let mut url: ProxyDestination = url.try_into()?;
+                let mut dst: ProxyDestination = url.try_into()?;
 
-                let mut ca_info = None;
+                // Review: I had wanted to do this in
+                // RemoteClient::connect_with_proxy_auth_params
+                // Review: is expect("...") the usual thing to do?
                 if !opts.disable_tls {
-                    url.dst
+                    dst.dst
                         .set_scheme("https")
-                        .expect("not able to convert http to https");
-
-                    ca_info = Some(
-                        reqwest::get(format!("{}/api/internal/databases/authenticate", url.dst))
-                            .await?
-                            .json::<CAInfo>()
-                            .await?,
-                    );
+                        .expect("failed to upgrade scheme from http to https");
                 }
 
-                let client = RemoteClient::connect_with_proxy_destination(url, ca_info).await?;
+                let client =
+                    RemoteClient::connect_with_proxy_destination(dst, opts.disable_tls).await?;
 
                 let msg = format!(
                     "Connected to Cloud deployment: {}",

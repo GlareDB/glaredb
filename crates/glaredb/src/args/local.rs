@@ -63,7 +63,7 @@ pub struct LocalClientOpts {
     /// (Internal)
     ///
     /// TODO: remove default_value to turn on by default
-    #[clap(long, default_value = "true", hide = true)]
+    #[clap(long, hide = true)]
     pub disable_tls: bool,
 }
 

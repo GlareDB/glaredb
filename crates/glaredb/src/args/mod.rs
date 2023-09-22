@@ -51,7 +51,7 @@ pub struct RpcProxyArgs {
     pub cloud_auth_code: String,
 
     /// Disable TLS.
-    #[clap(long, default_value = "true", hide = true)]
+    #[clap(long, hide = true)]
     pub disable_tls: bool,
 }
 
