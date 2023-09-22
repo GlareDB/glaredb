@@ -30,7 +30,7 @@ statement ok
 create external table delta_gcs_options
 from delta
 options (
-	location 'gs://${GCS_BUCKET_NAME}/delta/table1'
+	location 'gs://${GCS_BUCKET_NAME}/delta/table1',
 	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}'
 );
 
