@@ -33,12 +33,12 @@ pub fn storage_options_into_object_store(
     url: &DatasourceUrl,
     opts: &StorageOptions,
 ) -> Result<Arc<dyn ObjectStore>, LakeStorageOptionsError> {
-    let bucket = url
-        .host()
-        .ok_or_else(|| LakeStorageOptionsError::MissingHost(url.clone()))?;
-
     match url.datasource_url_type() {
         DatasourceUrlType::S3 => {
+            let bucket = url
+                .host()
+                .ok_or_else(|| LakeStorageOptionsError::MissingHost(url.clone()))?;
+
             let mut store = AmazonS3Builder::new().with_bucket_name(bucket);
 
             for (key, value) in &opts.inner {
@@ -49,6 +49,10 @@ pub fn storage_options_into_object_store(
             Ok(Arc::new(store.build()?))
         }
         DatasourceUrlType::Gcs => {
+            let bucket = url
+                .host()
+                .ok_or_else(|| LakeStorageOptionsError::MissingHost(url.clone()))?;
+
             let mut store = GoogleCloudStorageBuilder::new().with_bucket_name(bucket);
 
             for (key, value) in &opts.inner {

@@ -14,7 +14,7 @@ use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, Virtua
 use datafusion_ext::vars::SessionVars;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::debug::DebugTableType;
-use datasources::lake::delta::access::DeltaLakeAccessor;
+use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
@@ -30,8 +30,8 @@ use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
     DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
     TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake, TunnelOptions,
+    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
@@ -395,6 +395,14 @@ impl<'a> ExternalDispatcher<'a> {
                     compression.as_ref(),
                 )
                 .await
+            }
+            TableOptions::Delta(TableOptionsObjectStore {
+                location,
+                storage_options,
+            }) => {
+                let provider =
+                    Arc::new(load_table_direct(&location, storage_options.clone()).await?);
+                Ok(provider)
             }
         }
     }

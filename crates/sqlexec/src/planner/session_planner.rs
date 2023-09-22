@@ -37,9 +37,9 @@ use protogen::metastore::types::options::{
     DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DeltaLakeCatalog, DeltaLakeUnityCatalog,
     StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
-    TunnelOptionsSsh,
+    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug,
+    TunnelOptionsInternal, TunnelOptionsSsh,
 };
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use sqlbuiltins::validation::{
@@ -227,29 +227,8 @@ impl<'a> SessionPlanner<'a> {
                 };
 
                 let mut storage_options = StorageOptions::try_from(m)?;
-
-                // Update storage options with the provided credentials object contents
-                // TODO: Should probably extract this logic somewhere else
-                if let Some(opts) = creds_options {
-                    match opts {
-                        CredentialsOptions::Debug(_) => {} // Nothing to do here
-                        CredentialsOptions::Gcp(creds) => {
-                            storage_options.inner.insert(
-                                GoogleConfigKey::ServiceAccountKey.as_ref().to_string(),
-                                creds.service_account_key,
-                            );
-                        }
-                        CredentialsOptions::Aws(creds) => {
-                            storage_options.inner.insert(
-                                AmazonS3ConfigKey::AccessKeyId.as_ref().to_string(),
-                                creds.access_key_id,
-                            );
-                            storage_options.inner.insert(
-                                AmazonS3ConfigKey::SecretAccessKey.as_ref().to_string(),
-                                creds.secret_access_key,
-                            );
-                        }
-                    }
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
                 }
 
                 // Try connecting to validate.
@@ -517,6 +496,19 @@ impl<'a> SessionPlanner<'a> {
                     location,
                     file_type: format!("{file_type:?}").to_lowercase(),
                     compression: compression.map(|c| c.to_string()),
+                })
+            }
+            TableOptions::DELTA => {
+                let location = m.remove_required("location")?;
+
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+
+                TableOptions::Delta(TableOptionsObjectStore {
+                    location,
+                    storage_options,
                 })
             }
             TableOptions::DEBUG => {
@@ -1724,6 +1716,32 @@ fn get_ssh_conn_str(m: &mut StmtOptions) -> Result<String> {
         }
     };
     Ok(conn.connection_string())
+}
+
+/// Update storage options with the provided credentials object contents
+fn storage_options_with_credentials(
+    storage_options: &mut StorageOptions,
+    creds: CredentialsOptions,
+) {
+    match creds {
+        CredentialsOptions::Debug(_) => {} // Nothing to do here
+        CredentialsOptions::Gcp(creds) => {
+            storage_options.inner.insert(
+                GoogleConfigKey::ServiceAccountKey.as_ref().to_string(),
+                creds.service_account_key,
+            );
+        }
+        CredentialsOptions::Aws(creds) => {
+            storage_options.inner.insert(
+                AmazonS3ConfigKey::AccessKeyId.as_ref().to_string(),
+                creds.access_key_id,
+            );
+            storage_options.inner.insert(
+                AmazonS3ConfigKey::SecretAccessKey.as_ref().to_string(),
+                creds.secret_access_key,
+            );
+        }
+    }
 }
 
 /// Returns a validated `DataType` for the specified precision and

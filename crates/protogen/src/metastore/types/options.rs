@@ -425,6 +425,10 @@ impl From<DeltaLakeUnityCatalog> for options::DeltaLakeUnityCatalog {
 // since the former is Hash unlike the latter. This enables us to capture a variety of different
 // parameters across different object stores, as well as support different optional parameters in
 // differing use-cases (e.g. creating a Delta database vs a Delta table).
+// List of supported config options in `object_store` crate by object store type:
+// - [Azure options](https://docs.rs/object_store/latest/object_store/azure/enum.AzureConfigKey.html#variants)
+// - [S3 options](https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html#variants)
+// - [Google options](https://docs.rs/object_store/latest/object_store/gcp/enum.GoogleConfigKey.html#variants)
 #[derive(Debug, Default, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct StorageOptions {
     pub inner: BTreeMap<String, String>,
@@ -457,6 +461,7 @@ pub enum TableOptions {
     S3(TableOptionsS3),
     Mongo(TableOptionsMongo),
     Snowflake(TableOptionsSnowflake),
+    Delta(TableOptionsObjectStore),
 }
 
 impl TableOptions {
@@ -470,6 +475,7 @@ impl TableOptions {
     pub const S3_STORAGE: &str = "s3";
     pub const MONGO: &str = "mongo";
     pub const SNOWFLAKE: &str = "snowflake";
+    pub const DELTA: &str = "delta";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -487,6 +493,7 @@ impl TableOptions {
             TableOptions::S3(_) => Self::S3_STORAGE,
             TableOptions::Mongo(_) => Self::MONGO,
             TableOptions::Snowflake(_) => Self::SNOWFLAKE,
+            TableOptions::Delta(_) => Self::DELTA,
         }
     }
 }
@@ -511,6 +518,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::S3(v) => TableOptions::S3(v.try_into()?),
             options::table_options::Options::Mongo(v) => TableOptions::Mongo(v.try_into()?),
             options::table_options::Options::Snowflake(v) => TableOptions::Snowflake(v.try_into()?),
+            options::table_options::Options::Delta(v) => TableOptions::Delta(v.try_into()?),
         })
     }
 }
@@ -536,6 +544,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::S3(v) => options::table_options::Options::S3(v.into()),
             TableOptions::Mongo(v) => options::table_options::Options::Mongo(v.into()),
             TableOptions::Snowflake(v) => options::table_options::Options::Snowflake(v.into()),
+            TableOptions::Delta(v) => options::table_options::Options::Delta(v.into()),
         })
     }
 }
@@ -890,6 +899,31 @@ impl From<TableOptionsSnowflake> for options::TableOptionsSnowflake {
             role_name: value.role_name,
             schema_name: value.schema_name,
             table_name: value.table_name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct TableOptionsObjectStore {
+    pub location: String,
+    pub storage_options: StorageOptions,
+}
+
+impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsObjectStore) -> Result<Self, Self::Error> {
+        Ok(TableOptionsObjectStore {
+            location: value.location,
+            storage_options: value.storage_options.required("storage_options")?,
+        })
+    }
+}
+
+impl From<TableOptionsObjectStore> for options::TableOptionsObjectStore {
+    fn from(value: TableOptionsObjectStore) -> Self {
+        options::TableOptionsObjectStore {
+            location: value.location,
+            storage_options: Some(value.storage_options.into()),
         }
     }
 }

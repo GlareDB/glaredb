@@ -101,8 +101,9 @@ message TableOptions {
     TableOptionsMysql mysql = 8;
     TableOptionsMongo mongo = 9;
     TableOptionsSnowflake snowflake = 10;
+    TableOptionsObjectStore delta = 11;
   }
-  // next: 11
+  // next: 12
 }
 
 message TableOptionsInternal {
@@ -170,6 +171,11 @@ message TableOptionsSnowflake {
   string role_name = 6;
   string schema_name = 7;
   string table_name = 8;
+}
+
+message TableOptionsObjectStore {
+  string location = 1;
+  StorageOptions storage_options = 2;
 }
 
 // Tunnel options

@@ -21,18 +21,20 @@ use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
-use protogen::metastore::types::options::TableOptions;
+use protogen::metastore::types::options::{TableOptions, TableOptionsObjectStore};
 
 use errors::Result;
 
 use crate::common::exprs_to_phys_exprs;
 use crate::common::url::DatasourceUrl;
 use crate::object_store::gcs::GcsStoreAccess;
+use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::local::LocalStoreAccess;
 use crate::object_store::s3::S3StoreAccess;
 
 pub mod errors;
 pub mod gcs;
+pub mod generic;
 pub mod http;
 pub mod local;
 pub mod s3;
@@ -350,6 +352,8 @@ pub fn init_session_registry<'a>(
     for opts in entries {
         let access: Arc<dyn ObjStoreAccess> = match opts {
             TableOptions::Local(_) => Arc::new(LocalStoreAccess),
+            // TODO: Consider consolidating Gcs, S3, Delta and Iceberg `TableOptions` and
+            // `ObjStoreAccess` since they largely overlap
             TableOptions::Gcs(opts) => Arc::new(GcsStoreAccess {
                 bucket: opts.bucket.clone(),
                 service_account_key: opts.service_account_key.clone(),
@@ -360,9 +364,13 @@ pub fn init_session_registry<'a>(
                 access_key_id: opts.access_key_id.clone(),
                 secret_access_key: opts.secret_access_key.clone(),
             }),
-            // Continue on all others. Explicityly mentioning all the left
+            TableOptions::Delta(TableOptionsObjectStore {
+                location,
+                storage_options,
+            }) => Arc::new(GenericStoreAccess::from(location, storage_options.clone())?),
+            // Continue on all others. Explicitly mentioning all the left
             // over options so we don't forget adding object stores that are
-            // supported in the furure (like azure).
+            // supported in the future (like azure).
             TableOptions::Internal(_)
             | TableOptions::Debug(_)
             | TableOptions::Postgres(_)

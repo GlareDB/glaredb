@@ -1,6 +1,6 @@
 fn main() {
     let mut config = prost_build::Config::new();
-    config.btree_map(&[".metastore.options.StorageOptions"]);
+    config.btree_map([".metastore.options.StorageOptions"]);
 
     tonic_build::configure()
         .build_server(true)
