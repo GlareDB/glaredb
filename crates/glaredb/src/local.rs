@@ -77,15 +77,14 @@ impl LocalSession {
 
                 // Review: I had wanted to do this in
                 // RemoteClient::connect_with_proxy_auth_params
-                // Review: is expect("...") the usual thing to do?
-                if !opts.disable_tls {
+                if opts.enable_tls {
                     dst.dst
                         .set_scheme("https")
                         .expect("failed to upgrade scheme from http to https");
                 }
 
                 let client =
-                    RemoteClient::connect_with_proxy_destination(dst, opts.disable_tls).await?;
+                    RemoteClient::connect_with_proxy_destination(dst, !opts.enable_tls).await?;
 
                 let msg = format!(
                     "Connected to Cloud deployment: {}",

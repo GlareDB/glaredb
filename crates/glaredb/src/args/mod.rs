@@ -52,6 +52,8 @@ pub struct RpcProxyArgs {
 
     /// Enable TLS.
     ///
+    /// (Internal)
+    ///
     /// In the future, we'll swap this for disable_tls
     #[clap(long, hide = true)]
     pub enable_tls: bool,
