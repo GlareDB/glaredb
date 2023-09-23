@@ -234,6 +234,9 @@ jobs:
           just sql-logic-tests -v --rpc-test \
                                              'sqllogictests/cast/*' \
                                              'sqllogictests/cte/*' \
+                                             'sqllogictests/functions/delta_scan' \
+                                             'sqllogictests/functions/generate_series' \
+                                             'sqllogictests/functions/version' \
                                              'sqllogictests/joins/*' \
                                              'sqllogictests/topn/*' \
                                              'sqllogictests/aggregates' \
@@ -245,6 +248,7 @@ jobs:
                                              'sqllogictests/delete' \
                                              'sqllogictests/demo_pg' \
                                              'sqllogictests/drop' \
+                                             'sqllogictests/explain' \
                                              'sqllogictests/infer' \
                                              'sqllogictests/information_schema' \
                                              'sqllogictests/metabase' \
@@ -261,9 +265,12 @@ jobs:
                                              'sqllogictests/views' \
                                              'sqllogictests/virtual_catalog'
 
-          # Run a single set of remote data source tests for now. The rest should be
-          # added when rpc is further along.
-          POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
-          export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
-
+          just sql-logic-tests --rpc-test 'sqllogictests_bigquery/*'
+          just sql-logic-tests --rpc-test 'sqllogictests_iceberg/*'
+          just sql-logic-tests --rpc-test 'sqllogictests_native/*'
+          just sql-logic-tests --rpc-test 'sqllogictests_object_store/*'
+          # See https://github.com/GlareDB/glaredb/issues/1812
+          # just sql-logic-tests --rpc-test 'sqllogictests_snowflake/*'
+          just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
+          just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
