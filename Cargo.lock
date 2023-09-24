@@ -3617,7 +3617,7 @@ dependencies = [
 [[package]]
 name = "object_store"
 version = "0.7.0"
-source = "git+https://github.com/glaredb/arrow-rs?rev=97b68aab05722af2e8beeb5d53ef817b509634f9#97b68aab05722af2e8beeb5d53ef817b509634f9"
+source = "git+https://github.com/glaredb/arrow-rs?rev=e3b240cec93f08b08526bd8d4f7d934c90cbf2cb#e3b240cec93f08b08526bd8d4f7d934c90cbf2cb"
 dependencies = [
  "async-trait",
  "base64 0.21.4",
