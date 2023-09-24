@@ -27,4 +27,4 @@ branch = "main"
 features = ["s3", "gcs", "azure", "datafusion", "arrow", "parquet"]
 
 [patch.crates-io]
-object_store = { git = "https://github.com/apache/arrow-rs", rev = "a03ce564f1c95e10c78e6a065996cb036ca13cef" }
+object_store = { git = "https://github.com/glaredb/arrow-rs", rev = "97b68aab05722af2e8beeb5d53ef817b509634f9" }
