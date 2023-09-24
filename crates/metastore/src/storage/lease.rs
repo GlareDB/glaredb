@@ -74,7 +74,7 @@ impl RemoteLeaser {
 
         // Write to temp location first.
         let tmp_path = LEASE_INFORMATION_OBJECT.tmp_path(db_id, &self.process_id);
-        self.store.put(&tmp_path, bs.freeze()).await?;
+        self.store.put(&tmp_path, bs.freeze()).await.unwrap();
 
         // Try moving it.
         //
@@ -87,7 +87,7 @@ impl RemoteLeaser {
         {
             Ok(_) => (),
             Err(ObjectStoreError::AlreadyExists { .. }) => return Ok(()),
-            Err(e) => return Err(e.into()),
+            Err(e) => panic!("{e}"),
         }
 
         Ok(())
@@ -319,7 +319,14 @@ impl LeaseRenewer {
 
     /// Read the lease, checking that it's the generation we expect if it's provided.
     async fn read_lease(&self, current_generation: Option<u64>) -> Result<LeaseInformation> {
-        let bs = self.store.get(&self.visible_path).await?.bytes().await?;
+        let bs = self
+            .store
+            .get(&self.visible_path)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap();
         let proto = storage::LeaseInformation::decode(bs)?;
         let lease: LeaseInformation = proto.try_into()?;
 
@@ -342,7 +349,7 @@ impl LeaseRenewer {
         let proto: storage::LeaseInformation = lease.into();
         let mut bs = BytesMut::new();
         proto.encode(&mut bs)?;
-        self.store.put(&self.tmp_path, bs.freeze()).await?;
+        self.store.put(&self.tmp_path, bs.freeze()).await.unwrap();
 
         // Rename...
         //
@@ -354,7 +361,8 @@ impl LeaseRenewer {
         // See <https://cloud.google.com/storage/docs/object-versioning>
         self.store
             .rename(&self.tmp_path, &self.visible_path)
-            .await?;
+            .await
+            .unwrap();
 
         Ok(())
     }

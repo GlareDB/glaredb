@@ -56,9 +56,6 @@ pub enum StorageError {
 
     #[error("Failed to decode protobuf from storage: {0}")]
     ProstDecode(#[from] prost::DecodeError),
-
-    #[error(transparent)]
-    ObjectStore(#[from] object_store::Error),
 }
 
 pub type Result<T, E = StorageError> = std::result::Result<T, E>;

@@ -57,7 +57,7 @@ impl Storage {
         {
             Ok(_) => return Ok(()),                       // Nothing to do.
             Err(ObjectStoreError::NotFound { .. }) => (), // Continue on creating new catalog.
-            Err(e) => return Err(e.into()),               // Something else happened...
+            Err(e) => panic!("{e}"),                      // Something else happened...
         }
 
         info!(%db_id, "initializing new catalog for database");
@@ -81,7 +81,8 @@ impl Storage {
         // Write version 0 of the catalog...
         self.store
             .put(&PERSISTENT_CATALOG_OBJECT.visible_path(&db_id), bs.freeze())
-            .await?;
+            .await
+            .unwrap();
 
         // Initialize lease.
         self.leaser.initialize(&db_id).await?;
@@ -100,7 +101,8 @@ impl Storage {
 
         self.store
             .put(&CATALOG_METADATA.visible_path(&db_id), bs.freeze())
-            .await?;
+            .await
+            .unwrap();
 
         lease.drop_lease().await?;
 
@@ -124,7 +126,7 @@ impl Storage {
         let path = PERSISTENT_CATALOG_OBJECT
             .with_version(metadata.latest_version)
             .visible_path(&db_id);
-        let bs = self.store.get(&path).await?.bytes().await?;
+        let bs = self.store.get(&path).await.unwrap().bytes().await.unwrap();
 
         // Log we'll want to keep an eye on so we can monitor catalog size.
         debug!(byte_len = %bs.len(), %db_id, "read catalog");
@@ -208,14 +210,20 @@ impl Storage {
         proto.encode(&mut bs)?;
 
         let tmp_catalog_path = catalog_obj.tmp_path(&db_id, &self.process_id);
-        self.store.put(&tmp_catalog_path, bs.freeze()).await?;
+        self.store
+            .put(&tmp_catalog_path, bs.freeze())
+            .await
+            .unwrap();
 
         let proto: storage::CatalogMetadata = metadata.into();
         let mut bs = BytesMut::new();
         proto.encode(&mut bs)?;
 
         let tmp_metadata_path = CATALOG_METADATA.tmp_path(&db_id, &self.process_id);
-        self.store.put(&tmp_metadata_path, bs.freeze()).await?;
+        self.store
+            .put(&tmp_metadata_path, bs.freeze())
+            .await
+            .unwrap();
 
         // Move objects...
 
@@ -223,7 +231,8 @@ impl Storage {
         // stuck if we happen to fail on step 6 or fail the lease check.
         self.store
             .rename(&tmp_catalog_path, &catalog_obj.visible_path(&db_id))
-            .await?;
+            .await
+            .unwrap();
 
         // Last chance to bail before attempting to make our changes visible.
         if !lease.is_valid() {
@@ -232,7 +241,8 @@ impl Storage {
 
         self.store
             .rename(&tmp_metadata_path, &CATALOG_METADATA.visible_path(&db_id))
-            .await?;
+            .await
+            .unwrap();
 
         Ok(())
     }
@@ -247,7 +257,7 @@ impl Storage {
     /// with that version.
     async fn read_metadata(&self, db_id: &Uuid) -> Result<CatalogMetadata> {
         let path = CATALOG_METADATA.visible_path(db_id);
-        let bs = self.store.get(&path).await?.bytes().await?;
+        let bs = self.store.get(&path).await.unwrap().bytes().await.unwrap();
         let proto = storage::CatalogMetadata::decode(bs)?;
 
         Ok(proto.try_into()?)
