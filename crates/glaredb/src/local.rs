@@ -74,7 +74,7 @@ impl LocalSession {
                 )
             } else {
                 let client =
-                    RemoteClient::connect_with_proxy_destination(url.try_into()?, !opts.enable_tls)
+                    RemoteClient::connect_with_proxy_destination(url.try_into()?, opts.enable_tls)
                         .await?;
 
                 let msg = format!(

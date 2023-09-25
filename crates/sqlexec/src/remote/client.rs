@@ -159,22 +159,22 @@ impl RemoteClient {
     /// Connect to a proxy destination.
     pub async fn connect_with_proxy_destination(
         dst: ProxyDestination,
-        disable_tls: bool,
+        enable_tls: bool,
     ) -> Result<Self> {
         let mut dst: ProxyDestination = dst;
-        if !disable_tls {
+        if enable_tls {
             dst.dst
                 .set_scheme("https")
                 .expect("failed to upgrade scheme from http to https");
         }
-        Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params, disable_tls).await
+        Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params, enable_tls).await
     }
 
     /// Connect to a destination with the provided authentication params.
     async fn connect_with_proxy_auth_params<'a>(
         dst: impl TryInto<Endpoint, Error = tonic::transport::Error>,
         params: ProxyAuthParams,
-        disable_tls: bool,
+        enable_tls: bool,
     ) -> Result<Self> {
         let mut metadata = MetadataMap::new();
         metadata.insert(USER_KEY, params.user.parse()?);
@@ -194,7 +194,7 @@ impl RemoteClient {
             "https://console.glaredb.com/api/internal/authenticate/client"
         };
 
-        if !disable_tls {
+        if enable_tls {
             let mut body = HashMap::new();
             body.insert("user", params.user);
             body.insert("password", params.password);
