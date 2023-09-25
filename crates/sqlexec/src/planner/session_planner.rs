@@ -17,10 +17,12 @@ use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
-use datasources::lake::delta::access::DeltaLakeAccessor;
+use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
+use datasources::lake::iceberg::table::IcebergTable;
 use datasources::mongodb::{MongoAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
+use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
@@ -499,7 +501,7 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::DELTA | TableOptions::ICEBERG => {
-                let location = m.remove_required("location")?;
+                let location: String = m.remove_required("location")?;
 
                 let mut storage_options = StorageOptions::try_from(m)?;
                 if let Some(creds) = creds_options {
@@ -507,11 +509,18 @@ impl<'a> SessionPlanner<'a> {
                 }
 
                 if datasource.as_str() == TableOptions::DELTA {
+                    let _table = load_table_direct(&location, storage_options.clone()).await?;
+
                     TableOptions::Delta(TableOptionsObjectStore {
                         location,
                         storage_options,
                     })
                 } else {
+                    let url = DatasourceUrl::try_new(&location)?;
+                    let store = GenericStoreAccess::from(&location, storage_options.clone())?
+                        .create_store()?;
+                    let _table = IcebergTable::open(url, store).await?;
+
                     TableOptions::Iceberg(TableOptionsObjectStore {
                         location,
                         storage_options,
