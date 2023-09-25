@@ -1,18 +1,17 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::functions::table_location_and_opts;
 use async_trait::async_trait;
 use datafusion::arrow::array::{Int32Builder, Int64Builder, StringBuilder, UInt64Builder};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider};
-use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
+use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
 use datasources::lake::iceberg::table::IcebergTable;
-use datasources::lake::LakeStorageOptions;
+use datasources::lake::storage_options_into_object_store;
 use protogen::metastore::types::catalog::RuntimePreference;
-use protogen::metastore::types::options::CredentialsOptions;
 
 /// Scan an iceberg table.
 #[derive(Debug, Clone, Copy)]
@@ -36,9 +35,9 @@ impl TableFunc for IcebergScan {
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         // TODO: Reduce duplication
-        let (loc, opts) = iceberg_location_and_opts(ctx, args, &mut opts)?;
+        let (loc, opts) = table_location_and_opts(ctx, args, &mut opts)?;
 
-        let store = opts.into_object_store(&loc).map_err(box_err)?;
+        let store = storage_options_into_object_store(&loc, &opts).map_err(box_err)?;
         let table = IcebergTable::open(loc.clone(), store)
             .await
             .map_err(box_err)?;
@@ -68,9 +67,9 @@ impl TableFunc for IcebergSnapshots {
         args: Vec<FuncParamValue>,
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        let (loc, opts) = iceberg_location_and_opts(ctx, args, &mut opts)?;
+        let (loc, opts) = table_location_and_opts(ctx, args, &mut opts)?;
 
-        let store = opts.into_object_store(&loc).map_err(box_err)?;
+        let store = storage_options_into_object_store(&loc, &opts).map_err(box_err)?;
         let table = IcebergTable::open(loc, store).await.map_err(box_err)?;
 
         let snapshots = &table.metadata().snapshots;
@@ -130,9 +129,9 @@ impl TableFunc for IcebergDataFiles {
         args: Vec<FuncParamValue>,
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        let (loc, opts) = iceberg_location_and_opts(ctx, args, &mut opts)?;
+        let (loc, opts) = table_location_and_opts(ctx, args, &mut opts)?;
 
-        let store = opts.into_object_store(&loc).map_err(box_err)?;
+        let store = storage_options_into_object_store(&loc, &opts).map_err(box_err)?;
         let table = IcebergTable::open(loc, store).await.map_err(box_err)?;
 
         let manifests = table.read_manifests().await.map_err(box_err)?;
@@ -195,81 +194,6 @@ impl TableFunc for IcebergDataFiles {
             MemTable::try_new(schema, vec![vec![batch]]).unwrap(),
         ))
     }
-}
-
-/// Get the datasoruce url and options for an iceberg table.
-fn iceberg_location_and_opts(
-    ctx: &dyn TableFuncContextProvider,
-    args: Vec<FuncParamValue>,
-    opts: &mut HashMap<String, FuncParamValue>,
-) -> Result<(DatasourceUrl, LakeStorageOptions)> {
-    Ok(match args.len() {
-        1 => {
-            let mut args = args.into_iter();
-            let first = args.next().unwrap();
-            let url: String = first.param_into()?;
-            let source_url = DatasourceUrl::try_new(url).unwrap();
-
-            match source_url.datasource_url_type() {
-                DatasourceUrlType::File => (source_url, LakeStorageOptions::Local),
-                _ => {
-                    return Err(ExtensionError::String(
-                        "Credentials required when accessing delta table in S3 or GCS".to_string(),
-                    ))
-                }
-            }
-        }
-        2 => {
-            let mut args = args.into_iter();
-            let first = args.next().unwrap();
-            let url: DatasourceUrl = first.param_into()?;
-            let creds: IdentValue = args.next().unwrap().param_into()?;
-
-            let creds = ctx.get_credentials_entry(creds.as_str()).cloned().ok_or(
-                ExtensionError::String("missing credentials object".to_string()),
-            )?;
-
-            match url.datasource_url_type() {
-                DatasourceUrlType::Gcs => {
-                    if let CredentialsOptions::Gcp(creds) = creds.options {
-                        (url, LakeStorageOptions::Gcs { creds })
-                    } else {
-                        return Err(ExtensionError::String(
-                            "invalid credentials for GCS".to_string(),
-                        ));
-                    }
-                }
-                DatasourceUrlType::S3 => {
-                    // S3 requires a region parameter.
-                    const REGION_KEY: &str = "region";
-                    let region = opts
-                        .remove(REGION_KEY)
-                        .ok_or(ExtensionError::MissingNamedArgument(REGION_KEY))?
-                        .param_into()?;
-
-                    if let CredentialsOptions::Aws(creds) = creds.options {
-                        (url, LakeStorageOptions::S3 { creds, region })
-                    } else {
-                        return Err(ExtensionError::String(
-                            "invalid credentials for S3".to_string(),
-                        ));
-                    }
-                }
-                DatasourceUrlType::File => {
-                    return Err(ExtensionError::String(
-                        "Credentials incorrectly provided when accessing local iceberg table"
-                            .to_string(),
-                    ))
-                }
-                DatasourceUrlType::Http => {
-                    return Err(ExtensionError::String(
-                        "Accessing iceberg tables over http not supported".to_string(),
-                    ))
-                }
-            }
-        }
-        _ => return Err(ExtensionError::InvalidNumArgs),
-    })
 }
 
 fn box_err<E>(err: E) -> ExtensionError

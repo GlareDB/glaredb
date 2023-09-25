@@ -89,6 +89,8 @@ pub enum DispatchError {
     #[error(transparent)]
     DeltaDatasource(#[from] datasources::lake::delta::errors::DeltaError),
     #[error(transparent)]
+    IcebergDatasource(#[from] datasources::lake::iceberg::errors::IcebergError),
+    #[error(transparent)]
     NativeDatasource(#[from] datasources::native::errors::NativeError),
     #[error(transparent)]
     CommonDatasource(#[from] datasources::common::errors::DatasourceCommonError),

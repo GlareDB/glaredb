@@ -1,5 +1,7 @@
 //! Utility for source "URLs".
 
+use datafusion::common::DataFusionError;
+use datafusion::datasource::object_store::ObjectStoreUrl;
 use std::{borrow::Cow, fmt::Display, path::PathBuf};
 
 use datafusion::scalar::ScalarValue;
@@ -153,6 +155,17 @@ impl DatasourceUrl {
     }
 }
 
+impl TryFrom<DatasourceUrl> for ObjectStoreUrl {
+    type Error = DataFusionError;
+
+    fn try_from(value: DatasourceUrl) -> std::result::Result<Self, Self::Error> {
+        match value {
+            DatasourceUrl::File(_) => Ok(ObjectStoreUrl::local_filesystem()),
+            DatasourceUrl::Url(url) => ObjectStoreUrl::parse(&url[..url::Position::BeforePath]),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,28 +176,40 @@ mod tests {
         assert_eq!(Some("my_bucket"), u.host());
         assert_eq!("my_obj", u.path());
         assert_eq!(DatasourceUrlType::Gcs, u.datasource_url_type());
+        assert_eq!(
+            ObjectStoreUrl::try_from(u).unwrap().as_str(),
+            "gs://my_bucket/"
+        );
 
         let u = DatasourceUrl::try_new("gs://my_bucket/my_obj.parquet").unwrap();
         assert_eq!(Some("my_bucket"), u.host());
         assert_eq!("my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlType::Gcs, u.datasource_url_type());
+        assert_eq!(
+            ObjectStoreUrl::try_from(u).unwrap().as_str(),
+            "gs://my_bucket/"
+        );
 
         let u = DatasourceUrl::try_new("./my_bucket/my_obj.parquet").unwrap();
         assert_eq!(None, u.host());
         assert_eq!("./my_bucket/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
+        assert_eq!(ObjectStoreUrl::try_from(u).unwrap().as_str(), "file:///");
 
         let u = DatasourceUrl::try_new("/Users/mario/my_bucket/my_obj").unwrap();
         assert_eq!(None, u.host());
         assert_eq!("/Users/mario/my_bucket/my_obj", u.path());
         assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
+        assert_eq!(ObjectStoreUrl::try_from(u).unwrap().as_str(), "file:///");
 
         let u = DatasourceUrl::try_new("file:/my_bucket/my_obj.parquet").unwrap();
         assert_eq!("/my_bucket/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
+        assert_eq!(ObjectStoreUrl::try_from(u).unwrap().as_str(), "file:///");
 
         let u = DatasourceUrl::try_new("file:my_bucket/my_obj.parquet").unwrap();
         assert_eq!("/my_bucket/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
+        assert_eq!(ObjectStoreUrl::try_from(u).unwrap().as_str(), "file:///");
     }
 }
