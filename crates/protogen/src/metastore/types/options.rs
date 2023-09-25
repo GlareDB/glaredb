@@ -422,10 +422,9 @@ impl From<DeltaLakeUnityCatalog> for options::DeltaLakeUnityCatalog {
 
 // Options for a generic `ObjectStore`; to make them as versatile and compact as possible it's just
 // a wrapper for a map, like in `delta-rs`, except here it's a `BTreeMap` instead of a `HashMap`,
-// since the former is Hash unlike the latter. This enables us to capture a variety of different
-// parameters across different object stores, as well as support different optional parameters in
-// differing use-cases (e.g. creating a Delta database vs a Delta table).
-// List of supported config options in `object_store` crate by object store type:
+// since the former is `Hash` unlike the latter. This enables us to capture a variety of different
+// (potentially optional) parameters across different object stores and use-cases.
+// The following is a list of supported config options in `object_store` crate by object store type:
 // - [Azure options](https://docs.rs/object_store/latest/object_store/azure/enum.AzureConfigKey.html#variants)
 // - [S3 options](https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html#variants)
 // - [Google options](https://docs.rs/object_store/latest/object_store/gcp/enum.GoogleConfigKey.html#variants)

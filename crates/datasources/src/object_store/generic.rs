@@ -1,5 +1,4 @@
 use std::fmt::Display;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::common::url::DatasourceUrl;
@@ -9,7 +8,6 @@ use datafusion::execution::object_store::ObjectStoreUrl;
 use object_store::path::Path as ObjectStorePath;
 use object_store::ObjectStore;
 use protogen::metastore::types::options::StorageOptions;
-use url::Url;
 
 use super::errors::Result;
 use super::ObjStoreAccess;
@@ -29,19 +27,11 @@ impl GenericStoreAccess {
         // We want to generate a base URL from a potentially full URL here
         // TODO: If we can proto serialize URL consider doing this validating operation when processing
         // table definition
-        let url = Url::parse(location).map_err(|_| {
-            ObjectStoreSourceError::ObjectStorePath(object_store::path::Error::InvalidPath {
-                path: PathBuf::from(location),
-            })
-        })?;
-        let base_url = format!(
-            "{}://{}",
-            url.scheme(),
-            &url[url::Position::BeforeHost..url::Position::AfterPort],
-        );
+        let url = DatasourceUrl::try_new(location)
+            .map_err(|_| ObjectStoreSourceError::Static("Couldn't parse data source location"))?;
 
         Ok(GenericStoreAccess {
-            base_url: ObjectStoreUrl::parse(base_url)?,
+            base_url: ObjectStoreUrl::try_from(url)?,
             storage_options: storage_options.clone(),
         })
     }
@@ -60,7 +50,7 @@ impl ObjStoreAccess for GenericStoreAccess {
 
     fn create_store(&self) -> Result<Arc<dyn ObjectStore>> {
         let datasource_url = DatasourceUrl::try_new(&self.base_url)
-            .map_err(|_| ObjectStoreSourceError::Static("Couldn't parse source url"))?;
+            .map_err(|_| ObjectStoreSourceError::Static("Couldn't parse base url"))?;
         let store = storage_options_into_object_store(&datasource_url, &self.storage_options)
             .map_err(|_| ObjectStoreSourceError::Static("Couldn't create a object store"))?;
         Ok(store)

@@ -506,8 +506,6 @@ impl<'a> SessionPlanner<'a> {
                     storage_options_with_credentials(&mut storage_options, creds);
                 }
 
-                // TODO: Perform a HEAD request to validate the provided config options?
-
                 if datasource.as_str() == TableOptions::DELTA {
                     TableOptions::Delta(TableOptionsObjectStore {
                         location,
