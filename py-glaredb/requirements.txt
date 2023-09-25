@@ -10,4 +10,3 @@ pandas
 polars
 pytest
 pandasai
-linetimer

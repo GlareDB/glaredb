@@ -11,3 +11,5 @@ polars
 pytest
 pandasai
 linetimer
+glaredb
+duckdb

@@ -1,0 +1,17 @@
+.idea/
+.vscode/
+.swp
+tables_scale_*/
+*.tbl
+*.o
+dbgen
+.venv/
+**/__pycache__/
+qgen
+timings*.csv
+plots/
+**/spark-warehouse
+perf.*
+target/
+**/flamegraph.svg
+Cargo.lock
