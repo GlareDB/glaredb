@@ -63,7 +63,7 @@ def q():
         p_partkey
     limit 100
     """
-    utils.run_query(2, con, query_str)
+    utils.run_query(Q_NUM, con, query_str)
 
 
 if __name__ == "__main__":

@@ -37,7 +37,7 @@ def q():
         o_orderpriority
     """
 
-    utils.run_query(4, con, query_str)
+    utils.run_query(Q_NUM, con, query_str)
 
 
 if __name__ == "__main__":
