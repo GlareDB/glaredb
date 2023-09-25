@@ -101,7 +101,7 @@ for name in [
 ]:
     print("process table:", name)
     df = pl.read_csv(
-        f"tables_scale_{scale_fac}/{name}.tbl",
+        f"tables_scale/{scale_fac}/{name}.tbl",
         has_header=False,
         separator="|",
         try_parse_dates=True,
@@ -110,7 +110,7 @@ for name in [
     print(df.shape)
     df = df.with_columns([pl.col(pl.Date).cast(pl.Datetime)])
     df.write_parquet(
-        f"tables_scale_{scale_fac}/{name}.parquet",
+        f"tables_scale/{scale_fac}/{name}.parquet",
         statistics=True,
         row_group_size=1024 * 512,
     )

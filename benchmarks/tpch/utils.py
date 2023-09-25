@@ -13,7 +13,7 @@ SCALE_FACTOR = int(os.environ.get("SCALE_FACTOR", "1"))
 LOG_TIMINGS = bool(os.environ.get("LOG_TIMINGS", False))
 
 CWD = os.path.dirname(os.path.realpath(__file__))
-DATASET_BASE_DIR = os.path.join(CWD, f"tables_scale_{SCALE_FACTOR}")
+DATASET_BASE_DIR = os.path.join(CWD, f"tables_scale/{SCALE_FACTOR}")
 TIMINGS_FILE = os.path.join(CWD, os.environ.get("TIMINGS_FILE", "timings.csv"))
 INCLUDE_IO = bool(os.environ.get("INCLUDE_IO", False))
 USE_TMP_TABLES = bool(os.environ.get("USE_TMP_TABLES", False))

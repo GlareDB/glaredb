@@ -4,52 +4,45 @@ VENV_BIN := ".venv/bin"
 
 
 @venv:
-	@python3 -m pip install virtualenv > /dev/null
-	@python3 -m virtualenv {{VENV}} > /dev/null
+  @python3 -m pip install virtualenv > /dev/null
+  @python3 -m virtualenv {{VENV}} > /dev/null
 
 ## Set up virtual environment and install requirements
 @requirements: venv
-	{{VENV_BIN}}/python -m pip install --upgrade pip > /dev/null
-	{{VENV_BIN}}/pip install -r requirements.txt > /dev/null
-	
+  {{VENV_BIN}}/python -m pip install --upgrade pip > /dev/null
+  {{VENV_BIN}}/pip install -r requirements.txt > /dev/null
+  
 clean-tpch-dbgen:
-	make -C tpch-dbgen clean
+  make -C tpch-dbgen clean
 
 clean-venv:
-	rm -r .venv
+  rm -r {{VENV}}
 
 clean-tables:
-	rm -r tables_scale_*
+  rm -r tables_scale/
 
 clean: clean-tpch-dbgen clean-venv
 
 gen_scale_factor n: requirements
-	make -C tpch-dbgen all
-	cd tpch-dbgen && ./dbgen -vf -s {{n}} && cd ..
-	mkdir -p "tables_scale_{{n}}"
-	mv tpch-dbgen/*.tbl tables_scale_{{n}}/
-	{{VENV_BIN}}/python prepare_files.py {{n}} 
-	rm -rf tables_scale_{{n}}/*.tbl
+  make -C tpch-dbgen all
+  cd tpch-dbgen && ./dbgen -vf -s {{n}} && cd ..
+  mkdir -p "tables_scale/{{n}}"
+  mv tpch-dbgen/*.tbl tables_scale/{{n}}/
+  {{VENV_BIN}}/python prepare_files.py {{n}} 
+  rm -rf tables_scale/{{n}}/*.tbl
 
-@run_private name $SCALE_FACTOR="1":
-	{{VENV_BIN}}/python -m {{name}}_queries.executor 
+_run_private name $SCALE_FACTOR="1":
+  {{VENV_BIN}}/python -m {{name}}_queries.executor 
 
-run_glaredb $SCALE_FACTOR="1": 
-	just run_private "glaredb" $SCALE_FACTOR
-run_polars $SCALE_FACTOR="1": 
-	just run_private "polars" $SCALE_FACTOR
-run_duckdb $SCALE_FACTOR="1": 
-	just run_private "duckdb" $SCALE_FACTOR
-
-run n_runs="1" sf="1": requirements
+run n_runs="1" $SCALE_FACTOR="1": requirements
   #!/usr/bin/env bash
   n=0
   while [ $n -lt {{n_runs}}  ]; do
-    just run_private glaredb {{sf}}
-    just run_private polars {{sf}}
-    just run_private duckdb {{sf}}
+    just _run_private glaredb {{SCALE_FACTOR}}
+    just _run_private polars {{SCALE_FACTOR}}
+    just _run_private duckdb {{SCALE_FACTOR}}
     ((n++))
   done
 
 q n system $SCALE_FACTOR="1":
-	{{VENV_BIN}}/python -m {{system}}_queries.q{{n}}
+  {{VENV_BIN}}/python -m {{system}}_queries.q{{n}}
