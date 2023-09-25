@@ -1,0 +1,13 @@
+# Tests external delta table in the local file system.
+statement ok
+create external table delta_local
+from delta
+options (
+	location 'file://${PWD}/testdata/delta/table1/'
+);
+
+query IT
+select * from delta_local order by a;
+----
+1   hello
+2   world

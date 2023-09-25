@@ -1,0 +1,47 @@
+statement ok
+CREATE CREDENTIALS aws_creds PROVIDER aws
+	OPTIONS (
+        access_key_id = '${AWS_ACCESS_KEY_ID}',
+        secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
+	);
+
+# Tests `delta_scan` with delta table in s3.
+
+query IT
+select * from delta_scan('s3://${AWS_S3_BUCKET_NAME}/delta/table1', aws_creds, region => '${AWS_S3_REGION}') order by a;
+----
+1   hello
+2   world
+
+# Tests external delta table in s3 with credentials object.
+statement ok
+create external table delta_s3_creds_and_opts
+from delta
+credentials aws_creds
+options (
+	location 's3://${AWS_S3_BUCKET_NAME}/delta/table1',
+	region '${AWS_S3_REGION}'
+);
+
+query IT
+select * from delta_s3_creds_and_opts order by a;
+----
+1   hello
+2   world
+
+# Tests external delta table in s3 with explicit config options.
+statement ok
+create external table delta_s3_opts
+from delta
+options (
+	location 's3://${AWS_S3_BUCKET_NAME}/delta/table1',
+	access_key_id = '${AWS_ACCESS_KEY_ID}',
+    secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
+    region '${AWS_S3_REGION}'
+);
+
+query IT
+select * from delta_s3_opts order by a;
+----
+1   hello
+2   world
