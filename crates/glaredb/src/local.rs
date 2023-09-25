@@ -73,9 +73,12 @@ impl LocalSession {
                     format!("Connected to remote GlareDB server: {}", u.cyan()),
                 )
             } else {
-                let client =
-                    RemoteClient::connect_with_proxy_destination(url.try_into()?, opts.enable_tls)
-                        .await?;
+                let client = RemoteClient::connect_with_proxy_destination(
+                    url.try_into()?,
+                    opts.cloud_api_addr.clone(),
+                    opts.enable_tls,
+                )
+                .await?;
 
                 let msg = format!(
                     "Connected to Cloud deployment: {}",

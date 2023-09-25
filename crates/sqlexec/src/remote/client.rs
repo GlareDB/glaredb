@@ -159,6 +159,7 @@ impl RemoteClient {
     /// Connect to a proxy destination.
     pub async fn connect_with_proxy_destination(
         dst: ProxyDestination,
+        cloud_api_addr: String,
         enable_tls: bool,
     ) -> Result<Self> {
         let mut dst: ProxyDestination = dst;
@@ -167,13 +168,20 @@ impl RemoteClient {
                 .set_scheme("https")
                 .expect("failed to upgrade scheme from http to https");
         }
-        Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params, enable_tls).await
+        Self::connect_with_proxy_auth_params(
+            dst.dst.to_string(),
+            dst.params,
+            cloud_api_addr,
+            enable_tls,
+        )
+        .await
     }
 
     /// Connect to a destination with the provided authentication params.
     async fn connect_with_proxy_auth_params<'a>(
         dst: impl TryInto<Endpoint, Error = tonic::transport::Error>,
         params: ProxyAuthParams,
+        cloud_api_addr: String,
         enable_tls: bool,
     ) -> Result<Self> {
         let mut metadata = MetadataMap::new();
@@ -187,13 +195,6 @@ impl RemoteClient {
 
         let mut dst: Endpoint = dst.try_into()?;
 
-        let host = dst.uri().host().expect("invalid host");
-        let api_url = if host.contains("qa.glaredb.com") {
-            "https://qa.glaredb.com/api/internal/authenticate/client"
-        } else {
-            "https://console.glaredb.com/api/internal/authenticate/client"
-        };
-
         if enable_tls {
             let mut body = HashMap::new();
             body.insert("user", params.user);
@@ -203,7 +204,7 @@ impl RemoteClient {
 
             let client = reqwest::Client::new();
             let res = client
-                .post(api_url)
+                .post(cloud_api_addr)
                 .json(&body)
                 .send()
                 .await?

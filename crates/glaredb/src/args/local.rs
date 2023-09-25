@@ -65,6 +65,13 @@ pub struct LocalClientOpts {
     /// In the future, we'll swap this for disable_tls
     #[clap(long, hide = true)]
     pub enable_tls: bool,
+
+    /// Address of the GlareDB cloud server.
+    ///
+    /// (Internal)
+    ///
+    #[clap(long, default_value = "https://console.glaredb.com", hide = true)]
+    pub cloud_api_addr: String,
 }
 
 impl LocalClientOpts {
