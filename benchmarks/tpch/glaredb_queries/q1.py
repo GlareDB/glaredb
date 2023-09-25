@@ -4,7 +4,7 @@ import glaredb
 from linetimer import CodeTimer, linetimer
 
 
-Q_NUM = 2
+Q_NUM = 1
 
 
 @linetimer(name=f"Overall execution of glaredb Query {Q_NUM}", unit="ms")
