@@ -124,6 +124,9 @@ fn connect(
         let mut session = if let Some(url) = conf.cloud_url.clone() {
             let exec_client = RemoteClient::connect_with_proxy_destination(
                 url.try_into().map_err(PyGlareDbError::from)?,
+                // TLS is disabled from Python for now
+                // TODO: kwargs
+                String::from("https://console.glaredb.com"),
                 true,
             )
             .await

@@ -160,10 +160,10 @@ impl RemoteClient {
     pub async fn connect_with_proxy_destination(
         dst: ProxyDestination,
         cloud_api_addr: String,
-        enable_tls: bool,
+        disable_tls: bool,
     ) -> Result<Self> {
         let mut dst: ProxyDestination = dst;
-        if enable_tls {
+        if !disable_tls {
             dst.dst
                 .set_scheme("https")
                 .expect("failed to upgrade scheme from http to https");
@@ -172,7 +172,7 @@ impl RemoteClient {
             dst.dst.to_string(),
             dst.params,
             cloud_api_addr,
-            enable_tls,
+            disable_tls,
         )
         .await
     }
@@ -182,7 +182,7 @@ impl RemoteClient {
         dst: impl TryInto<Endpoint, Error = tonic::transport::Error>,
         params: ProxyAuthParams,
         cloud_api_addr: String,
-        enable_tls: bool,
+        disable_tls: bool,
     ) -> Result<Self> {
         let mut metadata = MetadataMap::new();
         metadata.insert(USER_KEY, params.user.parse()?);
@@ -195,7 +195,7 @@ impl RemoteClient {
 
         let mut dst: Endpoint = dst.try_into()?;
 
-        if enable_tls {
+        if !disable_tls {
             let mut body = HashMap::new();
             body.insert("user", params.user);
             body.insert("password", params.password);

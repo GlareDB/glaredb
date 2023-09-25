@@ -24,7 +24,7 @@ impl RpcProxy {
         })
     }
 
-    pub async fn serve(self, addr: SocketAddr, enable_tls: bool) -> Result<()> {
+    pub async fn serve(self, addr: SocketAddr, disable_tls: bool) -> Result<()> {
         info!("starting rpc proxy service");
 
         // Note that we don't need a shutdown handler to prevent exits on active
@@ -36,7 +36,12 @@ impl RpcProxy {
 
         let mut server = Server::builder().trace_fn(|_| debug_span!("rpc_proxy_service_request"));
 
-        if enable_tls {
+        if disable_tls {
+            server
+                .add_service(ExecutionServiceServer::new(self.handler))
+                .serve(addr)
+                .await?
+        } else {
             let cert = std::fs::read_to_string(CERT_PATH)?;
             let key = std::fs::read_to_string(CERT_KEY_PATH)?;
 
@@ -47,11 +52,6 @@ impl RpcProxy {
                 .add_service(ExecutionServiceServer::new(self.handler))
                 .serve(addr)
                 .await?;
-        } else {
-            server
-                .add_service(ExecutionServiceServer::new(self.handler))
-                .serve(addr)
-                .await?
         }
 
         Ok(())

@@ -50,13 +50,13 @@ pub struct RpcProxyArgs {
     #[clap(long)]
     pub cloud_auth_code: String,
 
-    /// Enable TLS.
+    /// Disable RPC TLS
     ///
     /// (Internal)
     ///
-    /// In the future, we'll swap this for disable_tls
-    #[clap(long, hide = true)]
-    pub enable_tls: bool,
+    /// Note: in the future, this will be 'on' by default
+    #[clap(long, default_value="true", action = clap::ArgAction::Set, hide = true)]
+    pub disable_tls: bool,
 }
 
 #[derive(Parser)]

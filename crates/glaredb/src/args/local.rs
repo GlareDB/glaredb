@@ -58,13 +58,13 @@ pub struct LocalClientOpts {
     #[clap(long)]
     pub max_rows: Option<usize>,
 
-    /// Enable RPC TLS
+    /// Disable RPC TLS
     ///
     /// (Internal)
     ///
-    /// In the future, we'll swap this for disable_tls
-    #[clap(long, hide = true)]
-    pub enable_tls: bool,
+    /// Note: in the future, this will be 'on' by default
+    #[clap(long, default_value="true", action = clap::ArgAction::Set, hide = true)]
+    pub disable_tls: bool,
 
     /// Address of the GlareDB cloud server.
     ///
