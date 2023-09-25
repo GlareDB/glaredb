@@ -15,26 +15,21 @@ from utils import (
     LOG_TIMINGS,
     SHOW_OUTPUT,
     append_row,
+    USE_TMP_TABLES,
 )
 
 
 def _scan_ds(path: str):
     path = f"{path}.{FILE_TYPE}"
-    if FILE_TYPE == "parquet":
-        if INCLUDE_IO:
-            duckdb.read_parquet(path)
-            return f"'{path}'"
-        else:
-            name = path.replace("/", "_").replace(".", "_")
-            duckdb.sql(
-                f"create temp table if not exists {name} as select * from read_parquet('{path}');"
-            )
-            return name
-    elif FILE_TYPE == "feather":
-        raise ValueError("duckdb does not support feather for now")
+    name = path.replace("/", "_").replace(".", "_")
+
+    if USE_TMP_TABLES:
+        q = f"create temp table {name} as select * from read_parquet('{path}');"
     else:
-        raise ValueError(f"file type: {FILE_TYPE} not expected")
-    return path
+        q = f"create table {name} as select * from read_parquet('{path}');"
+
+    duckdb.sql(q)
+    return name
 
 
 def get_line_item_ds(base_dir: str = DATASET_BASE_DIR) -> str:

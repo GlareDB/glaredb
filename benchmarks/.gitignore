@@ -7,6 +7,7 @@ tables_scale_*/
 dbgen
 .venv/
 **/__pycache__/
+tpch/__pycache__/
 qgen
 timings*.csv
 plots/

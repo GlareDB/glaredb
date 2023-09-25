@@ -10,18 +10,21 @@ from linetimer import CodeTimer, linetimer
 FILE_TYPE = os.environ.get("FILE_TYPE", "parquet")
 SHOW_OUTPUT = bool(os.environ.get("TPCH_SHOW_OUTPUT", False))
 SCALE_FACTOR = int(os.environ.get("SCALE_FACTOR", "1"))
-LOG_TIMINGS = bool(os.environ.get("LOG_TIMINGS", True))
+LOG_TIMINGS = bool(os.environ.get("LOG_TIMINGS", False))
 
 CWD = os.path.dirname(os.path.realpath(__file__))
 DATASET_BASE_DIR = os.path.join(CWD, f"tables_scale_{SCALE_FACTOR}")
 TIMINGS_FILE = os.path.join(CWD, os.environ.get("TIMINGS_FILE", "timings.csv"))
 INCLUDE_IO = bool(os.environ.get("INCLUDE_IO", False))
+USE_TMP_TABLES = bool(os.environ.get("USE_TMP_TABLES", False))
 
 
 def _scan_ds(con, path: str, name):
     path = f"{path}.{FILE_TYPE}"
-
-    q = f"create temp table {name} as select * from parquet_scan('{path}');"
+    if USE_TMP_TABLES:
+        q = f"create temp table {name} as select * from parquet_scan('{path}');"
+    else:
+        q = f"create table {name} as select * from parquet_scan('{path}');"
 
     con.execute(q)
     return name

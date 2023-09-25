@@ -27,6 +27,7 @@ For example if you wanted to run the queries 10 times for scale factor 1:
 ```
 
 If you want to run a single query for a single system, you can do so
+
 ```sh
 > just q 1 glaredb
 # or run with a scale factor of 10
@@ -34,11 +35,15 @@ If you want to run a single query for a single system, you can do so
 ```
 
 To See the results of the datasets in the console, set the env var `TPCH_SHOW_OUTPUT` to True
+
+Additional configuration options
+`USE_TEMP_TABLES` - if set to true, will use temp tables for the queries, otherwise will use non temp tables
+`TIMINGS_FILE` - the file to write the timings to, defaults to `timings.csv`
+
 These benchmarks are output to both the console, and to a file `timings.csv`
 
-
 ### Cleaning up
-  
+
 ```sh
 > just clean
 ```
