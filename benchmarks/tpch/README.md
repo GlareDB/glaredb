@@ -26,12 +26,14 @@ For example if you wanted to run the queries 10 times for scale factor 1:
 > just run 10 1
 ```
 
-If you want to run a single system, you can do so by specifying the system name:
-
+If you want to run a single query for a single system, you can do so
 ```sh
-> just run_glaredb $SCALE_FACTOR
+> just q 1 glaredb
+# or run with a scale factor of 10
+> just q 1 glaredb 10
 ```
 
+To See the results of the datasets in the console, set the env var `TPCH_SHOW_OUTPUT` to True
 These benchmarks are output to both the console, and to a file `timings.csv`
 
 

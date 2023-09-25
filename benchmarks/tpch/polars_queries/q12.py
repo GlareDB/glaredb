@@ -32,7 +32,7 @@ def q():
                 .otherwise(0)
                 .alias("high_line_count"),
                 pl.when(
-                    pl.col("o_orderpriority").is_in(["1-URGENT", "2-HIGH"]).is_not()
+                    pl.col("o_orderpriority").is_in(["1-URGENT", "2-HIGH"]).not_()
                 )
                 .then(1)
                 .otherwise(0)

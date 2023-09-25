@@ -50,3 +50,6 @@ run n_runs="1" sf="1": requirements
     just run_private duckdb {{sf}}
     ((n++))
   done
+
+q n system $SCALE_FACTOR="1":
+	{{VENV_BIN}}/python -m {{system}}_queries.q{{n}}

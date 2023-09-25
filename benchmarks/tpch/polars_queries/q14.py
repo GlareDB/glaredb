@@ -9,13 +9,13 @@ pl.Config().set_fmt_float("full")
 
 
 @linetimer(name=f"Overall execution of polars Query {Q_NUM}", unit="ms")
-def q_polars():
+def q():
     var_1 = "special"
     var_2 = "requests"
 
     customer_ds = polars_utils.get_customer_ds()
     orders_ds = polars_utils.get_orders_ds().filter(
-        pl.col("o_comment").str.contains(f"{var_1}.*{var_2}").is_not()
+        pl.col("o_comment").str.contains(f"{var_1}.*{var_2}").not_()
     )
     q_final = (
         customer_ds.join(

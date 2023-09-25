@@ -24,7 +24,7 @@ def q():
     q_final = (
         part_ds.join(part_supp_ds, left_on="p_partkey", right_on="ps_partkey")
         .filter(pl.col("p_brand") != var_1)
-        .filter(pl.col("p_type").str.contains("MEDIUM POLISHED*").is_not())
+        .filter(pl.col("p_type").str.contains("MEDIUM POLISHED*").not_())
         .filter(pl.col("p_size").is_in([49, 14, 23, 45, 19, 3, 36, 9]))
         .join(supplier_ds, left_on="ps_suppkey", right_on="s_suppkey", how="left")
         .filter(pl.col("ps_suppkey_right").is_null())

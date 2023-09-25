@@ -75,6 +75,7 @@ def run_query(q_num: int, con, query_str: str):
 
 
 def append_row(solution: str, q: str, secs: float, version: str, success=True):
+    q = q[1:]
     with open(TIMINGS_FILE, "a") as f:
         if f.tell() == 0:
             f.write("solution,version,query_no,duration[s],include_io,success\n")

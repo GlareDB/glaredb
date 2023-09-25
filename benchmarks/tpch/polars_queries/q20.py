@@ -44,7 +44,7 @@ def q():
         .filter(pl.col("ps_availqty") > pl.col("sum_quantity"))
         .select(pl.col("ps_suppkey").unique())
         .join(res_3, left_on="ps_suppkey", right_on="s_suppkey")
-        .with_columns(pl.col("s_address").str.strip())
+        .with_columns(pl.col("s_address").str.strip_chars())
         .select(["s_name", "s_address"])
         .sort("s_name")
     )
