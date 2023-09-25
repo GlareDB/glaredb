@@ -15,7 +15,7 @@ VENV_BIN := ".venv/bin"
 ## Compile and install py-glaredb for development
 build *args: requirements
 	@unset CONDA_PREFIX
-	{{VENV_BIN}}/maturin develop {{args}}
+	{{VENV_BIN}}/maturin develop {{args}}  -- -C target-cpu=native
 
 test: requirements
 	{{VENV_BIN}}/pytest -s
