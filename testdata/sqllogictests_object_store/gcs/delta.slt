@@ -39,3 +39,12 @@ select * from delta_gcs_opts order by a;
 ----
 1   hello
 2   world
+
+# Tests connection options validation during initial setup
+statement error
+create external table delta_gcs_opts
+from delta
+options (
+	location 'gs://${GCS_BUCKET_NAME}/delta/table1',
+    service_account_key 'wrong_key'
+);

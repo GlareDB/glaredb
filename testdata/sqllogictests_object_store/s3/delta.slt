@@ -45,3 +45,14 @@ select * from delta_s3_opts order by a;
 ----
 1   hello
 2   world
+
+# Tests connection options validation during initial setup
+statement error
+create external table delta_s3_opts
+from delta
+options (
+	location 's3://${AWS_S3_BUCKET_NAME}/delta/table1',
+	access_key_id = '${AWS_ACCESS_KEY_ID}',
+    secret_access_key = 'wrong_access_key',
+    region '${AWS_S3_REGION}'
+);

@@ -1,4 +1,11 @@
 # Tests external iceberg table in the local file system.
+statement error No such file or directory
+create external table iceberg_local
+from iceberg
+options (
+	location 'file://${PWD}/testdata/iceberg/tables/non_existent'
+);
+
 statement ok
 create external table iceberg_local
 from iceberg

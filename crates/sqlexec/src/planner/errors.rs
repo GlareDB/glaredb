@@ -94,6 +94,20 @@ impl From<crate::errors::ExecError> for PlanError {
     }
 }
 
+macro_rules! impl_from_dispatch_variant {
+    ($FromType:ty) => {
+        impl From<$FromType> for PlanError {
+            #[inline]
+            fn from(err: $FromType) -> Self {
+                PlanError::Dispatch(crate::dispatch::DispatchError::from(err))
+            }
+        }
+    };
+}
+impl_from_dispatch_variant!(datasources::lake::delta::errors::DeltaError);
+impl_from_dispatch_variant!(datasources::lake::iceberg::errors::IcebergError);
+impl_from_dispatch_variant!(datasources::object_store::errors::ObjectStoreSourceError);
+
 #[allow(unused_macros)]
 macro_rules! internal {
     ($($arg:tt)*) => {
