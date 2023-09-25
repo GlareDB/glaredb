@@ -13,11 +13,14 @@ use datafusion::prelude::SessionContext;
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, VirtualLister};
 use datafusion_ext::vars::SessionVars;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
-use datasources::lake::delta::access::DeltaLakeAccessor;
+use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
+use datasources::lake::iceberg::table::IcebergTable;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
+use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
@@ -30,8 +33,8 @@ use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
     DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
     TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake, TunnelOptions,
+    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
@@ -221,13 +224,9 @@ impl<'a> ExternalDispatcher<'a> {
             }
             DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
                 catalog,
-                access_key_id,
-                secret_access_key,
-                region,
+                storage_options,
             }) => {
-                let accessor =
-                    DeltaLakeAccessor::connect(catalog, access_key_id, secret_access_key, region)
-                        .await?;
+                let accessor = DeltaLakeAccessor::connect(catalog, storage_options.clone()).await?;
                 let table = accessor.load_table(schema, name).await?;
                 Ok(Arc::new(table))
             }
@@ -399,6 +398,25 @@ impl<'a> ExternalDispatcher<'a> {
                     compression.as_ref(),
                 )
                 .await
+            }
+            TableOptions::Delta(TableOptionsObjectStore {
+                location,
+                storage_options,
+            }) => {
+                let provider =
+                    Arc::new(load_table_direct(location, storage_options.clone()).await?);
+                Ok(provider)
+            }
+            TableOptions::Iceberg(TableOptionsObjectStore {
+                location,
+                storage_options,
+            }) => {
+                let url = DatasourceUrl::try_new(location)?;
+                let store =
+                    GenericStoreAccess::from(location, storage_options.clone())?.create_store()?;
+                let table = IcebergTable::open(url, store).await?;
+                let reader = table.table_reader().await?;
+                Ok(reader)
             }
         }
     }

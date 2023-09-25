@@ -17,15 +17,19 @@ use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
-use datasources::lake::delta::access::DeltaLakeAccessor;
+use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
+use datasources::lake::iceberg::table::IcebergTable;
 use datasources::mongodb::{MongoAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
+use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use object_store::aws::AmazonS3ConfigKey;
+use object_store::gcp::GoogleConfigKey;
 use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
@@ -34,10 +38,10 @@ use protogen::metastore::types::options::{
     CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery,
     DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DeltaLakeCatalog, DeltaLakeUnityCatalog,
-    TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
-    TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
-    TunnelOptionsSsh,
+    StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs,
+    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug,
+    TunnelOptionsInternal, TunnelOptionsSsh,
 };
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use sqlbuiltins::validation::{
@@ -215,10 +219,6 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             DatabaseOptions::DELTA => {
-                let access_key_id: String = m.remove_required("access_key_id")?;
-                let secret_access_key: String = m.remove_required("secret_access_key")?;
-                let region: String = m.remove_required("region")?;
-
                 let catalog = match m.remove_required::<String>("catalog_type")?.as_str() {
                     "unity" => DeltaLakeCatalog::Unity(DeltaLakeUnityCatalog {
                         catalog_id: m.remove_required("catalog_id")?,
@@ -228,8 +228,13 @@ impl<'a> SessionPlanner<'a> {
                     other => return Err(internal!("Unknown catalog type: {}", other)),
                 };
 
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+
                 // Try connecting to validate.
-                DeltaLakeAccessor::connect(&catalog, &access_key_id, &secret_access_key, &region)
+                DeltaLakeAccessor::connect(&catalog, storage_options.clone())
                     .await
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
@@ -237,9 +242,7 @@ impl<'a> SessionPlanner<'a> {
 
                 DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
                     catalog,
-                    access_key_id,
-                    secret_access_key,
-                    region,
+                    storage_options,
                 })
             }
             DatabaseOptions::DEBUG => {
@@ -496,6 +499,33 @@ impl<'a> SessionPlanner<'a> {
                     file_type: format!("{file_type:?}").to_lowercase(),
                     compression: compression.map(|c| c.to_string()),
                 })
+            }
+            TableOptions::DELTA | TableOptions::ICEBERG => {
+                let location: String = m.remove_required("location")?;
+
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+
+                if datasource.as_str() == TableOptions::DELTA {
+                    let _table = load_table_direct(&location, storage_options.clone()).await?;
+
+                    TableOptions::Delta(TableOptionsObjectStore {
+                        location,
+                        storage_options,
+                    })
+                } else {
+                    let url = DatasourceUrl::try_new(&location)?;
+                    let store = GenericStoreAccess::from(&location, storage_options.clone())?
+                        .create_store()?;
+                    let _table = IcebergTable::open(url, store).await?;
+
+                    TableOptions::Iceberg(TableOptionsObjectStore {
+                        location,
+                        storage_options,
+                    })
+                }
             }
             TableOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
@@ -1702,6 +1732,32 @@ fn get_ssh_conn_str(m: &mut StmtOptions) -> Result<String> {
         }
     };
     Ok(conn.connection_string())
+}
+
+/// Update storage options with the provided credentials object contents
+fn storage_options_with_credentials(
+    storage_options: &mut StorageOptions,
+    creds: CredentialsOptions,
+) {
+    match creds {
+        CredentialsOptions::Debug(_) => {} // Nothing to do here
+        CredentialsOptions::Gcp(creds) => {
+            storage_options.inner.insert(
+                GoogleConfigKey::ServiceAccountKey.as_ref().to_string(),
+                creds.service_account_key,
+            );
+        }
+        CredentialsOptions::Aws(creds) => {
+            storage_options.inner.insert(
+                AmazonS3ConfigKey::AccessKeyId.as_ref().to_string(),
+                creds.access_key_id,
+            );
+            storage_options.inner.insert(
+                AmazonS3ConfigKey::SecretAccessKey.as_ref().to_string(),
+                creds.secret_access_key,
+            );
+        }
+    }
 }
 
 /// Returns a validated `DataType` for the specified precision and
