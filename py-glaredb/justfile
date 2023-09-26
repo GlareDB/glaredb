@@ -2,15 +2,14 @@ set fallback
 VENV := ".venv"
 VENV_BIN := ".venv/bin"
 
-
 @venv:
-	@python3 -m pip install virtualenv > /dev/null
-	@python3 -m virtualenv {{VENV}} > /dev/null
+	python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
+	python3 -m virtualenv {{VENV}} --quiet
 
 ## Set up virtual environment and install requirements
 @requirements: venv
-	{{VENV_BIN}}/python -m pip install --upgrade pip > /dev/null
-	{{VENV_BIN}}/pip install -r requirements.txt > /dev/null
+	{{VENV_BIN}}/python -m pip --quiet install --upgrade pip
+	{{VENV_BIN}}/pip --quiet install -r requirements.txt
 
 ## Compile and install py-glaredb for development
 build *args: requirements
