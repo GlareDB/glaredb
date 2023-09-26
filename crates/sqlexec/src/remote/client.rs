@@ -164,6 +164,8 @@ impl RemoteClient {
     ) -> Result<Self> {
         let mut dst: ProxyDestination = dst;
         if !disable_tls {
+            info!("set rpc destination scheme to https");
+
             dst.dst
                 .set_scheme("https")
                 .expect("failed to upgrade scheme from http to https");
@@ -196,6 +198,8 @@ impl RemoteClient {
         let mut dst: Endpoint = dst.try_into()?;
 
         if !disable_tls {
+            info!("apply TLS certificate to rpc proxy connection");
+
             let mut body = HashMap::new();
             body.insert("user", params.user);
             body.insert("password", params.password);
