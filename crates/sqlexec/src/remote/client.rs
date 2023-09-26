@@ -204,7 +204,10 @@ impl RemoteClient {
 
             let client = reqwest::Client::new();
             let res = client
-                .post(cloud_api_addr)
+                .post(format!(
+                    "{}/api/internal/authenticate/client",
+                    cloud_api_addr
+                ))
                 .json(&body)
                 .send()
                 .await?
