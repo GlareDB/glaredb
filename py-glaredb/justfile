@@ -7,7 +7,7 @@ VENV_BIN := ".venv/bin"
 	python3 -m virtualenv {{VENV}} --quiet
 
 ## Set up virtual environment and install requirements
-@requirements: {{VENV}}
+@requirements: venv
 	{{VENV_BIN}}/python -m pip --quiet install --upgrade pip
 	{{VENV_BIN}}/pip --quiet install -r requirements.txt
 
