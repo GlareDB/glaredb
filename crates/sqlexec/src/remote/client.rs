@@ -25,6 +25,7 @@ use tonic::{
     transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
     IntoRequest, Streaming,
 };
+use tracing::info;
 use url::Url;
 use uuid::Uuid;
 
