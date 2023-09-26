@@ -1,0 +1,48 @@
+set fallback
+VENV := ".venv"
+VENV_BIN := ".venv/bin"
+
+
+@venv:
+  @python3 -m pip install virtualenv > /dev/null
+  @python3 -m virtualenv {{VENV}} > /dev/null
+
+## Set up virtual environment and install requirements
+@requirements: venv
+  {{VENV_BIN}}/python -m pip install --upgrade pip > /dev/null
+  {{VENV_BIN}}/pip install -r requirements.txt > /dev/null
+  
+clean-tpch-dbgen:
+  make -C tpch-dbgen clean
+
+clean-venv:
+  rm -r {{VENV}}
+
+clean-tables:
+  rm -r tables_scale/
+
+clean: clean-tpch-dbgen clean-venv
+
+gen_scale_factor n: requirements
+  make -C tpch-dbgen all
+  pushd tpch-dbgen; ./dbgen -vfs {{n}}; popd
+  mkdir -p "tables_scale/{{n}}"
+  mv tpch-dbgen/*.tbl tables_scale/{{n}}/
+  {{VENV_BIN}}/python prepare_files.py {{n}} 
+  rm -rf tables_scale/{{n}}/*.tbl
+
+_run_private name $SCALE_FACTOR="1":
+  {{VENV_BIN}}/python -m {{name}}_queries.executor 
+
+run n_runs="1" $SCALE_FACTOR="1": requirements
+  #!/usr/bin/env bash
+  n=0
+  while [ $n -lt {{n_runs}}  ]; do
+    just _run_private glaredb {{SCALE_FACTOR}}
+    just _run_private polars {{SCALE_FACTOR}}
+    just _run_private duckdb {{SCALE_FACTOR}}
+    ((n++))
+  done
+
+q n system $SCALE_FACTOR="1":
+  {{VENV_BIN}}/python -m {{system}}_queries.q{{n}}
