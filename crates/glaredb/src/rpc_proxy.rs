@@ -47,7 +47,7 @@ impl RpcProxy {
             let cert = std::fs::read_to_string(CERT_PATH)?;
             let key = std::fs::read_to_string(CERT_KEY_PATH)?;
 
-            let identity = Identity::from_pem(cert, key);
+            let identity = Identity::from_pem(&cert, &key);
 
             server
                 .tls_config(ServerTlsConfig::new().identity(identity))?
