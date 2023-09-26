@@ -69,9 +69,8 @@ pub struct LocalClientOpts {
     /// Address of the GlareDB cloud server.
     ///
     /// (Internal)
-    ///
     #[clap(long, default_value = "https://console.glaredb.com", hide = true)]
-    pub cloud_api_addr: String,
+    pub cloud_addr: String,
 }
 
 impl LocalClientOpts {

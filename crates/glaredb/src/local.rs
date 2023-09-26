@@ -75,7 +75,7 @@ impl LocalSession {
             } else {
                 let client = RemoteClient::connect_with_proxy_destination(
                     url.try_into()?,
-                    opts.cloud_api_addr.clone(),
+                    opts.cloud_addr.clone(),
                     opts.disable_tls,
                 )
                 .await?;

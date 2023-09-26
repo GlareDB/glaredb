@@ -42,6 +42,8 @@ impl RpcProxy {
                 .serve(addr)
                 .await?
         } else {
+            info!("applying TLS to rpc service");
+
             let cert = std::fs::read_to_string(CERT_PATH)?;
             let key = std::fs::read_to_string(CERT_KEY_PATH)?;
 
