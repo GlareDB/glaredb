@@ -5720,6 +5720,7 @@ dependencies = [
  "protogen",
  "proxyutil",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
  "sqlbuiltins",

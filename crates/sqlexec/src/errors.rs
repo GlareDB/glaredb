@@ -159,6 +159,9 @@ pub enum ExecError {
 
     #[error("{0}")]
     String(String),
+
+    #[error(transparent)]
+    ReqwestError(#[from] reqwest::Error),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;
