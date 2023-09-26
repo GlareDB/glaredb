@@ -25,7 +25,7 @@ clean: clean-tpch-dbgen clean-venv
 
 gen_scale_factor n: requirements
   make -C tpch-dbgen all
-  cd tpch-dbgen && ./dbgen -vf -s {{n}} && cd ..
+  pushd tpch-dbgen; ./dbgen -vfs {{n}}; popd
   mkdir -p "tables_scale/{{n}}"
   mv tpch-dbgen/*.tbl tables_scale/{{n}}/
   {{VENV_BIN}}/python prepare_files.py {{n}} 
