@@ -962,7 +962,6 @@ impl<'a> SessionPlanner<'a> {
             // local variables behave the same as session local (they're not
             // reset on transaction abort/commit).
             ast::Statement::SetVariable {
-                local: false,
                 hivevar: false,
                 variable,
                 value,
@@ -971,14 +970,6 @@ impl<'a> SessionPlanner<'a> {
                 let plan = SetVariable::try_new(variable.to_string(), value)?;
                 Ok(plan.into_logical_plan())
             }
-            ast::Statement::SetVariable {
-                local: true,
-                hivevar: false,
-                variable,
-                value,
-                ..
-            } => Ok(SetVariable::try_new(variable.to_string(), value)?.into_logical_plan()),
-
             // "SHOW ..."
             //
             // Show the value of a variable.
