@@ -242,6 +242,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     variable: lp.variable.clone(),
                     values: lp.values.clone(),
                 };
+                let exec = RuntimeGroupExec::new(RuntimePreference::Local, Arc::new(exec));
                 Ok(Some(Arc::new(exec)))
             }
             ExtensionType::ShowVariable => {
@@ -249,6 +250,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let exec = ShowVarExec {
                     variable: lp.variable.clone(),
                 };
+                let exec = RuntimeGroupExec::new(RuntimePreference::Local, Arc::new(exec));
                 Ok(Some(Arc::new(exec)))
             }
             ExtensionType::CopyTo => {
