@@ -79,9 +79,8 @@ impl From<Option<String>> for PythonSessionConf {
     }
 }
 
-/// Create and connect to a GlareDB engine.
-// TODO: kwargs
 #[pyfunction]
+#[pyo3(signature = (data_dir_or_cloud_url/, *spill_path, disable_tls=false, cloud_addr="https://console.glaredb.com"))]
 fn connect(
     py: Python,
     data_dir_or_cloud_url: Option<String>,
