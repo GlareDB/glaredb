@@ -10,10 +10,10 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, Distribution, ExecutionPlan, Partitioning,
     SendableRecordBatchStream, Statistics,
 };
-use deltalake::action::SaveMode;
 use deltalake::operations::write::WriteBuilder;
+use deltalake::protocol::SaveMode;
 use deltalake::storage::DeltaObjectStore;
-use deltalake::table_state::DeltaTableState;
+use deltalake::table::state::DeltaTableState;
 use futures::StreamExt;
 use std::any::Any;
 use std::sync::Arc;
