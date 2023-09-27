@@ -80,7 +80,7 @@ impl From<Option<String>> for PythonSessionConf {
 }
 
 #[pyfunction]
-#[pyo3(signature = (data_dir_or_cloud_url = None, spill_path = None, disable_tls = true, cloud_addr = String::from("https://console.glaredb.com")))]
+#[pyo3(signature = (data_dir_or_cloud_url = None, /, *, spill_path = None, disable_tls = true, cloud_addr = String::from("https://console.glaredb.com")))]
 fn connect(
     py: Python,
     data_dir_or_cloud_url: Option<String>,
