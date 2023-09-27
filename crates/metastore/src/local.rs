@@ -27,8 +27,7 @@ pub async fn start_inprocess_local(
 
 /// Starts an in-process metastore service, returning a client for the service.
 ///
-/// Useful for some tests, as well as when running GlareDB locally for testing.
-/// This should never be used in production.
+/// Useful for tests, as well as when running GlareDB locally.
 pub async fn start_inprocess(
     store: Arc<dyn ObjectStore>,
 ) -> Result<MetastoreServiceClient<Channel>> {

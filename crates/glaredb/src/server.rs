@@ -78,6 +78,7 @@ impl ComputeServer {
         let storage_conf = match (data_dir, service_account_key) {
             (None, Some(key)) => EngineStorageConfig::Gcs {
                 service_account_key: key,
+                bucket: None,
             },
             (Some(dir), None) => EngineStorageConfig::Local { path: dir },
             (None, None) => EngineStorageConfig::Memory,

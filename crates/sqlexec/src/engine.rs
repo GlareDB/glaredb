@@ -3,7 +3,10 @@ use crate::context::remote::RemoteSessionContext;
 use crate::errors::{ExecError, Result};
 use crate::metastore::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
 use crate::session::Session;
+use std::collections::HashMap;
 
+use object_store::aws::AmazonS3ConfigKey;
+use object_store::gcp::GoogleConfigKey;
 use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
@@ -13,6 +16,7 @@ use std::sync::Arc;
 
 use crate::metastore::catalog::SessionCatalog;
 use datafusion_ext::vars::SessionVars;
+use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::native::access::NativeTableStorage;
 use object_store_util::conf::StorageConfig;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
@@ -30,30 +34,109 @@ pub struct SessionStorageConfig {
     pub gcs_bucket: Option<String>,
 }
 
+// TODO: There's a significant amount of overlap with `StorageConfig`, would be good to consider
+// consolidating them into one
 /// Storage configuration for the compute engine.
 ///
 /// The configuration defined here alongside the configuration passed in through
 /// the proxy will be used to connect to database storage.
 #[derive(Debug, Clone)]
 pub enum EngineStorageConfig {
-    Gcs { service_account_key: String },
-    Local { path: PathBuf },
+    S3 {
+        access_key_id: String,
+        secret_access_key: String,
+        region: Option<String>,
+        endpoint: Option<String>,
+        bucket: Option<String>,
+    },
+    Gcs {
+        service_account_key: String,
+        bucket: Option<String>,
+    },
+    Local {
+        path: PathBuf,
+    },
     Memory,
 }
 
 impl EngineStorageConfig {
+    pub fn try_from_options(location: &String, opts: HashMap<String, String>) -> Result<Self> {
+        if location.starts_with("memory://") {
+            return Ok(EngineStorageConfig::Memory);
+        }
+
+        let datasource_url = DatasourceUrl::try_new(location)?;
+        Ok(match datasource_url.datasource_url_type() {
+            DatasourceUrlType::File => {
+                let path = fs::canonicalize(location)?;
+                EngineStorageConfig::Local { path }
+            }
+            DatasourceUrlType::Gcs => {
+                let service_account_key =
+                    opts.get("service_account_key").cloned().unwrap_or_else(|| {
+                        std::env::var(GoogleConfigKey::ServiceAccountKey.as_ref().to_uppercase())
+                            .expect(
+                                "'service_account_key' in provided storage options or 'GOOGLE_SERVICE_ACCOUNT_KEY' as env var",
+                            )
+                    });
+
+                let bucket = opts.get("bucket").cloned();
+                EngineStorageConfig::Gcs {
+                    service_account_key,
+                    bucket,
+                }
+            }
+            DatasourceUrlType::S3 | DatasourceUrlType::Http => {
+                let access_key_id = opts.get("access_key_id").cloned().unwrap_or_else(|| {
+                    std::env::var(AmazonS3ConfigKey::AccessKeyId.as_ref().to_uppercase())
+                        .expect("'access_key_id' in provided storage options or 'AWS_ACCESS_KEY_ID' as env var")
+                });
+                let secret_access_key =
+                    opts.get("secret_access_key").cloned().unwrap_or_else(|| {
+                        std::env::var(AmazonS3ConfigKey::SecretAccessKey.as_ref().to_uppercase())
+                            .expect("'secret_access_key' in provided storage options or 'AWS_SECRET_ACCESS_KEY' as env var")
+                    });
+
+                let mut endpoint = opts.get("endpoint").cloned();
+                let region = opts.get("region").cloned();
+                let bucket = opts.get("bucket").cloned();
+                if !location.starts_with("s3") && !location.contains("amazonaws.com") {
+                    // For now we don't allow proper HTTP object stores as storage locations, so
+                    // interpret this case as either Cloudflare R2 or a MinIO instance
+                    endpoint = Some(location.clone());
+                }
+
+                EngineStorageConfig::S3 {
+                    access_key_id,
+                    secret_access_key,
+                    region,
+                    endpoint,
+                    bucket,
+                }
+            }
+        })
+    }
+
     /// Create a native table storage config from values in the engine and
     /// session configs.
     ///
     /// Errors if the engine config is incompatible with the session config.
-    fn storage_config(&self, session_conf: &SessionStorageConfig) -> Result<StorageConfig> {
+    pub fn storage_config(&self, session_conf: &SessionStorageConfig) -> Result<StorageConfig> {
         Ok(match (self.clone(), session_conf.gcs_bucket.clone()) {
-            // GCS bucket storage.
+            // GCS bucket defined via session config or at the engine config level
             (
                 EngineStorageConfig::Gcs {
                     service_account_key,
+                    ..
                 },
                 Some(bucket),
+            )
+            | (
+                EngineStorageConfig::Gcs {
+                    service_account_key,
+                    bucket: Some(bucket),
+                },
+                None,
             ) => StorageConfig::Gcs {
                 service_account_key,
                 bucket,
@@ -64,6 +147,22 @@ impl EngineStorageConfig {
                     "Missing bucket on session configuration",
                 ))
             }
+            (
+                EngineStorageConfig::S3 {
+                    access_key_id,
+                    secret_access_key,
+                    region,
+                    endpoint,
+                    bucket,
+                },
+                _,
+            ) => StorageConfig::S3 {
+                access_key_id,
+                secret_access_key,
+                region,
+                endpoint,
+                bucket,
+            },
             // Local disk storage.
             (EngineStorageConfig::Local { path }, None) => StorageConfig::Local { path },
             // In-memory storage.

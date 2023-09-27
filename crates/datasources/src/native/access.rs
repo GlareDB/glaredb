@@ -125,12 +125,7 @@ impl NativeTableStorage {
 
     pub async fn delete_table(&self, table: &TableEntry) -> Result<()> {
         let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
-        let path: ObjectStorePath = match &self.conf {
-            StorageConfig::Gcs { bucket, .. } => format!("gs://{}/{}", bucket, prefix).into(),
-            StorageConfig::Memory => format!("memory://{}", prefix).into(),
-            _ => prefix.into(),
-        };
-        let mut x = self.store.list(Some(&path)).await?;
+        let mut x = self.store.list(Some(&prefix.into())).await?;
         while let Some(meta) = x.next().await {
             let meta = meta?;
             self.store.delete(&meta.location).await?
@@ -153,6 +148,19 @@ impl NativeTableStorage {
         let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
 
         let url = match &self.conf {
+            StorageConfig::S3 {
+                endpoint, bucket, ..
+            } => {
+                if let Some(endpoint) = endpoint {
+                    Url::parse(endpoint)?
+                } else if let Some(bucket) = bucket {
+                    Url::parse(&format!("s3://{}", bucket))?
+                } else {
+                    return Err(NativeError::Static(
+                        "Can't generate root URL for the native table storage, misconfigured S3 bucket",
+                    ));
+                }
+            }
             StorageConfig::Gcs { bucket, .. } => {
                 Url::parse(&format!("gs://{}/{}", bucket, prefix.clone()))?
             }

@@ -1,4 +1,4 @@
-use crate::args::{LocalClientOpts, OutputMode};
+use crate::args::{LocalClientOpts, OutputMode, StorageOptionsArgs};
 use crate::highlighter::{SQLHighlighter, SQLHinter, SQLValidator};
 use crate::prompt::SQLPrompt;
 use crate::util::MetastoreClientMode;
@@ -16,8 +16,10 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
 use reedline::{FileBackedHistory, Reedline, Signal};
+use std::collections::HashMap;
 
 use datafusion_ext::vars::SessionVars;
+use metastore::local::start_inprocess;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
@@ -48,14 +50,29 @@ pub struct LocalSession {
 impl LocalSession {
     pub async fn connect(opts: LocalClientOpts) -> Result<Self> {
         // Connect to metastore.
-        let mode = MetastoreClientMode::new_local(opts.data_dir.clone())?;
-        let metastore_client = mode.into_client().await?;
-        let tracker = Arc::new(Tracker::Nop);
+        let (storage_conf, metastore_client) = if let Some(StorageOptionsArgs { location, opts }) =
+            &opts.storage_options
+        {
+            // TODO: try to consolidate with --data-dir option
+            let conf =
+                EngineStorageConfig::try_from_options(location, HashMap::from_iter(opts.clone()))?;
+            let store = conf
+                .storage_config(&SessionStorageConfig::default())?
+                .new_object_store()?;
+            let client = start_inprocess(store).await?;
+            (conf, client)
+        } else {
+            let conf = match &opts.data_dir {
+                Some(path) => EngineStorageConfig::Local { path: path.clone() },
+                None => EngineStorageConfig::Memory,
+            };
 
-        let storage_conf = match &opts.data_dir {
-            Some(path) => EngineStorageConfig::Local { path: path.clone() },
-            None => EngineStorageConfig::Memory,
+            let mode = MetastoreClientMode::new_local(opts.data_dir.clone())?;
+            let client = mode.into_client().await?;
+            (conf, client)
         };
+
+        let tracker = Arc::new(Tracker::Nop);
 
         let engine = Engine::new(
             metastore_client,
