@@ -86,6 +86,8 @@ fn connect(
     py: Python,
     data_dir_or_cloud_url: Option<String>,
     spill_path: Option<String>,
+    disable_tls: Option<bool>,
+    cloud_addr: Option<String>,
 ) -> PyResult<LocalSession> {
     wait_for_future(py, async move {
         let conf = PythonSessionConf::from(data_dir_or_cloud_url);
@@ -121,13 +123,23 @@ fn connect(
             .await
             .map_err(PyGlareDbError::from)?;
 
+        // Default to disabling TLS
+        // TODO: change to on by default
+        let disable_tls: bool = match disable_tls {
+            Some(v) => v,
+            None => true,
+        };
+
+        let cloud_addr: String = match cloud_addr {
+            Some(addr) => addr,
+            None => String::from("https://console.glaredb.com"),
+        };
+
         let mut session = if let Some(url) = conf.cloud_url.clone() {
             let exec_client = RemoteClient::connect_with_proxy_destination(
                 url.try_into().map_err(PyGlareDbError::from)?,
-                // TLS is disabled from Python for now
-                // TODO: kwargs
-                String::from("https://console.glaredb.com"),
-                true,
+                cloud_addr,
+                disable_tls,
             )
             .await
             .map_err(PyGlareDbError::from)?;
