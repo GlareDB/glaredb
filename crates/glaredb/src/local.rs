@@ -81,7 +81,12 @@ impl LocalSession {
                 .await?;
 
                 let msg = format!(
-                    "Connected to Cloud deployment: {}",
+                    "Connected to Cloud deployment (TLS {}): {}",
+                    if opts.disable_tls {
+                        "disabled"
+                    } else {
+                        "enabled"
+                    },
                     client.get_deployment_name().cyan()
                 );
 
