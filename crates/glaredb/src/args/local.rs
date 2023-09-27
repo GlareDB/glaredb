@@ -63,12 +63,16 @@ pub struct LocalClientOpts {
     /// (Internal)
     ///
     /// Note: in the future, this will be 'on' by default
+    ///
+    /// Note: Keep in sync with py-glaredb connect
     #[clap(long, default_value="true", action = clap::ArgAction::Set, hide = true)]
     pub disable_tls: bool,
 
     /// Address of the GlareDB cloud server.
     ///
     /// (Internal)
+    ///
+    /// Note: Keep in sync with py-glaredb connect
     #[clap(long, default_value = "https://console.glaredb.com", hide = true)]
     pub cloud_addr: String,
 }
