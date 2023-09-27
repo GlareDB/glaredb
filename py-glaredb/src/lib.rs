@@ -80,13 +80,13 @@ impl From<Option<String>> for PythonSessionConf {
 }
 
 #[pyfunction]
-#[pyo3(signature = (data_dir_or_cloud_url/, *spill_path, disable_tls=false, cloud_addr="https://console.glaredb.com"))]
+#[pyo3(signature = (data_dir_or_cloud_url, spill_path = None, disable_tls = true, cloud_addr = String::from("https://console.glaredb.com")))]
 fn connect(
     py: Python,
     data_dir_or_cloud_url: Option<String>,
     spill_path: Option<String>,
-    disable_tls: Option<bool>,
-    cloud_addr: Option<String>,
+    disable_tls: bool,
+    cloud_addr: String,
 ) -> PyResult<LocalSession> {
     wait_for_future(py, async move {
         let conf = PythonSessionConf::from(data_dir_or_cloud_url);
@@ -121,18 +121,6 @@ fn connect(
         let engine = Engine::new(metastore_client, storage_conf, tracker, spill_path)
             .await
             .map_err(PyGlareDbError::from)?;
-
-        // Default to disabling TLS
-        // TODO: change to on by default
-        let disable_tls: bool = match disable_tls {
-            Some(v) => v,
-            None => true,
-        };
-
-        let cloud_addr: String = match cloud_addr {
-            Some(addr) => addr,
-            None => String::from("https://console.glaredb.com"),
-        };
 
         let mut session = if let Some(url) = conf.cloud_url.clone() {
             let exec_client = RemoteClient::connect_with_proxy_destination(
