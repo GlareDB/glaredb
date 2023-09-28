@@ -4,6 +4,7 @@ use super::*;
 pub struct CreateTempTable {
     pub tbl_reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
+    pub or_replace: bool,
     pub schema: DFSchemaRef,
     pub source: Option<DfLogicalPlan>,
 }
@@ -70,6 +71,7 @@ impl ExtensionNode for CreateTempTable {
         Ok(Self {
             tbl_reference: reference,
             if_not_exists: proto.if_not_exists,
+            or_replace: proto.or_replace,
             schema,
             source,
         })
@@ -98,6 +100,7 @@ impl ExtensionNode for CreateTempTable {
         let create_table = protogen::CreateTempTable {
             reference: Some(self.tbl_reference.clone().into()),
             if_not_exists: self.if_not_exists,
+            or_replace: self.or_replace,
             schema,
             source,
         };

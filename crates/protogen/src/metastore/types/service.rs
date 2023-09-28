@@ -270,6 +270,7 @@ pub struct CreateTable {
     pub name: String,
     pub options: TableOptionsInternal,
     pub if_not_exists: bool,
+    pub or_replace: bool,
 }
 
 impl TryFrom<service::CreateTable> for CreateTable {
@@ -281,6 +282,7 @@ impl TryFrom<service::CreateTable> for CreateTable {
             name: value.name,
             options,
             if_not_exists: value.if_not_exists,
+            or_replace: value.or_replace,
         })
     }
 }
@@ -293,6 +295,7 @@ impl TryFrom<CreateTable> for service::CreateTable {
             name: value.name,
             options: Some(value.options.try_into()?),
             if_not_exists: value.if_not_exists,
+            or_replace: value.or_replace,
         })
     }
 }

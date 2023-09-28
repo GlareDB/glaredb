@@ -62,7 +62,6 @@ impl CatalogMutator {
         // Note that when we have transactions, these shouldn't be sent until
         // commit.
         let mutations: Vec<_> = mutations.into_iter().collect();
-
         let state = match client.try_mutate(catalog_version, mutations.clone()).await {
             Ok(state) => state,
             Err(MetastoreClientError::MetastoreTonic {

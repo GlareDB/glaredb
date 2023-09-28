@@ -798,7 +798,9 @@ impl State {
                     tunnel_id: None,
                 };
 
-                let policy = if create_table.if_not_exists {
+                let policy = if create_table.or_replace {
+                    CreatePolicy::CreateOrReplace
+                } else if create_table.if_not_exists {
                     CreatePolicy::CreateIfNotExists
                 } else {
                     CreatePolicy::Create

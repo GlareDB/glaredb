@@ -32,6 +32,7 @@ pub struct CreateTableExec {
     pub catalog_version: u64,
     pub tbl_reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
+    pub or_replace: bool,
     pub arrow_schema: SchemaRef,
     pub source: Option<Arc<dyn ExecutionPlan>>,
 }
@@ -68,6 +69,7 @@ impl ExecutionPlan for CreateTableExec {
             catalog_version: self.catalog_version,
             tbl_reference: self.tbl_reference.clone(),
             if_not_exists: self.if_not_exists,
+            or_replace: self.or_replace,
             arrow_schema: self.arrow_schema.clone(),
             source: children.get(0).cloned(),
         }))
@@ -128,6 +130,7 @@ impl CreateTableExec {
                     name: self.tbl_reference.name.clone().into_owned(),
                     options: self.arrow_schema.into(),
                     if_not_exists: self.if_not_exists,
+                    or_replace: self.or_replace,
                 })],
             )
             .await
