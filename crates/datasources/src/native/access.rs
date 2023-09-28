@@ -9,10 +9,10 @@ use datafusion::logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableTy
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::Expr;
-use deltalake::action::SaveMode;
 use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::delete::DeleteBuilder;
 use deltalake::operations::update::UpdateBuilder;
+use deltalake::protocol::SaveMode;
 use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use futures::StreamExt;

@@ -79,13 +79,14 @@ impl From<Option<String>> for PythonSessionConf {
     }
 }
 
-/// Create and connect to a GlareDB engine.
-// TODO: kwargs
 #[pyfunction]
+#[pyo3(signature = (data_dir_or_cloud_url = None, /, *, spill_path = None, disable_tls = true, cloud_addr = String::from("https://console.glaredb.com")))]
 fn connect(
     py: Python,
     data_dir_or_cloud_url: Option<String>,
     spill_path: Option<String>,
+    disable_tls: bool,
+    cloud_addr: String,
 ) -> PyResult<LocalSession> {
     wait_for_future(py, async move {
         let conf = PythonSessionConf::from(data_dir_or_cloud_url);
@@ -124,6 +125,8 @@ fn connect(
         let mut session = if let Some(url) = conf.cloud_url.clone() {
             let exec_client = RemoteClient::connect_with_proxy_destination(
                 url.try_into().map_err(PyGlareDbError::from)?,
+                cloud_addr,
+                disable_tls,
             )
             .await
             .map_err(PyGlareDbError::from)?;

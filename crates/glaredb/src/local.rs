@@ -23,7 +23,7 @@ use metastore::local::start_inprocess;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
-use sqlexec::remote::client::{ProxyDestination, RemoteClient, TlsConfig};
+use sqlexec::remote::client::RemoteClient;
 use sqlexec::session::ExecutionResult;
 use std::env;
 use std::io::Write;
@@ -90,28 +90,20 @@ impl LocalSession {
                     format!("Connected to remote GlareDB server: {}", u.cyan()),
                 )
             } else {
-                let tls_conf = if opts.disable_tls {
-                    None
-                } else {
-                    match (opts.ca_cert_path.clone(), opts.domain.clone()) {
-                        (Some(ca_cert_path), Some(domain)) => Some(TlsConfig {
-                            ca_cert_path,
-                            domain,
-                        }),
-                        _ => {
-                            return Err(anyhow!(
-                                "Specify ca-cert-path and domain in --args for TLS"
-                            ));
-                        }
-                    }
-                };
-
-                let mut url: ProxyDestination = url.try_into()?;
-                url = url.with_tls(tls_conf);
-                let client = RemoteClient::connect_with_proxy_destination(url).await?;
+                let client = RemoteClient::connect_with_proxy_destination(
+                    url.try_into()?,
+                    opts.cloud_addr.clone(),
+                    opts.disable_tls,
+                )
+                .await?;
 
                 let msg = format!(
-                    "Connected to Cloud deployment: {}",
+                    "Connected to Cloud deployment (TLS {}): {}",
+                    if opts.disable_tls {
+                        "disabled"
+                    } else {
+                        "enabled"
+                    },
                     client.get_deployment_name().cyan()
                 );
 

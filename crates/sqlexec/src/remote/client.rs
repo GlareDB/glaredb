@@ -16,14 +16,16 @@ use protogen::{
     },
 };
 use proxyutil::metadata_constants::{
-    CA_CERT_PATH, COMPUTE_ENGINE_KEY, DB_NAME_KEY, DOMAIN, ORG_KEY, PASSWORD_KEY, USER_KEY,
+    COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
 };
+use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 use tonic::{
     metadata::MetadataMap,
     transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
     IntoRequest, Streaming,
 };
+use tracing::info;
 use url::Url;
 use uuid::Uuid;
 
@@ -46,30 +48,11 @@ pub struct ProxyAuthParams {
     pub compute_engine: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TlsConfig {
-    pub ca_cert_path: String,
-    pub domain: String,
-}
-
 /// Auth params and destination to use when connecting the client.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProxyDestination {
     pub params: ProxyAuthParams,
     pub dst: Url,
-    pub tls_conf: Option<TlsConfig>,
-}
-
-impl ProxyDestination {
-    pub fn with_tls(mut self, tls_conf: Option<TlsConfig>) -> Self {
-        if let Some(tls_conf) = tls_conf {
-            self.dst
-                .set_scheme("https")
-                .expect("not able to convert http to https");
-            self.tls_conf = Some(tls_conf);
-        }
-        self
-    }
 }
 
 impl TryFrom<Url> for ProxyDestination {
@@ -131,12 +114,14 @@ impl TryFrom<Url> for ProxyDestination {
             compute_engine: compute_engine.map(String::from),
         };
 
-        Ok(ProxyDestination {
-            params,
-            dst,
-            tls_conf: None,
-        })
+        Ok(ProxyDestination { params, dst })
     }
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct AuthenticateClientResponse {
+    pub ca_cert: String,
+    pub ca_domain: String,
 }
 
 /// An execution service client that has additonal metadata attached to each
@@ -173,15 +158,34 @@ impl RemoteClient {
     }
 
     /// Connect to a proxy destination.
-    pub async fn connect_with_proxy_destination(dst: ProxyDestination) -> Result<Self> {
-        Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params, dst.tls_conf).await
+    pub async fn connect_with_proxy_destination(
+        dst: ProxyDestination,
+        cloud_api_addr: String,
+        disable_tls: bool,
+    ) -> Result<Self> {
+        let mut dst: ProxyDestination = dst;
+        if !disable_tls {
+            info!("set rpc destination scheme to https");
+
+            dst.dst
+                .set_scheme("https")
+                .expect("failed to upgrade scheme from http to https");
+        }
+        Self::connect_with_proxy_auth_params(
+            dst.dst.to_string(),
+            dst.params,
+            cloud_api_addr,
+            disable_tls,
+        )
+        .await
     }
 
     /// Connect to a destination with the provided authentication params.
     async fn connect_with_proxy_auth_params<'a>(
         dst: impl TryInto<Endpoint, Error = tonic::transport::Error>,
         params: ProxyAuthParams,
-        tls_conf: Option<TlsConfig>,
+        cloud_api_addr: String,
+        disable_tls: bool,
     ) -> Result<Self> {
         let mut metadata = MetadataMap::new();
         metadata.insert(USER_KEY, params.user.parse()?);
@@ -193,14 +197,32 @@ impl RemoteClient {
         }
 
         let mut dst: Endpoint = dst.try_into()?;
-        if let Some(tls_conf) = tls_conf {
-            metadata.insert(CA_CERT_PATH, tls_conf.ca_cert_path.parse()?);
-            metadata.insert(DOMAIN, tls_conf.domain.parse()?);
-            let ca = std::fs::read_to_string(tls_conf.ca_cert_path)?;
+
+        if !disable_tls {
+            info!("apply TLS certificate to rpc proxy connection");
+
+            let mut body = HashMap::new();
+            body.insert("user", params.user);
+            body.insert("password", params.password);
+            body.insert("org_name", params.org);
+            body.insert("db_name", params.db_name);
+
+            let client = reqwest::Client::new();
+            let res = client
+                .post(format!(
+                    "{}/api/internal/authenticate/client",
+                    cloud_api_addr
+                ))
+                .json(&body)
+                .send()
+                .await?
+                .json::<AuthenticateClientResponse>()
+                .await?;
+
             dst = dst.tls_config(
                 ClientTlsConfig::new()
-                    .ca_certificate(Certificate::from_pem(ca))
-                    .domain_name(tls_conf.domain),
+                    .ca_certificate(Certificate::from_pem(res.ca_cert))
+                    .domain_name(res.ca_domain),
             )?;
         }
 
@@ -416,7 +438,6 @@ mod tests {
                 compute_engine: None,
             },
             dst: Url::parse("http://remote.glaredb.com:6443").unwrap(),
-            tls_conf: None,
         };
 
         assert_eq!(expected, out);
@@ -438,7 +459,6 @@ mod tests {
                 compute_engine: Some("engine".to_string()),
             },
             dst: Url::parse("http://remote.glaredb.com:4444").unwrap(),
-            tls_conf: None,
         };
 
         assert_eq!(expected, out);

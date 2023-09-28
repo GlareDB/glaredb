@@ -8,6 +8,10 @@ alias slt := sql-logic-tests
 os_arch := os() + '-' + arch()
 
 
+# Run benchmarks subcommands. see `benchmarks/justfile` for more details.
+bench cmd *args: 
+  just benchmarks/{{cmd}} {{args}}
+
 # Run py-glaredb subcommands. see `py-glaredb/justfile` for more details.
 python cmd *args: protoc
   just py-glaredb/{{cmd}} {{args}}
