@@ -1,11 +1,13 @@
-use datafusion::datasource::MemTable;
+use datafusion::datasource::{MemTable, TableProvider};
 use parking_lot::Mutex;
 use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
     EntryType, FunctionEntry, FunctionType, SchemaEntry, TableEntry, TunnelEntry,
 };
-use protogen::metastore::types::options::{TableOptions, TableOptionsInternal};
+use protogen::metastore::types::options::{
+    InternalColumnDefinition, TableOptions, TableOptionsInternal,
+};
 use protogen::metastore::types::service::Mutation;
 use sqlbuiltins::builtins::{DEFAULT_SCHEMA, SCHEMA_CURRENT_SESSION};
 use std::collections::HashMap;
@@ -468,6 +470,22 @@ impl TempCatalog {
     pub fn resolve_temp_table(&self, name: &str) -> Option<TableEntry> {
         let inner = self.inner.lock();
         if inner.tables.contains_key(name) {
+            let tbl = inner.tables.get(name).unwrap();
+            let schema = tbl.schema();
+            let columns = schema
+                .fields()
+                .iter()
+                .map(|f| {
+                    let name = f.name().to_string();
+                    let ty = f.data_type();
+                    InternalColumnDefinition {
+                        name,
+                        nullable: f.is_nullable(),
+                        arrow_type: ty.clone(),
+                    }
+                })
+                .collect();
+
             // TODO: We can be a bit more sophisticated with what we're putting
             // in meta and table options.
             return Some(TableEntry {
@@ -480,9 +498,7 @@ impl TempCatalog {
                     external: false,
                     is_temp: true,
                 },
-                options: TableOptions::Internal(TableOptionsInternal {
-                    columns: Vec::new(),
-                }),
+                options: TableOptions::Internal(TableOptionsInternal { columns }),
                 tunnel_id: None,
             });
         }

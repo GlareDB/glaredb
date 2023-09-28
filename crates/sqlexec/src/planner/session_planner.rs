@@ -5,8 +5,10 @@ use datafusion::arrow::datatypes::{
     DataType, Field, Schema, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::parsers::CompressionTypeVariant;
-use datafusion::common::{FileType, OwnedSchemaReference, OwnedTableReference, ToDFSchema};
-use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
+use datafusion::common::{
+    DFSchema, FileType, OwnedSchemaReference, OwnedTableReference, ToDFSchema,
+};
+use datafusion::logical_expr::{cast, col, DescribeTable, LogicalPlanBuilder};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
@@ -645,6 +647,7 @@ impl<'a> SessionPlanner<'a> {
             }
 
             ast::Statement::Explain {
+                describe_alias: false,
                 verbose,
                 statement,
                 analyze,
@@ -655,6 +658,34 @@ impl<'a> SessionPlanner<'a> {
                     .explain_statement_to_plan(verbose, analyze, *statement)
                     .await?;
                 Ok(LogicalPlan::Datafusion(plan))
+            }
+            // DESCRIBE <table_name>
+            ast::Statement::ExplainTable {
+                describe_alias: true,
+                table_name,
+            } => {
+                validate_object_name(&table_name)?;
+                let table_name = object_name_to_table_ref(table_name)?;
+                let resolver = EntryResolver::from_context(self.ctx);
+                let ent = resolver
+                    .resolve_entry_from_reference(table_name)?
+                    .try_into_table_entry()?;
+                let internal_cols = ent.get_internal_columns().unwrap();
+                let fields = internal_cols.into_iter().map(|col| {
+                    let name = col.name.clone();
+                    let data_type = col.arrow_type.clone();
+                    Field::new(name, data_type, col.nullable)
+                });
+                let schema = Schema::new(fields.collect::<Vec<_>>());
+                let output_schema = DFSchema::try_from(schema.clone()).unwrap();
+
+                let plan = DescribeTable {
+                    schema: Arc::new(schema),
+                    dummy_schema: Arc::new(output_schema),
+                };
+                Ok(LogicalPlan::Datafusion(
+                    datafusion::logical_expr::LogicalPlan::DescribeTable(plan),
+                ))
             }
 
             ast::Statement::CreateSchema {

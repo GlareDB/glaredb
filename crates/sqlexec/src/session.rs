@@ -398,6 +398,7 @@ impl Session {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();
         let plan = state.optimize(&plan)?;
+        println!("plan: {:?}", plan);
         if let Some(client) = self.ctx.exec_client() {
             let planner = RemotePhysicalPlanner {
                 database_id: self.ctx.get_database_id(),
@@ -405,12 +406,15 @@ impl Session {
                 catalog: self.ctx.get_session_catalog(),
             };
             let plan = planner.create_physical_plan(&plan, &state).await?;
+            println!("physical plan: {:?}", plan);
             Ok(plan)
         } else {
             let ddl_planner = DDLExtensionPlanner::new(self.ctx.get_session_catalog().clone());
             let planner =
                 DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(ddl_planner)]);
             let plan = planner.create_physical_plan(&plan, &state).await?;
+            println!("physical plan: {:?}", plan);
+
             Ok(plan)
         }
     }
