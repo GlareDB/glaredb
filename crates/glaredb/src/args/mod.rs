@@ -84,14 +84,14 @@ pub struct PgProxyArgs {
 }
 
 #[derive(Debug, Clone, Parser)]
-pub struct StorageOptionsArgs {
+pub struct StorageConfigArgs {
     /// URL of the object store in which to keep the data in.
     #[clap(short, long)]
     pub location: String,
 
-    /// Storage options for the object store.
+    /// Storage options for building the object store.
     #[clap(short, long, requires = "location", value_parser=parse_key_value_pair)]
-    pub opts: Vec<(String, String)>,
+    pub storage_options: Vec<(String, String)>,
 }
 
 fn parse_key_value_pair(key_value_pair: &str) -> Result<(String, String)> {

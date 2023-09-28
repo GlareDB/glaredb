@@ -1,4 +1,4 @@
-use crate::args::{LocalClientOpts, OutputMode, StorageOptionsArgs};
+use crate::args::{LocalClientOpts, OutputMode, StorageConfigArgs};
 use crate::highlighter::{SQLHighlighter, SQLHinter, SQLValidator};
 use crate::prompt::SQLPrompt;
 use crate::util::MetastoreClientMode;
@@ -50,12 +50,16 @@ pub struct LocalSession {
 impl LocalSession {
     pub async fn connect(opts: LocalClientOpts) -> Result<Self> {
         // Connect to metastore.
-        let (storage_conf, metastore_client) = if let Some(StorageOptionsArgs { location, opts }) =
-            &opts.storage_options
+        let (storage_conf, metastore_client) = if let Some(StorageConfigArgs {
+            location,
+            storage_options,
+        }) = &opts.storage_config
         {
             // TODO: try to consolidate with --data-dir option
-            let conf =
-                EngineStorageConfig::try_from_options(location, HashMap::from_iter(opts.clone()))?;
+            let conf = EngineStorageConfig::try_from_options(
+                location,
+                HashMap::from_iter(storage_options.clone()),
+            )?;
             let store = conf
                 .storage_config(&SessionStorageConfig::default())?
                 .new_object_store()?;

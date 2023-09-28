@@ -1,4 +1,4 @@
-use object_store::aws::AmazonS3Builder;
+use object_store::aws::{AmazonS3Builder, S3CopyIfNotExists};
 use object_store::{
     gcp::GoogleCloudStorageBuilder, local::LocalFileSystem, memory::InMemory,
     Error as ObjectStoreError, ObjectStore,
@@ -50,6 +50,14 @@ impl StorageConfig {
                         builder = builder.with_allow_http(true);
                     }
                     builder = builder.with_endpoint(endpoint);
+                    if endpoint.contains("r2.cloudflarestorage.com") {
+                        // Ensure `ObjectStore::copy_if_not_exists` is enabled on the S3 client for
+                        // Cloudflare R2 with the adequate header
+                        builder = builder.with_copy_if_not_exists(S3CopyIfNotExists::Header(
+                            "cf-copy-destination-if-none-match".to_string(),
+                            "*".to_string(),
+                        ))
+                    }
                 }
 
                 if let Some(bucket) = bucket {
