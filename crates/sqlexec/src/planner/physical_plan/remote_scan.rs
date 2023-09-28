@@ -3,6 +3,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
+use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::display::ProjectSchemaDisplay;
 use datafusion::physical_plan::expressions::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
@@ -88,6 +89,12 @@ impl ExecutionPlan for RemoteScanExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
+        if partition != 0 {
+            return Err(DataFusionError::Execution(
+                "RemoteScanExec only supports 1 partition".to_string(),
+            ));
+        }
+
         let provider = match &self.provider {
             ProviderReference::Provider(p) => p.clone(),
             ProviderReference::RemoteReference(_) => {
@@ -115,7 +122,12 @@ impl ExecutionPlan for RemoteScanExec {
                 .scan(&state, projection.as_ref(), &filters, limit)
                 .await?;
 
-            plan.execute(partition, context)
+            // NOTE: RemoteScanExec can only have 1 partition since we don't
+            // know about the paritions until we "execute" the remote table
+            // which happens, unfortunately, during execution here (see above).
+            // Hence, to execute the complete plan we need to coalesce the plan.
+            let plan = CoalescePartitionsExec::new(plan);
+            plan.execute(0, context)
         })
         .try_flatten();
 
