@@ -3,6 +3,9 @@
 statement ok
 create temp table abc (a int, b int, c int);
 
+statement ok
+create or replace temp table abc (a int, b int, c int);
+
 query III
 select * from abc;
 ----

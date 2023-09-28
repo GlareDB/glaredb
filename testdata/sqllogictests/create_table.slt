@@ -9,6 +9,9 @@ set search_path to create_table_schema;
 statement ok
 create table t1 (a int, b int);
 
+statement ok
+create or replace table t1 (a int, b int);
+
 query II
 select * from t1;
 ----
