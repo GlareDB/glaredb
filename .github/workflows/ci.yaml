@@ -99,10 +99,11 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Build python
+        run: just python build
+
       - name: Python Bindings Tests
-        run: |
-          just python build
-          just python test
+        run: just python test
 
   pg-protocol:
     name: PG Protocol Tests
