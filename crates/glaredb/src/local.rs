@@ -50,10 +50,10 @@ pub struct LocalSession {
 impl LocalSession {
     pub async fn connect(opts: LocalClientOpts) -> Result<Self> {
         // Connect to metastore.
-        let (storage_conf, metastore_client) = if let Some(StorageConfigArgs {
-            location,
+        let (storage_conf, metastore_client) = if let StorageConfigArgs {
+            location: Some(location),
             storage_options,
-        }) = &opts.storage_config
+        } = &opts.storage_config
         {
             // TODO: try to consolidate with --data-dir option
             let conf = EngineStorageConfig::try_from_options(

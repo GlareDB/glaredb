@@ -87,10 +87,10 @@ pub struct PgProxyArgs {
 pub struct StorageConfigArgs {
     /// URL of the object store in which to keep the data in.
     #[clap(short, long)]
-    pub location: String,
+    pub location: Option<String>,
 
     /// Storage options for building the object store.
-    #[clap(short, long, requires = "location", value_parser=parse_key_value_pair)]
+    #[clap(short = 'o', long, requires = "location", value_parser=parse_key_value_pair)]
     pub storage_options: Vec<(String, String)>,
 }
 
