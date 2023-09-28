@@ -66,52 +66,59 @@ impl EngineStorageConfig {
         }
 
         let datasource_url = DatasourceUrl::try_new(location)?;
-        Ok(match datasource_url.datasource_url_type() {
-            DatasourceUrlType::File => {
-                let path = fs::canonicalize(location)?;
-                EngineStorageConfig::Local { path }
-            }
-            DatasourceUrlType::Gcs => {
-                let service_account_key =
-                    opts.get("service_account_key").cloned().unwrap_or_else(|| {
-                        std::env::var(GoogleConfigKey::ServiceAccountKey.as_ref().to_uppercase())
-                            .expect(
-                                "'service_account_key' in provided storage options or 'GOOGLE_SERVICE_ACCOUNT_KEY' as env var",
-                            )
-                    });
+        Ok(match datasource_url {
+            DatasourceUrl::File(path) => EngineStorageConfig::Local { path },
+            DatasourceUrl::Url(ref url) => {
+                // Buket potentially provided as a part of the location URL, try to extract it.
+                let bucket = url.host_str().map(|h| h.to_string());
 
-                let bucket = opts.get("bucket").cloned();
-                EngineStorageConfig::Gcs {
-                    service_account_key,
-                    bucket,
-                }
-            }
-            DatasourceUrlType::S3 | DatasourceUrlType::Http => {
-                let access_key_id = opts.get("access_key_id").cloned().unwrap_or_else(|| {
-                    std::env::var(AmazonS3ConfigKey::AccessKeyId.as_ref().to_uppercase())
-                        .expect("'access_key_id' in provided storage options or 'AWS_ACCESS_KEY_ID' as env var")
-                });
-                let secret_access_key =
-                    opts.get("secret_access_key").cloned().unwrap_or_else(|| {
-                        std::env::var(AmazonS3ConfigKey::SecretAccessKey.as_ref().to_uppercase())
-                            .expect("'secret_access_key' in provided storage options or 'AWS_SECRET_ACCESS_KEY' as env var")
-                    });
+                match datasource_url.datasource_url_type() {
+                    DatasourceUrlType::Gcs => {
+                        let service_account_path =
+                            opts.get("service_account_path").cloned().unwrap_or_else(|| {
+                                std::env::var(GoogleConfigKey::ServiceAccount.as_ref().to_uppercase())
+                                    .expect(
+                                        "'service_account_path' in provided storage options or 'GOOGLE_SERVICE_ACCOUNT' as env var",
+                                    )
+                            });
 
-                let mut endpoint = opts.get("endpoint").cloned();
-                let region = opts.get("region").cloned();
-                let bucket = opts.get("bucket").cloned();
-                if !location.starts_with("s3") && !location.contains("amazonaws.com") {
-                    // For now we don't allow proper HTTP object stores as storage locations, so
-                    // interpret this case as either Cloudflare R2 or a MinIO instance
-                    endpoint = Some(location.clone());
-                }
+                        let service_account_key = fs::read_to_string(service_account_path)?;
 
-                EngineStorageConfig::S3 {
-                    access_key_id,
-                    secret_access_key,
-                    region,
-                    endpoint,
-                    bucket,
+                        let bucket = bucket.or(opts.get("bucket").cloned());
+                        EngineStorageConfig::Gcs {
+                            service_account_key,
+                            bucket,
+                        }
+                    }
+                    DatasourceUrlType::S3 | DatasourceUrlType::Http => {
+                        let access_key_id = opts.get("access_key_id").cloned().unwrap_or_else(|| {
+                            std::env::var(AmazonS3ConfigKey::AccessKeyId.as_ref().to_uppercase())
+                                .expect("'access_key_id' in provided storage options or 'AWS_ACCESS_KEY_ID' as env var")
+                        });
+                        let secret_access_key =
+                            opts.get("secret_access_key").cloned().unwrap_or_else(|| {
+                                std::env::var(AmazonS3ConfigKey::SecretAccessKey.as_ref().to_uppercase())
+                                    .expect("'secret_access_key' in provided storage options or 'AWS_SECRET_ACCESS_KEY' as env var")
+                            });
+
+                        let mut endpoint = opts.get("endpoint").cloned();
+                        let region = opts.get("region").cloned();
+                        let bucket = bucket.or(opts.get("bucket").cloned());
+                        if !location.starts_with("s3") && !location.contains("amazonaws.com") {
+                            // For now we don't allow proper HTTP object stores as storage locations, so
+                            // interpret this case as either Cloudflare R2 or a MinIO instance
+                            endpoint = Some(location.clone());
+                        }
+
+                        EngineStorageConfig::S3 {
+                            access_key_id,
+                            secret_access_key,
+                            region,
+                            endpoint,
+                            bucket,
+                        }
+                    }
+                    _ => unreachable!(),
                 }
             }
         })
