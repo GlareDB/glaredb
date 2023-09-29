@@ -228,8 +228,13 @@ jobs:
 
           echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
           just sql-logic-tests -v --exclude '*/tunnels/ssh'
+
           echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
-          just sql-logic-tests -v '*/tunnels/ssh'
+          # SSH tests are prone to fail if we make a lot of connections at the
+          # same time. Hence, it makes sense to run all the SSH tests one-by-one
+          # in order to test the SSH tunnels (which is our aim).
+          just sql-logic-tests -v --jobs=1 '*/tunnels/ssh'
+
           echo "-------------------------------- RPC TESTS --------------------------------"
           just sql-logic-tests -v --rpc-test \
                                              'sqllogictests/cast/*' \
