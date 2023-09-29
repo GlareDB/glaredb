@@ -172,6 +172,9 @@ SELECT public_key
         let deadline = Instant::now() + Duration::from_secs(120);
         while Instant::now() < deadline {
             if check_container(container_id).await.is_ok() {
+                // Yes the check completed, but let's just wait a second for the
+                // server to start (if there is anything pending).
+                tokio_sleep(Duration::from_secs(1)).await;
                 return Ok(());
             }
             tokio_sleep(Duration::from_millis(250)).await;
