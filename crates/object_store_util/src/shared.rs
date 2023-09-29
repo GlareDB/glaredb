@@ -92,15 +92,17 @@ impl ObjectStore for SharedObjectStore {
         match self.inner.copy_if_not_exists(from, to).await {
             Ok(_) => Ok(()),
             Err(ObjectStoreError::NotSupported { .. }) => {
-                // Go with the poor man's copy-if-not-exists: try a regular rename if the path doesn't exist
+                // Go with the poor man's copy-if-not-exists: try a regular copy if the path doesn't exist
                 match self.head(to).await {
-                    Ok(_) => return Err(ObjectStoreError::AlreadyExists {
-                        path: to.to_string(),
-                        source: anyhow!(
+                    Ok(_) => {
+                        return Err(ObjectStoreError::AlreadyExists {
+                            path: to.to_string(),
+                            source: anyhow!(
                             "Object at path {to} already exists, can't perform copy-if-not-exists"
                         )
-                        .into(),
-                    }),
+                            .into(),
+                        })
+                    }
                     Err(ObjectStoreError::NotFound { .. }) => self.copy(from, to).await,
                     Err(e) => Err(e),
                 }
