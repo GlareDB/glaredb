@@ -20,6 +20,7 @@ use std::collections::HashMap;
 
 use datafusion_ext::vars::SessionVars;
 use metastore::local::start_inprocess;
+use object_store_util::shared::SharedObjectStore;
 use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
@@ -63,7 +64,10 @@ impl LocalSession {
             let store = conf
                 .storage_config(&SessionStorageConfig::default())?
                 .new_object_store()?;
-            let client = start_inprocess(store).await?;
+            // Wrap up the store with a shared one, so that we get to use the non-atomic
+            // copy-if-not-exists that is defined there when initializing the lease
+            let store = SharedObjectStore::new(store);
+            let client = start_inprocess(Arc::new(store)).await?;
             (conf, client)
         } else {
             let conf = match &opts.data_dir {
@@ -152,9 +156,16 @@ impl LocalSession {
     }
 
     async fn run_interactive(&mut self) -> Result<()> {
-        let info = match &self.opts.data_dir {
-            Some(path) => format!("Persisting database at path: {}", path.display()),
-            None => "Using in-memory catalog".to_string(),
+        let info = match (&self.opts.storage_config, &self.opts.data_dir) {
+            (
+                StorageConfigArgs {
+                    location: Some(location),
+                    ..
+                },
+                _,
+            ) => format!("Persisting database at location: {location}"),
+            (_, Some(path)) => format!("Persisting database at path: {}", path.display()),
+            (_, None) => "Using in-memory catalog".to_string(),
         };
 
         println!("{info}");

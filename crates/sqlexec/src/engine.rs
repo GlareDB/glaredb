@@ -72,7 +72,8 @@ impl EngineStorageConfig {
                 // Buket potentially provided as a part of the location URL, try to extract it.
                 let bucket = url.host_str().map(|h| h.to_string());
 
-                match datasource_url.datasource_url_type() {
+                let url_type = datasource_url.datasource_url_type();
+                match url_type {
                     DatasourceUrlType::Gcs => {
                         let service_account_path =
                             opts.get("service_account_path").cloned().unwrap_or_else(|| {
@@ -103,12 +104,17 @@ impl EngineStorageConfig {
 
                         let mut endpoint = opts.get("endpoint").cloned();
                         let region = opts.get("region").cloned();
-                        let bucket = bucket.or(opts.get("bucket").cloned());
-                        if !location.starts_with("s3") && !location.contains("amazonaws.com") {
-                            // For now we don't allow proper HTTP object stores as storage locations, so
-                            // interpret this case as either Cloudflare R2 or a MinIO instance
+
+                        let bucket = if url_type != DatasourceUrlType::S3
+                            && !location.contains("amazonaws.com")
+                        {
+                            // For now we don't allow proper HTTP object stores as storage locations,
+                            // so interpret this case as either Cloudflare R2 or a MinIO instance
                             endpoint = Some(location.clone());
-                        }
+                            opts.get("bucket").cloned()
+                        } else {
+                            bucket.or(opts.get("bucket").cloned())
+                        };
 
                         EngineStorageConfig::S3 {
                             access_key_id,

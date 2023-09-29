@@ -3648,6 +3648,7 @@ dependencies = [
 name = "object_store_util"
 version = "0.5.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "bytes",
  "futures",

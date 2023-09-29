@@ -151,19 +151,18 @@ impl NativeTableStorage {
             StorageConfig::S3 {
                 endpoint, bucket, ..
             } => {
-                if let Some(endpoint) = endpoint {
-                    Url::parse(endpoint)?
-                } else if let Some(bucket) = bucket {
-                    Url::parse(&format!("s3://{}", bucket))?
+                let mut s3_url = if let Some(endpoint) = endpoint {
+                    endpoint.clone()
                 } else {
-                    return Err(NativeError::Static(
-                        "Can't generate root URL for the native table storage, misconfigured S3 bucket",
-                    ));
+                    "s3://".to_string()
+                };
+
+                if let Some(bucket) = bucket {
+                    s3_url = format!("{s3_url}/{bucket}");
                 }
+                Url::parse(&format!("{s3_url}/{prefix}"))?
             }
-            StorageConfig::Gcs { bucket, .. } => {
-                Url::parse(&format!("gs://{}/{}", bucket, prefix.clone()))?
-            }
+            StorageConfig::Gcs { bucket, .. } => Url::parse(&format!("gs://{bucket}/{prefix}"))?,
             StorageConfig::Local { path } => {
                 let path =
                     fs::canonicalize(path)
@@ -176,7 +175,7 @@ impl NativeTableStorage {
                 Url::from_file_path(path).map_err(|_| NativeError::Static("Path not absolute"))?
             }
             StorageConfig::Memory => {
-                let s = format!("memory://{}", prefix.clone());
+                let s = format!("memory://{prefix}");
                 Url::parse(&s)?
             }
         };
