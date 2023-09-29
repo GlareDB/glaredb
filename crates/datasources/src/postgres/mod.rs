@@ -27,7 +27,7 @@ use datafusion::physical_plan::{
 };
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
-use datafusion_ext::metrics::MetricsStreamAdapter;
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use protogen::metastore::types::options::TunnelOptions;
@@ -785,7 +785,7 @@ impl ExecutionPlan for PostgresBinaryCopyExec {
             opener: self.opener.clone(),
             arrow_schema: self.arrow_schema.clone(),
         };
-        Ok(Box::pin(MetricsStreamAdapter::new(
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
             stream,
             partition,
             &self.metrics,

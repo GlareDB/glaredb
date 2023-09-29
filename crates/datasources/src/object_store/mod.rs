@@ -16,6 +16,7 @@ use datafusion::logical_expr::TableType;
 use datafusion::physical_plan::union::UnionExec;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
+use datafusion_ext::metrics::DataSourceExecAdapter;
 use errors::ObjectStoreSourceError;
 use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
@@ -212,7 +213,6 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
             base_url,
             objects,
             file_format,
-            _predicate_pushdown: true,
         }))
     }
 }
@@ -251,7 +251,6 @@ impl ObjStoreAccessor {
         state: &SessionState,
         file_format: Arc<dyn FileFormat>,
         objects: Vec<ObjectMeta>,
-        _predicate_pushdown: bool,
     ) -> Result<Arc<dyn TableProvider>> {
         let store = self.store;
         let arrow_schema = file_format.infer_schema(state, &store, &objects).await?;
@@ -263,7 +262,6 @@ impl ObjStoreAccessor {
             base_url,
             objects,
             file_format,
-            _predicate_pushdown,
         }))
     }
 }
@@ -275,8 +273,6 @@ pub struct ObjStoreTableProvider {
     base_url: ObjectStoreUrl,
     objects: Vec<ObjectMeta>,
     file_format: Arc<dyn FileFormat>,
-
-    _predicate_pushdown: bool,
 }
 
 #[async_trait]
@@ -331,10 +327,13 @@ impl TableProvider for ObjStoreTableProvider {
         ctx.runtime_env()
             .register_object_store(self.base_url.as_ref(), self.store.clone());
 
-        self.file_format
+        let plan = self
+            .file_format
             .create_physical_plan(ctx, config, filters.as_ref())
             .await
-            .map_err(|e| DataFusionError::External(Box::new(e)))
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+        Ok(Arc::new(DataSourceExecAdapter::new(plan)))
     }
 }
 

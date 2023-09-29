@@ -1,15 +1,20 @@
 use datafusion::{
     arrow::datatypes::SchemaRef,
-    arrow::record_batch::RecordBatch,
+    arrow::{datatypes::Schema, record_batch::RecordBatch},
     error::Result,
+    execution::TaskContext,
+    physical_expr::PhysicalSortExpr,
     physical_plan::{
-        metrics::{BaselineMetrics, ExecutionPlanMetricsSet, Gauge, MetricBuilder},
-        ExecutionPlan, RecordBatchStream,
+        metrics::{BaselineMetrics, ExecutionPlanMetricsSet, Gauge, MetricBuilder, MetricsSet},
+        DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
+        SendableRecordBatchStream, Statistics,
     },
 };
 use futures::{Stream, StreamExt};
-use std::pin::Pin;
+use std::fmt;
+use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::{any::Any, pin::Pin};
 
 const BYTES_PROCESSED_GAUGE_NAME: &str = "bytes_processed";
 
@@ -56,12 +61,15 @@ impl DataSourceMetrics {
 
 /// Thin wrapper around a record batch stream that automatically records metrics
 /// about batches that are sent through the stream.
-pub struct MetricsStreamAdapter<S> {
+///
+/// Note this should only be used when "ingesting" data during execution (data
+/// sources or reading from tables) to avoid double counting bytes processed.
+pub struct DataSourceMetricsStreamAdapter<S> {
     pub stream: S,
     pub metrics: DataSourceMetrics,
 }
 
-impl<S> MetricsStreamAdapter<S> {
+impl<S> DataSourceMetricsStreamAdapter<S> {
     /// Create a new stream with a new set of data source metrics for the given
     /// partition.
     pub fn new(stream: S, partition: usize, metrics: &ExecutionPlanMetricsSet) -> Self {
@@ -72,7 +80,7 @@ impl<S> MetricsStreamAdapter<S> {
     }
 }
 
-impl<S: RecordBatchStream + Unpin> Stream for MetricsStreamAdapter<S> {
+impl<S: RecordBatchStream + Unpin> Stream for DataSourceMetricsStreamAdapter<S> {
     type Item = Result<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -81,7 +89,118 @@ impl<S: RecordBatchStream + Unpin> Stream for MetricsStreamAdapter<S> {
     }
 }
 
-impl<S: RecordBatchStream + Unpin> RecordBatchStream for MetricsStreamAdapter<S> {
+impl<S: RecordBatchStream + Unpin> RecordBatchStream for DataSourceMetricsStreamAdapter<S> {
+    fn schema(&self) -> SchemaRef {
+        self.stream.schema()
+    }
+}
+
+/// Wrapper around and execution plan that returns a
+/// `BoxedDataSourceMetricsStreamAdapter` for additional metrics collection.
+///
+/// This should _generally_ only be used for execution plans that we're not able
+/// to modify directly to record metrics (e.g. Delta). Otherwise, this should be
+/// skipped and metrics collection should be added to the execution plan
+/// directly.
+#[derive(Debug, Clone)]
+pub struct DataSourceExecAdapter {
+    inner: Arc<dyn ExecutionPlan>,
+    metrics: ExecutionPlanMetricsSet,
+}
+
+impl DataSourceExecAdapter {
+    pub fn new(plan: Arc<dyn ExecutionPlan>) -> Self {
+        Self {
+            inner: plan,
+            metrics: ExecutionPlanMetricsSet::new(),
+        }
+    }
+}
+
+impl ExecutionPlan for DataSourceExecAdapter {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> Arc<Schema> {
+        self.inner.schema()
+    }
+
+    fn output_partitioning(&self) -> Partitioning {
+        self.inner.output_partitioning()
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        self.inner.output_ordering()
+    }
+
+    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
+        self.inner.children()
+    }
+
+    fn with_new_children(
+        self: Arc<Self>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        self.inner.clone().with_new_children(children)
+    }
+
+    fn execute(
+        &self,
+        partition: usize,
+        context: Arc<TaskContext>,
+    ) -> Result<SendableRecordBatchStream> {
+        let stream = self.inner.execute(partition, context)?;
+        Ok(Box::pin(BoxedStreamAdapater::new(
+            stream,
+            partition,
+            &self.metrics,
+        )))
+    }
+
+    fn statistics(&self) -> Statistics {
+        self.inner.statistics()
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        self.inner.metrics()
+    }
+}
+
+impl DisplayAs for DataSourceExecAdapter {
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "DataSourceExecAdapter")
+    }
+}
+
+struct BoxedStreamAdapater {
+    stream: SendableRecordBatchStream,
+    metrics: DataSourceMetrics,
+}
+
+impl BoxedStreamAdapater {
+    fn new(
+        stream: SendableRecordBatchStream,
+        partition: usize,
+        metrics: &ExecutionPlanMetricsSet,
+    ) -> Self {
+        Self {
+            stream,
+            metrics: DataSourceMetrics::new(partition, metrics),
+        }
+    }
+}
+
+impl Stream for BoxedStreamAdapater {
+    type Item = Result<RecordBatch>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let poll = self.stream.poll_next_unpin(cx);
+        self.metrics.record_poll(poll)
+    }
+}
+
+impl RecordBatchStream for BoxedStreamAdapater {
     fn schema(&self) -> SchemaRef {
         self.stream.schema()
     }
@@ -108,9 +227,7 @@ impl AggregatedMetrics {
             output_rows: 0,
             bytes_processed: 0,
         };
-
         agg.aggregate_recurse(plan);
-
         agg
     }
 
