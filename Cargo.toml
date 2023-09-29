@@ -4,7 +4,7 @@ default-members = ["crates/*", "xtask"]
 resolver = "2"
 
 [workspace.package]
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 
 [profile.release]
@@ -23,7 +23,7 @@ chrono = "0.4.31"
 
 [workspace.dependencies.deltalake]
 git = "https://github.com/delta-io/delta-rs.git"
-branch = "main"
+rev = "94cb9b39fa62dcd7657752fcda141409e8dc697b"
 features = ["s3", "gcs", "azure", "datafusion", "arrow", "parquet"]
 
 [patch.crates-io]
