@@ -41,6 +41,7 @@ impl DataSourceMetrics {
         }
     }
 
+    /// Track metrics based on the poll result from an async stream.
     pub fn record_poll(
         &self,
         poll: Poll<Option<Result<RecordBatch>>>,
@@ -103,46 +104,46 @@ impl<S: RecordBatchStream + Unpin> RecordBatchStream for DataSourceMetricsStream
 /// skipped and metrics collection should be added to the execution plan
 /// directly.
 #[derive(Debug, Clone)]
-pub struct DataSourceExecAdapter {
-    inner: Arc<dyn ExecutionPlan>,
+pub struct DataSourceMetricsExecAdapter {
+    child: Arc<dyn ExecutionPlan>,
     metrics: ExecutionPlanMetricsSet,
 }
 
-impl DataSourceExecAdapter {
+impl DataSourceMetricsExecAdapter {
     pub fn new(plan: Arc<dyn ExecutionPlan>) -> Self {
         Self {
-            inner: plan,
+            child: plan,
             metrics: ExecutionPlanMetricsSet::new(),
         }
     }
 }
 
-impl ExecutionPlan for DataSourceExecAdapter {
+impl ExecutionPlan for DataSourceMetricsExecAdapter {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn schema(&self) -> Arc<Schema> {
-        self.inner.schema()
+        self.child.schema()
     }
 
     fn output_partitioning(&self) -> Partitioning {
-        self.inner.output_partitioning()
+        self.child.output_partitioning()
     }
 
     fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
-        self.inner.output_ordering()
+        self.child.output_ordering()
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
-        self.inner.children()
+        vec![self.child.clone()]
     }
 
     fn with_new_children(
         self: Arc<Self>,
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        self.inner.clone().with_new_children(children)
+        Ok(Arc::new(Self::new(children[0].clone())))
     }
 
     fn execute(
@@ -150,7 +151,7 @@ impl ExecutionPlan for DataSourceExecAdapter {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
-        let stream = self.inner.execute(partition, context)?;
+        let stream = self.child.execute(partition, context)?;
         Ok(Box::pin(BoxedStreamAdapater::new(
             stream,
             partition,
@@ -159,15 +160,15 @@ impl ExecutionPlan for DataSourceExecAdapter {
     }
 
     fn statistics(&self) -> Statistics {
-        self.inner.statistics()
+        self.child.statistics()
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
-        self.inner.metrics()
+        self.child.metrics()
     }
 }
 
-impl DisplayAs for DataSourceExecAdapter {
+impl DisplayAs for DataSourceMetricsExecAdapter {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "DataSourceExecAdapter")
     }
