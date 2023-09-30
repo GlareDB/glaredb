@@ -164,13 +164,13 @@ impl ExecutionPlan for DataSourceMetricsExecAdapter {
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
-        self.child.metrics()
+        Some(self.metrics.clone_inner())
     }
 }
 
 impl DisplayAs for DataSourceMetricsExecAdapter {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "DataSourceExecAdapter")
+        write!(f, "DataSourceMetricsExecAdapter")
     }
 }
 
