@@ -211,8 +211,6 @@ impl RecordBatchStream for BoxedStreamAdapater {
 pub struct AggregatedMetrics {
     /// Total time taken for a plan to execute.
     pub elapsed_compute_ns: u64,
-    /// Total output rows for the plan.
-    pub output_rows: u64,
     /// Total bytes processed.
     pub bytes_processed: u64,
 }
@@ -225,7 +223,6 @@ impl AggregatedMetrics {
     pub fn new_from_plan(plan: &dyn ExecutionPlan) -> Self {
         let mut agg = AggregatedMetrics {
             elapsed_compute_ns: 0,
-            output_rows: 0,
             bytes_processed: 0,
         };
         agg.aggregate_recurse(plan);
@@ -233,8 +230,6 @@ impl AggregatedMetrics {
     }
 
     fn aggregate_recurse(&mut self, plan: &dyn ExecutionPlan) {
-        // TODO: What to do about output rows?
-
         let metrics = match plan.metrics() {
             Some(metrics) => metrics,
             None => return,
