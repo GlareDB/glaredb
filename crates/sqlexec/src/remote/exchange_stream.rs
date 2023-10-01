@@ -14,10 +14,15 @@ use uuid::Uuid;
 
 use crate::errors::{ExecError, Result};
 
+#[derive(Debug)]
+// TODO: Implement (using the below)
+pub struct ExecutionBatchStream {}
+
 /// A stream for reading record batches from a client.
 ///
 /// The first message is used to get the session id. It's assumed that the
 /// stream contains batches all with the same schema.
+// TODO: Reuse this for dist exec (remove session id, broadcast id)
 #[derive(Debug)]
 pub struct ClientExchangeRecvStream {
     /// Session this stream is for.

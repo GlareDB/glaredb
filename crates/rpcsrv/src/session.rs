@@ -10,7 +10,6 @@ use sqlexec::context::remote::RemoteSessionContext;
 use sqlexec::remote::exchange_stream::ClientExchangeRecvStream;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use uuid::Uuid;
 
 /// A wrapper around a remote session context for physical plan execution.

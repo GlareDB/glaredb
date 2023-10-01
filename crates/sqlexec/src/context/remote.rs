@@ -27,6 +27,10 @@ use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 /// A lightweight session context used during remote execution of physical
 /// plans.
 ///
+/// This context should be stateless in that it should not be tied to any one
+/// specific session. This context should be able to execute physical plans from
+/// any session for this partition database.
+///
 /// Datafusion extensions:
 /// - StagedClientStreams
 pub struct RemoteSessionContext {
