@@ -4,10 +4,9 @@ use crate::{
 };
 use async_trait::async_trait;
 use dashmap::DashMap;
+use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use datafusion::{arrow::ipc::writer::FileWriter as IpcFileWriter, variable::VarType};
-use datafusion_ext::vars::SessionVars;
 use futures::{Stream, StreamExt};
 use protogen::{
     gen::rpcsrv::service::{self, BroadcastExchangeResponse},
@@ -48,6 +47,7 @@ pub struct RpcHandler {
 }
 
 impl RpcHandler {
+    // TODO: Remove integration testing.
     pub fn new(engine: Arc<Engine>, allow_client_init: bool, integration_testing: bool) -> Self {
         RpcHandler {
             engine,

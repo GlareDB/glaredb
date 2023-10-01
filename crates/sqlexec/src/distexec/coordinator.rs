@@ -22,6 +22,7 @@ pub struct CoordinatorService {
 #[derive(Debug)]
 enum CoordinatorMessage {
     RegisterWorker {},
+    DeregisterWorker {},
     HandlePlan {},
 }
 
