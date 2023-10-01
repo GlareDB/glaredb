@@ -4,7 +4,7 @@
 
 syntax = "proto3";
 
-package rpcsrv.internal;
+package rpcsrv.coordinator;
 
 import "metastore/catalog.proto";
 
@@ -84,7 +84,7 @@ message PollWorkResponse {
 
   oneof response {
     DispatchAccess dispatch = 3;
-    PhysicalPlanExec plan = 4;
+    PhysicalPlanExecute plan = 4;
   }
 }
 

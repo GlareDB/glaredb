@@ -1,5 +1,6 @@
 //! Coordinator for distributed execution
 
+pub mod handler;
 pub mod scheduler;
 
 #[derive(Debug, thiserror::Error)]
