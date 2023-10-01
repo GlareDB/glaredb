@@ -11,13 +11,15 @@ pub struct SchedulerClient {
     send: mpsc::Sender<CoordinatorMessage>,
 }
 
+impl SchedulerClient {}
+
 #[derive(Debug)]
-pub struct SchedulerService {
+pub struct Scheduler {
     send: mpsc::Sender<CoordinatorMessage>,
     recv: mpsc::Receiver<CoordinatorMessage>,
 }
 
-/// Messages that can be sent to the coordinator service.
+/// Messages that can be sent to the scheduler.
 #[derive(Debug)]
 enum CoordinatorMessage {
     RegisterWorker {},
@@ -25,10 +27,10 @@ enum CoordinatorMessage {
     HandlePlan {},
 }
 
-impl SchedulerService {
+impl Scheduler {
     pub fn new() -> Self {
         let (send, recv) = mpsc::channel(SCHEDULER_MSG_BUFFER);
-        SchedulerService { send, recv }
+        Scheduler { send, recv }
     }
 
     pub fn client(&self) -> SchedulerClient {

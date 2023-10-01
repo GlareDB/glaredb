@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use dashmap::DashMap;
 use datafusion::datasource::TableProvider;
 use uuid::Uuid;
 
@@ -7,15 +8,16 @@ use uuid::Uuid;
 // TODO: Need to occasionally clean out.
 #[derive(Default)]
 pub struct ProviderCache {
-    providers: HashMap<Uuid, Arc<dyn TableProvider>>,
+    providers: DashMap<Uuid, Arc<dyn TableProvider>>,
 }
 
 impl ProviderCache {
-    pub fn put(&mut self, id: Uuid, table: Arc<dyn TableProvider>) {
+    pub fn put(&self, id: Uuid, table: Arc<dyn TableProvider>) {
         self.providers.insert(id, table);
     }
 
     pub fn get(&self, id: &Uuid) -> Option<Arc<dyn TableProvider>> {
-        self.providers.get(id).cloned()
+        let prov = self.providers.get(id)?;
+        Some(prov.value().clone())
     }
 }

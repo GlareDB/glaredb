@@ -20,22 +20,26 @@ pub struct RemoteSession {
     ///
     /// Wrapped in an Arc and Mutex since the lifetime of the session is not
     /// tied to a single connection, and so needs to be tracked in a shared map.
-    session: Arc<Mutex<RemoteSessionContext>>,
+    session: Arc<RemoteSessionContext>,
 }
 
 impl RemoteSession {
     pub fn new(context: RemoteSessionContext) -> Self {
         RemoteSession {
-            session: Arc::new(Mutex::new(context)),
+            session: Arc::new(context),
         }
     }
 
     /// Get the catalog state suitable for sending back to the requesting
     /// session.
     pub async fn get_refreshed_catalog_state(&self) -> Result<CatalogState> {
-        let mut session = self.session.lock().await;
-        session.refresh_catalog().await?;
-        Ok(session.get_session_catalog().get_state().as_ref().clone())
+        self.session.refresh_catalog().await?;
+        Ok(self
+            .session
+            .get_session_catalog()
+            .get_state()
+            .as_ref()
+            .clone())
     }
 
     pub async fn dispatch_access(
@@ -44,8 +48,10 @@ impl RemoteSession {
         args: Option<Vec<FuncParamValue>>,
         opts: Option<HashMap<String, FuncParamValue>>,
     ) -> Result<(Uuid, Schema)> {
-        let mut session = self.session.lock().await;
-        let (id, prov) = session.load_and_cache_table(table_ref, args, opts).await?;
+        let (id, prov) = self
+            .session
+            .load_and_cache_table(table_ref, args, opts)
+            .await?;
         let schema = prov.schema().as_ref().clone();
 
         Ok((id, schema))
@@ -55,22 +61,19 @@ impl RemoteSession {
         &self,
         physical_plan: impl AsRef<[u8]>,
     ) -> Result<SendableRecordBatchStream> {
-        let session = self.session.lock().await;
-
-        let codec = session.extension_codec();
+        let codec = self.session.extension_codec();
         let plan = PhysicalPlanNode::try_decode(physical_plan.as_ref())?.try_into_physical_plan(
-            session.get_datafusion_context(),
-            session.get_datafusion_context().runtime_env().as_ref(),
+            self.session.get_datafusion_context(),
+            self.session.get_datafusion_context().runtime_env().as_ref(),
             &codec,
         )?;
 
-        let stream = session.execute_physical(plan)?;
+        let stream = self.session.execute_physical(plan)?;
         Ok(stream)
     }
 
     pub async fn register_broadcast_stream(&self, stream: ClientExchangeRecvStream) -> Result<()> {
-        let session = self.session.lock().await;
-        let streams = session.staged_streams();
+        let streams = self.session.staged_streams();
         streams.put_stream(stream.broadcast_id(), stream);
         Ok(())
     }
