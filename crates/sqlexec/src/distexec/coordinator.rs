@@ -1,17 +1,40 @@
 //! Coordinating/scheduling plan execution.
 use super::{DistExecError, Result};
+use parking_lot::Mutex;
+use tokio::sync::mpsc;
+use tracing::{debug, error, info};
 
-pub struct CoordinatorClient {}
+const COORDINATOR_MSG_BUFFER: usize = 512;
 
-pub struct CoordinatorService {}
+/// Send messages to the coordinator.
+#[derive(Debug, Clone)]
+pub struct CoordinatorClient {
+    send: mpsc::Sender<CoordinatorMessage>,
+}
+
+#[derive(Debug)]
+pub struct CoordinatorService {
+    send: mpsc::Sender<CoordinatorMessage>,
+    recv: mpsc::Receiver<CoordinatorMessage>,
+}
+
+/// Messages that can be sent to the coordinator service.
+#[derive(Debug)]
+enum CoordinatorMessage {
+    RegisterWorker {},
+    HandlePlan {},
+}
 
 impl CoordinatorService {
     pub fn new() -> Self {
-        unimplemented!()
+        let (send, recv) = mpsc::channel(COORDINATOR_MSG_BUFFER);
+        CoordinatorService { send, recv }
     }
 
     pub fn client(&self) -> CoordinatorClient {
-        unimplemented!()
+        CoordinatorClient {
+            send: self.send.clone(),
+        }
     }
 
     pub async fn run(mut self) -> Result<()> {

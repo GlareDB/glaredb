@@ -44,13 +44,13 @@ pub struct RemoteSessionContext {
 impl RemoteSessionContext {
     /// Create a new remote session context.
     pub fn new(
-        vars: SessionVars,
         catalog: SessionCatalog,
         catalog_mutator: CatalogMutator,
         native_tables: NativeTableStorage,
         background_jobs: JobRunner,
         spill_path: Option<PathBuf>,
     ) -> Result<Self> {
+        let vars = SessionVars::default(); // TODO: Remove
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(&vars);
         let mut conf: SessionConfig = opts.into();
@@ -59,12 +59,12 @@ impl RemoteSessionContext {
         conf = conf
             .with_extension(Arc::new(StagedClientStreams::default()))
             .with_extension(Arc::new(catalog_mutator))
-            .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(TempCatalog::default()));
+            .with_extension(Arc::new(native_tables.clone()));
 
         // TODO: Query planners for handling custom plans.
 
         let df_ctx = DfSessionContext::with_config_rt(conf, Arc::new(runtime));
+        // TODO: Remove
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(RemoteSessionContext {

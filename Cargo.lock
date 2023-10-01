@@ -5693,6 +5693,7 @@ version = "0.5.1"
 dependencies = [
  "async-trait",
  "bytes",
+ "dashmap",
  "datafusion",
  "datafusion-proto",
  "datafusion_ext",

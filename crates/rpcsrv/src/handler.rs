@@ -92,13 +92,9 @@ impl RpcHandler {
         let conn_id = Uuid::new_v4();
         info!(session_id=%conn_id, "initializing remote session");
 
-        let vars = SessionVars::default()
-            .with_database_id(db_id, VarType::System)
-            .with_connection_id(conn_id, VarType::System);
-
         let context = self
             .engine
-            .new_remote_session_context(vars, storage_conf)
+            .new_remote_session_context(db_id, conn_id, storage_conf)
             .await?;
 
         let sess = RemoteSession::new(context);
