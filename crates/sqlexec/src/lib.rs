@@ -11,6 +11,7 @@ pub mod session;
 
 mod background_jobs;
 mod dispatch;
+mod distexec;
 mod functions;
 mod metrics;
 mod planner;
