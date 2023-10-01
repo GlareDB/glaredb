@@ -10,9 +10,9 @@ use protogen::{
     gen::rpcsrv::service::{self, execution_service_client::ExecutionServiceClient},
     metastore::types::catalog::CatalogState,
     rpcsrv::types::service::{
-        CloseSessionRequest, DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse,
-        InitializeSessionRequest, InitializeSessionResponse, PhysicalPlanExecuteRequest,
-        ResolvedTableReference, TableProviderResponse,
+        DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse, InitializeSessionRequest,
+        InitializeSessionResponse, PhysicalPlanExecuteRequest, ResolvedTableReference,
+        TableProviderResponse,
     },
 };
 use proxyutil::metadata_constants::{
@@ -390,30 +390,6 @@ impl RemoteSessionClient {
         let mut req = stream.into_streaming_request();
         self.inner.append_auth_metadata(req.metadata_mut());
         let _resp = self.inner.client.broadcast_exchange(req).await?;
-        Ok(())
-    }
-
-    pub async fn close_session(&mut self) -> Result<()> {
-        let mut request = service::CloseSessionRequest::from(CloseSessionRequest {
-            session_id: self.session_id(),
-        })
-        .into_request();
-        self.inner.append_auth_metadata(request.metadata_mut());
-
-        let _resp = self
-            .inner
-            .client
-            .close_session(request)
-            .await
-            .map_err(|e| {
-                ExecError::RemoteSession(format!(
-                    "unable to close session {}: {}",
-                    self.session_id(),
-                    e
-                ))
-            })?
-            .into_inner();
-
         Ok(())
     }
 }

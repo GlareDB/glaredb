@@ -219,15 +219,6 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
             .broadcast_exchange(ProxiedRequestStream::new(request))
             .await
     }
-
-    async fn close_session(
-        &self,
-        request: Request<service::CloseSessionRequest>,
-    ) -> Result<Response<service::CloseSessionResponse>, Status> {
-        info!("close session (proxy)");
-        let (_, mut client) = self.connect(request.metadata()).await?;
-        client.close_session(request).await
-    }
 }
 
 /// Adapater stream for proxying streaming requests.

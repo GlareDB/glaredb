@@ -143,15 +143,6 @@ impl LocalSessionContext {
         Ok(())
     }
 
-    /// Close this session. This is only relevant for sessions connecting to
-    /// remote clients.
-    pub async fn close(&mut self) -> Result<()> {
-        if let Some(mut client) = self.exec_client() {
-            client.close_session().await?;
-        }
-        Ok(())
-    }
-
     pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
         self.env_reader = Some(env_reader);
     }

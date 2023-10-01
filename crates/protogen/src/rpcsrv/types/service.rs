@@ -6,7 +6,8 @@ use uuid::Uuid;
 
 use crate::{
     errors::ProtoConvError,
-    gen::rpcsrv::service::{self, ExternalTableReference, InternalTableReference},
+    gen::rpcsrv::common::{self, ExternalTableReference, InternalTableReference},
+    gen::rpcsrv::service::{self},
     metastore::types::{catalog::CatalogState, FromOptionalField},
 };
 
@@ -338,18 +339,18 @@ impl Display for ResolvedTableReference {
     }
 }
 
-impl TryFrom<service::ResolvedTableReference> for ResolvedTableReference {
+impl TryFrom<common::ResolvedTableReference> for ResolvedTableReference {
     type Error = ProtoConvError;
-    fn try_from(value: service::ResolvedTableReference) -> Result<Self, Self::Error> {
+    fn try_from(value: common::ResolvedTableReference) -> Result<Self, Self::Error> {
         let reference = value
             .reference
             .ok_or_else(|| ProtoConvError::RequiredField("reference".to_string()))?;
 
         Ok(match reference {
-            service::resolved_table_reference::Reference::Internal(InternalTableReference {
+            common::resolved_table_reference::Reference::Internal(InternalTableReference {
                 table_oid,
             }) => ResolvedTableReference::Internal { table_oid },
-            service::resolved_table_reference::Reference::External(ExternalTableReference {
+            common::resolved_table_reference::Reference::External(ExternalTableReference {
                 database,
                 schema,
                 name,
@@ -362,11 +363,11 @@ impl TryFrom<service::ResolvedTableReference> for ResolvedTableReference {
     }
 }
 
-impl From<ResolvedTableReference> for service::ResolvedTableReference {
+impl From<ResolvedTableReference> for common::ResolvedTableReference {
     fn from(value: ResolvedTableReference) -> Self {
         match value {
-            ResolvedTableReference::Internal { table_oid } => service::ResolvedTableReference {
-                reference: Some(service::resolved_table_reference::Reference::Internal(
+            ResolvedTableReference::Internal { table_oid } => common::ResolvedTableReference {
+                reference: Some(common::resolved_table_reference::Reference::Internal(
                     InternalTableReference { table_oid },
                 )),
             },
@@ -374,8 +375,8 @@ impl From<ResolvedTableReference> for service::ResolvedTableReference {
                 database,
                 schema,
                 name,
-            } => service::ResolvedTableReference {
-                reference: Some(service::resolved_table_reference::Reference::External(
+            } => common::ResolvedTableReference {
+                reference: Some(common::resolved_table_reference::Reference::External(
                     ExternalTableReference {
                         database,
                         schema,
@@ -384,40 +385,5 @@ impl From<ResolvedTableReference> for service::ResolvedTableReference {
                 )),
             },
         }
-    }
-}
-
-pub struct CloseSessionRequest {
-    pub session_id: Uuid,
-}
-
-impl TryFrom<service::CloseSessionRequest> for CloseSessionRequest {
-    type Error = ProtoConvError;
-    fn try_from(value: service::CloseSessionRequest) -> Result<Self, Self::Error> {
-        Ok(Self {
-            session_id: Uuid::from_slice(&value.session_id)?,
-        })
-    }
-}
-
-impl From<CloseSessionRequest> for service::CloseSessionRequest {
-    fn from(value: CloseSessionRequest) -> Self {
-        Self {
-            session_id: value.session_id.into_bytes().into(),
-        }
-    }
-}
-
-pub struct CloseSessionResponse {}
-
-impl From<service::CloseSessionResponse> for CloseSessionResponse {
-    fn from(_value: service::CloseSessionResponse) -> Self {
-        Self {}
-    }
-}
-
-impl From<CloseSessionResponse> for service::CloseSessionResponse {
-    fn from(_value: CloseSessionResponse) -> Self {
-        Self {}
     }
 }

@@ -3,7 +3,7 @@
 use super::{CoordinatorError, Result};
 use async_trait::async_trait;
 use dashmap::DashMap;
-use protogen::gen::rpcsrv::coordinator;
+use protogen::gen::rpcsrv::{common, coordinator};
 use sqlexec::{
     engine::{Engine, SessionStorageConfig},
     remote::exchange_stream::ClientExchangeRecvStream,
@@ -52,7 +52,7 @@ impl coordinator::coordinator_service_server::CoordinatorService for Coordinator
 
     async fn install_batch_stream(
         &self,
-        request: Request<Streaming<coordinator::ExecutionBatchStream>>,
+        request: Request<Streaming<common::ExecutionBatchStream>>,
     ) -> Result<Response<coordinator::InstallBatchStreamResponse>, Status> {
         unimplemented!()
     }

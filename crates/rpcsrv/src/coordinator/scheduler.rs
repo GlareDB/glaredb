@@ -58,8 +58,6 @@ impl SchedulerClient {
     }
 
     /// Put a channel for receiving work.
-    // TODO: More work than just staged plans.
-    // TODO: Better name, we're not storing the channel.
     pub async fn put_work_channel(&self, tx: oneshot::Sender<Option<StagedPlan>>) -> Result<()> {
         self.send_msg(SchedulerMessage::PutWorkChannel { tx }).await
     }

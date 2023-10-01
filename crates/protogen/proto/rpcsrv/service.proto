@@ -41,6 +41,7 @@ syntax = "proto3";
 package rpcsrv.service;
 
 import "metastore/catalog.proto";
+import "rpcsrv/common.proto";
 
 // Storage config for the session.
 message SessionStorageConfig { optional string gcs_bucket = 1; }
@@ -93,7 +94,7 @@ message FetchCatalogResponse { metastore.catalog.CatalogState catalog = 1; }
 // Dispatch the table access on remote server.
 message DispatchAccessRequest {
   bytes session_id = 1;
-  ResolvedTableReference table_ref = 2;
+  common.ResolvedTableReference table_ref = 2;
   repeated bytes args = 3;
   // gRPC doesn't really provide a way for Option<Vec<T>> or Option<Map<K,V>>
   // so we use a map and just check if it's empty or not in rust.
@@ -117,26 +118,6 @@ message RecordBatchResponse {
   bytes arrow_ipc = 1;
 }
 
-message InternalTableReference {
-  // OID of the table in the catalog.
-  uint32 table_oid = 1;
-}
-
-message ExternalTableReference {
-  string database = 1;
-  string schema = 2;
-  string name = 3;
-}
-
-message ResolvedTableReference {
-  oneof reference {
-    // Table exists in our catalog.
-    InternalTableReference internal = 1;
-    // Table exists in an external system that we need to contact.
-    ExternalTableReference external = 2;
-  }
-}
-
 message BroadcastExchangeRequest {
   // Session id.
   bytes session_id = 1;
@@ -157,13 +138,6 @@ message BroadcastExchangeRequest {
 
 message BroadcastExchangeResponse {}
 
-message CloseSessionRequest {
-  // ID of session that we are closing.
-  bytes session_id = 1;
-}
-
-message CloseSessionResponse {}
-
 service ExecutionService {
   // Initializes a remote session.
   rpc InitializeSession(InitializeSessionRequest)
@@ -180,7 +154,4 @@ service ExecutionService {
 
   rpc BroadcastExchange(stream BroadcastExchangeRequest)
       returns (BroadcastExchangeResponse);
-
-  // Close the remote session.
-  rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
 }

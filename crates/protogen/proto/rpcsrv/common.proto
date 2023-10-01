@@ -1,0 +1,64 @@
+// Common types for internal and external communication.
+
+syntax = "proto3";
+
+package rpcsrv.common;
+
+// Lightweight session configuration.
+message SessionContextConfig {
+  // Database this session is for.
+  bytes db_id = 1; // UUID
+
+  // GCS bucket that contains this database.
+  optional string gcs_bucket = 2;
+}
+
+message InternalTableReference {
+  // OID of the table in the catalog.
+  uint32 table_oid = 1;
+}
+
+message ExternalTableReference {
+  string database = 1;
+  string schema = 2;
+  string name = 3;
+}
+
+message ResolvedTableReference {
+  oneof reference {
+    // Table exists in our catalog.
+    InternalTableReference internal = 1;
+    // Table exists in an external system that we need to contact.
+    ExternalTableReference external = 2;
+  }
+}
+
+// Dispatch the table access on remote server.
+message DispatchAccess {
+  ResolvedTableReference table_ref = 1;
+  repeated bytes args = 2;
+  // gRPC doesn't really provide a way for Option<Vec<T>> or Option<Map<K,V>>
+  // so we use a map and just check if it's empty or not in rust.
+  map<string, bytes> options = 3;
+}
+
+// Execute a physical plan and get the stream.
+message PhysicalPlanExecute {
+  /// The protobuf serialized physical plan.
+  bytes physical_plan = 1;
+}
+
+message ExecutionBatchStream {
+  bytes work_id = 1; // UUID
+  // Input batches.
+  bytes arrow_ipc = 2;
+
+  // TODO: Error flag to indicate if the stream errored on the client side. We
+  // don't need the error itself, we just need to know that we did error.
+  //
+  // Note that an error *inside* the message would indicated we had trouble
+  // reading from the stream or encoding to IPC. The client will already have
+  // access to the error.
+  //
+  // This would be used to just drop the stream to release resources.
+}

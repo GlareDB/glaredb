@@ -11,9 +11,8 @@ use futures::{Stream, StreamExt};
 use protogen::{
     gen::rpcsrv::service::{self, BroadcastExchangeResponse},
     rpcsrv::types::service::{
-        CloseSessionRequest, CloseSessionResponse, DispatchAccessRequest, FetchCatalogRequest,
-        FetchCatalogResponse, InitializeSessionRequest, InitializeSessionResponse,
-        PhysicalPlanExecuteRequest, TableProviderResponse,
+        DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse, InitializeSessionRequest,
+        InitializeSessionResponse, PhysicalPlanExecuteRequest, TableProviderResponse,
     },
 };
 use sqlexec::{
@@ -177,12 +176,6 @@ impl RpcHandler {
         Ok(BroadcastExchangeResponse {})
     }
 
-    fn close_session_inner(&self, req: CloseSessionRequest) -> Result<CloseSessionResponse> {
-        info!(session_id=%req.session_id, "Closing Session");
-        self.sessions.remove(&req.session_id);
-        Ok(CloseSessionResponse {})
-    }
-
     fn get_session(&self, session_id: Uuid) -> Result<RemoteSession> {
         self.sessions
             .get(&session_id)
@@ -242,14 +235,6 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
     ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
         let resp = self.broadcast_exchange_inner(request.into_inner()).await?;
         Ok(Response::new(resp))
-    }
-
-    async fn close_session(
-        &self,
-        request: Request<service::CloseSessionRequest>,
-    ) -> Result<Response<service::CloseSessionResponse>, Status> {
-        let resp = self.close_session_inner(request.into_inner().try_into()?)?;
-        Ok(Response::new(resp.into()))
     }
 }
 
