@@ -395,6 +395,7 @@ impl Session {
         let plan = state.optimize(&plan)?;
         if let Some(client) = self.ctx.exec_client() {
             let planner = RemotePhysicalPlanner {
+                db_id: self.ctx.get_database_id(),
                 remote_client: client,
                 catalog: self.ctx.get_session_catalog(),
             };

@@ -289,6 +289,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
 
 pub struct RemotePhysicalPlanner<'a> {
     pub remote_client: RemoteSessionClient,
+    pub db_id: Uuid,
     pub catalog: &'a SessionCatalog,
 }
 
@@ -317,15 +318,15 @@ impl<'a> RemotePhysicalPlanner<'a> {
                     Some(exec) if exec.preference == RuntimePreference::Local => {
                         did_modify = true;
 
-                        let broadcast_id = Uuid::new_v4();
-                        debug!(%broadcast_id, "creating send and recv execs");
+                        let work_id = Uuid::new_v4();
+                        debug!(%work_id, "creating send and recv execs");
 
                         let mut input = exec.child.clone();
 
                         // Create the receive exec. This will be executed on the
                         // remote node.
                         let recv = ClientExchangeRecvExec {
-                            broadcast_id,
+                            work_id,
                             schema: input.schema(),
                         };
 
@@ -338,7 +339,8 @@ impl<'a> RemotePhysicalPlanner<'a> {
                         // executed locally, and pushes batches over the
                         // broadcast endpoint.
                         let send = ClientExchangeSendExec {
-                            broadcast_id,
+                            db_id: self.db_id,
+                            work_id,
                             client: self.remote_client.clone(),
                             input,
                         };

@@ -2,8 +2,8 @@ use crate::errors::{Result, RpcsrvError};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use futures::{Stream, StreamExt};
-use protogen::gen::rpcsrv::service;
 use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
+use protogen::gen::rpcsrv::{common, service};
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromProxy, InitializeSessionResponse,
     SessionStorageConfig,
@@ -209,7 +209,7 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
 
     async fn broadcast_exchange(
         &self,
-        request: Request<Streaming<service::BroadcastExchangeRequest>>,
+        request: Request<Streaming<common::ExecutionBatchStream>>,
     ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
         info!("broadcast exchange (proxy)");
         let metadata = request.metadata();

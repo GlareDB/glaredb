@@ -13,7 +13,7 @@ use datafusion::physical_plan::{
 };
 use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
-use protogen::gen::rpcsrv::service;
+use protogen::gen::rpcsrv::common;
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
@@ -25,7 +25,8 @@ use uuid::Uuid;
 /// Execution plan for sending batches to a remote node.
 #[derive(Debug)]
 pub struct ClientExchangeSendExec {
-    pub broadcast_id: Uuid,
+    pub db_id: Uuid,
+    pub work_id: Uuid,
     pub client: RemoteSessionClient, // TODO: Extension
     pub input: Arc<dyn ExecutionPlan>,
 }
@@ -75,7 +76,7 @@ impl ExecutionPlan for ClientExchangeSendExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
-        debug!(%partition, %self.broadcast_id, "executing client exchange send exec");
+        debug!(%partition, %self.work_id, "executing client exchange send exec");
         // Supporting multiple partitions in the future should be easy enough,
         // just make more streams.
         if partition != 0 {
@@ -85,8 +86,7 @@ impl ExecutionPlan for ClientExchangeSendExec {
         }
 
         let input = self.input.execute(0, context)?;
-        let stream =
-            ClientExchangeSendStream::new(self.client.session_id(), self.broadcast_id, input);
+        let stream = ClientExchangeSendStream::new(self.db_id, self.work_id, input);
 
         let fut = flush_stream(self.client.clone(), stream);
         let stream = futures::stream::once(fut);
@@ -104,11 +104,7 @@ impl ExecutionPlan for ClientExchangeSendExec {
 
 impl DisplayAs for ClientExchangeSendExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "ClientExchangeInputSendExec: broadcast_id={}",
-            self.broadcast_id
-        )
+        write!(f, "ClientExchangeSendExec: work_id={}", self.work_id)
     }
 }
 
@@ -129,11 +125,11 @@ struct ClientExchangeSendResult {
 // TODO: There's some overlap with `ExecutionResponseBatchStream`, not sure if
 // we want to try to unify.
 struct ClientExchangeSendStream {
-    /// Remote ID of the session this stream is for.
-    session_id: Uuid,
+    /// Database this stream is for.
+    db_id: Uuid,
 
     /// Unique identifier for this stream.
-    broadcast_id: Uuid,
+    work_id: Uuid,
 
     /// The underlying batch stream.
     stream: SendableRecordBatchStream,
@@ -154,10 +150,10 @@ struct ClientExchangeSendStream {
 }
 
 impl ClientExchangeSendStream {
-    fn new(session_id: Uuid, broadcast_id: Uuid, stream: SendableRecordBatchStream) -> Self {
+    fn new(db_id: Uuid, work_id: Uuid, stream: SendableRecordBatchStream) -> Self {
         ClientExchangeSendStream {
-            session_id,
-            broadcast_id,
+            db_id,
+            work_id,
             stream,
             buf: Vec::new(),
             row_count: 0,
@@ -172,7 +168,7 @@ impl ClientExchangeSendStream {
         self.result.clone()
     }
 
-    fn write_batch(&mut self, batch: &RecordBatch) -> Result<service::BroadcastExchangeRequest> {
+    fn write_batch(&mut self, batch: &RecordBatch) -> Result<common::ExecutionBatchStream> {
         self.buf.clear();
 
         let schema = batch.schema();
@@ -182,10 +178,10 @@ impl ClientExchangeSendStream {
 
         let _ = writer.into_inner()?;
 
-        Ok(service::BroadcastExchangeRequest {
+        Ok(common::ExecutionBatchStream {
+            db_id: self.db_id.as_bytes().to_vec(),
+            work_id: self.work_id.as_bytes().to_vec(),
             arrow_ipc: self.buf.clone(),
-            session_id: self.session_id.as_bytes().to_vec(),
-            broadcast_input_id: self.broadcast_id.as_bytes().to_vec(),
         })
     }
 }
@@ -193,14 +189,13 @@ impl ClientExchangeSendStream {
 impl fmt::Debug for ClientExchangeSendStream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ClientExchangeSendStream")
-            .field("session_id", &self.session_id)
-            .field("broadcast_id", &self.broadcast_id)
+            .field("work_id", &self.work_id)
             .finish_non_exhaustive()
     }
 }
 
 impl Stream for ClientExchangeSendStream {
-    type Item = service::BroadcastExchangeRequest;
+    type Item = common::ExecutionBatchStream;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.stream.poll_next_unpin(cx) {

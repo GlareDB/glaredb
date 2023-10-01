@@ -1,7 +1,7 @@
 //! Coordinating/scheduling plan execution.
 use super::{CoordinatorError, Result};
 use datafusion::physical_plan::ExecutionPlan;
-use sqlexec::remote::exchange_stream::ExecutionBatchStream;
+use sqlexec::remote::batch_stream::ExecutionBatchStream;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;

@@ -49,9 +49,11 @@ message PhysicalPlanExecute {
 }
 
 message ExecutionBatchStream {
-  bytes work_id = 1; // UUID
+  bytes db_id = 1;   // UUID
+  bytes work_id = 2; // UUID
+
   // Input batches.
-  bytes arrow_ipc = 2;
+  bytes arrow_ipc = 3;
 
   // TODO: Error flag to indicate if the stream errored on the client side. We
   // don't need the error itself, we just need to know that we did error.

@@ -42,6 +42,7 @@ use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 /// switched out to one that's able to generate plans to send to remote
 /// contexts.
 pub struct LocalSessionContext {
+    database_id: Uuid,
     /// The execution client for remote sessions.
     exec_client: Option<RemoteSessionClient>,
     /// Database catalog.
@@ -74,6 +75,7 @@ impl LocalSessionContext {
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
     ) -> Result<LocalSessionContext> {
+        let database_id = vars.database_id();
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(&vars);
 
@@ -89,6 +91,7 @@ impl LocalSessionContext {
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(LocalSessionContext {
+            database_id,
             exec_client: None,
             catalog,
             tables: native_tables,
@@ -157,6 +160,10 @@ impl LocalSessionContext {
 
     pub fn get_metrics_mut(&mut self) -> &mut SessionMetrics {
         &mut self.metrics
+    }
+
+    pub fn get_database_id(&self) -> Uuid {
+        self.database_id
     }
 
     pub fn get_native_tables(&self) -> &NativeTableStorage {

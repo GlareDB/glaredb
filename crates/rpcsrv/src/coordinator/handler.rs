@@ -6,7 +6,7 @@ use dashmap::DashMap;
 use protogen::gen::rpcsrv::{common, coordinator};
 use sqlexec::{
     engine::{Engine, SessionStorageConfig},
-    remote::exchange_stream::ClientExchangeRecvStream,
+    remote::batch_stream::ExecutionBatchStream,
 };
 use std::{
     collections::HashMap,

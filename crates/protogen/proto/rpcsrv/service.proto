@@ -118,24 +118,6 @@ message RecordBatchResponse {
   bytes arrow_ipc = 1;
 }
 
-message BroadcastExchangeRequest {
-  // Session id.
-  bytes session_id = 1;
-  // Input id;
-  bytes broadcast_input_id = 2;
-  // Input batches.
-  bytes arrow_ipc = 3;
-
-  // TODO: Error flag to indicate if the stream errored on the client side. We
-  // don't need the error itself, we just need to know that we did error.
-  //
-  // Note that an error *inside* the message would indicated we had trouble
-  // reading from the stream or encoding to IPC. The client will already have
-  // access to the error.
-  //
-  // This would be used to just drop the stream to release resources.
-}
-
 message BroadcastExchangeResponse {}
 
 service ExecutionService {
@@ -152,6 +134,6 @@ service ExecutionService {
   rpc PhysicalPlanExecute(PhysicalPlanExecuteRequest)
       returns (stream RecordBatchResponse);
 
-  rpc BroadcastExchange(stream BroadcastExchangeRequest)
+  rpc BroadcastExchange(stream common.ExecutionBatchStream)
       returns (BroadcastExchangeResponse);
 }
