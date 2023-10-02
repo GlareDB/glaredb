@@ -16,9 +16,6 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct RemoteSession {
     /// Inner context.
-    ///
-    /// Wrapped in an Arc and Mutex since the lifetime of the session is not
-    /// tied to a single connection, and so needs to be tracked in a shared map.
     session: Arc<RemoteSessionContext>,
 }
 
@@ -33,12 +30,7 @@ impl RemoteSession {
     /// session.
     pub async fn get_refreshed_catalog_state(&self) -> Result<CatalogState> {
         self.session.refresh_catalog().await?;
-        Ok(self
-            .session
-            .get_session_catalog()
-            .get_state()
-            .as_ref()
-            .clone())
+        Ok(self.session.get_catalog_state().await)
     }
 
     pub async fn dispatch_access(

@@ -8,7 +8,8 @@ use datafusion::{
 use datafusion_ext::{functions::FuncParamValue, vars::SessionVars};
 use datasources::native::access::NativeTableStorage;
 use protogen::{
-    metastore::types::catalog::CatalogEntry, rpcsrv::types::service::ResolvedTableReference,
+    metastore::types::catalog::{CatalogEntry, CatalogState},
+    rpcsrv::types::service::ResolvedTableReference,
 };
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -86,8 +87,9 @@ impl RemoteSessionContext {
         &self.df_ctx
     }
 
-    pub fn get_session_catalog(&self) -> &SessionCatalog {
-        unimplemented!()
+    pub async fn get_catalog_state(&self) -> CatalogState {
+        let catalog = self.catalog.lock().await;
+        catalog.get_state().as_ref().clone()
     }
 
     pub async fn refresh_catalog(&self) -> Result<()> {

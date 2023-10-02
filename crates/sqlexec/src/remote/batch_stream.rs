@@ -18,7 +18,6 @@ use crate::errors::{ExecError, Result};
 ///
 /// The first message is used to get the work id. It's assumed that the
 /// stream contains batches all with the same schema.
-// TODO: Reuse this for dist exec (remove session id, broadcast id)
 #[derive(Debug)]
 pub struct ExecutionBatchStream {
     /// Unique work id for this stream.
