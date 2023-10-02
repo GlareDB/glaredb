@@ -1,4 +1,4 @@
-use crate::remote::exchange_stream::ClientExchangeRecvStream;
+use crate::remote::batch_stream::ExecutionBatchStream;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -24,7 +24,7 @@ use crate::remote::staged_stream::{ResolveClientStreamFut, StagedClientStreams};
 /// Expects the task context to have `StagedClientStreams` available.
 #[derive(Debug)]
 pub struct ClientExchangeRecvExec {
-    pub broadcast_id: Uuid,
+    pub work_id: Uuid,
     pub schema: Arc<Schema>,
 }
 
@@ -63,7 +63,7 @@ impl ExecutionPlan for ClientExchangeRecvExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
-        debug!(%partition, %self.broadcast_id, "executing client exchange recv exec");
+        debug!(%partition, %self.work_id, "executing client exchange recv exec");
         if partition != 0 {
             return Err(DataFusionError::Execution(
                 "ClientExchangeRecvExec only supports 1 partition".to_string(),
@@ -77,7 +77,7 @@ impl ExecutionPlan for ClientExchangeRecvExec {
                 DataFusionError::Execution("Missing staged streams extension".to_string())
             })?;
 
-        let stream_fut = streams.resolve_pending_stream(self.broadcast_id);
+        let stream_fut = streams.resolve_pending_stream(self.work_id);
         let stream = ClientExchangeStateStream::Pending {
             fut: stream_fut,
             schema: self.schema(),
@@ -93,11 +93,7 @@ impl ExecutionPlan for ClientExchangeRecvExec {
 
 impl DisplayAs for ClientExchangeRecvExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "ClientExchangeRecvExec: broadcast_id={}",
-            self.broadcast_id
-        )
+        write!(f, "ClientExchangeRecvExec: work_id={}", self.work_id)
     }
 }
 
@@ -110,7 +106,7 @@ enum ClientExchangeStateStream {
         schema: Arc<Schema>,
     },
     /// We have the stream.
-    Stream(ClientExchangeRecvStream),
+    Stream(ExecutionBatchStream),
 }
 
 impl Stream for ClientExchangeStateStream {

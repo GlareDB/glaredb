@@ -13,7 +13,7 @@ use super::{
 #[derive(Clone, PartialEq, Message)]
 pub struct ClientExchangeRecvExec {
     #[prost(bytes, tag = "1")]
-    pub broadcast_id: Vec<u8>, // UUID
+    pub work_id: Vec<u8>, // UUID
     #[prost(message, tag = "2")]
     pub schema: Option<Schema>,
 }

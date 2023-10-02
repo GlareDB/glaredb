@@ -41,6 +41,7 @@ syntax = "proto3";
 package rpcsrv.service;
 
 import "metastore/catalog.proto";
+import "rpcsrv/common.proto";
 
 // Storage config for the session.
 message SessionStorageConfig { optional string gcs_bucket = 1; }
@@ -97,7 +98,7 @@ message DispatchAccessRequest {
   repeated bytes args = 3;
   // gRPC doesn't really provide a way for Option<Vec<T>> or Option<Map<K,V>>
   // so we use a map and just check if it's empty or not in rust.
-  map < string, bytes > options = 4;
+  map<string, bytes> options = 4;
 }
 
 // Execute a physical plan and get the stream.
@@ -137,24 +138,6 @@ message ResolvedTableReference {
   }
 }
 
-message BroadcastExchangeRequest {
-  // Session id.
-  bytes session_id = 1;
-  // Input id;
-  bytes broadcast_input_id = 2;
-  // Input batches.
-  bytes arrow_ipc = 3;
-
-  // TODO: Error flag to indicate if the stream errored on the client side. We
-  // don't need the error itself, we just need to know that we did error.
-  //
-  // Note that an error *inside* the message would indicated we had trouble
-  // reading from the stream or encoding to IPC. The client will already have
-  // access to the error.
-  //
-  // This would be used to just drop the stream to release resources.
-}
-
 message BroadcastExchangeResponse {}
 
 message CloseSessionRequest {
@@ -178,7 +161,7 @@ service ExecutionService {
   rpc PhysicalPlanExecute(PhysicalPlanExecuteRequest)
       returns (stream RecordBatchResponse);
 
-  rpc BroadcastExchange(stream BroadcastExchangeRequest)
+  rpc BroadcastExchange(stream common.ExecutionResultBatch)
       returns (BroadcastExchangeResponse);
 
   // Close the remote session.

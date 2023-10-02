@@ -10,7 +10,8 @@ use datafusion::{arrow::ipc::writer::FileWriter as IpcFileWriter, variable::VarT
 use datafusion_ext::vars::SessionVars;
 use futures::{Stream, StreamExt};
 use protogen::{
-    gen::rpcsrv::service::{self, BroadcastExchangeResponse},
+    gen::rpcsrv::common,
+    gen::rpcsrv::service,
     rpcsrv::types::service::{
         CloseSessionRequest, CloseSessionResponse, DispatchAccessRequest, FetchCatalogRequest,
         FetchCatalogResponse, InitializeSessionRequest, InitializeSessionResponse,
@@ -19,7 +20,7 @@ use protogen::{
 };
 use sqlexec::{
     engine::{Engine, SessionStorageConfig},
-    remote::exchange_stream::ClientExchangeRecvStream,
+    remote::batch_stream::ExecutionBatchStream,
 };
 use std::{
     collections::HashMap,
@@ -165,12 +166,12 @@ impl RpcHandler {
 
     async fn broadcast_exchange_inner(
         &self,
-        req: Streaming<service::BroadcastExchangeRequest>,
-    ) -> Result<BroadcastExchangeResponse> {
-        let stream = ClientExchangeRecvStream::try_new(req).await?;
+        req: Streaming<common::ExecutionResultBatch>,
+    ) -> Result<service::BroadcastExchangeResponse> {
+        let stream = ExecutionBatchStream::try_new(req).await?;
         let session_id = stream.session_id();
 
-        info!(session_id=%session_id, broadcast_id=%stream.broadcast_id(), "beginning client exchange stream");
+        info!(session_id=%session_id, work_id=%stream.work_id(), "beginning client exchange stream");
 
         let session = self.get_session(session_id)?;
 
@@ -178,7 +179,7 @@ impl RpcHandler {
 
         // TODO: We might need to await here for stream completion.
 
-        Ok(BroadcastExchangeResponse {})
+        Ok(service::BroadcastExchangeResponse {})
     }
 
     fn close_session_inner(&self, req: CloseSessionRequest) -> Result<CloseSessionResponse> {
@@ -242,7 +243,7 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
 
     async fn broadcast_exchange(
         &self,
-        request: Request<Streaming<service::BroadcastExchangeRequest>>,
+        request: Request<Streaming<common::ExecutionResultBatch>>,
     ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
         let resp = self.broadcast_exchange_inner(request.into_inner()).await?;
         Ok(Response::new(resp))

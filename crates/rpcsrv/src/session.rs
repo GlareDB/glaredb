@@ -7,7 +7,7 @@ use datafusion_proto::protobuf::PhysicalPlanNode;
 use protogen::metastore::types::catalog::CatalogState;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
 use sqlexec::context::remote::RemoteSessionContext;
-use sqlexec::remote::exchange_stream::ClientExchangeRecvStream;
+use sqlexec::remote::batch_stream::ExecutionBatchStream;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -68,10 +68,10 @@ impl RemoteSession {
         Ok(stream)
     }
 
-    pub async fn register_broadcast_stream(&self, stream: ClientExchangeRecvStream) -> Result<()> {
+    pub async fn register_broadcast_stream(&self, stream: ExecutionBatchStream) -> Result<()> {
         let session = self.session.lock().await;
         let streams = session.staged_streams();
-        streams.put_stream(stream.broadcast_id(), stream);
+        streams.put_stream(stream.work_id(), stream);
         Ok(())
     }
 }
