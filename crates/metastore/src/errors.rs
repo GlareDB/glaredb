@@ -88,9 +88,6 @@ pub enum MetastoreError {
     #[error(transparent)]
     Validation(#[from] sqlbuiltins::validation::ValidationError),
 
-    #[error("{0}")]
-    String(String),
-
     #[error(transparent)]
     TonicTransportError(#[from] tonic::transport::Error),
 }

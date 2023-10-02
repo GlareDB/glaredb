@@ -87,7 +87,7 @@ impl ObjectStore for SharedObjectStore {
         self.inner.copy(from, to).await
     }
 
-    /// Tries to perform a copy-if-not-exists but on failure falls back to plan copy if path is empty
+    /// Tries to perform a copy-if-not-exists but on failure falls back to plain copy if path is empty
     async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
         match self.inner.copy_if_not_exists(from, to).await {
             Ok(_) => Ok(()),

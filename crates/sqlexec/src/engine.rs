@@ -6,7 +6,6 @@ use crate::session::Session;
 use std::collections::HashMap;
 
 use object_store::aws::AmazonS3ConfigKey;
-use object_store::gcp::GoogleConfigKey;
 use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
@@ -72,23 +71,24 @@ impl EngineStorageConfig {
         Ok(match datasource_url {
             DatasourceUrl::File(path) => EngineStorageConfig::Local { path },
             DatasourceUrl::Url(ref url) => {
-                // Buket potentially provided as a part of the location URL, try to extract it.
-                let bucket = url.host_str().map(|h| h.to_string());
-
                 let url_type = datasource_url.datasource_url_type();
                 match url_type {
                     DatasourceUrlType::Gcs => {
                         let service_account_path =
                             opts.get("service_account_path").cloned().unwrap_or_else(|| {
-                                std::env::var(GoogleConfigKey::ServiceAccount.as_ref().to_uppercase())
+                                std::env::var("GOOGLE_APPLICATION_CREDENTIALS")
                                     .expect(
-                                        "'service_account_path' in provided storage options or 'GOOGLE_SERVICE_ACCOUNT' as env var",
+                                        "'service_account_path' in provided storage options or 'GOOGLE_APPLICATION_CREDENTIALS' as env var",
                                     )
                             });
 
                         let service_account_key = fs::read_to_string(service_account_path)?;
 
-                        let bucket = bucket.or(opts.get("bucket").cloned());
+                        // Buket potentially provided as a part of the location URL, try to extract it.
+                        let bucket = opts
+                            .get("bucket")
+                            .cloned()
+                            .or(url.host_str().map(|h| h.to_string()));
                         EngineStorageConfig::Gcs {
                             service_account_key,
                             bucket,
@@ -116,7 +116,9 @@ impl EngineStorageConfig {
                             endpoint = Some(location.clone());
                             opts.get("bucket").cloned()
                         } else {
-                            bucket.or(opts.get("bucket").cloned())
+                            opts.get("bucket")
+                                .cloned()
+                                .or(url.host_str().map(|h| h.to_string()))
                         };
 
                         EngineStorageConfig::S3 {

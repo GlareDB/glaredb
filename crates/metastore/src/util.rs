@@ -41,14 +41,14 @@ impl MetastoreClientMode {
             Self::LocalDisk { path } => {
                 if !path.exists() {
                     fs::create_dir_all(&path).map_err(|e| {
-                        MetastoreError::String(format!(
+                        MetastoreError::FailedInProcessStartup(format!(
                             "Failed creating directory at path {}: {e}",
                             path.to_string_lossy()
                         ))
                     })?;
                 }
                 if path.exists() && !path.is_dir() {
-                    return Err(MetastoreError::String(format!(
+                    return Err(MetastoreError::FailedInProcessStartup(format!(
                         "Error creating metastore client, path {} is not a valid directory",
                         path.to_string_lossy()
                     )));
