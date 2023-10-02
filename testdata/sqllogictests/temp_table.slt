@@ -3,8 +3,7 @@
 statement ok
 create temp table abc (a int, b int, c int);
 
-statement ok
-create or replace temp table abc (a int, b int, c int);
+
 
 query III
 select * from abc;
@@ -72,7 +71,18 @@ select a, b, c from abc;
 9	8	7
 
 statement ok
+create or replace temp table abc (a int, b int, c int, d int);
+
+statement ok
 create temp table t1 as select * from generate_series(1, 5, 2);
+
+statement ok
+insert into abc values (9, 8, 7, 6);
+
+query IIII rowsort
+select a, b, c, d from abc limit 1;
+----
+9	8	7 6
 
 query I rowsort
 select * from t1;

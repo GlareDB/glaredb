@@ -9,6 +9,10 @@ set search_path to create_table_schema;
 statement ok
 create table t1 (a int, b int);
 
+query II
+select * from t1;
+----
+
 statement ok
 create or replace table t1 (a int, b int);
 
@@ -51,3 +55,15 @@ query I
 select id from ctas2 order by id limit 1;
 ----
 1
+
+
+statement ok
+create or replace table t1 (a int, b int, c int);
+
+statement ok
+insert into t1 values (1, 2, 3);
+
+query III rowsort
+select * from t1
+----
+1  2  3
