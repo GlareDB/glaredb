@@ -784,6 +784,7 @@ impl State {
 
                 // Create new entry
                 let oid = self.next_oid();
+
                 let ent = TableEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Table,
@@ -962,7 +963,7 @@ impl State {
     /// Errors depending on the create policy.
     fn try_insert_table_namespace(
         &mut self,
-        ent: CatalogEntry,
+        mut ent: CatalogEntry,
         schema_id: u32,
         oid: u32,
         create_policy: CreatePolicy,
@@ -980,10 +981,23 @@ impl State {
                 self.entries.insert(oid, ent)?;
             }
             CreatePolicy::CreateOrReplace => {
-                if let Some(existing_oid) = objs.tables.insert(ent.get_meta().name.clone(), oid) {
+                if objs.tables.contains_key(&ent.get_meta().name) {
+                    let meta = ent.get_meta_mut();
+
+                    let existing_oid = objs.tables[&meta.name];
+
+                    // we decrement the oid counter because we're replacing an existing object
+                    self.oid_counter -= 1;
+
+                    // replace the oid in the entry with the existing oid
+                    meta.id = existing_oid;
+
                     self.entries.remove(&existing_oid)?;
+                    self.entries.insert(existing_oid, ent)?;
+                } else {
+                    objs.tables.insert(ent.get_meta().name.clone(), oid);
+                    self.entries.insert(oid, ent)?;
                 }
-                self.entries.insert(oid, ent)?;
             }
             CreatePolicy::Create => {
                 if objs.tables.contains_key(&ent.get_meta().name) {
