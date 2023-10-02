@@ -451,9 +451,7 @@ impl<'a> ExternalDispatcher<'a> {
         let objects = accessor.list_globbed(location).await?;
 
         let state = self.df_ctx.state();
-        let provider = accessor
-            .into_table_provider(&state, ft, objects, /* predicate_pushdown = */ true)
-            .await?;
+        let provider = accessor.into_table_provider(&state, ft, objects).await?;
 
         Ok(provider)
     }

@@ -9,6 +9,7 @@ use datafusion::logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableTy
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::Expr;
+use datafusion_ext::metrics::DataSourceMetricsExecAdapter;
 use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::delete::DeleteBuilder;
 use deltalake::operations::update::UpdateBuilder;
@@ -296,7 +297,8 @@ impl TableProvider for NativeTable {
             let schema = TableProvider::schema(&self.delta);
             Ok(Arc::new(EmptyExec::new(false, schema)))
         } else {
-            self.delta.scan(session, projection, filters, limit).await
+            let plan = self.delta.scan(session, projection, filters, limit).await?;
+            Ok(Arc::new(DataSourceMetricsExecAdapter::new(plan)))
         }
     }
 

@@ -2,6 +2,7 @@ use datafusion::arrow::datatypes::Schema;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::MetricsSet;
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
@@ -68,6 +69,10 @@ impl ExecutionPlan for RuntimeGroupExec {
 
     fn statistics(&self) -> Statistics {
         self.child.statistics()
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        None
     }
 }
 
