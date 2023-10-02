@@ -55,7 +55,15 @@ impl ComputeServer {
         fs::create_dir_all(&env_tmp)?;
 
         // Connect to metastore.
-        let mode = MetastoreClientMode::new_from_options(metastore_addr, data_dir.clone())?;
+        let mode = match (metastore_addr, &data_dir) {
+            (Some(_), Some(_)) => {
+                return Err(anyhow!(
+                    "Only one of metastore address or metastore path may be provided."
+                ))
+            }
+            (Some(addr), None) => MetastoreClientMode::Remote { addr },
+            _ => MetastoreClientMode::new_local(data_dir.clone()),
+        };
         let metastore_client = mode.into_client().await?;
 
         let tracker = match segment_key {

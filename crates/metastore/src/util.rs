@@ -1,5 +1,5 @@
+use crate::errors::{MetastoreError, Result};
 use crate::local::{start_inprocess_inmemory, start_inprocess_local};
-use anyhow::{anyhow, Result};
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
 use std::path::PathBuf;
 use std::{fs, time::Duration};
@@ -24,15 +24,6 @@ impl MetastoreClientMode {
             None => MetastoreClientMode::LocalInMemory,
         }
     }
-    pub fn new_from_options(addr: Option<String>, local_path: Option<PathBuf>) -> Result<Self> {
-        match (addr, &local_path) {
-            (Some(_), Some(_)) => Err(anyhow!(
-                "Only one of metastore address or metastore path may be provided."
-            )),
-            (Some(addr), None) => Ok(MetastoreClientMode::Remote { addr }),
-            _ => Ok(Self::new_local(local_path)),
-        }
-    }
 
     /// Create a new metastore client.
     pub async fn into_client(self) -> Result<MetastoreServiceClient<Channel>> {
@@ -49,14 +40,22 @@ impl MetastoreClientMode {
             }
             Self::LocalDisk { path } => {
                 if !path.exists() {
-                    fs::create_dir_all(&path)?;
+                    fs::create_dir_all(&path).map_err(|e| {
+                        MetastoreError::String(format!(
+                            "Failed creating directory at path {}: {e}",
+                            path.to_string_lossy()
+                        ))
+                    })?;
                 }
                 if path.exists() && !path.is_dir() {
-                    return Err(anyhow!("Path is not a valid directory"));
+                    return Err(MetastoreError::String(format!(
+                        "Error creating metastore client, path {} is not a valid directory",
+                        path.to_string_lossy()
+                    )));
                 }
-                Ok(start_inprocess_local(path).await?)
+                start_inprocess_local(path).await
             }
-            Self::LocalInMemory => Ok(start_inprocess_inmemory().await?),
+            Self::LocalInMemory => start_inprocess_inmemory().await,
         }
     }
 }

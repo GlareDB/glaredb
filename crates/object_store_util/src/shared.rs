@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
@@ -88,19 +87,17 @@ impl ObjectStore for SharedObjectStore {
         self.inner.copy(from, to).await
     }
 
+    /// Tries to perform a copy-if-not-exists but on failure falls back to plan copy if path is empty
     async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
         match self.inner.copy_if_not_exists(from, to).await {
             Ok(_) => Ok(()),
-            Err(ObjectStoreError::NotSupported { .. }) => {
+            Err(ObjectStoreError::NotSupported { source }) => {
                 // Go with the poor man's copy-if-not-exists: try a regular copy if the path doesn't exist
                 match self.head(to).await {
                     Ok(_) => {
                         return Err(ObjectStoreError::AlreadyExists {
                             path: to.to_string(),
-                            source: anyhow!(
-                            "Object at path {to} already exists, can't perform copy-if-not-exists"
-                        )
-                            .into(),
+                            source,
                         })
                     }
                     Err(ObjectStoreError::NotFound { .. }) => self.copy(from, to).await,
