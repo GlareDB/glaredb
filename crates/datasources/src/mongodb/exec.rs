@@ -7,10 +7,12 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{Stream, StreamExt};
 use mongodb::bson::{Document, RawDocumentBuf};
 use mongodb::{options::FindOptions, Collection};
@@ -29,6 +31,7 @@ pub struct MongoBsonExec {
     schema: Arc<ArrowSchema>,
     collection: Collection<RawDocumentBuf>,
     limit: Option<usize>,
+    metrics: ExecutionPlanMetricsSet,
 }
 
 impl MongoBsonExec {
@@ -41,6 +44,7 @@ impl MongoBsonExec {
             schema,
             collection,
             limit,
+            metrics: ExecutionPlanMetricsSet::new(),
         }
     }
 }
@@ -77,18 +81,23 @@ impl ExecutionPlan for MongoBsonExec {
 
     fn execute(
         &self,
-        _partition: usize,
+        partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        Ok(Box::pin(BsonStream::new(
-            self.schema.clone(),
-            self.collection.clone(),
-            self.limit,
+        let stream = BsonStream::new(self.schema.clone(), self.collection.clone(), self.limit);
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            stream,
+            partition,
+            &self.metrics,
         )))
     }
 
     fn statistics(&self) -> Statistics {
         Statistics::default()
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
     }
 }
 

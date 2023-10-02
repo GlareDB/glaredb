@@ -17,6 +17,7 @@ use datafusion::physical_plan::union::InterleaveExec;
 use datafusion::physical_plan::values::ValuesExec;
 use datafusion::physical_plan::{displayable, ExecutionPlan};
 use datafusion::prelude::{Expr, SessionContext};
+use datafusion_ext::metrics::DataSourceMetricsExecAdapter;
 use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use datafusion_proto::logical_plan::from_proto::parse_expr;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
@@ -714,6 +715,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     Arc::new((&schema).try_into()?),
                 ))
             }
+            proto::ExecutionPlanExtensionType::DataSourceMetricsExecAdapter(_ext) => {
+                Arc::new(DataSourceMetricsExecAdapter::new(
+                    inputs
+                        .get(0)
+                        .ok_or_else(|| DataFusionError::Internal("missing child".to_string()))?
+                        .clone(),
+                ))
+            }
         };
 
         Ok(plan)
@@ -978,6 +987,10 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 show_statistics: true,
                 schema: Some(exec.schema().try_into()?),
             })
+        } else if let Some(_exec) = node.as_any().downcast_ref::<DataSourceMetricsExecAdapter>() {
+            proto::ExecutionPlanExtensionType::DataSourceMetricsExecAdapter(
+                proto::DataSourceMetricsExecAdapter {},
+            )
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {}",

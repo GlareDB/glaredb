@@ -21,12 +21,14 @@ use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{Stream, StreamExt, TryStreamExt};
 use mysql_async::consts::{ColumnFlags, ColumnType};
 use mysql_async::prelude::Queryable;
@@ -369,6 +371,7 @@ impl TableProvider for MysqlTableProvider {
             accessor: self.accessor.clone(),
             query,
             arrow_schema: projected_schema,
+            metrics: ExecutionPlanMetricsSet::new(),
         }))
     }
 }
@@ -380,6 +383,7 @@ struct MysqlExec {
     accessor: Arc<MysqlAccessor>,
     query: String,
     arrow_schema: ArrowSchemaRef,
+    metrics: ExecutionPlanMetricsSet,
 }
 
 impl ExecutionPlan for MysqlExec {
@@ -414,7 +418,7 @@ impl ExecutionPlan for MysqlExec {
 
     fn execute(
         &self,
-        _partition: usize,
+        partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         let stream = MysqlQueryStream::open(
@@ -424,11 +428,19 @@ impl ExecutionPlan for MysqlExec {
         )
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-        Ok(Box::pin(stream))
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            stream,
+            partition,
+            &self.metrics,
+        )))
     }
 
     fn statistics(&self) -> Statistics {
         Statistics::default()
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
     }
 }
 

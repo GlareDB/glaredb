@@ -19,12 +19,15 @@ use datafusion::execution::context::SessionState;
 use datafusion::execution::context::TaskContext;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
+use datafusion::physical_plan::metrics::MetricsSet;
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use protogen::metastore::types::options::TunnelOptions;
@@ -700,6 +703,7 @@ pub struct PostgresBinaryCopyExec {
     pg_types: Arc<Vec<PostgresType>>,
     arrow_schema: ArrowSchemaRef,
     opener: StreamOpener,
+    metrics: ExecutionPlanMetricsSet,
 }
 
 impl PostgresBinaryCopyExec {
@@ -719,6 +723,7 @@ impl PostgresBinaryCopyExec {
                     pg_types: Arc::new(pg_types),
                     arrow_schema: Arc::new(arrow_schema),
                     opener,
+                    metrics: ExecutionPlanMetricsSet::new(),
                 })
             }
             BinaryCopyConfig::State {
@@ -732,6 +737,7 @@ impl PostgresBinaryCopyExec {
                     pg_types,
                     arrow_schema,
                     opener,
+                    metrics: ExecutionPlanMetricsSet::new(),
                 })
             }
         }
@@ -764,13 +770,13 @@ impl ExecutionPlan for PostgresBinaryCopyExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Execution(
-            "cannot replace children for BinaryCopyExec".to_string(),
+            "cannot replace children for PostgresBinaryCopyExec".to_string(),
         ))
     }
 
     fn execute(
         &self,
-        _partition: usize,
+        partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         let stream = ChunkStream {
@@ -779,23 +785,31 @@ impl ExecutionPlan for PostgresBinaryCopyExec {
             opener: self.opener.clone(),
             arrow_schema: self.arrow_schema.clone(),
         };
-        Ok(Box::pin(stream))
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            stream,
+            partition,
+            &self.metrics,
+        )))
     }
 
     fn statistics(&self) -> Statistics {
         Statistics::default()
     }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
+    }
 }
 
 impl DisplayAs for PostgresBinaryCopyExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "BinaryCopyExec",)
+        write!(f, "PostgresBinaryCopyExec",)
     }
 }
 
 impl fmt::Debug for PostgresBinaryCopyExec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BinaryCopyExec")
+        f.debug_struct("PostgresBinaryCopyExec")
             .field("pg_types", &self.pg_types)
             .field("arrow_schema", &self.arrow_schema)
             .finish()
