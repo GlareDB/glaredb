@@ -18,7 +18,10 @@ use crate::metastore::catalog::SessionCatalog;
 use datafusion_ext::vars::SessionVars;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::native::access::NativeTableStorage;
+use metastore::local::start_inprocess;
+use metastore::util::MetastoreClientMode;
 use object_store_util::conf::StorageConfig;
+use object_store_util::shared::SharedObjectStore;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
 use telemetry::Tracker;
 use tonic::transport::Channel;
@@ -229,6 +232,49 @@ impl Engine {
             session_counter: Arc::new(AtomicU64::new(0)),
             background_jobs: JobRunner::new(Default::default()),
         })
+    }
+
+    /// Create a new `Engine` instance from the provided storage configuration with a in-process metastore
+    pub async fn from_storage_options(
+        location: &String,
+        opts: &HashMap<String, String>,
+    ) -> Result<Engine> {
+        let conf = EngineStorageConfig::try_from_options(location, opts.clone())?;
+        let store = conf
+            .storage_config(&SessionStorageConfig::default())?
+            .new_object_store()?;
+
+        // Wrap up the store with a shared one, so that we get to use the non-atomic
+        // copy-if-not-exists that is defined there when initializing the lease
+        let store = SharedObjectStore::new(store);
+        let client = start_inprocess(Arc::new(store)).await.map_err(|e| {
+            ExecError::String(format!("Failed to start an in-process metastore: {e}"))
+        })?;
+
+        Engine::new(client, conf, Arc::new(Tracker::Nop), None).await
+    }
+
+    /// Create a new `Engine` instance from the provided data directory. This can be removed once the
+    /// `--data-dir` option gets consolidated into the storage options above.
+    pub async fn from_data_dir(data_dir: &Option<PathBuf>) -> Result<Engine> {
+        let conf = match data_dir {
+            Some(path) => EngineStorageConfig::Local { path: path.clone() },
+            None => EngineStorageConfig::Memory,
+        };
+
+        let mode = MetastoreClientMode::new_local(data_dir.clone());
+        let client = mode.into_client().await.map_err(|e| {
+            ExecError::String(format!(
+                "Failed creating a local metastore client for data dir {data_dir:?}: {e}"
+            ))
+        })?;
+
+        Engine::new(client, conf, Arc::new(Tracker::Nop), None).await
+    }
+
+    pub fn with_spill_path(mut self, spill_path: Option<PathBuf>) -> Engine {
+        self.spill_path = spill_path;
+        self
     }
 
     /// Attempts to shutdown the engine gracefully.

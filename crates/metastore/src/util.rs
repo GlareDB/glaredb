@@ -1,5 +1,5 @@
+use crate::local::{start_inprocess_inmemory, start_inprocess_local};
 use anyhow::{anyhow, Result};
-use metastore::local::{start_inprocess_inmemory, start_inprocess_local};
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
 use std::path::PathBuf;
 use std::{fs, time::Duration};
@@ -18,10 +18,10 @@ pub enum MetastoreClientMode {
 }
 
 impl MetastoreClientMode {
-    pub fn new_local(local_path: Option<PathBuf>) -> Result<Self> {
+    pub fn new_local(local_path: Option<PathBuf>) -> Self {
         match local_path {
-            Some(path) => Ok(MetastoreClientMode::LocalDisk { path }),
-            None => Ok(MetastoreClientMode::LocalInMemory),
+            Some(path) => MetastoreClientMode::LocalDisk { path },
+            None => MetastoreClientMode::LocalInMemory,
         }
     }
     pub fn new_from_options(addr: Option<String>, local_path: Option<PathBuf>) -> Result<Self> {
@@ -30,7 +30,7 @@ impl MetastoreClientMode {
                 "Only one of metastore address or metastore path may be provided."
             )),
             (Some(addr), None) => Ok(MetastoreClientMode::Remote { addr }),
-            _ => Self::new_local(local_path),
+            _ => Ok(Self::new_local(local_path)),
         }
     }
 

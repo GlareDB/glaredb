@@ -1,5 +1,5 @@
-use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
+use metastore::util::MetastoreClientMode;
 use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
