@@ -2,7 +2,7 @@ name: Build Release
 
 on:
   schedule:
-    # Run every day at 12:00
+    # Run every day at 12:00 UTC / 9:00 ET
     - cron: 0 12 * * *
   workflow_dispatch:
   push:
