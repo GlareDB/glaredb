@@ -132,3 +132,16 @@ query I
 select id from file_view order by id limit 1;
 ----
 1
+
+# Ensure multiple catalog entries are not created
+
+statement ok
+create view v as select 1;
+
+statement ok
+create or replace view v as select 2;
+
+query I
+select count(*) from glare_catalog.views where builtin = false and view_name = 'v';
+----
+1
