@@ -130,7 +130,7 @@ impl NativeTableStorage {
     }
 
     pub async fn delete_table(&self, table: &TableEntry) -> Result<()> {
-        let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.name);
+        let prefix = make_prefix(self.db_id, table.meta.id);
         let path: ObjectStorePath = match &self.conf {
             StorageConfig::Gcs { bucket, .. } => format!("gs://{}/{}", bucket, prefix).into(),
             StorageConfig::Memory => format!("memory://{}", prefix).into(),
@@ -145,7 +145,7 @@ impl NativeTableStorage {
     }
 
     pub async fn table_exists(&self, table: &TableEntry) -> Result<bool> {
-        let path = format!("databases/{}/tables/{}", self.db_id, table.meta.name).into();
+        let path = make_prefix(self.db_id, table.meta.id).into();
         let mut x = self.store.list(Some(&path)).await?;
         Ok(x.next().await.is_some())
     }
@@ -162,7 +162,7 @@ impl NativeTableStorage {
         &self,
         table: &TableEntry,
     ) -> Result<Arc<DeltaObjectStore>> {
-        let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.name);
+        let prefix = make_prefix(self.db_id, table.meta.id);
 
         let url = match &self.conf {
             StorageConfig::S3 {
@@ -246,6 +246,10 @@ impl NativeTableStorage {
         let updated_rows = builder.await?.1.num_updated_rows;
         Ok(updated_rows)
     }
+}
+
+fn make_prefix(db_id: Uuid, tbl_id: u32) -> String {
+    format!("databases/{}/tables/{}", db_id, tbl_id)
 }
 
 #[derive(Debug)]
