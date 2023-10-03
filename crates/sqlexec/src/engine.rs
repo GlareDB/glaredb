@@ -84,7 +84,7 @@ impl EngineStorageConfig {
 
                         let service_account_key = fs::read_to_string(service_account_path)?;
 
-                        // Buket potentially provided as a part of the location URL, try to extract it.
+                        // Bucket potentially provided as a part of the location URL, try to extract it.
                         let bucket = opts
                             .get("bucket")
                             .cloned()
