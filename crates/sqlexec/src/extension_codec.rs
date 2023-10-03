@@ -502,6 +502,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                         })?
                         .into(),
                     if_not_exists: ext.if_not_exists,
+                    or_replace: ext.or_replace,
                     arrow_schema: Arc::new(schema),
                     source: inputs.get(0).cloned(),
                 })
@@ -520,6 +521,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                         })?
                         .into(),
                     if_not_exists: ext.if_not_exists,
+                    or_replace: ext.or_replace,
                     arrow_schema: Arc::new(schema),
                     source: inputs.get(0).cloned(),
                 })
@@ -778,12 +780,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 catalog_version: exec.catalog_version,
                 tbl_reference: Some(exec.tbl_reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
+                or_replace: exec.or_replace,
                 arrow_schema: Some(exec.arrow_schema.clone().try_into()?),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateTempTableExec>() {
             proto::ExecutionPlanExtensionType::CreateTempTableExec(proto::CreateTempTableExec {
                 tbl_reference: Some(exec.tbl_reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
+                or_replace: exec.or_replace,
                 arrow_schema: Some(exec.arrow_schema.clone().try_into()?),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<AlterDatabaseRenameExec>() {

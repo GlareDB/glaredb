@@ -133,25 +133,28 @@ mod tests {
 
         // Add some tables inside the temp dir to get a non-zero storage size.
         storage
-            .create_table(&TableEntry {
-                meta: EntryMeta {
-                    entry_type: EntryType::Table,
-                    id: 12345,
-                    parent: 54321,
-                    name: "table_1".to_string(),
-                    builtin: false,
-                    external: false,
-                    is_temp: false,
+            .create_table(
+                &TableEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Table,
+                        id: 12345,
+                        parent: 54321,
+                        name: "table_1".to_string(),
+                        builtin: false,
+                        external: false,
+                        is_temp: false,
+                    },
+                    options: TableOptions::Internal(TableOptionsInternal {
+                        columns: vec![InternalColumnDefinition {
+                            name: "id".to_string(),
+                            nullable: true,
+                            arrow_type: DataType::Int32,
+                        }],
+                    }),
+                    tunnel_id: None,
                 },
-                options: TableOptions::Internal(TableOptionsInternal {
-                    columns: vec![InternalColumnDefinition {
-                        name: "id".to_string(),
-                        nullable: true,
-                        arrow_type: DataType::Int32,
-                    }],
-                }),
-                tunnel_id: None,
-            })
+                false,
+            )
             .await
             .unwrap();
 

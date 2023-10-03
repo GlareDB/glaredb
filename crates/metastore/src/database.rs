@@ -238,7 +238,6 @@ impl DatabaseEntries {
 
         Ok(self.0.remove(oid))
     }
-
     /// Insert an entry.
     fn insert(&mut self, oid: u32, ent: CatalogEntry) -> Result<Option<CatalogEntry>> {
         if self.0.len() > MAX_DATABASE_OBJECTS {
@@ -501,6 +500,15 @@ impl State {
         oid
     }
 
+    /// get existing entry's id, or create a new one
+    fn get_or_next_oid(&mut self, schema_id: u32, name: &str) -> u32 {
+        self.schema_objects
+            .get(&schema_id)
+            .and_then(|objs| objs.tables.get(name))
+            .copied()
+            .unwrap_or_else(|| self.next_oid())
+    }
+
     /// Execute mutations against the state.
     fn mutate(&mut self, mutations: Vec<Mutation>) -> Result<()> {
         // We don't care if this overflows. When comparing versions, we just
@@ -754,7 +762,8 @@ impl State {
                 let schema_id = self.get_schema_id(&create_view.schema)?;
 
                 // Create new entry
-                let oid = self.next_oid();
+                let oid = self.get_or_next_oid(schema_id, &create_view.name);
+
                 let ent = ViewEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::View,
@@ -782,8 +791,9 @@ impl State {
 
                 let schema_id = self.get_schema_id(&create_table.schema)?;
 
+                let oid = self.get_or_next_oid(schema_id, &create_table.name);
+
                 // Create new entry
-                let oid = self.next_oid();
                 let ent = TableEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Table,
@@ -797,8 +807,9 @@ impl State {
                     options: TableOptions::Internal(create_table.options),
                     tunnel_id: None,
                 };
-
-                let policy = if create_table.if_not_exists {
+                let policy = if create_table.or_replace {
+                    CreatePolicy::CreateOrReplace
+                } else if create_table.if_not_exists {
                     CreatePolicy::CreateIfNotExists
                 } else {
                     CreatePolicy::Create
@@ -978,10 +989,12 @@ impl State {
                 self.entries.insert(oid, ent)?;
             }
             CreatePolicy::CreateOrReplace => {
-                if let Some(existing_oid) = objs.tables.insert(ent.get_meta().name.clone(), oid) {
-                    self.entries.remove(&existing_oid)?;
+                if objs.tables.contains_key(&ent.get_meta().name) {
+                    self.entries.insert(oid, ent)?;
+                } else {
+                    objs.tables.insert(ent.get_meta().name.clone(), oid);
+                    self.entries.insert(oid, ent)?;
                 }
-                self.entries.insert(oid, ent)?;
             }
             CreatePolicy::Create => {
                 if objs.tables.contains_key(&ent.get_meta().name) {

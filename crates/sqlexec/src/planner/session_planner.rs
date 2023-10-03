@@ -690,6 +690,7 @@ impl<'a> SessionPlanner<'a> {
             ast::Statement::CreateTable {
                 external: false,
                 if_not_exists,
+                or_replace,
                 engine: None,
                 name,
                 columns,
@@ -768,6 +769,7 @@ impl<'a> SessionPlanner<'a> {
                         },
                         schema: df_schema,
                         if_not_exists,
+                        or_replace,
                         source,
                     };
 
@@ -779,6 +781,7 @@ impl<'a> SessionPlanner<'a> {
                         tbl_reference: self.ctx.resolve_table_ref(table_name)?,
                         schema: df_schema,
                         if_not_exists,
+                        or_replace,
                         source,
                     };
                     Ok(create_table.into_logical_plan())

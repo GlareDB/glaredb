@@ -14,6 +14,13 @@ select * from t1;
 ----
 
 statement ok
+create or replace table t1 (a int, b int);
+
+query II
+select * from t1;
+----
+
+statement ok
 insert into t1 values (1, 2);
 
 query II rowsort
@@ -46,5 +53,28 @@ create table ctas2 as select * from '../../testdata/parquet/userdata1.parquet';
 
 query I
 select id from ctas2 order by id limit 1;
+----
+1
+
+
+statement ok
+create or replace table t1 (a int, b int, c int);
+
+statement ok
+insert into t1 values (1, 2, 3);
+
+query III rowsort
+select * from t1
+----
+1  2  3
+
+
+# Ensure multiple catalog entries are not created
+
+statement ok
+create or replace table t1 (a int, b int, d int);
+
+query I
+select count(*) from glare_catalog.tables where builtin = false and table_name = 't1';
 ----
 1

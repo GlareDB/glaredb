@@ -13,6 +13,7 @@ use super::*;
 pub struct CreateTempTableExec {
     pub tbl_reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
+    pub or_replace: bool,
     pub arrow_schema: SchemaRef,
     pub source: Option<Arc<dyn ExecutionPlan>>,
 }
@@ -48,6 +49,7 @@ impl ExecutionPlan for CreateTempTableExec {
         Ok(Arc::new(CreateTempTableExec {
             tbl_reference: self.tbl_reference.clone(),
             if_not_exists: self.if_not_exists,
+            or_replace: self.or_replace,
             arrow_schema: self.arrow_schema.clone(),
             source: children.get(0).cloned(),
         }))
@@ -94,6 +96,7 @@ async fn create_temp_table(
     if temp_objects
         .resolve_temp_table(&plan.tbl_reference.name)
         .is_some()
+        && !plan.or_replace
     {
         if plan.if_not_exists {
             return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
