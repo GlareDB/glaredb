@@ -126,12 +126,7 @@ impl NativeTableStorage {
 
     pub async fn delete_table(&self, table: &TableEntry) -> Result<()> {
         let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
-        let path: ObjectStorePath = match &self.conf {
-            StorageConfig::Gcs { bucket, .. } => format!("gs://{}/{}", bucket, prefix).into(),
-            StorageConfig::Memory => format!("memory://{}", prefix).into(),
-            _ => prefix.into(),
-        };
-        let mut x = self.store.list(Some(&path)).await?;
+        let mut x = self.store.list(Some(&prefix.into())).await?;
         while let Some(meta) = x.next().await {
             let meta = meta?;
             self.store.delete(&meta.location).await?
@@ -154,9 +149,21 @@ impl NativeTableStorage {
         let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
 
         let url = match &self.conf {
-            StorageConfig::Gcs { bucket, .. } => {
-                Url::parse(&format!("gs://{}/{}", bucket, prefix.clone()))?
+            StorageConfig::S3 {
+                endpoint, bucket, ..
+            } => {
+                let mut s3_url = if let Some(endpoint) = endpoint {
+                    endpoint.clone()
+                } else {
+                    "s3://".to_string()
+                };
+
+                if let Some(bucket) = bucket {
+                    s3_url = format!("{s3_url}/{bucket}");
+                }
+                Url::parse(&format!("{s3_url}/{prefix}"))?
             }
+            StorageConfig::Gcs { bucket, .. } => Url::parse(&format!("gs://{bucket}/{prefix}"))?,
             StorageConfig::Local { path } => {
                 let path =
                     fs::canonicalize(path)
@@ -169,7 +176,7 @@ impl NativeTableStorage {
                 Url::from_file_path(path).map_err(|_| NativeError::Static("Path not absolute"))?
             }
             StorageConfig::Memory => {
-                let s = format!("memory://{}", prefix.clone());
+                let s = format!("memory://{prefix}");
                 Url::parse(&s)?
             }
         };

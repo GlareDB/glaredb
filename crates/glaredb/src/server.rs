@@ -1,5 +1,5 @@
-use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
+use metastore::util::MetastoreClientMode;
 use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
@@ -55,7 +55,15 @@ impl ComputeServer {
         fs::create_dir_all(&env_tmp)?;
 
         // Connect to metastore.
-        let mode = MetastoreClientMode::new_from_options(metastore_addr, data_dir.clone())?;
+        let mode = match (metastore_addr, &data_dir) {
+            (Some(_), Some(_)) => {
+                return Err(anyhow!(
+                    "Only one of metastore address or metastore path may be provided."
+                ))
+            }
+            (Some(addr), None) => MetastoreClientMode::Remote { addr },
+            _ => MetastoreClientMode::new_local(data_dir.clone()),
+        };
         let metastore_client = mode.into_client().await?;
 
         let tracker = match segment_key {
@@ -78,6 +86,7 @@ impl ComputeServer {
         let storage_conf = match (data_dir, service_account_key) {
             (None, Some(key)) => EngineStorageConfig::Gcs {
                 service_account_key: key,
+                bucket: None,
             },
             (Some(dir), None) => EngineStorageConfig::Local { path: dir },
             (None, None) => EngineStorageConfig::Memory,
