@@ -172,11 +172,10 @@ impl Engine {
     /// since we don't guarantee that sessions get closed).
     pub async fn new_remote_session_context(
         &self,
-        vars: SessionVars,
+        conn_id: Uuid,
+        database_id: Uuid,
         storage: SessionStorageConfig,
     ) -> Result<RemoteSessionContext> {
-        let conn_id = vars.connection_id();
-        let database_id = vars.database_id();
         let metastore = self.supervisor.init_client(conn_id, database_id).await?;
         let native = self
             .storage
@@ -186,7 +185,6 @@ impl Engine {
         let catalog = SessionCatalog::new(state);
 
         let context = RemoteSessionContext::new(
-            vars,
             catalog,
             metastore.into(),
             native,
