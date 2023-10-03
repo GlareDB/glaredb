@@ -5,6 +5,7 @@ use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use rpcsrv::handler::RpcHandler;
 use sqlexec::engine::{Engine, EngineStorageConfig};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -44,6 +45,8 @@ impl ComputeServer {
         authenticator: Box<dyn LocalAuthenticator>,
         data_dir: Option<PathBuf>,
         service_account_key: Option<String>,
+        location: Option<String>,
+        storage_options: HashMap<String, String>,
         spill_path: Option<PathBuf>,
         integration_testing: bool,
         disable_rpc_auth: bool,
@@ -54,58 +57,70 @@ impl ComputeServer {
         debug!(?env_tmp, "ensuring temp dir");
         fs::create_dir_all(&env_tmp)?;
 
-        // Connect to metastore.
-        let mode = match (metastore_addr, &data_dir) {
-            (Some(_), Some(_)) => {
-                return Err(anyhow!(
-                    "Only one of metastore address or metastore path may be provided."
-                ))
-            }
-            (Some(addr), None) => MetastoreClientMode::Remote { addr },
-            _ => MetastoreClientMode::new_local(data_dir.clone()),
-        };
-        let metastore_client = mode.into_client().await?;
-
         let tracker = match segment_key {
             Some(key) => {
                 debug!("initializing segment telemetry tracker");
                 SegmentTracker::new(key).into()
             }
             None => {
-                debug!("skipping telementry initialization");
+                debug!("skipping telemetry initialization");
                 Tracker::Nop
             }
         };
 
-        // TODO: There's going to need to more validation needed to ensure we're
-        // using a metastore that makes sense. E.g. using a remote metastore and
-        // in-memory table storage would cause inconsistency.
-        //
-        // We don't want to end up in a situation where a metastore thinks a
-        // table exists but it really doesn't (or the other way around).
-        let storage_conf = match (data_dir, service_account_key) {
-            (None, Some(key)) => EngineStorageConfig::Gcs {
-                service_account_key: key,
-                bucket: None,
-            },
-            (Some(dir), None) => EngineStorageConfig::Local { path: dir },
-            (None, None) => EngineStorageConfig::Memory,
-            (Some(_), Some(_)) => {
-                return Err(anyhow!(
-                    "Data directory and service account both provided. Expected at most one."
-                ))
-            }
+        // Create the `Engine` instance
+        let engine = if let Some(location) = location {
+            // TODO: try to consolidate with --data-dir and --metastore-addr options
+            let engine = Engine::from_storage_options(
+                &location,
+                &HashMap::from_iter(storage_options.clone()),
+            )
+            .await?;
+            Arc::new(engine.with_tracker(Arc::new(tracker)))
+        } else {
+            // Connect to metastore.
+            let mode = match (metastore_addr, &data_dir) {
+                (Some(_), Some(_)) => {
+                    return Err(anyhow!(
+                        "Only one of metastore address or metastore path may be provided."
+                    ))
+                }
+                (Some(addr), None) => MetastoreClientMode::Remote { addr },
+                _ => MetastoreClientMode::new_local(data_dir.clone()),
+            };
+            let metastore_client = mode.into_client().await?;
+
+            // TODO: There's going to need to more validation needed to ensure we're
+            // using a metastore that makes sense. E.g. using a remote metastore and
+            // in-memory table storage would cause inconsistency.
+            //
+            // We don't want to end up in a situation where a metastore thinks a
+            // table exists but it really doesn't (or the other way around).
+            let storage_conf = match (data_dir, service_account_key) {
+                (None, Some(key)) => EngineStorageConfig::Gcs {
+                    service_account_key: key,
+                    bucket: None,
+                },
+                (Some(dir), None) => EngineStorageConfig::Local { path: dir },
+                (None, None) => EngineStorageConfig::Memory,
+                (Some(_), Some(_)) => {
+                    return Err(anyhow!(
+                        "Data directory and service account both provided. Expected at most one."
+                    ))
+                }
+            };
+
+            Arc::new(
+                Engine::new(
+                    metastore_client,
+                    storage_conf,
+                    Arc::new(tracker),
+                    spill_path,
+                )
+                .await?,
+            )
         };
 
-        let engine = Arc::new(
-            Engine::new(
-                metastore_client,
-                storage_conf,
-                Arc::new(tracker),
-                spill_path,
-            )
-            .await?,
-        );
         let handler_conf = ProtocolHandlerConfig {
             authenticator,
             // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I
@@ -258,6 +273,8 @@ mod tests {
             }),
             None,
             None,
+            None,
+            Default::default(),
             None,
             false,
             false,

@@ -9,6 +9,7 @@ use anyhow::{anyhow, Result};
 use clap::Subcommand;
 use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
+use std::collections::HashMap;
 use std::fs;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -73,6 +74,7 @@ impl RunCommand for ServerArgs {
             password,
             data_dir,
             service_account_path,
+            storage_config,
             spill_path,
             ignore_pg_auth,
             disable_rpc_auth,
@@ -107,6 +109,8 @@ impl RunCommand for ServerArgs {
                 auth,
                 data_dir,
                 service_account_key,
+                storage_config.location,
+                HashMap::from_iter(storage_config.storage_options.clone()),
                 spill_path,
                 /* integration_testing = */ false,
                 disable_rpc_auth,
