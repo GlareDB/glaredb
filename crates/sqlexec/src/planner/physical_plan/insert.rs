@@ -6,27 +6,24 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
-
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::{
     stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
     SendableRecordBatchStream, Statistics,
 };
 use datafusion::scalar::ScalarValue;
-use datasources::native::access::NativeTableStorage;
 use futures::{stream, StreamExt};
-use protogen::metastore::types::catalog::TableEntry;
+
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
-use crate::metastore::catalog::TempCatalog;
-
+use super::remote_scan::ProviderReference;
 use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA};
 
 #[derive(Debug, Clone)]
 pub struct InsertExec {
-    pub table: TableEntry,
+    pub provider: ProviderReference,
     pub source: Arc<dyn ExecutionPlan>,
 }
 
@@ -56,7 +53,7 @@ impl ExecutionPlan for InsertExec {
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         Ok(Arc::new(InsertExec {
-            table: self.table.clone(),
+            provider: self.provider.clone(),
             source: children.get(0).unwrap().clone(),
         }))
     }
@@ -74,10 +71,14 @@ impl ExecutionPlan for InsertExec {
 
         let this = self.clone();
         let stream = stream::once(async move {
-            if this.table.meta.is_temp {
-                this.insert_temp(context).await
-            } else {
-                this.insert_native(context).await
+            match this.provider {
+                ProviderReference::RemoteReference(_) => Err(DataFusionError::Internal(
+                    "required table provider, found remote reference to insert".to_string(),
+                )),
+                ProviderReference::Provider(provider) => {
+                    // TODO: Add background job to track storage for native tables.
+                    Self::do_insert(provider, this.source, context).await
+                }
             }
         });
 
@@ -99,38 +100,6 @@ impl DisplayAs for InsertExec {
 }
 
 impl InsertExec {
-    async fn insert_native(self, context: Arc<TaskContext>) -> DataFusionResult<RecordBatch> {
-        // TODO: Instead of simply inserting into a native table, try to get the
-        // table provider from dispatch.
-        let storage = context
-            .session_config()
-            .get_extension::<NativeTableStorage>()
-            .expect("context should have native table storage");
-
-        let table = storage
-            .load_table(&self.table)
-            .await
-            .map_err(|e| DataFusionError::Execution(format!("failed to Insert: {e}")))?
-            .into_table_provider();
-
-        Self::do_insert(table, self.source, context).await
-
-        // TODO: Add background job for storage size
-    }
-
-    async fn insert_temp(self, context: Arc<TaskContext>) -> DataFusionResult<RecordBatch> {
-        let temp = context
-            .session_config()
-            .get_extension::<TempCatalog>()
-            .expect("context should have temp catalog");
-
-        let provider = temp
-            .get_temp_table_provider(&self.table.meta.name)
-            .ok_or_else(|| DataFusionError::Execution("missing temp table".to_string()))?;
-
-        Self::do_insert(provider, self.source, context).await
-    }
-
     pub async fn do_insert(
         table: Arc<dyn TableProvider>,
         source: Arc<dyn ExecutionPlan>,

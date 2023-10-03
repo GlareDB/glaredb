@@ -39,6 +39,11 @@ impl StubRemoteTableProvider {
         }
     }
 
+    /// Returns the provider ID.
+    pub fn id(&self) -> Uuid {
+        self.provider_id
+    }
+
     pub fn encode(&self, buf: &mut Vec<u8>) -> Result<()> {
         buf.extend_from_slice(self.provider_id.as_bytes());
         Ok(())
