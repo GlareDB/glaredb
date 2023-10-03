@@ -7,6 +7,7 @@ use datafusion::{datasource::TableProvider, physical_plan::ExecutionPlan};
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
 use protogen::{
+    gen::rpcsrv::common,
     gen::rpcsrv::service::{self, execution_service_client::ExecutionServiceClient},
     metastore::types::catalog::CatalogState,
     rpcsrv::types::service::{
@@ -385,7 +386,7 @@ impl RemoteSessionClient {
 
     pub async fn broadcast_exchange(
         &mut self,
-        stream: impl tonic::IntoStreamingRequest<Message = service::BroadcastExchangeRequest>,
+        stream: impl tonic::IntoStreamingRequest<Message = common::ExecutionResultBatch>,
     ) -> Result<()> {
         let mut req = stream.into_streaming_request();
         self.inner.append_auth_metadata(req.metadata_mut());

@@ -84,6 +84,10 @@ pub mod gen {
         pub mod service {
             tonic::include_proto!("rpcsrv.service");
         }
+
+        pub mod common {
+            tonic::include_proto!("rpcsrv.common");
+        }
     }
 
     pub mod metastore {

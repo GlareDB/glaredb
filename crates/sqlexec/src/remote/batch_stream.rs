@@ -4,7 +4,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::physical_plan::RecordBatchStream;
 use futures::{Stream, StreamExt};
-use protogen::gen::rpcsrv::service;
+use protogen::gen::rpcsrv::common;
 use std::io::Cursor;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -19,18 +19,18 @@ use crate::errors::{ExecError, Result};
 /// The first message is used to get the session id. It's assumed that the
 /// stream contains batches all with the same schema.
 #[derive(Debug)]
-pub struct ClientExchangeRecvStream {
+pub struct ExecutionBatchStream {
     /// Session this stream is for.
     session_id: Uuid,
 
     /// Unique id for this input.
-    broadcast_id: Uuid,
+    work_id: Uuid,
 
     /// The grpc stream.
     ///
     /// It's assumed that every batch read has the same schema as the first
     /// batch read.
-    stream: Streaming<service::BroadcastExchangeRequest>,
+    stream: Streaming<common::ExecutionResultBatch>,
 
     /// A single request may include multiple batches, include those here.
     buf: VecDeque<DataFusionResult<RecordBatch>>,
@@ -39,23 +39,23 @@ pub struct ClientExchangeRecvStream {
     schema: Arc<Schema>,
 }
 
-impl ClientExchangeRecvStream {
+impl ExecutionBatchStream {
     /// Try to create a new stream from a grpc stream.
     ///
     /// A oneshot receiver is returned allowing the caller to await until the
     /// stream is complete. This is useful in the grpc handler to await stream
     /// completion before returning a response.
     pub async fn try_new(
-        mut input: Streaming<service::BroadcastExchangeRequest>,
-    ) -> Result<ClientExchangeRecvStream> {
+        mut input: Streaming<common::ExecutionResultBatch>,
+    ) -> Result<ExecutionBatchStream> {
         let req = input
             .next()
             .await
             .ok_or_else(|| ExecError::RemoteSession("stream missing first IPC batch".to_string()))?
             .map_err(ExecError::from)?;
 
-        let broadcast_id = Uuid::from_slice(&req.broadcast_input_id)
-            .map_err(|e| ExecError::RemoteSession(format!("get session id: {e}")))?;
+        let work_id = Uuid::from_slice(&req.work_id)
+            .map_err(|e| ExecError::RemoteSession(format!("get work id: {e}")))?;
 
         let session_id = Uuid::from_slice(&req.session_id)
             .map_err(|e| ExecError::RemoteSession(format!("get session id: {e}")))?;
@@ -76,9 +76,9 @@ impl ClientExchangeRecvStream {
             }
         };
 
-        Ok(ClientExchangeRecvStream {
+        Ok(ExecutionBatchStream {
             session_id,
-            broadcast_id,
+            work_id,
             stream: input,
             buf: batches,
             schema,
@@ -89,8 +89,8 @@ impl ClientExchangeRecvStream {
         self.session_id
     }
 
-    pub fn broadcast_id(&self) -> Uuid {
-        self.broadcast_id
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
     }
 
     fn read_arrow_ipc(
@@ -106,7 +106,7 @@ impl ClientExchangeRecvStream {
 }
 
 // TODO: StreamReader instead of FileReader.
-impl Stream for ClientExchangeRecvStream {
+impl Stream for ExecutionBatchStream {
     type Item = DataFusionResult<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -147,7 +147,7 @@ impl Stream for ClientExchangeRecvStream {
     }
 }
 
-impl RecordBatchStream for ClientExchangeRecvStream {
+impl RecordBatchStream for ExecutionBatchStream {
     fn schema(&self) -> Arc<Schema> {
         self.schema.clone()
     }

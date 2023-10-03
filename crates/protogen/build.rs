@@ -17,6 +17,7 @@ fn main() {
                 "proto/metastore/options.proto",
                 // rpcsrv
                 "proto/rpcsrv/service.proto",
+                "proto/rpcsrv/common.proto",
             ],
             &["proto"],
         )
