@@ -265,6 +265,23 @@ struct ColumnHeader {
     alignment: CellAlignment,
 }
 
+fn fmt_dtype(dtype: &DataType) -> String {
+    match dtype {
+        DataType::Timestamp(tu, tz) => {
+            format!("Timestamp[{}, {}]", fmt_timeunit(tu), fmt_timezone(tz))
+        }
+        DataType::List(fld) | DataType::LargeList(fld) => {
+            format!("List[{}]", fmt_dtype(fld.data_type()))
+        }
+        DataType::Struct(flds) => flds
+            .iter()
+            .map(|f| format!("{}: {}", f.name(), fmt_dtype(f.data_type())))
+            .collect::<Vec<_>>()
+            .join(", "),
+        dtype => format!("{}", dtype),
+    }
+}
+
 impl ColumnHeader {
     fn from_field(f: &Field) -> Self {
         let alignment = if f.data_type().is_numeric() {
@@ -275,12 +292,7 @@ impl ColumnHeader {
 
         ColumnHeader {
             name: f.name().clone(),
-            data_type: match f.data_type() {
-                DataType::Timestamp(tu, tz) => {
-                    format!("Timestamp[{}, {}]", fmt_timeunit(tu), fmt_timezone(tz))
-                }
-                dtype => format!("{}", dtype),
-            },
+            data_type: fmt_dtype(f.data_type()),
             alignment,
         }
     }
