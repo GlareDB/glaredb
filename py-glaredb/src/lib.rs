@@ -5,12 +5,12 @@ mod runtime;
 mod session;
 mod util;
 
-use ::glaredb::util::MetastoreClientMode; // Refers to `glaredb` crate.
 use environment::PyEnvironmentReader;
 use error::PyGlareDbError;
 use futures::lock::Mutex;
 use runtime::{wait_for_future, TokioRuntime};
 use session::LocalSession;
+use std::collections::HashMap;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -25,11 +25,9 @@ use url::Url;
 use datafusion_ext::vars::SessionVars;
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
 use sqlexec::{
-    engine::{Engine, EngineStorageConfig, SessionStorageConfig},
+    engine::{Engine, SessionStorageConfig},
     remote::client::RemoteClient,
 };
-
-use telemetry::Tracker;
 
 /// Ensure that a directory at the given path exists. Errors if the path exists
 /// and isn't a directory.
@@ -80,27 +78,30 @@ impl From<Option<String>> for PythonSessionConf {
 }
 
 #[pyfunction]
-#[pyo3(signature = (data_dir_or_cloud_url = None, /, *, spill_path = None, disable_tls = true, cloud_addr = String::from("https://console.glaredb.com")))]
+#[pyo3(signature = (data_dir_or_cloud_url = None, /, *, spill_path = None, disable_tls = true, cloud_addr = String::from("https://console.glaredb.com"), location = None, storage_options = None))]
 fn connect(
     py: Python,
     data_dir_or_cloud_url: Option<String>,
     spill_path: Option<String>,
     disable_tls: bool,
     cloud_addr: String,
+    location: Option<String>,
+    storage_options: Option<HashMap<String, String>>,
 ) -> PyResult<LocalSession> {
     wait_for_future(py, async move {
         let conf = PythonSessionConf::from(data_dir_or_cloud_url);
 
-        // If data dir is provided, then both table storage and metastore
-        // storage will reside at that path. Otherwise everything is in memory.
-        let mode = MetastoreClientMode::new_from_options(None, conf.data_dir.clone())
-            .map_err(PyGlareDbError::from)?;
-        let metastore_client = mode.into_client().await.map_err(PyGlareDbError::from)?;
-        let tracker = Arc::new(Tracker::Nop);
-
-        let storage_conf = match &conf.data_dir {
-            Some(path) => EngineStorageConfig::Local { path: path.clone() },
-            None => EngineStorageConfig::Memory,
+        let mut engine = if let Some(location) = location {
+            // TODO: try to consolidate with --data-dir option
+            Engine::from_storage_options(&location, &storage_options.unwrap_or_default())
+                .await
+                .map_err(PyGlareDbError::from)?
+        } else {
+            // If data dir is provided, then both table storage and metastore
+            // storage will reside at that path. Otherwise everything is in memory.
+            Engine::from_data_dir(&conf.data_dir)
+                .await
+                .map_err(PyGlareDbError::from)?
         };
 
         // If spill path not provided, default to some tmp dir.
@@ -117,10 +118,7 @@ fn connect(
                 ensure_dir(&path).ok().map(|_| path)
             }
         };
-
-        let engine = Engine::new(metastore_client, storage_conf, tracker, spill_path)
-            .await
-            .map_err(PyGlareDbError::from)?;
+        engine = engine.with_spill_path(spill_path);
 
         let mut session = if let Some(url) = conf.cloud_url.clone() {
             let exec_client = RemoteClient::connect_with_proxy_destination(

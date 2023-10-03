@@ -1,7 +1,6 @@
-use crate::args::{LocalClientOpts, OutputMode};
+use crate::args::{LocalClientOpts, OutputMode, StorageConfigArgs};
 use crate::highlighter::{SQLHighlighter, SQLHinter, SQLValidator};
 use crate::prompt::SQLPrompt;
-use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
 use arrow_util::pretty::pretty_format_batches;
 use clap::ValueEnum;
@@ -16,9 +15,9 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
 use reedline::{FileBackedHistory, Reedline, Signal};
+use std::collections::HashMap;
 
 use datafusion_ext::vars::SessionVars;
-use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::parser;
 use sqlexec::remote::client::RemoteClient;
@@ -26,8 +25,6 @@ use sqlexec::session::ExecutionResult;
 use std::env;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Arc;
-use telemetry::Tracker;
 use tracing::error;
 use url::Url;
 
@@ -48,22 +45,19 @@ pub struct LocalSession {
 impl LocalSession {
     pub async fn connect(opts: LocalClientOpts) -> Result<Self> {
         // Connect to metastore.
-        let mode = MetastoreClientMode::new_local(opts.data_dir.clone())?;
-        let metastore_client = mode.into_client().await?;
-        let tracker = Arc::new(Tracker::Nop);
-
-        let storage_conf = match &opts.data_dir {
-            Some(path) => EngineStorageConfig::Local { path: path.clone() },
-            None => EngineStorageConfig::Memory,
+        let mut engine = if let StorageConfigArgs {
+            location: Some(location),
+            storage_options,
+        } = &opts.storage_config
+        {
+            // TODO: try to consolidate with --data-dir option
+            Engine::from_storage_options(location, &HashMap::from_iter(storage_options.clone()))
+                .await?
+        } else {
+            Engine::from_data_dir(&opts.data_dir).await?
         };
 
-        let engine = Engine::new(
-            metastore_client,
-            storage_conf,
-            tracker,
-            opts.spill_path.clone(),
-        )
-        .await?;
+        engine = engine.with_spill_path(opts.spill_path.clone());
 
         let sess = if let Some(url) = opts.cloud_url.clone() {
             let (exec_client, info_msg) = if opts.ignore_rpc_auth {
@@ -131,9 +125,16 @@ impl LocalSession {
     }
 
     async fn run_interactive(&mut self) -> Result<()> {
-        let info = match &self.opts.data_dir {
-            Some(path) => format!("Persisting database at path: {}", path.display()),
-            None => "Using in-memory catalog".to_string(),
+        let info = match (&self.opts.storage_config, &self.opts.data_dir) {
+            (
+                StorageConfigArgs {
+                    location: Some(location),
+                    ..
+                },
+                _,
+            ) => format!("Persisting database at location: {location}"),
+            (_, Some(path)) => format!("Persisting database at path: {}", path.display()),
+            (_, None) => "Using in-memory catalog".to_string(),
         };
 
         println!("{info}");

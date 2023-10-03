@@ -5995,6 +5995,7 @@ dependencies = [
  "glaredb",
  "glob",
  "logutil",
+ "metastore",
  "num_cpus",
  "object_store",
  "openssh",
