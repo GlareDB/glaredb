@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
 use std::fmt::Write as _;
@@ -80,4 +81,24 @@ pub struct PgProxyArgs {
     /// Authorization code for communicating with Cloud.
     #[clap(long)]
     pub cloud_auth_code: String,
+}
+
+#[derive(Debug, Clone, Parser)]
+pub struct StorageConfigArgs {
+    /// URL of the object store in which to keep the data in.
+    #[clap(short, long)]
+    pub location: Option<String>,
+
+    /// Storage options for building the object store.
+    #[clap(short = 'o', long = "option", requires = "location", value_parser=parse_key_value_pair)]
+    pub storage_options: Vec<(String, String)>,
+}
+
+fn parse_key_value_pair(key_value_pair: &str) -> Result<(String, String)> {
+    key_value_pair
+        .split_once('=')
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .ok_or(anyhow!(
+            "Expected key-value pair delimited by an equals sign, got '{key_value_pair}'"
+        ))
 }

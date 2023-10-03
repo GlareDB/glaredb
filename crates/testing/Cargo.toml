@@ -27,6 +27,7 @@ sqlexec = { path = "../sqlexec" }
 pgrepr = { path = "../pgrepr" }
 telemetry = { path = "../telemetry" }
 datafusion_ext = { path = "../datafusion_ext" }
+metastore = { path = "../metastore" }
 
 [[test]]
 harness = false

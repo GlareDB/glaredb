@@ -73,6 +73,7 @@ message CreateTable {
   string name = 2;
   options.TableOptionsInternal options = 3;
   bool if_not_exists = 4;
+  bool or_replace = 5;
 }
 
 message CreateExternalTable {

@@ -35,6 +35,9 @@ pub struct LocalClientOpts {
     #[clap(short = 'c', long, value_parser)]
     pub cloud_url: Option<Url>,
 
+    #[clap(flatten)]
+    pub storage_config: StorageConfigArgs,
+
     /// Ignores the proxy and directly goes to the server for remote execution.
     ///
     /// (Internal)

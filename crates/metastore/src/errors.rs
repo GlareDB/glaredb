@@ -87,6 +87,9 @@ pub enum MetastoreError {
 
     #[error(transparent)]
     Validation(#[from] sqlbuiltins::validation::ValidationError),
+
+    #[error(transparent)]
+    TonicTransportError(#[from] tonic::transport::Error),
 }
 
 pub type Result<T, E = MetastoreError> = std::result::Result<T, E>;

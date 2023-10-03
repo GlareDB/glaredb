@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
-use object_store::{path::Path, GetResult, ListResult, ObjectMeta, ObjectStore, Result};
+use object_store::{
+    path::Path, Error as ObjectStoreError, GetResult, ListResult, ObjectMeta, ObjectStore, Result,
+};
 use object_store::{GetOptions, MultipartId};
 use std::ops::Range;
 use std::sync::Arc;
@@ -85,15 +87,28 @@ impl ObjectStore for SharedObjectStore {
         self.inner.copy(from, to).await
     }
 
+    /// Tries to perform a copy-if-not-exists but on failure falls back to plain copy if path is empty
     async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
-        self.inner.copy_if_not_exists(from, to).await
+        match self.inner.copy_if_not_exists(from, to).await {
+            Ok(_) => Ok(()),
+            Err(ObjectStoreError::NotSupported { source }) => {
+                // Go with the poor man's copy-if-not-exists: try a regular copy if the path doesn't exist
+                match self.head(to).await {
+                    Ok(_) => {
+                        return Err(ObjectStoreError::AlreadyExists {
+                            path: to.to_string(),
+                            source,
+                        })
+                    }
+                    Err(ObjectStoreError::NotFound { .. }) => self.copy(from, to).await,
+                    Err(e) => Err(e),
+                }
+            }
+            Err(e) => Err(e),
+        }
     }
 
     async fn rename(&self, from: &Path, to: &Path) -> Result<()> {
-        self.rename(from, to).await
-    }
-
-    async fn rename_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
-        self.inner.rename_if_not_exists(from, to).await
+        self.inner.rename(from, to).await
     }
 }

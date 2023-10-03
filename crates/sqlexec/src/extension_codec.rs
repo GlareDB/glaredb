@@ -17,6 +17,7 @@ use datafusion::physical_plan::union::InterleaveExec;
 use datafusion::physical_plan::values::ValuesExec;
 use datafusion::physical_plan::{displayable, ExecutionPlan};
 use datafusion::prelude::{Expr, SessionContext};
+use datafusion_ext::metrics::DataSourceMetricsExecAdapter;
 use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use datafusion_proto::logical_plan::from_proto::parse_expr;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
@@ -372,17 +373,15 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         //TODO! use the `PhysicalExtensionNode` trait to decode the extension instead of hardcoding here.
         let plan: Arc<dyn ExecutionPlan> = match ext {
             proto::ExecutionPlanExtensionType::ClientExchangeRecvExec(ext) => {
-                let broadcast_id = Uuid::from_slice(&ext.broadcast_id).map_err(|e| {
-                    DataFusionError::Plan(format!("failed to decode broadcast id: {e}"))
-                })?;
+                let work_id = Uuid::from_slice(&ext.work_id)
+                    .map_err(|e| DataFusionError::Plan(format!("failed to decode work id: {e}")))?;
                 let schema = ext
                     .schema
                     .ok_or(DataFusionError::Plan("schema is required".to_string()))?;
-                // TODO: Upstream `TryFrom` impl that doesn't need a reference.
                 let schema: Schema = (&schema).try_into()?;
 
                 Arc::new(ClientExchangeRecvExec {
-                    broadcast_id,
+                    work_id,
                     schema: Arc::new(schema),
                 })
             }
@@ -503,6 +502,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                         })?
                         .into(),
                     if_not_exists: ext.if_not_exists,
+                    or_replace: ext.or_replace,
                     arrow_schema: Arc::new(schema),
                     source: inputs.get(0).cloned(),
                 })
@@ -521,6 +521,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                         })?
                         .into(),
                     if_not_exists: ext.if_not_exists,
+                    or_replace: ext.or_replace,
                     arrow_schema: Arc::new(schema),
                     source: inputs.get(0).cloned(),
                 })
@@ -714,6 +715,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     Arc::new((&schema).try_into()?),
                 ))
             }
+            proto::ExecutionPlanExtensionType::DataSourceMetricsExecAdapter(_ext) => {
+                Arc::new(DataSourceMetricsExecAdapter::new(
+                    inputs
+                        .get(0)
+                        .ok_or_else(|| DataFusionError::Internal("missing child".to_string()))?
+                        .clone(),
+                ))
+            }
         };
 
         Ok(plan)
@@ -725,7 +734,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         let inner = if let Some(exec) = node.as_any().downcast_ref::<ClientExchangeRecvExec>() {
             proto::ExecutionPlanExtensionType::ClientExchangeRecvExec(
                 proto::ClientExchangeRecvExec {
-                    broadcast_id: exec.broadcast_id.into_bytes().to_vec(),
+                    work_id: exec.work_id.into_bytes().to_vec(),
                     schema: Some(exec.schema.clone().try_into()?),
                 },
             )
@@ -771,12 +780,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 catalog_version: exec.catalog_version,
                 tbl_reference: Some(exec.tbl_reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
+                or_replace: exec.or_replace,
                 arrow_schema: Some(exec.arrow_schema.clone().try_into()?),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateTempTableExec>() {
             proto::ExecutionPlanExtensionType::CreateTempTableExec(proto::CreateTempTableExec {
                 tbl_reference: Some(exec.tbl_reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
+                or_replace: exec.or_replace,
                 arrow_schema: Some(exec.arrow_schema.clone().try_into()?),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<AlterDatabaseRenameExec>() {
@@ -978,6 +989,10 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 show_statistics: true,
                 schema: Some(exec.schema().try_into()?),
             })
+        } else if let Some(_exec) = node.as_any().downcast_ref::<DataSourceMetricsExecAdapter>() {
+            proto::ExecutionPlanExtensionType::DataSourceMetricsExecAdapter(
+                proto::DataSourceMetricsExecAdapter {},
+            )
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {}",

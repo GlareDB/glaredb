@@ -13,7 +13,7 @@ use super::{
 #[derive(Clone, PartialEq, Message)]
 pub struct ClientExchangeRecvExec {
     #[prost(bytes, tag = "1")]
-    pub broadcast_id: Vec<u8>, // UUID
+    pub work_id: Vec<u8>, // UUID
     #[prost(message, tag = "2")]
     pub schema: Option<Schema>,
 }
@@ -40,7 +40,9 @@ pub struct CreateTableExec {
     pub tbl_reference: Option<FullObjectReference>,
     #[prost(bool, tag = "3")]
     pub if_not_exists: bool,
-    #[prost(message, tag = "4")]
+    #[prost(bool, tag = "4")]
+    pub or_replace: bool,
+    #[prost(message, tag = "5")]
     pub arrow_schema: Option<Schema>,
 }
 
@@ -146,7 +148,9 @@ pub struct CreateTempTableExec {
     pub tbl_reference: Option<FullObjectReference>,
     #[prost(bool, tag = "2")]
     pub if_not_exists: bool,
-    #[prost(message, tag = "3")]
+    #[prost(bool, tag = "3")]
+    pub or_replace: bool,
+    #[prost(message, tag = "4")]
     pub arrow_schema: Option<Schema>,
 }
 
@@ -293,6 +297,9 @@ pub struct InterleaveExec {}
 pub struct RuntimeGroupExec {}
 
 #[derive(Clone, PartialEq, Message)]
+pub struct DataSourceMetricsExecAdapter {}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct AnalyzeExec {
     #[prost(bool, tag = "1")]
     pub verbose: bool,
@@ -306,7 +313,7 @@ pub struct AnalyzeExec {
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -376,4 +383,6 @@ pub enum ExecutionPlanExtensionType {
     RuntimeGroupExec(RuntimeGroupExec),
     #[prost(message, tag = "29")]
     AnalyzeExec(AnalyzeExec),
+    #[prost(message, tag = "30")]
+    DataSourceMetricsExecAdapter(DataSourceMetricsExecAdapter),
 }

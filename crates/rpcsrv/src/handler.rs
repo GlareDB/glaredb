@@ -4,13 +4,13 @@ use crate::{
 };
 use async_trait::async_trait;
 use dashmap::DashMap;
+use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use datafusion::{arrow::ipc::writer::FileWriter as IpcFileWriter, variable::VarType};
-use datafusion_ext::vars::SessionVars;
 use futures::{Stream, StreamExt};
 use protogen::{
-    gen::rpcsrv::service::{self, BroadcastExchangeResponse},
+    gen::rpcsrv::common,
+    gen::rpcsrv::service,
     rpcsrv::types::service::{
         CloseSessionRequest, CloseSessionResponse, DispatchAccessRequest, FetchCatalogRequest,
         FetchCatalogResponse, InitializeSessionRequest, InitializeSessionResponse,
@@ -19,7 +19,7 @@ use protogen::{
 };
 use sqlexec::{
     engine::{Engine, SessionStorageConfig},
-    remote::exchange_stream::ClientExchangeRecvStream,
+    remote::batch_stream::ExecutionBatchStream,
 };
 use std::{
     collections::HashMap,
@@ -92,13 +92,9 @@ impl RpcHandler {
         let conn_id = Uuid::new_v4();
         info!(session_id=%conn_id, "initializing remote session");
 
-        let vars = SessionVars::default()
-            .with_database_id(db_id, VarType::System)
-            .with_connection_id(conn_id, VarType::System);
-
         let context = self
             .engine
-            .new_remote_session_context(vars, storage_conf)
+            .new_remote_session_context(conn_id, db_id, storage_conf)
             .await?;
 
         let sess = RemoteSession::new(context);
@@ -165,12 +161,12 @@ impl RpcHandler {
 
     async fn broadcast_exchange_inner(
         &self,
-        req: Streaming<service::BroadcastExchangeRequest>,
-    ) -> Result<BroadcastExchangeResponse> {
-        let stream = ClientExchangeRecvStream::try_new(req).await?;
+        req: Streaming<common::ExecutionResultBatch>,
+    ) -> Result<service::BroadcastExchangeResponse> {
+        let stream = ExecutionBatchStream::try_new(req).await?;
         let session_id = stream.session_id();
 
-        info!(session_id=%session_id, broadcast_id=%stream.broadcast_id(), "beginning client exchange stream");
+        info!(session_id=%session_id, work_id=%stream.work_id(), "beginning client exchange stream");
 
         let session = self.get_session(session_id)?;
 
@@ -178,7 +174,7 @@ impl RpcHandler {
 
         // TODO: We might need to await here for stream completion.
 
-        Ok(BroadcastExchangeResponse {})
+        Ok(service::BroadcastExchangeResponse {})
     }
 
     fn close_session_inner(&self, req: CloseSessionRequest) -> Result<CloseSessionResponse> {
@@ -242,7 +238,7 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
 
     async fn broadcast_exchange(
         &self,
-        request: Request<Streaming<service::BroadcastExchangeRequest>>,
+        request: Request<Streaming<common::ExecutionResultBatch>>,
     ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
         let resp = self.broadcast_exchange_inner(request.into_inner()).await?;
         Ok(Response::new(resp))

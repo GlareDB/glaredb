@@ -17,7 +17,7 @@ use crate::{
     dispatch::external::ExternalDispatcher,
     errors::{ExecError, Result},
     extension_codec::GlareDBExtensionCodec,
-    metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog},
+    metastore::catalog::{CatalogMutator, SessionCatalog},
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
 
@@ -25,6 +25,10 @@ use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 
 /// A lightweight session context used during remote execution of physical
 /// plans.
+///
+/// This context should be stateless in that it should not be tied to any one
+/// specific session. This context should be able to execute physical plans from
+/// any session for this partition database.
 ///
 /// Datafusion extensions:
 /// - StagedClientStreams
@@ -44,13 +48,16 @@ pub struct RemoteSessionContext {
 impl RemoteSessionContext {
     /// Create a new remote session context.
     pub fn new(
-        vars: SessionVars,
         catalog: SessionCatalog,
         catalog_mutator: CatalogMutator,
         native_tables: NativeTableStorage,
         background_jobs: JobRunner,
         spill_path: Option<PathBuf>,
     ) -> Result<Self> {
+        // TODO: We'll want to remove this eventually. We should be able to
+        // create a datafusion context/runtime without needing these vars.
+        let vars = SessionVars::default();
+
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(&vars);
         let mut conf: SessionConfig = opts.into();
@@ -59,13 +66,11 @@ impl RemoteSessionContext {
         conf = conf
             .with_extension(Arc::new(StagedClientStreams::default()))
             .with_extension(Arc::new(catalog_mutator))
-            .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(TempCatalog::default()));
+            .with_extension(Arc::new(native_tables.clone()));
 
         // TODO: Query planners for handling custom plans.
 
         let df_ctx = DfSessionContext::with_config_rt(conf, Arc::new(runtime));
-        df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(RemoteSessionContext {
             catalog,

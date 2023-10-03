@@ -1765,7 +1765,7 @@ dependencies = [
 [[package]]
 name = "deltalake"
 version = "0.16.0"
-source = "git+https://github.com/delta-io/delta-rs.git?rev=94cb9b39fa62dcd7657752fcda141409e8dc697b#94cb9b39fa62dcd7657752fcda141409e8dc697b"
+source = "git+https://github.com/GlareDB/delta-rs.git?branch=universalmind303/create-or-replace#e6699d321750a5431bdd316dc1ade46e2ffae781"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -5995,6 +5995,7 @@ dependencies = [
  "glaredb",
  "glob",
  "logutil",
+ "metastore",
  "num_cpus",
  "object_store",
  "openssh",

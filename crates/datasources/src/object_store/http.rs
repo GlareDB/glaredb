@@ -125,7 +125,6 @@ impl ObjStoreAccess for HttpStoreAccess {
             file_format: file_format.clone(),
             base_url,
             objects,
-            _predicate_pushdown: true,
         });
         providers.push(prov);
 
@@ -163,7 +162,6 @@ impl HttpStoreAccess {
             base_url,
             objects,
             file_format,
-            _predicate_pushdown: true,
         })
     }
 }

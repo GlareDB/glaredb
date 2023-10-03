@@ -263,6 +263,7 @@ jobs:
                                              'sqllogictests/select' \
                                              'sqllogictests/simple' \
                                              'sqllogictests/table' \
+                                             'sqllogictests/temp_table' \
                                              'sqllogictests/time' \
                                              'sqllogictests/tunnels' \
                                              'sqllogictests/update' \
