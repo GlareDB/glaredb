@@ -177,6 +177,9 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
           SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          MINIO_ACCESS_KEY: glaredb
+          MINIO_SECRET_KEY: glaredb_test
+          MINIO_BUCKET: glaredb-test-bucket
         run: |
           # Prepare SLT (Snowflake)
           export PATH="$HOME/bin:$PATH"
@@ -225,6 +228,9 @@ jobs:
 
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
+          
+          # Prepare SLT (MinIO)
+          ./scripts/create-test-minio-store.sh
 
           echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
           just sql-logic-tests -v --exclude '*/tunnels/ssh'
@@ -279,3 +285,13 @@ jobs:
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
+          
+          echo "-------------------------- REMOTE DATA STORAGE TESTS --------------------------------"
+          # Test using a remote object store for storing databases and catalog; For now only on MinIO (S3)
+          just sql-logic-tests --location http://localhost:9000 \
+              --option access_key_id=$MINIO_ACCESS_KEY \
+              --option secret_access_key=$MINIO_SECRET_KEY \
+              --option bucket=$MINIO_BUCKET \
+              'sqllogictests/*' \
+              'sqllogictests_native/*'
+              

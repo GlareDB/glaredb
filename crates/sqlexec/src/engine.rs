@@ -274,6 +274,11 @@ impl Engine {
         Engine::new(client, conf, Arc::new(Tracker::Nop), None).await
     }
 
+    pub fn with_tracker(mut self, tracker: Arc<Tracker>) -> Engine {
+        self.tracker = tracker;
+        self
+    }
+
     pub fn with_spill_path(mut self, spill_path: Option<PathBuf>) -> Engine {
         self.spill_path = spill_path;
         self

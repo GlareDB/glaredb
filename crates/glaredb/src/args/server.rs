@@ -43,6 +43,9 @@ pub struct ServerArgs {
     #[clap(short, long, hide = true, value_parser)]
     pub service_account_path: Option<String>,
 
+    #[clap(flatten)]
+    pub storage_config: StorageConfigArgs,
+
     /// Path to spill temporary files to.
     #[clap(long, value_parser)]
     pub spill_path: Option<PathBuf>,

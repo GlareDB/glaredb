@@ -8,6 +8,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
+use glaredb::args::StorageConfigArgs;
 use glaredb::server::{ComputeServer, ServerConfig};
 use tokio::{net::TcpListener, runtime::Builder, sync::mpsc, time::Instant};
 use tokio_postgres::config::Config as ClientConfig;
@@ -49,7 +50,7 @@ pub struct Cli {
     connection_string: Option<String>,
 
     /// List all the tests for the pattern (Dry Run).
-    #[clap(short, long, value_parser)]
+    #[clap(long, value_parser)]
     list: bool,
 
     /// Number of jobs to run in parallel
@@ -70,6 +71,9 @@ pub struct Cli {
     /// Run the tests in RPC mode.
     #[clap(long, value_parser)]
     rpc_test: bool,
+
+    #[clap(flatten)]
+    storage_config: StorageConfigArgs,
 
     /// Tests to run.
     ///
@@ -195,6 +199,8 @@ impl Cli {
                     }),
                     Some(temp_dir.path().to_path_buf()),
                     None,
+                    self.storage_config.location.clone(),
+                    HashMap::from_iter(self.storage_config.storage_options.clone()),
                     None,
                     /* integration_testing = */ true,
                     /* disable_rpc_auth = */ self.rpc_test,
