@@ -150,6 +150,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     catalog_version: self.catalog_version,
                     tbl_reference: lp.tbl_reference.clone(),
                     if_not_exists: lp.if_not_exists,
+                    or_replace: lp.or_replace,
                     arrow_schema: Arc::new(lp.schema.as_ref().into()),
                     source: physical_inputs.get(0).cloned(),
                 })))
@@ -159,6 +160,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 Ok(Some(Arc::new(CreateTempTableExec {
                     tbl_reference: lp.tbl_reference.clone(),
                     if_not_exists: lp.if_not_exists,
+                    or_replace: lp.or_replace,
                     arrow_schema: Arc::new(lp.schema.as_ref().into()),
                     source: physical_inputs.get(0).cloned(),
                 })))
@@ -317,15 +319,15 @@ impl<'a> RemotePhysicalPlanner<'a> {
                     Some(exec) if exec.preference == RuntimePreference::Local => {
                         did_modify = true;
 
-                        let broadcast_id = Uuid::new_v4();
-                        debug!(%broadcast_id, "creating send and recv execs");
+                        let work_id = Uuid::new_v4();
+                        debug!(%work_id, "creating send and recv execs");
 
                         let mut input = exec.child.clone();
 
                         // Create the receive exec. This will be executed on the
                         // remote node.
                         let recv = ClientExchangeRecvExec {
-                            broadcast_id,
+                            work_id,
                             schema: input.schema(),
                         };
 
@@ -338,7 +340,7 @@ impl<'a> RemotePhysicalPlanner<'a> {
                         // executed locally, and pushes batches over the
                         // broadcast endpoint.
                         let send = ClientExchangeSendExec {
-                            broadcast_id,
+                            work_id,
                             client: self.remote_client.clone(),
                             input,
                         };
@@ -427,6 +429,7 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
             DDLRewriter::CreateTempTable(create_temp_table) => Arc::new(CreateTempTableExec {
                 tbl_reference: create_temp_table.tbl_reference.clone(),
                 if_not_exists: create_temp_table.if_not_exists,
+                or_replace: create_temp_table.or_replace,
                 arrow_schema: Arc::new(create_temp_table.schema.as_ref().into()),
                 source: if create_temp_table.source.is_some() {
                     Some(physical)

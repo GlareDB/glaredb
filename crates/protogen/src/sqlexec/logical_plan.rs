@@ -54,9 +54,11 @@ pub struct CreateTable {
     pub reference: Option<FullObjectReference>,
     #[prost(bool, tag = "2")]
     pub if_not_exists: bool,
-    #[prost(message, optional, tag = "3")]
-    pub schema: Option<DfSchema>,
+    #[prost(bool, tag = "3")]
+    pub or_replace: bool,
     #[prost(message, optional, tag = "4")]
+    pub schema: Option<DfSchema>,
+    #[prost(message, optional, tag = "5")]
     pub source: Option<LogicalPlanNode>,
 }
 #[derive(Clone, PartialEq, Message)]
@@ -69,6 +71,8 @@ pub struct CreateTempTable {
     pub schema: Option<DfSchema>,
     #[prost(message, optional, tag = "4")]
     pub source: Option<LogicalPlanNode>,
+    #[prost(bool, tag = "5")]
+    pub or_replace: bool,
 }
 
 #[derive(Clone, PartialEq, Message)]

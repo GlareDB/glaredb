@@ -5,6 +5,7 @@ use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema, TimeUnit};
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::SessionState;
+
 use datafusion::logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableType};
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{ExecutionPlan, Statistics};
@@ -78,36 +79,40 @@ impl NativeTableStorage {
         Ok(total_size)
     }
 
-    pub async fn create_table(&self, table: &TableEntry) -> Result<NativeTable> {
+    pub async fn create_table(&self, table: &TableEntry, or_replace: bool) -> Result<NativeTable> {
         let delta_store = self.create_delta_store_for_table(table).await?;
-
         let opts = Self::opts_from_ent(table)?;
-        let mut builder = CreateBuilder::new()
-            .with_table_name(&table.meta.name)
-            .with_object_store(delta_store)
-            .with_save_mode(SaveMode::ErrorIfExists);
-        for col in &opts.columns {
-            let column = match col.arrow_type.clone() {
-                DataType::Timestamp(_, tz) => InternalColumnDefinition {
-                    name: col.name.clone(),
-                    nullable: col.nullable,
-                    arrow_type: DataType::Timestamp(TimeUnit::Microsecond, tz),
-                },
-                _ => col.to_owned(),
-            };
-            builder = builder.with_column(
-                column.name.clone(),
-                (&column.arrow_type).try_into()?,
-                column.nullable,
-                None,
-            );
-        }
+        let tbl = {
+            let mut builder = CreateBuilder::new()
+                .with_table_name(&table.meta.name)
+                .with_object_store(delta_store);
 
-        // TODO: Partitioning
+            if or_replace {
+                builder = builder.with_save_mode(SaveMode::Overwrite);
+            }
 
-        let table = builder.await?;
+            for col in &opts.columns {
+                let column = match &col.arrow_type {
+                    DataType::Timestamp(_, tz) => InternalColumnDefinition {
+                        name: col.name.clone(),
+                        nullable: col.nullable,
+                        arrow_type: DataType::Timestamp(TimeUnit::Microsecond, tz.clone()),
+                    },
+                    _ => col.to_owned(),
+                };
+                builder = builder.with_column(
+                    column.name.clone(),
+                    (&column.arrow_type).try_into()?,
+                    column.nullable,
+                    None,
+                );
+            }
 
-        Ok(NativeTable::new(table))
+            // TODO: Partitioning
+            NativeTable::new(builder.await?)
+        };
+
+        Ok(tbl)
     }
 
     /// Load a native table.
@@ -125,13 +130,24 @@ impl NativeTableStorage {
     }
 
     pub async fn delete_table(&self, table: &TableEntry) -> Result<()> {
-        let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
-        let mut x = self.store.list(Some(&prefix.into())).await?;
+        let prefix = make_prefix(self.db_id, table.meta.id);
+        let path: ObjectStorePath = match &self.conf {
+            StorageConfig::Gcs { bucket, .. } => format!("gs://{}/{}", bucket, prefix).into(),
+            StorageConfig::Memory => format!("memory://{}", prefix).into(),
+            _ => prefix.into(),
+        };
+        let mut x = self.store.list(Some(&path)).await?;
         while let Some(meta) = x.next().await {
             let meta = meta?;
             self.store.delete(&meta.location).await?
         }
         Ok(())
+    }
+
+    pub async fn table_exists(&self, table: &TableEntry) -> Result<bool> {
+        let path = make_prefix(self.db_id, table.meta.id).into();
+        let mut x = self.store.list(Some(&path)).await?;
+        Ok(x.next().await.is_some())
     }
 
     fn opts_from_ent(table: &TableEntry) -> Result<&TableOptionsInternal> {
@@ -146,7 +162,7 @@ impl NativeTableStorage {
         &self,
         table: &TableEntry,
     ) -> Result<Arc<DeltaObjectStore>> {
-        let prefix = format!("databases/{}/tables/{}", self.db_id, table.meta.id);
+        let prefix = make_prefix(self.db_id, table.meta.id);
 
         let url = match &self.conf {
             StorageConfig::S3 {
@@ -180,7 +196,6 @@ impl NativeTableStorage {
                 Url::parse(&s)?
             }
         };
-
         let prefixed = PrefixStore::new(self.store.clone(), prefix);
 
         let delta_store = DeltaObjectStore::new(Arc::new(prefixed), url);
@@ -233,6 +248,10 @@ impl NativeTableStorage {
     }
 }
 
+fn make_prefix(db_id: Uuid, tbl_id: u32) -> String {
+    format!("databases/{}/tables/{}", db_id, tbl_id)
+}
+
 #[derive(Debug)]
 pub struct NativeTable {
     delta: DeltaTable,
@@ -252,10 +271,21 @@ impl NativeTable {
     }
 
     /// Create a new execution plan for inserting `input` into the table.
-    pub fn insert_exec(&self, input: Arc<dyn ExecutionPlan>) -> Arc<dyn ExecutionPlan> {
+    pub fn insert_exec(
+        &self,
+        input: Arc<dyn ExecutionPlan>,
+        overwrite: bool,
+    ) -> Arc<dyn ExecutionPlan> {
+        let save_mode = if overwrite {
+            SaveMode::Overwrite
+        } else {
+            SaveMode::Append
+        };
         let store = self.delta.object_store();
         let snapshot = self.delta.state.clone();
-        Arc::new(NativeTableInsertExec::new(input, store, snapshot))
+        Arc::new(NativeTableInsertExec::new(
+            input, store, snapshot, save_mode,
+        ))
     }
 }
 
@@ -318,14 +348,15 @@ impl TableProvider for NativeTable {
         &self,
         _state: &SessionState,
         input: Arc<dyn ExecutionPlan>,
-        _overwrite: bool,
+        overwrite: bool,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        Ok(self.insert_exec(input))
+        Ok(self.insert_exec(input, overwrite))
     }
 }
 
 #[cfg(test)]
 mod tests {
+
     use datafusion::arrow::datatypes::DataType;
     use object_store_util::conf::StorageConfig;
     use protogen::metastore::types::{
@@ -371,7 +402,7 @@ mod tests {
         };
 
         // Create a table, load it, delete it and load it again!
-        storage.create_table(&entry).await.unwrap();
+        storage.create_table(&entry, false).await.unwrap();
         storage.load_table(&entry).await.unwrap();
         storage.delete_table(&entry).await.unwrap();
         let err = storage

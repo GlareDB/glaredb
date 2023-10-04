@@ -13,7 +13,7 @@ use super::{
 #[derive(Clone, PartialEq, Message)]
 pub struct ClientExchangeRecvExec {
     #[prost(bytes, tag = "1")]
-    pub broadcast_id: Vec<u8>, // UUID
+    pub work_id: Vec<u8>, // UUID
     #[prost(message, tag = "2")]
     pub schema: Option<Schema>,
 }
@@ -40,7 +40,9 @@ pub struct CreateTableExec {
     pub tbl_reference: Option<FullObjectReference>,
     #[prost(bool, tag = "3")]
     pub if_not_exists: bool,
-    #[prost(message, tag = "4")]
+    #[prost(bool, tag = "4")]
+    pub or_replace: bool,
+    #[prost(message, tag = "5")]
     pub arrow_schema: Option<Schema>,
 }
 
@@ -146,7 +148,9 @@ pub struct CreateTempTableExec {
     pub tbl_reference: Option<FullObjectReference>,
     #[prost(bool, tag = "2")]
     pub if_not_exists: bool,
-    #[prost(message, tag = "3")]
+    #[prost(bool, tag = "3")]
+    pub or_replace: bool,
+    #[prost(message, tag = "4")]
     pub arrow_schema: Option<Schema>,
 }
 

@@ -24,6 +24,7 @@ pub struct NativeTableInsertExec {
     input: Arc<dyn ExecutionPlan>,
     store: Arc<DeltaObjectStore>,
     snapshot: DeltaTableState,
+    save_mode: SaveMode,
 }
 
 impl NativeTableInsertExec {
@@ -31,11 +32,13 @@ impl NativeTableInsertExec {
         input: Arc<dyn ExecutionPlan>,
         store: Arc<DeltaObjectStore>,
         snapshot: DeltaTableState,
+        save_mode: SaveMode,
     ) -> Self {
         NativeTableInsertExec {
             input,
             store,
             snapshot,
+            save_mode,
         }
     }
 }
@@ -85,6 +88,7 @@ impl ExecutionPlan for NativeTableInsertExec {
             input: children[0].clone(),
             store: self.store.clone(),
             snapshot: self.snapshot.clone(),
+            save_mode: self.save_mode.clone(),
         }))
     }
 
@@ -109,7 +113,7 @@ impl ExecutionPlan for NativeTableInsertExec {
         // TODO: Possibly try avoiding cloning the snapshot.
         let builder = WriteBuilder::new(self.store.clone(), self.snapshot.clone())
             .with_input_session_state(state)
-            .with_save_mode(SaveMode::Append)
+            .with_save_mode(self.save_mode.clone())
             .with_input_execution_plan(self.input.clone());
 
         let input = self.input.clone();

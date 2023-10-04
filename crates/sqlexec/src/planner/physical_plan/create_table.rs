@@ -2,36 +2,36 @@ use std::sync::Arc;
 
 use datafusion::{
     arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
+    datasource::TableProvider,
     error::{DataFusionError, Result as DataFusionResult},
     execution::TaskContext,
     physical_expr::PhysicalSortExpr,
     physical_plan::{
+        coalesce_partitions::CoalescePartitionsExec, empty::EmptyExec,
         stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan,
         Partitioning, SendableRecordBatchStream, Statistics,
     },
 };
-use datasources::native::access::NativeTableStorage;
+use datasources::native::access::{NativeTable, NativeTableStorage};
 use futures::stream;
 use protogen::metastore::types::{service, service::Mutation};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use tracing::info;
 
+use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
 use crate::{
     errors::ExecError,
     metastore::catalog::{CatalogMutator, SessionCatalog},
-    planner::{
-        logical_plan::OwnedFullObjectReference,
-        physical_plan::{insert::InsertExec, new_operation_batch},
-    },
+    planner::{logical_plan::OwnedFullObjectReference, physical_plan::new_operation_batch},
 };
-
-use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
+use futures::StreamExt;
 
 #[derive(Debug, Clone)]
 pub struct CreateTableExec {
     pub catalog_version: u64,
     pub tbl_reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
+    pub or_replace: bool,
     pub arrow_schema: SchemaRef,
     pub source: Option<Arc<dyn ExecutionPlan>>,
 }
@@ -68,6 +68,7 @@ impl ExecutionPlan for CreateTableExec {
             catalog_version: self.catalog_version,
             tbl_reference: self.tbl_reference.clone(),
             if_not_exists: self.if_not_exists,
+            or_replace: self.or_replace,
             arrow_schema: self.arrow_schema.clone(),
             source: children.get(0).cloned(),
         }))
@@ -120,6 +121,7 @@ impl CreateTableExec {
         storage: Arc<NativeTableStorage>,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<RecordBatch> {
+        let or_replace = self.or_replace;
         let state = mutator
             .mutate(
                 self.catalog_version,
@@ -128,16 +130,24 @@ impl CreateTableExec {
                     name: self.tbl_reference.name.clone().into_owned(),
                     options: self.arrow_schema.into(),
                     if_not_exists: self.if_not_exists,
+                    or_replace,
                 })],
             )
             .await
             .map_err(|e| {
                 DataFusionError::Execution(format!("failed to create table in catalog: {e}"))
             })?;
-
+        let source = self.source.map(|source| {
+            if source.output_partitioning().partition_count() != 1 {
+                Arc::new(CoalescePartitionsExec::new(source))
+            } else {
+                source
+            }
+        });
         // Note that we're not changing out the catalog stored on the context,
         // we're just using it here to get the new table entry easily.
         let new_catalog = SessionCatalog::new(state);
+
         let ent = new_catalog
             .resolve_table(
                 DEFAULT_CATALOG,
@@ -147,17 +157,39 @@ impl CreateTableExec {
             .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))
             .unwrap();
 
-        let table = storage.create_table(ent).await.map_err(|e| {
+        let table = storage.create_table(ent, or_replace).await.map_err(|e| {
             DataFusionError::Execution(format!("failed to create table in storage: {e}"))
         })?;
-        info!(loc = %table.storage_location(), "native table created");
 
-        if let Some(source) = self.source {
-            InsertExec::do_insert(table.into_table_provider(), source, context).await?;
-        }
+        match (source, or_replace) {
+            (Some(input), overwrite) => insert(&table, input, overwrite, context).await?,
+
+            // if it's a 'replace' and there is no insert, we overwrite with an empty table
+            (None, true) => {
+                let input = Arc::new(EmptyExec::new(false, TableProvider::schema(&table)));
+                insert(&table, input, true, context).await?
+            }
+            (None, false) => {}
+        };
+        info!(loc = %table.storage_location(), "native table created");
 
         // TODO: Add storage tracking job.
 
         Ok(new_operation_batch("create_table"))
     }
+}
+
+async fn insert(
+    tbl: &NativeTable,
+    input: Arc<dyn ExecutionPlan>,
+    overwrite: bool,
+    context: Arc<TaskContext>,
+) -> DataFusionResult<()> {
+    let mut stream = tbl.insert_exec(input, overwrite).execute(0, context)?;
+
+    while let Some(res) = stream.next().await {
+        // Drain stream to write everything.
+        let _ = res?;
+    }
+    Ok(())
 }

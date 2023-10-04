@@ -1,0 +1,31 @@
+// Types shared between our "external" and "internal" apis.
+//
+// See
+// <https://www.notion.so/glaredb/Distributed-Exec-f1e40e1dac174762b4f0fe4f6ac03ac9?pvs=4#c986d64150ac4b079d431d3d36f25f0f>
+
+syntax = "proto3";
+
+package rpcsrv.common;
+
+/// A single batch as the result of query execution.
+message ExecutionResultBatch {
+  // Session id.
+  //
+  // TODO: This will be changed to database_id when we remove the 1:1
+  // relationship between local and remote sessions.
+  bytes session_id = 1;
+  // Unique work id.
+  bytes work_id = 2;
+
+  // IPC encoded batches.
+  bytes arrow_ipc = 3;
+
+  // TODO: Error flag to indicate if the stream errored on the client side. We
+  // don't need the error itself, we just need to know that we did error.
+  //
+  // Note that an error *inside* the message would indicated we had trouble
+  // reading from the stream or encoding to IPC. The client will already have
+  // access to the error.
+  //
+  // This would be used to just drop the stream to release resources.
+}
