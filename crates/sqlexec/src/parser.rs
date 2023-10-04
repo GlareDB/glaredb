@@ -445,7 +445,7 @@ impl<'a> CustomParser<'a> {
             // Fall back to underlying parser.
 
             if or_replace {
-                // backtrack to include OR REPLACE in the statement
+                // backtrack to include OR REPLACE in the statement passed to the underlying parser
                 self.parser.prev_token();
                 self.parser.prev_token();
             }
