@@ -305,6 +305,7 @@ pub struct CreateExternalTable {
     pub schema: String,
     pub name: String,
     pub options: TableOptions,
+    pub or_replace: bool,
     pub if_not_exists: bool,
     pub tunnel: Option<String>,
 }
@@ -317,6 +318,7 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
             schema: value.schema,
             name: value.name,
             options: value.options.required("options")?,
+            or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,
         })
@@ -330,6 +332,7 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
             schema: value.schema,
             name: value.name,
             options: Some(value.options.try_into()?),
+            or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,
         })

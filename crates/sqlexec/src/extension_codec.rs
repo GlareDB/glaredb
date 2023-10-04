@@ -572,6 +572,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                             DataFusionError::Internal("missing table references".to_string())
                         })?
                         .into(),
+                    or_replace: ext.or_replace,
                     if_not_exists: ext.if_not_exists,
                     table_options: table_options.try_into()?,
                     tunnel: ext.tunnel,
@@ -863,6 +864,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 proto::CreateExternalTableExec {
                     catalog_version: exec.catalog_version,
                     tbl_reference: Some(exec.tbl_reference.clone().into()),
+                    or_replace: exec.or_replace,
                     if_not_exists: exec.if_not_exists,
                     table_options: Some(exec.table_options.clone().try_into()?),
                     tunnel: exec.tunnel.clone(),

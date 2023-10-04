@@ -85,6 +85,8 @@ pub struct CreateExternalTable {
     pub table_options: Option<TableOptions>,
     #[prost(message, optional, tag = "4")]
     pub tunnel: Option<String>,
+    #[prost(bool, tag = "5")]
+    pub or_replace: bool,
 }
 
 #[derive(Clone, PartialEq, Message)]

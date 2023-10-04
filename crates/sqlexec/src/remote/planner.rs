@@ -131,6 +131,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 Ok(Some(Arc::new(CreateExternalTableExec {
                     catalog_version: self.catalog_version,
                     tbl_reference: lp.tbl_reference.clone(),
+                    or_replace: lp.or_replace,
                     if_not_exists: lp.if_not_exists,
                     tunnel: lp.tunnel.clone(),
                     table_options: lp.table_options.clone(),
