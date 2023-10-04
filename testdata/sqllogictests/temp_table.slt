@@ -117,3 +117,28 @@ select * from abc;
 
 statement error Unable to fetch table provider
 select * from t1;
+
+
+# Create -> Replace -> Drop
+
+statement ok
+create temp table tmp1 as select 1;
+
+query I
+select * from tmp1;
+----
+1
+
+statement ok
+create or replace temp table tmp1 as select 1, 2;
+
+query II
+select * from tmp1;
+----
+1  2
+
+statement ok
+drop table tmp1;
+
+statement error
+select * from tmp1;
