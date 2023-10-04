@@ -443,6 +443,13 @@ impl<'a> CustomParser<'a> {
             self.parse_create_credentials()
         } else {
             // Fall back to underlying parser.
+
+            if or_replace {
+                // backtrack to include OR REPLACE in the statement
+                self.parser.prev_token();
+                self.parser.prev_token();
+            }
+
             Ok(StatementWithExtensions::Statement(
                 self.parser.parse_create()?,
             ))
