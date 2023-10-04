@@ -28,8 +28,6 @@ CONTAINER_ID="$(docker run \
 
 # Create the test container using the minio client
 docker run --rm --net=host --entrypoint=/bin/sh -i minio/mc:latest <<EOF
-#!/usr/bin/mc
-
 # Wait for minio server to become ready
 curl --retry 10 -f --retry-connrefused --retry-delay 1 http://localhost:9000/minio/health/live
 

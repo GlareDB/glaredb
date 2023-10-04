@@ -292,4 +292,6 @@ jobs:
               --option access_key_id=$MINIO_ACCESS_KEY \
               --option secret_access_key=$MINIO_SECRET_KEY \
               --option bucket=$MINIO_BUCKET \
-              'sqllogictests_native/*' 
+              'sqllogictests/*' \
+              'sqllogictests_native/*'
+              
