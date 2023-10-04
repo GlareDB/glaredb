@@ -2,8 +2,8 @@ name: Build Release
 
 on:
   schedule:
-    # Run every day at 12:00
-    - cron: 0 12 * * *
+    # Run every Monday at 12:00
+    - cron: 0 12 * * 1
   workflow_dispatch:
   push:
     tags:
