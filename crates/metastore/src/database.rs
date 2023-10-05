@@ -288,13 +288,12 @@ enum CreatePolicy {
 }
 
 impl CreatePolicy {
-    pub fn new(if_not_exists: bool, or_replace: bool) -> Self {
-        if or_replace {
-            CreatePolicy::CreateOrReplace
-        } else if if_not_exists {
-            CreatePolicy::CreateIfNotExists
-        } else {
-            CreatePolicy::Create
+    pub fn new(if_not_exists: bool, or_replace: bool) -> Result<Self> {
+        match (if_not_exists, or_replace) {
+            (true, true) => Err(MetastoreError::InvalidCreatePolicy),
+            (true, false) => Ok(CreatePolicy::CreateIfNotExists),
+            (false, true) => Ok(CreatePolicy::CreateOrReplace),
+            (false, false) => Ok(CreatePolicy::Create),
         }
     }
 }
@@ -820,7 +819,7 @@ impl State {
                     tunnel_id: None,
                 };
 
-                let policy = CreatePolicy::new(create_table.if_not_exists, create_table.or_replace);
+                let policy = CreatePolicy::new(create_table.if_not_exists, create_table.or_replace)?;
 
                 self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
             }
@@ -859,7 +858,7 @@ impl State {
                     tunnel_id,
                 };
 
-                let policy = CreatePolicy::new(create_ext.if_not_exists, create_ext.or_replace);
+                let policy = CreatePolicy::new(create_ext.if_not_exists, create_ext.or_replace)?;
 
                 self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
             }
