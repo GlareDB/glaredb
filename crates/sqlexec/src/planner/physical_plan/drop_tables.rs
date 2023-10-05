@@ -5,8 +5,6 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::expressions::Column;
-use datafusion::physical_plan::PhysicalExpr;
 use datafusion::physical_plan::{
     stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
     SendableRecordBatchStream, Statistics,
@@ -36,10 +34,7 @@ impl ExecutionPlan for DropTablesExec {
     }
 
     fn output_partitioning(&self) -> Partitioning {
-        let exprs: Vec<Arc<dyn PhysicalExpr>> = vec![Arc::new(
-            Column::new_with_schema("$operation", &GENERIC_OPERATION_PHYSICAL_SCHEMA).unwrap(),
-        )];
-        Partitioning::Hash(exprs, 1)
+        Partitioning::UnknownPartitioning(1)
     }
 
     fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
