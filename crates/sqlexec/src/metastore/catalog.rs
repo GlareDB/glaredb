@@ -481,8 +481,7 @@ impl TempCatalog {
         inner.tables.remove(name);
     }
 
-    /// Drop a table if it exists.
-    /// Returns true if the table was dropped.
+    /// Returns true if the table exists in the temp catalog.
     pub fn contains_table(&self, name: &str) -> bool {
         let mut inner = self.inner.lock();
         inner.tables.contains_key(name)
