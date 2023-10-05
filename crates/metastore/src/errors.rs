@@ -90,7 +90,7 @@ pub enum MetastoreError {
 
     #[error(transparent)]
     TonicTransportError(#[from] tonic::transport::Error),
-    
+
     #[error("Cannot specify both 'IF NOT EXISTS' and 'OR REPLACE'")]
     InvalidCreatePolicy,
 }

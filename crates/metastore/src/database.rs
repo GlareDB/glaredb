@@ -819,7 +819,8 @@ impl State {
                     tunnel_id: None,
                 };
 
-                let policy = CreatePolicy::new(create_table.if_not_exists, create_table.or_replace)?;
+                let policy =
+                    CreatePolicy::new(create_table.if_not_exists, create_table.or_replace)?;
 
                 self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
             }
