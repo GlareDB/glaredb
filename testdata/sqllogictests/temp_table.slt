@@ -142,3 +142,10 @@ drop table tmp1;
 
 statement error
 select * from tmp1;
+
+# make sure it's dropped from the catalog
+
+query I
+select count(*) from glare_catalog.tables where table_name = 'tmp1';
+----
+0
