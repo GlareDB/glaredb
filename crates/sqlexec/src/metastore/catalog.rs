@@ -483,7 +483,7 @@ impl TempCatalog {
 
     /// Returns true if the table exists in the temp catalog.
     pub fn contains_table(&self, name: &str) -> bool {
-        let mut inner = self.inner.lock();
+        let inner = self.inner.lock();
         inner.tables.contains_key(name)
     }
 
