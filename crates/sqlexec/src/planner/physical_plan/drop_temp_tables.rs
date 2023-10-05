@@ -1,4 +1,4 @@
-use crate::metastore::catalog::CatalogMutator;
+use crate::metastore::catalog::TempCatalog;
 use crate::planner::logical_plan::OwnedFullObjectReference;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -12,7 +12,6 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use futures::stream;
-use protogen::metastore::types::service::{self, Mutation};
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
@@ -20,13 +19,13 @@ use std::sync::Arc;
 use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 
 #[derive(Debug, Clone)]
-pub struct DropTablesExec {
+pub struct DropTempTablesExec {
     pub catalog_version: u64,
     pub tbl_references: Vec<OwnedFullObjectReference>,
     pub if_exists: bool,
 }
 
-impl ExecutionPlan for DropTablesExec {
+impl ExecutionPlan for DropTempTablesExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -55,7 +54,7 @@ impl ExecutionPlan for DropTablesExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Plan(
-            "Cannot change children for DropTablesExec".to_string(),
+            "Cannot change children for DropTempTablesExec".to_string(),
         ))
     }
 
@@ -66,16 +65,10 @@ impl ExecutionPlan for DropTablesExec {
     ) -> DataFusionResult<SendableRecordBatchStream> {
         if partition != 0 {
             return Err(DataFusionError::Execution(
-                "DropTablesExec only supports 1 partition".to_string(),
+                "DropTempTablesExec only supports 1 partition".to_string(),
             ));
         }
-
-        let mutator = context
-            .session_config()
-            .get_extension::<CatalogMutator>()
-            .expect("context should have catalog mutator");
-
-        let stream = stream::once(drop_tables(mutator, self.clone()));
+        let stream = stream::once(drop_tables(self.clone(), context));
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
@@ -88,28 +81,24 @@ impl ExecutionPlan for DropTablesExec {
     }
 }
 
-impl DisplayAs for DropTablesExec {
+impl DisplayAs for DropTempTablesExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "DropTablesExec")
+        write!(f, "DropTempTablesExec")
     }
 }
 
 async fn drop_tables(
-    mutator: Arc<CatalogMutator>,
-    plan: DropTablesExec,
+    plan: DropTempTablesExec,
+    context: Arc<TaskContext>,
 ) -> DataFusionResult<RecordBatch> {
-    let drops = plan.tbl_references.into_iter().map(|r| {
-        Mutation::DropObject(service::DropObject {
-            schema: r.schema.into_owned(),
-            name: r.name.into_owned(),
-            if_exists: plan.if_exists,
-        })
-    });
+    let temp_objects = context
+        .session_config()
+        .get_extension::<TempCatalog>()
+        .unwrap();
 
-    mutator
-        .mutate(plan.catalog_version, drops)
-        .await
-        .map_err(|e| DataFusionError::Execution(format!("failed to drop tables: {e}")))?;
+    for temp_table in plan.tbl_references {
+        temp_objects.drop_table(&temp_table.name);
+    }
 
-    Ok(new_operation_batch("drop_tables"))
+    Ok(new_operation_batch("drop_temp_tables"))
 }

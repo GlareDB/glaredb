@@ -405,7 +405,7 @@ impl Session {
             let plan = planner.create_physical_plan(&plan, &state).await?;
             Ok(plan)
         } else {
-            let ddl_planner = DDLExtensionPlanner::new(self.ctx.get_session_catalog().version());
+            let ddl_planner = DDLExtensionPlanner::new(self.ctx.get_session_catalog().clone());
             let planner =
                 DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(ddl_planner)]);
             let plan = planner.create_physical_plan(&plan, &state).await?;

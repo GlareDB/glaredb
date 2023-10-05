@@ -30,7 +30,6 @@ use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::gcp::GoogleConfigKey;
-use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
     CopyToDestinationOptionsS3, CopyToFormatOptions, CopyToFormatOptionsCsv,
@@ -702,8 +701,7 @@ impl<'a> SessionPlanner<'a> {
                 let table_name = object_name_to_table_ref(name)?;
 
                 let (source, arrow_cols) = if let Some(q) = query {
-                    let mut ctx =
-                        context_provider.with_runtime_preference(RuntimePreference::Remote);
+                    let mut ctx = context_provider;
 
                     let mut planner = SqlQueryPlanner::new(&mut ctx);
 

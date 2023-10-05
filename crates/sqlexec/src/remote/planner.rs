@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::Schema;
-use datafusion::common::tree_node::{Transformed, TreeNode};
+use datafusion::common::tree_node::Transformed;
 use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::context::SessionState;
@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use std::sync::Arc;
 
-use crate::metastore::catalog::SessionCatalog;
+use crate::metastore::catalog::{SessionCatalog, TempCatalog};
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
@@ -45,6 +45,7 @@ use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
 use crate::planner::physical_plan::drop_tables::DropTablesExec;
+use crate::planner::physical_plan::drop_temp_tables::DropTempTablesExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::insert::InsertExec;
@@ -55,14 +56,18 @@ use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
 
 use super::client::RemoteSessionClient;
-use super::rewriter::DDLRewriter;
 
 pub struct DDLExtensionPlanner {
+    catalog: SessionCatalog,
     catalog_version: u64,
 }
 impl DDLExtensionPlanner {
-    pub fn new(catalog_version: u64) -> Self {
-        Self { catalog_version }
+    pub fn new(catalog: SessionCatalog) -> Self {
+        let version = catalog.version();
+        Self {
+            catalog,
+            catalog_version: version,
+        }
     }
 }
 #[async_trait]
@@ -73,7 +78,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
         node: &dyn UserDefinedLogicalNode,
         _logical_inputs: &[&DfLogicalPlan],
         physical_inputs: &[Arc<dyn ExecutionPlan>],
-        _session_state: &SessionState,
+        session_state: &SessionState,
     ) -> Result<Option<Arc<dyn ExecutionPlan>>> {
         let extension_type = node.name().parse::<ExtensionType>().unwrap();
 
@@ -157,13 +162,15 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             }
             ExtensionType::CreateTempTable => {
                 let lp = require_downcast_lp::<CreateTempTable>(node);
-                Ok(Some(Arc::new(CreateTempTableExec {
+                let exec = Arc::new(CreateTempTableExec {
                     tbl_reference: lp.tbl_reference.clone(),
                     if_not_exists: lp.if_not_exists,
                     or_replace: lp.or_replace,
                     arrow_schema: Arc::new(lp.schema.as_ref().into()),
                     source: physical_inputs.get(0).cloned(),
-                })))
+                });
+                let exec = Arc::new(RuntimeGroupExec::new(RuntimePreference::Local, exec));
+                Ok(Some(exec))
             }
             ExtensionType::CreateTunnel => {
                 let lp = require_downcast_lp::<CreateTunnel>(node);
@@ -185,12 +192,67 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 })))
             }
             ExtensionType::DropTables => {
-                let lp = require_downcast_lp::<DropTables>(node);
-                Ok(Some(Arc::new(DropTablesExec {
-                    catalog_version: self.catalog_version,
-                    tbl_references: lp.tbl_references.clone(),
-                    if_exists: lp.if_exists,
-                })))
+                let tmp_catalog = session_state
+                    .task_ctx()
+                    .session_config()
+                    .get_extension::<TempCatalog>()
+                    .unwrap();
+                let plan = require_downcast_lp::<DropTables>(node);
+                let mut drops = Vec::with_capacity(plan.tbl_references.len());
+                let mut temp_table_drops = Vec::with_capacity(plan.tbl_references.len());
+
+                for r in &plan.tbl_references {
+                    if tmp_catalog.contains_table(&r.name) {
+                        temp_table_drops.push(r.clone());
+                    } else if self
+                        .catalog
+                        .resolve_table(&r.database, &r.schema, &r.name)
+                        .is_some()
+                        || plan.if_exists
+                    {
+                        drops.push(r.clone());
+                    } else {
+                        return Err(DataFusionError::Plan(format!(
+                            "Table '{}' does not exist",
+                            r.name
+                        )));
+                    }
+                }
+                let exec: Arc<dyn ExecutionPlan> = match (
+                    temp_table_drops.is_empty(),
+                    drops.is_empty(),
+                ) {
+                    // both temp and remote tables
+                    (false, false) => {
+                        return Err(DataFusionError::Plan("Unable to drop temp and native tables in the same statement. Please use separate statements.".to_string()))?;
+                    }
+                    // only temp tables
+                    (false, true) => {
+                        let tmp_exec = Arc::new(DropTempTablesExec {
+                            catalog_version: self.catalog_version,
+                            tbl_references: temp_table_drops,
+                            if_exists: plan.if_exists,
+                        });
+
+                        Arc::new(RuntimeGroupExec::new(RuntimePreference::Local, tmp_exec))
+                    }
+                    // only remote tables
+                    (true, false) => {
+                        let exec = Arc::new(DropTablesExec {
+                            catalog_version: self.catalog_version,
+                            tbl_references: drops,
+                            if_exists: plan.if_exists,
+                        });
+                        let exec = RuntimeGroupExec::new(RuntimePreference::Remote, exec);
+                        Arc::new(exec)
+                    }
+                    // no tables
+                    (true, true) => {
+                        return Err(DataFusionError::Plan("No tables to drop".to_string()))?
+                    }
+                };
+
+                Ok(Some(exec))
             }
             ExtensionType::DropCredentials => {
                 let lp = require_downcast_lp::<DropCredentials>(node);
@@ -257,11 +319,18 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             }
             ExtensionType::CopyTo => {
                 let lp = require_downcast_lp::<CopyTo>(node);
-                Ok(Some(Arc::new(CopyToExec {
+                let runtime = match lp.dest {
+                    CopyToDestinationOptions::Local(_) => RuntimePreference::Local,
+                    _ => RuntimePreference::Remote,
+                };
+
+                let exec = Arc::new(CopyToExec {
                     format: lp.format.clone(),
                     dest: lp.dest.clone(),
                     source: physical_inputs.get(0).unwrap().clone(),
-                })))
+                });
+                let exec = Arc::new(RuntimeGroupExec::new(runtime, exec));
+                Ok(Some(exec))
             }
             ExtensionType::Update => {
                 let lp = require_downcast_lp::<Update>(node);
@@ -273,10 +342,17 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             }
             ExtensionType::Insert => {
                 let lp = require_downcast_lp::<Insert>(node);
-                Ok(Some(Arc::new(InsertExec {
+                let runtime = if lp.table.meta.is_temp {
+                    RuntimePreference::Local
+                } else {
+                    RuntimePreference::Remote
+                };
+                let exec = Arc::new(InsertExec {
                     table: lp.table.clone(),
                     source: physical_inputs.get(0).unwrap().clone(),
-                })))
+                });
+                let exec = Arc::new(RuntimeGroupExec::new(runtime, exec));
+                Ok(Some(exec))
             }
             ExtensionType::Delete => {
                 let lp = require_downcast_lp::<Delete>(node);
@@ -306,17 +382,30 @@ impl<'a> RemotePhysicalPlanner<'a> {
     /// physical plan.
     fn replace_local_runtime_groups(
         &self,
-        plan: Arc<dyn ExecutionPlan>,
+        original_plan: Arc<dyn ExecutionPlan>,
     ) -> Result<(Arc<dyn ExecutionPlan>, Vec<ClientExchangeSendExec>)> {
         let mut sends = Vec::new();
+        let pref = original_plan
+            .as_any()
+            .downcast_ref::<RuntimeGroupExec>()
+            .map(|exec| exec.preference)
+            .unwrap_or(RuntimePreference::Unspecified);
 
-        let plan = plan.transform_up_mut(&mut |plan| {
+        let plan = original_plan.transform_up_mut(&mut |plan| {
             let mut new_children: Vec<Arc<dyn ExecutionPlan>> = Vec::new();
             let mut did_modify = false;
 
             for child in plan.children() {
                 match child.as_any().downcast_ref::<RuntimeGroupExec>() {
                     Some(exec) if exec.preference == RuntimePreference::Local => {
+                        if matches!(pref, RuntimePreference::Local) {
+                            // If the root of the plan is local, then we can just
+                            // execute everything locally by omitting the remote
+                            // execution exec.
+                            new_children.push(child);
+                            continue;
+                        }
+
                         did_modify = true;
 
                         let work_id = Uuid::new_v4();
@@ -355,7 +444,6 @@ impl<'a> RemotePhysicalPlanner<'a> {
             if !did_modify {
                 return Ok(Transformed::No(plan));
             }
-
             let new_plan = plan.with_new_children(new_children)?;
             Ok(Transformed::Yes(new_plan))
         })?;
@@ -373,20 +461,16 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         // Rewrite any DDL that needs to process locally so we can only send the
         // query on remote and process it later on.
-        let mut ddl_rewriter = DDLRewriter::default();
-        let logical_plan = logical_plan.clone().rewrite(&mut ddl_rewriter)?;
 
         // Create the physical plans. This will call `scan` on
         // the custom table providers meaning we'll have the
         // correct exec refs.
-        let catalog_version = self.catalog.version();
 
         let physical = DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(
-            DDLExtensionPlanner::new(catalog_version),
+            DDLExtensionPlanner::new(self.catalog.clone()),
         )])
-        .create_physical_plan(&logical_plan, session_state)
+        .create_physical_plan(logical_plan, session_state)
         .await?;
-
         let (physical, send_execs) = self.replace_local_runtime_groups(physical)?;
 
         // If the root of the plan indicates a local runtime preference, then we
@@ -418,33 +502,6 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
                 Arc::new(SendRecvJoinExec::new(physical, send_execs))
             }
         };
-
-        // Execute the some plans into locally.
-        let physical: Arc<dyn ExecutionPlan> = match ddl_rewriter {
-            DDLRewriter::None => physical,
-            DDLRewriter::InsertIntoTempTable(table) => Arc::new(InsertExec {
-                table,
-                source: physical,
-            }),
-            DDLRewriter::CreateTempTable(create_temp_table) => Arc::new(CreateTempTableExec {
-                tbl_reference: create_temp_table.tbl_reference.clone(),
-                if_not_exists: create_temp_table.if_not_exists,
-                or_replace: create_temp_table.or_replace,
-                arrow_schema: Arc::new(create_temp_table.schema.as_ref().into()),
-                source: if create_temp_table.source.is_some() {
-                    Some(physical)
-                } else {
-                    None
-                },
-            }),
-            DDLRewriter::DropTempTables { .. } => todo!("see rewriter for what's blocking"),
-            DDLRewriter::CopyRemoteToLocal { format, dest } => Arc::new(CopyToExec {
-                format,
-                dest: CopyToDestinationOptions::Local(dest),
-                source: physical,
-            }),
-        };
-
         Ok(physical)
     }
 
