@@ -49,6 +49,7 @@ use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::insert::InsertExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
+use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 use crate::planner::physical_plan::set_var::SetVarExec;
 use crate::planner::physical_plan::show_var::ShowVarExec;
@@ -275,8 +276,8 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::Insert => {
                 let lp = require_downcast_lp::<Insert>(node);
                 Ok(Some(Arc::new(InsertExec {
-                    table: lp.table.clone(),
                     source: physical_inputs.get(0).unwrap().clone(),
+                    provider: lp.provider.clone(),
                 })))
             }
             ExtensionType::Delete => {
@@ -423,8 +424,8 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         // Execute the some plans into locally.
         let physical: Arc<dyn ExecutionPlan> = match ddl_rewriter {
             DDLRewriter::None => physical,
-            DDLRewriter::InsertIntoTempTable(table) => Arc::new(InsertExec {
-                table,
+            DDLRewriter::InsertIntoLocalTable(provider) => Arc::new(InsertExec {
+                provider: ProviderReference::Provider(provider),
                 source: physical,
             }),
             DDLRewriter::CreateTempTable(create_temp_table) => Arc::new(CreateTempTableExec {

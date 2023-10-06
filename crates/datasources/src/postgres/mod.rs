@@ -1,5 +1,6 @@
 pub mod errors;
 
+mod query_exec;
 mod tls;
 
 use crate::common::ssh::session::SshTunnelSession;
@@ -19,12 +20,14 @@ use datafusion::execution::context::SessionState;
 use datafusion::execution::context::TaskContext;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::memory::MemoryExec;
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion::physical_plan::metrics::MetricsSet;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
+    execute_stream, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
+use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
@@ -48,6 +51,8 @@ use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres::types::{FromSql, Type as PostgresType};
 use tokio_postgres::{Client, Config, Connection, CopyOutStream, NoTls, Socket};
 use tracing::{debug, warn};
+
+use self::query_exec::{create_count_record_batch, PostgresQueryExec};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PostgresDbConnection {
@@ -640,6 +645,54 @@ impl TableProvider for PostgresTableProvider {
         .await
         .unwrap(); // Should never error.
 
+        Ok(Arc::new(exec))
+    }
+
+    async fn insert_into(
+        &self,
+        state: &SessionState,
+        input: Arc<dyn ExecutionPlan>,
+        _overwrite: bool,
+    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        let mut values = String::new();
+
+        let mut input = execute_stream(input, state.task_ctx())?;
+        while let Some(batch) = input.next().await {
+            let batch = batch?;
+
+            let mut row_sep = "";
+            for row_idx in 0..batch.num_rows() {
+                write!(&mut values, "{row_sep}(")?;
+                row_sep = ",\n\t";
+
+                let mut col_sep = "";
+                for col in batch.columns() {
+                    write!(&mut values, "{col_sep}")?;
+                    col_sep = ", ";
+
+                    let val = ScalarValue::try_from_array(col.as_ref(), row_idx)?;
+                    util::encode_literal_to_text(util::Datasource::Postgres, &mut values, &val)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                }
+
+                write!(&mut values, ")")?;
+            }
+        }
+
+        if values.is_empty() {
+            let batch = create_count_record_batch(0);
+            let schema = batch.schema();
+            return Ok(Arc::new(MemoryExec::try_new(&[vec![batch]], schema, None)?));
+        }
+
+        let query = format!(
+            "INSERT INTO {}.{} VALUES\n\t{}",
+            self.schema, self.table, values
+        );
+
+        debug!(%query, "inserting into postgres datasource");
+
+        let exec = PostgresQueryExec::new(query, self.state.clone());
         Ok(Arc::new(exec))
     }
 }

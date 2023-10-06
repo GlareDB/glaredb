@@ -79,6 +79,11 @@ impl<'a> EntryResolver<'a> {
                     return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
                 }
 
+                // builtin table functions should be independent of schema, pull them out of 'public' schema
+                if let Some(function) = self.catalog.resolve_builtin_table_function(table) {
+                    return Ok(ResolvedEntry::Entry(CatalogEntry::Function(function)));
+                }
+
                 // Iterate through all schemas in the search path looking for
                 // our table.
                 for schema in self.schema_search_path.iter() {

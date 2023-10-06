@@ -1,11 +1,15 @@
+use std::sync::Arc;
+
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{CopyTo, CreateTempTable, Insert};
+use crate::planner::physical_plan::remote_scan::ProviderReference;
 
 use datafusion::common::tree_node::RewriteRecursion;
 use datafusion::common::tree_node::TreeNodeRewriter;
+use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::logical_expr::{EmptyRelation, LogicalPlan};
-use protogen::metastore::types::catalog::TableEntry;
+use protogen::metastore::types::catalog::{RuntimePreference, TableEntry};
 use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsLocal, CopyToFormatOptions,
 };
@@ -15,10 +19,9 @@ use protogen::metastore::types::options::{
 /// can execute the DDL actions locally.
 ///
 /// NOTE: We should only have one DDL in a plan.
-#[derive(Debug)]
 pub enum DDLRewriter {
     None,
-    InsertIntoTempTable(TableEntry),
+    InsertIntoLocalTable(Arc<dyn TableProvider>),
     CreateTempTable(CreateTempTable),
     DropTempTables {
         temp_tables: Vec<TableEntry>,
@@ -72,8 +75,14 @@ impl TreeNodeRewriter for DDLRewriter {
             match ext_type {
                 ExtensionType::Insert => {
                     let insert_into = ext.node.as_any().downcast_ref::<Insert>().unwrap();
-                    if insert_into.table.meta.is_temp {
-                        self.set(Self::InsertIntoTempTable(insert_into.table.clone()))?;
+                    if insert_into.runtime_preference == RuntimePreference::Local {
+                        let provider = match &insert_into.provider {
+                            ProviderReference::Provider(provider) => provider.clone(),
+                            ProviderReference::RemoteReference(_) => unreachable!(
+                                "required local table, found remote reference to table"
+                            ),
+                        };
+                        self.set(Self::InsertIntoLocalTable(provider))?;
                         insert_into.source.clone()
                     } else {
                         LogicalPlan::Extension(ext)

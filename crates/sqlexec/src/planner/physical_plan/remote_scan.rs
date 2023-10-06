@@ -15,6 +15,7 @@ use datafusion::prelude::Expr;
 use futures::{stream, TryStreamExt};
 use std::any::Any;
 use std::fmt;
+use std::hash::Hash;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -29,6 +30,25 @@ pub enum ProviderReference {
     RemoteReference(Uuid),
     /// We have the provider ready to go.
     Provider(Arc<dyn TableProvider>),
+}
+
+impl PartialEq for ProviderReference {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::RemoteReference(id), Self::RemoteReference(other_id)) => id.eq(other_id),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for ProviderReference {}
+
+impl Hash for ProviderReference {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        if let Self::RemoteReference(id) = self {
+            id.hash(state)
+        }
+    }
 }
 
 impl fmt::Debug for ProviderReference {
