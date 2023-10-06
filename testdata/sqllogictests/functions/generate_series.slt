@@ -98,3 +98,19 @@ select i * 2 from (select * from generate_series(1, 5)) as t(i);
 6
 8
 10
+
+statement ok
+create schema test_schema;
+
+statement ok
+set search_path to test_schema;
+
+statement ok
+create view test_view as select * from generate_series(1, 3);
+
+query i
+select * from test_view;
+----
+1
+2
+3
