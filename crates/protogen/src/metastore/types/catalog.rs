@@ -496,7 +496,7 @@ impl From<FunctionType> for catalog::function_entry::FunctionType {
 }
 
 /// The runtime preference for a function.
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
 pub enum RuntimePreference {
     Unspecified,
     Local,
