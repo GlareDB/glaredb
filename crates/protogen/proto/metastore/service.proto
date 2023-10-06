@@ -82,7 +82,8 @@ message CreateExternalTable {
   options.TableOptions options = 3;
   bool if_not_exists = 4;
   optional string tunnel = 5;
-  // next: 6
+  bool or_replace = 6;
+  // next: 7
 }
 
 message CreateExternalDatabase {

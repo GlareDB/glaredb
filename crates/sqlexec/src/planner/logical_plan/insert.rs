@@ -2,14 +2,17 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use datafusion::prelude::SessionContext;
-use protogen::metastore::types::catalog::TableEntry;
+use protogen::metastore::types::catalog::RuntimePreference;
+
+use crate::planner::physical_plan::remote_scan::ProviderReference;
 
 use super::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Insert {
     pub source: DfLogicalPlan,
-    pub table: TableEntry,
+    pub provider: ProviderReference,
+    pub runtime_preference: RuntimePreference,
 }
 
 impl UserDefinedLogicalNodeCore for Insert {

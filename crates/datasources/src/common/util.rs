@@ -49,15 +49,22 @@ pub fn encode_literal_to_text(
     buf: &mut String,
     lit: &ScalarValue,
 ) -> Result<()> {
-    // Should be handled by "IS [NOT] NULL" ...
-    debug_assert!(!lit.is_null());
-    // Should be handled by "IS (TRUE/FALSE)" ...
-    debug_assert!(!matches!(lit, ScalarValue::Boolean(_)));
+    if lit.is_null() {
+        buf.write_str("NULL")?;
+        return Ok(());
+    }
 
     if is_literal_quotable(datasource, lit) {
         buf.write_str("'")?;
     }
     match lit {
+        ScalarValue::Boolean(Some(v)) => {
+            if *v {
+                buf.write_str("TRUE")?;
+            } else {
+                buf.write_str("FALSE")?;
+            }
+        }
         ScalarValue::Int8(Some(v)) => encode_int(buf, *v)?,
         ScalarValue::Int16(Some(v)) => encode_int(buf, *v)?,
         ScalarValue::Int32(Some(v)) => encode_int(buf, *v)?,

@@ -30,6 +30,7 @@ use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::gcp::GoogleConfigKey;
+use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
     CopyToDestinationOptionsS3, CopyToFormatOptions, CopyToFormatOptionsCsv,
@@ -61,10 +62,12 @@ use crate::parser::{
 use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
+use crate::remote::table::StubRemoteTableProvider;
 use crate::resolve::EntryResolver;
 
 use super::context_builder::PartialContextProvider;
 use super::extension::ExtensionNode;
+use super::physical_plan::remote_scan::ProviderReference;
 
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {
@@ -547,6 +550,7 @@ impl<'a> SessionPlanner<'a> {
 
         let plan = CreateExternalTable {
             tbl_reference: self.ctx.resolve_table_ref(table_name)?,
+            or_replace: stmt.or_replace,
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
             tunnel,
@@ -870,12 +874,33 @@ impl<'a> SessionPlanner<'a> {
                     .insert_to_source_plan(&table_name, &columns, source)
                     .await?;
 
-                let resolver = EntryResolver::from_context(self.ctx);
-                let ent = resolver
-                    .resolve_entry_from_reference(table_name)?
-                    .try_into_table_entry()?;
+                let state = self.ctx.df_ctx().state();
+                let mut ctx_provider = PartialContextProvider::new(self.ctx, &state)?;
 
-                Ok(Insert { table: ent, source }.into_logical_plan())
+                let provider = ctx_provider.table_provider(table_name.clone()).await?;
+                let (runtime_preference, provider) = match (
+                    provider.preference,
+                    provider
+                        .provider
+                        .as_any()
+                        .downcast_ref::<StubRemoteTableProvider>(),
+                ) {
+                    (RuntimePreference::Remote, Some(stub)) => (
+                        RuntimePreference::Remote,
+                        ProviderReference::RemoteReference(stub.id()),
+                    ),
+                    _ => (
+                        RuntimePreference::Local,
+                        ProviderReference::Provider(provider.provider),
+                    ),
+                };
+
+                Ok(Insert {
+                    source,
+                    provider,
+                    runtime_preference,
+                }
+                .into_logical_plan())
             }
 
             ast::Statement::AlterTable {

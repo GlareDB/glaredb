@@ -572,6 +572,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                             DataFusionError::Internal("missing table references".to_string())
                         })?
                         .into(),
+                    or_replace: ext.or_replace,
                     if_not_exists: ext.if_not_exists,
                     table_options: table_options.try_into()?,
                     tunnel: ext.tunnel,
@@ -639,16 +640,31 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     where_expr,
                 })
             }
-            proto::ExecutionPlanExtensionType::InsertExec(ext) => Arc::new(InsertExec {
-                table: ext
-                    .table
-                    .ok_or_else(|| DataFusionError::Internal("missing table".to_string()))?
-                    .try_into()?,
-                source: inputs
-                    .get(0)
-                    .ok_or_else(|| DataFusionError::Internal("missing input source".to_string()))?
-                    .clone(),
-            }),
+            proto::ExecutionPlanExtensionType::InsertExec(ext) => {
+                let provider_id = Uuid::from_slice(&ext.provider_id).map_err(|e| {
+                    DataFusionError::Plan(format!("failed to decode provider id: {e}"))
+                })?;
+
+                // We're on the remote side, get the real table provider from
+                // the cache.
+                let prov = self
+                    .table_providers
+                    .expect("remote context should have provider cache")
+                    .get(&provider_id)
+                    .ok_or_else(|| {
+                        DataFusionError::Internal(format!("Missing proivder for id: {provider_id}"))
+                    })?;
+
+                Arc::new(InsertExec {
+                    provider: ProviderReference::Provider(prov),
+                    source: inputs
+                        .get(0)
+                        .ok_or_else(|| {
+                            DataFusionError::Internal("missing input source".to_string())
+                        })?
+                        .clone(),
+                })
+            }
             proto::ExecutionPlanExtensionType::DeleteExec(ext) => {
                 let where_expr: Option<Expr> = ext
                     .where_expr
@@ -863,6 +879,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 proto::CreateExternalTableExec {
                     catalog_version: exec.catalog_version,
                     tbl_reference: Some(exec.tbl_reference.clone().into()),
+                    or_replace: exec.or_replace,
                     if_not_exists: exec.if_not_exists,
                     table_options: Some(exec.table_options.clone().try_into()?),
                     tunnel: exec.tunnel.clone(),
@@ -928,8 +945,17 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .transpose()?,
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<InsertExec>() {
+            let id = match exec.provider {
+                ProviderReference::RemoteReference(id) => id,
+                ProviderReference::Provider(_) => {
+                    return Err(DataFusionError::Internal(
+                        "Unexpectedly got table provider on client side".to_string(),
+                    ))
+                }
+            };
+
             proto::ExecutionPlanExtensionType::InsertExec(proto::InsertExec {
-                table: Some(exec.table.clone().try_into()?),
+                provider_id: id.into_bytes().to_vec(),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<DeleteExec>() {
             proto::ExecutionPlanExtensionType::DeleteExec(proto::DeleteExec {

@@ -50,6 +50,7 @@ use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::insert::InsertExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
+use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 use crate::planner::physical_plan::set_var::SetVarExec;
 use crate::planner::physical_plan::show_var::ShowVarExec;
@@ -136,6 +137,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 Ok(Some(Arc::new(CreateExternalTableExec {
                     catalog_version: self.catalog_version,
                     tbl_reference: lp.tbl_reference.clone(),
+                    or_replace: lp.or_replace,
                     if_not_exists: lp.if_not_exists,
                     tunnel: lp.tunnel.clone(),
                     table_options: lp.table_options.clone(),
@@ -342,16 +344,19 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             }
             ExtensionType::Insert => {
                 let lp = require_downcast_lp::<Insert>(node);
-                let runtime = if lp.table.meta.is_temp {
-                    RuntimePreference::Local
-                } else {
-                    RuntimePreference::Remote
+                let provider = match &lp.provider {
+                    ProviderReference::RemoteReference(_)
+                        if lp.runtime_preference == RuntimePreference::Local =>
+                    {
+                        unreachable!("required local table, found remote reference to table")
+                    }
+                    other => other.clone(),
                 };
                 let exec = Arc::new(InsertExec {
-                    table: lp.table.clone(),
+                    provider,
                     source: physical_inputs.get(0).unwrap().clone(),
                 });
-                let exec = Arc::new(RuntimeGroupExec::new(runtime, exec));
+                let exec = Arc::new(RuntimeGroupExec::new(lp.runtime_preference, exec));
                 Ok(Some(exec))
             }
             ExtensionType::Delete => {

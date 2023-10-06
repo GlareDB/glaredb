@@ -287,6 +287,17 @@ enum CreatePolicy {
     Create,
 }
 
+impl CreatePolicy {
+    pub fn new(if_not_exists: bool, or_replace: bool) -> Result<Self> {
+        match (if_not_exists, or_replace) {
+            (true, true) => Err(MetastoreError::InvalidCreatePolicy),
+            (true, false) => Ok(CreatePolicy::CreateIfNotExists),
+            (false, true) => Ok(CreatePolicy::CreateOrReplace),
+            (false, false) => Ok(CreatePolicy::Create),
+        }
+    }
+}
+
 /// Inner state of the catalog.
 #[derive(Debug)]
 struct State {
@@ -807,13 +818,9 @@ impl State {
                     options: TableOptions::Internal(create_table.options),
                     tunnel_id: None,
                 };
-                let policy = if create_table.or_replace {
-                    CreatePolicy::CreateOrReplace
-                } else if create_table.if_not_exists {
-                    CreatePolicy::CreateIfNotExists
-                } else {
-                    CreatePolicy::Create
-                };
+
+                let policy =
+                    CreatePolicy::new(create_table.if_not_exists, create_table.or_replace)?;
 
                 self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
             }
@@ -836,7 +843,8 @@ impl State {
                 };
 
                 // Create new entry.
-                let oid = self.next_oid();
+                let oid = self.get_or_next_oid(schema_id, &create_ext.name);
+
                 let ent = TableEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Table,
@@ -851,11 +859,7 @@ impl State {
                     tunnel_id,
                 };
 
-                let policy = if create_ext.if_not_exists {
-                    CreatePolicy::CreateIfNotExists
-                } else {
-                    CreatePolicy::Create
-                };
+                let policy = CreatePolicy::new(create_ext.if_not_exists, create_ext.or_replace)?;
 
                 self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
             }
@@ -1614,6 +1618,7 @@ mod tests {
                 table_type: String::new(),
             }),
             if_not_exists: true,
+            or_replace: false,
             tunnel: None,
         });
         let _ = db
@@ -1768,6 +1773,7 @@ mod tests {
                         table_type: String::new(),
                     }),
                     if_not_exists: true,
+                    or_replace: false,
                     tunnel: None,
                 })],
             )

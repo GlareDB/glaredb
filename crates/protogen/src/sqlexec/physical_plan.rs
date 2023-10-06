@@ -180,6 +180,8 @@ pub struct CreateExternalTableExec {
     pub table_options: Option<crate::gen::metastore::options::TableOptions>,
     #[prost(message, optional, tag = "5")]
     pub tunnel: Option<String>,
+    #[prost(bool, tag = "6")]
+    pub or_replace: bool,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -270,8 +272,8 @@ pub struct DeleteExec {
 
 #[derive(Clone, PartialEq, Message)]
 pub struct InsertExec {
-    #[prost(message, tag = "1")]
-    pub table: Option<TableEntry>,
+    #[prost(bytes, tag = "1")]
+    pub provider_id: Vec<u8>, // UUID
 }
 
 #[derive(Clone, PartialEq, Message)]

@@ -23,6 +23,8 @@ pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
 pub struct CreateExternalTableStmt {
     /// Name of the table.
     pub name: ObjectName,
+    /// replace if it exists
+    pub or_replace: bool,
     /// Optionally don't error if table exists.
     pub if_not_exists: bool,
     /// Data source type.
@@ -37,23 +39,21 @@ pub struct CreateExternalTableStmt {
 
 impl fmt::Display for CreateExternalTableStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CREATE EXTERNAL TABLE")?;
-        if self.if_not_exists {
-            write!(f, " IF NOT EXISTS")?;
-        }
-        write!(f, " {} FROM {}", self.name, self.datasource)?;
-
-        if let Some(tunnel) = &self.tunnel {
-            write!(f, " TUNNEL {tunnel}")?;
-        }
-
-        if let Some(creds) = &self.credentials {
-            write!(f, " CREDENTIALS {creds}")?;
-        }
+        write!(
+            f,
+            "CREATE {or_replace}EXTERNAL TABLE {if_not_exists}{name} FROM {datasource}{tunnel}{creds}",
+            or_replace = if self.or_replace { "OR REPLACE " } else { "" },
+            if_not_exists = if self.if_not_exists { "IF NOT EXISTS " } else { "" },
+            name = self.name,
+            datasource = self.datasource,
+            tunnel = self.tunnel.as_ref().map(|t| format!(" TUNNEL {}", t)).unwrap_or_default(),
+            creds = self.credentials.as_ref().map(|c| format!(" CREDENTIALS {}", c)).unwrap_or_default(),
+        )?;
 
         if !self.options.is_empty() {
             write!(f, " {}", self.options)?;
         }
+
         Ok(())
     }
 }
@@ -63,6 +63,8 @@ impl fmt::Display for CreateExternalTableStmt {
 pub struct CreateExternalDatabaseStmt {
     /// Name of the database as it exists in GlareDB.
     pub name: Ident,
+    /// replace if it exists
+    pub or_replace: bool,
     /// Optionally don't error if database exists.
     pub if_not_exists: bool,
     /// The data source type the connection is for.
@@ -77,23 +79,21 @@ pub struct CreateExternalDatabaseStmt {
 
 impl fmt::Display for CreateExternalDatabaseStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CREATE EXTERNAL DATABASE")?;
-        if self.if_not_exists {
-            write!(f, " IF NOT EXISTS")?;
-        }
-        write!(f, " {} FROM {}", self.name, self.datasource)?;
-
-        if let Some(tunnel) = &self.tunnel {
-            write!(f, " TUNNEL {tunnel}")?;
-        }
-
-        if let Some(creds) = &self.credentials {
-            write!(f, " CREDENTIALS {creds}")?;
-        }
+        write!(
+            f,
+            "CREATE {or_replace}EXTERNAL DATABASE {if_not_exists}{name} FROM {datasource}{tunnel}{creds}",
+            or_replace = if self.or_replace { "OR REPLACE " } else { "" },
+            if_not_exists = if self.if_not_exists { "IF NOT EXISTS " } else { "" },
+            name = self.name,
+            datasource = self.datasource,
+            tunnel = self.tunnel.as_ref().map(|t| format!(" TUNNEL {}", t)).unwrap_or_default(),
+            creds = self.credentials.as_ref().map(|c| format!(" CREDENTIALS {}", c)).unwrap_or_default(),
+        )?;
 
         if !self.options.is_empty() {
             write!(f, " {}", self.options)?;
         }
+
         Ok(())
     }
 }
@@ -420,12 +420,14 @@ impl<'a> CustomParser<'a> {
 
     /// Parse a SQL CREATE statement
     fn parse_create(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let or_replace = self.parser.parse_keywords(&[Keyword::OR, Keyword::REPLACE]);
+
         if self.parser.parse_keyword(Keyword::EXTERNAL) {
             // CREATE EXTERNAL ...
             if self.parser.parse_keyword(Keyword::TABLE) {
-                self.parse_create_external_table()
+                self.parse_create_external_table(or_replace)
             } else if self.parser.parse_keyword(Keyword::DATABASE) {
-                self.parse_create_external_database()
+                self.parse_create_external_database(or_replace)
             } else {
                 let next = self.parser.peek_token().token;
                 Err(ParserError::ParserError(format!(
@@ -436,11 +438,18 @@ impl<'a> CustomParser<'a> {
         } else if self.consume_token(&Token::make_keyword("TUNNEL")) {
             // CREATE TUNNEL ...
             self.parse_create_tunnel()
-        } else if self.consume_token(&Token::make_keyword("CREDENTIALS")) {
+        } else if self.parser.parse_keyword(Keyword::CREDENTIALS) {
             // CREATE CREDENTIALS ...
             self.parse_create_credentials()
         } else {
             // Fall back to underlying parser.
+
+            if or_replace {
+                // backtrack to include OR REPLACE in the statement passed to the underlying parser
+                self.parser.prev_token();
+                self.parser.prev_token();
+            }
+
             Ok(StatementWithExtensions::Statement(
                 self.parser.parse_create()?,
             ))
@@ -508,7 +517,10 @@ impl<'a> CustomParser<'a> {
         )))
     }
 
-    fn parse_create_external_table(&mut self) -> Result<StatementWithExtensions, ParserError> {
+    fn parse_create_external_table(
+        &mut self,
+        or_replace: bool,
+    ) -> Result<StatementWithExtensions, ParserError> {
         let if_not_exists =
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
@@ -531,6 +543,7 @@ impl<'a> CustomParser<'a> {
         Ok(StatementWithExtensions::CreateExternalTable(
             CreateExternalTableStmt {
                 name,
+                or_replace,
                 if_not_exists,
                 datasource,
                 tunnel,
@@ -540,7 +553,10 @@ impl<'a> CustomParser<'a> {
         ))
     }
 
-    fn parse_create_external_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
+    fn parse_create_external_database(
+        &mut self,
+        or_replace: bool,
+    ) -> Result<StatementWithExtensions, ParserError> {
         let if_not_exists =
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
@@ -565,6 +581,7 @@ impl<'a> CustomParser<'a> {
             CreateExternalDatabaseStmt {
                 name,
                 if_not_exists,
+                or_replace,
                 datasource,
                 tunnel,
                 credentials,
@@ -894,19 +911,21 @@ mod tests {
         );
         let mut stmt = CreateExternalTableStmt {
             name: ObjectName(vec![Ident::new("test")]),
+            or_replace: true,
             if_not_exists: false,
             datasource: Ident::new("postgres"),
             tunnel: None,
             credentials: None,
             options: StmtOptions::new(options),
         };
+        println!("{:?}", stmt);
 
         let out = stmt.to_string();
-        assert_eq!("CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public', table = SECRET pg_table)", out);
+        assert_eq!("CREATE OR REPLACE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public', table = SECRET pg_table)", out);
 
         stmt.tunnel = Some(Ident::new("ssh_tunnel"));
         let out = stmt.to_string();
-        assert_eq!("CREATE EXTERNAL TABLE test FROM postgres TUNNEL ssh_tunnel OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public', table = SECRET pg_table)", out);
+        assert_eq!("CREATE OR REPLACE EXTERNAL TABLE test FROM postgres TUNNEL ssh_tunnel OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public', table = SECRET pg_table)", out);
     }
 
     #[test]
@@ -931,6 +950,7 @@ mod tests {
 
         let mut parsed_stmt = CreateExternalTableStmt {
             name: ObjectName(vec![Ident::new("test")]),
+            or_replace: false,
             if_not_exists: false,
             datasource: Ident::new("postgres"),
             tunnel: None,
@@ -964,6 +984,8 @@ mod tests {
             "CREATE EXTERNAL TABLE test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+            "CREATE OR REPLACE EXTERNAL TABLE test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+            "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
         ];
 
         for test_case in test_cases {
@@ -981,10 +1003,12 @@ mod tests {
             "CREATE EXTERNAL DATABASE qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
             "CREATE EXTERNAL DATABASE IF NOT EXISTS qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
             "CREATE EXTERNAL DATABASE qa FROM postgres TUNNEL my_ssh OPTIONS (host = 'localhost', user = 'user')",
+            "CREATE OR REPLACE EXTERNAL DATABASE qa FROM postgres TUNNEL my_ssh OPTIONS (host = 'localhost', user = 'user')",
             "CREATE EXTERNAL DATABASE IF NOT EXISTS qa FROM postgres TUNNEL my_ssh OPTIONS (host = 'localhost', user = 'user')",
             "CREATE EXTERNAL DATABASE test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres')",
             "CREATE EXTERNAL DATABASE IF NOT EXISTS test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres')",
             "CREATE EXTERNAL DATABASE test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres')",
+            "CREATE OR REPLACE EXTERNAL DATABASE test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres')",
         ];
 
         for test_case in test_cases {
