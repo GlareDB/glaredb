@@ -7,7 +7,7 @@ use protogen::metastore::types::catalog::{
 };
 use protogen::metastore::types::options::{TableOptions, TableOptionsInternal};
 use protogen::metastore::types::service::Mutation;
-use sqlbuiltins::builtins::SCHEMA_CURRENT_SESSION;
+use sqlbuiltins::builtins::{DEFAULT_SCHEMA, SCHEMA_CURRENT_SESSION};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
@@ -257,7 +257,7 @@ impl SessionCatalog {
 
     /// Resolve builtin table functions from 'public' schema
     pub fn resolve_builtin_table_function(&self, name: &str) -> Option<FunctionEntry> {
-        let schema_id = self.schema_names.get("public")?;
+        let schema_id = self.schema_names.get(DEFAULT_SCHEMA)?;
         let obj = self.schema_objects.get(schema_id)?;
         let obj_id = obj.objects.get(name)?;
 
@@ -268,12 +268,10 @@ impl SessionCatalog {
             .expect("object name points to invalid function");
 
         match ent {
-            CatalogEntry::Function(function) => {
-                if function.meta.builtin && function.func_type == FunctionType::TableReturning {
-                    Some(function.clone())
-                } else {
-                    None
-                }
+            CatalogEntry::Function(function)
+                if function.meta.builtin && function.func_type == FunctionType::TableReturning =>
+            {
+                Some(function.clone())
             }
             _ => None,
         }
