@@ -270,8 +270,8 @@ pub struct DeleteExec {
 
 #[derive(Clone, PartialEq, Message)]
 pub struct InsertExec {
-    #[prost(message, tag = "1")]
-    pub table: Option<TableEntry>,
+    #[prost(bytes, tag = "1")]
+    pub provider_id: Vec<u8>, // UUID
 }
 
 #[derive(Clone, PartialEq, Message)]
