@@ -22,6 +22,7 @@ use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 pub struct CreateExternalTableExec {
     pub catalog_version: u64,
     pub tbl_reference: OwnedFullObjectReference,
+    pub or_replace: bool,
     pub if_not_exists: bool,
     pub table_options: TableOptions,
     pub tunnel: Option<String>,
@@ -104,6 +105,7 @@ async fn create_external_table(
                     schema: plan.tbl_reference.schema.into_owned(),
                     name: plan.tbl_reference.name.into_owned(),
                     options: plan.table_options,
+                    or_replace: plan.or_replace,
                     if_not_exists: plan.if_not_exists,
                     tunnel: plan.tunnel,
                 },

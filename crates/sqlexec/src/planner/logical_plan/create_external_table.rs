@@ -3,6 +3,7 @@ use super::*;
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CreateExternalTable {
     pub tbl_reference: OwnedFullObjectReference,
+    pub or_replace: bool,
     pub if_not_exists: bool,
     pub table_options: TableOptions,
     pub tunnel: Option<String>,
@@ -59,6 +60,7 @@ impl ExtensionNode for CreateExternalTable {
 
         Ok(Self {
             tbl_reference: reference,
+            or_replace: proto.or_replace,
             if_not_exists: proto.if_not_exists,
             table_options: tbl_options.try_into()?,
             tunnel: proto.tunnel,
@@ -79,6 +81,7 @@ impl ExtensionNode for CreateExternalTable {
 
         let create_table = protogen::CreateExternalTable {
             reference: Some(self.tbl_reference.clone().into()),
+            or_replace: self.or_replace,
             if_not_exists: self.if_not_exists,
             table_options: Some(self.table_options.clone().try_into().ok().ok_or(
                 ProtoConvError::RequiredField("table_options is required".to_string()),

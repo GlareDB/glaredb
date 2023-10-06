@@ -550,6 +550,7 @@ impl<'a> SessionPlanner<'a> {
 
         let plan = CreateExternalTable {
             tbl_reference: self.ctx.resolve_table_ref(table_name)?,
+            or_replace: stmt.or_replace,
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
             tunnel,
