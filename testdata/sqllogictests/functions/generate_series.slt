@@ -99,6 +99,8 @@ select i * 2 from (select * from generate_series(1, 5)) as t(i);
 8
 10
 
+# Test builtin table function from a different schema
+
 statement ok
 create schema test_schema;
 
