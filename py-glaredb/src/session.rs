@@ -1,3 +1,4 @@
+use crate::execution_result::PyExecutionResult;
 use crate::util::pyprint;
 use anyhow::Result;
 use arrow_util::pretty::pretty_format_batches;
@@ -19,17 +20,52 @@ pub(super) type PyTrackedSession = Arc<Mutex<TrackedSession>>;
 
 use crate::{error::PyGlareDbError, logical_plan::PyLogicalPlan, runtime::wait_for_future};
 
+/// A connected session to a GlareDB database.
 #[pyclass]
 pub struct LocalSession {
     pub(super) sess: PyTrackedSession,
     pub(super) engine: Engine,
 }
 
-#[pyclass]
-pub struct PyExecutionResult(pub ExecutionResult);
-
 #[pymethods]
 impl LocalSession {
+    /// Run a SQL querying against a GlareDB database.
+    ///
+    /// Note that this will only plan the query. To execute the query, call any
+    /// of `execute`, `show`, `to_arrow`, `to_pandas`, or `to_polars`
+    ///
+    /// # Examples
+    ///
+    /// Show the output of a query.
+    ///
+    /// ```python
+    /// import glaredb
+    ///
+    /// con = glaredb.connect()
+    /// con.sql('select 1').show()
+    /// ```
+    ///
+    /// Convert the output of a query to a Pandas dataframe.
+    ///
+    /// ```python
+    /// import glaredb
+    /// import pandas
+    ///
+    /// con = glaredb.connect()
+    /// my_df = con.sql('select 1').to_pandas()
+    /// ```
+    ///
+    /// Execute the query to completion, returning no output. This is useful
+    /// when the query output doesn't matter, for example, creating a table or
+    /// inserting data into a table.
+    ///
+    /// ```python
+    /// import glaredb
+    /// import pandas
+    ///
+    /// con = glaredb.connect()
+    /// con.sql('create table my_table (a int)').execute()
+    /// ```
     fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyLogicalPlan> {
         let cloned_sess = self.sess.clone();
         wait_for_future(py, async move {
@@ -42,48 +78,34 @@ impl LocalSession {
         })
     }
 
-    fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionResult> {
-        const UNNAMED: String = String::new();
-
-        let mut statements = parser::parse_sql(query).map_err(PyGlareDbError::from)?;
-
+    /// Execute a query to completion.
+    ///
+    /// This is equivalent to calling `execute` on the result of a `sql` call.
+    ///
+    /// # Examples
+    ///
+    /// Creating a table.
+    ///
+    /// ```python
+    /// import glaredb
+    ///
+    /// con = glaredb.connect()
+    /// con.execute('create table my_table (a int)')
+    /// ```
+    fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<()> {
         wait_for_future(py, async move {
             let mut sess = self.sess.lock().await;
-
-            match statements.len() {
-                0 => todo!(),
-                1 => {
-                    let stmt = statements.pop_front().unwrap();
-
-                    sess.prepare_statement(UNNAMED, Some(stmt), Vec::new())
-                        .await
-                        .map_err(PyGlareDbError::from)?;
-
-                    let prepared = sess
-                        .get_prepared_statement(&UNNAMED)
-                        .map_err(PyGlareDbError::from)?;
-                    let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
-                    sess.bind_statement(
-                        UNNAMED,
-                        &UNNAMED,
-                        Vec::new(),
-                        vec![Format::Text; num_fields],
-                    )
-                    .map_err(PyGlareDbError::from)?;
-                    let stream = sess
-                        .execute_portal(&UNNAMED, 0)
-                        .await
-                        .map_err(PyGlareDbError::from)?;
-
-                    Ok(PyExecutionResult(stream))
-                }
-                _ => {
-                    todo!()
-                }
-            }
+            let plan = sess.sql_to_lp(query).await.map_err(PyGlareDbError::from)?;
+            let out = sess
+                .execute_inner(plan)
+                .await
+                .map_err(PyGlareDbError::from)?;
+            PyExecutionResult(out).execute(py)?;
+            Ok(())
         })
     }
 
+    /// Close the current session.
     fn close(&mut self, py: Python<'_>) -> PyResult<()> {
         wait_for_future(py, async move {
             if let Err(err) = self.sess.lock().await.close().await {
@@ -91,119 +113,5 @@ impl LocalSession {
             }
             Ok(self.engine.shutdown().await.map_err(PyGlareDbError::from)?)
         })
-    }
-}
-
-fn to_arrow_batches_and_schema(
-    result: &mut ExecutionResult,
-    py: Python<'_>,
-) -> PyResult<(PyObject, PyObject)> {
-    match result {
-        ExecutionResult::Query { stream, .. } => {
-            let batches: Result<Vec<RecordBatch>> = wait_for_future(py, async move {
-                Ok(stream
-                    .collect::<Vec<_>>()
-                    .await
-                    .into_iter()
-                    .collect::<Result<Vec<_>, _>>()?)
-            });
-
-            let batches = batches
-                .map_err(|e| PyRuntimeError::new_err(format!("unhandled exception: {:?}", &e)))?;
-            let schema = batches[0].schema().to_pyarrow(py)?;
-
-            // TODO: currently we are iterating twice due to the GIL lock
-            // we can't use `to_pyarrow` within an async block.
-            let batches = batches
-                .into_iter()
-                .map(|batch| batch.to_pyarrow(py))
-                .collect::<Result<Vec<_>, _>>()?
-                .to_object(py);
-
-            Ok((batches, schema))
-        }
-        _ => {
-            // TODO: Figure out the schema we actually want to use.
-            let schema = Arc::new(Schema::empty());
-            let batches = vec![RecordBatch::new_empty(schema.clone()).to_pyarrow(py)]
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()?
-                .to_object(py);
-            Ok((batches, schema.to_pyarrow(py)?))
-        }
-    }
-}
-
-fn print_batch(result: &mut ExecutionResult, py: Python<'_>) -> PyResult<()> {
-    match result {
-        ExecutionResult::Query { stream, .. } => {
-            let schema = stream.schema();
-            let batches = wait_for_future(py, async move {
-                stream
-                    .collect::<Vec<_>>()
-                    .await
-                    .into_iter()
-                    .collect::<Result<Vec<RecordBatch>, _>>()
-            })?;
-
-            let disp = pretty_format_batches(&schema, &batches, None, None)
-                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-
-            pyprint(disp, py)
-        }
-        _ => Err(PyRuntimeError::new_err("Not able to show executed result")),
-    }
-}
-
-#[pymethods]
-impl PyExecutionResult {
-    /// Convert to Arrow Table
-    /// Collect the batches and pass to Arrow Table
-    #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
-    pub fn to_arrow(&mut self, py: Python) -> PyResult<PyObject> {
-        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
-
-        Python::with_gil(|py| {
-            // Instantiate pyarrow Table object and use its from_batches method
-            let table_class = py.import("pyarrow")?.getattr("Table")?;
-            let args = PyTuple::new(py, &[batches, schema]);
-            let table: PyObject = table_class.call_method1("from_batches", args)?.into();
-            Ok(table)
-        })
-    }
-
-    #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
-    pub fn to_polars(&mut self, py: Python) -> PyResult<PyObject> {
-        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
-
-        Python::with_gil(|py| {
-            let table_class = py.import("pyarrow")?.getattr("Table")?;
-            let args = PyTuple::new(py, &[batches, schema]);
-            let table: PyObject = table_class.call_method1("from_batches", args)?.into();
-
-            let table_class = py.import("polars")?.getattr("DataFrame")?;
-            let args = PyTuple::new(py, &[table]);
-            let result = table_class.call1(args)?.into();
-            Ok(result)
-        })
-    }
-
-    #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
-    pub fn to_pandas(&mut self, py: Python) -> PyResult<PyObject> {
-        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
-
-        Python::with_gil(|py| {
-            let table_class = py.import("pyarrow")?.getattr("Table")?;
-            let args = PyTuple::new(py, &[batches, schema]);
-            let table: PyObject = table_class.call_method1("from_batches", args)?.into();
-
-            let result = table.call_method0(py, "to_pandas")?;
-            Ok(result)
-        })
-    }
-
-    pub fn show(&mut self, py: Python) -> PyResult<()> {
-        print_batch(&mut self.0, py)?;
-        Ok(())
     }
 }
