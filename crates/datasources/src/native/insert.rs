@@ -18,6 +18,14 @@ use futures::StreamExt;
 use std::any::Any;
 use std::sync::Arc;
 
+/// Target file size when writing to tables.
+///
+/// Delta-rs defaults to 100MB which is too low.
+///
+/// Eventually we could probably calculate this based on file size like
+/// databricks: <https://docs.databricks.com/en/delta/tune-file-size.html#autotune-file-size-based-on-table-size>
+const TARGET_FILE_SIZE: usize = 256 * 1024 * 1024; // 256MB
+
 /// An execution plan for inserting data into a delta table.
 #[derive(Debug)]
 pub struct NativeTableInsertExec {
@@ -114,6 +122,7 @@ impl ExecutionPlan for NativeTableInsertExec {
         let builder = WriteBuilder::new(self.store.clone(), self.snapshot.clone())
             .with_input_session_state(state)
             .with_save_mode(self.save_mode.clone())
+            .with_target_file_size(TARGET_FILE_SIZE)
             .with_input_execution_plan(self.input.clone());
 
         let input = self.input.clone();
