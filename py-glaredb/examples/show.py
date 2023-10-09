@@ -12,7 +12,6 @@ df = pl.DataFrame(
     }
 )
 con1.sql("select * from df where fruits = 'banana'").show()
-con1.close()
 
 df = pd.DataFrame(
     {
@@ -26,4 +25,3 @@ df = pd.DataFrame(
 con2 = glaredb.connect()
 
 con2.sql("select * from df where fruits = 'banana'").show()
-con2.close()

@@ -25,7 +25,6 @@ def test_sql():
     )
 
     assert out.frame_equal(expected)
-    con.close()
 
 
 def test_sql_multiple_references():
@@ -53,7 +52,6 @@ def test_sql_multiple_references():
 
     assert out1.frame_equal(expected)
     assert out2.frame_equal(expected)
-    con.close()
 
 
 def test_can_query_outer_scope_var():
@@ -77,7 +75,6 @@ def test_can_query_outer_scope_var():
             }
         )
         out = con.sql("select * from df where fruits = 'banana'").to_polars()
-        con.close()
         return out
 
     out = inner_func()
@@ -115,4 +112,3 @@ def test_execute():
     )
 
     assert out.frame_equal(expected)
-    con.close()

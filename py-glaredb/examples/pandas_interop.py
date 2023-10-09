@@ -15,4 +15,3 @@ con = glaredb.connect()
 df = con.sql("select * from df where fruits = 'banana'").to_pandas()
 
 print(df)
-con.close()

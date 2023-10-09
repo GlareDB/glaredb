@@ -7,7 +7,6 @@ t1 = con1.sql(
     "select * from glare_catalog.tables where table_name = 'hello'"
 ).to_polars()
 print(t1)
-con1.close()
 
 con2 = glaredb.connect()
 con2.sql("create table hello (a int)").to_polars()
@@ -21,4 +20,3 @@ try:
     con2.sql("create table hello (a int)").to_polars()
 except Exception:
     print("Duplicate table failed as expected")
-con2.close()

@@ -79,6 +79,8 @@ message InitializeSessionRequest {
 }
 
 message InitializeSessionResponse {
+  // Database for which the session was initialized
+  bytes database_id = 1;
   // The initial catalog for the database.
   metastore.catalog.CatalogState catalog = 2;
 }

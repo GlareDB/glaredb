@@ -125,6 +125,7 @@ impl From<InitializeSessionRequest> for service::InitializeSessionRequest {
 }
 
 pub struct InitializeSessionResponse {
+    pub database_id: Uuid,
     pub catalog: CatalogState,
 }
 
@@ -132,6 +133,7 @@ impl TryFrom<service::InitializeSessionResponse> for InitializeSessionResponse {
     type Error = ProtoConvError;
     fn try_from(value: service::InitializeSessionResponse) -> Result<Self, Self::Error> {
         Ok(Self {
+            database_id: Uuid::from_slice(&value.database_id)?,
             catalog: value.catalog.required("catalog state")?,
         })
     }
@@ -141,6 +143,7 @@ impl TryFrom<InitializeSessionResponse> for service::InitializeSessionResponse {
     type Error = ProtoConvError;
     fn try_from(value: InitializeSessionResponse) -> Result<Self, Self::Error> {
         Ok(Self {
+            database_id: value.database_id.into_bytes().into(),
             catalog: Some(value.catalog.try_into()?),
         })
     }

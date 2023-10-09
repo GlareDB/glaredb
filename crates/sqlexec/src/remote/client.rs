@@ -249,7 +249,7 @@ impl RemoteClient {
 
         let remote_sess_client = RemoteSessionClient {
             inner: self.clone(),
-            database_id: Default::default(),
+            database_id: resp.database_id,
         };
 
         Ok((

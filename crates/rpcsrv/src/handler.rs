@@ -107,6 +107,7 @@ impl RpcHandler {
         self.sessions.insert(db_id, sess);
 
         Ok(InitializeSessionResponse {
+            database_id: db_id,
             catalog: initial_state,
         })
     }
