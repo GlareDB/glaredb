@@ -111,6 +111,6 @@ async fn drop_tables(
     // // TODO: If/when we have transactions, background jobs should be stored
     // // on the session until transaction commit.
     // self.background_jobs.add_many(jobs)?;
-    
+
     Ok(new_operation_batch("drop_tables"))
 }
