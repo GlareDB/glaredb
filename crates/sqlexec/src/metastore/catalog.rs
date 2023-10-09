@@ -503,6 +503,12 @@ impl TempCatalog {
         inner.tables.remove(name);
     }
 
+    /// Returns true if the table exists in the temp catalog.
+    pub fn contains_table(&self, name: &str) -> bool {
+        let inner = self.inner.lock();
+        inner.tables.contains_key(name)
+    }
+
     pub fn get_table_entries(&self) -> Vec<TableEntry> {
         let inner = self.inner.lock();
         let mut ents = Vec::with_capacity(inner.tables.len());

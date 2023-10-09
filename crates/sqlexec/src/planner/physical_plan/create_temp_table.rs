@@ -110,7 +110,7 @@ async fn create_temp_table(
     let schema = plan.arrow_schema;
     let data = RecordBatch::new_empty(schema.clone());
     let table = Arc::new(MemTable::try_new(schema, vec![vec![data]])?);
-    temp_objects.put_temp_table(plan.tbl_reference.name.into_owned(), table.clone());
+    temp_objects.put_temp_table(plan.tbl_reference.name.to_string(), table.clone());
 
     if let Some(source) = plan.source {
         let source: Arc<dyn ExecutionPlan> = match source.output_partitioning().partition_count() {
