@@ -6,18 +6,16 @@ use datafusion::arrow::pyarrow::ToPyArrow;
 use datafusion::arrow::record_batch::RecordBatch;
 use futures::lock::Mutex;
 use futures::StreamExt;
-use pgrepr::format::Format;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
 use sqlexec::{
-    engine::{Engine, TrackedSession},
-    parser,
+    engine::TrackedSession,
     session::ExecutionResult,
 };
 use std::sync::Arc;
 
 pub(super) type PyTrackedSession = Arc<Mutex<TrackedSession>>;
 
-use crate::{error::PyGlareDbError, logical_plan::PyLogicalPlan, runtime::wait_for_future};
+use crate::runtime::wait_for_future;
 
 /// The result of an executed query.
 #[pyclass]

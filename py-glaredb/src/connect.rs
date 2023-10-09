@@ -5,19 +5,15 @@
 
 use crate::environment::PyEnvironmentReader;
 use crate::error::PyGlareDbError;
-use crate::runtime::{wait_for_future, TokioRuntime};
+use crate::runtime::wait_for_future;
 use crate::session::LocalSession;
 use futures::lock::Mutex;
 use std::collections::HashMap;
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
+    sync::Arc,
 };
-use tokio::runtime::Builder;
 use url::Url;
 
 use datafusion_ext::vars::SessionVars;

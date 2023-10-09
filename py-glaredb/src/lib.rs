@@ -9,10 +9,7 @@ mod util;
 
 use pyo3::prelude::*;
 use runtime::TokioRuntime;
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
-};
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::runtime::Builder;
 
 /// A Python module implemented in Rust.

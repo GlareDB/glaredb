@@ -1,19 +1,7 @@
 use crate::execution_result::PyExecutionResult;
-use crate::util::pyprint;
-use anyhow::Result;
-use arrow_util::pretty::pretty_format_batches;
-use datafusion::arrow::datatypes::Schema;
-use datafusion::arrow::pyarrow::ToPyArrow;
-use datafusion::arrow::record_batch::RecordBatch;
 use futures::lock::Mutex;
-use futures::StreamExt;
-use pgrepr::format::Format;
-use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
-use sqlexec::{
-    engine::{Engine, TrackedSession},
-    parser,
-    session::ExecutionResult,
-};
+use pyo3::prelude::*;
+use sqlexec::engine::{Engine, TrackedSession};
 use std::sync::Arc;
 
 pub(super) type PyTrackedSession = Arc<Mutex<TrackedSession>>;
