@@ -19,6 +19,7 @@ use datasources::native::access::NativeTableStorage;
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 
+use datafusion::variable::VarType;
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromClient,
 };
@@ -123,7 +124,9 @@ impl LocalSessionContext {
         // The main difference here is creating a new catalog mutator without a
         // metastore client to "detach" ourselves from the metastore we're
         // connected to (likely running in-memory).
-        let vars = self.get_session_vars();
+        let vars = self
+            .get_session_vars()
+            .with_database_id(client.database_id(), VarType::System);
         let runtime = self.df_ctx.runtime_env();
         let opts = new_datafusion_session_config_opts(&vars);
         let mut conf: SessionConfig = opts.into();
