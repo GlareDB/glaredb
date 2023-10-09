@@ -60,15 +60,10 @@ use super::client::RemoteSessionClient;
 
 pub struct DDLExtensionPlanner {
     catalog: SessionCatalog,
-    catalog_version: u64,
 }
 impl DDLExtensionPlanner {
     pub fn new(catalog: SessionCatalog) -> Self {
-        let version = catalog.version();
-        Self {
-            catalog,
-            catalog_version: version,
-        }
+        Self { catalog }
     }
 }
 #[async_trait]
@@ -87,7 +82,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::AlterDatabaseRename => {
                 let lp = require_downcast_lp::<AlterDatabaseRename>(node);
                 let exec = AlterDatabaseRenameExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     name: lp.name.to_string(),
                     new_name: lp.new_name.to_string(),
                 };
@@ -96,7 +91,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::AlterTableRename => {
                 let lp = require_downcast_lp::<AlterTableRename>(node);
                 let exec = AlterTableRenameExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     tbl_reference: lp.tbl_reference.clone(),
                     new_tbl_reference: lp.new_tbl_reference.clone(),
                 };
@@ -105,7 +100,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::AlterTunnelRotateKeys => {
                 let lp = require_downcast_lp::<AlterTunnelRotateKeys>(node);
                 let exec = AlterTunnelRotateKeysExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     name: lp.name.to_string(),
                     if_exists: lp.if_exists,
                     new_ssh_key: lp.new_ssh_key.clone(),
@@ -115,7 +110,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateCredentials => {
                 let lp = require_downcast_lp::<CreateCredentials>(node);
                 let exec = CreateCredentialsExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     name: lp.name.clone(),
                     options: lp.options.clone(),
                     comment: lp.comment.clone(),
@@ -125,7 +120,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateExternalDatabase => {
                 let lp = require_downcast_lp::<CreateExternalDatabase>(node);
                 Ok(Some(Arc::new(CreateExternalDatabaseExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     database_name: lp.database_name.clone(),
                     if_not_exists: lp.if_not_exists,
                     options: lp.options.clone(),
@@ -135,7 +130,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateExternalTable => {
                 let lp = require_downcast_lp::<CreateExternalTable>(node);
                 Ok(Some(Arc::new(CreateExternalTableExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     tbl_reference: lp.tbl_reference.clone(),
                     or_replace: lp.or_replace,
                     if_not_exists: lp.if_not_exists,
@@ -146,7 +141,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateSchema => {
                 let lp = require_downcast_lp::<CreateSchema>(node);
                 Ok(Some(Arc::new(CreateSchemaExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     schema_reference: lp.schema_reference.clone(),
                     if_not_exists: lp.if_not_exists,
                 })))
@@ -154,7 +149,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateTable => {
                 let lp = require_downcast_lp::<CreateTable>(node);
                 Ok(Some(Arc::new(CreateTableExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     tbl_reference: lp.tbl_reference.clone(),
                     if_not_exists: lp.if_not_exists,
                     or_replace: lp.or_replace,
@@ -177,7 +172,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateTunnel => {
                 let lp = require_downcast_lp::<CreateTunnel>(node);
                 Ok(Some(Arc::new(CreateTunnelExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     name: lp.name.clone(),
                     if_not_exists: lp.if_not_exists,
                     options: lp.options.clone(),
@@ -186,7 +181,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::CreateView => {
                 let lp = require_downcast_lp::<CreateView>(node);
                 Ok(Some(Arc::new(CreateViewExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     view_reference: lp.view_reference.clone(),
                     sql: lp.sql.clone(),
                     columns: lp.columns.clone(),
@@ -231,7 +226,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     // only temp tables
                     (false, true) => {
                         let tmp_exec = Arc::new(DropTempTablesExec {
-                            catalog_version: self.catalog_version,
+                            catalog_version: self.catalog.version(),
                             tbl_references: temp_table_drops,
                             if_exists: plan.if_exists,
                         });
@@ -241,7 +236,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     // only remote tables
                     (true, false) => {
                         let exec = Arc::new(DropTablesExec {
-                            catalog_version: self.catalog_version,
+                            catalog_version: self.catalog.version(),
                             tbl_references: drops,
                             if_exists: plan.if_exists,
                         });
@@ -259,7 +254,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::DropCredentials => {
                 let lp = require_downcast_lp::<DropCredentials>(node);
                 Ok(Some(Arc::new(DropCredentialsExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     names: lp.names.clone(),
                     if_exists: lp.if_exists,
                 })))
@@ -267,7 +262,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::DropDatabase => {
                 let lp = require_downcast_lp::<DropDatabase>(node);
                 let exec = DropDatabaseExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     names: lp.names.clone(),
                     if_exists: lp.if_exists,
                 };
@@ -276,7 +271,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::DropSchemas => {
                 let lp = require_downcast_lp::<DropSchemas>(node);
                 let exec = DropSchemasExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     schema_references: lp.schema_references.clone(),
                     if_exists: lp.if_exists,
                     cascade: lp.cascade,
@@ -286,7 +281,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::DropTunnel => {
                 let lp = require_downcast_lp::<DropTunnel>(node);
                 let exec: DropTunnelExec = DropTunnelExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     names: lp.names.clone(),
                     if_exists: lp.if_exists,
                 };
@@ -296,7 +291,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let lp = require_downcast_lp::<DropViews>(node);
                 // TODO: Fix this.
                 let exec = DropViewsExec {
-                    catalog_version: self.catalog_version,
+                    catalog_version: self.catalog.version(),
                     view_references: lp.view_references.clone(),
                     if_exists: lp.if_exists,
                 };

@@ -106,5 +106,11 @@ async fn drop_tables(
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to drop tables: {e}")))?;
 
+    // // Run background jobs _after_ tables get removed from the catalog.
+    // //
+    // // TODO: If/when we have transactions, background jobs should be stored
+    // // on the session until transaction commit.
+    // self.background_jobs.add_many(jobs)?;
+    
     Ok(new_operation_batch("drop_tables"))
 }

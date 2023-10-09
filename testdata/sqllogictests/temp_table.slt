@@ -145,7 +145,7 @@ select * from tmp1;
 statement ok
 drop table tmp1;
 
-statement error
+statement error Unable to fetch table provider
 select * from tmp1;
 
 # make sure it's dropped from the catalog
