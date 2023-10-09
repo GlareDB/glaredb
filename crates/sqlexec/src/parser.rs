@@ -6,6 +6,7 @@ use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer, Word};
+use prql_compiler::{compile, sql::Dialect as PrqlDialect, Options, Target};
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::fmt;
@@ -15,6 +16,11 @@ use self::options::{OptionValue, StmtOptions};
 /// Wrapper around our custom parse for parsing a sql statement.
 pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
     let stmts = CustomParser::parse_sql(sql)?;
+    Ok(stmts)
+}
+
+pub fn parse_prql(prql: &str) -> Result<VecDeque<StatementWithExtensions>> {
+    let stmts = CustomParser::parse_prql(prql)?;
     Ok(stmts)
 }
 
@@ -357,14 +363,49 @@ impl fmt::Display for StatementWithExtensions {
 pub struct CustomParser<'a> {
     parser: Parser<'a>,
 }
+impl CustomParser<'_> {
+    const PRQL_OPTIONS: &'static Options = &Options {
+        format: false,
+        target: Target::Sql(Some(PrqlDialect::Postgres)),
+        signature_comment: false,
+        color: false,
+    };
+    const DIALECT: &'static GenericDialect = &GenericDialect {};
+
+    pub fn new(sql: &str, use_prql: bool) -> Result<CustomParser<'_>, ParserError> {
+        let tokens = Tokenizer::new(Self::DIALECT, &sql).tokenize()?;
+        let mut parser = Parser::new(Self::DIALECT).with_tokens(tokens);
+        if use_prql {
+            // Special case for SET statements, which are not supported by PRQL.
+            if parser.parse_keyword(Keyword::SET) {
+                parser.prev_token();
+            } else {
+                let opts = &Self::PRQL_OPTIONS;
+                let s = compile(sql, opts).map_err(|e| {
+                    ParserError::ParserError(format!("Error compiling PRQL: {}", e))
+                })?;
+                let tokens = Tokenizer::new(Self::DIALECT, &s).tokenize()?;
+                parser = parser.with_tokens(tokens);
+            }
+        }
+        Ok(CustomParser { parser })
+    }
+}
 
 impl<'a> CustomParser<'a> {
     pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>, ParserError> {
-        let dialect = GenericDialect {};
-        let tokens = Tokenizer::new(&dialect, sql).tokenize()?;
-        let mut parser = CustomParser {
-            parser: Parser::new(&dialect).with_tokens(tokens),
-        };
+        Self::parse(sql, false)
+    }
+
+    pub fn parse_prql(sql: &str) -> Result<VecDeque<StatementWithExtensions>, ParserError> {
+        Self::parse(sql, true)
+    }
+
+    pub fn parse(
+        sql: &str,
+        use_prql: bool,
+    ) -> Result<VecDeque<StatementWithExtensions>, ParserError> {
+        let mut parser = CustomParser::new(sql, use_prql)?;
 
         let mut stmts = VecDeque::new();
         let mut expecting_statement_delimiter = false;

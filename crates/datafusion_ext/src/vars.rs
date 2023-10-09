@@ -15,6 +15,7 @@ use inner::*;
 use uuid::Uuid;
 
 pub use inner::SessionVarsInner;
+pub use inner::Dialect;
 use once_cell::sync::Lazy;
 use parking_lot::{RwLock, RwLockReadGuard};
 use std::borrow::ToOwned;
@@ -92,6 +93,7 @@ impl SessionVars {
      max_tunnel_count: Option<usize>,
      max_credentials_count: Option<usize>,
      is_cloud_instance: bool,
+     dialect: Dialect
     }
 }
 

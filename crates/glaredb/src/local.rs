@@ -19,7 +19,6 @@ use std::collections::HashMap;
 
 use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
-use sqlexec::parser;
 use sqlexec::remote::client::RemoteClient;
 use sqlexec::session::ExecutionResult;
 use std::env;
@@ -203,7 +202,7 @@ impl LocalSession {
 
         const UNNAMED: String = String::new();
 
-        let statements = parser::parse_sql(text)?;
+        let statements = self.sess.parse_query(text)?;
         for stmt in statements {
             self.sess
                 .prepare_statement(UNNAMED, Some(stmt), Vec::new())

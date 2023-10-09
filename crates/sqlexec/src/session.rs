@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fmt;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -599,7 +600,7 @@ impl Session {
     pub async fn sql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
         const UNNAMED: String = String::new();
 
-        let mut statements = crate::parser::parse_sql(query)?;
+        let mut statements = self.parse_query(query)?;
         match statements.len() {
             0 => Err(ExecError::String("No statements in query".to_string())),
             1 => {
@@ -620,6 +621,13 @@ impl Session {
             _ => Err(ExecError::String(
                 "More than one statement in query".to_string(),
             )),
+        }
+    }
+
+    pub fn parse_query(&mut self, query: &str) -> Result<VecDeque<StatementWithExtensions>> {
+        match self.get_session_vars().dialect() {
+            datafusion_ext::vars::Dialect::Sql => crate::parser::parse_sql(query),
+            datafusion_ext::vars::Dialect::Prql => crate::parser::parse_prql(query),
         }
     }
 }
