@@ -15,7 +15,7 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::scalar::ScalarValue;
 use datafusion::variable::VarType;
-use datafusion_ext::vars::SessionVars;
+use datafusion_ext::vars::{Dialect, SessionVars};
 use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
@@ -442,7 +442,7 @@ where
         let session = &mut self.session;
         let conn = &mut self.conn;
 
-        let stmts = match parse_sql(&sql) {
+        let stmts = match parse_sql(session.get_session_vars(), &sql) {
             Ok(stmts) => stmts,
             Err(e) => {
                 self.send_error(e).await?;
@@ -526,8 +526,8 @@ where
     /// Parse the provided SQL statement and store it in the session.
     async fn parse(&mut self, name: String, sql: String, param_types: Vec<i32>) -> Result<()> {
         // TODO: Ensure in transaction.
-
-        let mut stmts = match parse_sql(&sql) {
+        let vars = self.session.get_session_vars();
+        let mut stmts = match parse_sql(vars, &sql) {
             Ok(stmts) => stmts,
             Err(e) => return self.send_error(e).await,
         };
@@ -793,6 +793,18 @@ where
     }
 }
 
+/// Parse a sql string, returning an error response if failed to parse.
+fn parse_sql(
+    session_vars: SessionVars,
+    sql: &str,
+) -> Result<VecDeque<StatementWithExtensions>, ErrorResponse> {
+    match session_vars.dialect() {
+        Dialect::Prql => parser::parse_prql(sql),
+        Dialect::Sql => parser::parse_sql(sql),
+    }
+    .map_err(|e| ErrorResponse::error(SqlState::SyntaxError, e.to_string()))
+}
+
 /// Decodes inputs for a prepared query into the appropriate scalar values.
 fn decode_param_scalars(
     param_formats: Vec<Format>,
@@ -846,11 +858,6 @@ fn decode_param_scalars(
     }
 
     Ok(scalars)
-}
-
-/// Parse a sql string, returning an error response if failed to parse.
-fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>, ErrorResponse> {
-    parser::parse_sql(sql).map_err(|e| ErrorResponse::error(SqlState::SyntaxError, e.to_string()))
 }
 
 /// Returns a vector with all the formats extended to the default "text".
