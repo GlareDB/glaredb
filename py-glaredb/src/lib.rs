@@ -148,7 +148,7 @@ fn connect(
         session.register_env_reader(Box::new(PyEnvironmentReader));
         let sess = Arc::new(Mutex::new(session));
 
-        Ok(LocalSession { sess, engine })
+        Ok(LocalSession { sess })
     })
 }
 

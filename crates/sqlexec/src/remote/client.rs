@@ -11,9 +11,9 @@ use protogen::{
     gen::rpcsrv::service::{self, execution_service_client::ExecutionServiceClient},
     metastore::types::catalog::CatalogState,
     rpcsrv::types::service::{
-        CloseSessionRequest, DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse,
-        InitializeSessionRequest, InitializeSessionResponse, PhysicalPlanExecuteRequest,
-        ResolvedTableReference, TableProviderResponse,
+        DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse, InitializeSessionRequest,
+        InitializeSessionResponse, PhysicalPlanExecuteRequest, ResolvedTableReference,
+        TableProviderResponse,
     },
 };
 use proxyutil::metadata_constants::{
@@ -248,8 +248,8 @@ impl RemoteClient {
         let resp: InitializeSessionResponse = resp.into_inner().try_into()?;
 
         let remote_sess_client = RemoteSessionClient {
-            session_id: resp.session_id,
             inner: self.clone(),
+            database_id: Default::default(),
         };
 
         Ok((
@@ -276,13 +276,13 @@ impl RemoteClient {
 #[derive(Debug, Clone)]
 pub struct RemoteSessionClient {
     inner: RemoteClient,
-    session_id: Uuid,
+    database_id: Uuid,
 }
 
 impl RemoteSessionClient {
-    /// Returns the current session ID.
-    pub fn session_id(&self) -> Uuid {
-        self.session_id
+    /// Returns the database ID for which the session is open.
+    pub fn database_id(&self) -> Uuid {
+        self.database_id
     }
 
     pub fn get_deployment_name(&self) -> &str {
@@ -291,7 +291,7 @@ impl RemoteSessionClient {
 
     pub async fn fetch_catalog(&mut self) -> Result<CatalogState> {
         let mut request = service::FetchCatalogRequest::from(FetchCatalogRequest {
-            session_id: self.session_id(),
+            database_id: self.database_id(),
         })
         .into_request();
         self.inner.append_auth_metadata(request.metadata_mut());
@@ -330,7 +330,7 @@ impl RemoteSessionClient {
             })
             .transpose()?;
         let mut request = service::DispatchAccessRequest::from(DispatchAccessRequest {
-            session_id: self.session_id(),
+            database_id: self.database_id(),
             table_ref,
             args,
             opts,
@@ -366,7 +366,7 @@ impl RemoteSessionClient {
         };
 
         let mut request = service::PhysicalPlanExecuteRequest::from(PhysicalPlanExecuteRequest {
-            session_id: self.session_id(),
+            database_id: self.database_id(),
             physical_plan,
         })
         .into_request();
@@ -391,30 +391,6 @@ impl RemoteSessionClient {
         let mut req = stream.into_streaming_request();
         self.inner.append_auth_metadata(req.metadata_mut());
         let _resp = self.inner.client.broadcast_exchange(req).await?;
-        Ok(())
-    }
-
-    pub async fn close_session(&mut self) -> Result<()> {
-        let mut request = service::CloseSessionRequest::from(CloseSessionRequest {
-            session_id: self.session_id(),
-        })
-        .into_request();
-        self.inner.append_auth_metadata(request.metadata_mut());
-
-        let _resp = self
-            .inner
-            .client
-            .close_session(request)
-            .await
-            .map_err(|e| {
-                ExecError::RemoteSession(format!(
-                    "unable to close session {}: {}",
-                    self.session_id(),
-                    e
-                ))
-            })?
-            .into_inner();
-
         Ok(())
     }
 }

@@ -8,8 +8,10 @@ use datafusion::{
 use datafusion_ext::{functions::FuncParamValue, vars::SessionVars};
 use datasources::native::access::NativeTableStorage;
 use protogen::{
-    metastore::types::catalog::CatalogEntry, rpcsrv::types::service::ResolvedTableReference,
+    metastore::types::catalog::{CatalogEntry, CatalogState},
+    rpcsrv::types::service::ResolvedTableReference,
 };
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::{
@@ -34,7 +36,8 @@ use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 /// - StagedClientStreams
 pub struct RemoteSessionContext {
     /// Database catalog.
-    catalog: SessionCatalog,
+    // TODO: Remove lock and instead track multiple catalog versions.
+    catalog: Mutex<SessionCatalog>,
     /// Native tables.
     tables: NativeTableStorage,
     /// Datafusion session context used for execution.
@@ -73,7 +76,7 @@ impl RemoteSessionContext {
         let df_ctx = DfSessionContext::with_config_rt(conf, Arc::new(runtime));
 
         Ok(RemoteSessionContext {
-            catalog,
+            catalog: Mutex::new(catalog),
             tables: native_tables,
             df_ctx,
             _background_jobs: background_jobs,
@@ -85,12 +88,15 @@ impl RemoteSessionContext {
         &self.df_ctx
     }
 
-    pub fn get_session_catalog(&self) -> &SessionCatalog {
-        &self.catalog
+    pub async fn get_catalog_state(&self) -> CatalogState {
+        let catalog = self.catalog.lock().await;
+        catalog.get_state().as_ref().clone()
     }
 
-    pub async fn refresh_catalog(&mut self) -> Result<()> {
+    pub async fn refresh_catalog(&self) -> Result<()> {
         self.catalog
+            .lock()
+            .await
             .maybe_refresh_state(self.catalog_mutator().get_metastore_client(), false)
             .await?;
         Ok(())
@@ -137,42 +143,45 @@ impl RemoteSessionContext {
     // TODO: We should be providing the catalog version as well to ensure we're
     // getting the correct entries from the catalog.
     pub async fn load_and_cache_table(
-        &mut self,
+        &self,
         table_ref: ResolvedTableReference,
         args: Option<Vec<FuncParamValue>>,
         opts: Option<HashMap<String, FuncParamValue>>,
     ) -> Result<(Uuid, Arc<dyn TableProvider>)> {
-        self.catalog
+        // TODO: Remove this lock so we're not holding it for the duration of
+        // the table load. We can do that by:
+        // 1. Storing multiple catalog versions
+        // 2. Getting a reference to the version we care about (by passing it in as an arg)
+        let mut catalog = self.catalog.lock().await;
+        catalog
             .maybe_refresh_state(self.catalog_mutator().get_metastore_client(), false)
             .await?;
 
         // Since this is operating on a remote node, always disable local fs
         // access.
-        let dispatcher = ExternalDispatcher::new(&self.catalog, &self.df_ctx, true);
+        let dispatcher = ExternalDispatcher::new(&catalog, &self.df_ctx, true);
 
         let prov: Arc<dyn TableProvider> = match table_ref {
-            ResolvedTableReference::Internal { table_oid } => {
-                match self.catalog.get_by_oid(table_oid) {
-                    Some(CatalogEntry::Table(tbl)) => {
-                        if tbl.meta.external {
-                            dispatcher.dispatch_external_table(tbl).await?
-                        } else {
-                            self.tables.load_table(tbl).await?.into_table_provider()
-                        }
-                    }
-                    Some(CatalogEntry::Function(f)) => {
-                        dispatcher.dispatch_function(f, args, opts).await?
-                    }
-                    Some(_) => {
-                        return Err(ExecError::Internal(format!("oid not a table: {table_oid}")))
-                    }
-                    None => {
-                        return Err(ExecError::Internal(format!(
-                            "missing entry for oid: {table_oid}"
-                        )))
+            ResolvedTableReference::Internal { table_oid } => match catalog.get_by_oid(table_oid) {
+                Some(CatalogEntry::Table(tbl)) => {
+                    if tbl.meta.external {
+                        dispatcher.dispatch_external_table(tbl).await?
+                    } else {
+                        self.tables.load_table(tbl).await?.into_table_provider()
                     }
                 }
-            }
+                Some(CatalogEntry::Function(f)) => {
+                    dispatcher.dispatch_function(f, args, opts).await?
+                }
+                Some(_) => {
+                    return Err(ExecError::Internal(format!("oid not a table: {table_oid}")))
+                }
+                None => {
+                    return Err(ExecError::Internal(format!(
+                        "missing entry for oid: {table_oid}"
+                    )))
+                }
+            },
             ResolvedTableReference::External {
                 database,
                 schema,

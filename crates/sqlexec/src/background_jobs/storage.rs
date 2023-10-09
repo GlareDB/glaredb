@@ -160,7 +160,7 @@ mod tests {
 
         let meta_chan = start_inprocess_inmemory().await.unwrap();
         let metastore = MetastoreClientSupervisor::new(meta_chan, DEFAULT_METASTORE_CLIENT_CONFIG);
-        let metastore = metastore.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        let metastore = metastore.init_client(db_id).await.unwrap();
 
         let tracker = BackgroundJobStorageTracker::new(storage, metastore.clone());
         let jobs = JobRunner::new(Default::default());

@@ -66,27 +66,14 @@ use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetastoreClientError {
-    #[error("Metastore database worker overloaded; request type: {request_type_tag}, conn_id: {conn_id}")]
-    MetastoreDatabaseWorkerOverload {
-        request_type_tag: &'static str,
-        conn_id: uuid::Uuid,
-    },
+    #[error("Metastore database worker overloaded; request type: {request_type_tag}")]
+    MetastoreDatabaseWorkerOverload { request_type_tag: &'static str },
 
-    #[error(
-        "Metastore request channel closed; request type: {request_type_tag}, conn_id: {conn_id}"
-    )]
-    MetastoreRequestChannelClosed {
-        request_type_tag: &'static str,
-        conn_id: uuid::Uuid,
-    },
+    #[error("Metastore request channel closed; request type: {request_type_tag}")]
+    MetastoreRequestChannelClosed { request_type_tag: &'static str },
 
-    #[error(
-        "Metastore response channel closed; request type: {request_type_tag}, conn_id: {conn_id}"
-    )]
-    MetastoreResponseChannelClosed {
-        request_type_tag: &'static str,
-        conn_id: uuid::Uuid,
-    },
+    #[error("Metastore response channel closed; request type: {request_type_tag}")]
+    MetastoreResponseChannelClosed { request_type_tag: &'static str },
 
     #[error(transparent)]
     ProtoConvError(#[from] protogen::errors::ProtoConvError),
@@ -146,7 +133,6 @@ pub struct MetastoreClientHandle {
     ///
     /// Used to prevent unecessary requests and locking.
     version_hint: Arc<AtomicU64>,
-    conn_id: Uuid,
     send: mpsc::Sender<ClientRequest>,
 }
 
@@ -165,41 +151,22 @@ impl MetastoreClientHandle {
     /// Ping the worker.
     pub async fn ping(&self) -> Result<()> {
         let (tx, rx) = oneshot::channel();
-        self.send(
-            ClientRequest::Ping {
-                conn_id: self.conn_id,
-                response: tx,
-            },
-            rx,
-        )
-        .await
+        self.send(ClientRequest::Ping { response: tx }, rx).await
     }
 
     /// Get the cache the latest state of the catalog.
     pub async fn refresh_cached_state(&self) -> Result<()> {
         let (tx, rx) = oneshot::channel();
-        self.send(
-            ClientRequest::RefreshCachedState {
-                conn_id: self.conn_id,
-                response: tx,
-            },
-            rx,
-        )
-        .await
+        self.send(ClientRequest::RefreshCachedState { response: tx }, rx)
+            .await
     }
 
     /// Get the current cached state of the catalog.
     pub async fn get_cached_state(&self) -> Result<Arc<CatalogState>> {
         let (tx, rx) = oneshot::channel();
-        self.send(
-            ClientRequest::GetCachedState {
-                conn_id: self.conn_id,
-                response: tx,
-            },
-            rx,
-        )
-        .await
-        .and_then(std::convert::identity) // Flatten
+        self.send(ClientRequest::GetCachedState { response: tx }, rx)
+            .await
+            .and_then(std::convert::identity) // Flatten
     }
 
     /// Try to run mutations against the Metastore catalog.
@@ -214,7 +181,6 @@ impl MetastoreClientHandle {
         let (tx, rx) = oneshot::channel();
         self.send(
             ClientRequest::ExecMutations {
-                conn_id: self.conn_id,
                 version: current_version,
                 mutations,
                 response: tx,
@@ -232,19 +198,16 @@ impl MetastoreClientHandle {
                 Ok(result) => Ok(result),
                 Err(_) => Err(MetastoreClientError::MetastoreResponseChannelClosed {
                     request_type_tag: tag,
-                    conn_id: self.conn_id,
                 }),
             },
             Err(mpsc::error::TrySendError::Full(_)) => {
                 Err(MetastoreClientError::MetastoreDatabaseWorkerOverload {
                     request_type_tag: tag,
-                    conn_id: self.conn_id,
                 })
             }
             Err(mpsc::error::TrySendError::Closed(_)) => {
                 Err(MetastoreClientError::MetastoreRequestChannelClosed {
                     request_type_tag: tag,
-                    conn_id: self.conn_id,
                 })
             }
         };
@@ -263,20 +226,15 @@ impl MetastoreClientHandle {
 /// Possible requests to the worker.
 enum ClientRequest {
     /// Ping the worker, ensuring it's still running.
-    Ping {
-        conn_id: Uuid,
-        response: oneshot::Sender<()>,
-    },
+    Ping { response: oneshot::Sender<()> },
 
     /// Get the cached catalog state for some database.
     GetCachedState {
-        conn_id: Uuid,
         response: oneshot::Sender<Result<Arc<CatalogState>>>,
     },
 
     /// Execute mutations against a catalog.
     ExecMutations {
-        conn_id: Uuid,
         version: u64,
         /// Mutations to send to Metastore.
         mutations: Vec<Mutation>,
@@ -285,10 +243,7 @@ enum ClientRequest {
     },
 
     /// Refresh the cached catalog state from persistence for some database
-    RefreshCachedState {
-        conn_id: Uuid,
-        response: oneshot::Sender<()>,
-    },
+    RefreshCachedState { response: oneshot::Sender<()> },
 }
 
 impl ClientRequest {
@@ -298,15 +253,6 @@ impl ClientRequest {
             ClientRequest::GetCachedState { .. } => "get_cached_state",
             ClientRequest::ExecMutations { .. } => "exec_mutations",
             ClientRequest::RefreshCachedState { .. } => "refresh_cached_state",
-        }
-    }
-
-    fn conn_id(&self) -> &Uuid {
-        match self {
-            ClientRequest::Ping { conn_id, .. } => conn_id,
-            ClientRequest::GetCachedState { conn_id, .. } => conn_id,
-            ClientRequest::ExecMutations { conn_id, .. } => conn_id,
-            ClientRequest::RefreshCachedState { conn_id, .. } => conn_id,
         }
     }
 }
@@ -340,8 +286,8 @@ impl MetastoreClientSupervisor {
     /// Initialize a client for a single database.
     ///
     /// This will initialize a database worker as appropriate.
-    pub async fn init_client(&self, conn_id: Uuid, db_id: Uuid) -> Result<MetastoreClientHandle> {
-        let client = self.init_client_inner(conn_id, db_id).await?;
+    pub async fn init_client(&self, db_id: Uuid) -> Result<MetastoreClientHandle> {
+        let client = self.init_client_inner(db_id).await?;
         match client.ping().await {
             Ok(_) => Ok(client),
             Err(_) => {
@@ -349,14 +295,14 @@ impl MetastoreClientSupervisor {
                 // finished, and we try to send on an mpsc channel that's been
                 // closed. This should be rare.
                 warn!("client failed ping, recreating client");
-                let client = self.init_client_inner(conn_id, db_id).await?;
+                let client = self.init_client_inner(db_id).await?;
                 client.ping().await?;
                 Ok(client)
             }
         }
     }
 
-    async fn init_client_inner(&self, conn_id: Uuid, db_id: Uuid) -> Result<MetastoreClientHandle> {
+    async fn init_client_inner(&self, db_id: Uuid) -> Result<MetastoreClientHandle> {
         // Fast path, already have a worker.
         {
             let workers = self.workers.read().await;
@@ -364,7 +310,6 @@ impl MetastoreClientSupervisor {
                 Some(worker) if !worker.is_finished() => {
                     return Ok(MetastoreClientHandle {
                         version_hint: worker.version_hint.clone(),
-                        conn_id,
                         send: worker.send.clone(),
                     });
                 }
@@ -381,7 +326,6 @@ impl MetastoreClientSupervisor {
             Some(worker) if !worker.is_finished() => {
                 return Ok(MetastoreClientHandle {
                     version_hint: worker.version_hint.clone(),
-                    conn_id,
                     send: worker.send.clone(),
                 });
             }
@@ -397,11 +341,7 @@ impl MetastoreClientSupervisor {
         };
         workers.insert(db_id, handle);
 
-        Ok(MetastoreClientHandle {
-            version_hint,
-            conn_id,
-            send,
-        })
+        Ok(MetastoreClientHandle { version_hint, send })
     }
 
     /// Terminate a worker, waiting until the worker thread finishes.
@@ -546,7 +486,7 @@ impl StatefulWorker {
                 }
 
                 Some(req) = self.recv.recv() => {
-                    let span = debug_span!("handle_request", conn_id = %req.conn_id(), db_id = %self.db_id);
+                    let span = debug_span!("handle_request", db_id = %self.db_id);
                     self.handle_request(req).instrument(span).await;
                     num_ticks_no_activity = 0;
                 }
@@ -688,9 +628,8 @@ mod tests {
 
         let supervisor = MetastoreClientSupervisor::new(client, DEFAULT_METASTORE_CLIENT_CONFIG);
 
-        let conn_id = Uuid::nil();
         let db_id = Uuid::nil();
-        let client = supervisor.init_client(conn_id, db_id).await.unwrap();
+        let client = supervisor.init_client(db_id).await.unwrap();
 
         let state = client.get_cached_state().await.unwrap();
         let new_state = client
@@ -718,8 +657,8 @@ mod tests {
 
         let db_id = Uuid::nil();
 
-        let c1 = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
-        let c2 = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        let c1 = supervisor.init_client(db_id).await.unwrap();
+        let c2 = supervisor.init_client(db_id).await.unwrap();
 
         // Both clients have the same state.
         let s1 = c1.get_cached_state().await.unwrap();
@@ -776,7 +715,7 @@ mod tests {
         let supervisor = MetastoreClientSupervisor::new(client, DEFAULT_METASTORE_CLIENT_CONFIG);
 
         let db_id = Uuid::nil();
-        let client = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        let client = supervisor.init_client(db_id).await.unwrap();
 
         let state = client.get_cached_state().await.unwrap();
         supervisor.terminate_worker(&db_id).await;
@@ -788,7 +727,7 @@ mod tests {
         let _ = client.get_cached_state().await.unwrap_err();
 
         // Initiate a new client, which should spin up a new worker.
-        let _ = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        let _ = supervisor.init_client(db_id).await.unwrap();
     }
 
     #[tokio::test]
@@ -806,7 +745,7 @@ mod tests {
         );
 
         let db_id = Uuid::nil();
-        let client = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        let client = supervisor.init_client(db_id).await.unwrap();
 
         client.ping().await.unwrap();
         client.refresh_cached_state().await.unwrap();
@@ -823,7 +762,7 @@ mod tests {
         assert!(supervisor.worker_is_dead(&db_id).await);
 
         // We should be able to init a new client without issue.
-        let client = supervisor.init_client(Uuid::new_v4(), db_id).await.unwrap();
+        let client = supervisor.init_client(db_id).await.unwrap();
         client.ping().await.unwrap();
     }
 }

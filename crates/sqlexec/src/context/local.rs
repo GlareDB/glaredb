@@ -14,7 +14,6 @@ use datafusion::execution::context::{
 };
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
-use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use pgrepr::format::Format;
@@ -42,6 +41,8 @@ use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 /// switched out to one that's able to generate plans to send to remote
 /// contexts.
 pub struct LocalSessionContext {
+    /// The id of the database
+    database_id: Uuid,
     /// The execution client for remote sessions.
     exec_client: Option<RemoteSessionClient>,
     /// Database catalog.
@@ -74,6 +75,7 @@ impl LocalSessionContext {
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
     ) -> Result<LocalSessionContext> {
+        let database_id = vars.database_id();
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(&vars);
 
@@ -89,6 +91,7 @@ impl LocalSessionContext {
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(LocalSessionContext {
+            database_id,
             exec_client: None,
             catalog,
             tables: native_tables,
@@ -120,9 +123,7 @@ impl LocalSessionContext {
         // The main difference here is creating a new catalog mutator without a
         // metastore client to "detach" ourselves from the metastore we're
         // connected to (likely running in-memory).
-        let vars = self
-            .get_session_vars()
-            .with_remote_session_id(client.session_id(), VarType::System);
+        let vars = self.get_session_vars();
         let runtime = self.df_ctx.runtime_env();
         let opts = new_datafusion_session_config_opts(&vars);
         let mut conf: SessionConfig = opts.into();
@@ -143,15 +144,6 @@ impl LocalSessionContext {
         Ok(())
     }
 
-    /// Close this session. This is only relevant for sessions connecting to
-    /// remote clients.
-    pub async fn close(&mut self) -> Result<()> {
-        if let Some(mut client) = self.exec_client() {
-            client.close_session().await?;
-        }
-        Ok(())
-    }
-
     pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
         self.env_reader = Some(env_reader);
     }
@@ -166,6 +158,10 @@ impl LocalSessionContext {
 
     pub fn get_metrics_mut(&mut self) -> &mut SessionMetrics {
         &mut self.metrics
+    }
+
+    pub fn get_database_id(&self) -> Uuid {
+        self.database_id
     }
 
     pub fn get_native_tables(&self) -> &NativeTableStorage {
