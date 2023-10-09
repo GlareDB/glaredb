@@ -62,18 +62,6 @@ impl<'a> PartialContextProvider<'a> {
         })
     }
 
-    /// Hint to the planner that the query should be planned to run on the specified runtime.
-    /// This is useful for queries with subqueries such as:
-    /// `create table t1 as select * from generate_series(1, 15, 2);`
-    /// without the hint, the planner will mistakenly plan each node individually
-    /// {subquery: local} -> {create table {subquery: local}: remote}
-    /// when instead, we want to hint the subquery to respect the runtime preference of the parent
-    /// {subquery: remote} -> {create table {subquery: remote}: remote}
-    pub fn with_runtime_preference(mut self, runtime_preference: RuntimePreference) -> Self {
-        self.runtime_preference = runtime_preference;
-        self
-    }
-
     fn new_dispatcher(&self) -> Dispatcher {
         Dispatcher::new(
             self.ctx.get_session_catalog(),
