@@ -373,7 +373,7 @@ impl CustomParser<'_> {
     const DIALECT: &'static GenericDialect = &GenericDialect {};
 
     pub fn new(sql: &str, use_prql: bool) -> Result<CustomParser<'_>, ParserError> {
-        let tokens = Tokenizer::new(Self::DIALECT, &sql).tokenize()?;
+        let tokens = Tokenizer::new(Self::DIALECT, sql).tokenize()?;
         let mut parser = Parser::new(Self::DIALECT).with_tokens(tokens);
         if use_prql {
             // Special case for SET statements, which are not supported by PRQL.
