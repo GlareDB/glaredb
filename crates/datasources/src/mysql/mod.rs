@@ -401,7 +401,7 @@ impl TableProvider for MysqlTableProvider {
                     col_sep = ", ";
 
                     let val = ScalarValue::try_from_array(col.as_ref(), row_idx)?;
-                    util::encode_literal_to_text(util::Datasource::Postgres, &mut values, &val)
+                    util::encode_literal_to_text(util::Datasource::MySql, &mut values, &val)
                         .map_err(|e| DataFusionError::External(Box::new(e)))?;
                 }
 
