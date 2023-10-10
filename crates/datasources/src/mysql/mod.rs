@@ -8,7 +8,7 @@ use std::task::{Context, Poll};
 
 use crate::common::ssh::session::SshTunnelSession;
 use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
-use crate::common::util;
+use crate::common::util::{self, create_count_record_batch};
 use async_stream::stream;
 use async_trait::async_trait;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Timelike};
@@ -21,6 +21,7 @@ use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::memory::MemoryExec;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
     execute_stream, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
@@ -406,6 +407,12 @@ impl TableProvider for MysqlTableProvider {
 
                 write!(&mut values, ")")?;
             }
+        }
+
+        if values.is_empty() {
+            let batch = create_count_record_batch(0);
+            let schema = batch.schema();
+            return Ok(Arc::new(MemoryExec::try_new(&[vec![batch]], schema, None)?));
         }
 
         let query = format!(

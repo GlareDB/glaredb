@@ -5,7 +5,7 @@ mod tls;
 
 use crate::common::ssh::session::SshTunnelSession;
 use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
-use crate::common::util;
+use crate::common::util::{self, create_count_record_batch};
 use async_trait::async_trait;
 use chrono::naive::{NaiveDateTime, NaiveTime};
 use chrono::{DateTime, NaiveDate, Timelike, Utc};
@@ -52,7 +52,7 @@ use tokio_postgres::types::{FromSql, Type as PostgresType};
 use tokio_postgres::{Client, Config, Connection, CopyOutStream, NoTls, Socket};
 use tracing::{debug, warn};
 
-use self::query_exec::{create_count_record_batch, PostgresQueryExec};
+use self::query_exec::PostgresQueryExec;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PostgresDbConnection {
