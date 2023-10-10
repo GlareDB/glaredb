@@ -30,7 +30,7 @@ use uuid::Uuid;
 use crate::background_jobs::JobRunner;
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
 use crate::environment::EnvironmentReader;
-use crate::errors::Result;
+use crate::errors::{ExecError, Result};
 use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
@@ -590,12 +590,18 @@ impl Session {
         Ok(stream)
     }
 
+    /// Helper for converting a sql statement to a logical plan.
+    ///
+    /// Useful for our "local" clients, including the CLI and Python bindings.
+    ///
+    /// Errors if no statements or more than one statement is provided in the
+    /// query.
     pub async fn sql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
         const UNNAMED: String = String::new();
 
         let mut statements = crate::parser::parse_sql(query)?;
         match statements.len() {
-            0 => todo!(),
+            0 => Err(ExecError::String("No statements in query".to_string())),
             1 => {
                 let stmt = statements.pop_front().unwrap();
                 self.prepare_statement(UNNAMED, Some(stmt), Vec::new())
@@ -611,7 +617,9 @@ impl Session {
                 let portal = self.ctx.get_portal(&UNNAMED)?.clone();
                 Ok(portal.stmt.plan.unwrap())
             }
-            _ => todo!(),
+            _ => Err(ExecError::String(
+                "More than one statement in query".to_string(),
+            )),
         }
     }
 }
