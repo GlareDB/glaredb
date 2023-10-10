@@ -20,8 +20,10 @@ use crate::errors::{ExecError, Result};
 /// stream contains batches all with the same schema.
 #[derive(Debug)]
 pub struct ExecutionBatchStream {
-    /// Session this stream is for.
-    session_id: Uuid,
+    /// Database this stream is for.
+    ///
+    /// This is used to get a valid session on the remote side.
+    database_id: Uuid,
 
     /// Unique id for this input.
     work_id: Uuid,
@@ -57,8 +59,8 @@ impl ExecutionBatchStream {
         let work_id = Uuid::from_slice(&req.work_id)
             .map_err(|e| ExecError::RemoteSession(format!("get work id: {e}")))?;
 
-        let session_id = Uuid::from_slice(&req.session_id)
-            .map_err(|e| ExecError::RemoteSession(format!("get session id: {e}")))?;
+        let database_id = Uuid::from_slice(&req.database_id)
+            .map_err(|e| ExecError::RemoteSession(format!("get database id: {e}")))?;
 
         // Get first set of batches (primarily for the schema)
         let batches: VecDeque<_> = Self::read_arrow_ipc(req.arrow_ipc)?.collect();
@@ -77,7 +79,7 @@ impl ExecutionBatchStream {
         };
 
         Ok(ExecutionBatchStream {
-            session_id,
+            database_id,
             work_id,
             stream: input,
             buf: batches,
@@ -85,8 +87,8 @@ impl ExecutionBatchStream {
         })
     }
 
-    pub fn session_id(&self) -> Uuid {
-        self.session_id
+    pub fn database_id(&self) -> Uuid {
+        self.database_id
     }
 
     pub fn work_id(&self) -> Uuid {

@@ -882,10 +882,7 @@ impl StreamOpener {
     fn open(&self) -> BoxFuture<'static, Result<CopyOutStream, tokio_postgres::Error>> {
         let query = self.copy_query.clone();
         let accessor = self.state.clone();
-        Box::pin(async move {
-            let query = query;
-            accessor.client.copy_out(&query).await
-        })
+        Box::pin(async move { accessor.client.copy_out(&query).await })
     }
 }
 

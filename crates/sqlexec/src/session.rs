@@ -373,10 +373,6 @@ impl Session {
         self.ctx.attach_remote_session(client, test_db_id).await
     }
 
-    pub async fn close(&mut self) -> Result<()> {
-        self.ctx.close().await
-    }
-
     pub fn get_session_catalog(&self) -> &SessionCatalog {
         self.ctx.get_session_catalog()
     }
@@ -399,6 +395,7 @@ impl Session {
         let plan = state.optimize(&plan)?;
         if let Some(client) = self.ctx.exec_client() {
             let planner = RemotePhysicalPlanner {
+                database_id: self.ctx.get_database_id(),
                 remote_client: client,
                 catalog: self.ctx.get_session_catalog(),
             };

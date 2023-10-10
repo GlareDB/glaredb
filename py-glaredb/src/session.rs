@@ -86,9 +86,6 @@ impl LocalSession {
 
     fn close(&mut self, py: Python<'_>) -> PyResult<()> {
         wait_for_future(py, async move {
-            if let Err(err) = self.sess.lock().await.close().await {
-                eprintln!("unable to close the existing session: {err}");
-            }
             Ok(self.engine.shutdown().await.map_err(PyGlareDbError::from)?)
         })
     }
