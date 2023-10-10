@@ -79,21 +79,19 @@ message InitializeSessionRequest {
 }
 
 message InitializeSessionResponse {
-  // ID of session that was created. This ID needs to be provided on all future
-  // requests.
-  bytes session_id = 1;
-
+  // Database for which the session was initialized
+  bytes database_id = 1;
   // The initial catalog for the database.
   metastore.catalog.CatalogState catalog = 2;
 }
 
-message FetchCatalogRequest { bytes session_id = 1; }
+message FetchCatalogRequest { bytes database_id = 1; }
 
 message FetchCatalogResponse { metastore.catalog.CatalogState catalog = 1; }
 
 // Dispatch the table access on remote server.
 message DispatchAccessRequest {
-  bytes session_id = 1;
+  bytes database_id = 1;
   ResolvedTableReference table_ref = 2;
   repeated bytes args = 3;
   // gRPC doesn't really provide a way for Option<Vec<T>> or Option<Map<K,V>>
@@ -103,7 +101,7 @@ message DispatchAccessRequest {
 
 // Execute a physical plan and get the stream.
 message PhysicalPlanExecuteRequest {
-  bytes session_id = 1;
+  bytes database_id = 1;
   /// The protobuf serialized physical plan.
   bytes physical_plan = 2;
 }
@@ -140,13 +138,6 @@ message ResolvedTableReference {
 
 message BroadcastExchangeResponse {}
 
-message CloseSessionRequest {
-  // ID of session that we are closing.
-  bytes session_id = 1;
-}
-
-message CloseSessionResponse {}
-
 service ExecutionService {
   // Initializes a remote session.
   rpc InitializeSession(InitializeSessionRequest)
@@ -163,7 +154,4 @@ service ExecutionService {
 
   rpc BroadcastExchange(stream common.ExecutionResultBatch)
       returns (BroadcastExchangeResponse);
-
-  // Close the remote session.
-  rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
 }

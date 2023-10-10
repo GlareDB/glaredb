@@ -168,7 +168,7 @@ impl<'a> PartialContextProvider<'a> {
             if let Some(reader) = self.ctx.get_env_reader() {
                 if let Some(table) = reader
                     .resolve_table(table)
-                    .map_err(|e| ExecError::EnvironmentTableRead(e))?
+                    .map_err(ExecError::EnvironmentTableRead)?
                 {
                     // Hint that the table being scanned from the environment
                     // should be scanned client-side.
