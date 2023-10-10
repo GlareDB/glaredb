@@ -373,6 +373,7 @@ impl TableProvider for MysqlTableProvider {
             query,
             arrow_schema: projected_schema,
             metrics: ExecutionPlanMetricsSet::new(),
+            is_read_only: true,
         }))
     }
 
@@ -421,6 +422,7 @@ impl TableProvider for MysqlTableProvider {
             query,
             arrow_schema: self.arrow_schema.clone(),
             metrics: ExecutionPlanMetricsSet::new(),
+            is_read_only: false,
         }))
     }
 }
@@ -433,6 +435,7 @@ struct MysqlExec {
     query: String,
     arrow_schema: ArrowSchemaRef,
     metrics: ExecutionPlanMetricsSet,
+    is_read_only: bool,
 }
 
 impl ExecutionPlan for MysqlExec {
@@ -474,6 +477,7 @@ impl ExecutionPlan for MysqlExec {
             self.query.clone(),
             self.accessor.clone(),
             self.arrow_schema.clone(),
+            self.is_read_only,
         )
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
@@ -523,6 +527,7 @@ impl MysqlQueryStream {
         query: String,
         accessor: Arc<MysqlAccessor>,
         arrow_schema: ArrowSchemaRef,
+        is_read_only: bool,
     ) -> Result<Self> {
         let schema = arrow_schema.clone();
 
@@ -531,7 +536,7 @@ impl MysqlQueryStream {
             let mut tx_options = TxOpts::new();
             tx_options
                 .with_isolation_level(IsolationLevel::RepeatableRead)
-                .with_readonly(true);
+                .with_readonly(is_read_only);
 
             let mut conn = accessor.conn.write().await;
 
