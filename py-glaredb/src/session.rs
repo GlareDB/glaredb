@@ -66,9 +66,7 @@ impl LocalSession {
         })
     }
 
-    /// Execute a query to completion.
-    ///
-    /// This is equivalent to calling `execute` on the result of a `sql` call.
+    /// Execute a query.
     ///
     /// # Examples
     ///
@@ -80,17 +78,15 @@ impl LocalSession {
     /// con = glaredb.connect()
     /// con.execute('create table my_table (a int)')
     /// ```
-    fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<()> {
-        wait_for_future(py, async move {
-            let mut sess = self.sess.lock().await;
+    fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionResult> {
+        let sess = self.sess.clone();
+        let exec_result = wait_for_future(py, async move {
+            let mut sess = sess.lock().await;
             let plan = sess.sql_to_lp(query).await.map_err(PyGlareDbError::from)?;
-            let out = sess
-                .execute_inner(plan)
-                .await
-                .map_err(PyGlareDbError::from)?;
-            PyExecutionResult(out).execute(py)?;
-            Ok(())
-        })
+            sess.execute_inner(plan).await.map_err(PyGlareDbError::from)
+        })?;
+
+        Ok(PyExecutionResult(exec_result))
     }
 
     /// Close the current session.

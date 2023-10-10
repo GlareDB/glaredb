@@ -4,16 +4,10 @@ use arrow_util::pretty::pretty_format_batches;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::pyarrow::ToPyArrow;
 use datafusion::arrow::record_batch::RecordBatch;
-use futures::lock::Mutex;
 use futures::StreamExt;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
-use sqlexec::{
-    engine::TrackedSession,
-    session::ExecutionResult,
-};
+use sqlexec::session::ExecutionResult;
 use std::sync::Arc;
-
-pub(super) type PyTrackedSession = Arc<Mutex<TrackedSession>>;
 
 use crate::runtime::wait_for_future;
 
