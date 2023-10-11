@@ -142,14 +142,34 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Public SQL Logic Tests
+        run: just slt -v 'sqllogictests/*'
+
+  integration-tests:
+    if: github.repository_owner == 'glaredb'
+    name: Integration Tests
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: Cache
+        with:
+          path: |
+            ~/.cargo/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
-        if: github.repository_owner == 'glaredb'
+
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
       - name: Setup SnowSQL
-        if: github.repository_owner == 'glaredb'
+
         run: |
           curl -o snowsql.bash \
             https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
@@ -161,14 +181,8 @@ jobs:
 
       - name: Setup GCP
         uses: google-github-actions/setup-gcloud@v1
-        if: github.repository_owner == 'glaredb'
-
-      - name: Public SQL Logic Tests
-        if: github.repository_owner != 'glaredb'
-        run: just slt -v 'sqllogictests/*'
 
       - name: Setup SQL Logic Test Fixtures
-        if: github.repository_owner == 'glaredb'
 
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
@@ -228,12 +242,12 @@ jobs:
 
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
-          
+
           # Prepare SLT (MinIO)
           ./scripts/create-test-minio-store.sh
 
           echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
-          just sql-logic-tests -v --exclude '*/tunnels/ssh'
+          just slt -v --exclude 'sqllogictests/*' --exclude '*/tunnels/ssh'
 
           echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
           # SSH tests are prone to fail if we make a lot of connections at the
@@ -242,41 +256,7 @@ jobs:
           just sql-logic-tests -v --jobs=1 '*/tunnels/ssh'
 
           echo "-------------------------------- RPC TESTS --------------------------------"
-          just sql-logic-tests -v --rpc-test \
-                                             'sqllogictests/cast/*' \
-                                             'sqllogictests/cte/*' \
-                                             'sqllogictests/functions/delta_scan' \
-                                             'sqllogictests/functions/generate_series' \
-                                             'sqllogictests/functions/version' \
-                                             'sqllogictests/joins/*' \
-                                             'sqllogictests/topn/*' \
-                                             'sqllogictests/aggregates' \
-                                             'sqllogictests/alter' \
-                                             'sqllogictests/create_table' \
-                                             'sqllogictests/credentials' \
-                                             'sqllogictests/csv' \
-                                             'sqllogictests/debug' \
-                                             'sqllogictests/delete' \
-                                             'sqllogictests/demo_pg' \
-                                             'sqllogictests/drop' \
-                                             'sqllogictests/explain' \
-                                             'sqllogictests/infer' \
-                                             'sqllogictests/information_schema' \
-                                             'sqllogictests/metabase' \
-                                             'sqllogictests/name' \
-                                             'sqllogictests/object_names' \
-                                             'sqllogictests/rpc' \
-                                             'sqllogictests/select' \
-                                             'sqllogictests/simple' \
-                                             'sqllogictests/table' \
-                                             'sqllogictests/temp_table' \
-                                             'sqllogictests/time' \
-                                             'sqllogictests/tunnels' \
-                                             'sqllogictests/update' \
-                                             'sqllogictests/vars' \
-                                             'sqllogictests/views' \
-                                             'sqllogictests/virtual_catalog'
-
+          just rpc-tests
           just sql-logic-tests --rpc-test 'sqllogictests_bigquery/*'
           just sql-logic-tests --rpc-test 'sqllogictests_iceberg/*'
           just sql-logic-tests --rpc-test 'sqllogictests_native/*'
@@ -285,7 +265,7 @@ jobs:
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
-          
+
           echo "-------------------------- REMOTE DATA STORAGE TESTS --------------------------------"
           # Test using a remote object store for storing databases and catalog; For now only on MinIO (S3)
           just sql-logic-tests --location http://localhost:9000 \
@@ -294,4 +274,3 @@ jobs:
               --option bucket=$MINIO_BUCKET \
               'sqllogictests/*' \
               'sqllogictests_native/*'
-              
