@@ -30,9 +30,6 @@ def q():
         c_count desc
 	"""
 
-    utils.get_customer_ds()
-    utils.get_orders_ds()
-
     q_final = duckdb.sql(query_str)
 
     utils.run_query(Q_NUM, q_final)
