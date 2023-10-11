@@ -182,7 +182,6 @@ jobs:
       - name: Setup GCP
         uses: google-github-actions/setup-gcloud@v1
 
-
       - name: Setup SQL Logic Test Fixtures
 
         env:
@@ -248,7 +247,7 @@ jobs:
           ./scripts/create-test-minio-store.sh
 
           echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
-          just sql-logic-tests -v --exclude '*/tunnels/ssh'
+          just slt -v --exclude 'sqllogictests/*' --exclude '*/tunnels/ssh'
 
           echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
           # SSH tests are prone to fail if we make a lot of connections at the
