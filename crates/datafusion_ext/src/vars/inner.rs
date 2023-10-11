@@ -13,6 +13,13 @@ use std::sync::Arc;
 use tracing::error;
 use uuid::Uuid;
 
+#[derive(Debug, Default, Clone)]
+pub enum Dialect {
+    #[default]
+    Sql,
+    Prql,
+}
+
 /// Variables for a session.
 #[derive(Debug)]
 pub struct SessionVarsInner {
@@ -39,7 +46,9 @@ pub struct SessionVarsInner {
     pub max_tunnel_count: SessionVar<Option<usize>>,
     pub max_credentials_count: SessionVar<Option<usize>>,
     pub is_cloud_instance: SessionVar<bool>,
+    pub dialect: SessionVar<Dialect>,
 }
+
 impl SessionVarsInner {
     /// Return an iterator to the variables that should be sent to the client on
     /// session start.
@@ -100,6 +109,8 @@ impl SessionVarsInner {
             Ok(&self.max_credentials_count)
         } else if name.eq_ignore_ascii_case(IS_CLOUD_INSTANCE.name) {
             Ok(&self.is_cloud_instance)
+        } else if name.eq_ignore_ascii_case(DIALECT.name) {
+            Ok(&self.dialect)
         } else {
             Err(VarError::UnknownVariable(name.to_string()).into())
         }
@@ -151,6 +162,8 @@ impl SessionVarsInner {
             self.max_tunnel_count.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(MAX_CREDENTIALS_COUNT.name) {
             self.max_credentials_count.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(DIALECT.name) {
+            self.dialect.set_from_str(val, setter)
         } else {
             Err(VarError::UnknownVariable(name.to_string()).into())
         }
@@ -180,6 +193,7 @@ impl SessionVarsInner {
             self.max_tunnel_count.config_entry(),
             self.max_credentials_count.config_entry(),
             self.is_cloud_instance.config_entry(),
+            self.dialect.config_entry(),
         ]
     }
 }
@@ -209,6 +223,7 @@ impl Default for SessionVarsInner {
             max_tunnel_count: SessionVar::new(&MAX_TUNNEL_COUNT),
             max_credentials_count: SessionVar::new(&MAX_CREDENTIALS_COUNT),
             is_cloud_instance: SessionVar::new(&IS_CLOUD_INSTANCE),
+            dialect: SessionVar::new(&DIALECT),
         }
     }
 }

@@ -14,6 +14,7 @@ use datafusion::variable::{VarProvider, VarType};
 use inner::*;
 use uuid::Uuid;
 
+pub use inner::Dialect;
 pub use inner::SessionVarsInner;
 use once_cell::sync::Lazy;
 use parking_lot::{RwLock, RwLockReadGuard};
@@ -92,6 +93,7 @@ impl SessionVars {
      max_tunnel_count: Option<usize>,
      max_credentials_count: Option<usize>,
      is_cloud_instance: bool,
+     dialect: Dialect
     }
 }
 
