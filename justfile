@@ -53,6 +53,43 @@ doc-tests: protoc
 sql-logic-tests *args: protoc
   just test --test sqllogictests -- {{args}}
 
+# Run SQL Logic Tests over RPC
+rpc-tests: protoc
+  just sql-logic-tests -v --rpc-test \
+    'sqllogictests/cast/*' \
+    'sqllogictests/cte/*' \
+    'sqllogictests/functions/delta_scan' \
+    'sqllogictests/functions/generate_series' \
+    'sqllogictests/functions/version' \
+    'sqllogictests/joins/*' \
+    'sqllogictests/topn/*' \
+    'sqllogictests/aggregates' \
+    'sqllogictests/alter' \
+    'sqllogictests/create_table' \
+    'sqllogictests/credentials' \
+    'sqllogictests/csv' \
+    'sqllogictests/debug' \
+    'sqllogictests/delete' \
+    'sqllogictests/demo_pg' \
+    'sqllogictests/drop' \
+    'sqllogictests/explain' \
+    'sqllogictests/infer' \
+    'sqllogictests/information_schema' \
+    'sqllogictests/metabase' \
+    'sqllogictests/name' \
+    'sqllogictests/object_names' \
+    'sqllogictests/rpc' \
+    'sqllogictests/select' \
+    'sqllogictests/simple' \
+    'sqllogictests/table' \
+    'sqllogictests/temp_table' \
+    'sqllogictests/time' \
+    'sqllogictests/tunnels' \
+    'sqllogictests/update' \
+    'sqllogictests/vars' \
+    'sqllogictests/views' \
+    'sqllogictests/virtual_catalog'
+
 #  Check formatting.
 fmt-check: protoc
   cargo fmt -- --check
