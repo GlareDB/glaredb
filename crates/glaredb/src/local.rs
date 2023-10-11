@@ -344,7 +344,7 @@ async fn print_stream(
     }
 
     if let Some(now) = maybe_now {
-        println!("Time: {:.3}", now.elapsed().as_secs_f64())
+        println!("Time: {:.3}s", now.elapsed().as_secs_f64())
     }
 
     Ok(())
