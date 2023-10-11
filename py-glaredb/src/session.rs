@@ -1,5 +1,7 @@
 use crate::execution_result::PyExecutionResult;
+use datafusion::logical_expr::LogicalPlan;
 use futures::lock::Mutex;
+use futures::TryFutureExt;
 use pyo3::prelude::*;
 use sqlexec::engine::{Engine, TrackedSession};
 use std::sync::Arc;
@@ -58,11 +60,23 @@ impl LocalSession {
         let cloned_sess = self.sess.clone();
         wait_for_future(py, async move {
             let mut sess = self.sess.lock().await;
-            Ok(sess
-                .sql_to_lp(query)
-                .await
-                .map(|lp| PyLogicalPlan::new(lp, cloned_sess))
-                .map_err(PyGlareDbError::from)?)
+            let query_obj = sess.sql_to_lp(query).await;
+            let plan = query_obj.as_ref().expect("resolving plan from query");
+            match plan
+                .to_owned()
+                .try_into_datafusion_plan()
+                .expect("resolving logical plan")
+            {
+                LogicalPlan::Dml(_) | LogicalPlan::Ddl(_) | LogicalPlan::Copy(_) => {
+                    let _ = sess
+                        .execute_inner(plan.to_owned())
+                        .map_err(PyGlareDbError::from);
+                    return Ok(PyLogicalPlan::new(plan.to_owned(), cloned_sess));
+                }
+                _ => Ok(query_obj
+                    .map(|lp| PyLogicalPlan::new(lp, cloned_sess))
+                    .map_err(PyGlareDbError::from)?),
+            }
         })
     }
 
