@@ -15,6 +15,7 @@ sqlbuiltins = { path = "../sqlbuiltins" }
 datasources = { path = "../datasources" }
 datafusion_ext = { path = "../datafusion_ext" }
 object_store_util = { path = "../object_store_util" }
+dashmap = "5.5.0"
 metastore = { path = "../metastore" }
 thiserror.workspace = true
 tokio = { version = "1", features = ["full"] }

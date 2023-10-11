@@ -366,6 +366,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
 }
 
 pub struct RemotePhysicalPlanner<'a> {
+    pub database_id: Uuid,
     pub remote_client: RemoteSessionClient,
     pub catalog: &'a SessionCatalog,
 }
@@ -429,6 +430,7 @@ impl<'a> RemotePhysicalPlanner<'a> {
                         // executed locally, and pushes batches over the
                         // broadcast endpoint.
                         let send = ClientExchangeSendExec {
+                            database_id: self.database_id,
                             work_id,
                             client: self.remote_client.clone(),
                             input,

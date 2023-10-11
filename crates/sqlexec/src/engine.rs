@@ -302,9 +302,8 @@ impl Engine {
         vars: SessionVars,
         storage: SessionStorageConfig,
     ) -> Result<TrackedSession> {
-        let conn_id = vars.connection_id();
         let database_id = vars.database_id();
-        let metastore = self.supervisor.init_client(conn_id, database_id).await?;
+        let metastore = self.supervisor.init_client(database_id).await?;
         let native = self
             .storage
             .new_native_tables_storage(database_id, &storage)?;
@@ -337,11 +336,10 @@ impl Engine {
     /// since we don't guarantee that sessions get closed).
     pub async fn new_remote_session_context(
         &self,
-        conn_id: Uuid,
         database_id: Uuid,
         storage: SessionStorageConfig,
     ) -> Result<RemoteSessionContext> {
-        let metastore = self.supervisor.init_client(conn_id, database_id).await?;
+        let metastore = self.supervisor.init_client(database_id).await?;
         let native = self
             .storage
             .new_native_tables_storage(database_id, &storage)?;

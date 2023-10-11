@@ -9,11 +9,8 @@ package rpcsrv.common;
 
 /// A single batch as the result of query execution.
 message ExecutionResultBatch {
-  // Session id.
-  //
-  // TODO: This will be changed to database_id when we remove the 1:1
-  // relationship between local and remote sessions.
-  bytes session_id = 1;
+  // Database id.
+  bytes database_id = 1;
   // Unique work id.
   bytes work_id = 2;
 
