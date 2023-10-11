@@ -277,7 +277,10 @@ impl LocalSession {
                     *self = new_sess;
                 }
             }
-            ("\\timing", None) => self.opts.timing = !self.opts.timing,
+            ("\\timing", None) => {
+                self.opts.timing = !self.opts.timing;
+                println!("Timing is {}", if self.opts.timing { "on" } else { "off" })
+            }
             ("\\quit", None) | ("\\q", None) | ("exit", None) => {
                 return Ok(ClientCommandResult::Exit)
             }
