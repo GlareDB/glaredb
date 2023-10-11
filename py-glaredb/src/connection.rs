@@ -1,6 +1,6 @@
 use crate::execution_result::PyExecutionResult;
 use futures::lock::Mutex;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyType};
 use sqlexec::engine::{Engine, TrackedSession};
 use std::sync::Arc;
 
@@ -10,13 +10,29 @@ use crate::{error::PyGlareDbError, logical_plan::PyLogicalPlan, runtime::wait_fo
 
 /// A connected session to a GlareDB database.
 #[pyclass]
-pub struct LocalSession {
+#[derive(Clone)]
+pub struct Connection {
     pub(super) sess: PyTrackedSession,
-    pub(super) engine: Engine,
+    pub(super) engine: Arc<Engine>,
 }
 
 #[pymethods]
-impl LocalSession {
+impl Connection {
+    fn __enter__(&mut self, _py: Python<'_>) -> PyResult<Self> {
+        Ok(self.clone())
+    }
+
+    fn __exit__(
+        &mut self,
+        py: Python<'_>,
+        _exc_type: Option<&PyType>,
+        _exc_value: Option<PyObject>,
+        _traceback: Option<PyObject>,
+    ) -> PyResult<()> {
+        self.close(py)?;
+        Ok(())
+    }
+
     /// Run a SQL querying against a GlareDB database.
     ///
     /// Note that this will only plan the query. To execute the query, call any

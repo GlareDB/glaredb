@@ -1,10 +1,10 @@
 mod connect;
+mod connection;
 mod environment;
 mod error;
 mod execution_result;
 mod logical_plan;
 mod runtime;
-mod session;
 mod util;
 
 use pyo3::prelude::*;
