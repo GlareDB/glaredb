@@ -12,9 +12,8 @@ use pyo3::prelude::*;
 use sqlexec::LogicalPlan;
 
 use crate::{
-    error::PyGlareDbError,
-    runtime::wait_for_future,
-    session::{PyExecutionResult, PyTrackedSession},
+    error::PyGlareDbError, execution_result::PyExecutionResult, runtime::wait_for_future,
+    session::PyTrackedSession,
 };
 use datafusion::error::Result as DatafusionResult;
 
@@ -30,7 +29,7 @@ impl PyLogicalPlan {
         Self { lp, session }
     }
 
-    fn execute(&self, py: Python) -> PyResult<PyExecutionResult> {
+    fn execute_inner(&self, py: Python) -> PyResult<PyExecutionResult> {
         wait_for_future(py, async move {
             let mut sess = self.session.lock().await;
             let stream = sess
@@ -49,24 +48,25 @@ impl PyLogicalPlan {
         Ok(format!("{:#?}", self.lp))
     }
 
-    fn explain(&self) -> PyResult<String> {
-        Ok(format!("{:?}", self.lp))
-    }
-
     fn to_arrow(&self, py: Python) -> PyResult<PyObject> {
-        self.execute(py)?.to_arrow(py)
+        self.execute_inner(py)?.to_arrow(py)
     }
 
     fn to_polars(&self, py: Python) -> PyResult<PyObject> {
-        self.execute(py)?.to_polars(py)
+        self.execute_inner(py)?.to_polars(py)
     }
 
     fn to_pandas(&self, py: Python) -> PyResult<PyObject> {
-        self.execute(py)?.to_pandas(py)
+        self.execute_inner(py)?.to_pandas(py)
     }
 
     fn show(&self, py: Python) -> PyResult<()> {
-        self.execute(py)?.show(py)
+        self.execute_inner(py)?.show(py)
+    }
+
+    fn execute(&self, py: Python) -> PyResult<()> {
+        self.execute_inner(py)?.execute(py)?;
+        Ok(())
     }
 }
 

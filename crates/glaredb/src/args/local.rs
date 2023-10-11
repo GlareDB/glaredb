@@ -38,6 +38,9 @@ pub struct LocalClientOpts {
     #[clap(flatten)]
     pub storage_config: StorageConfigArgs,
 
+    #[clap(long, default_value = "false", hide = true)]
+    pub timing: bool,
+
     /// Ignores the proxy and directly goes to the server for remote execution.
     ///
     /// (Internal)
@@ -94,6 +97,7 @@ impl LocalClientOpts {
                 "Maximum width of the output table to display. Defaults to terminal size.",
             ),
             ("\\open PATH", "Open a database at the given path"),
+            ("\\timing", "Toggle query execution runtime display"),
             ("\\quit", "Quit this session"),
         ];
 
