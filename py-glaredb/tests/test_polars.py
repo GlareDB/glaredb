@@ -128,7 +128,7 @@ def test_select_polars_lazy():
         }
     ).lazy()
 
-    out = con.sql("select * from lazy_df where fruits = 'banana'").to_polars()
+    out = con.sql("select * from lazy_df where fruits = 'banana' order by \"A\"").to_polars()
     expected = pl.DataFrame(
         {
             "A": [1, 2, 5],
