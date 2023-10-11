@@ -8,7 +8,7 @@ use std::task::{Context, Poll};
 
 use crate::common::ssh::session::SshTunnelSession;
 use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
-use crate::common::util::{self, create_count_record_batch};
+use crate::common::util::{self, create_count_record_batch, COUNT_SCHEMA};
 use async_stream::stream;
 use async_trait::async_trait;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Timelike};
@@ -282,6 +282,12 @@ impl VirtualLister for MysqlAccessor {
     }
 }
 
+#[derive(Debug, Clone)]
+enum QueryType {
+    Dql,
+    Dml,
+}
+
 pub struct MysqlTableProvider {
     predicate_pushdown: bool,
     table_access: MysqlTableAccess,
@@ -374,7 +380,7 @@ impl TableProvider for MysqlTableProvider {
             query,
             arrow_schema: projected_schema,
             metrics: ExecutionPlanMetricsSet::new(),
-            is_read_only: true,
+            query_type: QueryType::Dql,
         }))
     }
 
@@ -393,12 +399,12 @@ impl TableProvider for MysqlTableProvider {
             let mut row_sep = "";
             for row_idx in 0..batch.num_rows() {
                 write!(&mut values, "{row_sep}(")?;
-                row_sep = ",\n\t";
+                row_sep = ",";
 
                 let mut col_sep = "";
                 for col in batch.columns() {
                     write!(&mut values, "{col_sep}")?;
-                    col_sep = ", ";
+                    col_sep = ",";
 
                     let val = ScalarValue::try_from_array(col.as_ref(), row_idx)?;
                     util::encode_literal_to_text(util::Datasource::MySql, &mut values, &val)
@@ -416,7 +422,7 @@ impl TableProvider for MysqlTableProvider {
         }
 
         let query = format!(
-            "INSERT INTO {}.{} VALUES\n\t{}",
+            "INSERT INTO {}.{} VALUES {}",
             self.table_access.schema, self.table_access.name, values
         );
 
@@ -427,9 +433,9 @@ impl TableProvider for MysqlTableProvider {
             table_access: self.table_access.clone(),
             accessor: self.accessor.clone(),
             query,
-            arrow_schema: self.arrow_schema.clone(),
+            arrow_schema: COUNT_SCHEMA.clone(),
             metrics: ExecutionPlanMetricsSet::new(),
-            is_read_only: false,
+            query_type: QueryType::Dml,
         }))
     }
 }
@@ -442,7 +448,7 @@ struct MysqlExec {
     query: String,
     arrow_schema: ArrowSchemaRef,
     metrics: ExecutionPlanMetricsSet,
-    is_read_only: bool,
+    query_type: QueryType,
 }
 
 impl ExecutionPlan for MysqlExec {
@@ -484,7 +490,7 @@ impl ExecutionPlan for MysqlExec {
             self.query.clone(),
             self.accessor.clone(),
             self.arrow_schema.clone(),
-            self.is_read_only,
+            self.query_type.clone(),
         )
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
@@ -527,54 +533,67 @@ struct MysqlQueryStream {
 
 impl MysqlQueryStream {
     /// Number of MySQL rows to process into an arrow record batch
-    // TOOD: Allow configuration
+    // TODO: Allow configuration
     const MYSQL_RECORD_BATCH_SIZE: usize = 1000;
 
     fn open(
         query: String,
         accessor: Arc<MysqlAccessor>,
         arrow_schema: ArrowSchemaRef,
-        is_read_only: bool,
+        query_type: QueryType,
     ) -> Result<Self> {
         let schema = arrow_schema.clone();
 
         let stream = stream! {
-            // Open Mysql Binary stream
-            let mut tx_options = TxOpts::new();
-            tx_options
-                .with_isolation_level(IsolationLevel::RepeatableRead)
-                .with_readonly(is_read_only);
-
             let mut conn = accessor.conn.write().await;
+            match query_type {
+                QueryType::Dql => {
+                    // Open Mysql Binary stream
+                    let mut tx_options = TxOpts::new();
+                    tx_options
+                        .with_isolation_level(IsolationLevel::RepeatableRead)
+                        .with_readonly(true);
 
-            let mut tx = conn
-                .start_transaction(tx_options)
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                    let mut tx = conn
+                        .start_transaction(tx_options)
+                        .await
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-            let query_stream = tx
-                .exec_stream::<MysqlRow, _, _>(query, ())
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                    let query_stream = tx
+                            .exec_stream::<MysqlRow, _, _>(query, ())
+                            .await
+                            .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-            let mut chunks = query_stream.try_chunks(Self::MYSQL_RECORD_BATCH_SIZE).boxed();
+                    let mut chunks = query_stream.try_chunks(Self::MYSQL_RECORD_BATCH_SIZE).boxed();
 
-            while let Some(rows) = chunks
-                .try_next()
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?
-            {
-                let record_batch = mysql_row_to_record_batch(rows, arrow_schema.clone())
-                    .map_err(|e| DataFusionError::External(Box::new(e)));
-                yield record_batch;
+                    while let Some(rows) = chunks
+                        .try_next()
+                        .await
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?
+                    {
+                        let record_batch = mysql_row_to_record_batch(rows, arrow_schema.clone())
+                            .map_err(|e| DataFusionError::External(Box::new(e)));
+                        yield record_batch;
+                    }
+
+                    // Drop the empty stream once all chunks are processed. This allows us to close
+                    // the MySQL transaction
+                    drop(chunks);
+                    tx.commit()
+                        .await
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                },
+                QueryType::Dml => {
+                    conn.exec::<MysqlRow, _, _>(query, ())
+                        .await
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                    let count = conn.affected_rows();
+                    let record_batch = create_count_record_batch(count);
+
+                    yield Ok(record_batch);
+                },
             }
-
-            // Drop the empty stream once all chunks are processed. This allows us to close
-            // the MySQL transaction
-            drop(chunks);
-            tx.commit()
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
         };
 
         Ok(Self {
