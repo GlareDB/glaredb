@@ -13,6 +13,7 @@ use datafusion::common::Result as DataFusionResult;
 use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::TaskContext;
+use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use datafusion_ext::errors::{ExtensionError, Result};
@@ -122,6 +123,16 @@ impl TableFunc for GenerateSeries {
             }
             _ => return Err(ExtensionError::InvalidNumArgs),
         }
+    }
+
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::new(
+            TypeSignature::OneOf(vec![
+                TypeSignature::Uniform(2, vec![DataType::Int64, DataType::Decimal128(38, 0)]),
+                TypeSignature::Uniform(3, vec![DataType::Int64, DataType::Decimal128(38, 0)]),
+            ]),
+            Volatility::Immutable,
+        ))
     }
 }
 

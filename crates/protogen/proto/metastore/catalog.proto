@@ -32,6 +32,7 @@ syntax = "proto3";
 package metastore.catalog;
 
 import "metastore/options.proto";
+import "common/arrow.proto";
 
 // The state of the catalog at some version.
 message CatalogState {
@@ -187,6 +188,7 @@ message FunctionEntry {
   EntryMeta meta = 1;
   FunctionType func_type = 2;
   RuntimePreference runtime_preference = 3;
+  Signature signature = 4;
 }
 
 message CredentialsEntry {
@@ -194,4 +196,58 @@ message CredentialsEntry {
   options.CredentialsOptions options = 2;
   string comment = 3;
   // next: 4
+}
+
+message Signature {
+  Volatility volatility = 1;
+  TypeSignature type_signature = 2;
+}
+
+enum Volatility {
+  /// Immutable - An immutable function will always return the same output when
+  /// given the same input.
+  IMMUTABLE = 0;
+  /// Stable - A stable function may return different values given the same
+  /// input across different queries but must return the same value for a given
+  /// input within a query.
+  STABLE = 1;
+  /// Volatile - A volatile function may change the return value from evaluation
+  /// to evaluation. Multiple invocations of a volatile function may return
+  /// different results when used in the same query.
+  VOLATILE = 2;
+}
+
+message TypeSignature {
+  oneof signature {
+    VariadicSignature variadic = 1;
+    VariadicEqualSignature variadic_equal = 2;
+    VariadicAnySignature variadic_any = 3;
+    UniformSignature uniform = 4;
+    ExactSignature exact = 5;
+    AnySignature any = 6;
+    OneOfSignature one_of = 7;
+  }
+}
+
+message VariadicSignature {
+  // The type of the variadic argument.
+  repeated common.arrow.ArrowType args = 1;
+}
+
+message VariadicEqualSignature {}
+message VariadicAnySignature {}
+message UniformSignature {
+  uint32 num_args = 1;
+  repeated common.arrow.ArrowType args = 2;
+}
+
+message ExactSignature {
+  repeated common.arrow.ArrowType args = 1;
+}
+message AnySignature {
+  uint32 num_args = 1;
+}
+
+message OneOfSignature {
+  repeated TypeSignature args = 1;
 }

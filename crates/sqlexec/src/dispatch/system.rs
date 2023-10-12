@@ -5,6 +5,7 @@ use datafusion::arrow::array::{
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
+use datafusion::logical_expr::TypeSignature;
 use datasources::common::ssh::key::SshKey;
 use datasources::common::ssh::SshConnectionParameters;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType, TableEntry};
@@ -47,7 +48,6 @@ impl<'a> SystemTableDispatcher<'a> {
             .ok_or_else(|| DispatchError::MissingObjectWithOid(ent.meta.parent))?;
         let name = &ent.meta.name;
         let schema = &schema_ent.get_meta().name;
-
         Ok(if GLARE_DATABASES.matches(schema, name) {
             Arc::new(self.build_glare_databases())
         } else if GLARE_TUNNELS.matches(schema, name) {
@@ -453,8 +453,17 @@ impl<'a> SystemTableDispatcher<'a> {
 
             // TODO: Actually get parameter info.
             const EMPTY: [Option<&'static str>; 0] = [];
+            if let Some(sig) = &ent.signature {
+                let sigs = sig_to_string_repr(&sig.type_signature)
+                    .iter()
+                    .map(|s| Some(s.to_owned()))
+                    .collect::<Vec<_>>();
+                parameter_types.append_value(sigs);
+            } else {
+                parameter_types.append_value(EMPTY);
+            }
+
             parameters.append_value(EMPTY);
-            parameter_types.append_value(EMPTY);
 
             builtin.append_value(func.builtin);
         }
@@ -575,4 +584,41 @@ impl<'a> SystemTableDispatcher<'a> {
 
         Ok(MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap())
     }
+}
+fn sig_to_string_repr(sig: &TypeSignature) -> Vec<String> {
+    match sig {
+        TypeSignature::Variadic(types) => {
+            let types = types.iter().map(arrow_util::pretty::fmt_dtype);
+            vec![format!("{}, ..", join_types(types, "/"))]
+        }
+        TypeSignature::Uniform(arg_count, valid_types) => {
+            let types = valid_types.iter().map(arrow_util::pretty::fmt_dtype);
+            vec![std::iter::repeat(join_types(types, "/"))
+                .take(*arg_count)
+                .collect::<Vec<String>>()
+                .join(", ")]
+        }
+        TypeSignature::Exact(types) => {
+            let types = types.iter().map(arrow_util::pretty::fmt_dtype);
+            vec![join_types(types, ", ")]
+        }
+        TypeSignature::Any(arg_count) => {
+            let types = std::iter::repeat("Any").take(*arg_count);
+            vec![join_types(types, ",")]
+        }
+        TypeSignature::VariadicEqual => vec!["T, .., T".to_string()],
+        TypeSignature::VariadicAny => vec!["Any, .., Any".to_string()],
+        TypeSignature::OneOf(sigs) => sigs.iter().flat_map(sig_to_string_repr).collect(),
+    }
+}
+
+/// Helper function to join types with specified delimiter.
+pub(crate) fn join_types<T: Iterator<Item = U>, U: std::fmt::Display>(
+    types: T,
+    delimiter: &str,
+) -> String {
+    types
+        .map(|t| t.to_string())
+        .collect::<Vec<String>>()
+        .join(delimiter)
 }

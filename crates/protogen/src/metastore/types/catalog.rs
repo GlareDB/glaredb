@@ -2,8 +2,11 @@ use super::options::{
     CredentialsOptions, InternalColumnDefinition, TableOptionsInternal, TunnelOptions,
 };
 use super::options::{DatabaseOptions, TableOptions};
-use crate::gen::metastore::catalog;
+use crate::gen::common::arrow::ArrowType;
+use crate::gen::metastore::catalog::{self, type_signature};
 use crate::{FromOptionalField, ProtoConvError};
+use datafusion::arrow::datatypes::DataType;
+use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
 use std::fmt;
@@ -547,11 +550,12 @@ impl From<RuntimePreference> for catalog::function_entry::RuntimePreference {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionEntry {
     pub meta: EntryMeta,
     pub func_type: FunctionType,
     pub runtime_preference: RuntimePreference,
+    pub signature: Option<Signature>,
 }
 
 impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
@@ -562,6 +566,155 @@ impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
             meta,
             func_type: value.func_type.try_into()?,
             runtime_preference: value.runtime_preference.try_into()?,
+            signature: value.signature.map(|s| s.try_into()).transpose()?,
+        })
+    }
+}
+
+impl From<Volatility> for catalog::Volatility {
+    fn from(value: Volatility) -> Self {
+        match value {
+            datafusion::logical_expr::Volatility::Immutable => catalog::Volatility::Immutable,
+            datafusion::logical_expr::Volatility::Stable => catalog::Volatility::Stable,
+            datafusion::logical_expr::Volatility::Volatile => catalog::Volatility::Volatile,
+        }
+    }
+}
+
+impl TryFrom<catalog::Volatility> for Volatility {
+    type Error = ProtoConvError;
+
+    fn try_from(value: catalog::Volatility) -> Result<Self, Self::Error> {
+        match value {
+            catalog::Volatility::Immutable => Ok(Volatility::Immutable),
+            catalog::Volatility::Stable => Ok(Volatility::Stable),
+            catalog::Volatility::Volatile => Ok(Volatility::Volatile),
+        }
+    }
+}
+
+impl TryFrom<i32> for catalog::Volatility {
+    type Error = ProtoConvError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        catalog::Volatility::from_i32(value)
+            .ok_or(ProtoConvError::UnknownEnumVariant("Volatility", value))
+    }
+}
+
+impl From<TypeSignature> for catalog::TypeSignature {
+    fn from(value: TypeSignature) -> Self {
+        use catalog::type_signature::Signature as ProtoSignature;
+        let inner = match value {
+            TypeSignature::Variadic(args) => {
+                let args: Vec<ArrowType> = args.iter().map(|t| t.try_into().unwrap()).collect();
+                let var_sig = catalog::VariadicSignature { args };
+
+                ProtoSignature::Variadic(var_sig)
+            }
+            TypeSignature::VariadicEqual => {
+                ProtoSignature::VariadicEqual(catalog::VariadicEqualSignature {})
+            }
+            TypeSignature::VariadicAny => {
+                ProtoSignature::VariadicAny(catalog::VariadicAnySignature {})
+            }
+            TypeSignature::Uniform(n, args) => {
+                let args: Vec<ArrowType> = args.iter().map(|t| t.try_into().unwrap()).collect();
+                let uniform_sig = catalog::UniformSignature {
+                    num_args: n as u32,
+                    args,
+                };
+
+                ProtoSignature::Uniform(uniform_sig)
+            }
+            TypeSignature::Exact(args) => {
+                let args: Vec<ArrowType> = args.iter().map(|t| t.try_into().unwrap()).collect();
+                let exact_sig = catalog::ExactSignature { args };
+
+                ProtoSignature::Exact(exact_sig)
+            }
+            TypeSignature::Any(n) => {
+                ProtoSignature::Any(catalog::AnySignature { num_args: n as u32 })
+            }
+            TypeSignature::OneOf(sigs) => {
+                let sigs: Vec<catalog::TypeSignature> =
+                    sigs.into_iter().map(|s| s.into()).collect();
+                ProtoSignature::OneOf(catalog::OneOfSignature { args: sigs })
+            }
+        };
+
+        catalog::TypeSignature {
+            signature: Some(inner),
+        }
+    }
+}
+
+impl TryFrom<catalog::TypeSignature> for TypeSignature {
+    type Error = ProtoConvError;
+
+    fn try_from(value: catalog::TypeSignature) -> Result<Self, Self::Error> {
+        match value.signature.unwrap() {
+            type_signature::Signature::Variadic(args) => {
+                let args: Vec<DataType> = args
+                    .args
+                    .iter()
+                    .map(|t| t.try_into())
+                    .collect::<Result<_, _>>()?;
+
+                Ok(TypeSignature::Variadic(args))
+            }
+            type_signature::Signature::VariadicEqual(_) => Ok(TypeSignature::VariadicEqual),
+            type_signature::Signature::VariadicAny(_) => Ok(TypeSignature::VariadicAny),
+            type_signature::Signature::Uniform(catalog::UniformSignature { num_args, args }) => {
+                let args: Vec<DataType> = args
+                    .iter()
+                    .map(|t| t.try_into())
+                    .collect::<Result<_, _>>()?;
+
+                Ok(TypeSignature::Uniform(num_args as usize, args))
+            }
+            type_signature::Signature::Exact(catalog::ExactSignature { args }) => {
+                let args: Vec<DataType> = args
+                    .iter()
+                    .map(|t| t.try_into())
+                    .collect::<Result<_, _>>()?;
+
+                Ok(TypeSignature::Exact(args))
+            }
+            type_signature::Signature::Any(catalog::AnySignature { num_args: n }) => {
+                Ok(TypeSignature::Any(n as usize))
+            }
+            type_signature::Signature::OneOf(catalog::OneOfSignature { args }) => {
+                let args: Vec<TypeSignature> = args
+                    .into_iter()
+                    .map(|t| t.try_into())
+                    .collect::<Result<_, _>>()?;
+
+                Ok(TypeSignature::OneOf(args))
+            }
+        }
+    }
+}
+impl From<Signature> for catalog::Signature {
+    fn from(value: Signature) -> Self {
+        let volatility: catalog::Volatility = value.volatility.into();
+
+        catalog::Signature {
+            type_signature: Some(value.type_signature.into()),
+            volatility: volatility as i32,
+        }
+    }
+}
+
+impl TryFrom<catalog::Signature> for Signature {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::Signature) -> Result<Self, Self::Error> {
+        let volatility = catalog::Volatility::try_from(value.volatility)?;
+        let volatility: Volatility = volatility.try_into()?;
+        let type_signature: TypeSignature = value.type_signature.required("type_signature")?;
+        Ok(Signature {
+            type_signature,
+            volatility,
         })
     }
 }
@@ -575,6 +728,7 @@ impl From<FunctionEntry> for catalog::FunctionEntry {
             meta: Some(value.meta.into()),
             func_type: func_type as i32,
             runtime_preference: runtime_preference as i32,
+            signature: value.signature.map(|s| s.into()),
         }
     }
 }
