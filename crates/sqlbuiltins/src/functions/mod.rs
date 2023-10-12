@@ -57,6 +57,12 @@ impl BuiltinScalarFuncs {
         self.funcs.values()
     }
 }
+impl Default for BuiltinScalarFuncs {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// All builtin table functions.
 pub struct BuiltinTableFuncs {
     funcs: HashMap<String, Arc<dyn TableFunc>>,
