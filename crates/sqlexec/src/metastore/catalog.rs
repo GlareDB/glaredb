@@ -101,7 +101,7 @@ impl From<MetastoreClientHandle> for CatalogMutator {
 ///
 /// This catalog should be stored on the "client" side and periodically updated
 /// from the remote state provided by metastore.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SessionCatalog {
     /// The state retrieved from a remote Metastore.
     state: Arc<CatalogState>,

@@ -168,11 +168,6 @@ pub static GLARE_FUNCTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
             DataType::List(Arc::new(ArrowField::new("item", DataType::Utf8, true))),
             false,
         ),
-        (
-            "parameter_types",
-            DataType::List(Arc::new(ArrowField::new("item", DataType::Utf8, true))),
-            false,
-        ),
         ("builtin", DataType::Boolean, false),
     ]),
 });

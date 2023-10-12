@@ -6,6 +6,7 @@ edition = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+arrow_util = { path = "../arrow_util" }
 logutil = { path = "../logutil" }
 protogen = { path = "../protogen" }
 proxyutil = { path = "../proxyutil" }

@@ -265,19 +265,21 @@ struct ColumnHeader {
     alignment: CellAlignment,
 }
 
-fn fmt_dtype(dtype: &DataType) -> String {
+pub fn fmt_dtype(dtype: &DataType) -> String {
     match dtype {
         DataType::Timestamp(tu, tz) => {
-            format!("Timestamp[{}, {}]", fmt_timeunit(tu), fmt_timezone(tz))
+            format!("Timestamp<{}, {}>", fmt_timeunit(tu), fmt_timezone(tz))
         }
         DataType::List(fld) | DataType::LargeList(fld) => {
-            format!("List[{}]", fmt_dtype(fld.data_type()))
+            format!("List<{}>", fmt_dtype(fld.data_type()))
         }
         DataType::Struct(flds) => flds
             .iter()
             .map(|f| format!("{}: {}", f.name(), fmt_dtype(f.data_type())))
             .collect::<Vec<_>>()
             .join(", "),
+        DataType::Decimal128(_, _) => "Decimal128".to_string(),
+        DataType::Decimal256(_, _) => "Decimal256".to_string(),
         dtype => format!("{}", dtype),
     }
 }

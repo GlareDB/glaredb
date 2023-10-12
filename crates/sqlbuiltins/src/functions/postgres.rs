@@ -2,7 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use datafusion::arrow::datatypes::DataType;
 use datafusion::datasource::TableProvider;
+use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
@@ -19,7 +21,13 @@ impl TableFunc for ReadPostgres {
     fn name(&self) -> &str {
         "read_postgres"
     }
-
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::uniform(
+            3,
+            vec![DataType::Utf8],
+            Volatility::Stable,
+        ))
+    }
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
