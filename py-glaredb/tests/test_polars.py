@@ -116,3 +116,27 @@ def test_execute():
 
     assert out.frame_equal(expected)
     con.close()
+
+def test_select_polars_lazy():
+    con = glaredb.connect()
+    lazy_df = pl.DataFrame(
+        {
+            "A": [1, 2, 3, 4, 5],
+            "fruits": ["banana", "banana", "apple", "apple", "banana"],
+            "B": [5, 4, 3, 2, 1],
+            "cars": ["beetle", "audi", "beetle", "beetle", "beetle"],
+        }
+    ).lazy()
+
+    out = con.sql("select * from lazy_df where fruits = 'banana' order by \"A\"").to_polars()
+    expected = pl.DataFrame(
+        {
+            "A": [1, 2, 5],
+            "fruits": ["banana", "banana", "banana"],
+            "B": [5, 4, 1],
+            "cars": ["beetle", "audi", "beetle"],
+        }
+    )
+
+    assert out.frame_equal(expected)
+    con.close()
