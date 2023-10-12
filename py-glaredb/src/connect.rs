@@ -102,7 +102,7 @@ pub fn connect(
         } else {
             // If data dir is provided, then both table storage and metastore
             // storage will reside at that path. Otherwise everything is in memory.
-            Engine::from_data_dir(&conf.data_dir)
+            Engine::from_data_dir(conf.data_dir.as_ref())
                 .await
                 .map_err(PyGlareDbError::from)?
         };

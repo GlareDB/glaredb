@@ -258,13 +258,13 @@ impl Engine {
 
     /// Create a new `Engine` instance from the provided data directory. This can be removed once the
     /// `--data-dir` option gets consolidated into the storage options above.
-    pub async fn from_data_dir(data_dir: &Option<PathBuf>) -> Result<Engine> {
+    pub async fn from_data_dir(data_dir: Option<&PathBuf>) -> Result<Engine> {
         let conf = match data_dir {
             Some(path) => EngineStorageConfig::Local { path: path.clone() },
             None => EngineStorageConfig::Memory,
         };
 
-        let mode = MetastoreClientMode::new_local(data_dir.clone());
+        let mode = MetastoreClientMode::new_local(data_dir.cloned());
         let client = mode.into_client().await.map_err(|e| {
             ExecError::String(format!(
                 "Failed creating a local metastore client for data dir {data_dir:?}: {e}"

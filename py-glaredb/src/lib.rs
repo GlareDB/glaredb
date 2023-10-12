@@ -7,6 +7,9 @@ mod logical_plan;
 mod runtime;
 mod util;
 
+use connection::Connection;
+use execution_result::PyExecutionResult;
+use logical_plan::PyLogicalPlan;
 use pyo3::prelude::*;
 use runtime::TokioRuntime;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -28,6 +31,24 @@ fn glaredb(_py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add("__runtime", TokioRuntime(runtime))?;
 
+    m.add_function(wrap_pyfunction!(sql, m)?)?;
+    m.add_function(wrap_pyfunction!(execute, m)?)?;
+
     m.add_function(wrap_pyfunction!(connect::connect, m)?)?;
+
     Ok(())
+}
+
+/// Run a SQL query against an in-memory GlareDB database.
+#[pyfunction]
+pub fn sql(py: Python, query: &str) -> PyResult<PyLogicalPlan> {
+    let mut con = Connection::default_in_memory(py)?;
+    con.sql(py, query)
+}
+
+/// Execute a query against an in-memory GlareDB database.
+#[pyfunction]
+pub fn execute(py: Python, query: &str) -> PyResult<PyExecutionResult> {
+    let mut con = Connection::default_in_memory(py)?;
+    con.execute(py, query)
 }
