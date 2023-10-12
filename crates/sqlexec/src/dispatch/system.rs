@@ -461,7 +461,6 @@ impl<'a> SystemTableDispatcher<'a> {
                 parameters.append_value(EMPTY);
             }
 
-
             builtin.append_value(func.builtin);
         }
 
