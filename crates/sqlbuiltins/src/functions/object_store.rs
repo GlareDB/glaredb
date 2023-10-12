@@ -46,7 +46,7 @@ impl TableFunc for ObjScanTableFunc {
             1,
             vec![
                 DataType::Utf8,
-                DataType::List(Arc::new(Field::new("url", DataType::Utf8, false))),
+                DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))),
             ],
             Volatility::Stable,
         ))

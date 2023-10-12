@@ -433,7 +433,6 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut function_name = StringBuilder::new();
         let mut function_type = StringBuilder::new();
         let mut parameters = ListBuilder::new(StringBuilder::new());
-        let mut parameter_types = ListBuilder::new(StringBuilder::new());
         let mut builtin = BooleanBuilder::new();
 
         for func in self
@@ -451,19 +450,17 @@ impl<'a> SystemTableDispatcher<'a> {
             function_name.append_value(&ent.meta.name);
             function_type.append_value(ent.func_type.as_str());
 
-            // TODO: Actually get parameter info.
             const EMPTY: [Option<&'static str>; 0] = [];
             if let Some(sig) = &ent.signature {
                 let sigs = sig_to_string_repr(&sig.type_signature)
-                    .iter()
-                    .map(|s| Some(s.to_owned()))
+                    .into_iter()
+                    .map(Some)
                     .collect::<Vec<_>>();
-                parameter_types.append_value(sigs);
+                parameters.append_value(sigs);
             } else {
-                parameter_types.append_value(EMPTY);
+                parameters.append_value(EMPTY);
             }
 
-            parameters.append_value(EMPTY);
 
             builtin.append_value(func.builtin);
         }
@@ -476,7 +473,6 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(function_name.finish()),
                 Arc::new(function_type.finish()),
                 Arc::new(parameters.finish()),
-                Arc::new(parameter_types.finish()),
                 Arc::new(builtin.finish()),
             ],
         )
