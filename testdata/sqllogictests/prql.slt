@@ -1,0 +1,14 @@
+statement ok
+set dialect = 'prql'
+
+statement ok
+from glare_catalog.tables | take 1
+
+statement error sql parser error: Error compiling PRQL:
+select * from glare_catalog.tables limit 1
+
+statement ok
+set dialect = 'sql'
+
+statement ok
+select * from glare_catalog.tables limit 1

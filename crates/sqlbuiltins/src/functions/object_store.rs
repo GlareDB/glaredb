@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::{sync::Arc, vec};
 
 use async_trait::async_trait;
+use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::{FileCompressionType, FileType};
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::json::JsonFormat;
@@ -9,6 +10,7 @@ use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::object_store::ObjectStoreUrl;
+use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
     FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
@@ -39,6 +41,16 @@ impl TableFunc for ObjScanTableFunc {
         RuntimePreference::Unspecified
     }
 
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::uniform(
+            1,
+            vec![
+                DataType::Utf8,
+                DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))),
+            ],
+            Volatility::Stable,
+        ))
+    }
     fn detect_runtime(
         &self,
         args: &[FuncParamValue],

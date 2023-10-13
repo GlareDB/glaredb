@@ -3,6 +3,7 @@ use datafusion::{
     arrow::{pyarrow::PyArrowType, record_batch::RecordBatch},
     datasource::TableProvider,
 };
+use pyo3::types::IntoPyDict;
 use pyo3::types::PyTuple;
 use pyo3::{prelude::*, types::PyType};
 use sqlexec::environment::EnvironmentReader;
@@ -28,6 +29,9 @@ impl EnvironmentReader for PyEnvironmentReader {
             // since the resolve functions will err if the library is uninstalled,
             // dont `try` the results, we want to move on next resolver if this one errs.
             if let Ok(Some(table)) = resolve_polars(py, var) {
+                return Ok(Some(table));
+            }
+            if let Ok(Some(table)) = resolve_polars_lazy(py, var) {
                 return Ok(Some(table));
             }
             if let Ok(Some(table)) = resolve_pandas(py, var) {
@@ -88,6 +92,38 @@ fn resolve_polars(py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvi
     }
 
     let arrow = var.call_method0("to_arrow").unwrap();
+    let batches = arrow.call_method0("to_batches").unwrap();
+    let batches = batches.extract::<PyArrowType<Vec<RecordBatch>>>().unwrap();
+    let batches = batches.0;
+
+    let schema = batches[0].schema();
+
+    let table = MemTable::try_new(schema, vec![batches]).unwrap();
+
+    Ok(Some(Arc::new(table) as Arc<dyn TableProvider>))
+}
+
+/// Try to resolve a variable as a polars lazy data frame.
+///
+/// Returns `Ok(None)` if the variable isn't a lazy polars data frame.
+fn resolve_polars_lazy(py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvider>>> {
+    // Polars seems to lack streaming output for lazy frames in the python api.
+    // So we collect it all in memory!
+
+    let polars_type: &PyType = py
+        .import("polars")?
+        .getattr("LazyFrame")?
+        .downcast()
+        .unwrap();
+
+    if !var.is_instance(polars_type).unwrap() {
+        return Ok(None);
+    }
+
+    let kwargs = &[("streaming", true)];
+    let df = var.call_method("collect", (), Some(kwargs.into_py_dict(py)))?;
+
+    let arrow = df.call_method0("to_arrow").unwrap();
     let batches = arrow.call_method0("to_batches").unwrap();
     let batches = batches.extract::<PyArrowType<Vec<RecordBatch>>>().unwrap();
     let batches = batches.0;

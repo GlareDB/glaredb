@@ -14,6 +14,7 @@ mod virtual_listing;
 
 use ::object_store::aws::AmazonS3ConfigKey;
 use ::object_store::gcp::GoogleConfigKey;
+use datafusion::logical_expr::BuiltinScalarFunction;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -36,6 +37,31 @@ use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
 
 /// Builtin table returning functions available for all sessions.
 pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
+pub static BUILTIN_SCALAR_FUNCS: Lazy<BuiltinScalarFuncs> = Lazy::new(BuiltinScalarFuncs::new);
+
+/// All builtin scalar functions.
+pub struct BuiltinScalarFuncs {
+    funcs: HashMap<String, BuiltinScalarFunction>,
+}
+
+impl BuiltinScalarFuncs {
+    pub fn new() -> Self {
+        use strum::IntoEnumIterator;
+        let funcs = BuiltinScalarFunction::iter()
+            .map(|f| (f.to_string(), f))
+            .collect::<HashMap<String, BuiltinScalarFunction>>();
+
+        BuiltinScalarFuncs { funcs }
+    }
+    pub fn iter_funcs(&self) -> impl Iterator<Item = &BuiltinScalarFunction> {
+        self.funcs.values()
+    }
+}
+impl Default for BuiltinScalarFuncs {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// All builtin table functions.
 pub struct BuiltinTableFuncs {

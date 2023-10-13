@@ -19,12 +19,12 @@ use std::collections::HashMap;
 
 use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
-use sqlexec::parser;
 use sqlexec::remote::client::RemoteClient;
 use sqlexec::session::ExecutionResult;
 use std::env;
 use std::io::Write;
 use std::path::PathBuf;
+use std::time::Instant;
 use tracing::error;
 use url::Url;
 
@@ -201,9 +201,15 @@ impl LocalSession {
             return Ok(());
         }
 
+        let now = if self.opts.timing {
+            Some(Instant::now())
+        } else {
+            None
+        };
+
         const UNNAMED: String = String::new();
 
-        let statements = parser::parse_sql(text)?;
+        let statements = self.sess.parse_query(text)?;
         for stmt in statements {
             self.sess
                 .prepare_statement(UNNAMED, Some(stmt), Vec::new())
@@ -226,6 +232,7 @@ impl LocalSession {
                         self.opts.mode,
                         self.opts.max_width,
                         self.opts.max_rows,
+                        now,
                     )
                     .await?
                 }
@@ -269,6 +276,10 @@ impl LocalSession {
                     *self = new_sess;
                 }
             }
+            ("\\timing", None) => {
+                self.opts.timing = !self.opts.timing;
+                println!("Timing is {}", if self.opts.timing { "on" } else { "off" })
+            }
             ("\\quit", None) | ("\\q", None) | ("exit", None) => {
                 return Ok(ClientCommandResult::Exit)
             }
@@ -293,6 +304,7 @@ async fn print_stream(
     mode: OutputMode,
     max_width: Option<usize>,
     max_rows: Option<usize>,
+    maybe_now: Option<Instant>,
 ) -> Result<()> {
     let schema = stream.schema();
     let batches = process_stream(stream).await?;
@@ -328,6 +340,10 @@ async fn print_stream(
         }
         OutputMode::Json => write_json::<JsonArrayNewLines>(&batches)?,
         OutputMode::Ndjson => write_json::<JsonLineDelimted>(&batches)?,
+    }
+
+    if let Some(now) = maybe_now {
+        println!("Time: {:.3}s", now.elapsed().as_secs_f64())
     }
 
     Ok(())
