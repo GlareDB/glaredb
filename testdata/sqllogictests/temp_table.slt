@@ -3,7 +3,13 @@
 statement ok
 create temp table abc (a int, b int, c int);
 
+# Duplicate name and if not exists
 
+statement error Duplicate object name
+create temp table abc (c float);
+
+statement ok
+create temp table if not exists abc (c float);
 
 query III
 select * from abc;

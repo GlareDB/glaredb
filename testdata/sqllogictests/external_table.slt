@@ -1,8 +1,11 @@
 statement ok
 create external table t1 from debug options (table_type = 'error_during_execution');
 
-statement error 
-create external if not exists table t1 from debug options (table_type = 'never_ending');
+statement error Duplicate name
+create external table t1 from debug options (table_type = 'never_ending');
+
+statement ok
+create external table if not exists t1 from debug options (table_type = 'never_ending');
 
 statement ok
 create or replace external table t1 from debug options (table_type = 'never_ending');
