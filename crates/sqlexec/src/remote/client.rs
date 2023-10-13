@@ -16,9 +16,7 @@ use protogen::{
         TableProviderResponse,
     },
 };
-use proxyutil::metadata_constants::{
-    COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
-};
+use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
 use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 use tonic::{
@@ -45,8 +43,6 @@ pub struct ProxyAuthParams {
     pub db_name: String,
     /// Org name.
     pub org: String,
-    /// Compute engine name.
-    pub compute_engine: Option<String>,
 }
 
 /// Auth params and destination to use when connecting the client.
@@ -89,15 +85,6 @@ impl TryFrom<Url> for ProxyDestination {
             ));
         }
 
-        // Database name could be just the name itself, or may be in the form of
-        // "engine.dbname".
-        let (compute_engine, db_name) =
-            if let Some((compute_engine, db_name)) = db_name.split_once('.') {
-                (Some(compute_engine), db_name)
-            } else {
-                (None, db_name)
-            };
-
         // Rebuild url that we should actually connect to.
         let dst = Url::parse(&format!(
             "http://{host}:{}",
@@ -112,7 +99,6 @@ impl TryFrom<Url> for ProxyDestination {
             password: password.to_string(),
             db_name: db_name.to_string(),
             org: org.to_string(),
-            compute_engine: compute_engine.map(String::from),
         };
 
         Ok(ProxyDestination { params, dst })
@@ -193,9 +179,6 @@ impl RemoteClient {
         metadata.insert(PASSWORD_KEY, params.password.parse()?);
         metadata.insert(DB_NAME_KEY, params.db_name.parse()?);
         metadata.insert(ORG_KEY, params.org.parse()?);
-        if let Some(compute_engine) = params.compute_engine {
-            metadata.insert(COMPUTE_ENGINE_KEY, compute_engine.parse()?);
-        }
 
         let mut dst: Endpoint = dst.try_into()?;
 
@@ -412,7 +395,6 @@ mod tests {
                 password: "password".to_string(),
                 db_name: "db".to_string(),
                 org: "org".to_string(),
-                compute_engine: None,
             },
             dst: Url::parse("http://remote.glaredb.com:6443").unwrap(),
         };
@@ -423,7 +405,7 @@ mod tests {
     #[test]
     fn params_from_url_valid_port_and_engine() {
         let out = ProxyDestination::try_from(
-            Url::parse("glaredb://user:password@org.remote.glaredb.com:4444/engine.db").unwrap(),
+            Url::parse("glaredb://user:password@org.remote.glaredb.com:4444/db").unwrap(),
         )
         .unwrap();
 
@@ -433,7 +415,6 @@ mod tests {
                 password: "password".to_string(),
                 db_name: "db".to_string(),
                 org: "org".to_string(),
-                compute_engine: Some("engine".to_string()),
             },
             dst: Url::parse("http://remote.glaredb.com:4444").unwrap(),
         };
@@ -445,13 +426,19 @@ mod tests {
     fn params_from_url_invalid() {
         // Invalid scheme
         ProxyDestination::try_from(
-            Url::parse("http://user:password@org.remote.glaredb.com:4444/engine.db").unwrap(),
+            Url::parse("http://user:password@org.remote.glaredb.com:4444/db").unwrap(),
         )
         .unwrap_err();
 
         // Missing password
         ProxyDestination::try_from(
-            Url::parse("glaredb://user@org.remote.glaredb.com:4444/engine.db").unwrap(),
+            Url::parse("glaredb://user@org.remote.glaredb.com:4444/db").unwrap(),
+        )
+        .unwrap_err();
+
+        // Invalid db name
+        ProxyDestination::try_from(
+            Url::parse("glaredb://user:password@org.remote.glaredb.com:4444/compute.db").unwrap(),
         )
         .unwrap_err();
 

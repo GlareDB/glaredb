@@ -10,9 +10,7 @@ use protogen::rpcsrv::types::service::{
     SessionStorageConfig,
 };
 use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, ServiceProtocol};
-use proxyutil::metadata_constants::{
-    COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
-};
+use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{hash::Hash, time::Duration};
@@ -51,7 +49,7 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
     ///
     /// This will read authentication params from the metadata map, get
     /// deployment info from Cloud, then return a connection to the requested
-    /// deployment+compute engine.
+    /// deployment+compute node.
     ///
     /// Database details will be returned alongside the client.
     async fn connect(
@@ -147,17 +145,11 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
         let db_name = get_val(DB_NAME_KEY, meta)?;
         let org = get_val(ORG_KEY, meta)?;
 
-        let compute_engine = meta
-            .get(COMPUTE_ENGINE_KEY)
-            .map(|s| s.to_str())
-            .transpose()?;
-
         Ok(AuthParams {
             user,
             password,
             db_name,
             org,
-            compute_engine,
             service: ServiceProtocol::RpcSrv,
         })
     }
