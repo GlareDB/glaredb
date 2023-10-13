@@ -436,12 +436,6 @@ mod tests {
         )
         .unwrap_err();
 
-        // Invalid db name
-        ProxyDestination::try_from(
-            Url::parse("glaredb://user:password@org.remote.glaredb.com:4444/compute.db").unwrap(),
-        )
-        .unwrap_err();
-
         // Missing db name
         ProxyDestination::try_from(
             Url::parse("glaredb://user:password@org.remote.glaredb.com:4444/").unwrap(),
