@@ -11,6 +11,9 @@ pub struct LocalArgs {
 
     #[clap(flatten)]
     pub opts: LocalClientOpts,
+
+    /// Execute an SQL file.
+    pub file: Option<String>,
 }
 
 #[derive(Debug, Clone, Parser)]
