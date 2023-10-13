@@ -14,7 +14,6 @@ use datafusion_ext::metrics::DataSourceMetricsExecAdapter;
 use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::delete::DeleteBuilder;
 use deltalake::operations::update::UpdateBuilder;
-use deltalake::protocol::SaveMode;
 use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use futures::StreamExt;
@@ -31,6 +30,8 @@ use std::sync::Arc;
 use tokio::fs;
 use url::Url;
 use uuid::Uuid;
+
+pub use deltalake::protocol::SaveMode;
 
 #[derive(Debug, Clone)]
 pub struct NativeTableStorage {
@@ -79,17 +80,18 @@ impl NativeTableStorage {
         Ok(total_size)
     }
 
-    pub async fn create_table(&self, table: &TableEntry, or_replace: bool) -> Result<NativeTable> {
+    pub async fn create_table(
+        &self,
+        table: &TableEntry,
+        save_mode: SaveMode,
+    ) -> Result<NativeTable> {
         let delta_store = self.create_delta_store_for_table(table).await?;
         let opts = Self::opts_from_ent(table)?;
         let tbl = {
             let mut builder = CreateBuilder::new()
                 .with_table_name(&table.meta.name)
-                .with_object_store(delta_store);
-
-            if or_replace {
-                builder = builder.with_save_mode(SaveMode::Overwrite);
-            }
+                .with_object_store(delta_store)
+                .with_save_mode(save_mode);
 
             for col in &opts.columns {
                 let column = match &col.arrow_type {
@@ -358,6 +360,7 @@ impl TableProvider for NativeTable {
 mod tests {
 
     use datafusion::arrow::datatypes::DataType;
+    use deltalake::protocol::SaveMode;
     use object_store_util::conf::StorageConfig;
     use protogen::metastore::types::{
         catalog::{EntryMeta, EntryType, TableEntry},
@@ -402,7 +405,11 @@ mod tests {
         };
 
         // Create a table, load it, delete it and load it again!
-        storage.create_table(&entry, false).await.unwrap();
+        storage
+            .create_table(&entry, SaveMode::ErrorIfExists)
+            .await
+            .unwrap();
+
         storage.load_table(&entry).await.unwrap();
         storage.delete_table(&entry).await.unwrap();
         let err = storage
