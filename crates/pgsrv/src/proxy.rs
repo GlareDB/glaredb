@@ -346,8 +346,6 @@ impl<A: ProxyAuthenticator> ProxyHandler<A> {
                 let (org_id, db_name) =
                     get_org_and_db_name(hostname.as_ref(), db_name, options.as_ref())?;
 
-                let (compute_engine, db_name) = get_compute_engine(db_name)?;
-
                 let details = self
                     .authenticator
                     .authenticate(AuthParams {
@@ -355,7 +353,6 @@ impl<A: ProxyAuthenticator> ProxyHandler<A> {
                         password: &password,
                         db_name,
                         org: org_id,
-                        compute_engine: Some(compute_engine),
                         service: ServiceProtocol::PgSrv,
                     })
                     .await?;
@@ -422,13 +419,6 @@ fn parse_options(params: &HashMap<String, String>) -> Option<HashMap<String, Str
             .map(|(k, v)| (k.replace("--", ""), v.to_string()))
             .collect::<HashMap<_, _>>(),
     )
-}
-
-/// Get the compute engine from the database name.
-/// Compute engine is optional and may be empty string.
-fn get_compute_engine(db_name: &str) -> Result<(&str, &str)> {
-    let (compute_engine, db_name) = db_name.split_once('.').unwrap_or(("", db_name));
-    Ok((compute_engine, db_name))
 }
 
 #[cfg(test)]
@@ -572,33 +562,6 @@ mod tests {
                 (None, Ok(b)) => panic!("expected error, got {b:?}"),
                 _ => (),
             }
-        }
-    }
-
-    #[test]
-    fn test_compute_engine() {
-        #[derive(Debug)]
-        struct TestCase {
-            input: &'static str,
-            expected: (&'static str, &'static str),
-        }
-
-        let test_cases = vec![
-            TestCase {
-                input: "db",
-                expected: ("", "db"),
-            },
-            TestCase {
-                input: "compute.db",
-                expected: ("compute", "db"),
-            },
-        ];
-
-        for tc in test_cases {
-            println!("test case: {tc:?}");
-
-            let out = get_compute_engine(tc.input).unwrap();
-            assert_eq!(tc.expected, out);
         }
     }
 }

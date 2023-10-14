@@ -38,7 +38,7 @@ pub struct SessionStorageConfig {
 
 // TODO: There's a significant amount of overlap with `StorageConfig`, would be good to consider
 // consolidating them into one
-/// Storage configuration for the compute engine.
+/// Storage configuration for the compute node.
 ///
 /// The configuration defined here alongside the configuration passed in through
 /// the proxy will be used to connect to database storage.
