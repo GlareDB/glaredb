@@ -1,5 +1,6 @@
 //! SQL execution.
 pub mod context;
+pub mod distexec;
 pub mod engine;
 pub mod environment;
 pub mod errors;
