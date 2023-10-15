@@ -47,6 +47,7 @@ pub struct SessionVarsInner {
     pub max_credentials_count: SessionVar<Option<usize>>,
     pub is_cloud_instance: SessionVar<bool>,
     pub dialect: SessionVar<Dialect>,
+    pub enable_experimental_scheduler: SessionVar<bool>,
 }
 
 impl SessionVarsInner {
@@ -111,6 +112,8 @@ impl SessionVarsInner {
             Ok(&self.is_cloud_instance)
         } else if name.eq_ignore_ascii_case(DIALECT.name) {
             Ok(&self.dialect)
+        } else if name.eq_ignore_ascii_case(ENABLE_EXPERIMENTAL_SCHEDULER.name) {
+            Ok(&self.enable_experimental_scheduler)
         } else {
             Err(VarError::UnknownVariable(name.to_string()).into())
         }
@@ -164,6 +167,8 @@ impl SessionVarsInner {
             self.max_credentials_count.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(DIALECT.name) {
             self.dialect.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(ENABLE_EXPERIMENTAL_SCHEDULER.name) {
+            self.enable_experimental_scheduler.set_from_str(val, setter)
         } else {
             Err(VarError::UnknownVariable(name.to_string()).into())
         }
@@ -224,6 +229,7 @@ impl Default for SessionVarsInner {
             max_credentials_count: SessionVar::new(&MAX_CREDENTIALS_COUNT),
             is_cloud_instance: SessionVar::new(&IS_CLOUD_INSTANCE),
             dialect: SessionVar::new(&DIALECT),
+            enable_experimental_scheduler: SessionVar::new(&ENABLE_EXPERIMENTAL_SCHEDULER),
         }
     }
 }
