@@ -26,7 +26,7 @@ pub enum SessionCatalogError {
 type Result<T, E = SessionCatalogError> = std::result::Result<T, E>;
 
 /// Wrapper around a metastore client for mutating the catalog.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CatalogMutator {
     pub client: Option<MetastoreClientHandle>,
 }

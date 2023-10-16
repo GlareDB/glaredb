@@ -42,8 +42,6 @@ pub struct RemoteSessionContext {
     tables: NativeTableStorage,
     /// Datafusion session context used for execution.
     df_ctx: DfSessionContext,
-    /// Job runner for background jobs.
-    _background_jobs: JobRunner,
     /// Cached table providers.
     provider_cache: ProviderCache,
 }
@@ -69,7 +67,8 @@ impl RemoteSessionContext {
         conf = conf
             .with_extension(Arc::new(StagedClientStreams::default()))
             .with_extension(Arc::new(catalog_mutator))
-            .with_extension(Arc::new(native_tables.clone()));
+            .with_extension(Arc::new(native_tables.clone()))
+            .with_extension(Arc::new(background_jobs));
 
         // TODO: Query planners for handling custom plans.
 
@@ -79,7 +78,6 @@ impl RemoteSessionContext {
             catalog: Mutex::new(catalog),
             tables: native_tables,
             df_ctx,
-            _background_jobs: background_jobs,
             provider_cache: ProviderCache::default(),
         })
     }

@@ -12,11 +12,17 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use datafusion::scalar::ScalarValue;
+use datasources::native::access::NativeTable;
+use datasources::native::access::NativeTableStorage;
 use futures::{stream, StreamExt};
 
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
+
+use crate::background_jobs::storage::BackgroundJobStorageTracker;
+use crate::background_jobs::JobRunner;
+use crate::metastore::catalog::CatalogMutator;
 
 use super::remote_scan::ProviderReference;
 use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA};
@@ -76,8 +82,42 @@ impl ExecutionPlan for InsertExec {
                     "required table provider, found remote reference to insert".to_string(),
                 )),
                 ProviderReference::Provider(provider) => {
-                    // TODO: Add background job to track storage for native tables.
-                    Self::do_insert(provider, this.source, context).await
+                    let is_native_table = provider.as_any().downcast_ref::<NativeTable>().is_some();
+
+                    match Self::do_insert(provider, this.source, context.clone()).await {
+                        // Add the background storage tracker job when inserting
+                        // into a native table.
+                        Ok(batch) if is_native_table => {
+                            let job_runner = context
+                                .session_config()
+                                .get_extension::<JobRunner>()
+                                .unwrap();
+
+                            let native_storage = context
+                                .session_config()
+                                .get_extension::<NativeTableStorage>()
+                                .unwrap();
+
+                            let catalog_mutator = context
+                                .session_config()
+                                .get_extension::<CatalogMutator>()
+                                .unwrap();
+
+                            job_runner
+                                .add(BackgroundJobStorageTracker::new(
+                                    native_storage.as_ref().clone(),
+                                    catalog_mutator.as_ref().clone(),
+                                ))
+                                .map_err(|e| {
+                                    DataFusionError::Internal(format!(
+                                        "unable to start storage tracker job: {e}"
+                                    ))
+                                })?;
+
+                            Ok(batch)
+                        }
+                        res => res,
+                    }
                 }
             }
         });

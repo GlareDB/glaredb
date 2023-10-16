@@ -60,8 +60,6 @@ pub struct LocalSessionContext {
     df_ctx: DfSessionContext,
     /// Read tables from the environment.
     env_reader: Option<Box<dyn EnvironmentReader>>,
-    /// Job runner for background jobs.
-    _background_jobs: JobRunner,
 }
 
 impl LocalSessionContext {
@@ -84,7 +82,9 @@ impl LocalSessionContext {
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(TempCatalog::default()));
+            .with_extension(Arc::new(TempCatalog::default()))
+            .with_extension(Arc::new(background_jobs));
+
         let state = SessionState::with_config_rt(conf, Arc::new(runtime))
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
@@ -101,7 +101,6 @@ impl LocalSessionContext {
             metrics_handler,
             df_ctx,
             env_reader: None,
-            _background_jobs: background_jobs,
         })
     }
 
@@ -127,6 +126,7 @@ impl LocalSessionContext {
         let vars = self
             .get_session_vars()
             .with_database_id(client.database_id(), VarType::System);
+
         let runtime = self.df_ctx.runtime_env();
         let opts = new_datafusion_session_config_opts(&vars);
         let mut conf: SessionConfig = opts.into();
@@ -134,6 +134,7 @@ impl LocalSessionContext {
             .with_extension(Arc::new(CatalogMutator::empty()))
             .with_extension(Arc::new(self.get_native_tables().clone()))
             .with_extension(Arc::new(TempCatalog::default()));
+
         let state = SessionState::with_config_rt(conf, runtime)
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 

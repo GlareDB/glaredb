@@ -10,19 +10,22 @@ use protogen::metastore::types::{
 };
 use tokio::time::Instant;
 
-use crate::{errors::Result, metastore::client::MetastoreClientHandle};
+use crate::{
+    errors::{ExecError, Result},
+    metastore::catalog::CatalogMutator,
+};
 
 use super::BgJob;
 
 #[derive(Debug)]
 pub struct BackgroundJobStorageTracker {
     native_store: NativeTableStorage,
-    metastore: MetastoreClientHandle,
+    metastore: CatalogMutator,
 }
 
 impl BackgroundJobStorageTracker {
     #[allow(dead_code)]
-    pub fn new(native_store: NativeTableStorage, metastore: MetastoreClientHandle) -> Arc<Self> {
+    pub fn new(native_store: NativeTableStorage, metastore: CatalogMutator) -> Arc<Self> {
         Arc::new(Self {
             native_store,
             metastore,
@@ -46,12 +49,23 @@ impl BgJob for BackgroundJobStorageTracker {
         let total_size = self.native_store.calculate_db_size().await?;
 
         // Update the storage size in metastore.
-        self.metastore.refresh_cached_state().await?;
-        let state = self.metastore.get_cached_state().await?;
+        let catalog_version = match self.metastore.get_metastore_client() {
+            Some(client) => {
+                client.refresh_cached_state().await?;
+                let latest_state = client.get_cached_state().await?;
+                latest_state.version
+            }
+            None => {
+                return Err(ExecError::Internal(
+                    "cannot get latest catalog version: client missing".to_string(),
+                ));
+            }
+        };
+
         self.metastore
-            .try_mutate(
-                state.version,
-                vec![Mutation::UpdateDeploymentStorage(UpdateDeploymentStorage {
+            .mutate(
+                catalog_version,
+                [Mutation::UpdateDeploymentStorage(UpdateDeploymentStorage {
                     new_storage_size: total_size as u64,
                 })],
             )
@@ -113,7 +127,10 @@ mod tests {
     use crate::engine::EngineStorageConfig;
     use crate::{
         background_jobs::JobRunner,
-        metastore::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG},
+        metastore::{
+            catalog::CatalogMutator,
+            client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG},
+        },
     };
 
     use super::BackgroundJobStorageTracker;
@@ -156,8 +173,9 @@ mod tests {
         let meta_chan = start_inprocess_inmemory().await.unwrap();
         let metastore = MetastoreClientSupervisor::new(meta_chan, DEFAULT_METASTORE_CLIENT_CONFIG);
         let metastore = metastore.init_client(db_id).await.unwrap();
+        let mutator = CatalogMutator::new(Some(metastore.clone()));
 
-        let tracker = BackgroundJobStorageTracker::new(storage, metastore.clone());
+        let tracker = BackgroundJobStorageTracker::new(storage, mutator);
         let jobs = JobRunner::new(Default::default());
         jobs.add(tracker).unwrap();
         jobs.close().await.unwrap();
