@@ -19,11 +19,17 @@ pub struct Task {
     /// Reference to a scheduler to enable rescheduling this task.
     pub scheduler: Scheduler,
 
-    /// The stage to execute.
-    pub stage: PipelineStage,
+    /// The source to execute.
+    pub source: Arc<dyn Source>,
+
+    /// Output sink.
+    pub output: Arc<dyn Sink>,
 
     /// The partition of the stage to execute.
     pub partition: usize,
+
+    /// This index of this node in relation to the parent query node.
+    pub child: usize,
 }
 
 impl Task {
@@ -71,6 +77,7 @@ impl LocalTaskExecutor {
         // TODO: Check canceled.
 
         let partition = task.partition;
+        let child = task.child;
 
         let waker = Arc::new(TaskWaker { task });
         let c_waker = waker.clone().into();
@@ -78,11 +85,9 @@ impl LocalTaskExecutor {
 
         println!("working");
 
-        match waker.task.stage.source.poll_partition(&mut cx, partition) {
+        match waker.task.source.poll_partition(&mut cx, partition) {
             Poll::Ready(Some(Ok(batch))) => {
-                // waker.task.stage.output.push(batch, 0, partition).unwrap();
-
-                println!("batch: {batch:?}");
+                waker.task.output.push(batch, child, partition).unwrap();
 
                 // Reschedule this task to keep execution going.
                 waker.task.clone().reschedule();
@@ -92,8 +97,7 @@ impl LocalTaskExecutor {
                 panic!("{}", e);
             }
             Poll::Ready(None) => {
-                // waker.task.stage.output.finish(0, partition).unwrap();
-                //
+                waker.task.output.finish(child, partition).unwrap();
             }
             Poll::Pending => {
                 // Do nothing, our waker will take care of rescheduling once a

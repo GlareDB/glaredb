@@ -9,9 +9,20 @@ use std::{fmt::Debug, task::Context};
 use super::adapter::{AdapterPipeline, SplicedPlan};
 use super::{DistExecError, Result};
 
-pub trait Pipeline: Source + Sink {}
+pub trait Pipeline: Source + Sink {
+    fn as_sink(self: Arc<Self>) -> Arc<dyn Sink>;
+    fn as_source(self: Arc<Self>) -> Arc<dyn Source>;
+}
 
-impl<P: Source + Sink> Pipeline for P {}
+impl<P: Source + Sink + 'static> Pipeline for P {
+    fn as_sink(self: Arc<Self>) -> Arc<dyn Sink> {
+        self
+    }
+
+    fn as_source(self: Arc<Self>) -> Arc<dyn Source> {
+        self
+    }
+}
 
 pub trait Source: Send + Sync + Debug {
     fn output_partitions(&self) -> usize;
@@ -61,7 +72,7 @@ pub struct OutputLink {
 /// Represents a unit of work that should send its results to some output.
 #[derive(Debug, Clone)]
 pub struct PipelineStage {
-    pub source: Arc<dyn Source>,
+    pub pipeline: Arc<dyn Pipeline>,
     pub output: Option<OutputLink>,
 }
 
@@ -100,7 +111,7 @@ impl PipelineBuilder {
         let node_idx = self.completed.len();
         let spliced = SplicedPlan::new_from_plan(group.root, group.depth, self.context.clone())?;
         self.completed.push(PipelineStage {
-            source: Arc::new(AdapterPipeline::new(spliced)),
+            pipeline: Arc::new(AdapterPipeline::new(spliced)),
             output: group.output,
         });
         Ok(node_idx)
