@@ -72,8 +72,8 @@ impl LocalSession {
             {
                 DFLogicalPlan::Dml(_) | DFLogicalPlan::Ddl(_) | DFLogicalPlan::Copy(_) => {
                     sess.execute_inner(plan.to_owned())
-			.map_err(PyGlareDbError::from)
-			.await?;
+                        .map_err(PyGlareDbError::from)
+                        .await?;
                     Ok(PyLogicalPlan::new(LogicalPlan::Noop(), cloned_sess))
                 }
                 _ => Ok(query_obj
