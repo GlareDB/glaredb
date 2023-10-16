@@ -76,9 +76,13 @@ impl LocalTaskExecutor {
         let c_waker = waker.clone().into();
         let mut cx = Context::from_waker(&c_waker);
 
+        println!("working");
+
         match waker.task.stage.source.poll_partition(&mut cx, partition) {
             Poll::Ready(Some(Ok(batch))) => {
                 // waker.task.stage.output.push(batch, 0, partition).unwrap();
+
+                println!("batch: {batch:?}");
 
                 // Reschedule this task to keep execution going.
                 waker.task.clone().reschedule();

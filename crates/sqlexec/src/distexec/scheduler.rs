@@ -56,7 +56,13 @@ impl Scheduler {
 
     // TODO: Remove
     pub fn get_global() -> &'static Self {
-        GLOBAL_SCHEDULER.get_or_init(|| Self::new(SchedulerConfig::default()))
+        GLOBAL_SCHEDULER.get_or_init(|| {
+            let sched = Self::new(SchedulerConfig::default());
+            for exec in (0..num_cpus::get()).map(|_| LocalTaskExecutor::new()) {
+                sched.register_local_executor(exec);
+            }
+            sched
+        })
     }
 
     /// Schedule a plan for execution.

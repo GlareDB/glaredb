@@ -5823,6 +5823,7 @@ dependencies = [
  "itertools 0.11.0",
  "logutil",
  "metastore",
+ "num_cpus",
  "object_store",
  "object_store_util",
  "once_cell",
