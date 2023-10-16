@@ -1,12 +1,15 @@
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::TaskContext;
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
+use datafusion::physical_plan::repartition::RepartitionExec;
+use datafusion::physical_plan::{ExecutionPlan, Partitioning};
 use std::sync::Arc;
 use std::task::Poll;
 use std::{fmt::Debug, task::Context};
 
 use super::adapter::{AdapterPipeline, SplicedPlan};
+use super::repartition::RepartitionPipeline;
 use super::{DistExecError, Result};
 
 pub trait Pipeline: Source + Sink {
@@ -181,14 +184,60 @@ impl PipelineBuilder {
         Ok(())
     }
 
+    /// Push a new `RepartitionPipeline` first flushing any buffered
+    /// `OperatorGroup`.
+    fn push_repartition(
+        &mut self,
+        input: Partitioning,
+        output: Partitioning,
+        parent: Option<OutputLink>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> Result<()> {
+        let parent = match &self.execution_operators {
+            Some(buffer) => {
+                assert_eq!(buffer.output, parent, "PipelineBuilder out of sync");
+                Some(OutputLink {
+                    pipeline: self.flush_exec()?,
+                    child: 0, // Must be the only child
+                })
+            }
+            None => parent,
+        };
+
+        let pipeline = Arc::new(RepartitionPipeline::try_new(input, output)?);
+        self.push_pipeline(
+            PipelineStage {
+                pipeline,
+                output: parent,
+            },
+            children,
+        );
+        Ok(())
+    }
+
     /// Visit an `ExecutionPlan` operator and add it to the pipeline being built
     fn visit_operator(
         &mut self,
         plan: Arc<dyn ExecutionPlan>,
         parent: Option<OutputLink>,
     ) -> Result<()> {
-        // TODO: Repartitioning.
-        self.visit_exec(plan, parent)
+        if let Some(repartition) = plan.as_any().downcast_ref::<RepartitionExec>() {
+            self.push_repartition(
+                repartition.input().output_partitioning(),
+                repartition.output_partitioning(),
+                parent,
+                repartition.children(),
+            )
+        } else if let Some(coalesce) = plan.as_any().downcast_ref::<CoalescePartitionsExec>() {
+            self.push_repartition(
+                coalesce.input().output_partitioning(),
+                Partitioning::RoundRobinBatch(1),
+                parent,
+                coalesce.children(),
+            )
+        } else {
+            self.visit_exec(plan, parent)
+        }
     }
 
     pub fn build(

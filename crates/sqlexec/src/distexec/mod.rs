@@ -4,6 +4,7 @@ pub mod stream;
 mod adapter;
 mod executor;
 mod pipeline;
+mod repartition;
 
 #[derive(Debug, thiserror::Error)]
 pub enum DistExecError {
