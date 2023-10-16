@@ -83,7 +83,6 @@ enum SchedulerMessage {
 
 #[derive(Debug)]
 struct SchedulerWorker {
-    conf: SchedulerConfig,
     _run_handle: JoinHandle<Result<()>>,
 }
 
@@ -92,7 +91,6 @@ impl SchedulerWorker {
         let fut = Self::run(conf.clone(), recv);
         let handle = tokio::spawn(fut);
         let worker = Self {
-            conf,
             _run_handle: handle,
         };
         GLOBAL_WORKER
