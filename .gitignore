@@ -22,3 +22,6 @@ benchmarks/artifacts/
 
 # javascript examples
 node_modules
+
+# Benchmark data
+bench_data/

@@ -19,3 +19,9 @@ benchmarks/artifacts/
 
 # Spark jar for iceberg data generation
 *.jar
+
+# javascript examples
+node_modules
+
+# Benchmark data
+bench_data/
