@@ -100,6 +100,16 @@ pub struct AdapterPipeline {
     outputs: Vec<Mutex<OutputState>>,
 }
 
+impl AdapterPipeline {
+    pub fn new(plan: SplicedPlan) -> Self {
+        let partitions = plan.proxied.output_partitioning().partition_count();
+        let outputs: Vec<_> = (0..partitions)
+            .map(|_| Mutex::new(OutputState::NeedsExecute))
+            .collect();
+        AdapterPipeline { plan, outputs }
+    }
+}
+
 impl fmt::Debug for AdapterPipeline {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("AdapterPipeline").finish()

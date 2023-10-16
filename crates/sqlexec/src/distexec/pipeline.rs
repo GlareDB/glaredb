@@ -1,10 +1,12 @@
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::execution::TaskContext;
 use datafusion::physical_plan::ExecutionPlan;
 use std::sync::Arc;
 use std::task::Poll;
 use std::{fmt::Debug, task::Context};
 
+use super::adapter::{AdapterPipeline, SplicedPlan};
 use super::{DistExecError, Result};
 
 pub trait Pipeline: Source + Sink {}
@@ -75,10 +77,11 @@ pub struct PipelineBuilder {
     completed: Vec<PipelineStage>,
     to_visit: Vec<(Arc<dyn ExecutionPlan>, Option<OutputLink>)>,
     execution_operators: Option<OperatorGroup>,
+    context: Arc<TaskContext>,
 }
 
 impl PipelineBuilder {
-    pub fn new(plan: Arc<dyn ExecutionPlan>) -> Self {
+    pub fn new(plan: Arc<dyn ExecutionPlan>, context: Arc<TaskContext>) -> Self {
         let schema = plan.schema();
         let output_partitions = plan.output_partitioning().partition_count();
         Self {
@@ -87,6 +90,7 @@ impl PipelineBuilder {
             completed: Vec::new(),
             to_visit: vec![(plan, None)],
             execution_operators: None,
+            context,
         }
     }
 
@@ -94,14 +98,11 @@ impl PipelineBuilder {
     fn flush_exec(&mut self) -> Result<usize> {
         let group = self.execution_operators.take().unwrap();
         let node_idx = self.completed.len();
-        // self.completed.push(PipelineStage {
-        //     pipeline: Box::new(ExecutionPipeline::new(
-        //         group.root,
-        //         self.task_context.clone(),
-        //         group.depth,
-        //     )?),
-        //     output: group.output,
-        // });
+        let spliced = SplicedPlan::new_from_plan(group.root, group.depth, self.context.clone())?;
+        self.completed.push(PipelineStage {
+            source: Arc::new(AdapterPipeline::new(spliced)),
+            output: group.output,
+        });
         Ok(node_idx)
     }
 

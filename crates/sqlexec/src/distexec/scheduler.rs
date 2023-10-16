@@ -1,3 +1,4 @@
+use datafusion::execution::TaskContext;
 use datafusion::physical_plan::ExecutionPlan;
 use once_cell::sync::OnceCell;
 use std::collections::VecDeque;
@@ -34,6 +35,9 @@ impl Default for SchedulerConfig {
     }
 }
 
+// TODO: Remove me
+static GLOBAL_SCHEDULER: OnceCell<Scheduler> = OnceCell::new();
+
 /// A scheduler for scheduling execution plans.
 #[derive(Debug, Clone)]
 pub struct Scheduler {
@@ -50,11 +54,32 @@ impl Scheduler {
         Self { send }
     }
 
+    // TODO: Remove
+    pub fn get_global() -> &'static Self {
+        GLOBAL_SCHEDULER.get_or_init(|| Self::new(SchedulerConfig::default()))
+    }
+
     /// Schedule a plan for execution.
-    pub fn schedule(&self, plan: Arc<dyn ExecutionPlan>, output: OutputSink) -> Result<()> {
-        let pipeline = PipelineBuilder::new(plan).build(output.batches, output.errors)?;
-        // TODO: take/split and schedule tasks
-        unimplemented!()
+    pub fn schedule(
+        &self,
+        plan: Arc<dyn ExecutionPlan>,
+        context: Arc<TaskContext>,
+        output: OutputSink,
+    ) -> Result<()> {
+        let pipeline = PipelineBuilder::new(plan, context).build(output.batches, output.errors)?;
+
+        for (_pipeline_idx, stage) in pipeline.stages.into_iter().enumerate() {
+            for partition in 0..stage.source.output_partitions() {
+                let task = Task {
+                    scheduler: self.clone(),
+                    stage: stage.clone(),
+                    partition,
+                };
+                self.schedule_task(task);
+            }
+        }
+
+        Ok(())
     }
 
     pub fn schedule_task(&self, task: Task) {
@@ -76,7 +101,6 @@ static GLOBAL_WORKER: OnceCell<SchedulerWorker> = OnceCell::new();
 #[derive(Debug)]
 enum SchedulerMessage {
     RegisterLocalExecutor { exec: LocalTaskExecutor },
-    SchedulePipeline { pipeline: QueryPipeline },
     ScheduleTask { task: Task },
     Shutdown,
 }

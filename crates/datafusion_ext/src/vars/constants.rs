@@ -198,7 +198,7 @@ pub(super) const DIALECT: ServerVar<Dialect> = ServerVar {
 
 pub(super) const ENABLE_EXPERIMENTAL_SCHEDULER: ServerVar<bool> = ServerVar {
     name: "enable_experimental_scheduler",
-    value: &false,
+    value: &true,
     group: "glaredb",
     user_configurable: true,
     description: "If the experimental query scheduler should be enabled",

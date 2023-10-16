@@ -5,6 +5,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use crate::distexec::scheduler::{OutputSink, Scheduler};
+use crate::distexec::stream::create_coalescing_adapter;
 use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
 use crate::planner::physical_plan::{
     get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
@@ -417,7 +419,25 @@ impl Session {
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
         let context = self.ctx.task_context();
-        let stream = execute_stream(plan, context)?;
+
+        let stream = if self.ctx.get_session_vars().enable_experimental_scheduler() {
+            let scheduler = Scheduler::get_global();
+            let (sink, stream) =
+                create_coalescing_adapter(plan.output_partitioning(), plan.schema());
+            let sink = Arc::new(sink);
+
+            let output = OutputSink {
+                batches: sink.clone(),
+                errors: sink,
+            };
+
+            scheduler.schedule(plan, context, output).unwrap();
+
+            Box::pin(stream)
+        } else {
+            execute_stream(plan, context)?
+        };
+
         Ok(stream)
     }
 
