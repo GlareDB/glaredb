@@ -4,10 +4,11 @@ use std::{
     fmt::Debug,
     task::{Context, Wake},
 };
-
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+use tracing::{debug, error};
 
+use super::pipeline::ErrorSink;
 use super::scheduler::Scheduler;
 use super::{
     pipeline::{PipelineStage, Sink, Source},
@@ -24,6 +25,9 @@ pub struct Task {
 
     /// Output sink.
     pub output: Arc<dyn Sink>,
+
+    /// Error sink.
+    pub errors: Arc<dyn ErrorSink>,
 
     /// The partition of the stage to execute.
     pub partition: usize,
@@ -73,6 +77,25 @@ impl LocalTaskExecutor {
         }
     }
 
+    /// Handle an error for a particular child/partition. This will attempt to
+    /// push the error to `error_sink` then finish the partition for `sink`.
+    fn handle_error(
+        child: usize,
+        partition: usize,
+        sink: &dyn Sink,
+        error_sink: &dyn ErrorSink,
+        err: DistExecError,
+    ) {
+        debug!(%err, %partition, "handling error for failed execution");
+        if let Err(e) = error_sink.push_error(err, partition) {
+            error!(%e, %partition, "failed to push error for partition");
+        }
+
+        if let Err(e) = sink.finish(child, partition) {
+            error!(%e, %partition, "failed to mark partition as finished after pushing error");
+        }
+    }
+
     fn execute_inner(task: Task) {
         // TODO: Check canceled.
 
@@ -83,21 +106,50 @@ impl LocalTaskExecutor {
         let c_waker = waker.clone().into();
         let mut cx = Context::from_waker(&c_waker);
 
-        println!("working");
-
+        // Try to get the next batch for a partition.
+        //
+        // - If batch available, push to sink and reschedule task to keep executing.
+        // - If stream finished, mark output as finished for this partition.
+        // - If error, push error and mark output finished for this partition.
+        // - If pending, reschedule on wake.
         match waker.task.source.poll_partition(&mut cx, partition) {
             Poll::Ready(Some(Ok(batch))) => {
-                waker.task.output.push(batch, child, partition).unwrap();
+                if let Err(e) = waker.task.output.push(batch, child, partition) {
+                    Self::handle_error(
+                        child,
+                        partition,
+                        waker.task.output.as_ref(),
+                        waker.task.errors.as_ref(),
+                        e,
+                    );
+                    // No rescheduling. This partition is dead to us.
+                    return;
+                }
 
                 // Reschedule this task to keep execution going.
                 waker.task.clone().reschedule();
             }
             Poll::Ready(Some(Err(e))) => {
-                //
-                panic!("{}", e);
+                Self::handle_error(
+                    child,
+                    partition,
+                    waker.task.output.as_ref(),
+                    waker.task.errors.as_ref(),
+                    e,
+                );
+                // No rescheduling. This partition is dead to us.
             }
             Poll::Ready(None) => {
-                waker.task.output.finish(child, partition).unwrap();
+                if let Err(e) = waker.task.output.finish(child, partition) {
+                    Self::handle_error(
+                        child,
+                        partition,
+                        waker.task.output.as_ref(),
+                        waker.task.errors.as_ref(),
+                        e,
+                    );
+                }
+                // No rescheduling. This partition is dead to us.
             }
             Poll::Pending => {
                 // Do nothing, our waker will take care of rescheduling once a

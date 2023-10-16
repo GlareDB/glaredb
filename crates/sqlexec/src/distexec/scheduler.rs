@@ -72,12 +72,12 @@ impl Scheduler {
         context: Arc<TaskContext>,
         output: OutputSink,
     ) -> Result<()> {
-        let pipeline =
-            PipelineBuilder::new(plan, context).build(output.batches.clone(), output.errors)?;
+        let pipeline = PipelineBuilder::new(plan, context)
+            .build(output.batches.clone(), output.errors.clone())?;
 
         for (_pipeline_idx, stage) in pipeline.stages.iter().enumerate() {
             for partition in 0..stage.pipeline.output_partitions() {
-                let output = match stage.output {
+                let sink = match stage.output {
                     Some(link) => pipeline.stages[link.pipeline].pipeline.clone().as_sink(),
                     None => output.batches.clone(),
                 };
@@ -85,7 +85,8 @@ impl Scheduler {
                 let task = Task {
                     scheduler: self.clone(),
                     source: stage.pipeline.clone().as_source(),
-                    output,
+                    output: sink,
+                    errors: output.errors.clone(),
                     child: stage.output.map(|o| o.child).unwrap_or(0),
                     partition,
                 };

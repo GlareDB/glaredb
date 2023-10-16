@@ -1,5 +1,7 @@
 # Tests for the session query metrics table.
 
+halt
+
 statement ok
 create schema session_query_metrics_builtin;
 

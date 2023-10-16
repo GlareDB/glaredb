@@ -149,7 +149,10 @@ impl OutputState {
 impl Sink for AdapterPipeline {
     fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()> {
         let mut partition = self.plan.inputs[child][partition].lock();
-        assert!(!partition.is_closed);
+        assert!(
+            !partition.is_closed,
+            "attempted to push to finished partition",
+        );
 
         partition.buffer.push_back(input);
         if let Some(waker) = partition.waker.take() {
@@ -160,7 +163,10 @@ impl Sink for AdapterPipeline {
 
     fn finish(&self, child: usize, partition: usize) -> Result<()> {
         let mut partition = self.plan.inputs[child][partition].lock();
-        assert!(!partition.is_closed);
+        assert!(
+            !partition.is_closed,
+            "attempted to finish partition more than once",
+        );
 
         partition.is_closed = true;
         if let Some(waker) = partition.waker.take() {

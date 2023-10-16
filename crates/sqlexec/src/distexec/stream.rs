@@ -76,10 +76,10 @@ impl Sink for CoalescingAdapterSink {
 
 impl ErrorSink for CoalescingAdapterSink {
     fn push_error(&self, err: DistExecError, _partition: usize) -> Result<()> {
-        if self.tx.unbounded_send(Some(Err(err))).is_err() {
-            return Err(DistExecError::String(
-                "Failed to send error on channel".to_string(),
-            ));
+        if let Err(e) = self.tx.unbounded_send(Some(Err(err))) {
+            return Err(DistExecError::String(format!(
+                "Failed to send error on channel: {e}"
+            )));
         }
         Ok(())
     }
