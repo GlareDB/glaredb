@@ -196,6 +196,14 @@ pub(super) const DIALECT: ServerVar<Dialect> = ServerVar {
     description: "Dialect of the sql engine",
 };
 
+pub(super) const ENABLE_EXPERIMENTAL_SCHEDULER: ServerVar<bool> = ServerVar {
+    name: "enable_experimental_scheduler",
+    value: &false,
+    group: "glaredb",
+    user_configurable: true,
+    description: "If the experimental query scheduler should be enabled",
+};
+
 /// Note that these are not normally shown in the search path.
 pub(super) const IMPLICIT_SCHEMAS: [&str; 2] = [
     POSTGRES_SCHEMA,

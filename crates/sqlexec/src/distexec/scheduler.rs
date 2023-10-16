@@ -9,7 +9,7 @@ use tracing::debug;
 use uuid::Uuid;
 
 use super::executor::{LocalTaskExecutor, Task, TaskExecutor};
-use super::pipeline::{ErrorSink, QueryPipeline, Sink, Source};
+use super::pipeline::{ErrorSink, PipelineBuilder, QueryPipeline, Sink, Source};
 use super::{DistExecError, Result};
 
 #[derive(Debug)]
@@ -52,6 +52,8 @@ impl Scheduler {
 
     /// Schedule a plan for execution.
     pub fn schedule(&self, plan: Arc<dyn ExecutionPlan>, output: OutputSink) -> Result<()> {
+        let pipeline = PipelineBuilder::new(plan).build(output.batches, output.errors)?;
+        // TODO: take/split and schedule tasks
         unimplemented!()
     }
 
@@ -82,7 +84,6 @@ enum SchedulerMessage {
 #[derive(Debug)]
 struct SchedulerWorker {
     conf: SchedulerConfig,
-    registry: TaskRegistry,
     _run_handle: JoinHandle<Result<()>>,
 }
 
@@ -92,7 +93,6 @@ impl SchedulerWorker {
         let handle = tokio::spawn(fut);
         let worker = Self {
             conf,
-            registry: TaskRegistry::default(),
             _run_handle: handle,
         };
         GLOBAL_WORKER
@@ -103,6 +103,8 @@ impl SchedulerWorker {
     async fn run(conf: SchedulerConfig, mut recv: mpsc::Receiver<SchedulerMessage>) -> Result<()> {
         debug!(?conf, "starting scheduler worker");
 
+        let mut registry = TaskRegistry::default();
+
         let mut interval = tokio::time::interval(conf.debug_tick_interval);
         loop {
             tokio::select! {
@@ -111,13 +113,19 @@ impl SchedulerWorker {
                 }
 
                 Some(msg) = recv.recv() => {
-                    if let SchedulerMessage::Shutdown = msg {
-                        // TODO: We could probably try draining pending work
-                        // before shutting down.
-                        debug!("scheduler shutting down");
-                        return Ok(());
+                    match msg {
+                        SchedulerMessage::Shutdown => {
+                            // TODO: We could probably try draining pending work
+                            // before shutting down.
+                            debug!("scheduler shutting down");
+                            return Ok(());
+                        }
+                        SchedulerMessage::RegisterLocalExecutor { exec } => {
+                            registry.push_local_executor(exec)
+                        }
+                        SchedulerMessage::ScheduleTask { task } => registry.push_task(task),
+                        _ => unimplemented!(),
                     }
-                    // TODO: Handle
                 }
             }
         }

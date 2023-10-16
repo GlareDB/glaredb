@@ -28,7 +28,8 @@ pub struct Task {
 
 impl Task {
     pub fn reschedule(self) {
-        self.scheduler.schedule_task(self)
+        let scheduler = self.scheduler.clone();
+        scheduler.schedule_task(self)
     }
 }
 
@@ -50,13 +51,14 @@ pub struct LocalTaskExecutor {
 
 impl LocalTaskExecutor {
     pub fn new() -> Self {
-        let (send, mut recv) = mpsc::channel(1);
+        let (send, mut recv) = mpsc::channel::<(Self, Task)>(1);
         let handle = tokio::spawn(async move {
             // Main work loop, execute task, then push the executor back to the
             // scheduler to receive more work.
             while let Some((exec, task)) = recv.recv().await {
+                let scheduler = task.scheduler.clone();
                 Self::execute_inner(task);
-                task.scheduler.register_local_executor(exec);
+                scheduler.register_local_executor(exec);
             }
         });
         Self {
@@ -68,26 +70,25 @@ impl LocalTaskExecutor {
     fn execute_inner(task: Task) {
         // TODO: Check canceled.
 
-        let waker = Arc::new(TaskWaker { task });
-        let mut cx = Context::from_waker(&waker.clone().into());
+        let partition = task.partition;
 
-        match task
-            .stage
-            .source
-            .poll_partition(&mut cx, waker.task.partition)
-        {
+        let waker = Arc::new(TaskWaker { task });
+        let c_waker = waker.clone().into();
+        let mut cx = Context::from_waker(&c_waker);
+
+        match waker.task.stage.source.poll_partition(&mut cx, partition) {
             Poll::Ready(Some(Ok(batch))) => {
-                task.stage.output.push(batch, 0, task.partition).unwrap();
+                // waker.task.stage.output.push(batch, 0, partition).unwrap();
 
                 // Reschedule this task to keep execution going.
-                task.reschedule();
+                waker.task.clone().reschedule();
             }
             Poll::Ready(Some(Err(e))) => {
                 //
                 panic!("{}", e);
             }
             Poll::Ready(None) => {
-                task.stage.output.finish(0, task.partition).unwrap();
+                // waker.task.stage.output.finish(0, partition).unwrap();
                 //
             }
             Poll::Pending => {
@@ -100,7 +101,8 @@ impl LocalTaskExecutor {
 
 impl TaskExecutor for LocalTaskExecutor {
     fn execute(self, task: Task) {
-        self.send.try_send((self, task)).unwrap();
+        let send = self.send.clone();
+        send.try_send((self, task)).unwrap();
     }
 }
 
