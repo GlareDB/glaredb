@@ -101,7 +101,7 @@ impl BgJob for BackgroundJobDeleteTable {
 #[cfg(test)]
 mod tests {
     use datafusion::arrow::datatypes::DataType;
-    use datasources::native::access::NativeTableStorage;
+    use datasources::native::access::{NativeTableStorage, SaveMode};
     use metastore::local::start_inprocess_inmemory;
     use object_store_util::conf::StorageConfig;
     use protogen::metastore::types::{
@@ -153,7 +153,7 @@ mod tests {
                     }),
                     tunnel_id: None,
                 },
-                false,
+                SaveMode::ErrorIfExists,
             )
             .await
             .unwrap();

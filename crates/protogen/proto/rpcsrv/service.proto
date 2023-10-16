@@ -8,7 +8,7 @@
 // (cli/python)           |
 //                        | 3.
 //                        ▼
-//                 compute engine
+//                 compute node
 //
 // ```
 //
@@ -18,7 +18,7 @@
 //   - The proxy pulls auth related metadata off the request and makes a request
 //     to Cloud. Cloud returns back info on the database we're making a request
 //     for, and where we should route the request.
-// 3. Proxy sends authenticated request to compute engine.
+// 3. Proxy sends authenticated request to compute node.
 //
 // # Authentication
 //
@@ -29,12 +29,11 @@
 // - "password"
 // - "db_name"
 // - "org"
-// - "compute_engine" (optional)
 //
 // These parameters are then used by the proxy to make a request to Cloud for
 // connection authentication. The response from Cloud indicates if the
 // connection is authenticated. Cloud also returns additional data about how to
-// connect to the remote compute engine.
+// connect to the remote compute node.
 
 syntax = "proto3";
 
