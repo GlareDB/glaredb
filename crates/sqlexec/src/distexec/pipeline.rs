@@ -151,7 +151,7 @@ impl PipelineBuilder {
         // TODO: More sophisticated policy, just because we can combine them doesn't mean we should
         match self.execution_operators.as_mut() {
             Some(buffer) => {
-                assert_eq!(parent, buffer.output, "QueryBuilder out of sync");
+                assert_eq!(parent, buffer.output, "PipelineBuilder out of sync");
                 buffer.depth += 1;
             }
             None => {

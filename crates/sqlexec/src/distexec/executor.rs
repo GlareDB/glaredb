@@ -154,6 +154,9 @@ impl LocalTaskExecutor {
             Poll::Pending => {
                 // Do nothing, our waker will take care of rescheduling once a
                 // new partition batch is ready.
+
+                // TODO: Actually do this in waker
+                waker.task.clone().reschedule();
             }
         }
     }
@@ -173,7 +176,5 @@ struct TaskWaker {
 }
 
 impl Wake for TaskWaker {
-    fn wake(self: Arc<Self>) {
-        self.task.clone().reschedule();
-    }
+    fn wake(self: Arc<Self>) {}
 }
