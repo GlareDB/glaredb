@@ -68,14 +68,14 @@ impl LocalSession {
                 .try_into_datafusion_plan()
                 .expect("resolving logical plan")
             {
-                DFLogicalPlan::Dml(_)
+                DFLogicalPlan::Extension(_)
+                | DFLogicalPlan::Dml(_)
                 | DFLogicalPlan::Ddl(_)
-                | DFLogicalPlan::Copy(_)
-                | DFLogicalPlan::Extension(_) => {
+                | DFLogicalPlan::Copy(_) => {
                     sess.execute_inner(plan)
                         .await
                         .map_err(PyGlareDbError::from)?;
-                    Ok(PyLogicalPlan::new(LogicalPlan::Noop(), cloned_sess))
+                    Ok(PyLogicalPlan::new(LogicalPlan::Noop, cloned_sess))
                 }
                 _ => Ok(PyLogicalPlan::new(plan, cloned_sess)),
             }
