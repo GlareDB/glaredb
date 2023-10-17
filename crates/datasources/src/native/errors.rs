@@ -18,12 +18,6 @@ pub enum NativeError {
     #[error(transparent)]
     UrlParse(#[from] url::ParseError),
 
-    #[error("Failed to canonicalize path: {path:?}, {e}")]
-    CanonicalizePath {
-        path: std::path::PathBuf,
-        e: std::io::Error,
-    },
-
     #[error("Table entry not a native table: {0}")]
     NotNative(protogen::metastore::types::catalog::TableEntry),
 
