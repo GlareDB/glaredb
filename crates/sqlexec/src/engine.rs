@@ -113,21 +113,26 @@ impl EngineStorageConfig {
                                     .expect("'secret_access_key' in provided storage options or 'AWS_SECRET_ACCESS_KEY' as env var")
                             });
 
-                        let mut endpoint = opts.get("endpoint").cloned();
+                        let mut endpoint = None;
                         let region = opts.get("region").cloned();
+                        let mut bucket = opts
+                            .get("bucket")
+                            .cloned()
+                            .or(url.host_str().map(|h| h.to_string()));
 
-                        let bucket = if url_type != DatasourceUrlType::S3
+                        if url_type == DatasourceUrlType::Http
                             && !location.contains("amazonaws.com")
                         {
                             // For now we don't allow proper HTTP object stores as storage locations,
-                            // so interpret this case as either Cloudflare R2 or a MinIO instance
-                            endpoint = Some(location.to_string());
-                            opts.get("bucket").cloned()
-                        } else {
-                            opts.get("bucket")
-                                .cloned()
-                                .or(url.host_str().map(|h| h.to_string()))
-                        };
+                            // so interpret this case as either Cloudflare R2 or a MinIO instance.
+                            // Extract the endpoint...
+                            endpoint = Some(url[..url::Position::BeforePath].to_string());
+                            // ... and the bucket, which is the first path segment (if one exists)
+                            let segments = url.path_segments().unwrap().collect::<Vec<_>>();
+                            if segments.len() > 1 {
+                                bucket = Some(segments[0].to_string());
+                            }
+                        }
 
                         EngineStorageConfig {
                             location: url.clone(),
@@ -197,21 +202,41 @@ impl EngineStorageConfig {
     pub fn new_object_store(&self) -> Result<Arc<dyn ObjectStore>, ObjectStoreError> {
         let store = self.conf.new_object_store()?;
 
-        match self.conf {
-            StorageConfig::S3 { .. } => Ok(store), // TODO: Perform prefixing for the S3 store family
-            StorageConfig::Gcs { .. } => {
-                let prefix = ObjectPath::parse(self.location.path())?;
-                if prefix != ObjectPath::from("/") {
-                    // A path was specified, root the store under it
-                    Ok(Arc::new(PrefixStore::new(store, prefix)))
-                } else {
-                    Ok(store)
-                }
+        if matches!(
+            self.conf,
+            StorageConfig::Local { .. } | StorageConfig::Memory
+        ) {
+            // Local storage (FS and memory) is already properly prefixed
+            return Ok(store);
+        }
+
+        let prefix = if let StorageConfig::S3 {
+            endpoint: Some(_), ..
+        } = self.conf
+        {
+            // In case when there's an endpoint specified, the bucket is not the host but the
+            // first element in the path, so we need to discard it when creating a prefix.
+            let mut segments = self.location.path_segments().unwrap().collect::<Vec<_>>();
+
+            if segments.len() <= 1 {
+                // The endpoint doesn't include a path, no need for prefixing
+                return Ok(store);
             }
-            _ => {
-                // Local storage (FS and memory) is already properly prefixed
-                Ok(store)
-            }
+
+            // Remove the first path segment which is actually the bucket
+            segments.remove(0);
+            let path = segments.join("/");
+            ObjectPath::parse(path)?
+        } else {
+            ObjectPath::parse(self.location.path())?
+        };
+
+        if prefix != ObjectPath::from("/") {
+            // A path was specified, root the store under it
+            debug!(?prefix, "Prefixing native table storage root");
+            Ok(Arc::new(PrefixStore::new(store, prefix)))
+        } else {
+            Ok(store)
         }
     }
 

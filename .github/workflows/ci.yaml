@@ -279,7 +279,12 @@ jobs:
               'sqllogictests/*' \
               'sqllogictests_native/*'
           
-          # Fake GCS server with a sub-directory path; run with two different folder paths to 
-          # assert no conflicts arise
-          just sql-logic-tests -l gs://$TEST_BUCKET/path/to/folder-1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
-          just sql-logic-tests -l gs://$TEST_BUCKET/path/to/folder-2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
+          # MinIO (S3) but with a sub-directory path
+          just slt -l http://localhost:9000/$TEST_BUCKET/path/to/folder \
+              -o access_key_id=$MINIO_ACCESS_KEY \
+              -o secret_access_key=$MINIO_SECRET_KEY \
+              'sqllogictests/*'
+          
+          # Fake GCS server with a sub-directory path; run with two different folder paths to assert no conflicts arise
+          just slt -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
+          just slt -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
