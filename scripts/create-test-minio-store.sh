@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Spins up a MinIO docker container to test external databes/catalog storage against it.
+# Spins up a MinIO docker container to test external native storage against it.
 
 set -e
 
@@ -29,14 +29,14 @@ CONTAINER_ID="$(docker run \
 # Create the test container using the minio client
 docker run --rm --net=host --entrypoint=/bin/sh -i minio/mc:latest <<EOF
 # Wait for minio server to become ready
-curl --retry 10 -f --retry-connrefused --retry-delay 1 http://localhost:9000/minio/health/live
+curl --retry 5 -f --retry-connrefused --retry-delay 1 http://localhost:9000/minio/health/live
 
 # Configure mc to connect to our above container as host
 mc config host add glaredb_minio http://localhost:9000 $MINIO_ACCESS_KEY $MINIO_SECRET_KEY
 
 # Remove the bucket if it already exists
-mc rm -r --force glaredb_minio/"$MINIO_BUCKET"
+mc rm -r --force glaredb_minio/"$TEST_BUCKET"
 
 # Finally create the test bucket
-mc mb glaredb_minio/"$MINIO_BUCKET"
+mc mb glaredb_minio/"$TEST_BUCKET"
 EOF

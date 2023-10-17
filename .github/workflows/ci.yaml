@@ -193,7 +193,7 @@ jobs:
           SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
           MINIO_ACCESS_KEY: glaredb
           MINIO_SECRET_KEY: glaredb_test
-          MINIO_BUCKET: glaredb-test-bucket
+          TEST_BUCKET: glaredb-test-bucket
         run: |
           # Prepare SLT (Snowflake)
           export PATH="$HOME/bin:$PATH"
@@ -245,6 +245,9 @@ jobs:
 
           # Prepare SLT (MinIO)
           ./scripts/create-test-minio-store.sh
+          
+          # Prepare SLT (fake GCS server)
+          ./scripts/create-test-gcs-store.sh
 
           echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
           just slt -v --exclude 'sqllogictests/*' --exclude '*/tunnels/ssh'
@@ -267,10 +270,16 @@ jobs:
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
 
           echo "-------------------------- REMOTE DATA STORAGE TESTS --------------------------------"
-          # Test using a remote object store for storing databases and catalog; For now only on MinIO (S3)
+          # Test using a remote object store for storing databases and catalog
+          # MinIO (S3)
           just sql-logic-tests --location http://localhost:9000 \
               --option access_key_id=$MINIO_ACCESS_KEY \
               --option secret_access_key=$MINIO_SECRET_KEY \
-              --option bucket=$MINIO_BUCKET \
+              --option bucket=$TEST_BUCKET \
               'sqllogictests/*' \
               'sqllogictests_native/*'
+          
+          # Fake GCS server with a sub-directory path; run with two different folder paths to 
+          # assert no conflicts arise
+          just sql-logic-tests -l gs://$TEST_BUCKET/path/to/folder-1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
+          just sql-logic-tests -l gs://$TEST_BUCKET/path/to/folder-2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
