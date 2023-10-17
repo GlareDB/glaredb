@@ -482,6 +482,7 @@ impl Session {
         // We stub out transaction commands since many tools (even BI ones) will
         // try to open a transaction for some queries.
         match plan {
+            LogicalPlan::Noop => Ok(ExecutionResult::EmptyQuery),
             LogicalPlan::Transaction(_plan) => Ok(ExecutionResult::EmptyQuery),
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan).await?;

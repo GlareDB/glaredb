@@ -1,7 +1,11 @@
 use crate::execution_result::PyExecutionResult;
+use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
 use futures::lock::Mutex;
 use pyo3::prelude::*;
-use sqlexec::engine::{Engine, TrackedSession};
+use sqlexec::{
+    engine::{Engine, TrackedSession},
+    LogicalPlan,
+};
 use std::sync::Arc;
 
 pub(super) type PyTrackedSession = Arc<Mutex<TrackedSession>>;
@@ -58,11 +62,23 @@ impl LocalSession {
         let cloned_sess = self.sess.clone();
         wait_for_future(py, async move {
             let mut sess = self.sess.lock().await;
-            Ok(sess
-                .sql_to_lp(query)
-                .await
-                .map(|lp| PyLogicalPlan::new(lp, cloned_sess))
-                .map_err(PyGlareDbError::from)?)
+            let plan = sess.sql_to_lp(query).await.map_err(PyGlareDbError::from)?;
+            match plan
+                .to_owned()
+                .try_into_datafusion_plan()
+                .expect("resolving logical plan")
+            {
+                DFLogicalPlan::Extension(_)
+                | DFLogicalPlan::Dml(_)
+                | DFLogicalPlan::Ddl(_)
+                | DFLogicalPlan::Copy(_) => {
+                    sess.execute_inner(plan)
+                        .await
+                        .map_err(PyGlareDbError::from)?;
+                    Ok(PyLogicalPlan::new(LogicalPlan::Noop, cloned_sess))
+                }
+                _ => Ok(PyLogicalPlan::new(plan, cloned_sess)),
+            }
         })
     }
 
