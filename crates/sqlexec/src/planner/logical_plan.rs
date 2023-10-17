@@ -101,7 +101,7 @@ pub enum LogicalPlan {
     Datafusion(DfLogicalPlan),
     /// Plans related to transaction management.
     Transaction(TransactionPlan),
-    Noop(),
+    Noop,
 }
 
 impl LogicalPlan {
