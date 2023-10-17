@@ -19,7 +19,9 @@ impl Tracker {
     pub fn track<S: Into<String>>(&self, event: S, user_id: Uuid, properties: serde_json::Value) {
         match self {
             Tracker::Segment(t) => t.track(event, user_id, properties),
-            Tracker::Nop => (), // Do nothing.
+            Tracker::Nop => {
+                debug!(event=%event.into(), %user_id, %properties);
+            }
         }
     }
 }
