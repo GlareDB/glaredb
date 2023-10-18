@@ -21,7 +21,7 @@ pub enum StorageConfig {
     },
     Gcs {
         service_account_key: String,
-        bucket: String,
+        bucket: Option<String>,
     },
     Local {
         path: PathBuf,
@@ -69,12 +69,16 @@ impl StorageConfig {
             StorageConfig::Gcs {
                 service_account_key,
                 bucket,
-            } => Arc::new(
-                GoogleCloudStorageBuilder::new()
-                    .with_bucket_name(bucket)
-                    .with_service_account_key(service_account_key)
-                    .build()?,
-            ),
+            } => {
+                let mut builder =
+                    GoogleCloudStorageBuilder::new().with_service_account_key(service_account_key);
+
+                if let Some(bucket) = bucket {
+                    builder = builder.with_bucket_name(bucket);
+                }
+
+                Arc::new(builder.build()?)
+            }
             StorageConfig::Local { path } => Arc::new(LocalFileSystem::new_with_prefix(path)?),
             StorageConfig::Memory => IN_MEMORY_STORE.clone(),
         })
