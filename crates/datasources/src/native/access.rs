@@ -54,7 +54,8 @@ pub struct NativeTableStorage {
 }
 
 impl NativeTableStorage {
-    /// Create a native table storage provider with the .
+    /// Create a native table storage provider from a URL and an object store instance
+    /// rooted at that location.
     pub fn new(db_id: Uuid, root_url: Url, store: Arc<dyn ObjectStore>) -> NativeTableStorage {
         NativeTableStorage {
             db_id,
