@@ -27,7 +27,6 @@ use crate::planner::session_planner::SessionPlanner;
 use crate::{
     dispatch::system::SystemTableDispatcher,
     metastore::catalog::{SessionCatalog, TempCatalog},
-    metrics::SessionMetrics,
 };
 
 use self::external::ExternalDispatcher;
@@ -166,7 +165,6 @@ impl ViewPlanner for LocalSessionContext {
 pub struct Dispatcher<'a> {
     catalog: &'a SessionCatalog,
     tables: &'a NativeTableStorage,
-    metrics: &'a SessionMetrics,
     temp_objects: &'a TempCatalog,
     view_planner: &'a dyn ViewPlanner,
     // TODO: Remove need for this.
@@ -179,7 +177,6 @@ impl<'a> Dispatcher<'a> {
     pub fn new(
         catalog: &'a SessionCatalog,
         tables: &'a NativeTableStorage,
-        metrics: &'a SessionMetrics,
         temp_objects: &'a TempCatalog,
         view_planner: &'a dyn ViewPlanner,
         df_ctx: &'a DfSessionContext,
@@ -188,7 +185,6 @@ impl<'a> Dispatcher<'a> {
         Dispatcher {
             catalog,
             tables,
-            metrics,
             temp_objects,
             view_planner,
             df_ctx,
@@ -218,8 +214,7 @@ impl<'a> Dispatcher<'a> {
             }
             // Dispatch to builtin tables.
             CatalogEntry::Table(tbl) if tbl.meta.builtin => {
-                SystemTableDispatcher::new(self.catalog, self.metrics, self.temp_objects)
-                    .dispatch(&tbl)
+                SystemTableDispatcher::new(self.catalog, self.temp_objects).dispatch(&tbl)
             }
             // Dispatch to external tables.
             CatalogEntry::Table(tbl) if tbl.meta.external => {

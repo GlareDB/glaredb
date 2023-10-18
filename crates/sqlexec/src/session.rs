@@ -432,15 +432,6 @@ impl Session {
         stmt: Option<StatementWithExtensions>,
         params: Vec<i32>, // OIDs
     ) -> Result<()> {
-        // Flush any completed metrics prior to planning. This is mostly
-        // beneficial when planning successive calls to the
-        // `session_query_history` table since the mem table is created during
-        // planning.
-        //
-        // In all other cases, it's correct to only need to flush immediately
-        // prior to execute (which we also do).
-        self.ctx.get_metrics_mut().flush_completed();
-
         self.ctx.prepare_statement(name, stmt, params).await
     }
 
@@ -535,9 +526,6 @@ impl Session {
         portal_name: &str,
         _max_rows: i32,
     ) -> Result<ExecutionResult> {
-        // Flush any completed metrics.
-        self.ctx.get_metrics_mut().flush_completed();
-
         let portal = self.ctx.get_portal(portal_name)?;
         let plan = match &portal.stmt.plan {
             Some(plan) => plan.clone(),
@@ -562,13 +550,13 @@ impl Session {
                         ExecutionResult::Query { stream, plan } => {
                             // Swap out the batch stream with one that will send
                             // metrics at the completions of the stream.
-                            let sender = self.ctx.get_metrics().get_sender();
+                            let metrics_handler = self.ctx.get_metrics().clone();
                             ExecutionResult::Query {
                                 stream: Box::pin(BatchStreamWithMetricSender::new(
                                     stream,
                                     plan.clone(),
                                     metrics,
-                                    sender,
+                                    metrics_handler,
                                 )),
                                 plan,
                             }
