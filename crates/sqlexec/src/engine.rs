@@ -185,11 +185,10 @@ impl EngineStorageConfig {
                     "Missing bucket on session configuration",
                 ))
             }
-            (_, Some(_)) => {
-                return Err(ExecError::InvalidStorageConfig(
-                    "GCS session bucket provided but engine storage config can't use it",
-                ))
-            }
+            (_, Some(_)) => EngineStorageConfig {
+                location: Url::parse("memory://").map_err(DatasourceCommonError::from)?,
+                conf: StorageConfig::Memory,
+            },
             _ => self.clone(),
         })
     }
@@ -447,4 +446,42 @@ pub fn ensure_spill_path<P: AsRef<Path>>(path: Option<P>) -> Result<()> {
         fs::remove_file(&file)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::engine::{EngineStorageConfig, SessionStorageConfig};
+    use crate::errors::Result;
+    use object_store_util::conf::StorageConfig;
+    use std::collections::HashMap;
+
+    #[test]
+    fn merged_conf_session_bucket() -> Result<()> {
+        let access_key_id = "my_key".to_string();
+        let secret_access_key = "my_secret".to_string();
+        let conf = EngineStorageConfig::try_from_options(
+            "s3://some-bucket",
+            HashMap::from_iter([
+                ("access_key_id".to_string(), access_key_id.clone()),
+                ("secret_access_key".to_string(), secret_access_key.clone()),
+            ]),
+        )?;
+
+        assert_eq!(
+            conf.conf,
+            StorageConfig::S3 {
+                access_key_id,
+                secret_access_key,
+                region: None,
+                endpoint: None,
+                bucket: Some("some-bucket".to_string()),
+            }
+        );
+
+        let merged_conf = conf.with_session_config(&SessionStorageConfig {
+            gcs_bucket: Some("my-other-bucket".to_string()),
+        })?;
+        assert_eq!(merged_conf.conf, StorageConfig::Memory,);
+        Ok(())
+    }
 }
