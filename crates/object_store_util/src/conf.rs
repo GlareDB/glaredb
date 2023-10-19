@@ -10,7 +10,7 @@ use std::sync::Arc;
 static IN_MEMORY_STORE: Lazy<Arc<InMemory>> = Lazy::new(|| Arc::new(InMemory::new()));
 
 /// Configuration options for various types of storage we support.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StorageConfig {
     S3 {
         access_key_id: String,
