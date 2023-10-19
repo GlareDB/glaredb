@@ -32,7 +32,9 @@ use crate::background_jobs::JobRunner;
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
-use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
+use crate::metrics::{
+    BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetricsHandler,
+};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 
@@ -346,7 +348,7 @@ impl Session {
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
     ) -> Result<Session> {
-        let metrics = SessionMetrics::new(
+        let metrics_handler = SessionMetricsHandler::new(
             vars.user_id(),
             vars.database_id(),
             vars.connection_id(),
@@ -358,7 +360,7 @@ impl Session {
             catalog,
             catalog_mutator,
             native_tables,
-            metrics,
+            metrics_handler,
             spill_path,
             background_jobs,
         )?;
@@ -550,13 +552,12 @@ impl Session {
                         ExecutionResult::Query { stream, plan } => {
                             // Swap out the batch stream with one that will send
                             // metrics at the completions of the stream.
-                            let metrics_handler = self.ctx.get_metrics().clone();
                             ExecutionResult::Query {
                                 stream: Box::pin(BatchStreamWithMetricSender::new(
                                     stream,
                                     plan.clone(),
                                     metrics,
-                                    metrics_handler,
+                                    self.ctx.get_metrics_handler(),
                                 )),
                                 plan,
                             }

@@ -2,7 +2,7 @@ use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog};
-use crate::metrics::SessionMetrics;
+use crate::metrics::SessionMetricsHandler;
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
@@ -54,8 +54,8 @@ pub struct LocalSessionContext {
     prepared: HashMap<String, PreparedStatement>,
     /// Bound portals.
     portals: HashMap<String, Portal>,
-    /// Track query metrics for this session.
-    metrics: SessionMetrics,
+    /// Handler to push metrics into tracker.
+    metrics_handler: SessionMetricsHandler,
     /// Datafusion session context used for planning and execution.
     df_ctx: DfSessionContext,
     /// Read tables from the environment.
@@ -72,7 +72,7 @@ impl LocalSessionContext {
         catalog: SessionCatalog,
         catalog_mutator: CatalogMutator,
         native_tables: NativeTableStorage,
-        metrics: SessionMetrics,
+        metrics_handler: SessionMetricsHandler,
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
     ) -> Result<LocalSessionContext> {
@@ -98,7 +98,7 @@ impl LocalSessionContext {
             tables: native_tables,
             prepared: HashMap::new(),
             portals: HashMap::new(),
-            metrics,
+            metrics_handler,
             df_ctx,
             env_reader: None,
             _background_jobs: background_jobs,
@@ -155,12 +155,12 @@ impl LocalSessionContext {
         self.env_reader.as_deref()
     }
 
-    pub fn get_metrics(&self) -> &SessionMetrics {
-        &self.metrics
+    pub fn get_metrics_handler(&self) -> SessionMetricsHandler {
+        self.metrics_handler.clone()
     }
 
-    pub fn get_metrics_mut(&mut self) -> &mut SessionMetrics {
-        &mut self.metrics
+    pub fn get_metrics_mut(&mut self) -> &mut SessionMetricsHandler {
+        &mut self.metrics_handler
     }
 
     pub fn get_database_id(&self) -> Uuid {

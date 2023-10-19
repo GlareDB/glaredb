@@ -15,26 +15,23 @@ use std::task::{Context, Poll};
 /// Result type used when we don't know the result of a query yet.
 const UNKNOWN_RESULT_TYPE: &str = "unknown";
 
-/// Holds some number of query metrics for a session.
-///
-/// TODO: It may be more efficient to just store these directly in a record
-/// batch instead of recreating one every time this gets queried.
+/// Pushes metrics to the telemetry tracker for the open session.
 #[derive(Debug, Clone)]
-pub struct SessionMetrics {
+pub struct SessionMetricsHandler {
     user_id: Uuid,
     database_id: Uuid,
     connection_id: Uuid,
     tracker: Arc<Tracker>,
 }
 
-impl SessionMetrics {
+impl SessionMetricsHandler {
     pub fn new(
         user_id: Uuid,
         database_id: Uuid,
         connection_id: Uuid,
         tracker: Arc<Tracker>,
-    ) -> SessionMetrics {
-        SessionMetrics {
+    ) -> SessionMetricsHandler {
+        SessionMetricsHandler {
             user_id,
             database_id,
             connection_id,
@@ -61,7 +58,7 @@ impl SessionMetrics {
                 "error_message": metric.error_message,
                 "elapsed_compute_ns": metric.elapsed_compute_ns,
                 "output_rows": metric.output_rows,
-                "bytes_processed": metric.bytes_processed,
+                "bytes_read": metric.bytes_read,
             }),
         );
     }
@@ -102,7 +99,7 @@ pub struct QueryMetrics {
     /// Number of output rows. Currently only set for SELECT queries.
     pub output_rows: Option<u64>,
     /// Number of bytes processed during the execution of query.
-    pub bytes_processed: Option<u64>,
+    pub bytes_read: Option<u64>,
 }
 
 impl QueryMetrics {
@@ -122,7 +119,7 @@ impl QueryMetrics {
             error_message: None,
             elapsed_compute_ns: None,
             output_rows: None,
-            bytes_processed: None,
+            bytes_read: None,
         }
     }
 }
@@ -138,7 +135,7 @@ pub struct BatchStreamWithMetricSender {
     /// inner.
     pending: Option<QueryMetrics>,
     /// Session metrics handler.
-    metrics_handler: SessionMetrics,
+    metrics_handler: SessionMetricsHandler,
 }
 
 impl BatchStreamWithMetricSender {
@@ -146,7 +143,7 @@ impl BatchStreamWithMetricSender {
         stream: SendableRecordBatchStream,
         plan: Arc<dyn ExecutionPlan>,
         pending: QueryMetrics,
-        metrics_handler: SessionMetrics,
+        metrics_handler: SessionMetricsHandler,
     ) -> Self {
         BatchStreamWithMetricSender {
             stream,
