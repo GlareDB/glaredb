@@ -457,7 +457,7 @@ impl<'a> SessionPlanner<'a> {
                     bucket,
                     service_account_key,
                     location,
-                    file_type: format!("{file_type:?}").to_lowercase(),
+                    file_type: file_type.to_string(),
                     compression: compression.map(|c| c.to_string()),
                 })
             }
@@ -498,7 +498,7 @@ impl<'a> SessionPlanner<'a> {
                     access_key_id,
                     secret_access_key,
                     location,
-                    file_type: format!("{file_type:?}").to_lowercase(),
+                    file_type: file_type.to_string(),
                     compression: compression.map(|c| c.to_string()),
                 })
             }
@@ -516,6 +516,8 @@ impl<'a> SessionPlanner<'a> {
                     TableOptions::Delta(TableOptionsObjectStore {
                         location,
                         storage_options,
+                        file_type: None,
+                        compression: None,
                     })
                 } else {
                     let url = DatasourceUrl::try_new(&location)?;
@@ -526,6 +528,8 @@ impl<'a> SessionPlanner<'a> {
                     TableOptions::Iceberg(TableOptionsObjectStore {
                         location,
                         storage_options,
+                        file_type: None,
+                        compression: None,
                     })
                 }
             }

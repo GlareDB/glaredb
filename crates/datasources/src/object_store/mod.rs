@@ -33,7 +33,6 @@ use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::local::LocalStoreAccess;
 use crate::object_store::s3::S3StoreAccess;
 
-pub mod azure;
 pub mod errors;
 pub mod gcs;
 pub mod generic;
@@ -367,10 +366,17 @@ pub fn init_session_registry<'a>(
             TableOptions::Delta(TableOptionsObjectStore {
                 location,
                 storage_options,
+                ..
             })
             | TableOptions::Iceberg(TableOptionsObjectStore {
                 location,
                 storage_options,
+                ..
+            })
+            | TableOptions::Azure(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
             }) => Arc::new(GenericStoreAccess::from(location, storage_options.clone())?),
             // Continue on all others. Explicitly mentioning all the left
             // over options so we don't forget adding object stores that are

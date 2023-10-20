@@ -17,15 +17,16 @@ use datafusion_ext::functions::{
 };
 
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
-use datasources::object_store::azure::AzureStoreAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
+use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess};
 use futures::TryStreamExt;
+use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::catalog::RuntimePreference;
-use protogen::metastore::types::options::CredentialsOptions;
+use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
 
@@ -376,16 +377,17 @@ fn create_azure_store_access(
     account: Option<String>,
     access_key: Option<String>,
 ) -> Result<Arc<dyn ObjStoreAccess>> {
-    let bucket = source_url
-        .host()
-        .map(|b| b.to_owned())
-        .ok_or(ExtensionError::String(
-            "expected bucket name in URL".to_owned(),
-        ))?;
+    let account = account.ok_or(ExtensionError::MissingNamedArgument("account"))?;
+    let access_key = access_key.ok_or(ExtensionError::MissingNamedArgument("access_key"))?;
 
-    Ok(Arc::new(AzureStoreAccess {
-        bucket,
-        account,
-        access_key,
+    let mut opts = StorageOptions::default();
+    opts.inner
+        .insert(AzureConfigKey::AccountName.as_ref().to_owned(), account);
+    opts.inner
+        .insert(AzureConfigKey::AccessKey.as_ref().to_owned(), access_key);
+
+    Ok(Arc::new(GenericStoreAccess {
+        base_url: ObjectStoreUrl::try_from(source_url)?,
+        storage_options: opts,
     }))
 }

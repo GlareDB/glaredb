@@ -399,9 +399,37 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await
             }
+            TableOptions::Azure(TableOptionsObjectStore {
+                location,
+                storage_options,
+                file_type,
+                compression,
+            }) => {
+                // File type should be known at this point since creating the
+                // table requires that we've either inferred the file type, or
+                // the user provided it.
+                let file_type = match file_type {
+                    Some(ft) => ft,
+                    None => {
+                        return Err(DispatchError::InvalidDispatch(
+                            "File type missing from table options",
+                        ))
+                    }
+                };
+
+                let access = Arc::new(GenericStoreAccess::from(location, storage_options.clone())?);
+                self.create_obj_store_table_provider(
+                    access,
+                    location,
+                    file_type,
+                    compression.as_ref(),
+                )
+                .await
+            }
             TableOptions::Delta(TableOptionsObjectStore {
                 location,
                 storage_options,
+                ..
             }) => {
                 let provider =
                     Arc::new(load_table_direct(location, storage_options.clone()).await?);
@@ -410,6 +438,7 @@ impl<'a> ExternalDispatcher<'a> {
             TableOptions::Iceberg(TableOptionsObjectStore {
                 location,
                 storage_options,
+                ..
             }) => {
                 let url = DatasourceUrl::try_new(location)?;
                 let store =

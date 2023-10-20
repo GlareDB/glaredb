@@ -462,6 +462,7 @@ pub enum TableOptions {
     Snowflake(TableOptionsSnowflake),
     Delta(TableOptionsObjectStore),
     Iceberg(TableOptionsObjectStore),
+    Azure(TableOptionsObjectStore),
 }
 
 impl TableOptions {
@@ -477,6 +478,7 @@ impl TableOptions {
     pub const SNOWFLAKE: &str = "snowflake";
     pub const DELTA: &str = "delta";
     pub const ICEBERG: &str = "iceberg";
+    pub const AZURE: &str = "azure";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -496,6 +498,7 @@ impl TableOptions {
             TableOptions::Snowflake(_) => Self::SNOWFLAKE,
             TableOptions::Delta(_) => Self::DELTA,
             TableOptions::Iceberg(_) => Self::ICEBERG,
+            TableOptions::Azure(_) => Self::AZURE,
         }
     }
 }
@@ -522,6 +525,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::Snowflake(v) => TableOptions::Snowflake(v.try_into()?),
             options::table_options::Options::Delta(v) => TableOptions::Delta(v.try_into()?),
             options::table_options::Options::Iceberg(v) => TableOptions::Iceberg(v.try_into()?),
+            options::table_options::Options::Azure(v) => TableOptions::Azure(v.try_into()?),
         })
     }
 }
@@ -549,6 +553,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Snowflake(v) => options::table_options::Options::Snowflake(v.into()),
             TableOptions::Delta(v) => options::table_options::Options::Delta(v.into()),
             TableOptions::Iceberg(v) => options::table_options::Options::Iceberg(v.into()),
+            TableOptions::Azure(v) => options::table_options::Options::Azure(v.into()),
         })
     }
 }
@@ -835,7 +840,6 @@ impl From<TableOptionsS3> for options::TableOptionsS3 {
         }
     }
 }
-
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct TableOptionsMongo {
     pub connection_string: String,
@@ -911,6 +915,8 @@ impl From<TableOptionsSnowflake> for options::TableOptionsSnowflake {
 pub struct TableOptionsObjectStore {
     pub location: String,
     pub storage_options: StorageOptions,
+    pub file_type: Option<String>,
+    pub compression: Option<String>,
 }
 
 impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
@@ -919,6 +925,8 @@ impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
         Ok(TableOptionsObjectStore {
             location: value.location,
             storage_options: value.storage_options.required("storage_options")?,
+            file_type: value.file_type,
+            compression: value.compression,
         })
     }
 }
@@ -928,6 +936,8 @@ impl From<TableOptionsObjectStore> for options::TableOptionsObjectStore {
         options::TableOptionsObjectStore {
             location: value.location,
             storage_options: Some(value.storage_options.into()),
+            file_type: value.file_type,
+            compression: value.compression,
         }
     }
 }

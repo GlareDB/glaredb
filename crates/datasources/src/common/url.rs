@@ -164,7 +164,18 @@ impl DatasourceUrl {
 impl TryFrom<DatasourceUrl> for ObjectStoreUrl {
     type Error = DataFusionError;
 
-    fn try_from(value: DatasourceUrl) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: DatasourceUrl) -> Result<Self, Self::Error> {
+        match value {
+            DatasourceUrl::File(_) => Ok(ObjectStoreUrl::local_filesystem()),
+            DatasourceUrl::Url(url) => ObjectStoreUrl::parse(&url[..url::Position::BeforePath]),
+        }
+    }
+}
+
+impl TryFrom<&DatasourceUrl> for ObjectStoreUrl {
+    type Error = DataFusionError;
+
+    fn try_from(value: &DatasourceUrl) -> Result<Self, Self::Error> {
         match value {
             DatasourceUrl::File(_) => Ok(ObjectStoreUrl::local_filesystem()),
             DatasourceUrl::Url(url) => ObjectStoreUrl::parse(&url[..url::Position::BeforePath]),
