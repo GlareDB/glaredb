@@ -17,6 +17,7 @@ use datafusion_ext::functions::{
 };
 
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
+use datasources::object_store::azure::AzureStoreAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
@@ -68,6 +69,7 @@ impl TableFunc for ObjScanTableFunc {
             DatasourceUrlType::Http => RuntimePreference::Remote,
             DatasourceUrlType::Gcs => RuntimePreference::Remote,
             DatasourceUrlType::S3 => RuntimePreference::Remote,
+            DatasourceUrlType::Azure => RuntimePreference::Remote,
         });
         let first = urls.next().unwrap();
 
@@ -234,6 +236,18 @@ fn get_store_access(
 
                     create_s3_store_access(source_url, &mut opts, access_key_id, secret_access_key)?
                 }
+                DatasourceUrlType::Azure => {
+                    let access_key = opts
+                        .remove("access_key")
+                        .map(FuncParamValue::param_into)
+                        .transpose()?;
+                    let account = opts
+                        .remove("account")
+                        .map(FuncParamValue::param_into)
+                        .transpose()?;
+
+                    create_azure_store_access(source_url, account, access_key)?
+                }
             }
         }
         1 => {
@@ -354,5 +368,24 @@ fn create_s3_store_access(
         bucket,
         access_key_id,
         secret_access_key,
+    }))
+}
+
+fn create_azure_store_access(
+    source_url: &DatasourceUrl,
+    account: Option<String>,
+    access_key: Option<String>,
+) -> Result<Arc<dyn ObjStoreAccess>> {
+    let bucket = source_url
+        .host()
+        .map(|b| b.to_owned())
+        .ok_or(ExtensionError::String(
+            "expected bucket name in URL".to_owned(),
+        ))?;
+
+    Ok(Arc::new(AzureStoreAccess {
+        bucket,
+        account,
+        access_key,
     }))
 }

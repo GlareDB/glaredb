@@ -20,6 +20,7 @@ pub enum DatasourceUrlType {
     Http,
     Gcs,
     S3,
+    Azure,
 }
 
 impl Display for DatasourceUrlType {
@@ -29,6 +30,7 @@ impl Display for DatasourceUrlType {
             Self::Http => write!(f, "http(s)"),
             Self::Gcs => write!(f, "gs"),
             Self::S3 => write!(f, "s3"),
+            Self::Azure => write!(f, "azure"),
         }
     }
 }
@@ -71,6 +73,7 @@ impl DatasourceUrl {
     const HTTPS_SCHEME: &str = "https";
     const GS_SCHEME: &str = "gs";
     const S3_SCHEME: &str = "s3";
+    const AZURE_SCHEME: &str = "azure";
 
     pub fn try_new(u: impl AsRef<str>) -> Result<Self> {
         let u = u.as_ref();
@@ -96,9 +99,11 @@ impl DatasourceUrl {
                     )))
                 }
             },
-            Self::HTTP_SCHEME | Self::HTTPS_SCHEME | Self::GS_SCHEME | Self::S3_SCHEME => {
-                Self::Url(ds_url)
-            }
+            Self::HTTP_SCHEME
+            | Self::HTTPS_SCHEME
+            | Self::GS_SCHEME
+            | Self::S3_SCHEME
+            | Self::AZURE_SCHEME => Self::Url(ds_url),
             other => {
                 return Err(DatasourceCommonError::InvalidUrl(format!(
                     "unsupported scheme '{other}'"
@@ -113,9 +118,10 @@ impl DatasourceUrl {
         match self {
             Self::File(_) => DatasourceUrlType::File,
             Self::Url(u) => match u.scheme() {
-                Self::HTTP_SCHEME | Self::HTTPS_SCHEME => DatasourceUrlType::Http,
+                Self::HTTP_SCHEME | Self::HTTPS_SCHEME => DatasourceUrlType::Http, // TODO: Parse out azure specific hosts.
                 Self::GS_SCHEME => DatasourceUrlType::Gcs,
                 Self::S3_SCHEME => DatasourceUrlType::S3,
+                Self::AZURE_SCHEME => DatasourceUrlType::Azure,
                 _ => unreachable!(),
             },
         }
@@ -211,5 +217,17 @@ mod tests {
         assert_eq!("/my_bucket/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
         assert_eq!(ObjectStoreUrl::try_from(u).unwrap().as_str(), "file:///");
+    }
+
+    #[test]
+    fn test_azure() {
+        let u = DatasourceUrl::try_new("azure://bucket/obj").unwrap();
+        assert_eq!(Some("bucket"), u.host());
+        assert_eq!("obj", u.path());
+        assert_eq!(DatasourceUrlType::Azure, u.datasource_url_type());
+        assert_eq!(
+            ObjectStoreUrl::try_from(u).unwrap().as_str(),
+            "azure://bucket/"
+        );
     }
 }

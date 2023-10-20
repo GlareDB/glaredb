@@ -62,6 +62,7 @@ pub fn storage_options_into_object_store(
             }
             Ok(Arc::new(store.build()?))
         }
+        DatasourceUrlType::Azure => todo!("Sean"),
         DatasourceUrlType::File => {
             let store = LocalFileSystem::new();
             Ok(Arc::new(store))

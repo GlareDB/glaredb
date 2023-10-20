@@ -33,6 +33,7 @@ use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::local::LocalStoreAccess;
 use crate::object_store::s3::S3StoreAccess;
 
+pub mod azure;
 pub mod errors;
 pub mod gcs;
 pub mod generic;
