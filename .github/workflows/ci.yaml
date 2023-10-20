@@ -143,6 +143,9 @@ jobs:
         run: |
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
 
+      - name: PG Protocol Tests (SLT Runner)
+        run: just slt -v 'pgproto/*'
+
   sql-logic-tests:
     name: SQL Logic Tests
     runs-on: ubuntu-latest-8-cores
