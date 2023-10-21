@@ -63,6 +63,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@1.72.0
+        with:
+          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
@@ -90,6 +94,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@1.72.0
+        with:
+          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
@@ -112,6 +120,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@1.72.0
+        with:
+          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
@@ -134,6 +146,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@1.72.0
+        with:
+          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
@@ -154,6 +170,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@1.72.0
+        with:
+          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
