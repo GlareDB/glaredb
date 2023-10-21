@@ -29,6 +29,7 @@ use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAcc
 use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use object_store::aws::AmazonS3ConfigKey;
+use object_store::azure::AzureConfigKey;
 use object_store::gcp::GoogleConfigKey;
 use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{
@@ -499,6 +500,41 @@ impl<'a> SessionPlanner<'a> {
                     secret_access_key,
                     location,
                     file_type: file_type.to_string(),
+                    compression: compression.map(|c| c.to_string()),
+                })
+            }
+            TableOptions::AZURE => {
+                let (account, access_key) = match creds_options {
+                    Some(CredentialsOptions::Azure(c)) => {
+                        (Some(c.account.clone()), Some(c.access_key.clone()))
+                    }
+                    Some(other) => {
+                        return Err(PlanError::String(format!(
+                            "invalid credentials {other} for azure"
+                        )))
+                    }
+                    None => (None, None),
+                };
+
+                let account = m.remove_required_or("account", account)?;
+                let access_key = m.remove_required_or("access_key", access_key)?;
+
+                let location: String = m.remove_required("location")?;
+
+                let mut opts = StorageOptions::default();
+                opts.inner
+                    .insert(AzureConfigKey::AccountName.as_ref().to_string(), account);
+                opts.inner
+                    .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
+
+                let access = Arc::new(GenericStoreAccess::from(&location, opts.clone())?);
+                let (file_type, compression) =
+                    validate_and_get_file_type_and_compression(access, &location, m).await?;
+
+                TableOptions::Azure(TableOptionsObjectStore {
+                    location,
+                    storage_options: opts,
+                    file_type: Some(file_type.to_string()),
                     compression: compression.map(|c| c.to_string()),
                 })
             }
@@ -1271,7 +1307,10 @@ impl<'a> SessionPlanner<'a> {
                 DatasourceUrlType::File => CopyToDestinationOptions::LOCAL,
                 DatasourceUrlType::Gcs => CopyToDestinationOptions::GCS,
                 DatasourceUrlType::S3 => CopyToDestinationOptions::S3_STORAGE,
-                DatasourceUrlType::Azure => todo!("Sean"),
+                DatasourceUrlType::Azure => {
+                    // TODO: Sean
+                    return Err(internal!("Copy to for azure not currently supported"));
+                }
                 DatasourceUrlType::Http => return Err(internal!("invalid URL scheme")),
             };
             (d, Some(u))
@@ -1777,6 +1816,16 @@ fn storage_options_with_credentials(
             storage_options.inner.insert(
                 AmazonS3ConfigKey::SecretAccessKey.as_ref().to_string(),
                 creds.secret_access_key,
+            );
+        }
+        CredentialsOptions::Azure(creds) => {
+            storage_options.inner.insert(
+                AzureConfigKey::AccountName.as_ref().to_string(),
+                creds.account,
+            );
+            storage_options.inner.insert(
+                AzureConfigKey::AccessKey.as_ref().to_string(),
+                creds.access_key,
             );
         }
     }

@@ -1092,18 +1092,21 @@ pub enum CredentialsOptions {
     Debug(CredentialsOptionsDebug),
     Gcp(CredentialsOptionsGcp),
     Aws(CredentialsOptionsAws),
+    Azure(CredentialsOptionsAzure),
 }
 
 impl CredentialsOptions {
     pub const DEBUG: &str = "debug";
     pub const GCP: &str = "gcp";
     pub const AWS: &str = "aws";
+    pub const AZURE: &str = "azure";
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Debug(_) => Self::DEBUG,
             Self::Gcp(_) => Self::GCP,
             Self::Aws(_) => Self::AWS,
+            Self::Azure(_) => Self::AZURE,
         }
     }
 }
@@ -1121,6 +1124,7 @@ impl TryFrom<options::credentials_options::Options> for CredentialsOptions {
             options::credentials_options::Options::Debug(v) => Self::Debug(v.try_into()?),
             options::credentials_options::Options::Gcp(v) => Self::Gcp(v.try_into()?),
             options::credentials_options::Options::Aws(v) => Self::Aws(v.try_into()?),
+            options::credentials_options::Options::Azure(v) => Self::Azure(v.try_into()?),
         })
     }
 }
@@ -1138,6 +1142,7 @@ impl From<CredentialsOptions> for options::credentials_options::Options {
             CredentialsOptions::Debug(v) => options::credentials_options::Options::Debug(v.into()),
             CredentialsOptions::Gcp(v) => options::credentials_options::Options::Gcp(v.into()),
             CredentialsOptions::Aws(v) => options::credentials_options::Options::Aws(v.into()),
+            CredentialsOptions::Azure(v) => options::credentials_options::Options::Azure(v.into()),
         }
     }
 }
@@ -1215,6 +1220,31 @@ impl From<CredentialsOptionsAws> for options::CredentialsOptionsAws {
         options::CredentialsOptionsAws {
             access_key_id: value.access_key_id,
             secret_access_key: value.secret_access_key,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct CredentialsOptionsAzure {
+    pub account: String,
+    pub access_key: String,
+}
+
+impl TryFrom<options::CredentialsOptionsAzure> for CredentialsOptionsAzure {
+    type Error = ProtoConvError;
+    fn try_from(value: options::CredentialsOptionsAzure) -> Result<Self, Self::Error> {
+        Ok(CredentialsOptionsAzure {
+            account: value.account,
+            access_key: value.access_key,
+        })
+    }
+}
+
+impl From<CredentialsOptionsAzure> for options::CredentialsOptionsAzure {
+    fn from(value: CredentialsOptionsAzure) -> Self {
+        options::CredentialsOptionsAzure {
+            account: value.account,
+            access_key: value.access_key,
         }
     }
 }

@@ -213,6 +213,7 @@ message CredentialsOptions {
     CredentialsOptionsDebug debug = 1;
     CredentialsOptionsGcp gcp = 2;
     CredentialsOptionsAws aws = 3;
+    CredentialsOptionsAzure azure = 4;
   }
 }
 
