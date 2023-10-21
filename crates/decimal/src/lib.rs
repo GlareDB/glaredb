@@ -112,8 +112,8 @@ impl<T: DecimalType> Decimal<T> {
         let mut scale: Option<i8> = None;
 
         let neg = match buf.next() {
-            Some(s) if s == b'-' => true,
-            Some(s) if s == b'+' => false,
+            Some(b'-') => true,
+            Some(b'+') => false,
             _ => {
                 debug_assert!(false, "first letter of float must be a sign");
                 false
