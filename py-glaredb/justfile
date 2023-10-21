@@ -20,7 +20,7 @@ test: requirements
 	{{VENV_BIN}}/pytest -s
 
 ## Run autoformatting and linting
-fmt: venv  
+fmt: venv
 	{{VENV_BIN}}/ruff .
 	{{VENV_BIN}}/mypy
 	cargo fmt --all
