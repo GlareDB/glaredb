@@ -423,7 +423,7 @@ impl<'a> ExternalDispatcher<'a> {
                 )?);
                 self.create_obj_store_table_provider(
                     access,
-                    location,
+                    DatasourceUrl::try_new(location)?.path(), // TODO: Workaround again
                     file_type,
                     compression.as_ref(),
                 )
@@ -459,10 +459,11 @@ impl<'a> ExternalDispatcher<'a> {
     async fn create_obj_store_table_provider(
         &self,
         access: Arc<dyn ObjStoreAccess>,
-        location: &str,
+        path: impl AsRef<str>,
         file_type: &str,
         compression: Option<&String>,
     ) -> Result<Arc<dyn TableProvider>> {
+        let path = path.as_ref();
         let compression = compression
             .map(|c| c.parse::<FileCompressionType>())
             .transpose()?
@@ -483,7 +484,7 @@ impl<'a> ExternalDispatcher<'a> {
         };
 
         let accessor = ObjStoreAccessor::new(access)?;
-        let objects = accessor.list_globbed(location).await?;
+        let objects = accessor.list_globbed(path).await?;
 
         let state = self.df_ctx.state();
         let provider = accessor.into_table_provider(&state, ft, objects).await?;
