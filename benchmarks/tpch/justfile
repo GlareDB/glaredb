@@ -11,7 +11,7 @@ GLARE_BIN := env_var_or_default("GLARE_BIN", "../../target/debug/glaredb")
 @requirements: venv
   {{VENV_BIN}}/python -m pip --quiet install --upgrade pip
   {{VENV_BIN}}/pip --quiet install -r requirements.txt
-  
+
 clean-tpch-dbgen:
   make -C tpch-dbgen clean
 

@@ -9,7 +9,7 @@ os_arch := os() + '-' + arch()
 
 
 # Run benchmarks subcommands. see `benchmarks/justfile` for more details.
-bench cmd *args: 
+bench cmd *args:
   just benchmarks/{{cmd}} {{args}}
 
 # Run py-glaredb subcommands. see `py-glaredb/justfile` for more details.
@@ -105,16 +105,16 @@ clippy: protoc
 # apply linting & clippy fixes.
 fix: protoc
   cargo clippy --fix --all --all-features --allow-staged --allow-dirty
-  cargo fix --all --allow-staged  --allow-dirty 
+  cargo fix --all --allow-staged  --allow-dirty
   just fmt --all
 
 # Displays help message.
-help: 
+help:
   @just --list
 
 protoc:
   #!/bin/bash
-  if ! $PROTOC --version > /dev/null; then 
+  if ! $PROTOC --version > /dev/null; then
     echo "Installing protoc..." && \
     curl -L {{protoc_url}} -o protoc.zip && \
     rm -rf deps/protoc && \
