@@ -527,9 +527,22 @@ impl<'a> SessionPlanner<'a> {
                 opts.inner
                     .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
 
-                let access = Arc::new(GenericStoreAccess::from(&location, opts.clone())?);
-                let (file_type, compression) =
-                    validate_and_get_file_type_and_compression(access, &location, m).await?;
+                let access = Arc::new(GenericStoreAccess::new_from_location_and_opts(
+                    &location,
+                    opts.clone(),
+                )?);
+
+                // TODO: Creating a data source url here is a workaround for
+                // getting the path to the file. Since we're using the generic
+                // object store access, it requires that "location" is the full
+                // url of the object, but that goes against our other
+                // assumptions that "location" is just the path.
+                let (file_type, compression) = validate_and_get_file_type_and_compression(
+                    access,
+                    DatasourceUrl::try_new(location.clone())?.path(),
+                    m,
+                )
+                .await?;
 
                 TableOptions::Azure(TableOptionsObjectStore {
                     location,
@@ -557,8 +570,11 @@ impl<'a> SessionPlanner<'a> {
                     })
                 } else {
                     let url = DatasourceUrl::try_new(&location)?;
-                    let store = GenericStoreAccess::from(&location, storage_options.clone())?
-                        .create_store()?;
+                    let store = GenericStoreAccess::new_from_location_and_opts(
+                        &location,
+                        storage_options.clone(),
+                    )?
+                    .create_store()?;
                     let _table = IcebergTable::open(url, store).await?;
 
                     TableOptions::Iceberg(TableOptionsObjectStore {
@@ -1501,13 +1517,14 @@ impl<'a> SessionPlanner<'a> {
 }
 
 /// Creates an accessor from object store external table and validates if the
-/// location returns any objects. If objects are returned, tries to get the
-/// file type and compression of the object.
+/// location returns any objects. If objects are returned, tries to get the file
+/// type and compression of the object.
 async fn validate_and_get_file_type_and_compression(
     access: Arc<dyn ObjStoreAccess>,
-    location: &str,
+    path: impl AsRef<str>,
     m: &mut StmtOptions,
 ) -> Result<(FileType, Option<CompressionTypeVariant>)> {
+    let path = path.as_ref();
     let accessor =
         ObjStoreAccessor::new(access.clone()).map_err(|e| PlanError::InvalidExternalTable {
             source: Box::new(e),
@@ -1515,7 +1532,7 @@ async fn validate_and_get_file_type_and_compression(
 
     let objects =
         accessor
-            .list_globbed(location)
+            .list_globbed(path)
             .await
             .map_err(|e| PlanError::InvalidExternalTable {
                 source: Box::new(e),
@@ -1523,7 +1540,7 @@ async fn validate_and_get_file_type_and_compression(
 
     if objects.is_empty() {
         return Err(PlanError::InvalidExternalTable {
-            source: Box::new(internal!("object '{location}' not found")),
+            source: Box::new(internal!("object '{path}' not found")),
         });
     }
 
@@ -1532,7 +1549,7 @@ async fn validate_and_get_file_type_and_compression(
         None => objects
             .first()
             .ok_or_else(|| PlanError::InvalidExternalTable {
-                source: Box::new(internal!("object '{location} not found'")),
+                source: Box::new(internal!("object '{path} not found'")),
             })?
             .location
             .extension()

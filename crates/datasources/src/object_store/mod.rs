@@ -377,7 +377,10 @@ pub fn init_session_registry<'a>(
                 location,
                 storage_options,
                 ..
-            }) => Arc::new(GenericStoreAccess::from(location, storage_options.clone())?),
+            }) => Arc::new(GenericStoreAccess::new_from_location_and_opts(
+                location,
+                storage_options.clone(),
+            )?),
             // Continue on all others. Explicitly mentioning all the left
             // over options so we don't forget adding object stores that are
             // supported in the future (like azure).

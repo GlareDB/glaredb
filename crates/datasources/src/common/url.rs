@@ -161,6 +161,13 @@ impl DatasourceUrl {
     }
 }
 
+impl TryFrom<&str> for DatasourceUrl {
+    type Error = DatasourceCommonError;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::try_new(value)
+    }
+}
+
 impl TryFrom<DatasourceUrl> for ObjectStoreUrl {
     type Error = DataFusionError;
 

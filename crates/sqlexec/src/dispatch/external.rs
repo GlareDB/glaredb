@@ -417,7 +417,10 @@ impl<'a> ExternalDispatcher<'a> {
                     }
                 };
 
-                let access = Arc::new(GenericStoreAccess::from(location, storage_options.clone())?);
+                let access = Arc::new(GenericStoreAccess::new_from_location_and_opts(
+                    location,
+                    storage_options.clone(),
+                )?);
                 self.create_obj_store_table_provider(
                     access,
                     location,
@@ -441,8 +444,11 @@ impl<'a> ExternalDispatcher<'a> {
                 ..
             }) => {
                 let url = DatasourceUrl::try_new(location)?;
-                let store =
-                    GenericStoreAccess::from(location, storage_options.clone())?.create_store()?;
+                let store = GenericStoreAccess::new_from_location_and_opts(
+                    location,
+                    storage_options.clone(),
+                )?
+                .create_store()?;
                 let table = IcebergTable::open(url, store).await?;
                 let reader = table.table_reader().await?;
                 Ok(reader)

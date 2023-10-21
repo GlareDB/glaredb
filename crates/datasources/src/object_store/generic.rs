@@ -23,7 +23,10 @@ pub struct GenericStoreAccess {
 }
 
 impl GenericStoreAccess {
-    pub fn from(location: &String, storage_options: StorageOptions) -> Result<Self> {
+    pub fn new_from_location_and_opts(
+        location: &str,
+        storage_options: StorageOptions,
+    ) -> Result<Self> {
         // We want to generate a base URL from a potentially full URL here
         // TODO: If we can proto serialize URL consider doing this validating operation when processing
         // table definition
