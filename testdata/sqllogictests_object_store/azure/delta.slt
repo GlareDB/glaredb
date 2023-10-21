@@ -1,0 +1,53 @@
+statement ok
+CREATE CREDENTIALS azure_creds PROVIDER azure
+	( account '${AZURE_ACCOUNT}',
+	  access_key = '${AZURE_ACCESS_KEY}' );
+
+# Tests `delta_scan` with delta table in Azure.
+
+query IT
+select * from delta_scan('azure://glaredb-test/delta/table1', azure_creds) order by a;
+----
+1   hello
+2   world
+
+# Tests external delta table in azure with credentials object.
+statement ok
+create external table delta_azure_creds_and_opts
+from delta
+credentials azure_creds
+options (
+	location 'azure://glaredb-test/delta/table1'
+);
+
+query IT
+select * from delta_azure_creds_and_opts order by a;
+----
+1   hello
+2   world
+
+# Tests external delta table in azure with explicit config options.
+statement ok
+create external table delta_azure_opts
+from delta
+options (
+	location 'azure://glaredb-test/delta/table1',
+	account '${AZURE_ACCOUNT}',
+	access_key '${AZURE_ACCESS_KEY}'
+);
+
+query IT
+select * from delta_azure_opts order by a;
+----
+1   hello
+2   world
+
+# Tests connection options validation during initial setup
+statement error
+create external table delta_azure_opts
+from delta
+options (
+	location 'azure://glaredb-test/delta/table1',
+    account 'wrong_account',
+    access_key 'wrong_key'
+);

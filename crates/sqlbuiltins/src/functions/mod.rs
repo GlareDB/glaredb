@@ -13,6 +13,7 @@ mod snowflake;
 mod virtual_listing;
 
 use ::object_store::aws::AmazonS3ConfigKey;
+use ::object_store::azure::AzureConfigKey;
 use ::object_store::gcp::GoogleConfigKey;
 use datafusion::logical_expr::BuiltinScalarFunction;
 use std::collections::HashMap;
@@ -174,6 +175,16 @@ fn table_location_and_opts(
             storage_options
                 .inner
                 .insert(AmazonS3ConfigKey::Region.as_ref().to_string(), region);
+        }
+        (DatasourceUrlType::Azure, Some(CredentialsOptions::Azure(creds))) => {
+            storage_options.inner.insert(
+                AzureConfigKey::AccountName.as_ref().to_string(),
+                creds.account,
+            );
+            storage_options.inner.insert(
+                AzureConfigKey::AccessKey.as_ref().to_string(),
+                creds.access_key,
+            );
         }
         (DatasourceUrlType::Http, _) => {
             return Err(ExtensionError::String(

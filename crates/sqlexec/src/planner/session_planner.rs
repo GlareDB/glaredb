@@ -36,13 +36,13 @@ use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
     CopyToDestinationOptionsS3, CopyToFormatOptions, CopyToFormatOptionsCsv,
     CopyToFormatOptionsJson, CopyToFormatOptionsParquet, CredentialsOptions, CredentialsOptionsAws,
-    CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery,
-    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DeltaLakeCatalog, DeltaLakeUnityCatalog,
-    StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
-    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug,
-    TunnelOptionsInternal, TunnelOptionsSsh,
+    CredentialsOptionsAzure, CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions,
+    DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo,
+    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DeltaLakeCatalog,
+    DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
+    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
+    TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
 };
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use sqlbuiltins::validation::{
@@ -670,6 +670,14 @@ impl<'a> SessionPlanner<'a> {
                 CredentialsOptions::Aws(CredentialsOptionsAws {
                     access_key_id,
                     secret_access_key,
+                })
+            }
+            CredentialsOptions::AZURE => {
+                let account = m.remove_required("account")?;
+                let access_key = m.remove_required("access_key")?;
+                CredentialsOptions::Azure(CredentialsOptionsAzure {
+                    account,
+                    access_key,
                 })
             }
             other => return Err(internal!("unsupported credentials provider: {other}")),

@@ -83,7 +83,7 @@ pub fn validate_database_creds_support(database: &str, creds: &str) -> Result<()
         // Google cloud
         (DatabaseOptions::BIGQUERY, CredentialsOptions::GCP) |
         // Delta
-        (DatabaseOptions::DELTA, CredentialsOptions::GCP | CredentialsOptions::AWS)
+        (DatabaseOptions::DELTA, CredentialsOptions::GCP | CredentialsOptions::AWS | CredentialsOptions::AZURE)
     ) {
         Ok(())
     } else {
@@ -106,7 +106,7 @@ pub fn validate_table_creds_support(table: &str, creds: &str) -> Result<()> {
         // AWS
         (TableOptions::S3_STORAGE, CredentialsOptions::AWS) |
         // Delta & Iceberg
-        (TableOptions::DELTA | TableOptions::ICEBERG, CredentialsOptions::GCP | CredentialsOptions::AWS)
+        (TableOptions::DELTA | TableOptions::ICEBERG, CredentialsOptions::GCP | CredentialsOptions::AWS | CredentialsOptions::AZURE)
     ) {
         Ok(())
     } else {
