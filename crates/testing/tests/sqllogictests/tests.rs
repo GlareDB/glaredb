@@ -110,3 +110,39 @@ SELECT public_key
         Ok(())
     }
 }
+
+pub struct PgBinaryEncoding;
+
+#[async_trait]
+impl FnTest for PgBinaryEncoding {
+    async fn run(
+        &self,
+        _config: &Config,
+        client: TestClient,
+        _vars: &mut HashMap<String, String>,
+    ) -> Result<()> {
+        let client = match client {
+            TestClient::Pg(client) => client,
+            TestClient::Rpc(_) => {
+                return Err(anyhow!("cannot run pg binary encoding test on rpc"));
+            }
+        };
+
+        let rows = client.query("select 1, 2.2::float4", &[]).await?;
+        test_assert!(
+            rows.len() == 1,
+            anyhow!("number of rows returned ({}) != 1", rows.len())
+        );
+
+        let int: i64 = rows[0].try_get(0)?;
+        test_assert!(int == 1, anyhow!("int value from column 0 ({}) != 1", int));
+
+        let float: f32 = rows[0].try_get(1)?;
+        test_assert!(
+            float == 2.2,
+            anyhow!("float value from column 1 ({}) != 2.2", float)
+        );
+
+        Ok(())
+    }
+}

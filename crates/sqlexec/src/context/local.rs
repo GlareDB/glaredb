@@ -478,7 +478,10 @@ pub struct Portal {
 impl Portal {
     /// Returns an iterator over the fields of output schema (if any).
     pub fn output_fields(&self) -> Option<OutputFields<'_>> {
-        self.stmt.output_fields()
+        self.stmt.output_fields().map(|mut output_fields| {
+            output_fields.result_formats = Some(self.result_formats.as_slice().iter());
+            output_fields
+        })
     }
 }
 
