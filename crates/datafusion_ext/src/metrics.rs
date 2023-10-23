@@ -16,14 +16,14 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::{any::Any, pin::Pin};
 
-const BYTES_PROCESSED_GAUGE_NAME: &str = "bytes_processed";
+const BYTES_READ_GAUGE_NAME: &str = "bytes_read";
 
 /// Standard metrics we should be collecting for all data sources during
 /// queries.
 #[derive(Debug, Clone)]
 pub struct DataSourceMetrics {
-    /// Track bytes processed by source plans.
-    pub bytes_processed: Gauge,
+    /// Track bytes read by source plans.
+    pub bytes_read: Gauge,
 
     /// Baseline metrics like output rows and elapsed time.
     pub baseline: BaselineMetrics,
@@ -31,12 +31,11 @@ pub struct DataSourceMetrics {
 
 impl DataSourceMetrics {
     pub fn new(partition: usize, metrics: &ExecutionPlanMetricsSet) -> Self {
-        let bytes_processed =
-            MetricBuilder::new(metrics).gauge(BYTES_PROCESSED_GAUGE_NAME, partition);
+        let bytes_read = MetricBuilder::new(metrics).gauge(BYTES_READ_GAUGE_NAME, partition);
         let baseline = BaselineMetrics::new(metrics, partition);
 
         Self {
-            bytes_processed,
+            bytes_read,
             baseline,
         }
     }
@@ -49,7 +48,7 @@ impl DataSourceMetrics {
         if let Poll::Ready(maybe_batch) = &poll {
             match maybe_batch {
                 Some(Ok(batch)) => {
-                    self.bytes_processed.add(batch.get_array_memory_size());
+                    self.bytes_read.add(batch.get_array_memory_size());
                     self.baseline.record_output(batch.num_rows());
                 }
                 Some(Err(_)) => self.baseline.done(),
@@ -64,7 +63,7 @@ impl DataSourceMetrics {
 /// about batches that are sent through the stream.
 ///
 /// Note this should only be used when "ingesting" data during execution (data
-/// sources or reading from tables) to avoid double counting bytes processed.
+/// sources or reading from tables) to avoid double counting bytes read.
 pub struct DataSourceMetricsStreamAdapter<S> {
     pub stream: S,
     pub metrics: DataSourceMetrics,
@@ -211,8 +210,8 @@ impl RecordBatchStream for BoxedStreamAdapater {
 pub struct AggregatedMetrics {
     /// Total time taken for a plan to execute.
     pub elapsed_compute_ns: u64,
-    /// Total bytes processed.
-    pub bytes_processed: u64,
+    /// Total bytes read.
+    pub bytes_read: u64,
 }
 
 impl AggregatedMetrics {
@@ -223,22 +222,20 @@ impl AggregatedMetrics {
     pub fn new_from_plan(plan: &dyn ExecutionPlan) -> Self {
         let mut agg = AggregatedMetrics {
             elapsed_compute_ns: 0,
-            bytes_processed: 0,
+            bytes_read: 0,
         };
         agg.aggregate_recurse(plan);
         agg
     }
 
     fn aggregate_recurse(&mut self, plan: &dyn ExecutionPlan) {
-        let metrics = match plan.metrics() {
-            Some(metrics) => metrics,
-            None => return,
-        };
-        self.elapsed_compute_ns += metrics.elapsed_compute().unwrap_or_default() as u64;
-        self.bytes_processed += metrics
-            .sum_by_name(BYTES_PROCESSED_GAUGE_NAME)
-            .map(|m| m.as_usize() as u64)
-            .unwrap_or_default();
+        if let Some(metrics) = plan.metrics() {
+            self.elapsed_compute_ns += metrics.elapsed_compute().unwrap_or_default() as u64;
+            self.bytes_read += metrics
+                .sum_by_name(BYTES_READ_GAUGE_NAME)
+                .map(|m| m.as_usize() as u64)
+                .unwrap_or_default();
+        }
 
         for child in plan.children() {
             self.aggregate_recurse(child.as_ref());
