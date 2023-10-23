@@ -101,10 +101,7 @@ impl TableFunc for ObjScanTableFunc {
         let urls = match url_arg {
             FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => {
                 let url = DatasourceUrl::try_new(&s).map_err(|e| {
-                    ExtensionError::String(format!(
-                        "Unable to parse '{s}': {}",
-                        e.to_string()
-                    ))
+                    ExtensionError::String(format!("Unable to parse '{s}': {}", e))
                 })?;
                 vec![url]
             }

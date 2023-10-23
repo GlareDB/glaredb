@@ -58,10 +58,7 @@ impl FromFuncParamValue for DatasourceUrl {
     }
 
     fn is_param_valid(value: &FuncParamValue) -> bool {
-        match value {
-            FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))) => true,
-            _ => false,
-        }
+        matches!(value, FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))))
     }
 }
 

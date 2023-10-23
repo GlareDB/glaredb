@@ -32,7 +32,7 @@ impl ObjStoreAccess for LocalStoreAccess {
 
     fn path(&self, location: &str) -> Result<ObjectStorePath> {
         ObjectStorePath::from_filesystem_path(location)
-            .map_err(|e| super::errors::ObjectStoreSourceError::ObjectStorePath(e))
+            .map_err(super::errors::ObjectStoreSourceError::ObjectStorePath)
     }
 
     /// Given relative paths and all other stuff, it's much simpler to use
