@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -19,7 +20,18 @@ impl Display for LocalStoreAccess {
         write!(f, "LocalStoreAccess")
     }
 }
-
+impl LocalStoreAccess {
+    fn meta_from_path(&self, path: PathBuf) -> Result<ObjectMeta> {
+        let meta = path.metadata()?;
+        let path = path.canonicalize()?;
+        Ok(ObjectMeta {
+            location: self.path(path.to_string_lossy().as_ref())?,
+            last_modified: meta.modified()?.into(),
+            size: meta.len() as usize,
+            e_tag: None,
+        })
+    }
+}
 #[async_trait]
 impl ObjStoreAccess for LocalStoreAccess {
     fn base_url(&self) -> Result<ObjectStoreUrl> {
@@ -31,7 +43,8 @@ impl ObjStoreAccess for LocalStoreAccess {
     }
 
     fn path(&self, location: &str) -> Result<ObjectStorePath> {
-        Ok(ObjectStorePath::from_filesystem_path(location)?)
+        ObjectStorePath::from_filesystem_path(location)
+            .map_err(super::errors::ObjectStoreSourceError::ObjectStorePath)
     }
 
     /// Given relative paths and all other stuff, it's much simpler to use
@@ -51,18 +64,18 @@ impl ObjStoreAccess for LocalStoreAccess {
         )?;
 
         let mut objects = Vec::new();
+
         for path in paths {
             let path = path?;
-            let meta = path.metadata()?;
-            let meta = ObjectMeta {
-                location: self.path(path.to_string_lossy().as_ref())?,
-                last_modified: meta.modified()?.into(),
-                size: meta.len() as usize,
-                e_tag: None,
-            };
+            let meta = self.meta_from_path(path)?;
             objects.push(meta);
         }
 
+        if objects.is_empty() {
+            let path = PathBuf::from(pattern);
+            let meta = self.meta_from_path(path)?;
+            objects.push(meta);
+        }
         Ok(objects)
     }
 }
