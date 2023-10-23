@@ -108,7 +108,7 @@ pub fn encode_literal_to_text(
         }
         s => {
             return Err(DatasourceCommonError::UnsupportedDatafusionScalar(
-                s.get_datatype(),
+                s.data_type(),
             ))
         }
     };
@@ -308,7 +308,7 @@ mod tests {
                 (Ok(_), Some(s)) => assert_eq!(&buf, s),
                 (Ok(_), None) => panic!("expected error, got result: {}", buf),
                 (Err(e1), None) => {
-                    let dt = case.literal.get_datatype();
+                    let dt = case.literal.data_type();
                     assert!(matches!(e1, DatasourceCommonError::UnsupportedDatafusionScalar(ty) if ty == dt));
                 }
                 (Err(e), Some(s)) => panic!("expected result: {}, got error: {}", s, e),
