@@ -31,7 +31,8 @@ impl ObjStoreAccess for LocalStoreAccess {
     }
 
     fn path(&self, location: &str) -> Result<ObjectStorePath> {
-        Ok(ObjectStorePath::from_filesystem_path(location)?)
+        ObjectStorePath::from_filesystem_path(location)
+            .map_err(|e| super::errors::ObjectStoreSourceError::ObjectStorePath(e))
     }
 
     /// Given relative paths and all other stuff, it's much simpler to use
@@ -49,13 +50,13 @@ impl ObjStoreAccess for LocalStoreAccess {
                 require_literal_leading_dot: true,
             },
         )?;
-
         let mut objects = Vec::new();
         for path in paths {
             let path = path?;
             let meta = path.metadata()?;
+            let loc = self.path(path.to_string_lossy().as_ref());
             let meta = ObjectMeta {
-                location: self.path(path.to_string_lossy().as_ref())?,
+                location: loc?,
                 last_modified: meta.modified()?.into(),
                 size: meta.len() as usize,
                 e_tag: None,
