@@ -18,10 +18,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.73.0
-        with:
-          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
@@ -41,10 +37,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.73.0
-        with:
-          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
@@ -67,10 +59,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.73.0
-        with:
-          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
@@ -98,10 +86,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.73.0
-        with:
-          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
@@ -124,10 +108,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.73.0
-        with:
-          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
@@ -136,9 +116,6 @@ jobs:
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.73.0
-
       - name: PG Protocol Tests
         run: |
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
@@ -153,10 +130,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.73.0
-        with:
-          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
@@ -177,10 +150,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.73.0
-        with:
-          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
