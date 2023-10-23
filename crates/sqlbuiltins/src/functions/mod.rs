@@ -14,7 +14,7 @@ mod virtual_listing;
 
 use ::object_store::aws::AmazonS3ConfigKey;
 use ::object_store::gcp::GoogleConfigKey;
-use datafusion::logical_expr::BuiltinScalarFunction;
+use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -38,7 +38,26 @@ use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
 /// Builtin table returning functions available for all sessions.
 pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
 pub static BUILTIN_SCALAR_FUNCS: Lazy<BuiltinScalarFuncs> = Lazy::new(BuiltinScalarFuncs::new);
+pub static BUILTIN_AGGREGATE_FUNCS: Lazy<BuiltinAggregateFuncs> =
+    Lazy::new(BuiltinAggregateFuncs::new);
+/// All builtin aggregate functions.
+pub struct BuiltinAggregateFuncs {
+    funcs: HashMap<String, AggregateFunction>,
+}
 
+impl BuiltinAggregateFuncs {
+    pub fn new() -> Self {
+        use strum::IntoEnumIterator;
+        let funcs = AggregateFunction::iter()
+            .map(|f| (f.to_string(), f))
+            .collect::<HashMap<String, AggregateFunction>>();
+
+        BuiltinAggregateFuncs { funcs }
+    }
+    pub fn iter_funcs(&self) -> impl Iterator<Item = &AggregateFunction> {
+        self.funcs.values()
+    }
+}
 /// All builtin scalar functions.
 pub struct BuiltinScalarFuncs {
     funcs: HashMap<String, BuiltinScalarFunction>,
