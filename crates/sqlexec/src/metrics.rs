@@ -3,6 +3,7 @@ use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::Result as DatafusionResult;
 use datafusion::physical_plan::{ExecutionPlan, RecordBatchStream, SendableRecordBatchStream};
+use datafusion_ext::metrics::AggregatedMetrics;
 use futures::stream::{Stream, StreamExt};
 use serde_json::json;
 use telemetry::Tracker;
@@ -172,10 +173,12 @@ impl Stream for BatchStreamWithMetricSender {
                     metrics.execution_status = ExecutionStatus::Success;
 
                     if let Some(exec_metrics) = self.plan.metrics() {
-                        metrics.elapsed_compute_ns =
-                            exec_metrics.elapsed_compute().map(|v| v as u64);
                         metrics.output_rows = exec_metrics.output_rows().map(|v| v as u64);
                     }
+
+                    let agg_metrics = AggregatedMetrics::new_from_plan(self.plan.as_ref());
+                    metrics.bytes_read = Some(agg_metrics.bytes_read);
+                    metrics.elapsed_compute_ns = Some(agg_metrics.elapsed_compute_ns);
 
                     self.metrics_handler.push_metric(metrics);
                 }
@@ -195,10 +198,12 @@ impl Stream for BatchStreamWithMetricSender {
                     // The query may have failed, but having these execution
                     // stats may be useful anyways.
                     if let Some(exec_metrics) = self.plan.metrics() {
-                        metrics.elapsed_compute_ns =
-                            exec_metrics.elapsed_compute().map(|v| v as u64);
                         metrics.output_rows = exec_metrics.output_rows().map(|v| v as u64);
                     }
+
+                    let agg_metrics = AggregatedMetrics::new_from_plan(self.plan.as_ref());
+                    metrics.bytes_read = Some(agg_metrics.bytes_read);
+                    metrics.elapsed_compute_ns = Some(agg_metrics.elapsed_compute_ns);
 
                     self.metrics_handler.push_metric(metrics);
                 }
