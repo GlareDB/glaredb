@@ -121,8 +121,10 @@ async fn create_temp_table(
             }
         };
 
-        let state =
-            SessionState::with_config_rt(context.session_config().clone(), context.runtime_env());
+        let state = SessionState::new_with_config_rt(
+            context.session_config().clone(),
+            context.runtime_env(),
+        );
 
         let exec = table.insert_into(&state, source, false).await?;
         let mut stream = exec.execute(0, context)?;

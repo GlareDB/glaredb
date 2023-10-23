@@ -105,8 +105,10 @@ impl InsertExec {
         source: Arc<dyn ExecutionPlan>,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<RecordBatch> {
-        let state =
-            SessionState::with_config_rt(context.session_config().clone(), context.runtime_env());
+        let state = SessionState::new_with_config_rt(
+            context.session_config().clone(),
+            context.runtime_env(),
+        );
 
         let source = if source.output_partitioning().partition_count() != 1 {
             Arc::new(CoalescePartitionsExec::new(source))
