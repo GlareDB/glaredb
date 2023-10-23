@@ -78,7 +78,6 @@ impl DatasourceUrl {
                 // TODO: Check if it's actually a file path (maybe invalid but
                 // probably check).
                 let path = PathBuf::from(u);
-                let path = path.canonicalize()?;
                 return Ok(Self::File(path));
             }
             Err(e) => return Err(DatasourceCommonError::InvalidUrl(e.to_string())),
