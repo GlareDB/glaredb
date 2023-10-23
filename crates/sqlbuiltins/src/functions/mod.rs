@@ -58,6 +58,13 @@ impl BuiltinAggregateFuncs {
         self.funcs.values()
     }
 }
+
+impl Default for BuiltinAggregateFuncs {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// All builtin scalar functions.
 pub struct BuiltinScalarFuncs {
     funcs: HashMap<String, BuiltinScalarFunction>,
