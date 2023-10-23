@@ -306,12 +306,12 @@ mod tests {
             let res = encode_literal_to_text(case.datasource, &mut buf, &case.literal);
             match (res, case.expected) {
                 (Ok(_), Some(s)) => assert_eq!(&buf, s),
-                (Ok(_), None) => assert!(false, "expected error, got result: {}", buf),
+                (Ok(_), None) => panic!("expected error, got result: {}", buf),
                 (Err(e1), None) => {
                     let dt = case.literal.get_datatype();
                     assert!(matches!(e1, DatasourceCommonError::UnsupportedDatafusionScalar(ty) if ty == dt));
                 }
-                (Err(e), Some(s)) => assert!(false, "expected result: {}, got error: {}", s, e),
+                (Err(e), Some(s)) => panic!("expected result: {}, got error: {}", s, e),
             };
         });
     }
