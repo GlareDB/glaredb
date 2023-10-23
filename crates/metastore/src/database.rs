@@ -1277,7 +1277,7 @@ impl BuiltinCatalog {
                 .get_mut(schema_id)
                 .unwrap()
                 .functions
-                .insert(func.to_string(), oid);
+                .insert(func.to_string().to_ascii_uppercase(), oid);
 
             oid += 1;
         }
