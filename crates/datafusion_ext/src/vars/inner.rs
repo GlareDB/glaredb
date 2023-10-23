@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tracing::error;
 use uuid::Uuid;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
 pub enum Dialect {
     #[default]
     Sql,
