@@ -179,7 +179,7 @@ fn table_location_and_opts(
         (DatasourceUrlType::Azure, Some(CredentialsOptions::Azure(creds))) => {
             storage_options.inner.insert(
                 AzureConfigKey::AccountName.as_ref().to_string(),
-                creds.account,
+                creds.account_name,
             );
             storage_options.inner.insert(
                 AzureConfigKey::AccessKey.as_ref().to_string(),

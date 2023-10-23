@@ -227,7 +227,7 @@ message CredentialsOptionsAws {
 }
 
 message CredentialsOptionsAzure {
-  string account = 1;
+  string account_name = 1;
   string access_key = 2;
   // TODO: We may want to allow the user to give us just the "connection string"
   // which contains the account and access key.

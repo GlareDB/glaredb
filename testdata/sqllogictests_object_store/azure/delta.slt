@@ -1,6 +1,6 @@
 statement ok
 CREATE CREDENTIALS azure_creds PROVIDER azure
-	( account '${AZURE_ACCOUNT}',
+	( account_name '${AZURE_ACCOUNT}',
 	  access_key = '${AZURE_ACCESS_KEY}' );
 
 # Tests `delta_scan` with delta table in Azure.
@@ -32,7 +32,7 @@ create external table delta_azure_opts
 from delta
 options (
 	location 'azure://glaredb-test/delta/table1',
-	account '${AZURE_ACCOUNT}',
+	account_name '${AZURE_ACCOUNT}',
 	access_key '${AZURE_ACCESS_KEY}'
 );
 
@@ -48,6 +48,6 @@ create external table delta_azure_opts
 from delta
 options (
 	location 'azure://glaredb-test/delta/table1',
-    account 'wrong_account',
+    account_name 'wrong_account',
     access_key 'wrong_key'
 );

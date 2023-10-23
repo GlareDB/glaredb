@@ -11,7 +11,7 @@ statement ok
 CREATE EXTERNAL TABLE basic
     FROM azure
     OPTIONS (
-        account = '${AZURE_ACCOUNT}',
+        account_name = '${AZURE_ACCOUNT}',
         access_key = '${AZURE_ACCESS_KEY}',
         location = 'azure://glaredb-test/bikeshare_stations.csv'
     );
@@ -29,7 +29,7 @@ statement ok
 CREATE EXTERNAL TABLE basic
     FROM azure
     OPTIONS (
-        account = '${AZURE_ACCOUNT}',
+        account_name = '${AZURE_ACCOUNT}',
         access_key = '${AZURE_ACCESS_KEY}',
         location = 'azure://glaredb-test/bikeshare_stations.parquet'
     );

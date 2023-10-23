@@ -506,7 +506,7 @@ impl<'a> SessionPlanner<'a> {
             TableOptions::AZURE => {
                 let (account, access_key) = match creds_options {
                     Some(CredentialsOptions::Azure(c)) => {
-                        (Some(c.account.clone()), Some(c.access_key.clone()))
+                        (Some(c.account_name.clone()), Some(c.access_key.clone()))
                     }
                     Some(other) => {
                         return Err(PlanError::String(format!(
@@ -516,7 +516,7 @@ impl<'a> SessionPlanner<'a> {
                     None => (None, None),
                 };
 
-                let account = m.remove_required_or("account", account)?;
+                let account = m.remove_required_or("account_name", account)?;
                 let access_key = m.remove_required_or("access_key", access_key)?;
 
                 let location: String = m.remove_required("location")?;
@@ -673,10 +673,10 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             CredentialsOptions::AZURE => {
-                let account = m.remove_required("account")?;
+                let account_name = m.remove_required("account_name")?;
                 let access_key = m.remove_required("access_key")?;
                 CredentialsOptions::Azure(CredentialsOptionsAzure {
-                    account,
+                    account_name,
                     access_key,
                 })
             }
@@ -1846,7 +1846,7 @@ fn storage_options_with_credentials(
         CredentialsOptions::Azure(creds) => {
             storage_options.inner.insert(
                 AzureConfigKey::AccountName.as_ref().to_string(),
-                creds.account,
+                creds.account_name,
             );
             storage_options.inner.insert(
                 AzureConfigKey::AccessKey.as_ref().to_string(),

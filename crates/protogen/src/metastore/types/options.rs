@@ -1226,7 +1226,7 @@ impl From<CredentialsOptionsAws> for options::CredentialsOptionsAws {
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct CredentialsOptionsAzure {
-    pub account: String,
+    pub account_name: String,
     pub access_key: String,
 }
 
@@ -1234,7 +1234,7 @@ impl TryFrom<options::CredentialsOptionsAzure> for CredentialsOptionsAzure {
     type Error = ProtoConvError;
     fn try_from(value: options::CredentialsOptionsAzure) -> Result<Self, Self::Error> {
         Ok(CredentialsOptionsAzure {
-            account: value.account,
+            account_name: value.account_name,
             access_key: value.access_key,
         })
     }
@@ -1243,7 +1243,7 @@ impl TryFrom<options::CredentialsOptionsAzure> for CredentialsOptionsAzure {
 impl From<CredentialsOptionsAzure> for options::CredentialsOptionsAzure {
     fn from(value: CredentialsOptionsAzure) -> Self {
         options::CredentialsOptionsAzure {
-            account: value.account,
+            account_name: value.account_name,
             access_key: value.access_key,
         }
     }
