@@ -292,7 +292,6 @@ impl Cli {
         let hooks = Arc::new(hooks);
 
         for (test_name, test) in tests {
-            info!("Running test: `{}`", test_name);
             if total_jobs == 0 {
                 // Wait to receive a result
                 let res = recv(&mut jobs_rx, timeout_at).await?.unwrap();
@@ -371,6 +370,7 @@ impl Cli {
         client_config: ClientConfig,
         hooks: Arc<TestHooks>,
     ) -> Result<()> {
+        info!("Running test: `{}`", test_name);
         let client = if rpc_test {
             TestClient::Rpc(RpcTestClient::new(data_dir, "0.0.0.0:6789").await?)
         } else {
