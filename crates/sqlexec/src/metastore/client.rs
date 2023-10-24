@@ -61,7 +61,7 @@ use tokio::sync::RwLock;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tonic::transport::Channel;
-use tracing::{debug_span, error, info, warn, Instrument};
+use tracing::{debug_span, error, warn, Instrument, debug};
 use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
@@ -470,14 +470,14 @@ impl StatefulWorker {
                     self.fetch().instrument(span).await;
 
                     let sess_count = self.session_count_for_db();
-                    info!(%sess_count, db_id = %self.db_id, "worker fetch interval");
+                    debug!(%sess_count, db_id = %self.db_id, "worker fetch interval");
 
                     // If no sessions using the worker, start counting down to
                     // exit. Otherwise reset the counter.
                     if sess_count == 0 {
                         num_ticks_no_activity += 1;
                         if num_ticks_no_activity >= run_conf.max_ticks_before_exit {
-                            info!(db_id = %self.db_id, "exiting database worker");
+                            debug!(db_id = %self.db_id, "exiting database worker");
                             return;
                         }
                     } else {
