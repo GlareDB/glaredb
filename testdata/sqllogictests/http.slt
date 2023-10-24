@@ -1,5 +1,9 @@
-statement error Globbing not supported for HTTP store
+statement error Unexpected status code 403 Forbidden for url: 'http://host.com/path/*.parquet' Note that globbing is not supported for HTTP.
 select * from 'http://host.com/path/*.parquet'
 
-statement error missing file extension
+statement error  Error during planning: missing file extension: http://host.com/path/*
 select * from 'http://host.com/path/*'
+
+# TODO (enable this once the PR is merged to main)
+# statement ok 
+# select * from 'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/csv/file_with_a_*.csv'
