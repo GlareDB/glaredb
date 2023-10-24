@@ -139,13 +139,13 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Public SQL Logic Tests DEBUG
+        if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
+        run: just slt -v 'sqllogictests/*'
       - name: Public SQL Logic Tests
-        run: |
-          if [[ "$ACTIONS_STEP_DEBUG" == "true" ]]; then
-            just slt -v 'sqllogictests/*'
-          else
-            just slt 'sqllogictests/*'
-          fi
+        if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
+        run: just slt 'sqllogictests/*'
+        
 
   integration-tests:
     if: github.repository_owner == 'glaredb'
