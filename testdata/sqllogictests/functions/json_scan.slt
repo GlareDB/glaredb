@@ -39,9 +39,8 @@ statement error at least one url expected
 select * from ndjson_scan([]);
 
 # Glob patterns not supported on HTTP
-# Should just directly try and get the object
 
-statement error 404: Not Found
+statement error Globbing not supported for HTTP store
 select * from ndjson_scan(
   'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/*.ndjson'
 );
