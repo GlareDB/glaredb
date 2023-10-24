@@ -1,4 +1,4 @@
-statement error Unexpected status code 403 Forbidden
+statement error Unexpected status code '403 Forbidden'
 select * from 'http://host.com/path/*.parquet'
 
 statement error  Error during planning: missing file extension: http://host.com/path/*
