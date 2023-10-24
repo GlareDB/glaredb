@@ -31,7 +31,8 @@ pub enum ObjectStoreSourceError {
 
     #[error("This file type is not supported: {0}")]
     NotSupportFileType(String),
-
+    #[error("{0}")]
+    InvalidHttpStatus(String),
     #[error("{0}")]
     Static(&'static str),
 
