@@ -1,4 +1,4 @@
-statement error Unexpected status code 403 Forbidden for url: 'http://host.com/path/*.parquet' Note that globbing is not supported for HTTP.
+statement error Unexpected status code 403 Forbidden
 select * from 'http://host.com/path/*.parquet'
 
 statement error  Error during planning: missing file extension: http://host.com/path/*
