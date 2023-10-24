@@ -1,0 +1,9 @@
+statement error Unexpected status code '403 Forbidden'
+select * from 'http://host.com/path/*.parquet'
+
+statement error  Error during planning: missing file extension: http://host.com/path/*
+select * from 'http://host.com/path/*'
+
+# TODO (enable this once the PR is merged to main)
+# statement ok 
+# select * from 'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/csv/file_with_a_*.csv'
