@@ -38,7 +38,6 @@ pub enum ObjectStoreSourceError {
 
     #[error("Failed to read object over http: {0}")]
     Reqwest(#[from] reqwest::Error),
-    
 }
 
 pub type Result<T, E = ObjectStoreSourceError> = std::result::Result<T, E>;
