@@ -65,6 +65,11 @@ impl ObjStoreAccess for HttpStoreAccess {
         store: &Arc<dyn ObjectStore>,
         pattern: &str,
     ) -> Result<Vec<ObjectMeta>> {
+        if pattern.contains('*') {
+            return Err(ObjectStoreSourceError::Static(
+                "Globbing not supported for HTTP store",
+            ));
+        }
         let location = self.path(pattern)?;
         Ok(vec![self.object_meta(store, &location).await?])
     }
@@ -109,7 +114,7 @@ impl ObjStoreAccess for HttpStoreAccess {
         let objects = self
             .list_globbed(&store, &next.path())
             .await
-            .map_err(|_| DataFusionError::Plan("unable to list globbed".to_string()))?;
+            .map_err(|e| DataFusionError::Plan(e.to_string()))?;
 
         // this assumes that all locations have the same schema.
         let arrow_schema = file_format

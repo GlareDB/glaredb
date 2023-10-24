@@ -1,0 +1,5 @@
+statement error Globbing not supported for HTTP store
+select * from 'http://host.com/path/*.parquet'
+
+statement error missing file extension
+select * from 'http://host.com/path/*'
