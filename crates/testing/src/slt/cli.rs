@@ -1,12 +1,12 @@
 use logutil::{LoggingMode, Verbosity};
 use pgsrv::auth::SingleUserAuthenticator;
-use tracing::info;
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
+use tracing::info;
 
 use anyhow::{anyhow, Result};
 use clap::Parser;

@@ -61,7 +61,7 @@ use tokio::sync::RwLock;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tonic::transport::Channel;
-use tracing::{debug_span, error, warn, Instrument, debug};
+use tracing::{debug, debug_span, error, warn, Instrument};
 use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
