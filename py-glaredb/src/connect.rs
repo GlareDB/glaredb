@@ -3,10 +3,10 @@
 //! User's will call `connect` which returns a session for executing sql
 //! queries.
 
+use crate::connection::Connection;
 use crate::environment::PyEnvironmentReader;
 use crate::error::PyGlareDbError;
 use crate::runtime::wait_for_future;
-use crate::session::LocalSession;
 use futures::lock::Mutex;
 use std::collections::HashMap;
 use std::{
@@ -90,7 +90,7 @@ pub fn connect(
     cloud_addr: String,
     location: Option<String>,
     storage_options: Option<HashMap<String, String>>,
-) -> PyResult<LocalSession> {
+) -> PyResult<Connection> {
     wait_for_future(py, async move {
         let conf = PythonSessionConf::from(data_dir_or_cloud_url);
 
@@ -102,7 +102,7 @@ pub fn connect(
         } else {
             // If data dir is provided, then both table storage and metastore
             // storage will reside at that path. Otherwise everything is in memory.
-            Engine::from_data_dir(&conf.data_dir)
+            Engine::from_data_dir(conf.data_dir.as_ref())
                 .await
                 .map_err(PyGlareDbError::from)?
         };
@@ -151,7 +151,10 @@ pub fn connect(
         session.register_env_reader(Box::new(PyEnvironmentReader));
         let sess = Arc::new(Mutex::new(session));
 
-        Ok(LocalSession { sess, engine })
+        Ok(Connection {
+            sess,
+            engine: Arc::new(engine),
+        })
     })
 }
 
