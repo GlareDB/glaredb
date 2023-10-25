@@ -16,7 +16,7 @@ use datasources::native::access::{NativeTable, NativeTableStorage, SaveMode};
 use futures::stream;
 use protogen::metastore::types::{service, service::Mutation};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use tracing::info;
+use tracing::debug;
 
 use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
 use crate::{
@@ -187,7 +187,7 @@ impl CreateTableExec {
             }
             (None, false) => {}
         };
-        info!(loc = %table.storage_location(), "native table created");
+        debug!(loc = %table.storage_location(), "native table created");
 
         // TODO: Add storage tracking job.
 

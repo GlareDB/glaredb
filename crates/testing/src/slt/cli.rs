@@ -1,3 +1,4 @@
+use logutil::{LoggingMode, Verbosity};
 use pgsrv::auth::SingleUserAuthenticator;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -5,6 +6,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use tracing::info;
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
@@ -98,8 +100,14 @@ impl Cli {
         if tests.is_empty() {
             return Err(anyhow!("No tests to run. Exiting..."));
         }
+        let verbosity: Verbosity = cli.verbose.into();
 
-        logutil::init(cli.verbose, Default::default());
+        let log_mode = match verbosity {
+            Verbosity::Info => LoggingMode::Compact,
+            Verbosity::Debug => LoggingMode::Full,
+            Verbosity::Trace => LoggingMode::Full,
+        };
+        logutil::init(cli.verbose, log_mode);
 
         // Abort the program on panic. This will ensure that slt tests will
         // never pass if there's a panic somewhere.
@@ -124,7 +132,7 @@ impl Cli {
             .build()?
             .block_on(async move {
                 let batch_size = num_cpus::get();
-                tracing::info!(%batch_size, "test batch size");
+                tracing::trace!(%batch_size, "test batch size");
                 cli.run_tests_batched(batch_size, tests, hooks).await
             })
     }
@@ -362,6 +370,7 @@ impl Cli {
         client_config: ClientConfig,
         hooks: Arc<TestHooks>,
     ) -> Result<()> {
+        info!("Running test: `{}`", test_name);
         let client = if rpc_test {
             TestClient::Rpc(RpcTestClient::new(data_dir, "0.0.0.0:6789").await?)
         } else {
@@ -403,7 +412,7 @@ impl Cli {
             }
 
             let time_taken = Instant::now().duration_since(start);
-            tracing::info!(?time_taken, %test_name, "Done executing");
+            tracing::debug!(?time_taken, %test_name, "Done executing");
 
             Ok(())
         }
