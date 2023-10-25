@@ -14,54 +14,63 @@ use datafusion_ext::metrics::DataSourceMetricsExecAdapter;
 use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::delete::DeleteBuilder;
 use deltalake::operations::update::UpdateBuilder;
-use deltalake::protocol::SaveMode;
 use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use futures::StreamExt;
 use object_store::path::Path as ObjectStorePath;
 use object_store::prefix::PrefixStore;
 use object_store::ObjectStore;
-use object_store_util::{conf::StorageConfig, shared::SharedObjectStore};
+use object_store_util::shared::SharedObjectStore;
 use protogen::metastore::types::catalog::TableEntry;
 use protogen::metastore::types::options::{
     InternalColumnDefinition, TableOptions, TableOptionsInternal,
 };
 use std::any::Any;
 use std::sync::Arc;
-use tokio::fs;
 use url::Url;
 use uuid::Uuid;
+
+pub use deltalake::protocol::SaveMode;
 
 #[derive(Debug, Clone)]
 pub struct NativeTableStorage {
     db_id: Uuid,
-    conf: StorageConfig,
+    /// URL pointing to the bucket and/or directory which is the root of the native storage.
+    ///
+    /// In other words this is the location to which the the table prefix is applied to get
+    /// a full table URL.
+    root_url: Url,
 
     /// Tables are only located in one bucket which the provided service account
     /// should have access to.
     ///
     /// Delta-rs expects that the root of the object store client points to the
     /// table location. We can use `PrefixStore` for that, but we need something
-    /// that implements `ObjectStore`. That's what this type is for.
+    /// that implements `ObjectStore` that points to the `root_url` above. That's
+    /// what this type is for.
     ///
     /// Arcs all the way down...
     store: SharedObjectStore,
 }
 
 impl NativeTableStorage {
-    /// Create a native table storage provider from the given config.
-    pub fn from_config(db_id: Uuid, conf: StorageConfig) -> Result<NativeTableStorage> {
-        let store = conf.new_object_store()?;
-        Ok(NativeTableStorage {
+    /// Create a native table storage provider from a URL and an object store instance
+    /// rooted at that location.
+    pub fn new(db_id: Uuid, root_url: Url, store: Arc<dyn ObjectStore>) -> NativeTableStorage {
+        NativeTableStorage {
             db_id,
-            conf,
+            root_url,
             store: SharedObjectStore::new(store),
-        })
+        }
     }
 
     /// Returns the database ID.
     pub fn db_id(&self) -> Uuid {
         self.db_id
+    }
+
+    fn table_prefix(&self, tbl_id: u32) -> String {
+        format!("databases/{}/tables/{}", self.db_id, tbl_id)
     }
 
     /// Calculates the total size of storage being used by the database in
@@ -79,17 +88,18 @@ impl NativeTableStorage {
         Ok(total_size)
     }
 
-    pub async fn create_table(&self, table: &TableEntry, or_replace: bool) -> Result<NativeTable> {
+    pub async fn create_table(
+        &self,
+        table: &TableEntry,
+        save_mode: SaveMode,
+    ) -> Result<NativeTable> {
         let delta_store = self.create_delta_store_for_table(table).await?;
         let opts = Self::opts_from_ent(table)?;
         let tbl = {
             let mut builder = CreateBuilder::new()
                 .with_table_name(&table.meta.name)
-                .with_object_store(delta_store);
-
-            if or_replace {
-                builder = builder.with_save_mode(SaveMode::Overwrite);
-            }
+                .with_object_store(delta_store)
+                .with_save_mode(save_mode);
 
             for col in &opts.columns {
                 let column = match &col.arrow_type {
@@ -130,13 +140,8 @@ impl NativeTableStorage {
     }
 
     pub async fn delete_table(&self, table: &TableEntry) -> Result<()> {
-        let prefix = make_prefix(self.db_id, table.meta.id);
-        let path: ObjectStorePath = match &self.conf {
-            StorageConfig::Gcs { bucket, .. } => format!("gs://{}/{}", bucket, prefix).into(),
-            StorageConfig::Memory => format!("memory://{}", prefix).into(),
-            _ => prefix.into(),
-        };
-        let mut x = self.store.list(Some(&path)).await?;
+        let prefix = self.table_prefix(table.meta.id);
+        let mut x = self.store.list(Some(&prefix.into())).await?;
         while let Some(meta) = x.next().await {
             let meta = meta?;
             self.store.delete(&meta.location).await?
@@ -145,7 +150,7 @@ impl NativeTableStorage {
     }
 
     pub async fn table_exists(&self, table: &TableEntry) -> Result<bool> {
-        let path = make_prefix(self.db_id, table.meta.id).into();
+        let path = self.table_prefix(table.meta.id).into();
         let mut x = self.store.list(Some(&path)).await?;
         Ok(x.next().await.is_some())
     }
@@ -162,41 +167,11 @@ impl NativeTableStorage {
         &self,
         table: &TableEntry,
     ) -> Result<Arc<DeltaObjectStore>> {
-        let prefix = make_prefix(self.db_id, table.meta.id);
+        let prefix = self.table_prefix(table.meta.id);
 
-        let url = match &self.conf {
-            StorageConfig::S3 {
-                endpoint, bucket, ..
-            } => {
-                let mut s3_url = if let Some(endpoint) = endpoint {
-                    endpoint.clone()
-                } else {
-                    "s3://".to_string()
-                };
-
-                if let Some(bucket) = bucket {
-                    s3_url = format!("{s3_url}/{bucket}");
-                }
-                Url::parse(&format!("{s3_url}/{prefix}"))?
-            }
-            StorageConfig::Gcs { bucket, .. } => Url::parse(&format!("gs://{bucket}/{prefix}"))?,
-            StorageConfig::Local { path } => {
-                let path =
-                    fs::canonicalize(path)
-                        .await
-                        .map_err(|e| NativeError::CanonicalizePath {
-                            path: path.clone(),
-                            e,
-                        })?;
-                let path = path.join(prefix.clone());
-                Url::from_file_path(path).map_err(|_| NativeError::Static("Path not absolute"))?
-            }
-            StorageConfig::Memory => {
-                let s = format!("memory://{prefix}");
-                Url::parse(&s)?
-            }
-        };
-        let prefixed = PrefixStore::new(self.store.clone(), prefix);
+        // Add the table prefix to the shared store and the root URL
+        let prefixed = PrefixStore::new(self.store.clone(), prefix.clone());
+        let url = self.root_url.join(&prefix)?;
 
         let delta_store = DeltaObjectStore::new(Arc::new(prefixed), url);
         Ok(Arc::new(delta_store))
@@ -246,10 +221,6 @@ impl NativeTableStorage {
         let updated_rows = builder.await?.1.num_updated_rows;
         Ok(updated_rows)
     }
-}
-
-fn make_prefix(db_id: Uuid, tbl_id: u32) -> String {
-    format!("databases/{}/tables/{}", db_id, tbl_id)
 }
 
 #[derive(Debug)]
@@ -358,12 +329,14 @@ impl TableProvider for NativeTable {
 mod tests {
 
     use datafusion::arrow::datatypes::DataType;
+    use deltalake::protocol::SaveMode;
     use object_store_util::conf::StorageConfig;
     use protogen::metastore::types::{
         catalog::{EntryMeta, EntryType, TableEntry},
         options::{InternalColumnDefinition, TableOptions, TableOptionsInternal},
     };
     use tempfile::tempdir;
+    use url::Url;
     use uuid::Uuid;
 
     use crate::native::access::NativeTableStorage;
@@ -372,14 +345,15 @@ mod tests {
     async fn test_delete_table() {
         let db_id = Uuid::new_v4();
         let dir = tempdir().unwrap();
+        let conf = StorageConfig::Local {
+            path: dir.path().to_path_buf(),
+        };
 
-        let storage = NativeTableStorage::from_config(
+        let storage = NativeTableStorage::new(
             db_id,
-            StorageConfig::Local {
-                path: dir.path().to_path_buf(),
-            },
-        )
-        .unwrap();
+            Url::from_file_path(dir.path()).unwrap(),
+            conf.new_object_store().unwrap(),
+        );
 
         let entry = TableEntry {
             meta: EntryMeta {
@@ -402,7 +376,11 @@ mod tests {
         };
 
         // Create a table, load it, delete it and load it again!
-        storage.create_table(&entry, false).await.unwrap();
+        storage
+            .create_table(&entry, SaveMode::ErrorIfExists)
+            .await
+            .unwrap();
+
         storage.load_table(&entry).await.unwrap();
         storage.delete_table(&entry).await.unwrap();
         let err = storage

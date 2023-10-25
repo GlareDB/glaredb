@@ -168,25 +168,7 @@ pub static GLARE_FUNCTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
             DataType::List(Arc::new(ArrowField::new("item", DataType::Utf8, true))),
             false,
         ),
-        (
-            "parameter_types",
-            DataType::List(Arc::new(ArrowField::new("item", DataType::Utf8, true))),
-            false,
-        ),
         ("builtin", DataType::Boolean, false),
-    ]),
-});
-
-pub static GLARE_SESSION_QUERY_METRICS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "session_query_metrics",
-    columns: InternalColumnDefinition::from_tuples([
-        ("query_text", DataType::Utf8, false),
-        ("result_type", DataType::Utf8, false),
-        ("execution_status", DataType::Utf8, false),
-        ("error_message", DataType::Utf8, true),
-        ("elapsed_compute_ns", DataType::UInt64, true),
-        ("output_rows", DataType::UInt64, true),
     ]),
 });
 
@@ -236,7 +218,6 @@ impl BuiltinTable {
             &GLARE_TABLES,
             &GLARE_COLUMNS,
             &GLARE_FUNCTIONS,
-            &GLARE_SESSION_QUERY_METRICS,
             &GLARE_SSH_KEYS,
             &GLARE_DEPLOYMENT_METADATA,
         ]

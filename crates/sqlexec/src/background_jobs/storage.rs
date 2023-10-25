@@ -101,9 +101,8 @@ impl BgJob for BackgroundJobDeleteTable {
 #[cfg(test)]
 mod tests {
     use datafusion::arrow::datatypes::DataType;
-    use datasources::native::access::NativeTableStorage;
+    use datasources::native::access::{NativeTableStorage, SaveMode};
     use metastore::local::start_inprocess_inmemory;
-    use object_store_util::conf::StorageConfig;
     use protogen::metastore::types::{
         catalog::{EntryMeta, EntryType, TableEntry},
         options::{InternalColumnDefinition, TableOptions, TableOptionsInternal},
@@ -111,6 +110,7 @@ mod tests {
     use tempfile::tempdir;
     use uuid::Uuid;
 
+    use crate::engine::EngineStorageConfig;
     use crate::{
         background_jobs::JobRunner,
         metastore::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG},
@@ -122,14 +122,9 @@ mod tests {
     async fn test_background_job_storage_tracker() {
         let db_id = Uuid::new_v4();
         let dir = tempdir().unwrap();
+        let conf = EngineStorageConfig::try_from_path_buf(&dir.path().to_path_buf()).unwrap();
 
-        let storage = NativeTableStorage::from_config(
-            db_id,
-            StorageConfig::Local {
-                path: dir.path().to_path_buf(),
-            },
-        )
-        .unwrap();
+        let storage = NativeTableStorage::new(db_id, conf.url(), conf.new_object_store().unwrap());
 
         // Add some tables inside the temp dir to get a non-zero storage size.
         storage
@@ -153,7 +148,7 @@ mod tests {
                     }),
                     tunnel_id: None,
                 },
-                false,
+                SaveMode::ErrorIfExists,
             )
             .await
             .unwrap();

@@ -241,7 +241,7 @@ pub struct RpcTestClient {
 impl RpcTestClient {
     pub async fn new(data_dir: PathBuf, rpc_bind: &str) -> Result<Self> {
         let metastore = MetastoreClientMode::LocalInMemory.into_client().await?;
-        let storage = EngineStorageConfig::Local { path: data_dir };
+        let storage = EngineStorageConfig::try_from_path_buf(&data_dir)?;
         let engine = Engine::new(metastore, storage, Arc::new(Tracker::Nop), None).await?;
         let remote_client =
             RemoteClient::connect(format!("http://{rpc_bind}").parse().unwrap()).await?;

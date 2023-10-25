@@ -6,6 +6,7 @@ use datafusion::arrow::array::{BooleanBuilder, StringArray, StringBuilder};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
+use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
     FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider, VirtualLister,
@@ -130,7 +131,13 @@ impl TableFunc for ListColumns {
     fn name(&self) -> &str {
         "list_columns"
     }
-
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::uniform(
+            3,
+            vec![DataType::Utf8],
+            Volatility::Stable,
+        ))
+    }
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,

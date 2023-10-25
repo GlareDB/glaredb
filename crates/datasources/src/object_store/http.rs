@@ -60,13 +60,11 @@ impl ObjStoreAccess for HttpStoreAccess {
     }
 
     /// Not supported for HTTP. Simply return the meta assuming no-glob.
-    async fn list_globbed(
-        &self,
-        store: &Arc<dyn ObjectStore>,
-        pattern: &str,
-    ) -> Result<Vec<ObjectMeta>> {
-        let location = self.path(pattern)?;
-        Ok(vec![self.object_meta(store, &location).await?])
+    async fn list_globbed(&self, store: &Arc<dyn ObjectStore>, _: &str) -> Result<Vec<ObjectMeta>> {
+        let location = ObjectStorePath::default();
+
+        let meta = self.object_meta(store, &location).await?;
+        Ok(vec![meta])
     }
 
     /// Get the object meta from a HEAD request to the url.
@@ -79,6 +77,20 @@ impl ObjStoreAccess for HttpStoreAccess {
         location: &ObjectStorePath,
     ) -> Result<ObjectMeta> {
         let res = reqwest::Client::new().head(self.url.clone()).send().await?;
+        let status = res.status();
+        if !status.is_success() {
+            if self.url.as_str().contains('*') {
+                return Err(ObjectStoreSourceError::InvalidHttpStatus(format!(
+                    "Unexpected status code '{}' for url: '{}'. Note that globbing is not supported for HTTP.",
+                    status, self.url
+                )));
+            }
+            return Err(ObjectStoreSourceError::InvalidHttpStatus(format!(
+                "Unexpected status code '{}' for url: '{}'",
+                status, self.url
+            )));
+        }
+
         let len = res.content_length().ok_or(ObjectStoreSourceError::Static(
             "Missing content-length header",
         ))?;
@@ -109,7 +121,7 @@ impl ObjStoreAccess for HttpStoreAccess {
         let objects = self
             .list_globbed(&store, &next.path())
             .await
-            .map_err(|_| DataFusionError::Plan("unable to list globbed".to_string()))?;
+            .map_err(|e| DataFusionError::Plan(e.to_string()))?;
 
         // this assumes that all locations have the same schema.
         let arrow_schema = file_format

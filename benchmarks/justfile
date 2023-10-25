@@ -1,5 +1,5 @@
 set fallback
 
 # Run tpch subcommands. see `tpch/justfile` for more details.
-tpch cmd *args: 
+tpch cmd *args:
   just tpch/{{cmd}} {{args}}

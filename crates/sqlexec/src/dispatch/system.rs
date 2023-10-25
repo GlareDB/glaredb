@@ -1,41 +1,33 @@
 use std::sync::Arc;
 
-use datafusion::arrow::array::{
-    BooleanBuilder, ListBuilder, StringBuilder, UInt32Builder, UInt64Builder,
-};
+use datafusion::arrow::array::{BooleanBuilder, ListBuilder, StringBuilder, UInt32Builder};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
+use datafusion::logical_expr::TypeSignature;
 use datasources::common::ssh::key::SshKey;
 use datasources::common::ssh::SshConnectionParameters;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType, TableEntry};
 use protogen::metastore::types::options::TunnelOptions;
 use sqlbuiltins::builtins::{
     DATABASE_DEFAULT, GLARE_COLUMNS, GLARE_CREDENTIALS, GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA,
-    GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS, GLARE_TABLES,
-    GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
+    GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS,
+    SCHEMA_CURRENT_SESSION,
 };
 
 use crate::metastore::catalog::{SessionCatalog, TempCatalog};
-use crate::metrics::SessionMetrics;
 
 use super::{DispatchError, Result};
 
 /// Dispatch to builtin system tables.
 pub struct SystemTableDispatcher<'a> {
     catalog: &'a SessionCatalog,
-    metrics: &'a SessionMetrics,
     temp_objects: &'a TempCatalog,
 }
 
 impl<'a> SystemTableDispatcher<'a> {
-    pub fn new(
-        catalog: &'a SessionCatalog,
-        metrics: &'a SessionMetrics,
-        temp_objects: &'a TempCatalog,
-    ) -> Self {
+    pub fn new(catalog: &'a SessionCatalog, temp_objects: &'a TempCatalog) -> Self {
         SystemTableDispatcher {
             catalog,
-            metrics,
             temp_objects,
         }
     }
@@ -47,7 +39,6 @@ impl<'a> SystemTableDispatcher<'a> {
             .ok_or_else(|| DispatchError::MissingObjectWithOid(ent.meta.parent))?;
         let name = &ent.meta.name;
         let schema = &schema_ent.get_meta().name;
-
         Ok(if GLARE_DATABASES.matches(schema, name) {
             Arc::new(self.build_glare_databases())
         } else if GLARE_TUNNELS.matches(schema, name) {
@@ -64,8 +55,6 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_glare_schemas())
         } else if GLARE_FUNCTIONS.matches(schema, name) {
             Arc::new(self.build_glare_functions())
-        } else if GLARE_SESSION_QUERY_METRICS.matches(schema, name) {
-            Arc::new(self.build_session_query_metrics())
         } else if GLARE_SSH_KEYS.matches(schema, name) {
             Arc::new(self.build_ssh_keys()?)
         } else if GLARE_DEPLOYMENT_METADATA.matches(schema, name) {
@@ -433,7 +422,6 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut function_name = StringBuilder::new();
         let mut function_type = StringBuilder::new();
         let mut parameters = ListBuilder::new(StringBuilder::new());
-        let mut parameter_types = ListBuilder::new(StringBuilder::new());
         let mut builtin = BooleanBuilder::new();
 
         for func in self
@@ -451,10 +439,16 @@ impl<'a> SystemTableDispatcher<'a> {
             function_name.append_value(&ent.meta.name);
             function_type.append_value(ent.func_type.as_str());
 
-            // TODO: Actually get parameter info.
             const EMPTY: [Option<&'static str>; 0] = [];
-            parameters.append_value(EMPTY);
-            parameter_types.append_value(EMPTY);
+            if let Some(sig) = &ent.signature {
+                let sigs = sig_to_string_repr(&sig.type_signature)
+                    .into_iter()
+                    .map(Some)
+                    .collect::<Vec<_>>();
+                parameters.append_value(sigs);
+            } else {
+                parameters.append_value(EMPTY);
+            }
 
             builtin.append_value(func.builtin);
         }
@@ -467,47 +461,11 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(function_name.finish()),
                 Arc::new(function_type.finish()),
                 Arc::new(parameters.finish()),
-                Arc::new(parameter_types.finish()),
                 Arc::new(builtin.finish()),
             ],
         )
         .unwrap();
 
-        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
-    }
-
-    fn build_session_query_metrics(&self) -> MemTable {
-        let num_metrics = self.metrics.num_metrics();
-
-        let mut query_text = StringBuilder::with_capacity(num_metrics, 20);
-        let mut result_type = StringBuilder::with_capacity(num_metrics, 10);
-        let mut execution_status = StringBuilder::with_capacity(num_metrics, 10);
-        let mut error_message = StringBuilder::with_capacity(num_metrics, 20);
-        let mut elapsed_compute_ns = UInt64Builder::with_capacity(num_metrics);
-        let mut output_rows = UInt64Builder::with_capacity(num_metrics);
-
-        for m in self.metrics.iter() {
-            query_text.append_value(&m.query_text);
-            result_type.append_value(m.result_type);
-            execution_status.append_value(m.execution_status.as_str());
-            error_message.append_option(m.error_message.as_ref());
-            elapsed_compute_ns.append_option(m.elapsed_compute_ns);
-            output_rows.append_option(m.output_rows);
-        }
-
-        let arrow_schema = Arc::new(GLARE_SESSION_QUERY_METRICS.arrow_schema());
-        let batch = RecordBatch::try_new(
-            arrow_schema.clone(),
-            vec![
-                Arc::new(query_text.finish()),
-                Arc::new(result_type.finish()),
-                Arc::new(execution_status.finish()),
-                Arc::new(error_message.finish()),
-                Arc::new(elapsed_compute_ns.finish()),
-                Arc::new(output_rows.finish()),
-            ],
-        )
-        .unwrap();
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 
@@ -575,4 +533,41 @@ impl<'a> SystemTableDispatcher<'a> {
 
         Ok(MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap())
     }
+}
+fn sig_to_string_repr(sig: &TypeSignature) -> Vec<String> {
+    match sig {
+        TypeSignature::Variadic(types) => {
+            let types = types.iter().map(arrow_util::pretty::fmt_dtype);
+            vec![format!("{}, ..", join_types(types, "/"))]
+        }
+        TypeSignature::Uniform(arg_count, valid_types) => {
+            let types = valid_types.iter().map(arrow_util::pretty::fmt_dtype);
+            vec![std::iter::repeat(join_types(types, "/"))
+                .take(*arg_count)
+                .collect::<Vec<String>>()
+                .join(", ")]
+        }
+        TypeSignature::Exact(types) => {
+            let types = types.iter().map(arrow_util::pretty::fmt_dtype);
+            vec![join_types(types, ", ")]
+        }
+        TypeSignature::Any(arg_count) => {
+            let types = std::iter::repeat("Any").take(*arg_count);
+            vec![join_types(types, ",")]
+        }
+        TypeSignature::VariadicEqual => vec!["T, .., T".to_string()],
+        TypeSignature::VariadicAny => vec!["Any, .., Any".to_string()],
+        TypeSignature::OneOf(sigs) => sigs.iter().flat_map(sig_to_string_repr).collect(),
+    }
+}
+
+/// Helper function to join types with specified delimiter.
+pub(crate) fn join_types<T: Iterator<Item = U>, U: std::fmt::Display>(
+    types: T,
+    delimiter: &str,
+) -> String {
+    types
+        .map(|t| t.to_string())
+        .collect::<Vec<String>>()
+        .join(delimiter)
 }

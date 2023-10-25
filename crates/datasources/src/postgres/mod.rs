@@ -5,7 +5,7 @@ mod tls;
 
 use crate::common::ssh::session::SshTunnelSession;
 use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
-use crate::common::util;
+use crate::common::util::{self, create_count_record_batch};
 use async_trait::async_trait;
 use chrono::naive::{NaiveDateTime, NaiveTime};
 use chrono::{DateTime, NaiveDate, Timelike, Utc};
@@ -52,7 +52,7 @@ use tokio_postgres::types::{FromSql, Type as PostgresType};
 use tokio_postgres::{Client, Config, Connection, CopyOutStream, NoTls, Socket};
 use tracing::{debug, warn};
 
-use self::query_exec::{create_count_record_batch, PostgresQueryExec};
+use self::query_exec::PostgresQueryExec;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PostgresDbConnection {
@@ -663,12 +663,12 @@ impl TableProvider for PostgresTableProvider {
             let mut row_sep = "";
             for row_idx in 0..batch.num_rows() {
                 write!(&mut values, "{row_sep}(")?;
-                row_sep = ",\n\t";
+                row_sep = ",";
 
                 let mut col_sep = "";
                 for col in batch.columns() {
                     write!(&mut values, "{col_sep}")?;
-                    col_sep = ", ";
+                    col_sep = ",";
 
                     let val = ScalarValue::try_from_array(col.as_ref(), row_idx)?;
                     util::encode_literal_to_text(util::Datasource::Postgres, &mut values, &val)
@@ -686,7 +686,7 @@ impl TableProvider for PostgresTableProvider {
         }
 
         let query = format!(
-            "INSERT INTO {}.{} VALUES\n\t{}",
+            "INSERT INTO {}.{} VALUES {}",
             self.schema, self.table, values
         );
 

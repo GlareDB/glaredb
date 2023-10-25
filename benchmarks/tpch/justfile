@@ -1,17 +1,17 @@
 set fallback
-VENV := ".venv"
-VENV_BIN := ".venv/bin"
-
+VENV := env_var_or_default("VENV", "../../.venv")
+VENV_BIN := VENV / "bin"
+GLARE_BIN := env_var_or_default("GLARE_BIN", "../../target/debug/glaredb")
 
 @venv:
-  @python3 -m pip install virtualenv > /dev/null
-  @python3 -m virtualenv {{VENV}} > /dev/null
+  python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
+  python3 -m virtualenv {{VENV}} --quiet
 
 ## Set up virtual environment and install requirements
 @requirements: venv
-  {{VENV_BIN}}/python -m pip install --upgrade pip > /dev/null
-  {{VENV_BIN}}/pip install -r requirements.txt > /dev/null
-  
+  {{VENV_BIN}}/python -m pip --quiet install --upgrade pip
+  {{VENV_BIN}}/pip --quiet install -r requirements.txt
+
 clean-tpch-dbgen:
   make -C tpch-dbgen clean
 
@@ -24,15 +24,16 @@ clean-tables:
 clean: clean-tpch-dbgen clean-venv
 
 gen_scale_factor n: requirements
+  #!/usr/bin/env bash
   make -C tpch-dbgen all
   pushd tpch-dbgen; ./dbgen -vfs {{n}}; popd
   mkdir -p "tables_scale/{{n}}"
   mv tpch-dbgen/*.tbl tables_scale/{{n}}/
-  {{VENV_BIN}}/python prepare_files.py {{n}} 
+  {{VENV_BIN}}/python prepare_files.py {{n}}
   rm -rf tables_scale/{{n}}/*.tbl
 
 _run_private name $SCALE_FACTOR="1":
-  {{VENV_BIN}}/python -m {{name}}_queries.executor 
+  {{VENV_BIN}}/python -m {{name}}_queries.executor
 
 run n_runs="1" $SCALE_FACTOR="1": requirements
   #!/usr/bin/env bash
@@ -46,3 +47,12 @@ run n_runs="1" $SCALE_FACTOR="1": requirements
 
 q n system $SCALE_FACTOR="1":
   {{VENV_BIN}}/python -m {{system}}_queries.q{{n}}
+
+upload_log github_ref github_run scale_factor system_meta="" timings_file="timings.csv":
+  #!/usr/bin/env bash
+  cp {{timings_file}} timings.csv
+  # Create metadata file:
+  echo "github_ref,github_run,scale_factor,system_meta" > meta.csv
+  echo "{{github_ref}},{{github_run}},{{scale_factor}},{{system_meta}}" >> meta.csv
+  # Run the SQL for uploading benchmarks.
+  {{GLARE_BIN}} --query "$(cat upload_bench.sql)"

@@ -23,7 +23,6 @@ jobs:
         target: [x86_64]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.72.0
       - uses: extractions/setup-just@v1
       - name: install protoc
         run: just protoc
@@ -52,7 +51,6 @@ jobs:
         target: [x64]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.72.0
       - uses: extractions/setup-just@v1
       - name: install protoc
         run: just protoc
@@ -84,7 +82,6 @@ jobs:
         target: [x86_64, aarch64]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.72.0
       - uses: extractions/setup-just@v1
       - name: install protoc
         run: just protoc

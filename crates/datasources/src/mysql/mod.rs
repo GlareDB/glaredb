@@ -8,7 +8,7 @@ use std::task::{Context, Poll};
 
 use crate::common::ssh::session::SshTunnelSession;
 use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
-use crate::common::util;
+use crate::common::util::{self, create_count_record_batch, COUNT_SCHEMA};
 use async_stream::stream;
 use async_trait::async_trait;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Timelike};
@@ -21,11 +21,13 @@ use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::memory::MemoryExec;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
+    execute_stream, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
+use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
@@ -280,6 +282,12 @@ impl VirtualLister for MysqlAccessor {
     }
 }
 
+#[derive(Debug, Clone)]
+enum QueryType {
+    Dql,
+    Dml,
+}
+
 pub struct MysqlTableProvider {
     predicate_pushdown: bool,
     table_access: MysqlTableAccess,
@@ -372,6 +380,62 @@ impl TableProvider for MysqlTableProvider {
             query,
             arrow_schema: projected_schema,
             metrics: ExecutionPlanMetricsSet::new(),
+            query_type: QueryType::Dql,
+        }))
+    }
+
+    async fn insert_into(
+        &self,
+        state: &SessionState,
+        input: Arc<dyn ExecutionPlan>,
+        _overwrite: bool,
+    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        let mut values = String::new();
+
+        let mut input = execute_stream(input, state.task_ctx())?;
+        while let Some(batch) = input.next().await {
+            let batch = batch?;
+
+            let mut row_sep = "";
+            for row_idx in 0..batch.num_rows() {
+                write!(&mut values, "{row_sep}(")?;
+                row_sep = ",";
+
+                let mut col_sep = "";
+                for col in batch.columns() {
+                    write!(&mut values, "{col_sep}")?;
+                    col_sep = ",";
+
+                    let val = ScalarValue::try_from_array(col.as_ref(), row_idx)?;
+                    util::encode_literal_to_text(util::Datasource::MySql, &mut values, &val)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                }
+
+                write!(&mut values, ")")?;
+            }
+        }
+
+        if values.is_empty() {
+            let batch = create_count_record_batch(0);
+            let schema = batch.schema();
+            return Ok(Arc::new(MemoryExec::try_new(&[vec![batch]], schema, None)?));
+        }
+
+        let query = format!(
+            "INSERT INTO {}.{} VALUES {}",
+            self.table_access.schema, self.table_access.name, values
+        );
+
+        debug!(%query, "inserting into mysql datasource");
+
+        Ok(Arc::new(MysqlExec {
+            predicate: "".to_string(),
+            table_access: self.table_access.clone(),
+            accessor: self.accessor.clone(),
+            query,
+            arrow_schema: COUNT_SCHEMA.clone(),
+            metrics: ExecutionPlanMetricsSet::new(),
+            query_type: QueryType::Dml,
         }))
     }
 }
@@ -384,6 +448,7 @@ struct MysqlExec {
     query: String,
     arrow_schema: ArrowSchemaRef,
     metrics: ExecutionPlanMetricsSet,
+    query_type: QueryType,
 }
 
 impl ExecutionPlan for MysqlExec {
@@ -425,6 +490,7 @@ impl ExecutionPlan for MysqlExec {
             self.query.clone(),
             self.accessor.clone(),
             self.arrow_schema.clone(),
+            self.query_type.clone(),
         )
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
@@ -467,53 +533,67 @@ struct MysqlQueryStream {
 
 impl MysqlQueryStream {
     /// Number of MySQL rows to process into an arrow record batch
-    // TOOD: Allow configuration
+    // TODO: Allow configuration
     const MYSQL_RECORD_BATCH_SIZE: usize = 1000;
 
     fn open(
         query: String,
         accessor: Arc<MysqlAccessor>,
         arrow_schema: ArrowSchemaRef,
+        query_type: QueryType,
     ) -> Result<Self> {
         let schema = arrow_schema.clone();
 
         let stream = stream! {
-            // Open Mysql Binary stream
-            let mut tx_options = TxOpts::new();
-            tx_options
-                .with_isolation_level(IsolationLevel::RepeatableRead)
-                .with_readonly(true);
-
             let mut conn = accessor.conn.write().await;
+            match query_type {
+                QueryType::Dql => {
+                    // Open Mysql Binary stream
+                    let mut tx_options = TxOpts::new();
+                    tx_options
+                        .with_isolation_level(IsolationLevel::RepeatableRead)
+                        .with_readonly(true);
 
-            let mut tx = conn
-                .start_transaction(tx_options)
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                    let mut tx = conn
+                        .start_transaction(tx_options)
+                        .await
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-            let query_stream = tx
-                .exec_stream::<MysqlRow, _, _>(query, ())
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                    let query_stream = tx
+                            .exec_stream::<MysqlRow, _, _>(query, ())
+                            .await
+                            .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-            let mut chunks = query_stream.try_chunks(Self::MYSQL_RECORD_BATCH_SIZE).boxed();
+                    let mut chunks = query_stream.try_chunks(Self::MYSQL_RECORD_BATCH_SIZE).boxed();
 
-            while let Some(rows) = chunks
-                .try_next()
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?
-            {
-                let record_batch = mysql_row_to_record_batch(rows, arrow_schema.clone())
-                    .map_err(|e| DataFusionError::External(Box::new(e)));
-                yield record_batch;
+                    while let Some(rows) = chunks
+                        .try_next()
+                        .await
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?
+                    {
+                        let record_batch = mysql_row_to_record_batch(rows, arrow_schema.clone())
+                            .map_err(|e| DataFusionError::External(Box::new(e)));
+                        yield record_batch;
+                    }
+
+                    // Drop the empty stream once all chunks are processed. This allows us to close
+                    // the MySQL transaction
+                    drop(chunks);
+                    tx.commit()
+                        .await
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                },
+                QueryType::Dml => {
+                    conn.exec::<MysqlRow, _, _>(query, ())
+                        .await
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                    let count = conn.affected_rows();
+                    let record_batch = create_count_record_batch(count);
+
+                    yield Ok(record_batch);
+                },
             }
-
-            // Drop the empty stream once all chunks are processed. This allows us to close
-            // the MySQL transaction
-            drop(chunks);
-            tx.commit()
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
         };
 
         Ok(Self {

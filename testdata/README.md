@@ -45,3 +45,11 @@ The following command can be used to test local iceberg tables:
 $ cargo test --test sqllogictests -- 'sqllogictests_iceberg/local'
 ```
 
+## PRQL integration tests
+
+The directory `prql_integration` contains data from the [PRQL
+repo](https://github.com/PRQL/prql/tree/main/crates/prql-compiler/tests/integration/data/chinook).
+
+There's nothing specific to PRQL in these test files as they're just CSVs, but
+they're copied in such that we can have PRQL integration tests run in this repo
+using our SLT framework.

@@ -3,7 +3,7 @@ use std::{fmt::Write, sync::Arc};
 use chrono::{Duration, TimeZone, Utc};
 use datafusion::{
     arrow::{
-        array::{Array, ArrayRef},
+        array::{Array, ArrayRef, UInt64Array},
         compute::{cast_with_options, CastOptions},
         datatypes::{DataType, Field, Schema, TimeUnit},
         error::ArrowError,
@@ -162,6 +162,24 @@ pub fn normalize_batch(batch: &RecordBatch) -> Result<RecordBatch, ArrowError> {
     Ok(batch)
 }
 
+pub static COUNT_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![Field::new(
+        "count",
+        DataType::UInt64,
+        false,
+    )]))
+});
+
+pub fn create_count_record_batch(count: u64) -> RecordBatch {
+    RecordBatch::try_new(
+        COUNT_SCHEMA.clone(),
+        vec![Arc::new(UInt64Array::from_value(
+            count, /* rows = */ 1,
+        ))],
+    )
+    .unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use datafusion::arrow::{
@@ -288,12 +306,12 @@ mod tests {
             let res = encode_literal_to_text(case.datasource, &mut buf, &case.literal);
             match (res, case.expected) {
                 (Ok(_), Some(s)) => assert_eq!(&buf, s),
-                (Ok(_), None) => assert!(false, "expected error, got result: {}", buf),
+                (Ok(_), None) => panic!("expected error, got result: {}", buf),
                 (Err(e1), None) => {
                     let dt = case.literal.get_datatype();
                     assert!(matches!(e1, DatasourceCommonError::UnsupportedDatafusionScalar(ty) if ty == dt));
                 }
-                (Err(e), Some(s)) => assert!(false, "expected result: {}, got error: {}", s, e),
+                (Err(e), Some(s)) => panic!("expected result: {}, got error: {}", s, e),
             };
         });
     }

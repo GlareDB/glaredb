@@ -54,12 +54,23 @@ impl RunCommand for LocalArgs {
     fn run(self) -> Result<()> {
         let runtime = build_runtime("local")?;
         runtime.block_on(async move {
-            if self.query.is_none() {
-                println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
+            let query = match (self.file, self.query) {
+                (Some(_), Some(_)) => {
+                    return Err(anyhow!(
+                        "only one of query or an SQL file can be passed at a time"
+                    ))
+                }
+                (Some(file), None) => Some(tokio::fs::read_to_string(file.as_str()).await?),
+                (None, Some(query)) => Some(query),
+                (None, None) => None,
             };
-            let local = LocalSession::connect(self.opts).await?;
 
-            local.run(self.query).await
+            if query.is_none() {
+                println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
+            }
+
+            let local = LocalSession::connect(self.opts).await?;
+            local.run(query).await
         })
     }
 }
@@ -91,11 +102,6 @@ impl RunCommand for ServerArgs {
             }),
         };
 
-        let service_account_key = match service_account_path {
-            Some(path) => Some(std::fs::read_to_string(path)?),
-            None => None,
-        };
-
         let runtime = build_runtime("server")?;
         runtime.block_on(async move {
             let pg_listener = TcpListener::bind(bind).await?;
@@ -108,7 +114,7 @@ impl RunCommand for ServerArgs {
                 segment_key,
                 auth,
                 data_dir,
-                service_account_key,
+                service_account_path,
                 storage_config.location,
                 HashMap::from_iter(storage_config.storage_options.clone()),
                 spill_path,
@@ -168,7 +174,7 @@ impl RunCommand for MetastoreArgs {
             (Some(bucket), Some(service_account_path), None) => {
                 let service_account_key = std::fs::read_to_string(service_account_path)?;
                 StorageConfig::Gcs {
-                    bucket,
+                    bucket: Some(bucket),
                     service_account_key,
                 }
             }

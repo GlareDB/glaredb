@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use datafusion::arrow::datatypes::Fields;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
+use datafusion::logical_expr::Signature;
 use decimal::Decimal128;
 use protogen::metastore::types::catalog::{CredentialsEntry, DatabaseEntry, RuntimePreference};
 use protogen::rpcsrv::types::func_param_value::{
@@ -36,6 +37,12 @@ pub trait TableFunc: Sync + Send {
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>>;
+    /// Return the signature for this function.
+    /// Defaults to None.
+    // TODO: Remove the default impl once we have `signature` implemented for all functions
+    fn signature(&self) -> Option<Signature> {
+        None
+    }
 }
 pub trait TableFuncContextProvider: Sync + Send {
     fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;

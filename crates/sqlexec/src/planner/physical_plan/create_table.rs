@@ -12,11 +12,11 @@ use datafusion::{
         Partitioning, SendableRecordBatchStream, Statistics,
     },
 };
-use datasources::native::access::{NativeTable, NativeTableStorage};
+use datasources::native::access::{NativeTable, NativeTableStorage, SaveMode};
 use futures::stream;
 use protogen::metastore::types::{service, service::Mutation};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use tracing::info;
+use tracing::debug;
 
 use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
 use crate::{
@@ -122,6 +122,8 @@ impl CreateTableExec {
         context: Arc<TaskContext>,
     ) -> DataFusionResult<RecordBatch> {
         let or_replace = self.or_replace;
+        let if_not_exists = self.if_not_exists;
+
         let state = mutator
             .mutate(
                 self.catalog_version,
@@ -129,7 +131,7 @@ impl CreateTableExec {
                     schema: self.tbl_reference.schema.clone().into_owned(),
                     name: self.tbl_reference.name.clone().into_owned(),
                     options: self.arrow_schema.into(),
-                    if_not_exists: self.if_not_exists,
+                    if_not_exists,
                     or_replace,
                 })],
             )
@@ -137,6 +139,7 @@ impl CreateTableExec {
             .map_err(|e| {
                 DataFusionError::Execution(format!("failed to create table in catalog: {e}"))
             })?;
+
         let source = self.source.map(|source| {
             if source.output_partitioning().partition_count() != 1 {
                 Arc::new(CoalescePartitionsExec::new(source))
@@ -144,6 +147,7 @@ impl CreateTableExec {
                 source
             }
         });
+
         // Note that we're not changing out the catalog stored on the context,
         // we're just using it here to get the new table entry easily.
         let new_catalog = SessionCatalog::new(state);
@@ -157,7 +161,19 @@ impl CreateTableExec {
             .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))
             .unwrap();
 
-        let table = storage.create_table(ent, or_replace).await.map_err(|e| {
+        let save_mode = match (if_not_exists, or_replace) {
+            (true, false) => SaveMode::Ignore,
+            (false, true) => SaveMode::Overwrite,
+            (false, false) => SaveMode::ErrorIfExists,
+            (true, true) => {
+                return Err(DataFusionError::Internal(
+                    "cannot create table with both `if_not_exists` and `or_replace` policies"
+                        .to_string(),
+                ))
+            }
+        };
+
+        let table = storage.create_table(ent, save_mode).await.map_err(|e| {
             DataFusionError::Execution(format!("failed to create table in storage: {e}"))
         })?;
 
@@ -171,7 +187,7 @@ impl CreateTableExec {
             }
             (None, false) => {}
         };
-        info!(loc = %table.storage_location(), "native table created");
+        debug!(loc = %table.storage_location(), "native table created");
 
         // TODO: Add storage tracking job.
 

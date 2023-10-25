@@ -58,10 +58,7 @@ impl FromFuncParamValue for DatasourceUrl {
     }
 
     fn is_param_valid(value: &FuncParamValue) -> bool {
-        match value {
-            FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => Self::try_new(s).is_ok(),
-            _ => false,
-        }
+        matches!(value, FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))))
     }
 }
 
@@ -74,14 +71,14 @@ impl DatasourceUrl {
 
     pub fn try_new(u: impl AsRef<str>) -> Result<Self> {
         let u = u.as_ref();
-
         let ds_url = match u.parse::<Url>() {
             Err(url::ParseError::RelativeUrlWithoutBase) => {
                 // It's probably a local file path.
                 //
                 // TODO: Check if it's actually a file path (maybe invalid but
                 // probably check).
-                return Ok(Self::File(PathBuf::from(u)));
+                let path = PathBuf::from(u);
+                return Ok(Self::File(path));
             }
             Err(e) => return Err(DatasourceCommonError::InvalidUrl(e.to_string())),
             Ok(u) => u,

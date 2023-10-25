@@ -1,6 +1,6 @@
 set fallback
-VENV := ".venv"
-VENV_BIN := ".venv/bin"
+VENV := env_var_or_default("VENV", "../.venv")
+VENV_BIN := VENV / "bin"
 
 @venv:
 	python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
@@ -20,7 +20,7 @@ test: requirements
 	{{VENV_BIN}}/pytest -s
 
 ## Run autoformatting and linting
-fmt: venv  
+fmt: venv
 	{{VENV_BIN}}/ruff .
 	{{VENV_BIN}}/mypy
 	cargo fmt --all

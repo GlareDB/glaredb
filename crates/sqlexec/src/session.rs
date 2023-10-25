@@ -32,7 +32,9 @@ use crate::background_jobs::JobRunner;
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
-use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
+use crate::metrics::{
+    BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetricsHandler,
+};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 
@@ -346,7 +348,7 @@ impl Session {
         spill_path: Option<PathBuf>,
         background_jobs: JobRunner,
     ) -> Result<Session> {
-        let metrics = SessionMetrics::new(
+        let metrics_handler = SessionMetricsHandler::new(
             vars.user_id(),
             vars.database_id(),
             vars.connection_id(),
@@ -358,7 +360,7 @@ impl Session {
             catalog,
             catalog_mutator,
             native_tables,
-            metrics,
+            metrics_handler,
             spill_path,
             background_jobs,
         )?;
@@ -432,15 +434,6 @@ impl Session {
         stmt: Option<StatementWithExtensions>,
         params: Vec<i32>, // OIDs
     ) -> Result<()> {
-        // Flush any completed metrics prior to planning. This is mostly
-        // beneficial when planning successive calls to the
-        // `session_query_history` table since the mem table is created during
-        // planning.
-        //
-        // In all other cases, it's correct to only need to flush immediately
-        // prior to execute (which we also do).
-        self.ctx.get_metrics_mut().flush_completed();
-
         self.ctx.prepare_statement(name, stmt, params).await
     }
 
@@ -482,6 +475,7 @@ impl Session {
         // We stub out transaction commands since many tools (even BI ones) will
         // try to open a transaction for some queries.
         match plan {
+            LogicalPlan::Noop => Ok(ExecutionResult::EmptyQuery),
             LogicalPlan::Transaction(_plan) => Ok(ExecutionResult::EmptyQuery),
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan).await?;
@@ -534,10 +528,8 @@ impl Session {
         portal_name: &str,
         _max_rows: i32,
     ) -> Result<ExecutionResult> {
-        // Flush any completed metrics.
-        self.ctx.get_metrics_mut().flush_completed();
-
         let portal = self.ctx.get_portal(portal_name)?;
+
         let plan = match &portal.stmt.plan {
             Some(plan) => plan.clone(),
             None => return Ok(ExecutionResult::EmptyQuery),
@@ -561,13 +553,12 @@ impl Session {
                         ExecutionResult::Query { stream, plan } => {
                             // Swap out the batch stream with one that will send
                             // metrics at the completions of the stream.
-                            let sender = self.ctx.get_metrics().get_sender();
                             ExecutionResult::Query {
                                 stream: Box::pin(BatchStreamWithMetricSender::new(
                                     stream,
                                     plan.clone(),
                                     metrics,
-                                    sender,
+                                    self.ctx.get_metrics_handler(),
                                 )),
                                 plan,
                             }

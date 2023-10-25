@@ -7,11 +7,7 @@ use std::{
 };
 
 use datafusion::{
-    arrow::{
-        array::UInt64Array,
-        datatypes::{DataType, Field, Schema as ArrowSchema},
-        record_batch::RecordBatch,
-    },
+    arrow::{datatypes::Schema as ArrowSchema, record_batch::RecordBatch},
     error::{DataFusionError, Result as DataFusionResult},
     execution::TaskContext,
     physical_expr::PhysicalSortExpr,
@@ -23,27 +19,10 @@ use datafusion::{
 };
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{future::BoxFuture, ready, FutureExt, Stream};
-use once_cell::sync::Lazy;
+
+use crate::common::util::{create_count_record_batch, COUNT_SCHEMA};
 
 use super::PostgresAccessState;
-
-static COUNT_SCHEMA: Lazy<Arc<ArrowSchema>> = Lazy::new(|| {
-    Arc::new(ArrowSchema::new(vec![Field::new(
-        "count",
-        DataType::UInt64,
-        false,
-    )]))
-});
-
-pub fn create_count_record_batch(count: u64) -> RecordBatch {
-    RecordBatch::try_new(
-        COUNT_SCHEMA.clone(),
-        vec![Arc::new(UInt64Array::from_value(
-            count, /* rows = */ 1,
-        ))],
-    )
-    .unwrap()
-}
 
 #[derive(Debug)]
 pub struct PostgresQueryExec {

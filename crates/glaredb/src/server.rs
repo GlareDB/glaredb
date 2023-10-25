@@ -44,7 +44,7 @@ impl ComputeServer {
         segment_key: Option<String>,
         authenticator: Box<dyn LocalAuthenticator>,
         data_dir: Option<PathBuf>,
-        service_account_key: Option<String>,
+        service_account_path: Option<String>,
         location: Option<String>,
         storage_options: HashMap<String, String>,
         spill_path: Option<PathBuf>,
@@ -96,13 +96,15 @@ impl ComputeServer {
             //
             // We don't want to end up in a situation where a metastore thinks a
             // table exists but it really doesn't (or the other way around).
-            let storage_conf = match (data_dir, service_account_key) {
-                (None, Some(key)) => EngineStorageConfig::Gcs {
-                    service_account_key: key,
-                    bucket: None,
-                },
-                (Some(dir), None) => EngineStorageConfig::Local { path: dir },
-                (None, None) => EngineStorageConfig::Memory,
+            let storage_conf = match (data_dir, service_account_path) {
+                (None, Some(path)) => EngineStorageConfig::try_from_options(
+                    "gs://",
+                    HashMap::from_iter([("service_account_path".to_string(), path)]),
+                )?,
+                (Some(dir), None) => EngineStorageConfig::try_from_path_buf(&dir)?,
+                (None, None) => {
+                    EngineStorageConfig::try_from_options("memory://", Default::default())?
+                }
                 (Some(_), Some(_)) => {
                     return Err(anyhow!(
                         "Data directory and service account both provided. Expected at most one."
