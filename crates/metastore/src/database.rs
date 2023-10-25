@@ -17,7 +17,7 @@ use sqlbuiltins::builtins::{
     BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
     FIRST_NON_SCHEMA_ID,
 };
-use sqlbuiltins::functions::{BUILTIN_SCALAR_FUNCS, BUILTIN_TABLE_FUNCS};
+use sqlbuiltins::functions::{BUILTIN_AGGREGATE_FUNCS, BUILTIN_SCALAR_FUNCS, BUILTIN_TABLE_FUNCS};
 use sqlbuiltins::validation::{
     validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
 };
@@ -1247,6 +1247,37 @@ impl BuiltinCatalog {
                 .unwrap()
                 .functions
                 .insert(func.to_string(), oid);
+
+            oid += 1;
+        }
+        for func in BUILTIN_AGGREGATE_FUNCS.iter_funcs() {
+            // Put them all in the default schema.
+            let schema_id = schema_names
+                .get(DEFAULT_SCHEMA)
+                .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
+
+            entries.insert(
+                oid,
+                CatalogEntry::Function(FunctionEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Function,
+                        id: oid,
+                        parent: *schema_id,
+                        name: func.to_string(),
+                        builtin: true,
+                        external: false,
+                        is_temp: false,
+                    },
+                    func_type: FunctionType::Aggregate,
+                    runtime_preference: RuntimePreference::Unspecified,
+                    signature: Some(func.signature()),
+                }),
+            );
+            schema_objects
+                .get_mut(schema_id)
+                .unwrap()
+                .functions
+                .insert(func.to_string().to_ascii_uppercase(), oid);
 
             oid += 1;
         }

@@ -11,6 +11,7 @@ use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::{Signature, Volatility};
+use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
     FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
@@ -100,11 +101,18 @@ impl TableFunc for ObjScanTableFunc {
 
         let mut args = args.into_iter();
         let url_arg = args.next().unwrap();
-
-        let urls = if DatasourceUrl::is_param_valid(&url_arg) {
-            vec![url_arg.param_into()?]
-        } else {
-            url_arg.param_into::<Vec<DatasourceUrl>>()?
+        let urls = match url_arg {
+            FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => {
+                let url = DatasourceUrl::try_new(&s)
+                    .map_err(|e| ExtensionError::String(format!("Unable to parse '{s}': {}", e)))?;
+                vec![url]
+            }
+            FuncParamValue::Array(_) => url_arg.param_into::<Vec<DatasourceUrl>>()?,
+            _ => {
+                return Err(ExtensionError::String(
+                    "Invalid input. Received 'ident' expected string or list of strings".to_owned(),
+                ));
+            }
         };
 
         if urls.is_empty() {

@@ -175,7 +175,9 @@ impl Writer for BinaryWriter {
     }
 
     fn write_decimal(_buf: &mut BytesMut, _v: &Decimal128) -> Result<()> {
-        unimplemented!()
+        Err(PgReprError::InternalError(
+            "cannot encode decimal (numeric) value into PG binary".to_string(),
+        ))
     }
 }
 

@@ -37,7 +37,7 @@ pub struct DatabaseDetails {
     pub nodes: Option<Vec<Node>>,
     /// ID of the database we're connecting to (UUID).
     pub database_id: String,
-    /// ID of the user initiating the connection (UUID).
+    /// ID of the user that owns the credentials (UUID).
     pub user_id: String,
     /// Bucket for session storage.
     pub gcs_storage_bucket: String,

@@ -529,6 +529,7 @@ impl Session {
         _max_rows: i32,
     ) -> Result<ExecutionResult> {
         let portal = self.ctx.get_portal(portal_name)?;
+
         let plan = match &portal.stmt.plan {
             Some(plan) => plan.clone(),
             None => return Ok(ExecutionResult::EmptyQuery),
