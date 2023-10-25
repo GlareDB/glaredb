@@ -12,8 +12,8 @@ use pyo3::prelude::*;
 use sqlexec::LogicalPlan;
 
 use crate::{
-    error::PyGlareDbError, execution_result::PyExecutionResult, runtime::wait_for_future,
-    session::PyTrackedSession,
+    connection::PyTrackedSession, error::PyGlareDbError, execution_result::PyExecutionResult,
+    runtime::wait_for_future,
 };
 use datafusion::error::Result as DatafusionResult;
 
