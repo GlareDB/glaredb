@@ -9,6 +9,7 @@ use datafusion::physical_plan::{
     stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
     SendableRecordBatchStream, Statistics,
 };
+use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
 use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
@@ -28,7 +29,7 @@ use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL
 pub struct CopyToExec {
     pub format: CopyToFormatOptions,
     pub dest: CopyToDestinationOptions,
-    pub source: Arc<dyn ExecutionPlan>,
+    pub source: Arc<WriteOnlyDataSourceMetricsExecAdapter>,
 }
 
 impl ExecutionPlan for CopyToExec {
@@ -59,7 +60,9 @@ impl ExecutionPlan for CopyToExec {
         Ok(Arc::new(CopyToExec {
             format: self.format.clone(),
             dest: self.dest.clone(),
-            source: children.get(0).unwrap().clone(),
+            source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
+                children.get(0).unwrap().clone(),
+            )),
         }))
     }
 

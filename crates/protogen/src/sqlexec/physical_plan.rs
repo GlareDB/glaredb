@@ -299,7 +299,10 @@ pub struct InterleaveExec {}
 pub struct RuntimeGroupExec {}
 
 #[derive(Clone, PartialEq, Message)]
-pub struct DataSourceMetricsExecAdapter {}
+pub struct DataSourceMetricsExecAdapter {
+    #[prost(bool, tag = "1")]
+    pub track_writes: bool,
+}
 
 #[derive(Clone, PartialEq, Message)]
 pub struct AnalyzeExec {

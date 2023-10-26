@@ -16,14 +16,17 @@ use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{
     execute_stream, ExecutionPlan, RecordBatchStream, SendableRecordBatchStream,
 };
 use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
+use datafusion_ext::metrics::AggregatedMetrics;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use futures::{Stream, StreamExt};
+use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use telemetry::Tracker;
 use uuid::Uuid;
@@ -38,15 +41,19 @@ use crate::metrics::{
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 
+static EMPTY_EXEC_PLAN: Lazy<Arc<dyn ExecutionPlan>> = Lazy::new(|| {
+    Arc::new(EmptyExec::new(
+        /* produce_one_row = */ false,
+        Arc::new(Schema::empty()),
+    ))
+});
+
 /// Results from a sql statement execution.
 pub enum ExecutionResult {
     /// The stream for the output of a query.
     Query {
         /// Inner results stream from execution.
         stream: SendableRecordBatchStream,
-        /// Execution plan used to create the stream. Used for collecting metrics
-        /// for query execution.
-        plan: Arc<dyn ExecutionPlan>,
     },
     /// Execution errored.
     Error(DataFusionError),
@@ -105,17 +112,14 @@ impl ExecutionResult {
     ///
     /// This will look at the first batch in the stream to determine which
     /// result it is.
-    pub async fn from_stream_and_plan(
-        mut stream: SendableRecordBatchStream,
-        plan: Arc<dyn ExecutionPlan>,
-    ) -> ExecutionResult {
+    pub async fn from_stream(mut stream: SendableRecordBatchStream) -> ExecutionResult {
         let schema = stream.schema();
         // If we don't match either of these schemas, just assume these results
         // are from a normal SELECT query.
         if !(schema.eq(&GENERIC_OPERATION_PHYSICAL_SCHEMA)
             || schema.eq(&GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA))
         {
-            return ExecutionResult::Query { stream, plan };
+            return ExecutionResult::Query { stream };
         }
 
         let (batch, stream) = match stream.next().await {
@@ -138,7 +142,6 @@ impl ExecutionResult {
         if batch.num_rows() != 1 {
             return ExecutionResult::Query {
                 stream: Box::pin(stream),
-                plan,
             };
         }
 
@@ -149,7 +152,6 @@ impl ExecutionResult {
 
         ExecutionResult::from_str_and_count(&op, count).unwrap_or(ExecutionResult::Query {
             stream: Box::pin(stream),
-            plan,
         })
     }
 
@@ -258,7 +260,7 @@ impl fmt::Display for ExecutionResult {
             ExecutionResult::Begin => write!(f, "Begin"),
             ExecutionResult::Commit => write!(f, "Commit"),
             ExecutionResult::Rollback => write!(f, "Rollback"),
-            ExecutionResult::InsertSuccess { rows_inserted } => {
+            ExecutionResult::InsertSuccess { rows_inserted, .. } => {
                 if *rows_inserted == 1 {
                     write!(f, "Inserted 1 row")
                 } else {
@@ -468,20 +470,25 @@ impl Session {
             .bind_statement(portal_name, stmt_name, params, result_formats)
     }
 
-    pub async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionResult> {
+    pub async fn execute_inner(
+        &mut self,
+        plan: LogicalPlan,
+    ) -> Result<(Arc<dyn ExecutionPlan>, ExecutionResult)> {
         // Note that transaction support is fake, in that we don't currently do
         // anything and do not provide any transactional semantics.
         //
         // We stub out transaction commands since many tools (even BI ones) will
         // try to open a transaction for some queries.
         match plan {
-            LogicalPlan::Noop => Ok(ExecutionResult::EmptyQuery),
-            LogicalPlan::Transaction(_plan) => Ok(ExecutionResult::EmptyQuery),
+            LogicalPlan::Noop => Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery)),
+            LogicalPlan::Transaction(_plan) => {
+                Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery))
+            }
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan).await?;
                 let stream = self.execute_physical(physical.clone())?;
 
-                let stream = ExecutionResult::from_stream_and_plan(stream, physical).await;
+                let stream = ExecutionResult::from_stream(stream).await;
 
                 // If we're attached to a remote node, and the result indicates
                 // the operation was a DDL operation, then fetch the newer
@@ -514,7 +521,7 @@ impl Session {
                     }
                 }
 
-                Ok(stream)
+                Ok((physical, stream))
             }
         }
     }
@@ -539,18 +546,19 @@ impl Session {
         let mut metrics = QueryMetrics::new_for_portal(portal);
 
         let stream = match self.execute_inner(plan).await {
-            Ok(stream) => match stream {
+            Ok((plan, result)) => match result {
                 ExecutionResult::Error(e) => {
                     metrics.execution_status = ExecutionStatus::Fail;
                     metrics.error_message = Some(e.to_string());
+                    self.ctx.get_metrics_handler().push_metric(metrics);
                     return Err(e.into());
                 }
-                stream => {
+                result => {
                     metrics.execution_status = ExecutionStatus::Success;
-                    metrics.result_type = stream.result_type_str();
+                    metrics.result_type = result.result_type_str();
 
-                    match stream {
-                        ExecutionResult::Query { stream, plan } => {
+                    match result {
+                        ExecutionResult::Query { stream } => {
                             // Swap out the batch stream with one that will send
                             // metrics at the completions of the stream.
                             ExecutionResult::Query {
@@ -560,8 +568,18 @@ impl Session {
                                     metrics,
                                     self.ctx.get_metrics_handler(),
                                 )),
-                                plan,
                             }
+                        }
+                        write_result @ ExecutionResult::InsertSuccess { .. }
+                        | write_result @ ExecutionResult::CopySuccess => {
+                            // Push the metrics from the plan since the stream
+                            // is already processed.
+                            let agg_metrics = AggregatedMetrics::new_from_plan(plan.as_ref());
+                            metrics.elapsed_compute_ns = Some(agg_metrics.elapsed_compute_ns);
+                            metrics.bytes_read = Some(agg_metrics.bytes_read);
+                            metrics.bytes_written = agg_metrics.bytes_written;
+                            self.ctx.get_metrics_handler().push_metric(metrics);
+                            write_result
                         }
                         other => other,
                     }
@@ -574,7 +592,7 @@ impl Session {
                 // Ensure we push the metrics for this failed query even though
                 // we're returning an error. This allows for querying for and
                 // reporting failed executions.
-                self.ctx.get_metrics_mut().push_metric(metrics);
+                self.ctx.get_metrics_handler().push_metric(metrics);
                 return Err(e);
             }
         };

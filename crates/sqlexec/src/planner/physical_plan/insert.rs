@@ -12,6 +12,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use datafusion::scalar::ScalarValue;
+use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use futures::{stream, StreamExt};
 
 use std::any::Any;
@@ -24,7 +25,7 @@ use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL
 #[derive(Debug, Clone)]
 pub struct InsertExec {
     pub provider: ProviderReference,
-    pub source: Arc<dyn ExecutionPlan>,
+    pub source: Arc<WriteOnlyDataSourceMetricsExecAdapter>,
 }
 
 impl ExecutionPlan for InsertExec {
@@ -54,7 +55,9 @@ impl ExecutionPlan for InsertExec {
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         Ok(Arc::new(InsertExec {
             provider: self.provider.clone(),
-            source: children.get(0).unwrap().clone(),
+            source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
+                children.get(0).unwrap().clone(),
+            )),
         }))
     }
 

@@ -16,7 +16,7 @@ use datafusion::logical_expr::TableType;
 use datafusion::physical_plan::union::UnionExec;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
-use datafusion_ext::metrics::DataSourceMetricsExecAdapter;
+use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
 use errors::ObjectStoreSourceError;
 use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
@@ -333,7 +333,7 @@ impl TableProvider for ObjStoreTableProvider {
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-        Ok(Arc::new(DataSourceMetricsExecAdapter::new(plan)))
+        Ok(Arc::new(ReadOnlyDataSourceMetricsExecAdapter::new(plan)))
     }
 }
 
