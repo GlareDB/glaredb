@@ -159,10 +159,6 @@ impl LocalSessionContext {
         self.metrics_handler.clone()
     }
 
-    pub fn get_metrics_mut(&mut self) -> &mut SessionMetricsHandler {
-        &mut self.metrics_handler
-    }
-
     pub fn get_database_id(&self) -> Uuid {
         self.database_id
     }

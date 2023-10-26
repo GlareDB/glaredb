@@ -140,7 +140,7 @@ impl Connection {
     /// ```
     pub fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionResult> {
         let sess = self.sess.clone();
-        let exec_result = wait_for_future(py, async move {
+        let (_, exec_result) = wait_for_future(py, async move {
             let mut sess = sess.lock().await;
             let plan = sess.sql_to_lp(query).await.map_err(PyGlareDbError::from)?;
             sess.execute_inner(plan).await.map_err(PyGlareDbError::from)

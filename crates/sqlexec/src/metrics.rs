@@ -43,7 +43,7 @@ impl SessionMetricsHandler {
     /// Push a metrics directly into the metrics vector.
     ///
     /// This will also push the metric out to Segment.
-    pub fn push_metric(&mut self, metric: QueryMetrics) {
+    pub fn push_metric(&self, metric: QueryMetrics) {
         self.tracker.track(
             "Execution metric",
             self.user_id,
@@ -60,6 +60,7 @@ impl SessionMetricsHandler {
                 "elapsed_compute_ns": metric.elapsed_compute_ns,
                 "output_rows": metric.output_rows,
                 "bytes_read": metric.bytes_read,
+                "bytes_written": metric.bytes_written,
             }),
         );
     }
@@ -101,6 +102,8 @@ pub struct QueryMetrics {
     pub output_rows: Option<u64>,
     /// Number of bytes processed during the execution of query.
     pub bytes_read: Option<u64>,
+    /// Number of bytes written during the execution of write operation.
+    pub bytes_written: Option<u64>,
 }
 
 impl QueryMetrics {
@@ -121,6 +124,7 @@ impl QueryMetrics {
             elapsed_compute_ns: None,
             output_rows: None,
             bytes_read: None,
+            bytes_written: None,
         }
     }
 }
@@ -153,6 +157,19 @@ impl BatchStreamWithMetricSender {
             metrics_handler,
         }
     }
+
+    pub fn record_batch_metrics(&self, metrics: &mut QueryMetrics) {
+        if let Some(exec_metrics) = self.plan.metrics() {
+            metrics.output_rows = exec_metrics.output_rows().map(|v| v as u64);
+        }
+
+        let agg_metrics = AggregatedMetrics::new_from_plan(self.plan.as_ref());
+        metrics.bytes_read = Some(agg_metrics.bytes_read);
+        metrics.elapsed_compute_ns = Some(agg_metrics.elapsed_compute_ns);
+
+        // It's a normal read query. Nothing should be written.
+        debug_assert!(agg_metrics.bytes_written.is_none());
+    }
 }
 
 impl RecordBatchStream for BatchStreamWithMetricSender {
@@ -171,15 +188,7 @@ impl Stream for BatchStreamWithMetricSender {
 
                 if let Some(mut metrics) = self.pending.take() {
                     metrics.execution_status = ExecutionStatus::Success;
-
-                    if let Some(exec_metrics) = self.plan.metrics() {
-                        metrics.output_rows = exec_metrics.output_rows().map(|v| v as u64);
-                    }
-
-                    let agg_metrics = AggregatedMetrics::new_from_plan(self.plan.as_ref());
-                    metrics.bytes_read = Some(agg_metrics.bytes_read);
-                    metrics.elapsed_compute_ns = Some(agg_metrics.elapsed_compute_ns);
-
+                    self.record_batch_metrics(&mut metrics);
                     self.metrics_handler.push_metric(metrics);
                 }
 
@@ -194,17 +203,7 @@ impl Stream for BatchStreamWithMetricSender {
                 if let Some(mut metrics) = self.pending.take() {
                     metrics.execution_status = ExecutionStatus::Fail;
                     metrics.error_message = Some(e.to_string());
-
-                    // The query may have failed, but having these execution
-                    // stats may be useful anyways.
-                    if let Some(exec_metrics) = self.plan.metrics() {
-                        metrics.output_rows = exec_metrics.output_rows().map(|v| v as u64);
-                    }
-
-                    let agg_metrics = AggregatedMetrics::new_from_plan(self.plan.as_ref());
-                    metrics.bytes_read = Some(agg_metrics.bytes_read);
-                    metrics.elapsed_compute_ns = Some(agg_metrics.elapsed_compute_ns);
-
+                    self.record_batch_metrics(&mut metrics);
                     self.metrics_handler.push_metric(metrics);
                 }
 

@@ -9,6 +9,7 @@ use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
 use datafusion::physical_planner::{DefaultPhysicalPlanner, ExtensionPlanner, PhysicalPlanner};
 use datafusion::prelude::Expr;
+use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use datafusion_ext::transform::TreeNodeExt;
 use protogen::metastore::types::catalog::RuntimePreference;
@@ -324,7 +325,9 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let exec = Arc::new(CopyToExec {
                     format: lp.format.clone(),
                     dest: lp.dest.clone(),
-                    source: physical_inputs.get(0).unwrap().clone(),
+                    source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
+                        physical_inputs.get(0).unwrap().clone(),
+                    )),
                 });
                 let exec = Arc::new(RuntimeGroupExec::new(runtime, exec));
                 Ok(Some(exec))
@@ -349,7 +352,9 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 };
                 let exec = Arc::new(InsertExec {
                     provider,
-                    source: physical_inputs.get(0).unwrap().clone(),
+                    source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
+                        physical_inputs.get(0).unwrap().clone(),
+                    )),
                 });
                 let exec = Arc::new(RuntimeGroupExec::new(lp.runtime_preference, exec));
                 Ok(Some(exec))
