@@ -48,7 +48,7 @@ impl JsLogicalPlan {
 
   #[napi]
   pub async fn record_batches(&self) -> napi::Result<Vec<crate::record_batch::JsRecordBatch>> {
-    Ok(self.execute_inner().await?.record_batches().await?)
+    self.execute_inner().await?.record_batches().await
   }
 
   #[napi]

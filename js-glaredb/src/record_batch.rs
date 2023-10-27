@@ -23,8 +23,8 @@ impl From<RecordBatch> for JsRecordBatch {
       .iter()
       .map(|col| {
         let col = col.as_ref();
-        let col = JsDynArray::from(col);
-        col
+
+        JsDynArray::from(col)
       })
       .collect::<Vec<_>>();
 
@@ -239,10 +239,7 @@ impl From<&DataType> for JsDataType {
         }
       }
       DataType::Struct(fields) => {
-        let fields = fields
-          .iter()
-          .map(|field| JsField::from(field))
-          .collect::<Vec<_>>();
+        let fields = fields.iter().map(JsField::from).collect::<Vec<_>>();
         Self {
           kind: DataTypeKind::Struct,
           inner: Some(json!({
@@ -268,11 +265,7 @@ pub struct JsSchema {
 
 impl From<SchemaRef> for JsSchema {
   fn from(value: SchemaRef) -> Self {
-    let fields = value
-      .fields
-      .into_iter()
-      .map(|field| JsField::from(field))
-      .collect();
+    let fields = value.fields.into_iter().map(JsField::from).collect();
 
     Self {
       fields,
