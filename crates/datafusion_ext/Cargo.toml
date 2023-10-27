@@ -21,7 +21,7 @@ tracing = "0.1"
 thiserror.workspace = true
 decimal = { path = "../decimal" }
 protogen = { path = "../protogen" }
-futures = "0.3.28"
+futures = "0.3.29"
 parking_lot = "0.12.1"
 
 [dev-dependencies]

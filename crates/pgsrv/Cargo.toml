@@ -14,10 +14,10 @@ pgrepr = {path = "../pgrepr"}
 datafusion_ext = {path = "../datafusion_ext"}
 thiserror = {workspace = true}
 tracing = "0.1"
-futures = "0.3.28"
+futures = "0.3.29"
 async-trait = "0.1.72"
 datafusion = {workspace = true}
-tokio-util = { version = "0.7.8", features = ["codec"] }
+tokio-util = { version = "0.7.10", features = ["codec"] }
 bytes = "1.4.0"
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.11.18", default-features = false, features = ["json", "rustls-tls"] }
