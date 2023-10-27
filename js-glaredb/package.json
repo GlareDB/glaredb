@@ -1,10 +1,10 @@
 {
-  "name": "js-glaredb",
+  "name": "@glaredb/node",
   "version": "0.0.0",
-  "main": "index.js",
+  "main": "glaredb.js",
   "types": "index.d.ts",
   "napi": {
-    "name": "js-glaredb",
+    "name": "glaredb",
     "triples": {}
   },
   "license": "MIT",
@@ -26,8 +26,11 @@
   "packageManager": "yarn@4.0.0",
   "devDependencies": {
     "@napi-rs/cli": "^2.16.3",
-    "ava": "^5.1.1",
-    "apache-arrow": "^13.0.0",
-    "nodejs-polars": "^0.8.3"
+    "ava": "^5.1.1"
+  },
+  "optionalDependencies": {
+    "@glaredb/node-win32-x64-msvc": "0.0.0",
+    "@glaredb/node-darwin-x64": "0.0.0",
+    "@glaredb/node-linux-x64-gnu": "0.0.0"
   }
 }

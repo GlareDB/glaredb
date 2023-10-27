@@ -15,6 +15,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@glaredb/node@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "@glaredb/node@workspace:."
+  dependencies:
+    "@napi-rs/cli": "npm:^2.16.3"
+    apache-arrow: "npm:^13.0.0"
+    ava: "npm:^5.1.1"
+    nodejs-polars: "npm:^0.8.3"
+  dependenciesMeta:
+    apache-arrow:
+      optional: true
+    nodejs-polars:
+      optional: true
+  languageName: unknown
+  linkType: soft
+
 "@isaacs/cliui@npm:^8.0.2":
   version: 8.0.2
   resolution: "@isaacs/cliui@npm:8.0.2"
@@ -1248,17 +1264,6 @@ __metadata:
   checksum: f01d8f972d894cd7638bc338e9ef5ddb86f7b208ce177a36d718eac96ec86638a6efa17d0221b10073e64b45edc2ce15340db9380b1f5d5c5d000cbc517dc111
   languageName: node
   linkType: hard
-
-"js-glaredb@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "js-glaredb@workspace:."
-  dependencies:
-    "@napi-rs/cli": "npm:^2.16.3"
-    apache-arrow: "npm:^13.0.0"
-    ava: "npm:^5.1.1"
-    nodejs-polars: "npm:^0.8.3"
-  languageName: unknown
-  linkType: soft
 
 "js-string-escape@npm:^1.0.1":
   version: 1.0.1

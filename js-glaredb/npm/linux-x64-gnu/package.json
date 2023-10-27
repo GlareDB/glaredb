@@ -1,5 +1,5 @@
 {
-  "name": "js-glaredb-linux-x64-gnu",
+  "name": "@glaredb/node-linux-x64-gnu",
   "version": "0.0.0",
   "os": [
     "linux"
@@ -7,9 +7,9 @@
   "cpu": [
     "x64"
   ],
-  "main": "js-glaredb.linux-x64-gnu.node",
+  "main": "glaredb.linux-x64-gnu.node",
   "files": [
-    "js-glaredb.linux-x64-gnu.node"
+    "glaredb.linux-x64-gnu.node"
   ],
   "license": "MIT",
   "engines": {

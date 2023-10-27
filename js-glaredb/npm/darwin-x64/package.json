@@ -1,5 +1,5 @@
 {
-  "name": "js-glaredb-darwin-x64",
+  "name": "@glaredb/node-darwin-x64",
   "version": "0.0.0",
   "os": [
     "darwin"
@@ -7,9 +7,9 @@
   "cpu": [
     "x64"
   ],
-  "main": "js-glaredb.darwin-x64.node",
+  "main": "glaredb.darwin-x64.node",
   "files": [
-    "js-glaredb.darwin-x64.node"
+    "glaredb.darwin-x64.node"
   ],
   "license": "MIT",
   "engines": {

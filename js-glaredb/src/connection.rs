@@ -1,5 +1,4 @@
 use crate::error::JsGlareDbError;
-use crate::execution_result::JsExecutionResult;
 use crate::logical_plan::JsLogicalPlan;
 use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
 use datafusion_ext::vars::SessionVars;
@@ -85,7 +84,7 @@ impl Connection {
         Some(path)
       }
       None => {
-        let path = std::env::temp_dir().join("glaredb-python");
+        let path = std::env::temp_dir().join("glaredb-js");
         // if user doesn't have permission to write to temp dir, then
         // just don't use a spill path.
         ensure_dir(&path).ok().map(|_| path)
@@ -156,29 +155,27 @@ impl Connection {
   ///
   /// Show the output of a query.
   ///
-  /// ```python
-  /// import glaredb
+  /// ```javascript
+  /// import glaredb from "@glaredb/node"
   ///
-  /// con = glaredb.connect()
+  /// let con = glaredb.connect()
   /// con.sql('select 1').show()
   /// ```
   ///
   /// Convert the output of a query to a Pandas dataframe.
   ///
-  /// ```python
-  /// import glaredb
-  /// import pandas
+  /// ```javascript
+  /// import glaredb from "@glaredb/node"
   ///
-  /// con = glaredb.connect()
-  /// my_df = con.sql('select 1').to_pandas()
+  /// let con = glaredb.connect()
   /// ```
   ///
   /// Execute the query to completion, returning no output. This is useful
   /// when the query output doesn't matter, for example, creating a table or
   /// inserting data into a table.
   ///
-  /// ```python
-  /// import glaredb
+  /// ```javascript
+  /// import glaredb from "@glaredb/node"
   /// import pandas
   ///
   /// con = glaredb.connect()
@@ -214,23 +211,23 @@ impl Connection {
   ///
   /// Creating a table.
   ///
-  /// ```python
-  /// import glaredb
+  /// ```js
+  /// import glaredb from "@glaredb/node"
   ///
   /// con = glaredb.connect()
   /// con.execute('create table my_table (a int)')
   /// ```
   #[napi]
-  pub async fn execute(&self, query: String) -> napi::Result<JsExecutionResult> {
+  pub async fn execute(&self, query: String) -> napi::Result<()> {
     let sess = self.sess.clone();
     let mut sess = sess.lock().await;
     let plan = sess.sql_to_lp(&query).await.map_err(JsGlareDbError::from)?;
-    let (_, res) = sess
+    let _ = sess
       .execute_inner(plan)
       .await
       .map_err(JsGlareDbError::from)?;
 
-    Ok(JsExecutionResult(res))
+    Ok(())
   }
 
   /// Close the current session.

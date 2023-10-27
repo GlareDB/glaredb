@@ -1,5 +1,5 @@
 {
-  "name": "js-glaredb-win32-x64-msvc",
+  "name": "@glaredb/node-win32-x64-msvc",
   "version": "0.0.0",
   "os": [
     "win32"
@@ -7,9 +7,9 @@
   "cpu": [
     "x64"
   ],
-  "main": "js-glaredb.win32-x64-msvc.node",
+  "main": "glaredb.win32-x64-msvc.node",
   "files": [
-    "js-glaredb.win32-x64-msvc.node"
+    "glaredb.win32-x64-msvc.node"
   ],
   "license": "MIT",
   "engines": {

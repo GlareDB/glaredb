@@ -99,29 +99,27 @@ export class Connection {
    *
    * Show the output of a query.
    *
-   * ```python
-   * import glaredb
+   * ```javascript
+   * import glaredb from "@glaredb/node"
    *
-   * con = glaredb.connect()
+   * let con = glaredb.connect()
    * con.sql('select 1').show()
    * ```
    *
    * Convert the output of a query to a Pandas dataframe.
    *
-   * ```python
-   * import glaredb
-   * import pandas
+   * ```javascript
+   * import glaredb from "@glaredb/node"
    *
-   * con = glaredb.connect()
-   * my_df = con.sql('select 1').to_pandas()
+   * let con = glaredb.connect()
    * ```
    *
    * Execute the query to completion, returning no output. This is useful
    * when the query output doesn't matter, for example, creating a table or
    * inserting data into a table.
    *
-   * ```python
-   * import glaredb
+   * ```javascript
+   * import glaredb from "@glaredb/node"
    * import pandas
    *
    * con = glaredb.connect()
@@ -136,25 +134,33 @@ export class Connection {
    *
    * Creating a table.
    *
-   * ```python
-   * import glaredb
+   * ```js
+   * import glaredb from "@glaredb/node"
    *
    * con = glaredb.connect()
    * con.execute('create table my_table (a int)')
    * ```
    */
-  execute(query: string): Promise<JsExecutionResult>
+  execute(query: string): Promise<void>
   /** Close the current session. */
   close(): Promise<void>
 }
-export class JsExecutionResult {
-  execute(): Promise<void>
-  toArrowInner(): Promise<Array<number>>
-  recordBatches(): Promise<Array<JsRecordBatch>>
-}
 export class JsLogicalPlan {
+  toString(): string
   show(): Promise<void>
   execute(): Promise<void>
   recordBatches(): Promise<Array<JsRecordBatch>>
-  toArrow(): Promise<Buffer>
+  toIpc(): Promise<Buffer>
+  /**
+   * Convert to a Polars DataFrame.
+   * "nodejs-polars" must be installed as a peer dependency.
+   * See https://www.npmjs.com/package/nodejs-polars
+   */
+  toPolars(): pl.DataFrame
+  /**
+   * Convert to an "apache-arrow" Table.
+   * "apache-arrow" must be installed as a peer dependency.
+   * See https://www.npmjs.com/package/apache-arrow
+   */
+  toArrow(): arrow.Table<any>
 }

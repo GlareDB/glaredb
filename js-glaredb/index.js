@@ -32,24 +32,24 @@ switch (platform) {
   case 'android':
     switch (arch) {
       case 'arm64':
-        localFileExisted = existsSync(join(__dirname, 'js-glaredb.android-arm64.node'))
+        localFileExisted = existsSync(join(__dirname, 'glaredb.android-arm64.node'))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./js-glaredb.android-arm64.node')
+            nativeBinding = require('./glaredb.android-arm64.node')
           } else {
-            nativeBinding = require('js-glaredb-android-arm64')
+            nativeBinding = require('@glaredb/node-android-arm64')
           }
         } catch (e) {
           loadError = e
         }
         break
       case 'arm':
-        localFileExisted = existsSync(join(__dirname, 'js-glaredb.android-arm-eabi.node'))
+        localFileExisted = existsSync(join(__dirname, 'glaredb.android-arm-eabi.node'))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./js-glaredb.android-arm-eabi.node')
+            nativeBinding = require('./glaredb.android-arm-eabi.node')
           } else {
-            nativeBinding = require('js-glaredb-android-arm-eabi')
+            nativeBinding = require('@glaredb/node-android-arm-eabi')
           }
         } catch (e) {
           loadError = e
@@ -63,13 +63,13 @@ switch (platform) {
     switch (arch) {
       case 'x64':
         localFileExisted = existsSync(
-          join(__dirname, 'js-glaredb.win32-x64-msvc.node')
+          join(__dirname, 'glaredb.win32-x64-msvc.node')
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./js-glaredb.win32-x64-msvc.node')
+            nativeBinding = require('./glaredb.win32-x64-msvc.node')
           } else {
-            nativeBinding = require('js-glaredb-win32-x64-msvc')
+            nativeBinding = require('@glaredb/node-win32-x64-msvc')
           }
         } catch (e) {
           loadError = e
@@ -77,13 +77,13 @@ switch (platform) {
         break
       case 'ia32':
         localFileExisted = existsSync(
-          join(__dirname, 'js-glaredb.win32-ia32-msvc.node')
+          join(__dirname, 'glaredb.win32-ia32-msvc.node')
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./js-glaredb.win32-ia32-msvc.node')
+            nativeBinding = require('./glaredb.win32-ia32-msvc.node')
           } else {
-            nativeBinding = require('js-glaredb-win32-ia32-msvc')
+            nativeBinding = require('@glaredb/node-win32-ia32-msvc')
           }
         } catch (e) {
           loadError = e
@@ -91,13 +91,13 @@ switch (platform) {
         break
       case 'arm64':
         localFileExisted = existsSync(
-          join(__dirname, 'js-glaredb.win32-arm64-msvc.node')
+          join(__dirname, 'glaredb.win32-arm64-msvc.node')
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./js-glaredb.win32-arm64-msvc.node')
+            nativeBinding = require('./glaredb.win32-arm64-msvc.node')
           } else {
-            nativeBinding = require('js-glaredb-win32-arm64-msvc')
+            nativeBinding = require('@glaredb/node-win32-arm64-msvc')
           }
         } catch (e) {
           loadError = e
@@ -108,23 +108,23 @@ switch (platform) {
     }
     break
   case 'darwin':
-    localFileExisted = existsSync(join(__dirname, 'js-glaredb.darwin-universal.node'))
+    localFileExisted = existsSync(join(__dirname, 'glaredb.darwin-universal.node'))
     try {
       if (localFileExisted) {
-        nativeBinding = require('./js-glaredb.darwin-universal.node')
+        nativeBinding = require('./glaredb.darwin-universal.node')
       } else {
-        nativeBinding = require('js-glaredb-darwin-universal')
+        nativeBinding = require('@glaredb/node-darwin-universal')
       }
       break
     } catch {}
     switch (arch) {
       case 'x64':
-        localFileExisted = existsSync(join(__dirname, 'js-glaredb.darwin-x64.node'))
+        localFileExisted = existsSync(join(__dirname, 'glaredb.darwin-x64.node'))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./js-glaredb.darwin-x64.node')
+            nativeBinding = require('./glaredb.darwin-x64.node')
           } else {
-            nativeBinding = require('js-glaredb-darwin-x64')
+            nativeBinding = require('@glaredb/node-darwin-x64')
           }
         } catch (e) {
           loadError = e
@@ -132,13 +132,13 @@ switch (platform) {
         break
       case 'arm64':
         localFileExisted = existsSync(
-          join(__dirname, 'js-glaredb.darwin-arm64.node')
+          join(__dirname, 'glaredb.darwin-arm64.node')
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./js-glaredb.darwin-arm64.node')
+            nativeBinding = require('./glaredb.darwin-arm64.node')
           } else {
-            nativeBinding = require('js-glaredb-darwin-arm64')
+            nativeBinding = require('@glaredb/node-darwin-arm64')
           }
         } catch (e) {
           loadError = e
@@ -152,12 +152,12 @@ switch (platform) {
     if (arch !== 'x64') {
       throw new Error(`Unsupported architecture on FreeBSD: ${arch}`)
     }
-    localFileExisted = existsSync(join(__dirname, 'js-glaredb.freebsd-x64.node'))
+    localFileExisted = existsSync(join(__dirname, 'glaredb.freebsd-x64.node'))
     try {
       if (localFileExisted) {
-        nativeBinding = require('./js-glaredb.freebsd-x64.node')
+        nativeBinding = require('./glaredb.freebsd-x64.node')
       } else {
-        nativeBinding = require('js-glaredb-freebsd-x64')
+        nativeBinding = require('@glaredb/node-freebsd-x64')
       }
     } catch (e) {
       loadError = e
@@ -168,26 +168,26 @@ switch (platform) {
       case 'x64':
         if (isMusl()) {
           localFileExisted = existsSync(
-            join(__dirname, 'js-glaredb.linux-x64-musl.node')
+            join(__dirname, 'glaredb.linux-x64-musl.node')
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./js-glaredb.linux-x64-musl.node')
+              nativeBinding = require('./glaredb.linux-x64-musl.node')
             } else {
-              nativeBinding = require('js-glaredb-linux-x64-musl')
+              nativeBinding = require('@glaredb/node-linux-x64-musl')
             }
           } catch (e) {
             loadError = e
           }
         } else {
           localFileExisted = existsSync(
-            join(__dirname, 'js-glaredb.linux-x64-gnu.node')
+            join(__dirname, 'glaredb.linux-x64-gnu.node')
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./js-glaredb.linux-x64-gnu.node')
+              nativeBinding = require('./glaredb.linux-x64-gnu.node')
             } else {
-              nativeBinding = require('js-glaredb-linux-x64-gnu')
+              nativeBinding = require('@glaredb/node-linux-x64-gnu')
             }
           } catch (e) {
             loadError = e
@@ -197,26 +197,26 @@ switch (platform) {
       case 'arm64':
         if (isMusl()) {
           localFileExisted = existsSync(
-            join(__dirname, 'js-glaredb.linux-arm64-musl.node')
+            join(__dirname, 'glaredb.linux-arm64-musl.node')
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./js-glaredb.linux-arm64-musl.node')
+              nativeBinding = require('./glaredb.linux-arm64-musl.node')
             } else {
-              nativeBinding = require('js-glaredb-linux-arm64-musl')
+              nativeBinding = require('@glaredb/node-linux-arm64-musl')
             }
           } catch (e) {
             loadError = e
           }
         } else {
           localFileExisted = existsSync(
-            join(__dirname, 'js-glaredb.linux-arm64-gnu.node')
+            join(__dirname, 'glaredb.linux-arm64-gnu.node')
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./js-glaredb.linux-arm64-gnu.node')
+              nativeBinding = require('./glaredb.linux-arm64-gnu.node')
             } else {
-              nativeBinding = require('js-glaredb-linux-arm64-gnu')
+              nativeBinding = require('@glaredb/node-linux-arm64-gnu')
             }
           } catch (e) {
             loadError = e
@@ -225,13 +225,13 @@ switch (platform) {
         break
       case 'arm':
         localFileExisted = existsSync(
-          join(__dirname, 'js-glaredb.linux-arm-gnueabihf.node')
+          join(__dirname, 'glaredb.linux-arm-gnueabihf.node')
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./js-glaredb.linux-arm-gnueabihf.node')
+            nativeBinding = require('./glaredb.linux-arm-gnueabihf.node')
           } else {
-            nativeBinding = require('js-glaredb-linux-arm-gnueabihf')
+            nativeBinding = require('@glaredb/node-linux-arm-gnueabihf')
           }
         } catch (e) {
           loadError = e
@@ -252,10 +252,9 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { connect, Connection, JsExecutionResult, JsLogicalPlan, DataTypeKind } = nativeBinding
+const { connect, Connection, JsLogicalPlan, DataTypeKind } = nativeBinding
 
 module.exports.connect = connect
 module.exports.Connection = Connection
-module.exports.JsExecutionResult = JsExecutionResult
 module.exports.JsLogicalPlan = JsLogicalPlan
 module.exports.DataTypeKind = DataTypeKind

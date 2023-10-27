@@ -9,13 +9,10 @@ use sqlexec::session::ExecutionResult;
 use crate::error::JsGlareDbError;
 use crate::record_batch::JsRecordBatch;
 
-#[napi]
-pub struct JsExecutionResult(pub(crate) ExecutionResult);
+pub(crate) struct JsExecutionResult(pub(crate) ExecutionResult);
 
-#[napi]
 impl JsExecutionResult {
-  #[napi]
-  pub async unsafe fn execute(&mut self) -> napi::Result<()> {
+  pub(crate) async fn execute(&mut self) -> napi::Result<()> {
     match &mut self.0 {
       ExecutionResult::Query { stream, .. } => {
         while let Some(r) = stream.next().await {
@@ -27,8 +24,7 @@ impl JsExecutionResult {
     }
   }
 
-  #[napi]
-  pub async unsafe fn to_arrow_inner(&mut self) -> napi::Result<Vec<u8>> {
+  pub(crate) async fn to_arrow_inner(&mut self) -> napi::Result<Vec<u8>> {
     let res = match &mut self.0 {
       ExecutionResult::Query { stream, .. } => {
         let batch = stream.next().await.unwrap().map_err(JsGlareDbError::from)?;
@@ -48,8 +44,7 @@ impl JsExecutionResult {
     Ok(res)
   }
 
-  #[napi]
-  pub async unsafe fn record_batches(&mut self) -> napi::Result<Vec<JsRecordBatch>> {
+  pub(crate) async fn record_batches(&mut self) -> napi::Result<Vec<JsRecordBatch>> {
     let mut batches = vec![];
     match &mut self.0 {
       ExecutionResult::Query { stream, .. } => {
@@ -63,7 +58,7 @@ impl JsExecutionResult {
     }
   }
 
-  pub async fn show(&mut self) -> napi::Result<()> {
+  pub(crate) async fn show(&mut self) -> napi::Result<()> {
     print_batch(&mut self.0).await?;
     Ok(())
   }
