@@ -1,3 +1,5 @@
+#![allow(clippy::wrong_self_convention)] // this is consistent with other python API's
+
 mod connect;
 mod connection;
 mod environment;
