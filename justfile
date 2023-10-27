@@ -3,6 +3,8 @@ default: help
 export CARGO_TERM_COLOR := "always"
 export PROTOC := justfile_directory() + "/deps/protoc/bin/protoc"
 alias py := python
+alias js := javascript
+
 alias slt := sql-logic-tests
 
 os_arch := os() + '-' + arch()
@@ -15,6 +17,10 @@ bench cmd *args:
 # Run py-glaredb subcommands. see `py-glaredb/justfile` for more details.
 python cmd *args: protoc
   just py-glaredb/{{cmd}} {{args}}
+
+# Run js-glaredb subcommands. see `js-glaredb/justfile` for more details.
+javascript cmd *args: protoc
+  just js-glaredb/{{cmd}} {{args}}
 
 # Run glaredb server
 run *args: protoc
