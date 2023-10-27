@@ -19,7 +19,6 @@ pub struct PyExecutionResult(pub ExecutionResult);
 impl PyExecutionResult {
     /// Convert to Arrow Table
     /// Collect the batches and pass to Arrow Table
-    #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
     pub fn to_arrow(&mut self, py: Python) -> PyResult<PyObject> {
         let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
 
@@ -32,7 +31,6 @@ impl PyExecutionResult {
         })
     }
 
-    #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
     pub fn to_polars(&mut self, py: Python) -> PyResult<PyObject> {
         let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
 
@@ -48,7 +46,6 @@ impl PyExecutionResult {
         })
     }
 
-    #[allow(clippy::wrong_self_convention)] // this is consistent with other python API's
     pub fn to_pandas(&mut self, py: Python) -> PyResult<PyObject> {
         let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
 
