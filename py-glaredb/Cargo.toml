@@ -26,6 +26,6 @@ arrow_util = { path = "../crates/arrow_util" }
 glaredb = { path = "../crates/glaredb" }
 futures = "0.3.28"
 uuid = "1.4.1"
-async-trait = "0.1.72"
+async-trait = "0.1.74"
 anyhow = "1.0.72"
 once_cell = "1.18.0"
