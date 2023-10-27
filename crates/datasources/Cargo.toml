@@ -9,16 +9,16 @@ edition = {workspace = true}
 apache-avro = "0.15"
 async-channel = "1.9.0"
 async-stream = "0.3.5"
-async-trait = "0.1.72"
+async-trait = "0.1.74"
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "master" }
-bitflags = "2.3"
+bitflags = "2.4"
 bitvec = "1"
 bytes = "1.4.0"
 chrono = { workspace = true }
 datafusion = { workspace = true }
 decimal = { path = "../decimal" }
 deltalake = { workspace = true }
-futures = "0.3.28"
+futures = "0.3.29"
 gcp-bigquery-client = "0.17.0"
 logutil = {path = "../logutil"}
 protogen = {path = "../protogen"}
@@ -33,9 +33,9 @@ once_cell = "1.18.0"
 rand = "0.8.5"
 regex = "1.9.1"
 repr = { path = "../repr" }
-reqwest = { version = "0.11.18", default-features = false, features = ["json", "rustls-tls"] }
-ring = "0.16.20"
-rustls = "0.21.6"
+ring = "0.17.5"
+rustls = "0.21.8"
+reqwest = { version = "0.11.22", default-features = false, features = ["json", "rustls-tls"] }
 rust_decimal = { version = "1.31.0", features = ["db-tokio-postgres"] }
 serde = { workspace = true }
 serde_bytes = "0.11.12"
@@ -43,9 +43,9 @@ serde_with = "3.1.0"
 serde_json = { workspace = true }
 snowflake_connector = { path = "../snowflake_connector" }
 ssh-key = { version = "0.5.1", features = ["ed25519", "alloc"] }
-tempfile = "3.7.0"
+tempfile = "3.8.1"
 thiserror.workspace = true
-tokio = { version = "1.29.1", features = ["full"] }
+tokio = { version = "1.33.0", features = ["full"] }
 tokio-postgres = { version = "0.7.8", features = ["with-uuid-1", "with-serde_json-1","with-chrono-0_4"] }
 tokio-rustls = "0.24.1"
 tracing = "0.1"

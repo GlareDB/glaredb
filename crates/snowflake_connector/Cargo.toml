@@ -7,7 +7,7 @@ edition = { workspace = true }
 
 [dependencies]
 thiserror.workspace = true
-reqwest = { version = "0.11.18", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.11.22", default-features = false, features = ["json", "rustls-tls"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = "0.1"
@@ -15,9 +15,9 @@ chrono = { workspace = true }
 uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 datafusion = { workspace = true }
 hex = "0.4.3"
-base64 = "0.21.2"
+base64 = "0.21.5"
 bytes = "1.4.0"
-flate2 = "1.0.26"
+flate2 = "1.0.28"
 decimal = { path = "../decimal" }
 
 [dev-dependencies]
