@@ -12,7 +12,7 @@ unicode_expressions = []
 
 [dependencies]
 datafusion = { workspace = true }
-async-trait = "0.1.72"
+async-trait = "0.1.74"
 async-recursion = "1.0.4"
 uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 regex = "1.8"

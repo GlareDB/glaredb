@@ -10,7 +10,7 @@ logutil = { path = "../logutil" }
 object_store = { workspace = true }
 tempfile = "3"
 futures = "0.3.29"
-async-trait = "0.1.72"
+async-trait = "0.1.74"
 thiserror.workspace = true
 tokio = { version = "1", features = ["full"] }
 bytes = "1.4.0"

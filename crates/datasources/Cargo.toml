@@ -9,7 +9,7 @@ edition = {workspace = true}
 apache-avro = "0.15"
 async-channel = "1.9.0"
 async-stream = "0.3.5"
-async-trait = "0.1.72"
+async-trait = "0.1.74"
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "master" }
 bitflags = "2.4"
 bitvec = "1"

@@ -16,7 +16,7 @@ decimal = { path = "../decimal" }
 thiserror.workspace = true
 tokio = { version = "1", features = ["full"] }
 serde = { workspace = true }
-async-trait = "0.1.72"
+async-trait = "0.1.74"
 serde_json = { workspace = true }
 datafusion = { workspace = true }
 futures = "0.3.29"
