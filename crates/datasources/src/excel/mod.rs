@@ -110,6 +110,9 @@ fn xlsx_sheet_value_to_record_batch(
             let rows = if should_skip {
                 r.rows().skip(1)
             } else {
+                // Rows doesn't behave like a normal iterator here, so we need to skip `0` rows
+                // just so we can get Skip<Rows>
+                #[allow(clippy::iter_skip_zero)]
                 r.rows().skip(0)
             };
 
