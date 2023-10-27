@@ -23,7 +23,7 @@ uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 bytes = "1.4"
 object_store = { workspace = true }
 once_cell = "1.18.0"
-proptest = "1.2"
+proptest = "1.3"
 proptest-derive = "0.3"
 tower = "0.4"
 futures = "0.3.28"
