@@ -195,7 +195,7 @@ dependencies = [
  "crc32fast",
  "digest 0.10.7",
  "lazy_static",
- "libflate",
+ "libflate 1.4.0",
  "log",
  "num-bigint",
  "quad-rand",
@@ -210,6 +210,29 @@ dependencies = [
  "typed-builder 0.14.0",
  "uuid",
  "zerocopy",
+]
+
+[[package]]
+name = "apache-avro"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ceb7c683b2f8f40970b70e39ff8be514c95b96fcb9c4af87e1ed2cb2e10801a0"
+dependencies = [
+ "digest 0.10.7",
+ "lazy_static",
+ "libflate 2.0.0",
+ "log",
+ "num-bigint",
+ "quad-rand",
+ "rand 0.8.5",
+ "regex-lite",
+ "serde",
+ "serde_json",
+ "strum 0.25.0",
+ "strum_macros 0.25.2",
+ "thiserror",
+ "typed-builder 0.16.2",
+ "uuid",
 ]
 
 [[package]]
@@ -1235,6 +1258,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e496a50fda8aacccc86d7529e2c1e0892dbd0f898a6b5645b5561b89c3210efa"
 
 [[package]]
+name = "core2"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b49ba7ef1ad6107f8824dbe97de947cbaac53c44e7f9756a1fba0d37c1eec505"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1507,6 +1539,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dary_heap"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7762d17f1241643615821a8455a0b2c3e803784b058693d990b11f2dce25a0ca"
+
+[[package]]
 name = "dashmap"
 version = "5.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1542,7 +1580,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a4e4fc25698a14c90b34dda647ba10a5a966dc04b036d22e77fb1048663375d"
 dependencies = [
  "ahash 0.8.3",
- "apache-avro",
+ "apache-avro 0.15.0",
  "arrow",
  "arrow-array",
  "arrow-schema",
@@ -1590,7 +1628,7 @@ version = "31.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c23ad0229ea4a85bf76b236d8e75edf539881fdb02ce4e2394f9a76de6055206"
 dependencies = [
- "apache-avro",
+ "apache-avro 0.15.0",
  "arrow",
  "arrow-array",
  "async-compression",
@@ -1751,7 +1789,7 @@ dependencies = [
 name = "datasources"
 version = "0.6.0"
 dependencies = [
- "apache-avro",
+ "apache-avro 0.16.0",
  "async-channel",
  "async-stream",
  "async-trait",
@@ -3070,7 +3108,20 @@ checksum = "5ff4ae71b685bbad2f2f391fe74f6b7659a34871c08b210fdc039e43bee07d18"
 dependencies = [
  "adler32",
  "crc32fast",
- "libflate_lz77",
+ "libflate_lz77 1.2.0",
+]
+
+[[package]]
+name = "libflate"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f7d5654ae1795afc7ff76f4365c2c8791b0feb18e8996a96adad8ffd7c3b2bf"
+dependencies = [
+ "adler32",
+ "core2",
+ "crc32fast",
+ "dary_heap",
+ "libflate_lz77 2.0.0",
 ]
 
 [[package]]
@@ -3079,6 +3130,17 @@ version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a52d3a8bfc85f250440e4424db7d857e241a3aebbbe301f3eb606ab15c39acbf"
 dependencies = [
+ "rle-decode-fast",
+]
+
+[[package]]
+name = "libflate_lz77"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be5f52fb8c451576ec6b79d3f4deb327398bc05bbdbd99021a6e77a4c855d524"
+dependencies = [
+ "core2",
+ "hashbrown 0.13.2",
  "rle-decode-fast",
 ]
 
@@ -4776,6 +4838,12 @@ dependencies = [
  "memchr",
  "regex-syntax 0.7.5",
 ]
+
+[[package]]
+name = "regex-lite"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30b661b2f27137bdbc16f00eda72866a92bb28af1753ffbd56744fb6e2e9cd8e"
 
 [[package]]
 name = "regex-syntax"
@@ -6664,6 +6732,26 @@ dependencies = [
  "proc-macro2 1.0.67",
  "quote 1.0.33",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "typed-builder"
+version = "0.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34085c17941e36627a879208083e25d357243812c30e7d7387c3b954f30ade16"
+dependencies = [
+ "typed-builder-macro",
+]
+
+[[package]]
+name = "typed-builder-macro"
+version = "0.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f03ca4cb38206e2bef0700092660bb74d696f808514dae47fa1467cbfe26e96e"
+dependencies = [
+ "proc-macro2 1.0.67",
+ "quote 1.0.33",
+ "syn 2.0.37",
 ]
 
 [[package]]
