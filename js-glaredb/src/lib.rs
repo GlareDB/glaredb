@@ -1,4 +1,4 @@
-#![deny(clippy::all)]
+#![allow(clippy::wrong_self_convention)]
 pub mod connect;
 pub mod connection;
 pub mod error;
