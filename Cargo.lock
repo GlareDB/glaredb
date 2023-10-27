@@ -694,9 +694,9 @@ source = "git+https://github.com/glaredb/bigquery-storage?branch=master#4183d0cc
 dependencies = [
  "futures",
  "hyper",
- "prost",
+ "prost 0.11.9",
  "prost-types",
- "tonic",
+ "tonic 0.9.2",
  "tonic-build",
  "yup-oauth2 5.1.0",
 ]
@@ -1708,7 +1708,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "object_store",
- "prost",
+ "prost 0.11.9",
 ]
 
 [[package]]
@@ -2530,7 +2530,7 @@ dependencies = [
  "telemetry",
  "tokio",
  "tokio-postgres",
- "tonic",
+ "tonic 0.10.2",
  "tracing",
  "url",
  "uuid",
@@ -3307,13 +3307,13 @@ dependencies = [
  "pgrepr",
  "proptest",
  "proptest-derive",
- "prost",
+ "prost 0.11.9",
  "prost-types",
  "protogen",
  "sqlbuiltins",
  "thiserror",
  "tokio",
- "tonic",
+ "tonic 0.10.2",
  "tonic-build",
  "tower",
  "tracing",
@@ -4296,6 +4296,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4fdd22f3b9c31b53c060df4a0613a1c7f062d4115a2b984dd15b1858f7e340d"
+dependencies = [
+ "bytes",
+]
+
+[[package]]
 name = "prost-build"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4309,7 +4318,7 @@ dependencies = [
  "multimap",
  "petgraph",
  "prettyplease",
- "prost",
+ "prost 0.11.9",
  "prost-types",
  "regex",
  "syn 1.0.109",
@@ -4336,7 +4345,7 @@ version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "213622a1460818959ac1181aaeb2dc9c7f63df720db7d788b3e24eacd1983e13"
 dependencies = [
- "prost",
+ "prost 0.11.9",
 ]
 
 [[package]]
@@ -4347,11 +4356,11 @@ dependencies = [
  "datafusion-proto",
  "proptest",
  "proptest-derive",
- "prost",
+ "prost 0.11.9",
  "prost-build",
  "prost-types",
  "thiserror",
- "tonic",
+ "tonic 0.10.2",
  "tonic-build",
  "tracing",
  "uuid",
@@ -4939,7 +4948,7 @@ dependencies = [
  "futures",
  "logutil",
  "once_cell",
- "prost",
+ "prost 0.11.9",
  "prost-types",
  "protogen",
  "proxyutil",
@@ -4947,7 +4956,7 @@ dependencies = [
  "sqlexec",
  "thiserror",
  "tokio",
- "tonic",
+ "tonic 0.10.2",
  "tracing",
  "uuid",
 ]
@@ -5801,7 +5810,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-postgres",
- "tonic",
+ "tonic 0.10.2",
  "tracing",
  "url",
  "uuid",
@@ -5841,7 +5850,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-postgres",
- "tonic",
+ "tonic 0.10.2",
  "tower",
  "tracing",
  "url",
@@ -6443,7 +6452,38 @@ dependencies = [
  "hyper-timeout",
  "percent-encoding",
  "pin-project",
- "prost",
+ "prost 0.11.9",
+ "rustls-native-certs 0.6.3",
+ "rustls-pemfile",
+ "tokio",
+ "tokio-rustls 0.24.1",
+ "tokio-stream",
+ "tower",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tonic"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d560933a0de61cf715926b9cac824d4c883c2c43142f787595e48280c40a1d0e"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "axum",
+ "base64 0.21.4",
+ "bytes",
+ "h2",
+ "http",
+ "http-body",
+ "hyper",
+ "hyper-timeout",
+ "percent-encoding",
+ "pin-project",
+ "prost 0.12.1",
+ "rustls 0.21.7",
  "rustls-native-certs 0.6.3",
  "rustls-pemfile",
  "tokio",

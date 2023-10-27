@@ -9,7 +9,7 @@ edition.workspace = true
 datafusion = { workspace = true }
 datafusion-proto = { workspace = true }
 thiserror.workspace = true
-tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
+tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 prost = "0.11"
 prost-types = "0.11"
 proptest = "1.2"
