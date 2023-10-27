@@ -22,7 +22,7 @@ tracing = "0.1"
 thiserror = { workspace = true }
 prost = "0.11"
 prost-types = "0.11"
-tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
+tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 bytes = "1.4"
 futures = "0.3.29"
 dashmap = "5.5.0"

@@ -11,7 +11,7 @@ protogen = {path = "../protogen"}
 sqlbuiltins = { path = "../sqlbuiltins" }
 object_store_util = {path = "../object_store_util"}
 pgrepr = {path = "../pgrepr"}
-tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
+tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 prost = "0.11"
 prost-types = "0.11"
 thiserror.workspace = true
