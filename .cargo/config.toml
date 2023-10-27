@@ -1,2 +1,9 @@
 [alias]
 xtask = "run --bin xtask --"
+
+[target."aarch64-apple-darwin"]
+# Get proper backtraces in mac Sonoma. Currently there's an issue with the new
+# linker that prevents backtraces from getting printed correctly.
+#
+# <https://github.com/rust-lang/rust/issues/113783>
+rustflags=["-Clink-arg=-Wl,-ld_classic"]
