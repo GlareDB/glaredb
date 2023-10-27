@@ -13,7 +13,7 @@ tonic = { version = "0.9", features = ["transport", "tls", "tls-roots"] }
 prost = "0.11"
 prost-types = "0.11"
 proptest = "1.3"
-proptest-derive = "0.3"
+proptest-derive = "0.4"
 uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tracing = "0.1"
 
