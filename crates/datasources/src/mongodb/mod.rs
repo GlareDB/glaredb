@@ -17,10 +17,13 @@ use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DatafusionResult;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
+use datafusion::logical_expr::Operator;
 use datafusion::physical_plan::ExecutionPlan;
-use mongodb::bson::{Bson, Document, RawDocumentBuf};
+use datafusion::scalar::ScalarValue;
+use mongodb::bson::{Bson, Document, RawDocumentBuf, Binary, bson};
 use mongodb::Collection;
 use mongodb::{options::ClientOptions, Client};
+use mongodb::bson::spec::BinarySubtype;
 use std::any::Any;
 use std::fmt::{Display, Write};
 use std::str::FromStr;
@@ -276,15 +279,104 @@ impl TableProvider for MongoTableProvider {
             None => self.schema.clone(),
         };
 
-        // TODO: Filters.
+	let query = Arc::new(exprs_to_mdb_query(_filters).expect("could not build query"));
 
         Ok(Arc::new(MongoBsonExec::new(
-            projected_schema,
             self.collection.clone(),
+            query,
+            projected_schema,
             limit,
         )))
     }
 }
+
+fn exprs_to_mdb_query(exprs: &[Expr]) -> Result<Document, ExtensionError> {
+    let mut doc = Document::new();
+    for e in exprs {
+	let expr = &e;
+	match expr {
+	    Expr::BinaryExpr(val) => {
+		match val.left.as_ref() {
+		    Expr::Column(key) => {
+			match val.right.as_ref() {
+			    Expr::Literal(v) => {
+				doc.insert( operator_to_mdbq(val.op)?, bson!({key.to_string(): df_to_bson(v.clone())?}))
+			    }, 
+			    _ => {continue;},
+			}
+		    }, 
+		    Expr::Literal(v) => {
+			match val.right.as_ref() {
+			    Expr::Column(key) => {
+				doc.insert( operator_to_mdbq(val.op)?, bson!({key.to_string(): df_to_bson(v.clone())?}))
+			    },
+			    _ => {continue;},
+			}
+		    },
+		    _ => {continue;},
+		};
+	    },
+	    _ => {continue;},
+	};
+    }
+    
+    Ok(doc.to_owned())
+}
+
+fn operator_to_mdbq(op: Operator) -> Result<String, ExtensionError> {
+    match op {
+	Operator::Eq => Ok("$eq".to_string()),
+	Operator::Gt => Ok("$gt".to_string()),
+	Operator::Lt => Ok("$lt".to_string()), 
+	Operator::NotEq => Ok("$ne".to_string()), 
+	Operator::GtEq => Ok("$gte".to_string()),
+	Operator::LtEq => Ok("$lte".to_string()), 
+	Operator::And => Ok("$and".to_string()), 
+	Operator::Or => Ok("$or".to_string()), 
+	Operator::Modulo => Ok("$mod".to_string()), 
+	Operator::RegexMatch => Ok("$regex".to_string()), 
+	_ => {
+	    return Err(ExtensionError::String(
+		format!("{} operator is not translated", op)
+	    ))
+	},
+    }
+}
+
+fn df_to_bson(val: ScalarValue) -> Result<Bson, ExtensionError> {
+    match val {
+	ScalarValue::Binary(v) => Ok(Bson::Binary(Binary { 
+	    subtype: BinarySubtype::Generic, 
+	    bytes: v.unwrap_or_default(),
+	})),
+	ScalarValue::LargeBinary(v) => Ok(Bson::Binary(Binary { 
+	    subtype: BinarySubtype::Generic, 
+	    bytes: v.unwrap_or_default(),
+	})),
+	ScalarValue::FixedSizeBinary(_, v) => Ok(Bson::Binary(Binary { 
+	    subtype: BinarySubtype::Generic, 
+	    bytes: v.unwrap_or_default(),
+	})),
+	ScalarValue::Utf8(v) => Ok(Bson::String(v.unwrap_or_default())),
+	ScalarValue::LargeUtf8(v) => Ok(Bson::String(v.unwrap_or_default())),
+	ScalarValue::Boolean(v) => Ok(Bson::Boolean(v.unwrap_or_default())),
+	ScalarValue::Int8(v) => Ok(Bson::Int32(i32::from(v.unwrap_or_default()))),
+	ScalarValue::Int16(v) => Ok(Bson::Int32(i32::from(v.unwrap_or_default()))),
+	ScalarValue::Int32(v) => Ok(Bson::Int32(v.unwrap_or_default())),
+	ScalarValue::Int64(v) => Ok(Bson::Int64(v.unwrap_or_default())),
+	ScalarValue::UInt16(v)  => Ok(Bson::Int32(i32::from(v.unwrap_or_default()))),
+	ScalarValue::UInt8(v) => Ok(Bson::Int32(i32::from(v.unwrap_or_default()))),
+	ScalarValue::UInt32(v) => Ok(Bson::Int64(i64::from(v.unwrap_or_default()))),
+	ScalarValue::UInt64(v) => Ok(Bson::Int64(i64::try_from(v.unwrap_or_default()).unwrap())),
+	ScalarValue::Float32(v) =>Ok(Bson::Double(f64::from(v.unwrap_or_default()))),
+	ScalarValue::Float64(v) =>Ok(Bson::Double(v.unwrap_or_default())),
+	ScalarValue::Null => Ok(Bson::Null),
+	_ => {
+	    return Err(ExtensionError::String(format!("{} conversion undefined", val)))
+	},
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

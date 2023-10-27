@@ -28,21 +28,25 @@ const ID_FIELD_NAME: &str = "_id";
 
 #[derive(Debug, Clone)]
 pub struct MongoBsonExec {
-    schema: Arc<ArrowSchema>,
     collection: Collection<RawDocumentBuf>,
+    filter: Arc<Document>,
+    schema: Arc<ArrowSchema>,
     limit: Option<usize>,
     metrics: ExecutionPlanMetricsSet,
 }
 
 impl MongoBsonExec {
     pub fn new(
-        schema: Arc<ArrowSchema>,
         collection: Collection<RawDocumentBuf>,
+	filter: Arc<Document>,
+        schema: Arc<ArrowSchema>,
         limit: Option<usize>,
     ) -> MongoBsonExec {
+
         MongoBsonExec {
             schema,
             collection,
+	    filter,
             limit,
             metrics: ExecutionPlanMetricsSet::new(),
         }
@@ -75,7 +79,7 @@ impl ExecutionPlan for MongoBsonExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Execution(
-            "cannot replace children for BigQueryExec".to_string(),
+            "cannot replace children for MongoDBExec".to_string(),
         ))
     }
 
@@ -84,7 +88,12 @@ impl ExecutionPlan for MongoBsonExec {
         partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        let stream = BsonStream::new(self.schema.clone(), self.collection.clone(), self.limit);
+        let stream = BsonStream::new(
+	    self.collection.clone(), 
+	    self.filter, 
+	    self.schema.clone(), 
+	    self.limit,
+	);
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
             stream,
             partition,
@@ -114,12 +123,11 @@ struct BsonStream {
 
 impl BsonStream {
     fn new(
-        schema: Arc<ArrowSchema>,
         collection: Collection<RawDocumentBuf>,
+	query: Arc<Document>,
+        schema: Arc<ArrowSchema>,
         limit: Option<usize>,
     ) -> Self {
-        // TODO: Filtering docs.
-
         // Projection document. Project everything that's in the schema.
         //
         // The `_id` field is special and needs to be manually suppressed if not
@@ -143,7 +151,7 @@ impl BsonStream {
         let mut row_count = 0;
         // Build "inner" stream.
         let stream = stream! {
-            let cursor = match collection.find(None, Some(find_opts)).await {
+            let cursor = match collection.find(Some(query), Some(find_opts)).await {
                 Ok(cursor) => cursor,
                 Err(e) => {
                     yield Err(DataFusionError::External(Box::new(e)));
@@ -179,6 +187,8 @@ impl BsonStream {
         }
     }
 }
+
+
 
 impl Stream for BsonStream {
     type Item = DatafusionResult<RecordBatch>;
