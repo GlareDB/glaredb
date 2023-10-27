@@ -30,3 +30,4 @@ once_cell = "1.18.0"
 num-traits = "0.2.16"
 url.workspace = true
 strum = "0.25.0"
+home = "0.5.5"
