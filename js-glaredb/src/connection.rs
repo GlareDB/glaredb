@@ -149,7 +149,7 @@ impl Connection {
   /// Run a SQL querying against a GlareDB database.
   ///
   /// Note that this will only plan the query. To execute the query, call any
-  /// of `execute`, `show`, `to_arrow`, `to_pandas`, or `to_polars`
+  /// of `execute`, `show`, `toArrow`,  or `toPolars`
   ///
   /// # Examples
   ///
@@ -159,7 +159,8 @@ impl Connection {
   /// import glaredb from "@glaredb/node"
   ///
   /// let con = glaredb.connect()
-  /// con.sql('select 1').show()
+  /// let cursor = await con.sql('select 1');
+  /// await cursor.show()
   /// ```
   ///
   /// Convert the output of a query to a Pandas dataframe.
@@ -176,10 +177,9 @@ impl Connection {
   ///
   /// ```javascript
   /// import glaredb from "@glaredb/node"
-  /// import pandas
   ///
   /// con = glaredb.connect()
-  /// con.sql('create table my_table (a int)').execute()
+  /// await con.sql('create table my_table (a int)').then(cursor => cursor.execute())
   /// ```
   #[napi]
   pub async fn sql(&self, query: String) -> napi::Result<JsLogicalPlan> {
