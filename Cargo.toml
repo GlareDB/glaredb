@@ -9,6 +9,9 @@ edition = "2021"
 
 [profile.release]
 lto = "thin"
+opt-level = 3
+codegen-units = 1
+strip = true
 
 [workspace.dependencies]
 datafusion = { version = "31.0", features = ["avro"] }
@@ -33,3 +36,4 @@ features = ["s3", "gcs", "azure", "datafusion", "arrow", "parquet"]
 
 [patch.crates-io]
 object_store = { git = "https://github.com/apache/arrow-rs", rev = "a03ce564f1c95e10c78e6a065996cb036ca13cef" }
+
