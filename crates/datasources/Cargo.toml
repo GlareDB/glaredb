@@ -42,7 +42,7 @@ serde_bytes = "0.11.12"
 serde_with = "3.1.0"
 serde_json = { workspace = true }
 snowflake_connector = { path = "../snowflake_connector" }
-ssh-key = { version = "0.5.1", features = ["ed25519", "alloc"] }
+ssh-key = { version = "0.6.2", features = ["ed25519", "alloc"] }
 tempfile = "3.7.0"
 thiserror.workspace = true
 tokio = { version = "1.29.1", features = ["full"] }
