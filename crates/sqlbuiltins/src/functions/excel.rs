@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datasources::common::url::DatasourceUrl;
 use datasources::excel::read_excel_impl;
 use protogen::metastore::types::catalog::RuntimePreference;
 
@@ -31,8 +32,18 @@ impl TableFunc for ExcelScan {
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         let (source_url, options) = table_location_and_opts(ctx, args, &mut opts)?;
-        let url = PathBuf::from(source_url.to_string());
-        let url = resolve_homedir(&url);
+
+        let url = match source_url {
+            DatasourceUrl::File(path) => path,
+            DatasourceUrl::Url(url) => {
+                return Err(ExtensionError::String(format!(
+                    "Expected file, received url: {}",
+                    url
+                )))
+            }
+        };
+
+        let url = resolve_path(&url)?;
         let sheet_name = options.inner.get("sheet_name").map(|v| v.as_str());
         let has_header = options
             .inner
@@ -52,11 +63,14 @@ impl TableFunc for ExcelScan {
     }
 }
 
-pub fn resolve_homedir(path: &Path) -> PathBuf {
+pub fn resolve_path(path: &Path) -> Result<PathBuf> {
     if path.starts_with("~") {
         if let Some(homedir) = home::home_dir() {
-            return homedir.join(path.strip_prefix("~").unwrap());
+            return Ok(homedir.join(path.strip_prefix("~").unwrap()));
         }
     }
-    path.into()
+
+    path.canonicalize()
+        .map_err(|e| ExtensionError::Access(Box::new(e)))
+        .map(|p| p.to_path_buf())
 }

@@ -1,3 +1,0 @@
-
-statement ok
-select * from read_excel('../../testdata/xlxs/userdata1.xlxs')
