@@ -21,7 +21,7 @@ async-trait = "0.1.74"
 tracing = "0.1"
 thiserror = { workspace = true }
 prost = "0.11"
-prost-types = "0.11"
+prost-types = "0.12"
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 bytes = "1.4"
 futures = "0.3.29"
