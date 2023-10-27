@@ -1566,7 +1566,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "rand",
- "sqlparser",
+ "sqlparser 0.37.0",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -1595,7 +1595,7 @@ dependencies = [
  "object_store",
  "parquet",
  "pyo3",
- "sqlparser",
+ "sqlparser 0.37.0",
  "tokio",
  "tokio-util",
  "xz2",
@@ -1631,7 +1631,7 @@ dependencies = [
  "ahash 0.8.6",
  "arrow",
  "datafusion-common",
- "sqlparser",
+ "sqlparser 0.37.0",
  "strum",
  "strum_macros",
 ]
@@ -1714,7 +1714,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "log",
- "sqlparser",
+ "sqlparser 0.37.0",
 ]
 
 [[package]]
@@ -1849,7 +1849,7 @@ dependencies = [
  "rusoto_sts",
  "serde",
  "serde_json",
- "sqlparser",
+ "sqlparser 0.37.0",
  "thiserror",
  "tokio",
  "url",
@@ -4318,22 +4318,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "prql-ast"
-version = "0.9.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9d91522f9f16d055409b9ffec55693a96e3424fe5d8e7c8331adcf6d7ee363a"
-dependencies = [
- "enum-as-inner 0.6.0",
- "semver 1.0.20",
- "serde",
- "strum",
-]
-
-[[package]]
 name = "prql-compiler"
-version = "0.9.5"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4d56865532fcf1abaa31fbb6da6fd9e90edc441c5c78bfe2870ee75187c7a3c"
+checksum = "245e54abe336ce2937030501b132ba9363fdccb8a78cd553ecccf065b77860e5"
 dependencies = [
  "anstream 0.3.2",
  "anyhow",
@@ -4343,27 +4331,39 @@ dependencies = [
  "itertools 0.11.0",
  "log",
  "once_cell",
- "prql-ast",
- "prql-parser",
+ "prqlc-ast",
+ "prqlc-parser",
  "regex",
  "semver 1.0.20",
  "serde",
  "serde_json",
  "sqlformat",
- "sqlparser",
+ "sqlparser 0.38.0",
  "strum",
  "strum_macros",
 ]
 
 [[package]]
-name = "prql-parser"
-version = "0.9.5"
+name = "prqlc-ast"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9360352e413390cfd26345f49279622b87581a3b748340d3f42d4d616c2a1ec1"
+checksum = "7ec908ca2bfd9d658a5db15e3b73d9d7a2d33d7c2a4c1f33393c6d7552000c94"
+dependencies = [
+ "enum-as-inner 0.6.0",
+ "semver 1.0.20",
+ "serde",
+ "strum",
+]
+
+[[package]]
+name = "prqlc-parser"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85ad56e613acd847c587b9f4b590e393aa34847a84b201dd152712056a7398c2"
 dependencies = [
  "chumsky",
  "itertools 0.11.0",
- "prql-ast",
+ "prqlc-ast",
  "semver 1.0.20",
 ]
 
@@ -5788,8 +5788,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37ae05a8250b968a3f7db93155a84d68b2e6cea1583949af5ca5b5170c76c075"
 dependencies = [
  "log",
- "serde",
  "sqlparser_derive",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.38.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0272b7bb0a225320170c99901b4b5fb3a4384e255a7f2cc228f61e2ba3893e75"
+dependencies = [
+ "log",
+ "serde",
 ]
 
 [[package]]
