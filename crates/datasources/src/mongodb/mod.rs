@@ -284,6 +284,10 @@ impl TableProvider for MongoTableProvider {
             None => self.schema.clone(),
         };
 
+        // Projection document. Project everything that's in the schema.
+        //
+        // The `_id` field is special and needs to be manually suppressed if not
+        // included in the schema.
         let mut proj_doc = Document::new();
         let mut has_id_field = false;
         for field in &schema.fields {

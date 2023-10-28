@@ -107,23 +107,10 @@ impl BsonStream {
         schema: Arc<ArrowSchema>,
         limit: Option<usize>,
     ) -> Self {
-        // Projection document. Project everything that's in the schema.
-        //
-        // The `_id` field is special and needs to be manually suppressed if not
-        // included in the schema.
-
         let schema_stream = schema.clone();
         let mut row_count = 0;
         // Build "inner" stream.
         let stream = stream! {
-            // let cursor = match collection.find(Some(query), Some(find_opts)).await {
-            //     Ok(cursor) => cursor,
-            //     Err(e) => {
-            //         yield Err(DataFusionError::External(Box::new(e)));
-            //         return;
-            //     }
-            // };
-
             let mut chunked = cursor.chunks(100);
             while let Some(result) = chunked.next().await {
                 let result = document_chunk_to_record_batch(result, schema_stream.fields.clone());
