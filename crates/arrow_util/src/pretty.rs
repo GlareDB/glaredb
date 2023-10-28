@@ -32,6 +32,19 @@ pub fn pretty_format_batches(
     PrettyTable::try_new(schema, batches, max_width, max_rows)
 }
 
+/// Get the terminal's width in characters.
+///
+/// This can be used as the `max_width` argument when pretty formatting to
+/// ensure the formatted table doesn't exceed the width of the terminal.
+///
+/// If the width can't be determine or is unreasonable (0), then a default width
+/// of 80 is used.
+pub fn term_width() -> usize {
+    crossterm::terminal::size()
+        .map(|(width, _)| if width == 0 { 80 } else { width as usize })
+        .unwrap_or(80)
+}
+
 #[derive(Debug)]
 struct PrettyTable {
     table: Table,
@@ -88,7 +101,6 @@ impl PrettyTable {
             None => vec![ColumnValues::default(); col_headers.len()],
         };
 
-        let max_width = max_width.or(table.width().map(|v| v as usize));
         let format =
             TableFormat::from_headers_and_sample_vals(&col_headers, &first_vals, max_width);
 

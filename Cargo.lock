@@ -460,6 +460,7 @@ name = "arrow_util"
 version = "0.6.0"
 dependencies = [
  "comfy-table",
+ "crossterm",
  "datafusion",
  "once_cell",
  "textwrap",
@@ -2566,7 +2567,6 @@ dependencies = [
  "arrow_util",
  "clap",
  "colored",
- "crossterm",
  "datafusion",
  "datafusion_ext",
  "futures",
