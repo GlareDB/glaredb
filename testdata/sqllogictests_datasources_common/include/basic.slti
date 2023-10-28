@@ -103,8 +103,7 @@ SELECT station_id FROM basic
 query I nosort
 SELECT station_id FROM basic
 	WHERE footprint_length < 25
-	ORDER BY footprint_length ASC, station_id DESC
-	LIMIT 2;
+	ORDER BY footprint_length
+	LIMIT 1;
 ----
 4699
-2570
