@@ -14,39 +14,25 @@ use datafusion::physical_plan::{
 };
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{Stream, StreamExt};
-use mongodb::bson::{Document, RawDocumentBuf};
-use mongodb::{options::FindOptions, Collection};
+use mongodb::bson::RawDocumentBuf;
+use mongodb::Cursor;
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-/// Field name in mongo for uniquely identifying a record. Some special handling
-/// needs to be done with the field when projecting.
-const ID_FIELD_NAME: &str = "_id";
-
 #[derive(Debug, Clone)]
 pub struct MongoBsonExec {
-    collection: Collection<RawDocumentBuf>,
-    filter: Arc<Document>,
-    schema: Arc<ArrowSchema>,
+    cursor: Arc<Cursor<RawDocumentBuf>>,
     limit: Option<usize>,
     metrics: ExecutionPlanMetricsSet,
 }
 
 impl MongoBsonExec {
-    pub fn new(
-        collection: Collection<RawDocumentBuf>,
-	filter: Arc<Document>,
-        schema: Arc<ArrowSchema>,
-        limit: Option<usize>,
-    ) -> MongoBsonExec {
-
+    pub fn new(cursor: Arc<Cursor<RawDocumentBuf>>, limit: Option<usize>) -> MongoBsonExec {
         MongoBsonExec {
-            schema,
-            collection,
-	    filter,
+            cursor,
             limit,
             metrics: ExecutionPlanMetricsSet::new(),
         }
@@ -88,14 +74,8 @@ impl ExecutionPlan for MongoBsonExec {
         partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        let stream = BsonStream::new(
-	    self.collection.clone(), 
-	    self.filter, 
-	    self.schema.clone(), 
-	    self.limit,
-	);
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
-            stream,
+            BsonStream::new(self.cursor, self.schema.clone(), self.limit),
             partition,
             &self.metrics,
         )))
@@ -123,8 +103,7 @@ struct BsonStream {
 
 impl BsonStream {
     fn new(
-        collection: Collection<RawDocumentBuf>,
-	query: Arc<Document>,
+        cursor: Arc<Cursor<RawDocumentBuf>>,
         schema: Arc<ArrowSchema>,
         limit: Option<usize>,
     ) -> Self {
@@ -132,32 +111,18 @@ impl BsonStream {
         //
         // The `_id` field is special and needs to be manually suppressed if not
         // included in the schema.
-        let mut proj_doc = Document::new();
-        let mut has_id_field = false;
-        for field in &schema.fields {
-            proj_doc.insert(field.name(), 1);
-            has_id_field = has_id_field || field.name().as_str() == ID_FIELD_NAME;
-        }
-
-        if !has_id_field {
-            proj_doc.insert(ID_FIELD_NAME, 0);
-        }
-
-        let mut find_opts = FindOptions::default();
-        find_opts.limit = limit.map(|v| v as i64);
-        find_opts.projection = Some(proj_doc);
 
         let schema_stream = schema.clone();
         let mut row_count = 0;
         // Build "inner" stream.
         let stream = stream! {
-            let cursor = match collection.find(Some(query), Some(find_opts)).await {
-                Ok(cursor) => cursor,
-                Err(e) => {
-                    yield Err(DataFusionError::External(Box::new(e)));
-                    return;
-                }
-            };
+            // let cursor = match collection.find(Some(query), Some(find_opts)).await {
+            //     Ok(cursor) => cursor,
+            //     Err(e) => {
+            //         yield Err(DataFusionError::External(Box::new(e)));
+            //         return;
+            //     }
+            // };
 
             let mut chunked = cursor.chunks(100);
             while let Some(result) = chunked.next().await {
@@ -187,8 +152,6 @@ impl BsonStream {
         }
     }
 }
-
-
 
 impl Stream for BsonStream {
     type Item = DatafusionResult<RecordBatch>;

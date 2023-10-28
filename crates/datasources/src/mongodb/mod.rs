@@ -16,18 +16,23 @@ use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as A
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DatafusionResult;
 use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::logical_expr::Operator;
+use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::scalar::ScalarValue;
-use mongodb::bson::{Bson, Document, RawDocumentBuf, Binary, bson};
-use mongodb::Collection;
-use mongodb::{options::ClientOptions, Client};
 use mongodb::bson::spec::BinarySubtype;
+use mongodb::bson::{bson, Binary, Bson, Document, RawDocumentBuf};
+use mongodb::options::{ClientOptions, FindOptions};
+use mongodb::Client;
+use mongodb::Collection;
 use std::any::Any;
 use std::fmt::{Display, Write};
 use std::str::FromStr;
 use std::sync::Arc;
+
+/// Field name in mongo for uniquely identifying a record. Some special handling
+/// needs to be done with the field when projecting.
+const ID_FIELD_NAME: &str = "_id";
 
 #[derive(Debug)]
 pub enum MongoProtocol {
@@ -274,109 +279,142 @@ impl TableProvider for MongoTableProvider {
         // Note that this projection will only project top-level fields. There
         // is not a way to project nested documents (at least when modelling
         // nested docs as a struct).
-        let projected_schema = match projection {
+        let schema = match projection {
             Some(projection) => Arc::new(self.schema.project(projection)?),
             None => self.schema.clone(),
         };
 
-	let query = Arc::new(exprs_to_mdb_query(_filters).expect("could not build query"));
+        let mut proj_doc = Document::new();
+        let mut has_id_field = false;
+        for field in &schema.fields {
+            proj_doc.insert(field.name(), 1);
+            has_id_field = has_id_field || field.name().as_str() == ID_FIELD_NAME;
+        }
 
-        Ok(Arc::new(MongoBsonExec::new(
-            self.collection.clone(),
-            query,
-            projected_schema,
-            limit,
-        )))
+        if !has_id_field {
+            proj_doc.insert(ID_FIELD_NAME, 0);
+        }
+
+        let mut find_opts = FindOptions::default();
+        find_opts.limit = limit.map(|v| v as i64);
+        find_opts.projection = Some(proj_doc);
+
+        let filter = exprs_to_mdb_query(_filters).expect("could not build query");
+        let cursor = Arc::new(
+            self.collection
+                .find(Some(filter), Some(find_opts))?
+                .into()
+                .as_ref(),
+        );
+
+        // let cursor = match .await {
+        //     Ok(cursor) => cursor,
+        //     Err(e) => {
+        //         yield Err(DataFusionError::External(Box::new(e)));
+        //         return;
+        //     }
+        // };
+
+        Ok(Arc::new(MongoBsonExec::new(cursor, limit)))
     }
 }
 
 fn exprs_to_mdb_query(exprs: &[Expr]) -> Result<Document, ExtensionError> {
     let mut doc = Document::new();
     for e in exprs {
-	let expr = &e;
-	match expr {
-	    Expr::BinaryExpr(val) => {
-		match val.left.as_ref() {
-		    Expr::Column(key) => {
-			match val.right.as_ref() {
-			    Expr::Literal(v) => {
-				doc.insert( operator_to_mdbq(val.op)?, bson!({key.to_string(): df_to_bson(v.clone())?}))
-			    }, 
-			    _ => {continue;},
-			}
-		    }, 
-		    Expr::Literal(v) => {
-			match val.right.as_ref() {
-			    Expr::Column(key) => {
-				doc.insert( operator_to_mdbq(val.op)?, bson!({key.to_string(): df_to_bson(v.clone())?}))
-			    },
-			    _ => {continue;},
-			}
-		    },
-		    _ => {continue;},
-		};
-	    },
-	    _ => {continue;},
-	};
+        let expr = &e;
+        match expr {
+            Expr::BinaryExpr(val) => {
+                match val.left.as_ref() {
+                    Expr::Column(key) => match val.right.as_ref() {
+                        Expr::Literal(v) => doc.insert(
+                            operator_to_mdbq(val.op)?,
+                            bson!({key.to_string(): df_to_bson(v.clone())?}),
+                        ),
+                        _ => {
+                            continue;
+                        }
+                    },
+                    Expr::Literal(v) => match val.right.as_ref() {
+                        Expr::Column(key) => doc.insert(
+                            operator_to_mdbq(val.op)?,
+                            bson!({key.to_string(): df_to_bson(v.clone())?}),
+                        ),
+                        _ => {
+                            continue;
+                        }
+                    },
+                    _ => {
+                        continue;
+                    }
+                };
+            }
+            _ => {
+                continue;
+            }
+        };
     }
-    
+
     Ok(doc.to_owned())
 }
 
 fn operator_to_mdbq(op: Operator) -> Result<String, ExtensionError> {
     match op {
-	Operator::Eq => Ok("$eq".to_string()),
-	Operator::Gt => Ok("$gt".to_string()),
-	Operator::Lt => Ok("$lt".to_string()), 
-	Operator::NotEq => Ok("$ne".to_string()), 
-	Operator::GtEq => Ok("$gte".to_string()),
-	Operator::LtEq => Ok("$lte".to_string()), 
-	Operator::And => Ok("$and".to_string()), 
-	Operator::Or => Ok("$or".to_string()), 
-	Operator::Modulo => Ok("$mod".to_string()), 
-	Operator::RegexMatch => Ok("$regex".to_string()), 
-	_ => {
-	    return Err(ExtensionError::String(
-		format!("{} operator is not translated", op)
-	    ))
-	},
+        Operator::Eq => Ok("$eq".to_string()),
+        Operator::Gt => Ok("$gt".to_string()),
+        Operator::Lt => Ok("$lt".to_string()),
+        Operator::NotEq => Ok("$ne".to_string()),
+        Operator::GtEq => Ok("$gte".to_string()),
+        Operator::LtEq => Ok("$lte".to_string()),
+        Operator::And => Ok("$and".to_string()),
+        Operator::Or => Ok("$or".to_string()),
+        Operator::Modulo => Ok("$mod".to_string()),
+        Operator::RegexMatch => Ok("$regex".to_string()),
+        _ => {
+            return Err(ExtensionError::String(format!(
+                "{} operator is not translated",
+                op
+            )))
+        }
     }
 }
 
 fn df_to_bson(val: ScalarValue) -> Result<Bson, ExtensionError> {
     match val {
-	ScalarValue::Binary(v) => Ok(Bson::Binary(Binary { 
-	    subtype: BinarySubtype::Generic, 
-	    bytes: v.unwrap_or_default(),
-	})),
-	ScalarValue::LargeBinary(v) => Ok(Bson::Binary(Binary { 
-	    subtype: BinarySubtype::Generic, 
-	    bytes: v.unwrap_or_default(),
-	})),
-	ScalarValue::FixedSizeBinary(_, v) => Ok(Bson::Binary(Binary { 
-	    subtype: BinarySubtype::Generic, 
-	    bytes: v.unwrap_or_default(),
-	})),
-	ScalarValue::Utf8(v) => Ok(Bson::String(v.unwrap_or_default())),
-	ScalarValue::LargeUtf8(v) => Ok(Bson::String(v.unwrap_or_default())),
-	ScalarValue::Boolean(v) => Ok(Bson::Boolean(v.unwrap_or_default())),
-	ScalarValue::Int8(v) => Ok(Bson::Int32(i32::from(v.unwrap_or_default()))),
-	ScalarValue::Int16(v) => Ok(Bson::Int32(i32::from(v.unwrap_or_default()))),
-	ScalarValue::Int32(v) => Ok(Bson::Int32(v.unwrap_or_default())),
-	ScalarValue::Int64(v) => Ok(Bson::Int64(v.unwrap_or_default())),
-	ScalarValue::UInt16(v)  => Ok(Bson::Int32(i32::from(v.unwrap_or_default()))),
-	ScalarValue::UInt8(v) => Ok(Bson::Int32(i32::from(v.unwrap_or_default()))),
-	ScalarValue::UInt32(v) => Ok(Bson::Int64(i64::from(v.unwrap_or_default()))),
-	ScalarValue::UInt64(v) => Ok(Bson::Int64(i64::try_from(v.unwrap_or_default()).unwrap())),
-	ScalarValue::Float32(v) =>Ok(Bson::Double(f64::from(v.unwrap_or_default()))),
-	ScalarValue::Float64(v) =>Ok(Bson::Double(v.unwrap_or_default())),
-	ScalarValue::Null => Ok(Bson::Null),
-	_ => {
-	    return Err(ExtensionError::String(format!("{} conversion undefined", val)))
-	},
+        ScalarValue::Binary(v) => Ok(Bson::Binary(Binary {
+            subtype: BinarySubtype::Generic,
+            bytes: v.unwrap_or_default(),
+        })),
+        ScalarValue::LargeBinary(v) => Ok(Bson::Binary(Binary {
+            subtype: BinarySubtype::Generic,
+            bytes: v.unwrap_or_default(),
+        })),
+        ScalarValue::FixedSizeBinary(_, v) => Ok(Bson::Binary(Binary {
+            subtype: BinarySubtype::Generic,
+            bytes: v.unwrap_or_default(),
+        })),
+        ScalarValue::Utf8(v) => Ok(Bson::String(v.unwrap_or_default())),
+        ScalarValue::LargeUtf8(v) => Ok(Bson::String(v.unwrap_or_default())),
+        ScalarValue::Boolean(v) => Ok(Bson::Boolean(v.unwrap_or_default())),
+        ScalarValue::Int8(v) => Ok(Bson::Int32(i32::from(v.unwrap_or_default()))),
+        ScalarValue::Int16(v) => Ok(Bson::Int32(i32::from(v.unwrap_or_default()))),
+        ScalarValue::Int32(v) => Ok(Bson::Int32(v.unwrap_or_default())),
+        ScalarValue::Int64(v) => Ok(Bson::Int64(v.unwrap_or_default())),
+        ScalarValue::UInt16(v) => Ok(Bson::Int32(i32::from(v.unwrap_or_default()))),
+        ScalarValue::UInt8(v) => Ok(Bson::Int32(i32::from(v.unwrap_or_default()))),
+        ScalarValue::UInt32(v) => Ok(Bson::Int64(i64::from(v.unwrap_or_default()))),
+        ScalarValue::UInt64(v) => Ok(Bson::Int64(i64::try_from(v.unwrap_or_default()).unwrap())),
+        ScalarValue::Float32(v) => Ok(Bson::Double(f64::from(v.unwrap_or_default()))),
+        ScalarValue::Float64(v) => Ok(Bson::Double(v.unwrap_or_default())),
+        ScalarValue::Null => Ok(Bson::Null),
+        _ => {
+            return Err(ExtensionError::String(format!(
+                "{} conversion undefined",
+                val
+            )))
+        }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
