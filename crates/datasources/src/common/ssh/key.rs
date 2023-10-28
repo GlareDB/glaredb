@@ -14,7 +14,8 @@ pub struct SshKey {
 impl SshKey {
     /// Generate a random Ed25519 ssh key pair.
     pub fn generate_random() -> Result<Self, SshKeyError> {
-        let keypair = PrivateKey::random(rand::thread_rng(), ssh_key::Algorithm::Ed25519)?;
+	let mut rnd = rand::thread_rng();
+        let keypair = PrivateKey::random(&mut rnd, ssh_key::Algorithm::Ed25519)?;
         Ok(Self { keypair })
     }
 
