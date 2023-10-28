@@ -131,7 +131,7 @@ impl ExecutionPlan for RemoteScanExec {
             // Recreate a session state from a task context. This is a bit hacky,
             // but all we really need to care about is the object stores in runtime
             // (I believe).
-            let state = SessionState::with_config_rt(
+            let state = SessionState::new_with_config_rt(
                 context.session_config().clone(),
                 context.runtime_env(),
             );

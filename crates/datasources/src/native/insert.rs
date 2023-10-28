@@ -105,8 +105,10 @@ impl ExecutionPlan for NativeTableInsertExec {
         // This is needed since we might be inserting from a plan that includes
         // a client recv exec. That exec requires that we have an appropriate
         // set of extensions.
-        let state =
-            SessionState::with_config_rt(context.session_config().clone(), context.runtime_env());
+        let state = SessionState::new_with_config_rt(
+            context.session_config().clone(),
+            context.runtime_env(),
+        );
         // Allows writing multiple output partitions from the input execution
         // plan.
         //
