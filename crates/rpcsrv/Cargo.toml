@@ -20,9 +20,9 @@ uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 async-trait = "0.1.74"
 tracing = "0.1"
 thiserror = { workspace = true }
-prost = "0.12"
-prost-types = "0.12"
-tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
+prost = { workspace = true }
+prost-types = { workspace = true }
+tonic = { workspace = true }
 bytes = "1.4"
 futures = "0.3.29"
 dashmap = "5.5.0"

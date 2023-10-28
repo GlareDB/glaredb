@@ -26,8 +26,8 @@ impl TryFrom<storage::lease_information::State> for LeaseState {
 impl TryFrom<i32> for LeaseState {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        storage::lease_information::State::from_i32(value)
-            .ok_or(ProtoConvError::UnknownEnumVariant("LockState", value))
+        storage::lease_information::State::try_from(value)
+            .map_err(|_| ProtoConvError::UnknownEnumVariant("LockState", value))
             .and_then(|t| t.try_into())
     }
 }

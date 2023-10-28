@@ -90,9 +90,9 @@ impl TryFrom<&arrow::arrow_type::ArrowTypeEnum> for DataType {
                     .collect::<Result<_, _>>()?,
             ),
             arrow_type::ArrowTypeEnum::Union(union) => {
-                let union_mode = arrow::UnionMode::from_i32(union.union_mode).ok_or(
-                    ProtoConvError::UnknownEnumVariant("UnionMode", union.union_mode),
-                )?;
+                let union_mode = arrow::UnionMode::try_from(union.union_mode).map_err(|_| {
+                    ProtoConvError::UnknownEnumVariant("UnionMode", union.union_mode)
+                })?;
                 let union_mode = match union_mode {
                     arrow::UnionMode::Dense => UnionMode::Dense,
                     arrow::UnionMode::Sparse => UnionMode::Sparse,
@@ -288,13 +288,13 @@ impl From<&IntervalUnit> for arrow::IntervalUnit {
 }
 
 fn parse_i32_to_time_unit(value: &i32) -> Result<TimeUnit, ProtoConvError> {
-    arrow::TimeUnit::from_i32(*value)
+    arrow::TimeUnit::try_from(*value)
         .map(|t| t.into())
-        .ok_or(ProtoConvError::UnknownEnumVariant("TimeUnit", *value))
+        .map_err(|_| ProtoConvError::UnknownEnumVariant("TimeUnit", *value))
 }
 
 fn parse_i32_to_interval_unit(value: &i32) -> Result<IntervalUnit, ProtoConvError> {
-    arrow::IntervalUnit::from_i32(*value)
+    arrow::IntervalUnit::try_from(*value)
         .map(|t| t.into())
-        .ok_or(ProtoConvError::UnknownEnumVariant("IntervalUnit", *value))
+        .map_err(|_| ProtoConvError::UnknownEnumVariant("IntervalUnit", *value))
 }

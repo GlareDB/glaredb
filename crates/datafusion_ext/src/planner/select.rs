@@ -37,8 +37,8 @@ use datafusion::logical_expr::{
 use datafusion::prelude::Column;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
-    Distinct, Expr as SQLExpr, NamedWindowDefinition, ReplaceSelectItem, WildcardAdditionalOptions,
-    WindowType,
+    Distinct, Expr as SQLExpr, GroupByExpr, NamedWindowDefinition, ReplaceSelectItem,
+    WildcardAdditionalOptions, WindowType,
 };
 use datafusion::sql::sqlparser::ast::{Select, SelectItem, TableWithJoins};
 use std::collections::HashSet;
@@ -132,9 +132,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         let aggr_exprs = find_aggregate_exprs(&aggr_expr_haystack);
 
         // All of the group by expressions
-        let group_by_exprs = {
-            let mut group_by_exprs = Vec::with_capacity(select.group_by.len());
-            for e in select.group_by {
+        let group_by_exprs = if let GroupByExpr::Expressions(exprs) = select.group_by {
+            let mut group_by_exprs = Vec::with_capacity(exprs.len());
+            for e in exprs {
                 let group_by_expr = self
                     .sql_expr_to_logical_expr(e, &combined_schema, planner_context)
                     .await?;
@@ -152,6 +152,20 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 group_by_exprs.push(group_by_expr);
             }
             group_by_exprs
+        } else {
+            // 'group by all' groups wrt. all select expressions except 'AggregateFunction's.
+            // Filter and collect non-aggregate select expressions
+            select_exprs
+                .iter()
+                .filter(|select_expr| match select_expr {
+                    Expr::AggregateFunction(_) | Expr::AggregateUDF(_) => false,
+                    Expr::Alias(Alias { expr, name: _ }) => {
+                        !matches!(**expr, Expr::AggregateFunction(_) | Expr::AggregateUDF(_))
+                    }
+                    _ => true,
+                })
+                .cloned()
+                .collect()
         };
 
         // process group by, aggregation or having

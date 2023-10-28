@@ -10,7 +10,7 @@ apache-avro = "0.16"
 async-channel = "2.0.0"
 async-stream = "0.3.5"
 async-trait = "0.1.74"
-bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "master" }
+bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "deps/2023-10-27-update" }
 bitflags = "2.4"
 bitvec = "1"
 bytes = "1.4.0"
