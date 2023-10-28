@@ -18,6 +18,6 @@ uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tracing = "0.1"
 
 [build-dependencies]
-tonic-build = "0.9"
+tonic-build = "0.10"
 # Only needed to handle custom btree mapping; can be removed when we bump the tonic version which will have this too
 prost-build = "0.12"

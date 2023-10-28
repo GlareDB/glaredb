@@ -30,4 +30,4 @@ futures = "0.3.29"
 dashmap = "5.5.0"
 
 [build-dependencies]
-tonic-build = "0.9"
+tonic-build = "0.10"
