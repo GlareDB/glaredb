@@ -311,14 +311,6 @@ impl TableProvider for MongoTableProvider {
                 .as_ref(),
         );
 
-        // let cursor = match .await {
-        //     Ok(cursor) => cursor,
-        //     Err(e) => {
-        //         yield Err(DataFusionError::External(Box::new(e)));
-        //         return;
-        //     }
-        // };
-
         Ok(Arc::new(MongoBsonExec::new(cursor, limit)))
     }
 }
