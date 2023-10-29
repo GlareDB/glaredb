@@ -1,4 +1,4 @@
-use arrow_util::pretty::pretty_format_batches;
+use arrow_util::pretty;
 
 use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -75,8 +75,9 @@ async fn print_batch(result: &mut ExecutionResult) -> napi::Result<()> {
                 .collect::<Result<Vec<RecordBatch>, _>>()
                 .map_err(JsGlareDbError::from)?;
 
-            let disp = pretty_format_batches(&schema, &batches, None, None)
-                .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+            let disp =
+                pretty::pretty_format_batches(&schema, &batches, Some(pretty::term_width()), None)
+                    .map_err(|e| napi::Error::from_reason(e.to_string()))?;
 
             println!("{}", disp);
             Ok(())
