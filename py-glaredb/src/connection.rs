@@ -1,11 +1,11 @@
 use crate::execution_result::PyExecutionResult;
 use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
+use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
-use pyo3::prelude::*;
-use sqlexec::{
-    engine::{Engine, TrackedSession},
-    LogicalPlan,
-};
+use once_cell::sync::OnceCell;
+use pyo3::{prelude::*, types::PyType};
+use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
+use sqlexec::LogicalPlan;
 use std::sync::Arc;
 
 pub(super) type PyTrackedSession = Arc<Mutex<TrackedSession>>;
@@ -14,13 +14,57 @@ use crate::{error::PyGlareDbError, logical_plan::PyLogicalPlan, runtime::wait_fo
 
 /// A connected session to a GlareDB database.
 #[pyclass]
-pub struct LocalSession {
+#[derive(Clone)]
+pub struct Connection {
     pub(super) sess: PyTrackedSession,
-    pub(super) engine: Engine,
+    pub(super) engine: Arc<Engine>,
+}
+
+impl Connection {
+    /// Returns a default connection to an in-memory database.
+    ///
+    /// The database is only initialized once, and all subsequent calls will
+    /// return the same connection.
+    pub fn default_in_memory(py: Python<'_>) -> PyResult<Self> {
+        static DEFAULT_CON: OnceCell<Connection> = OnceCell::new();
+
+        let con = DEFAULT_CON.get_or_try_init(|| {
+            wait_for_future(py, async move {
+                let engine = Engine::from_data_dir(None).await?;
+                let sess = engine
+                    .new_local_session_context(
+                        SessionVars::default(),
+                        SessionStorageConfig::default(),
+                    )
+                    .await?;
+                Ok(Connection {
+                    sess: Arc::new(Mutex::new(sess)),
+                    engine: Arc::new(engine),
+                }) as Result<_, PyGlareDbError>
+            })
+        })?;
+
+        Ok(con.clone())
+    }
 }
 
 #[pymethods]
-impl LocalSession {
+impl Connection {
+    fn __enter__(&mut self, _py: Python<'_>) -> PyResult<Self> {
+        Ok(self.clone())
+    }
+
+    fn __exit__(
+        &mut self,
+        py: Python<'_>,
+        _exc_type: Option<&PyType>,
+        _exc_value: Option<PyObject>,
+        _traceback: Option<PyObject>,
+    ) -> PyResult<()> {
+        self.close(py)?;
+        Ok(())
+    }
+
     /// Run a SQL querying against a GlareDB database.
     ///
     /// Note that this will only plan the query. To execute the query, call any
@@ -58,7 +102,7 @@ impl LocalSession {
     /// con = glaredb.connect()
     /// con.sql('create table my_table (a int)').execute()
     /// ```
-    fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyLogicalPlan> {
+    pub fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyLogicalPlan> {
         let cloned_sess = self.sess.clone();
         wait_for_future(py, async move {
             let mut sess = self.sess.lock().await;
@@ -94,9 +138,9 @@ impl LocalSession {
     /// con = glaredb.connect()
     /// con.execute('create table my_table (a int)')
     /// ```
-    fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionResult> {
+    pub fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionResult> {
         let sess = self.sess.clone();
-        let exec_result = wait_for_future(py, async move {
+        let (_, exec_result) = wait_for_future(py, async move {
             let mut sess = sess.lock().await;
             let plan = sess.sql_to_lp(query).await.map_err(PyGlareDbError::from)?;
             sess.execute_inner(plan).await.map_err(PyGlareDbError::from)
@@ -106,7 +150,7 @@ impl LocalSession {
     }
 
     /// Close the current session.
-    fn close(&mut self, py: Python<'_>) -> PyResult<()> {
+    pub fn close(&mut self, py: Python<'_>) -> PyResult<()> {
         wait_for_future(py, async move {
             Ok(self.engine.shutdown().await.map_err(PyGlareDbError::from)?)
         })

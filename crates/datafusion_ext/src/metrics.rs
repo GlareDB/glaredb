@@ -11,31 +11,73 @@ use datafusion::{
     },
 };
 use futures::{Stream, StreamExt};
-use std::fmt;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::{any::Any, pin::Pin};
+use std::{fmt, marker::PhantomData};
+use std::{fmt::Debug, sync::Arc};
 
 const BYTES_READ_GAUGE_NAME: &str = "bytes_read";
+const BYTES_WRITTEN_GAUGE_NAME: &str = "bytes_written";
+
+#[derive(Debug, Default)]
+pub struct DataSourceMetricsOpts {
+    pub track_reads: bool,
+    pub track_writes: bool,
+}
+
+impl DataSourceMetricsOpts {
+    pub const fn read_only() -> Self {
+        Self {
+            track_reads: true,
+            track_writes: false,
+        }
+    }
+
+    pub const fn write_only() -> Self {
+        Self {
+            track_reads: false,
+            track_writes: true,
+        }
+    }
+}
 
 /// Standard metrics we should be collecting for all data sources during
 /// queries.
 #[derive(Debug, Clone)]
-pub struct DataSourceMetrics {
+struct DataSourceMetrics {
     /// Track bytes read by source plans.
-    pub bytes_read: Gauge,
+    bytes_read: Option<Gauge>,
+
+    /// Track bytes written by the plan.
+    bytes_written: Option<Gauge>,
 
     /// Baseline metrics like output rows and elapsed time.
-    pub baseline: BaselineMetrics,
+    baseline: BaselineMetrics,
 }
 
 impl DataSourceMetrics {
-    pub fn new(partition: usize, metrics: &ExecutionPlanMetricsSet) -> Self {
-        let bytes_read = MetricBuilder::new(metrics).gauge(BYTES_READ_GAUGE_NAME, partition);
+    fn new(
+        partition: usize,
+        metrics: &ExecutionPlanMetricsSet,
+        opts: DataSourceMetricsOpts,
+    ) -> Self {
         let baseline = BaselineMetrics::new(metrics, partition);
+
+        let bytes_read = if opts.track_reads {
+            Some(MetricBuilder::new(metrics).gauge(BYTES_READ_GAUGE_NAME, partition))
+        } else {
+            None
+        };
+
+        let bytes_written = if opts.track_writes {
+            Some(MetricBuilder::new(metrics).gauge(BYTES_WRITTEN_GAUGE_NAME, partition))
+        } else {
+            None
+        };
 
         Self {
             bytes_read,
+            bytes_written,
             baseline,
         }
     }
@@ -48,8 +90,17 @@ impl DataSourceMetrics {
         if let Poll::Ready(maybe_batch) = &poll {
             match maybe_batch {
                 Some(Ok(batch)) => {
-                    self.bytes_read.add(batch.get_array_memory_size());
                     self.baseline.record_output(batch.num_rows());
+
+                    let batch_size = batch.get_array_memory_size();
+
+                    if let Some(bytes_read) = self.bytes_read.as_ref() {
+                        bytes_read.add(batch_size);
+                    }
+
+                    if let Some(bytes_written) = self.bytes_written.as_ref() {
+                        bytes_written.add(batch_size);
+                    }
                 }
                 Some(Err(_)) => self.baseline.done(),
                 None => self.baseline.done(),
@@ -65,8 +116,8 @@ impl DataSourceMetrics {
 /// Note this should only be used when "ingesting" data during execution (data
 /// sources or reading from tables) to avoid double counting bytes read.
 pub struct DataSourceMetricsStreamAdapter<S> {
-    pub stream: S,
-    pub metrics: DataSourceMetrics,
+    stream: S,
+    metrics: DataSourceMetrics,
 }
 
 impl<S> DataSourceMetricsStreamAdapter<S> {
@@ -75,7 +126,7 @@ impl<S> DataSourceMetricsStreamAdapter<S> {
     pub fn new(stream: S, partition: usize, metrics: &ExecutionPlanMetricsSet) -> Self {
         Self {
             stream,
-            metrics: DataSourceMetrics::new(partition, metrics),
+            metrics: DataSourceMetrics::new(partition, metrics, DataSourceMetricsOpts::read_only()),
         }
     }
 }
@@ -95,29 +146,57 @@ impl<S: RecordBatchStream + Unpin> RecordBatchStream for DataSourceMetricsStream
     }
 }
 
+pub trait DataSourceMetricsOptsType: 'static + Debug + Clone + Sync + Send {
+    const OPTS: DataSourceMetricsOpts;
+    const DISPLAY_NAME_PREFIX: &'static str;
+}
+
+#[derive(Debug, Clone)]
+pub struct ReadOnlyDataSourceMetricsOptsType;
+impl DataSourceMetricsOptsType for ReadOnlyDataSourceMetricsOptsType {
+    const OPTS: DataSourceMetricsOpts = DataSourceMetricsOpts::read_only();
+    const DISPLAY_NAME_PREFIX: &'static str = "ReadOnly";
+}
+
+#[derive(Debug, Clone)]
+pub struct WriteOnlyDataSourceMetricsOptsType;
+impl DataSourceMetricsOptsType for WriteOnlyDataSourceMetricsOptsType {
+    const OPTS: DataSourceMetricsOpts = DataSourceMetricsOpts::write_only();
+    const DISPLAY_NAME_PREFIX: &'static str = "WriteOnly";
+}
+
 /// Wrapper around and execution plan that returns a
 /// `BoxedDataSourceMetricsStreamAdapter` for additional metrics collection.
 ///
-/// This should _generally_ only be used for execution plans that we're not able
-/// to modify directly to record metrics (e.g. Delta). Otherwise, this should be
-/// skipped and metrics collection should be added to the execution plan
-/// directly.
+/// This should _generally_ only be used for execution plans that we're not
+/// able to modify directly to record metrics (e.g. Delta). Otherwise, this
+/// should be skipped and metrics collection should be added to the execution
+/// plan directly.
 #[derive(Debug, Clone)]
-pub struct DataSourceMetricsExecAdapter {
+pub struct DataSourceMetricsExecAdapter<T: DataSourceMetricsOptsType> {
     child: Arc<dyn ExecutionPlan>,
     metrics: ExecutionPlanMetricsSet,
+
+    _phantom: PhantomData<T>,
 }
 
-impl DataSourceMetricsExecAdapter {
+pub type ReadOnlyDataSourceMetricsExecAdapter =
+    DataSourceMetricsExecAdapter<ReadOnlyDataSourceMetricsOptsType>;
+
+pub type WriteOnlyDataSourceMetricsExecAdapter =
+    DataSourceMetricsExecAdapter<WriteOnlyDataSourceMetricsOptsType>;
+
+impl<T: DataSourceMetricsOptsType> DataSourceMetricsExecAdapter<T> {
     pub fn new(plan: Arc<dyn ExecutionPlan>) -> Self {
         Self {
             child: plan,
             metrics: ExecutionPlanMetricsSet::new(),
+            _phantom: PhantomData,
         }
     }
 }
 
-impl ExecutionPlan for DataSourceMetricsExecAdapter {
+impl<T: DataSourceMetricsOptsType> ExecutionPlan for DataSourceMetricsExecAdapter<T> {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -155,6 +234,7 @@ impl ExecutionPlan for DataSourceMetricsExecAdapter {
             stream,
             partition,
             &self.metrics,
+            T::OPTS,
         )))
     }
 
@@ -167,9 +247,9 @@ impl ExecutionPlan for DataSourceMetricsExecAdapter {
     }
 }
 
-impl DisplayAs for DataSourceMetricsExecAdapter {
+impl<T: DataSourceMetricsOptsType> DisplayAs for DataSourceMetricsExecAdapter<T> {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "DataSourceMetricsExecAdapter")
+        write!(f, "{}DataSourceMetricsExecAdapter", T::DISPLAY_NAME_PREFIX)
     }
 }
 
@@ -183,10 +263,11 @@ impl BoxedStreamAdapater {
         stream: SendableRecordBatchStream,
         partition: usize,
         metrics: &ExecutionPlanMetricsSet,
+        opts: DataSourceMetricsOpts,
     ) -> Self {
         Self {
             stream,
-            metrics: DataSourceMetrics::new(partition, metrics),
+            metrics: DataSourceMetrics::new(partition, metrics, opts),
         }
     }
 }
@@ -212,6 +293,8 @@ pub struct AggregatedMetrics {
     pub elapsed_compute_ns: u64,
     /// Total bytes read.
     pub bytes_read: u64,
+    /// Total bytes written.
+    pub bytes_written: Option<u64>,
 }
 
 impl AggregatedMetrics {
@@ -223,6 +306,7 @@ impl AggregatedMetrics {
         let mut agg = AggregatedMetrics {
             elapsed_compute_ns: 0,
             bytes_read: 0,
+            bytes_written: None,
         };
         agg.aggregate_recurse(plan);
         agg
@@ -235,6 +319,16 @@ impl AggregatedMetrics {
                 .sum_by_name(BYTES_READ_GAUGE_NAME)
                 .map(|m| m.as_usize() as u64)
                 .unwrap_or_default();
+
+            if self.bytes_written.is_none() {
+                // Only count bytes written if they were not counted before.
+                // Writes can only happen at a higher level. If we've already
+                // counted bytes written, any metrics in child plans are just
+                // repetitions and we are counting the same thing again!
+                self.bytes_written = metrics
+                    .sum_by_name(BYTES_WRITTEN_GAUGE_NAME)
+                    .map(|m| m.as_usize() as u64);
+            }
         }
 
         for child in plan.children() {

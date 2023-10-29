@@ -85,10 +85,10 @@ impl LocalSessionContext {
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
             .with_extension(Arc::new(TempCatalog::default()));
-        let state = SessionState::with_config_rt(conf, Arc::new(runtime))
+        let state = SessionState::new_with_config_rt(conf, Arc::new(runtime))
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
-        let df_ctx = DfSessionContext::with_state(state);
+        let df_ctx = DfSessionContext::new_with_state(state);
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(LocalSessionContext {
@@ -134,10 +134,10 @@ impl LocalSessionContext {
             .with_extension(Arc::new(CatalogMutator::empty()))
             .with_extension(Arc::new(self.get_native_tables().clone()))
             .with_extension(Arc::new(TempCatalog::default()));
-        let state = SessionState::with_config_rt(conf, runtime)
+        let state = SessionState::new_with_config_rt(conf, runtime)
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
-        let df_ctx = DfSessionContext::with_state(state);
+        let df_ctx = DfSessionContext::new_with_state(state);
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         self.exec_client = Some(client.clone());
@@ -157,10 +157,6 @@ impl LocalSessionContext {
 
     pub fn get_metrics_handler(&self) -> SessionMetricsHandler {
         self.metrics_handler.clone()
-    }
-
-    pub fn get_metrics_mut(&mut self) -> &mut SessionMetricsHandler {
-        &mut self.metrics_handler
     }
 
     pub fn get_database_id(&self) -> Uuid {

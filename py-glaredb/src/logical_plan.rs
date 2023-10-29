@@ -12,8 +12,8 @@ use pyo3::prelude::*;
 use sqlexec::LogicalPlan;
 
 use crate::{
-    error::PyGlareDbError, execution_result::PyExecutionResult, runtime::wait_for_future,
-    session::PyTrackedSession,
+    connection::PyTrackedSession, error::PyGlareDbError, execution_result::PyExecutionResult,
+    runtime::wait_for_future,
 };
 use datafusion::error::Result as DatafusionResult;
 
@@ -32,7 +32,7 @@ impl PyLogicalPlan {
     fn execute_inner(&self, py: Python) -> PyResult<PyExecutionResult> {
         wait_for_future(py, async move {
             let mut sess = self.session.lock().await;
-            let stream = sess
+            let (_, stream) = sess
                 .execute_inner(self.lp.clone())
                 .await
                 .map_err(PyGlareDbError::from)?;

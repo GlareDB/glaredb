@@ -73,7 +73,7 @@ impl RemoteSessionContext {
 
         // TODO: Query planners for handling custom plans.
 
-        let df_ctx = DfSessionContext::with_config_rt(conf, Arc::new(runtime));
+        let df_ctx = DfSessionContext::new_with_config_rt(conf, Arc::new(runtime));
 
         Ok(RemoteSessionContext {
             catalog: Mutex::new(catalog),

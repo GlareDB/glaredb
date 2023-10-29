@@ -3,6 +3,7 @@
 
 mod bigquery;
 mod delta;
+mod excel;
 mod generate_series;
 mod iceberg;
 mod mongo;
@@ -27,6 +28,7 @@ use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
 use self::bigquery::ReadBigQuery;
 use self::delta::DeltaScan;
+use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
 use self::iceberg::{IcebergDataFiles, IcebergScan, IcebergSnapshots};
 use self::mongo::ReadMongoDb;
@@ -113,6 +115,7 @@ impl BuiltinTableFuncs {
             Arc::new(IcebergScan),
             Arc::new(IcebergSnapshots),
             Arc::new(IcebergDataFiles),
+            Arc::new(ExcelScan),
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),

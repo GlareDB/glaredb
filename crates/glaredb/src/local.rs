@@ -54,7 +54,7 @@ impl LocalSession {
             Engine::from_storage_options(location, &HashMap::from_iter(storage_options.clone()))
                 .await?
         } else {
-            Engine::from_data_dir(&opts.data_dir).await?
+            Engine::from_data_dir(opts.data_dir.as_ref()).await?
         };
 
         engine = engine.with_spill_path(opts.spill_path.clone());

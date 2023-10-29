@@ -207,8 +207,8 @@ impl EntryType {
 impl TryFrom<i32> for EntryType {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        catalog::entry_meta::EntryType::from_i32(value)
-            .ok_or(ProtoConvError::UnknownEnumVariant("EntryType", value))
+        catalog::entry_meta::EntryType::try_from(value)
+            .map_err(|_| ProtoConvError::UnknownEnumVariant("EntryType", value))
             .and_then(|t| t.try_into())
     }
 }
@@ -468,8 +468,8 @@ impl FunctionType {
 impl TryFrom<i32> for FunctionType {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        catalog::function_entry::FunctionType::from_i32(value)
-            .ok_or(ProtoConvError::UnknownEnumVariant("FunctionType", value))
+        catalog::function_entry::FunctionType::try_from(value)
+            .map_err(|_| ProtoConvError::UnknownEnumVariant("FunctionType", value))
             .and_then(|t| t.try_into())
     }
 }
@@ -519,9 +519,8 @@ impl RuntimePreference {
 impl TryFrom<i32> for RuntimePreference {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        let pref = catalog::function_entry::RuntimePreference::from_i32(value).ok_or(
-            ProtoConvError::UnknownEnumVariant("RuntimePreference", value),
-        )?;
+        let pref = catalog::function_entry::RuntimePreference::try_from(value)
+            .map_err(|_| ProtoConvError::UnknownEnumVariant("RuntimePreference", value))?;
         Ok(pref.into())
     }
 }
@@ -590,15 +589,6 @@ impl TryFrom<catalog::Volatility> for Volatility {
             catalog::Volatility::Stable => Ok(Volatility::Stable),
             catalog::Volatility::Volatile => Ok(Volatility::Volatile),
         }
-    }
-}
-
-impl TryFrom<i32> for catalog::Volatility {
-    type Error = ProtoConvError;
-
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        catalog::Volatility::from_i32(value)
-            .ok_or(ProtoConvError::UnknownEnumVariant("Volatility", value))
     }
 }
 

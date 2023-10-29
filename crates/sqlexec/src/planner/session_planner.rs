@@ -969,18 +969,31 @@ impl<'a> SessionPlanner<'a> {
 
             ast::Statement::AlterTable {
                 name,
-                operation: AlterTableOperation::RenameTable { table_name },
+                mut operations,
+                ..
             } => {
-                validate_object_name(&name)?;
-                let name = object_name_to_table_ref(name)?;
-
-                validate_object_name(&table_name)?;
-                let new_name = object_name_to_table_ref(table_name)?;
-                Ok(AlterTableRename {
-                    tbl_reference: self.ctx.resolve_table_ref(name)?,
-                    new_tbl_reference: self.ctx.resolve_table_ref(new_name)?,
+                if operations.len() != 1 {
+                    return Err(PlanError::UnsupportedFeature(
+                        "ALTER TABLE with multiple operations",
+                    ));
                 }
-                .into_logical_plan())
+                let operation = operations.pop().unwrap();
+
+                match operation {
+                    AlterTableOperation::RenameTable { table_name } => {
+                        validate_object_name(&name)?;
+                        let name = object_name_to_table_ref(name)?;
+
+                        validate_object_name(&table_name)?;
+                        let new_name = object_name_to_table_ref(table_name)?;
+                        Ok(AlterTableRename {
+                            tbl_reference: self.ctx.resolve_table_ref(name)?,
+                            new_tbl_reference: self.ctx.resolve_table_ref(new_name)?,
+                        }
+                        .into_logical_plan())
+                    }
+                    other => Err(PlanError::UnsupportedSQLStatement(other.to_string())),
+                }
             }
 
             // Drop tables

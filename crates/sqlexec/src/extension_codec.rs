@@ -17,7 +17,9 @@ use datafusion::physical_plan::union::InterleaveExec;
 use datafusion::physical_plan::values::ValuesExec;
 use datafusion::physical_plan::{displayable, ExecutionPlan};
 use datafusion::prelude::{Expr, SessionContext};
-use datafusion_ext::metrics::DataSourceMetricsExecAdapter;
+use datafusion_ext::metrics::{
+    ReadOnlyDataSourceMetricsExecAdapter, WriteOnlyDataSourceMetricsExecAdapter,
+};
 use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use datafusion_proto::logical_plan::from_proto::parse_expr;
 use datafusion_proto::logical_plan::LogicalExtensionCodec;
@@ -657,12 +659,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 Arc::new(InsertExec {
                     provider: ProviderReference::Provider(prov),
-                    source: inputs
-                        .get(0)
-                        .ok_or_else(|| {
-                            DataFusionError::Internal("missing input source".to_string())
-                        })?
-                        .clone(),
+                    source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
+                        inputs
+                            .get(0)
+                            .ok_or_else(|| {
+                                DataFusionError::Internal("missing input source".to_string())
+                            })?
+                            .clone(),
+                    )),
                 })
             }
             proto::ExecutionPlanExtensionType::DeleteExec(ext) => {
@@ -689,10 +693,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                         DataFusionError::Internal("missing destination options".to_string())
                     })?
                     .try_into()?,
-                source: inputs
-                    .get(0)
-                    .ok_or_else(|| DataFusionError::Internal("missing input source".to_string()))?
-                    .clone(),
+                source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
+                    inputs
+                        .get(0)
+                        .ok_or_else(|| {
+                            DataFusionError::Internal("missing input source".to_string())
+                        })?
+                        .clone(),
+                )),
             }),
             proto::ExecutionPlanExtensionType::ValuesExec(ext) => {
                 let schema = ext
@@ -731,13 +739,17 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     Arc::new((&schema).try_into()?),
                 ))
             }
-            proto::ExecutionPlanExtensionType::DataSourceMetricsExecAdapter(_ext) => {
-                Arc::new(DataSourceMetricsExecAdapter::new(
-                    inputs
-                        .get(0)
-                        .ok_or_else(|| DataFusionError::Internal("missing child".to_string()))?
-                        .clone(),
-                ))
+            proto::ExecutionPlanExtensionType::DataSourceMetricsExecAdapter(ext) => {
+                let source = inputs
+                    .get(0)
+                    .ok_or_else(|| DataFusionError::Internal("missing child".to_string()))?
+                    .clone();
+
+                if ext.track_writes {
+                    Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(source))
+                } else {
+                    Arc::new(ReadOnlyDataSourceMetricsExecAdapter::new(source))
+                }
             }
         };
 
@@ -1015,9 +1027,21 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 show_statistics: true,
                 schema: Some(exec.schema().try_into()?),
             })
-        } else if let Some(_exec) = node.as_any().downcast_ref::<DataSourceMetricsExecAdapter>() {
+        } else if let Some(_exec) = node
+            .as_any()
+            .downcast_ref::<ReadOnlyDataSourceMetricsExecAdapter>()
+        {
             proto::ExecutionPlanExtensionType::DataSourceMetricsExecAdapter(
-                proto::DataSourceMetricsExecAdapter {},
+                proto::DataSourceMetricsExecAdapter {
+                    track_writes: false,
+                },
+            )
+        } else if let Some(_exec) = node
+            .as_any()
+            .downcast_ref::<WriteOnlyDataSourceMetricsExecAdapter>()
+        {
+            proto::ExecutionPlanExtensionType::DataSourceMetricsExecAdapter(
+                proto::DataSourceMetricsExecAdapter { track_writes: true },
             )
         } else {
             return Err(DataFusionError::NotImplemented(format!(

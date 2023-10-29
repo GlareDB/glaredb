@@ -1,0 +1,11 @@
+
+statement ok
+select count(*) from read_excel('file://${PWD}/testdata/xlsx/userdata1.xlsx')
+
+# infer rows
+statement ok
+select count(*) from read_excel(
+  'file://${PWD}/testdata/xlsx/userdata1.xlsx',
+  infer_rows => 10
+)
+
