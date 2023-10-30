@@ -23,7 +23,7 @@ pub enum TLSMode {
     Required,
     Optional,
 
-    /// Note: in the future, this will be 'required' by default
+    /// Note: in the future, this will be 'Required' by default
     #[default]
     Disabled,
 }
