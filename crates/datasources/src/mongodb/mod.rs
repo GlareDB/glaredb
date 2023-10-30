@@ -304,12 +304,12 @@ impl TableProvider for MongoTableProvider {
         find_opts.projection = Some(proj_doc);
 
         let filter = exprs_to_mdb_query(_filters).expect("could not build query");
-        let cursor = Arc::new(Mutex::new(Some(
+        let cursor = Mutex::new(Some(
             self.collection
                 .find(Some(filter), Some(find_opts))
                 .await
                 .map_err(|e| DataFusionError::External(Box::new(e)))?,
-        )));
+        ));
         Ok(Arc::new(MongoBsonExec::new(cursor, schema, limit)))
     }
 }

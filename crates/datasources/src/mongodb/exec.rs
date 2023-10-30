@@ -22,9 +22,9 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct MongoBsonExec {
-    cursor: Arc<Mutex<Option<Cursor<RawDocumentBuf>>>>,
+    cursor: Mutex<Option<Cursor<RawDocumentBuf>>>,
     schema: Arc<ArrowSchema>,
     limit: Option<usize>,
     metrics: ExecutionPlanMetricsSet,
@@ -32,7 +32,7 @@ pub struct MongoBsonExec {
 
 impl MongoBsonExec {
     pub fn new(
-        cursor: Arc<Mutex<Option<Cursor<RawDocumentBuf>>>>,
+        cursor: Mutex<Option<Cursor<RawDocumentBuf>>>,
         schema: Arc<ArrowSchema>,
         limit: Option<usize>,
     ) -> MongoBsonExec {
