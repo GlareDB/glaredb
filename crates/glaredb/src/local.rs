@@ -120,19 +120,17 @@ impl LocalSession {
     }
 
     async fn run_interactive(&mut self) -> Result<()> {
-        let info = match (&self.opts.storage_config, &self.opts.data_dir) {
+        match (&self.opts.storage_config, &self.opts.data_dir) {
             (
                 StorageConfigArgs {
                     location: Some(location),
                     ..
                 },
                 _,
-            ) => format!("Persisting database at location: {location}"),
-            (_, Some(path)) => format!("Persisting database at path: {}", path.display()),
-            (_, None) => "Using in-memory catalog".to_string(),
+            ) => println!("Persisting database at location: {location}"),
+            (_, Some(path)) => println!("Persisting database at path: {}", path.display()),
+            _ => (),
         };
-
-        println!("{info}");
 
         println!("Type {} for help.", "\\help".bold().italic());
 
