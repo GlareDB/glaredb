@@ -28,7 +28,7 @@ use mongodb::Collection;
 use std::any::Any;
 use std::fmt::{Display, Write};
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// Field name in mongo for uniquely identifying a record. Some special handling
 /// needs to be done with the field when projecting.
@@ -304,14 +304,13 @@ impl TableProvider for MongoTableProvider {
         find_opts.projection = Some(proj_doc);
 
         let filter = exprs_to_mdb_query(_filters).expect("could not build query");
-        let cursor = Arc::new(
+        let cursor = Arc::new(Mutex::new(
             self.collection
-                .find(Some(filter), Some(find_opts))?
-                .into()
-                .as_ref(),
-        );
-
-        Ok(Arc::new(MongoBsonExec::new(cursor, limit)))
+                .find(Some(filter), Some(find_opts))
+                .await
+                .ok(),
+        ));
+        Ok(Arc::new(MongoBsonExec::new(cursor, schema, limit)))
     }
 }
 

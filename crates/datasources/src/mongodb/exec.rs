@@ -19,20 +19,26 @@ use mongodb::Cursor;
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 #[derive(Debug, Clone)]
 pub struct MongoBsonExec {
-    cursor: Arc<Cursor<RawDocumentBuf>>,
+    cursor: Arc<Mutex<Option<Cursor<RawDocumentBuf>>>>,
+    schema: Arc<ArrowSchema>,
     limit: Option<usize>,
     metrics: ExecutionPlanMetricsSet,
 }
 
 impl MongoBsonExec {
-    pub fn new(cursor: Arc<Cursor<RawDocumentBuf>>, limit: Option<usize>) -> MongoBsonExec {
+    pub fn new(
+        cursor: Arc<Mutex<Option<Cursor<RawDocumentBuf>>>>,
+        schema: Arc<ArrowSchema>,
+        limit: Option<usize>,
+    ) -> MongoBsonExec {
         MongoBsonExec {
             cursor,
+            schema,
             limit,
             metrics: ExecutionPlanMetricsSet::new(),
         }
@@ -74,8 +80,23 @@ impl ExecutionPlan for MongoBsonExec {
         partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
+        if partition != 0 {
+            return Err(DataFusionError::Execution(format!(
+                "only single partition supported"
+            )));
+        }
+
+        let cursor = {
+            let cursor = self.cursor.lock();
+            cursor.unwrap().take().ok_or_else(|| {
+                DataFusionError::Execution(format!(
+                    "execution called on partition {partition} more than once"
+                ))
+            })?
+        };
+
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
-            BsonStream::new(self.cursor, self.schema.clone(), self.limit),
+            BsonStream::new(cursor, self.schema.clone(), self.limit),
             partition,
             &self.metrics,
         )))
@@ -102,11 +123,7 @@ struct BsonStream {
 }
 
 impl BsonStream {
-    fn new(
-        cursor: Arc<Cursor<RawDocumentBuf>>,
-        schema: Arc<ArrowSchema>,
-        limit: Option<usize>,
-    ) -> Self {
+    fn new(cursor: Cursor<RawDocumentBuf>, schema: Arc<ArrowSchema>, limit: Option<usize>) -> Self {
         let schema_stream = schema.clone();
         let mut row_count = 0;
         // Build "inner" stream.
