@@ -365,12 +365,10 @@ fn operator_to_mdbq(op: Operator) -> Result<String, ExtensionError> {
         Operator::Or => Ok("$or".to_string()),
         Operator::Modulo => Ok("$mod".to_string()),
         Operator::RegexMatch => Ok("$regex".to_string()),
-        _ => {
-            return Err(ExtensionError::String(format!(
-                "{} operator is not translated",
-                op
-            )))
-        }
+        _ => Err(ExtensionError::String(format!(
+            "{} operator is not translated",
+            op
+        ))),
     }
 }
 
@@ -402,12 +400,10 @@ fn df_to_bson(val: ScalarValue) -> Result<Bson, ExtensionError> {
         ScalarValue::Float32(v) => Ok(Bson::Double(f64::from(v.unwrap_or_default()))),
         ScalarValue::Float64(v) => Ok(Bson::Double(v.unwrap_or_default())),
         ScalarValue::Null => Ok(Bson::Null),
-        _ => {
-            return Err(ExtensionError::String(format!(
-                "{} conversion undefined",
-                val
-            )))
-        }
+        _ => Err(ExtensionError::String(format!(
+            "{} conversion undefined",
+            val
+        ))),
     }
 }
 

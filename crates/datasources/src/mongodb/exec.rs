@@ -81,9 +81,9 @@ impl ExecutionPlan for MongoBsonExec {
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         if partition != 0 {
-            return Err(DataFusionError::Execution(format!(
-                "only single partition supported"
-            )));
+            return Err(DataFusionError::Execution(
+                "only single partition supported".to_string(),
+            ));
         }
 
         let cursor = {
