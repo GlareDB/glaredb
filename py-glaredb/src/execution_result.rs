@@ -1,6 +1,6 @@
 use crate::util::pyprint;
 use anyhow::Result;
-use arrow_util::pretty::pretty_format_batches;
+use arrow_util::pretty;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::pyarrow::ToPyArrow;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -129,8 +129,9 @@ fn print_batch(result: &mut ExecutionResult, py: Python<'_>) -> PyResult<()> {
                     .collect::<Result<Vec<RecordBatch>, _>>()
             })?;
 
-            let disp = pretty_format_batches(&schema, &batches, None, None)
-                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            let disp =
+                pretty::pretty_format_batches(&schema, &batches, Some(pretty::term_width()), None)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
             pyprint(disp, py)
         }

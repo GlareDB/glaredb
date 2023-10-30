@@ -2,7 +2,7 @@ use crate::args::{LocalClientOpts, OutputMode, StorageConfigArgs};
 use crate::highlighter::{SQLHighlighter, SQLHinter, SQLValidator};
 use crate::prompt::SQLPrompt;
 use anyhow::{anyhow, Result};
-use arrow_util::pretty::pretty_format_batches;
+use arrow_util::pretty;
 use clap::ValueEnum;
 use colored::Colorize;
 use datafusion::arrow::csv::writer::WriterBuilder as CsvWriterBuilder;
@@ -326,8 +326,8 @@ async fn print_stream(
         OutputMode::Table => {
             // If width not explicitly set by the user, try to get the width of ther
             // terminal.
-            let width = max_width.unwrap_or(term_width());
-            let disp = pretty_format_batches(&schema, &batches, Some(width), max_rows)?;
+            let width = max_width.unwrap_or(pretty::term_width());
+            let disp = pretty::pretty_format_batches(&schema, &batches, Some(width), max_rows)?;
             println!("{disp}");
         }
         OutputMode::Csv => {
@@ -396,10 +396,4 @@ fn get_history_path() -> PathBuf {
     home_dir.push(".glaredb");
     home_dir.push("history.txt");
     home_dir
-}
-
-fn term_width() -> usize {
-    crossterm::terminal::size()
-        .map(|(width, _)| width as usize)
-        .unwrap_or(80)
 }
