@@ -14,7 +14,7 @@ use infer::TableSampler;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::datasource::TableProvider;
-use datafusion::error::Result as DatafusionResult;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Operator;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
@@ -304,12 +304,12 @@ impl TableProvider for MongoTableProvider {
         find_opts.projection = Some(proj_doc);
 
         let filter = exprs_to_mdb_query(_filters).expect("could not build query");
-        let cursor = Arc::new(Mutex::new(
+        let cursor = Arc::new(Mutex::new(Some(
             self.collection
                 .find(Some(filter), Some(find_opts))
                 .await
-                .ok(),
-        ));
+                .map_err(|e| DataFusionError::External(Box::new(e)))?,
+        )));
         Ok(Arc::new(MongoBsonExec::new(cursor, schema, limit)))
     }
 }
