@@ -50,7 +50,11 @@ impl RpcProxy {
             let identity = Identity::from_pem(cert, key);
 
             server
-                .tls_config(ServerTlsConfig::new().identity(identity))?
+                .tls_config(
+                    ServerTlsConfig::new()
+                        .identity(identity)
+                        .client_auth_optional(true),
+                )?
                 .add_service(ExecutionServiceServer::new(self.handler))
                 .serve(addr)
                 .await?;
