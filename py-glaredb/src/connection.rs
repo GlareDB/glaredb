@@ -65,10 +65,12 @@ impl Connection {
         Ok(())
     }
 
-    /// Run a SQL querying against a GlareDB database.
+    /// Run a SQL operation against a GlareDB database.
     ///
-    /// Note that this will only plan the query. To execute the query, call any
-    /// of `execute`, `show`, `to_arrow`, `to_pandas`, or `to_polars`
+    /// All operations that write or modify data are executed
+    /// directly, but all query operations run lazily when you process
+    /// their results with `show`, `to_arrow`, `to_pandas`, or
+    /// `to_polars`, or call the `execute` method.
     ///
     /// # Examples
     ///
@@ -106,7 +108,10 @@ impl Connection {
         let cloned_sess = self.sess.clone();
         wait_for_future(py, async move {
             let mut sess = self.sess.lock().await;
-            let plan = sess.sql_to_lp(query).await.map_err(PyGlareDbError::from)?;
+            let plan = sess
+                .query_to_lp(query)
+                .await
+                .map_err(PyGlareDbError::from)?;
             match plan
                 .to_owned()
                 .try_into_datafusion_plan()
@@ -126,7 +131,30 @@ impl Connection {
         })
     }
 
-    /// Execute a query.
+    /// Run a PRQL query against a GlareDB database. Does not change
+    /// the state or dialect of the connection object.
+    ///
+    /// ```python
+    /// import glaredb
+    /// import pandas
+    ///
+    /// con = glaredb.connect()
+    /// my_df = con.prql('from my_table | take 1').to_pandas()
+    /// ```
+    ///
+    /// All operations execute lazily when their results are
+    /// processed.
+    pub fn prql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyLogicalPlan> {
+        let cloned_sess = self.sess.clone();
+        wait_for_future(py, async move {
+            let mut sess = self.sess.lock().await;
+            let plan = sess.prql_to_lp(query).await.map_err(PyGlareDbError::from)?;
+
+            Ok(PyLogicalPlan::new(plan, cloned_sess))
+        })
+    }
+
+    /// Execute a SQL query.
     ///
     /// # Examples
     ///
@@ -142,7 +170,10 @@ impl Connection {
         let sess = self.sess.clone();
         let (_, exec_result) = wait_for_future(py, async move {
             let mut sess = sess.lock().await;
-            let plan = sess.sql_to_lp(query).await.map_err(PyGlareDbError::from)?;
+            let plan = sess
+                .query_to_lp(query)
+                .await
+                .map_err(PyGlareDbError::from)?;
             sess.execute_inner(plan).await.map_err(PyGlareDbError::from)
         })?;
 
