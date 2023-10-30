@@ -4,6 +4,8 @@ use clap::{Parser, ValueEnum};
 use std::fmt::Write as _;
 use std::path::PathBuf;
 use url::Url;
+
+use crate::rpc_proxy::TLSMode;
 pub mod local;
 pub mod server;
 
@@ -51,13 +53,11 @@ pub struct RpcProxyArgs {
     #[clap(long)]
     pub cloud_auth_code: String,
 
-    /// Disable RPC TLS
+    /// Mode for TLS Validation (required, optional, disabled)
     ///
     /// (Internal)
-    ///
-    /// Note: in the future, this will be 'on' by default
-    #[clap(long, default_value="true", action = clap::ArgAction::Set, hide = true)]
-    pub disable_tls: bool,
+    #[clap(long, value_enum, hide = true)]
+    pub tls_mode: TLSMode,
 }
 
 #[derive(Parser)]
