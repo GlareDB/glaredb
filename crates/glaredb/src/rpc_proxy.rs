@@ -17,13 +17,12 @@ pub struct RpcProxy {
     handler: RpcProxyHandler<CloudAuthenticator>,
 }
 
-#[derive(Clone, Debug, ValueEnum, Default)]
-#[clap(rename_all = "lower")]
+#[derive(Clone, Debug, Default, ValueEnum)]
+#[clap(rename_all = "snake")]
 pub enum TLSMode {
     Required,
-    Optional,
-
-    /// Note: in the future, this will be 'Required' by default
+    SkipVerify,
+    /// Note: in the future, this will be 'Required' by default:
     #[default]
     Disabled,
 }
@@ -57,13 +56,13 @@ impl RpcProxy {
                     .serve(addr)
                     .await?
             }
-            TLSMode::Required | TLSMode::Optional => {
+            TLSMode::Required | TLSMode::SkipVerify => {
                 let tls_optional = match tls_opts {
                     TLSMode::Required => {
                         info!("TLS is enabled for RPC service");
                         false
                     }
-                    TLSMode::Optional => {
+                    TLSMode::SkipVerify => {
                         warn!("TLS is optional for RPC service");
                         true
                     }
