@@ -677,11 +677,13 @@ impl<'a> SessionPlanner<'a> {
                     Field::new(name, data_type, col.nullable)
                 });
                 let schema = Schema::new(fields.collect::<Vec<_>>());
-                let output_schema = DFSchema::try_from(schema.clone()).unwrap();
+                let output_schema =
+                    DFSchema::try_from(datafusion::logical_expr::LogicalPlan::describe_schema())
+                        .unwrap();
 
                 let plan = DescribeTable {
                     schema: Arc::new(schema),
-                    dummy_schema: Arc::new(output_schema),
+                    output_schema: Arc::new(output_schema),
                 };
                 Ok(LogicalPlan::Datafusion(
                     datafusion::logical_expr::LogicalPlan::DescribeTable(plan),
