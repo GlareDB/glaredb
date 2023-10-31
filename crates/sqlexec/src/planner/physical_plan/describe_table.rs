@@ -155,10 +155,11 @@ async fn describe_table(
     let schema_search_path = vars.implicit_search_path();
     let temp_catalog = temp_catalog.unwrap_or_default();
 
-    let _ = catalog
+    catalog
         .maybe_refresh_state(metastore_client, false)
         .await
         .unwrap();
+
     let resolver = EntryResolver {
         catalog: &catalog,
         temp_objects: temp_catalog,
