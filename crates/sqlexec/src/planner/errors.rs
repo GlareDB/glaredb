@@ -85,6 +85,11 @@ pub enum PlanError {
     #[error("{0}")]
     String(String),
 }
+impl From<PlanError> for datafusion::error::DataFusionError {
+    fn from(value: PlanError) -> Self {
+        datafusion::error::DataFusionError::Plan(value.to_string())
+    }
+}
 
 pub type Result<T, E = PlanError> = std::result::Result<T, E>;
 

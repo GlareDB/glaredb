@@ -5,10 +5,8 @@ use datafusion::arrow::datatypes::{
     DataType, Field, Schema, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::parsers::CompressionTypeVariant;
-use datafusion::common::{
-    DFSchema, FileType, OwnedSchemaReference, OwnedTableReference, ToDFSchema,
-};
-use datafusion::logical_expr::{cast, col, DescribeTable, LogicalPlanBuilder};
+use datafusion::common::{FileType, OwnedSchemaReference, OwnedTableReference, ToDFSchema};
+use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
 use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
@@ -668,26 +666,17 @@ impl<'a> SessionPlanner<'a> {
                 let table_name = object_name_to_table_ref(table_name)?;
                 let resolver = EntryResolver::from_context(self.ctx);
                 let ent = resolver
-                    .resolve_entry_from_reference(table_name)?
+                    .resolve_entry_from_reference(table_name.clone())?
                     .try_into_table_entry()?;
-                let internal_cols = ent.get_internal_columns().unwrap();
-                let fields = internal_cols.into_iter().map(|col| {
-                    let name = col.name.clone();
-                    let data_type = col.arrow_type.clone();
-                    Field::new(name, data_type, col.nullable)
-                });
-                let schema = Schema::new(fields.collect::<Vec<_>>());
-                let output_schema =
-                    DFSchema::try_from(datafusion::logical_expr::LogicalPlan::describe_schema())
-                        .unwrap();
+                let temp = ent.meta.is_temp;
+                let builtin = ent.meta.builtin;
 
                 let plan = DescribeTable {
-                    schema: Arc::new(schema),
-                    output_schema: Arc::new(output_schema),
+                    tbl_reference: self.ctx.resolve_table_ref(table_name)?,
+                    temp,
+                    builtin,
                 };
-                Ok(LogicalPlan::Datafusion(
-                    datafusion::logical_expr::LogicalPlan::DescribeTable(plan),
-                ))
+                Ok(plan.into_logical_plan())
             }
 
             ast::Statement::CreateSchema {

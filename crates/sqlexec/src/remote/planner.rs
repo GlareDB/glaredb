@@ -24,8 +24,8 @@ use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
-    CreateTunnel, CreateView, Delete, DropCredentials, DropDatabase, DropSchemas, DropTables,
-    DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
+    CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
+    DropTables, DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
 };
 use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
 use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
@@ -42,6 +42,7 @@ use crate::planner::physical_plan::create_temp_table::CreateTempTableExec;
 use crate::planner::physical_plan::create_tunnel::CreateTunnelExec;
 use crate::planner::physical_plan::create_view::CreateViewExec;
 use crate::planner::physical_plan::delete::DeleteExec;
+use crate::planner::physical_plan::describe_table::DescribeTableExec;
 use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
@@ -188,6 +189,21 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     columns: lp.columns.clone(),
                     or_replace: lp.or_replace,
                 })))
+            }
+            ExtensionType::DescribeTable => {
+                let lp = require_downcast_lp::<DescribeTable>(node);
+                let runtime = if lp.temp || lp.builtin {
+                    RuntimePreference::Local
+                } else {
+                    RuntimePreference::Remote
+                };
+                let exec = Arc::new(DescribeTableExec {
+                    tbl_reference: lp.tbl_reference.clone(),
+                });
+
+                let exec = Arc::new(RuntimeGroupExec::new(runtime, exec));
+
+                Ok(Some(exec))
             }
             ExtensionType::DropTables => {
                 let tmp_catalog = session_state

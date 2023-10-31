@@ -19,8 +19,8 @@ use datafusion::{
 use super::logical_plan::{
     AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
-    CreateTunnel, CreateView, Delete, DropCredentials, DropDatabase, DropSchemas, DropTables,
-    DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
+    CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
+    DropTables, DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
 };
 
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
@@ -39,6 +39,7 @@ pub enum ExtensionType {
     CreateTempTable,
     CreateTunnel,
     CreateView,
+    DescribeTable,
     DropTables,
     DropCredentials,
     DropDatabase,
@@ -68,6 +69,7 @@ impl FromStr for ExtensionType {
             CreateTempTable::EXTENSION_NAME => Self::CreateTempTable,
             CreateTunnel::EXTENSION_NAME => Self::CreateTunnel,
             CreateView::EXTENSION_NAME => Self::CreateView,
+            DescribeTable::EXTENSION_NAME => Self::DescribeTable,
             DropTables::EXTENSION_NAME => Self::DropTables,
             DropCredentials::EXTENSION_NAME => Self::DropCredentials,
             DropDatabase::EXTENSION_NAME => Self::DropDatabase,
