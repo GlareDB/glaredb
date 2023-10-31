@@ -1,10 +1,11 @@
 use anyhow::Result;
+use clap::ValueEnum;
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use proxyutil::cloudauth::CloudAuthenticator;
 use rpcsrv::proxy::RpcProxyHandler;
 use std::net::SocketAddr;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
-use tracing::{debug_span, info};
+use tracing::{debug_span, info, warn};
 
 // These paths exist as volume mounts on the cloud container running rpc proxy.
 //
@@ -16,6 +17,17 @@ pub struct RpcProxy {
     handler: RpcProxyHandler<CloudAuthenticator>,
 }
 
+#[derive(Clone, Debug, ValueEnum, Default)]
+#[clap(rename_all = "lower")]
+pub enum TLSMode {
+    Required,
+    Optional,
+
+    /// Note: in the future, this will be 'Required' by default
+    #[default]
+    Disabled,
+}
+
 impl RpcProxy {
     pub async fn new(api_addr: String, auth_code: String) -> Result<Self> {
         let auth = CloudAuthenticator::new(api_addr, auth_code)?;
@@ -24,7 +36,7 @@ impl RpcProxy {
         })
     }
 
-    pub async fn serve(self, addr: SocketAddr, disable_tls: bool) -> Result<()> {
+    pub async fn serve(self, addr: SocketAddr, tls_opts: TLSMode) -> Result<()> {
         info!("starting rpc proxy service");
 
         // Note that we don't need a shutdown handler to prevent exits on active
@@ -36,24 +48,43 @@ impl RpcProxy {
 
         let mut server = Server::builder().trace_fn(|_| debug_span!("rpc_proxy_service_request"));
 
-        if disable_tls {
-            server
-                .add_service(ExecutionServiceServer::new(self.handler))
-                .serve(addr)
-                .await?
-        } else {
-            info!("applying TLS to rpc service");
+        match tls_opts {
+            TLSMode::Disabled => {
+                warn!("TLS is disabled for RPC service");
 
-            let cert = std::fs::read_to_string(CERT_PATH)?;
-            let key = std::fs::read_to_string(CERT_KEY_PATH)?;
+                server
+                    .add_service(ExecutionServiceServer::new(self.handler))
+                    .serve(addr)
+                    .await?
+            }
+            TLSMode::Required | TLSMode::Optional => {
+                let tls_optional = match tls_opts {
+                    TLSMode::Required => {
+                        info!("TLS is enabled for RPC service");
+                        false
+                    }
+                    TLSMode::Optional => {
+                        warn!("TLS is optional for RPC service");
+                        true
+                    }
+                    TLSMode::Disabled => panic!("impossible TLS option"),
+                };
 
-            let identity = Identity::from_pem(cert, key);
+                let cert = std::fs::read_to_string(CERT_PATH)?;
+                let key = std::fs::read_to_string(CERT_KEY_PATH)?;
 
-            server
-                .tls_config(ServerTlsConfig::new().identity(identity))?
-                .add_service(ExecutionServiceServer::new(self.handler))
-                .serve(addr)
-                .await?;
+                let identity = Identity::from_pem(cert, key);
+
+                server
+                    .tls_config(
+                        ServerTlsConfig::new()
+                            .identity(identity)
+                            .client_auth_optional(tls_optional),
+                    )?
+                    .add_service(ExecutionServiceServer::new(self.handler))
+                    .serve(addr)
+                    .await?;
+            }
         }
 
         Ok(())

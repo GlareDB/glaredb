@@ -69,6 +69,7 @@ rpc-tests: protoc
     'sqllogictests/functions/version' \
     'sqllogictests/joins/*' \
     'sqllogictests/topn/*' \
+    'sqllogictests/window/*' \
     'sqllogictests/aggregates' \
     'sqllogictests/alter' \
     'sqllogictests/create_table' \
@@ -79,12 +80,17 @@ rpc-tests: protoc
     'sqllogictests/demo_pg' \
     'sqllogictests/drop' \
     'sqllogictests/explain' \
+    'sqllogictests/external_table' \
+    'sqllogictests/http' \
     'sqllogictests/infer' \
     'sqllogictests/information_schema' \
     'sqllogictests/metabase' \
     'sqllogictests/name' \
     'sqllogictests/object_names' \
+    'sqllogictests/pg_catalog' \
     'sqllogictests/rpc' \
+    'sqllogictests/schema' \
+    'sqllogictests/search_path' \
     'sqllogictests/select' \
     'sqllogictests/simple' \
     'sqllogictests/table' \
@@ -94,7 +100,8 @@ rpc-tests: protoc
     'sqllogictests/update' \
     'sqllogictests/vars' \
     'sqllogictests/views' \
-    'sqllogictests/virtual_catalog'
+    'sqllogictests/virtual_catalog' \
+    'sqllogictests/xlsx'
 
 #  Check formatting.
 fmt-check: protoc
