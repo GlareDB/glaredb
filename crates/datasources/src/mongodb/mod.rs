@@ -29,6 +29,7 @@ use std::any::Any;
 use std::fmt::{Display, Write};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use tracing::debug;
 
 /// Field name in mongo for uniquely identifying a record. Some special handling
 /// needs to be done with the field when projecting.
@@ -303,7 +304,14 @@ impl TableProvider for MongoTableProvider {
         find_opts.limit = limit.map(|v| v as i64);
         find_opts.projection = Some(proj_doc);
 
-        let filter = exprs_to_mdb_query(_filters).expect("could not build query");
+        let filter = match exprs_to_mdb_query(_filters) {
+            Ok(query) => query,
+            Err(err) => {
+                debug!("mdb pushdown query err: {}", err.to_string());
+                Document::new()
+            }
+        };
+
         let cursor = Mutex::new(Some(
             self.collection
                 .find(Some(filter), Some(find_opts))
