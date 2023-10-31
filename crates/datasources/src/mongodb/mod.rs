@@ -323,8 +323,8 @@ fn exprs_to_mdb_query(exprs: &[Expr]) -> Result<Document, ExtensionError> {
                 match val.left.as_ref() {
                     Expr::Column(key) => match val.right.as_ref() {
                         Expr::Literal(v) => doc.insert(
-                            operator_to_mdbq(val.op)?,
-                            bson!({key.to_string(): df_to_bson(v.clone())?}),
+                            key.to_string(),
+                            bson!({operator_to_mdbq(val.op)?: df_to_bson(v.clone())?}),
                         ),
                         _ => {
                             continue;
@@ -332,8 +332,8 @@ fn exprs_to_mdb_query(exprs: &[Expr]) -> Result<Document, ExtensionError> {
                     },
                     Expr::Literal(v) => match val.right.as_ref() {
                         Expr::Column(key) => doc.insert(
-                            operator_to_mdbq(val.op)?,
-                            bson!({key.to_string(): df_to_bson(v.clone())?}),
+                            key.to_string(),
+                            bson!({operator_to_mdbq(val.op)?: df_to_bson(v.clone())?}),
                         ),
                         _ => {
                             continue;
