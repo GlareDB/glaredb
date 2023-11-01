@@ -12,7 +12,9 @@ on:
       - "*"
   pull_request:
   workflow_dispatch:
-
+defaults:
+  run:
+    working-directory: bindings/nodejs
 jobs:
   build:
     strategy:
@@ -36,9 +38,7 @@ jobs:
               strip *.node
     name: stable - ${{ matrix.settings.target }} - node@18
     runs-on: ${{ matrix.settings.host }}
-    defaults:
-      run:
-        working-directory: bindings/nodejs
+
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
@@ -120,9 +120,6 @@ jobs:
           - "16"
           - "18"
     runs-on: ${{ matrix.settings.host }}
-    defaults:
-      run:
-        working-directory: bindings/nodejs
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
@@ -155,9 +152,6 @@ jobs:
           - "16"
           - "18"
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: bindings/nodejs
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
@@ -183,9 +177,6 @@ jobs:
     needs:
       - build
     runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: bindings/nodejs
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
@@ -220,9 +211,6 @@ jobs:
     needs:
       - test-macOS-windows-binding
       - test-linux-x64-gnu-binding
-    defaults:
-      run:
-        working-directory: bindings/nodejs
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
