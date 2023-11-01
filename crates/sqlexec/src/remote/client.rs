@@ -190,6 +190,7 @@ impl RemoteClient {
             body.insert("password", params.password);
             body.insert("org_name", params.org);
             body.insert("db_name", params.db_name);
+            body.insert("api_version", 1);
 
             let client = reqwest::Client::new();
             let res = client
