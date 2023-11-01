@@ -40,7 +40,7 @@ jobs:
               set -eux &&
               curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to . &&
               ./just protoc && 
-              ls && 
+              export PROTOC="$PWD/deps/protoc/bin/protoc" &&
               yarn build --target x86_64-unknown-linux-gnu &&
               strip *.node
     name: stable - ${{ matrix.settings.target }} - node@18
