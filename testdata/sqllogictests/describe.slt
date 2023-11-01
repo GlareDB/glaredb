@@ -12,7 +12,7 @@ public_key Utf8 f
 statement ok
 create table t1 (a int, b int);
 
-query III
+query III rowsort
 describe t1;
 ----
 a Int32 t
