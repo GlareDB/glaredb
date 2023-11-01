@@ -3,9 +3,9 @@
 query III rowsort
 describe glare_catalog.ssh_keys;
 ----
-ssh_tunnel_oid UInt32 f
-ssh_tunnel_name Utf8 f
 public_key Utf8 f
+ssh_tunnel_name Utf8 f
+ssh_tunnel_oid UInt32 f
 
 
 # and native tables
