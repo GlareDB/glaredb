@@ -128,6 +128,7 @@ pub fn connect(
                 url.try_into().map_err(PyGlareDbError::from)?,
                 cloud_addr,
                 disable_tls,
+                sqlexec::remote::client::RemoteClientType::Python,
             )
             .await
             .map_err(PyGlareDbError::from)?;

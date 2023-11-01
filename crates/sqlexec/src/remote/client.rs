@@ -18,7 +18,7 @@ use protogen::{
 };
 use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
 use serde::Deserialize;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 use tonic::{
     metadata::MetadataMap,
     transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
@@ -111,6 +111,22 @@ pub struct AuthenticateClientResponse {
     pub ca_domain: String,
 }
 
+#[derive(Debug)]
+pub enum RemoteClientType {
+    Cli,
+    Node,
+    Python,
+}
+impl fmt::Display for RemoteClientType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RemoteClientType::Cli => write!(f, "cli"),
+            RemoteClientType::Node => write!(f, "node"),
+            RemoteClientType::Python => write!(f, "python"),
+        }
+    }
+}
+
 /// An execution service client that has additonal metadata attached to each
 /// request for authentication through the proxy.
 #[derive(Debug, Clone)]
@@ -149,6 +165,7 @@ impl RemoteClient {
         dst: ProxyDestination,
         cloud_api_addr: String,
         disable_tls: bool,
+        client_type: RemoteClientType,
     ) -> Result<Self> {
         let mut dst: ProxyDestination = dst;
         if !disable_tls {
@@ -163,6 +180,7 @@ impl RemoteClient {
             dst.params,
             cloud_api_addr,
             disable_tls,
+            client_type,
         )
         .await
     }
@@ -173,6 +191,7 @@ impl RemoteClient {
         params: ProxyAuthParams,
         cloud_api_addr: String,
         disable_tls: bool,
+        client_type: RemoteClientType,
     ) -> Result<Self> {
         let mut metadata = MetadataMap::new();
         metadata.insert(USER_KEY, params.user.parse()?);
@@ -190,7 +209,8 @@ impl RemoteClient {
             body.insert("password", params.password);
             body.insert("org_name", params.org);
             body.insert("db_name", params.db_name);
-            body.insert("api_version", 1);
+            body.insert("api_version", 1.to_string());
+            body.insert("client_type", client_type.to_string());
 
             let client = reqwest::Client::new();
             let res = client

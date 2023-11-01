@@ -71,6 +71,7 @@ impl LocalSession {
                     url.try_into()?,
                     opts.cloud_addr.clone(),
                     opts.disable_tls,
+                    sqlexec::remote::client::RemoteClientType::Cli,
                 )
                 .await?;
 

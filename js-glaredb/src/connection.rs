@@ -97,6 +97,7 @@ impl Connection {
                 url.try_into().map_err(JsGlareDbError::from)?,
                 cloud_addr,
                 disable_tls,
+                sqlexec::remote::client::RemoteClientType::Node,
             )
             .await
             .map_err(JsGlareDbError::from)?;
