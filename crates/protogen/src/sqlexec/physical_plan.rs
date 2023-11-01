@@ -93,7 +93,7 @@ pub struct AlterTunnelRotateKeysExec {
 #[derive(Clone, PartialEq, Message)]
 pub struct DescribeTableExec {
     #[prost(message, tag = "1")]
-    pub tbl_reference: Option<FullObjectReference>,
+    pub entry: Option<TableEntry>,
 }
 
 #[derive(Clone, PartialEq, Message)]

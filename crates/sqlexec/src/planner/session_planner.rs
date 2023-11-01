@@ -665,17 +665,12 @@ impl<'a> SessionPlanner<'a> {
                 validate_object_name(&table_name)?;
                 let table_name = object_name_to_table_ref(table_name)?;
                 let resolver = EntryResolver::from_context(self.ctx);
-                let ent = resolver
+                let entry = resolver
                     .resolve_entry_from_reference(table_name.clone())?
                     .try_into_table_entry()?;
-                let temp = ent.meta.is_temp;
-                let builtin = ent.meta.builtin;
 
-                let plan = DescribeTable {
-                    tbl_reference: self.ctx.resolve_table_ref(table_name)?,
-                    temp,
-                    builtin,
-                };
+                let plan = DescribeTable { entry };
+
                 Ok(plan.into_logical_plan())
             }
 

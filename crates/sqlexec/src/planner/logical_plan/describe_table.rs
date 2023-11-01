@@ -1,15 +1,14 @@
 use super::*;
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct DescribeTable {
-    pub tbl_reference: OwnedFullObjectReference,
-    pub temp: bool,
-    pub builtin: bool,
-}
 use datafusion::{
     arrow::datatypes::{Field, Schema, SchemaRef},
     common::ToDFSchema,
 };
+use protogen::metastore::types::catalog::TableEntry;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct DescribeTable {
+    pub entry: TableEntry,
+}
 
 pub static DESCRIBE_TABLE_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
     Arc::new(Schema::new(vec![

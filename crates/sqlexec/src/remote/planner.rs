@@ -191,14 +191,14 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 })))
             }
             ExtensionType::DescribeTable => {
-                let lp = require_downcast_lp::<DescribeTable>(node);
-                let runtime = if lp.temp || lp.builtin {
+                let DescribeTable { entry } = require_downcast_lp::<DescribeTable>(node);
+                let runtime = if entry.meta.is_temp || entry.meta.builtin {
                     RuntimePreference::Local
                 } else {
                     RuntimePreference::Remote
                 };
                 let exec = Arc::new(DescribeTableExec {
-                    tbl_reference: lp.tbl_reference.clone(),
+                    entry: entry.clone(),
                 });
 
                 let exec = Arc::new(RuntimeGroupExec::new(runtime, exec));

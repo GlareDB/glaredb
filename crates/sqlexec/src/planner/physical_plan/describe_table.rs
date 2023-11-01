@@ -16,24 +16,18 @@ use datafusion::{
         Partitioning, SendableRecordBatchStream, Statistics,
     },
 };
-use datafusion_ext::vars::SessionVars;
 use futures::stream;
-use protogen::sqlexec::physical_plan::ExecutionPlanExtensionType;
-
-use crate::{
-    metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog},
-    planner::{
-        errors::PlanError,
-        logical_plan::{OwnedFullObjectReference, DESCRIBE_TABLE_SCHEMA},
-    },
-    resolve::EntryResolver,
+use protogen::{
+    metastore::types::catalog::TableEntry, sqlexec::physical_plan::ExecutionPlanExtensionType,
 };
-use crate::{planner::errors::internal, resolve::ResolvedEntry};
+
+use crate::planner::errors::internal;
+use crate::planner::{errors::PlanError, logical_plan::DESCRIBE_TABLE_SCHEMA};
 use protogen::export::prost::Message;
 
 #[derive(Debug, Clone)]
 pub struct DescribeTableExec {
-    pub tbl_reference: OwnedFullObjectReference,
+    pub entry: TableEntry,
 }
 
 impl DisplayAs for DescribeTableExec {
@@ -51,7 +45,7 @@ impl PhysicalExtensionNode for DescribeTableExec {
         _codec: &dyn datafusion_proto::physical_plan::PhysicalExtensionCodec,
     ) -> crate::errors::Result<()> {
         let proto = protogen::sqlexec::physical_plan::DescribeTableExec {
-            tbl_reference: Some(self.tbl_reference.clone().into()),
+            entry: Some(self.entry.clone().try_into()?),
         };
         let ty = ExecutionPlanExtensionType::DescribeTable(proto);
         let extension =
@@ -69,7 +63,7 @@ impl PhysicalExtensionNode for DescribeTableExec {
         _extension_codec: &dyn PhysicalExtensionCodec,
     ) -> crate::errors::Result<Self, protogen::ProtoConvError> {
         Ok(Self {
-            tbl_reference: proto.tbl_reference.unwrap().try_into().unwrap(),
+            entry: proto.entry.unwrap().try_into()?,
         })
     }
 }
@@ -104,33 +98,46 @@ impl ExecutionPlan for DescribeTableExec {
         ))
     }
 
-    fn execute(&self, _: usize, context: Arc<TaskContext>) -> Result<SendableRecordBatchStream> {
-        let mutator = context
-            .session_config()
-            .get_extension::<CatalogMutator>()
-            .expect("context should have catalog mutator");
+    fn execute(&self, _: usize, _: Arc<TaskContext>) -> Result<SendableRecordBatchStream> {
+        let entry = self.entry.clone();
+        let stream = stream::once(async move {
+            let internal_cols = match entry.get_internal_columns() {
+                Some(cols) => cols,
+                None => {
+                    return Err(PlanError::UnsupportedFeature(
+                        "'DESCRIBE' not yet supported for external tables",
+                    )
+                    .into())
+                }
+            };
 
-        let catalog = context
-            .session_config()
-            .get_extension::<SessionCatalog>()
-            .expect("context should have catalog");
+            let mut column_names = StringBuilder::new();
+            let mut data_types = StringBuilder::new();
+            let mut is_nullables = BooleanBuilder::new();
 
-        let temp_catalog = context.session_config().get_extension::<TempCatalog>();
+            for col in internal_cols {
+                let name = col.name.clone();
+                let data_type = col.arrow_type.clone();
 
-        let vars = context
-            .session_config()
-            .options()
-            .extensions
-            .get::<SessionVars>()
-            .expect("context should have SessionVars");
+                column_names.append_value(name);
 
-        let stream = stream::once(describe_table(
-            self.tbl_reference.clone(),
-            mutator,
-            catalog,
-            temp_catalog,
-            Arc::new(vars.clone()),
-        ));
+                data_types.append_value(fmt_dtype(&data_type));
+
+                is_nullables.append_value(col.nullable);
+            }
+
+            let output_schema = DESCRIBE_TABLE_SCHEMA.clone();
+
+            let record_batch = RecordBatch::try_new(
+                output_schema,
+                vec![
+                    Arc::new(column_names.finish()),
+                    Arc::new(data_types.finish()),
+                    Arc::new(is_nullables.finish()),
+                ],
+            )?;
+            Ok(record_batch)
+        });
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
@@ -141,71 +148,4 @@ impl ExecutionPlan for DescribeTableExec {
     fn statistics(&self) -> Statistics {
         Statistics::default()
     }
-}
-
-async fn describe_table(
-    tbl_ref: OwnedFullObjectReference,
-    mutator: Arc<CatalogMutator>,
-    catalog: Arc<SessionCatalog>,
-    temp_catalog: Option<Arc<TempCatalog>>,
-    vars: Arc<SessionVars>,
-) -> Result<RecordBatch> {
-    let metastore_client = mutator.get_metastore_client();
-    let mut catalog = catalog.as_ref().clone();
-    let schema_search_path = vars.implicit_search_path();
-    let temp_catalog = temp_catalog.unwrap_or_default();
-
-    catalog
-        .maybe_refresh_state(metastore_client, false)
-        .await
-        .unwrap();
-
-    let resolver = EntryResolver {
-        catalog: &catalog,
-        temp_objects: temp_catalog,
-        schema_search_path,
-    };
-
-    let ent = resolver
-        .resolve_entry_from_reference(tbl_ref.into())
-        .and_then(ResolvedEntry::try_into_table_entry)
-        .expect("entry should be checked during planning");
-
-    let internal_cols = match ent.get_internal_columns() {
-        Some(cols) => cols,
-        None => {
-            return Err(PlanError::UnsupportedFeature(
-                "'DESCRIBE' not yet supported for external tables",
-            )
-            .into())
-        }
-    };
-
-    let mut column_names = StringBuilder::new();
-    let mut data_types = StringBuilder::new();
-    let mut is_nullables = BooleanBuilder::new();
-
-    for col in internal_cols {
-        let name = col.name.clone();
-        let data_type = col.arrow_type.clone();
-
-        column_names.append_value(name);
-
-        data_types.append_value(fmt_dtype(&data_type));
-
-        is_nullables.append_value(col.nullable);
-    }
-
-    let output_schema = DESCRIBE_TABLE_SCHEMA.clone();
-
-    let record_batch = RecordBatch::try_new(
-        output_schema,
-        vec![
-            Arc::new(column_names.finish()),
-            Arc::new(data_types.finish()),
-            Arc::new(is_nullables.finish()),
-        ],
-    )?;
-
-    Ok(record_batch)
 }

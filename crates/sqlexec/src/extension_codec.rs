@@ -929,7 +929,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<DescribeTableExec>() {
             proto::ExecutionPlanExtensionType::DescribeTable(proto::DescribeTableExec {
-                tbl_reference: Some(exec.tbl_reference.clone().into()),
+                entry: Some(exec.entry.clone().try_into()?),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<DropCredentialsExec>() {
             proto::ExecutionPlanExtensionType::DropCredentialsExec(proto::DropCredentialsExec {
