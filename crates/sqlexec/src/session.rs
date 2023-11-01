@@ -411,6 +411,7 @@ impl Session {
             let planner =
                 DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(ddl_planner)]);
             let plan = planner.create_physical_plan(&plan, &state).await?;
+
             Ok(plan)
         }
     }

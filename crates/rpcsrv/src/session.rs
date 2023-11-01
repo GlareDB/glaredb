@@ -53,7 +53,9 @@ impl RemoteSession {
         physical_plan: impl AsRef<[u8]>,
     ) -> Result<SendableRecordBatchStream> {
         let codec = self.session.extension_codec();
-        let plan = PhysicalPlanNode::try_decode(physical_plan.as_ref())?.try_into_physical_plan(
+        let plan = PhysicalPlanNode::try_decode(physical_plan.as_ref())?;
+
+        let plan = plan.try_into_physical_plan(
             self.session.get_datafusion_context(),
             self.session.get_datafusion_context().runtime_env().as_ref(),
             &codec,

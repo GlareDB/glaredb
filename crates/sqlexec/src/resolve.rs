@@ -14,6 +14,7 @@ pub struct ResolveError(String);
 
 type Result<T, E = ResolveError> = std::result::Result<T, E>;
 
+#[derive(Debug)]
 pub enum ResolvedEntry<'a> {
     /// We have an entry in the catalog.
     // NOTE: Not a reference since a `TableEntry` is created on-demand when
@@ -110,6 +111,9 @@ impl<'a> EntryResolver<'a> {
                 schema,
                 table,
             } => {
+                if let Some(table) = self.temp_objects.resolve_temp_table(table) {
+                    return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
+                }
                 // If catalog is anything but "default", we know we need to do
                 // external resolution since we don't store info about
                 // individual tables.

@@ -43,6 +43,7 @@ use crate::planner::physical_plan::create_temp_table::CreateTempTableExec;
 use crate::planner::physical_plan::create_tunnel::CreateTunnelExec;
 use crate::planner::physical_plan::create_view::CreateViewExec;
 use crate::planner::physical_plan::delete::DeleteExec;
+use crate::planner::physical_plan::describe_table::DescribeTableExec;
 use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
@@ -295,6 +296,9 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 plan::CreateTempTable::try_encode_extension(node, buf, self)
             }
             ExtensionType::CreateView => plan::CreateView::try_encode_extension(node, buf, self),
+            ExtensionType::DescribeTable => {
+                plan::DescribeTable::try_encode_extension(node, buf, self)
+            }
             ExtensionType::DropCredentials => {
                 plan::DropCredentials::try_encode_extension(node, buf, self)
             }
@@ -367,7 +371,6 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
         let ext = proto::ExecutionPlanExtension::decode(buf)
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
         let ext = ext
             .inner
             .ok_or_else(|| DataFusionError::Plan("missing execution plan".to_string()))?;
@@ -441,6 +444,18 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::CreateCredentialsExec(create_credentials) => {
                 let exec = CreateCredentialsExec::try_decode(
                     create_credentials,
+                    &EmptyFunctionRegistry,
+                    self.runtime
+                        .as_ref()
+                        .expect("runtime should be set on decoder"),
+                    self,
+                )
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                Arc::new(exec)
+            }
+            proto::ExecutionPlanExtensionType::DescribeTable(describe_table) => {
+                let exec = DescribeTableExec::try_decode(
+                    describe_table,
                     &EmptyFunctionRegistry,
                     self.runtime
                         .as_ref()
@@ -912,6 +927,10 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 columns: exec.columns.clone(),
                 or_replace: exec.or_replace,
             })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DescribeTableExec>() {
+            proto::ExecutionPlanExtensionType::DescribeTable(proto::DescribeTableExec {
+                entry: Some(exec.entry.clone().try_into()?),
+            })
         } else if let Some(exec) = node.as_any().downcast_ref::<DropCredentialsExec>() {
             proto::ExecutionPlanExtensionType::DropCredentialsExec(proto::DropCredentialsExec {
                 catalog_version: exec.catalog_version,
@@ -1051,7 +1070,6 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         };
 
         let enc = proto::ExecutionPlanExtension { inner: Some(inner) };
-
         enc.encode(buf)
             .map_err(|e| DataFusionError::External(Box::new(e)))
     }
