@@ -320,6 +320,38 @@ impl TableProvider for MongoTableProvider {
         ));
         Ok(Arc::new(MongoBsonExec::new(cursor, schema, limit)))
     }
+
+    async fn insert_into(
+        &self,
+        state: &SessionState,
+        input: Arc<dyn ExecutionPlan>,
+        _overwrite: bool,
+    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+	// MongoDB has a max message size of 32MB (typically,) and a
+	// max document (row) size of 16MB, so we need to 
+
+	// TODO: iterate through input and materialize a vector of
+	// bson Documents, erroring if any document is over the max size
+	
+	// TODO: generate/add _id: oids to all documents that don't
+	// have them: the driver will do this on its own and doing so
+	// on our own means that duplicate key errors on _id mean the
+	// document has been added and can be dropped from retries. 
+
+	// TODO: if total size of documents is >= 32MB, split into
+	// multiple operations if/as needed. 
+
+	// TODO: write output:
+        Ok(Arc::new(MongoBsonExec {
+            // predicate: "".to_string(),
+            // table_access: self.table_access.clone(),
+            // accessor: self.accessor.clone(),
+            // query,
+            // arrow_schema: COUNT_SCHEMA.clone(),
+            // metrics: ExecutionPlanMetricsSet::new(),
+            // query_type: QueryType::Dml,
+        }))
+    }
 }
 
 fn exprs_to_mdb_query(exprs: &[Expr]) -> Result<Document, ExtensionError> {
