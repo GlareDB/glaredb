@@ -21,15 +21,15 @@ jobs:
       fail-fast: false
       matrix:
         settings:
-          - host: macos-latest
+          - host: macos-12-xl
             target: x86_64-apple-darwin
             build: |
               yarn build
               strip -x *.node
-          - host: windows-latest
+          - host: windows-latest-8-cores
             build: yarn build
             target: x86_64-pc-windows-msvc
-          - host: ubuntu-latest
+          - host: ubuntu-2004-8-cores
             target: x86_64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
             build: |-
@@ -115,9 +115,9 @@ jobs:
       fail-fast: false
       matrix:
         settings:
-          - host: macos-latest
+          - host: macos-12-xl
             target: x86_64-apple-darwin
-          - host: windows-latest
+          - host: windows-latest-8-cores
             target: x86_64-pc-windows-msvc
         node:
           - "14"
@@ -156,7 +156,7 @@ jobs:
           - "14"
           - "16"
           - "18"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-2004-8-cores
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
@@ -182,7 +182,7 @@ jobs:
     name: Build universal macOS binary
     needs:
       - build
-    runs-on: macos-latest
+    runs-on: macos-12-xl
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
@@ -213,7 +213,7 @@ jobs:
           if-no-files-found: error
   publish:
     name: Publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-2004-8-cores
     needs:
       - test-macOS-windows-binding
       - test-linux-x64-gnu-binding
