@@ -37,7 +37,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./glaredb.android-arm64.node')
           } else {
-            nativeBinding = require('@glaredb/node-android-arm64')
+            nativeBinding = require('@glaredb/glaredb-android-arm64')
           }
         } catch (e) {
           loadError = e
@@ -49,7 +49,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./glaredb.android-arm-eabi.node')
           } else {
-            nativeBinding = require('@glaredb/node-android-arm-eabi')
+            nativeBinding = require('@glaredb/glaredb-android-arm-eabi')
           }
         } catch (e) {
           loadError = e
@@ -69,7 +69,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./glaredb.win32-x64-msvc.node')
           } else {
-            nativeBinding = require('@glaredb/node-win32-x64-msvc')
+            nativeBinding = require('@glaredb/glaredb-win32-x64-msvc')
           }
         } catch (e) {
           loadError = e
@@ -83,7 +83,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./glaredb.win32-ia32-msvc.node')
           } else {
-            nativeBinding = require('@glaredb/node-win32-ia32-msvc')
+            nativeBinding = require('@glaredb/glaredb-win32-ia32-msvc')
           }
         } catch (e) {
           loadError = e
@@ -97,7 +97,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./glaredb.win32-arm64-msvc.node')
           } else {
-            nativeBinding = require('@glaredb/node-win32-arm64-msvc')
+            nativeBinding = require('@glaredb/glaredb-win32-arm64-msvc')
           }
         } catch (e) {
           loadError = e
@@ -113,7 +113,7 @@ switch (platform) {
       if (localFileExisted) {
         nativeBinding = require('./glaredb.darwin-universal.node')
       } else {
-        nativeBinding = require('@glaredb/node-darwin-universal')
+        nativeBinding = require('@glaredb/glaredb-darwin-universal')
       }
       break
     } catch {}
@@ -124,7 +124,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./glaredb.darwin-x64.node')
           } else {
-            nativeBinding = require('@glaredb/node-darwin-x64')
+            nativeBinding = require('@glaredb/glaredb-darwin-x64')
           }
         } catch (e) {
           loadError = e
@@ -138,7 +138,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./glaredb.darwin-arm64.node')
           } else {
-            nativeBinding = require('@glaredb/node-darwin-arm64')
+            nativeBinding = require('@glaredb/glaredb-darwin-arm64')
           }
         } catch (e) {
           loadError = e
@@ -157,7 +157,7 @@ switch (platform) {
       if (localFileExisted) {
         nativeBinding = require('./glaredb.freebsd-x64.node')
       } else {
-        nativeBinding = require('@glaredb/node-freebsd-x64')
+        nativeBinding = require('@glaredb/glaredb-freebsd-x64')
       }
     } catch (e) {
       loadError = e
@@ -174,7 +174,7 @@ switch (platform) {
             if (localFileExisted) {
               nativeBinding = require('./glaredb.linux-x64-musl.node')
             } else {
-              nativeBinding = require('@glaredb/node-linux-x64-musl')
+              nativeBinding = require('@glaredb/glaredb-linux-x64-musl')
             }
           } catch (e) {
             loadError = e
@@ -187,7 +187,7 @@ switch (platform) {
             if (localFileExisted) {
               nativeBinding = require('./glaredb.linux-x64-gnu.node')
             } else {
-              nativeBinding = require('@glaredb/node-linux-x64-gnu')
+              nativeBinding = require('@glaredb/glaredb-linux-x64-gnu')
             }
           } catch (e) {
             loadError = e
@@ -203,7 +203,7 @@ switch (platform) {
             if (localFileExisted) {
               nativeBinding = require('./glaredb.linux-arm64-musl.node')
             } else {
-              nativeBinding = require('@glaredb/node-linux-arm64-musl')
+              nativeBinding = require('@glaredb/glaredb-linux-arm64-musl')
             }
           } catch (e) {
             loadError = e
@@ -216,7 +216,7 @@ switch (platform) {
             if (localFileExisted) {
               nativeBinding = require('./glaredb.linux-arm64-gnu.node')
             } else {
-              nativeBinding = require('@glaredb/node-linux-arm64-gnu')
+              nativeBinding = require('@glaredb/glaredb-linux-arm64-gnu')
             }
           } catch (e) {
             loadError = e
@@ -231,7 +231,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./glaredb.linux-arm-gnueabihf.node')
           } else {
-            nativeBinding = require('@glaredb/node-linux-arm-gnueabihf')
+            nativeBinding = require('@glaredb/glaredb-linux-arm-gnueabihf')
           }
         } catch (e) {
           loadError = e
