@@ -24,7 +24,7 @@ b Int32 t
 statement ok
 create temp table temp1 (a int, b int);
 
-query III
+query III rowsort
 describe temp1;
 ----
 a Int32 t
