@@ -3,6 +3,7 @@ env:
   DEBUG: napi:*
   APP_NAME: "glaredb"
   MACOSX_DEPLOYMENT_TARGET: "10.13"
+  PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
 permissions:
   contents: write
   id-token: write
