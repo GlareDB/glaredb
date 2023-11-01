@@ -46,6 +46,9 @@ pub enum PlanError {
     #[error("Invalid delete statement: {msg}")]
     InvalidDeleteStatement { msg: &'static str },
 
+    #[error("Invalid insert statement: {msg}")]
+    InvalidInsertStatement { msg: &'static str },
+
     #[error("Invalid number of column aliases for view body; sql: {sql}, aliases: {aliases:?}")]
     InvalidNumberOfAliasesForView { sql: String, aliases: Vec<String> },
 
@@ -54,6 +57,9 @@ pub enum PlanError {
 
     #[error("Expected exactly on SQL statement, got: {0:?}")]
     ExpectedExactlyOneStatement(Vec<crate::parser::StatementWithExtensions>),
+
+    #[error("Not allowed to write into the object: {0}")]
+    ObjectNotAllowedToWriteInto(OwnedTableReference),
 
     #[error("Exec error: {0}")]
     Exec(Box<crate::errors::ExecError>), // TODO: Try to remove.
@@ -119,4 +125,5 @@ macro_rules! internal {
         crate::planner::errors::PlanError::Internal(std::format!($($arg)*))
     };
 }
+use datafusion::common::OwnedTableReference;
 pub(crate) use internal;

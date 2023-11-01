@@ -327,7 +327,6 @@ impl TableProvider for NativeTable {
 
 #[cfg(test)]
 mod tests {
-
     use datafusion::arrow::datatypes::DataType;
     use deltalake::protocol::SaveMode;
     use object_store_util::conf::StorageConfig;
@@ -373,6 +372,7 @@ mod tests {
                 }],
             }),
             tunnel_id: None,
+            allowed_operations: Default::default(),
         };
 
         // Create a table, load it, delete it and load it again!

@@ -182,7 +182,26 @@ impl<'a> PartialContextProvider<'a> {
         let ent = self
             .resolver
             .resolve_entry_from_reference(reference.clone())?;
+
         use ResolvedEntry::*;
+
+        let allowed_operations = match ent {
+            NeedsExternalResolution {
+                db_ent:
+                    &DatabaseEntry {
+                        allowed_operations, ..
+                    },
+                ..
+            }
+            | Entry(CatalogEntry::Database(DatabaseEntry {
+                allowed_operations, ..
+            }))
+            | Entry(CatalogEntry::Table(TableEntry {
+                allowed_operations, ..
+            })) => allowed_operations,
+            _ => Default::default(),
+        };
+
         let provider = match (ent, self.ctx.exec_client()) {
             // (view, _)
             // Rely on further planning to determine how to handle views.
@@ -202,6 +221,7 @@ impl<'a> PartialContextProvider<'a> {
 
             // (native entry, no remote client)
             (Entry(ent), None) => self.dispatch_catalog_entry_local(&ent).await?,
+
             // (external entry, no remote client)
             (
                 NeedsExternalResolution {
@@ -231,6 +251,7 @@ impl<'a> PartialContextProvider<'a> {
                 self.handle_catalog_entry_dispatch(ent, client, args, opts)
                     .await?
             }
+
             // (external entry, remote client)
             (
                 NeedsExternalResolution {
@@ -253,6 +274,11 @@ impl<'a> PartialContextProvider<'a> {
                     )
                     .await?,
             ),
+        };
+
+        let provider = RuntimeAwareTableProvider {
+            allowed_operations,
+            ..provider
         };
 
         Ok(provider)

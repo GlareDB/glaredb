@@ -4,9 +4,9 @@ use crate::storage::persist::Storage;
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use protogen::metastore::types::catalog::{
-    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
-    EntryType, FunctionEntry, FunctionType, RuntimePreference, SchemaEntry, TableEntry,
-    TunnelEntry, ViewEntry,
+    AllowedOperations, CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry,
+    DeploymentMetadata, EntryMeta, EntryType, FunctionEntry, FunctionType, OperationPermission,
+    RuntimePreference, SchemaEntry, TableEntry, TunnelEntry, ViewEntry,
 };
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
@@ -673,6 +673,7 @@ impl State {
                     },
                     options: create_database.options,
                     tunnel_id,
+                    allowed_operations: AllowedOperations::new().with(OperationPermission::Read),
                 };
                 self.entries.insert(oid, CatalogEntry::Database(ent))?;
 
@@ -817,6 +818,9 @@ impl State {
                     },
                     options: TableOptions::Internal(create_table.options),
                     tunnel_id: None,
+                    allowed_operations: AllowedOperations::new()
+                        .with(OperationPermission::Read)
+                        .with(OperationPermission::WriteDML),
                 };
 
                 let policy =
@@ -857,6 +861,7 @@ impl State {
                     },
                     options: create_ext.options,
                     tunnel_id,
+                    allowed_operations: AllowedOperations::new().with(OperationPermission::Read),
                 };
 
                 let policy = CreatePolicy::new(create_ext.if_not_exists, create_ext.or_replace)?;
@@ -1103,6 +1108,7 @@ impl BuiltinCatalog {
                     },
                     options: DatabaseOptions::Internal(DatabaseOptionsInternal {}),
                     tunnel_id: None,
+                    allowed_operations: AllowedOperations::new(),
                 }),
             );
         }
@@ -1147,6 +1153,7 @@ impl BuiltinCatalog {
                     },
                     options: TableOptions::new_internal(table.columns.clone()),
                     tunnel_id: None,
+                    allowed_operations: AllowedOperations::new().with(OperationPermission::Read),
                 }),
             );
             schema_objects

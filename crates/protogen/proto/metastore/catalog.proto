@@ -132,7 +132,8 @@ message DatabaseEntry {
   EntryMeta meta = 1;
   options.DatabaseOptions options = 2;
   optional uint32 tunnel_id = 3;
-  // next: 4
+  uint64 allowed_operations = 4;
+  // next: 5
 }
 
 message SchemaEntry {
@@ -147,7 +148,8 @@ message TableEntry {
 
   options.TableOptions options = 3;
   optional uint32 tunnel_id = 4;
-  // next: 5
+  uint64 allowed_operations = 5;
+  // next: 6
 }
 
 message ViewEntry {
