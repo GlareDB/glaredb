@@ -1,6 +1,6 @@
 # works with builtin tables
 
-query III
+query III rowsort
 describe glare_catalog.ssh_keys;
 ----
 ssh_tunnel_oid UInt32 f
