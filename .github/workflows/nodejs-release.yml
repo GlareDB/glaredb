@@ -1,4 +1,4 @@
-name: CI
+name: nodejs-release
 env:
   DEBUG: napi:*
   APP_NAME: "@glaredb/glaredb"
@@ -15,10 +15,14 @@ on:
 defaults:
   run:
     working-directory: bindings/nodejs
+concurrency:
+  group: nodejs-release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         settings:
           - host: macos-12-xl
@@ -41,7 +45,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - run: ls
       - name: Setup node
         uses: actions/setup-node@v3
         if: ${{ !matrix.settings.docker }}
@@ -112,7 +115,7 @@ jobs:
     needs:
       - build
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         settings:
           - host: macos-12-xl
@@ -120,9 +123,8 @@ jobs:
           - host: windows-latest-8-cores
             target: x86_64-pc-windows-msvc
         node:
-          - "14"
-          - "16"
           - "18"
+          - "20"
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v3
@@ -150,12 +152,11 @@ jobs:
     needs:
       - build
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         node:
-          - "14"
-          - "16"
           - "18"
+          - "20"
     runs-on: ubuntu-2004-8-cores
     steps:
       - uses: actions/checkout@v3
