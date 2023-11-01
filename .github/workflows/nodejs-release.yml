@@ -1,7 +1,7 @@
 name: nodejs-release
 env:
   DEBUG: napi:*
-  APP_NAME: "@glaredb/glaredb"
+  APP_NAME: "glaredb"
   MACOSX_DEPLOYMENT_TARGET: "10.13"
 permissions:
   contents: write
@@ -192,6 +192,7 @@ jobs:
           node-version: 18
           check-latest: true
           cache: yarn
+          cache-dependency-path: bindings/nodejs/yarn.lock
       - name: Install dependencies
         run: yarn install
       - name: Download macOS x64 artifact
