@@ -1,0 +1,25 @@
+{
+  "name": "@glaredb/glaredb-darwin-universal",
+  "version": "0.0.0",
+  "os": [
+    "darwin"
+  ],
+  "main": "glaredb.darwin-universal.node",
+  "files": [
+    "glaredb.darwin-universal.node"
+  ],
+  "keywords": [
+    "database",
+    "transform",
+    "data-processing",
+    "rust"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">= 18"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  }
+}

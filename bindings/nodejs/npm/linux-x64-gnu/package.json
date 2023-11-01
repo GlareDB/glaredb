@@ -1,0 +1,31 @@
+{
+  "name": "@glaredb/glaredb-linux-x64-gnu",
+  "version": "0.0.0",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "glaredb.linux-x64-gnu.node",
+  "files": [
+    "glaredb.linux-x64-gnu.node"
+  ],
+  "keywords": [
+    "database",
+    "transform",
+    "data-processing",
+    "rust"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">= 18"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "libc": [
+    "glibc"
+  ]
+}

@@ -1,24 +1,17 @@
 name: CI
 env:
   DEBUG: napi:*
-  APP_NAME: js-glaredb
-  MACOSX_DEPLOYMENT_TARGET: '10.13'
+  APP_NAME: "@glaredb/glaredb"
+  MACOSX_DEPLOYMENT_TARGET: "10.13"
 permissions:
   contents: write
   id-token: write
-'on':
+on:
   push:
-    branches:
-      - main
-    tags-ignore:
-      - '**'
-    paths-ignore:
-      - '**/*.md'
-      - LICENSE
-      - '**/*.gitignore'
-      - .editorconfig
-      - docs/**
-  pull_request: null
+    tags:
+      - "*"
+  workflow_dispatch:
+
 jobs:
   build:
     strategy:
@@ -42,6 +35,9 @@ jobs:
               strip *.node
     name: stable - ${{ matrix.settings.target }} - node@18
     runs-on: ${{ matrix.settings.host }}
+    defaults:
+      run:
+        working-directory: bindings/nodejs
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
@@ -94,7 +90,7 @@ jobs:
         if: ${{ matrix.settings.docker }}
         with:
           image: ${{ matrix.settings.docker }}
-          options: '--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build'
+          options: "--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build"
           run: ${{ matrix.settings.build }}
       - name: Build
         run: ${{ matrix.settings.build }}
@@ -119,10 +115,13 @@ jobs:
           - host: windows-latest
             target: x86_64-pc-windows-msvc
         node:
-          - '14'
-          - '16'
-          - '18'
+          - "14"
+          - "16"
+          - "18"
     runs-on: ${{ matrix.settings.host }}
+    defaults:
+      run:
+        working-directory: bindings/nodejs
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
@@ -151,10 +150,13 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - '14'
-          - '16'
-          - '18'
+          - "14"
+          - "16"
+          - "18"
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bindings/nodejs
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
@@ -175,12 +177,51 @@ jobs:
         shell: bash
       - name: Test bindings
         run: docker run --rm -v $(pwd):/build -w /build node:${{ matrix.node }}-slim yarn test
+  universal-macOS:
+    name: Build universal macOS binary
+    needs:
+      - build
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: bindings/nodejs
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          check-latest: true
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install
+      - name: Download macOS x64 artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: bindings-x86_64-apple-darwin
+          path: artifacts
+      - name: Download macOS arm64 artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: bindings-aarch64-apple-darwin
+          path: artifacts
+      - name: Combine binaries
+        run: yarn universal
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: bindings-universal-apple-darwin
+          path: ${{ env.APP_NAME }}.*.node
+          if-no-files-found: error
   publish:
     name: Publish
     runs-on: ubuntu-latest
     needs:
       - test-macOS-windows-binding
       - test-linux-x64-gnu-binding
+    defaults:
+      run:
+        working-directory: bindings/nodejs
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
