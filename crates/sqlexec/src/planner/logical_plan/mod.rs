@@ -11,6 +11,7 @@ mod create_temp_table;
 mod create_tunnel;
 mod create_view;
 mod delete;
+mod describe_table;
 mod drop_credentials;
 mod drop_database;
 mod drop_schemas;
@@ -32,6 +33,7 @@ use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLog
 use datafusion::prelude::SessionContext;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
+use datafusion::sql::TableReference;
 use datafusion_proto::logical_plan::{AsLogicalPlan, LogicalExtensionCodec};
 use datafusion_proto::protobuf::LogicalPlanNode;
 use once_cell::sync::Lazy;
@@ -59,6 +61,7 @@ pub use create_temp_table::*;
 pub use create_tunnel::*;
 pub use create_view::*;
 pub use delete::*;
+pub use describe_table::*;
 pub use drop_credentials::*;
 pub use drop_database::*;
 pub use drop_schemas::*;
@@ -182,6 +185,15 @@ pub struct FullObjectReference<'a> {
     pub name: Cow<'a, str>,
 }
 
+impl<'a> From<FullObjectReference<'a>> for TableReference<'a> {
+    fn from(value: FullObjectReference<'a>) -> Self {
+        TableReference::Full {
+            catalog: value.database,
+            schema: value.schema,
+            table: value.name,
+        }
+    }
+}
 pub type OwnedFullObjectReference = FullObjectReference<'static>;
 
 impl<'a> fmt::Display for FullObjectReference<'a> {

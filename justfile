@@ -102,7 +102,8 @@ rpc-tests: protoc
     'sqllogictests/views' \
     'sqllogictests/virtual_catalog' \
     'sqllogictests/xlsx' \
-    'sqllogictests/prql'
+    'sqllogictests/prql' \
+    'sqllogictests/describe_rpc' 
 
 #  Check formatting.
 fmt-check: protoc

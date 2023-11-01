@@ -645,6 +645,7 @@ impl<'a> SessionPlanner<'a> {
             }
 
             ast::Statement::Explain {
+                describe_alias: false,
                 verbose,
                 statement,
                 analyze,
@@ -655,6 +656,22 @@ impl<'a> SessionPlanner<'a> {
                     .explain_statement_to_plan(verbose, analyze, *statement)
                     .await?;
                 Ok(LogicalPlan::Datafusion(plan))
+            }
+            // DESCRIBE <table_name>
+            ast::Statement::ExplainTable {
+                describe_alias: true,
+                table_name,
+            } => {
+                validate_object_name(&table_name)?;
+                let table_name = object_name_to_table_ref(table_name)?;
+                let resolver = EntryResolver::from_context(self.ctx);
+                let entry = resolver
+                    .resolve_entry_from_reference(table_name.clone())?
+                    .try_into_table_entry()?;
+
+                let plan = DescribeTable { entry };
+
+                Ok(plan.into_logical_plan())
             }
 
             ast::Statement::CreateSchema {
