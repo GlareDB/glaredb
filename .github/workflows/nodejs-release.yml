@@ -45,6 +45,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - uses: extractions/setup-just@v1
+
+      - run: just protoc
       - name: Setup node
         uses: actions/setup-node@v3
         if: ${{ !matrix.settings.docker }}
@@ -128,6 +131,8 @@ jobs:
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v3
+      - uses: extractions/setup-just@v1
+      - run: just protoc
       - name: Setup node
         uses: actions/setup-node@v3
         with:
@@ -160,6 +165,8 @@ jobs:
     runs-on: ubuntu-2004-8-cores
     steps:
       - uses: actions/checkout@v3
+      - uses: extractions/setup-just@v1
+      - run: just protoc
       - name: Setup node
         uses: actions/setup-node@v3
         with:
@@ -186,6 +193,8 @@ jobs:
     runs-on: macos-12-xl
     steps:
       - uses: actions/checkout@v3
+      - uses: extractions/setup-just@v1
+      - run: just protoc
       - name: Setup node
         uses: actions/setup-node@v3
         with:
@@ -221,6 +230,8 @@ jobs:
       - test-linux-x64-gnu-binding
     steps:
       - uses: actions/checkout@v3
+      - uses: extractions/setup-just@v1
+      - run: just protoc
       - name: Setup node
         uses: actions/setup-node@v3
         with:
