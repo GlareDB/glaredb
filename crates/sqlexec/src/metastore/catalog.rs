@@ -469,8 +469,7 @@ struct TempObjectsInner {
 impl TempCatalog {
     pub fn resolve_temp_table(&self, name: &str) -> Option<TableEntry> {
         let inner = self.inner.lock();
-        if inner.tables.contains_key(name) {
-            let tbl = inner.tables.get(name).unwrap();
+        inner.tables.get(name).map(|tbl| {
             let schema = tbl.schema();
             let columns = schema
                 .fields()
@@ -486,9 +485,7 @@ impl TempCatalog {
                 })
                 .collect();
 
-            // TODO: We can be a bit more sophisticated with what we're putting
-            // in meta and table options.
-            return Some(TableEntry {
+            TableEntry {
                 meta: EntryMeta {
                     entry_type: EntryType::Table,
                     id: 0,
@@ -500,9 +497,8 @@ impl TempCatalog {
                 },
                 options: TableOptions::Internal(TableOptionsInternal { columns }),
                 tunnel_id: None,
-            });
-        }
-        None
+            }
+        })
     }
 
     pub fn put_temp_table(&self, name: String, table: Arc<MemTable>) {
