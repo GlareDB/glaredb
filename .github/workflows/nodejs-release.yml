@@ -48,6 +48,7 @@ jobs:
           - host: macos-12-xl
             target: aarch64-apple-darwin
             build: |
+              rustup target add aarch64-apple-darwin
               sudo rm -Rf /Library/Developer/CommandLineTools/SDKs/*;
               export CC=$(xcrun -f clang);
               export CXX=$(xcrun -f clang++);
