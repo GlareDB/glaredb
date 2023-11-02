@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "main": "glaredb.js",
   "types": "index.d.ts",
-  "license": "MIT",
+  "repository": "https://github.com/GlareDB/glaredb.git",
+  "license": "AGPL-3.0",
   "ava": {
     "timeout": "3m"
   },
@@ -14,7 +15,10 @@
     "rust"
   ],
   "napi": {
-    "name": "glaredb"
+    "name": "glaredb",
+    "triples": {
+      "defaults": true
+    }
   },
   "engines": {
     "node": ">= 18"
