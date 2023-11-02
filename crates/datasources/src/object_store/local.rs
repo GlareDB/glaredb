@@ -25,7 +25,6 @@ impl LocalStoreAccess {
     fn meta_from_path(&self, path: PathBuf) -> Result<ObjectMeta> {
         let path = resolve_path(&path)?;
         let meta = path.metadata()?;
-        println!("path: {:?}", path);
         Ok(ObjectMeta {
             location: self.path(path.to_string_lossy().as_ref())?,
             last_modified: meta.modified()?.into(),

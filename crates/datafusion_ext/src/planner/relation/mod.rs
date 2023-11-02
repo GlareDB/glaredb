@@ -234,9 +234,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 /// Returns a reference to table func by inferring which function to use from a
 /// given path.
 fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
-    let path_buf = resolve_path(Path::new(path))?;
-    println!("path_buf: {:?}", path_buf);
-    let ext = path_buf
+    let ext = Path::new(path)
         .extension()
         .ok_or_else(|| DataFusionError::Plan(format!("missing file extension: {path}")))?
         .to_str()
