@@ -1,6 +1,6 @@
 {
   "name": "@glaredb/glaredb",
-  "version": "0.0.1",
+  "version": "0.0.1-rc3",
   "main": "glaredb.js",
   "types": "index.d.ts",
   "repository": {
@@ -8,6 +8,11 @@
     "url": "https://github.com/GlareDB/glaredb.git",
     "directory": "bindings/nodejs"
   },
+  "files": [
+    "index.d.ts",
+    "index.js",
+    "glaredb.js"
+  ],
   "license": "AGPL-3.0",
   "ava": {
     "timeout": "3m"
@@ -21,7 +26,10 @@
   "napi": {
     "name": "glaredb",
     "triples": {
-      "defaults": true
+      "defaults": true,
+      "additional": [
+        "aarch64-apple-darwin"
+      ]
     }
   },
   "engines": {
@@ -29,8 +37,8 @@
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
-    "access": "public",
-    "provenance": true
+    "provenance": true,
+    "access": "public"
   },
   "scripts": {
     "artifacts": "napi artifacts",

@@ -45,6 +45,20 @@ jobs:
               cd bindings/nodejs &&
               yarn build --target x86_64-unknown-linux-gnu &&
               strip *.node
+          - host: macos-12-xl
+            target: aarch64-apple-darwin
+            build: |
+              sudo rm -Rf /Library/Developer/CommandLineTools/SDKs/*;
+              export CC=$(xcrun -f clang);
+              export CXX=$(xcrun -f clang++);
+              SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
+              export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
+              cd bindings/nodejs
+              curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to . 
+              ./just protoc
+              export PROTOC="$PWD/deps/protoc/bin/protoc"
+              yarn build --target aarch64-apple-darwin
+              strip -x *.node
     name: stable - ${{ matrix.settings.target }} - node@18
     runs-on: ${{ matrix.settings.host }}
 
