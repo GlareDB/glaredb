@@ -14,12 +14,7 @@
     "rust"
   ],
   "napi": {
-    "name": "glaredb",
-    "triples": {
-      "additional": [
-        "universal-apple-darwin"
-      ]
-    }
+    "name": "glaredb"
   },
   "engines": {
     "node": ">= 18"
