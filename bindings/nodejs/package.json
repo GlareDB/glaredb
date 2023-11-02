@@ -1,6 +1,6 @@
 {
   "name": "@glaredb/glaredb",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "main": "glaredb.js",
   "types": "index.d.ts",
   "repository": {
@@ -45,5 +45,10 @@
   "devDependencies": {
     "@napi-rs/cli": "^2.16.3",
     "ava": "^5.1.1"
+  },
+  "optionalDependencies": {
+    "@glaredb/glaredb-win32-x64-msvc": "0.0.1",
+    "@glaredb/glaredb-darwin-x64": "0.0.1",
+    "@glaredb/glaredb-linux-x64-gnu": "0.0.1"
   }
 }
