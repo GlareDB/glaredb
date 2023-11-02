@@ -1,7 +1,9 @@
 import test from 'ava'
 
-import glaredb from '../index.js'
+import glaredb from '../glaredb.js'
 
 test('able to connect', async (t) => {
-  await glaredb.connect()
+  t.notThrows(async () => {
+    await glaredb.connect()
+  })
 })
