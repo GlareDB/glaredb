@@ -1,6 +1,6 @@
 {
   "name": "@glaredb/glaredb",
-  "version": "0.0.1-rc3",
+  "version": "0.0.1",
   "main": "glaredb.js",
   "types": "index.d.ts",
   "repository": {
@@ -37,7 +37,6 @@
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
-    "provenance": true,
     "access": "public"
   },
   "scripts": {
