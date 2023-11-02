@@ -53,10 +53,6 @@ jobs:
               export CXX=$(xcrun -f clang++);
               SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
               export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
-              cd bindings/nodejs
-              curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to . 
-              ./just protoc
-              export PROTOC="$PWD/deps/protoc/bin/protoc"
               yarn build --target aarch64-apple-darwin
               strip -x *.node
     name: stable - ${{ matrix.settings.target }} - node@18
@@ -65,7 +61,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: extractions/setup-just@v1
-
       - run: just protoc
       - name: Setup node
         uses: actions/setup-node@v3
