@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
-use sqlexec::remote::client::RemoteClient;
+use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::session::ExecutionResult;
 use std::env;
 use std::io::Write;
@@ -71,6 +71,7 @@ impl LocalSession {
                     url.try_into()?,
                     opts.cloud_addr.clone(),
                     opts.disable_tls,
+                    RemoteClientType::Cli,
                 )
                 .await?;
 
