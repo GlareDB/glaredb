@@ -601,16 +601,47 @@ impl Session {
         Ok(stream)
     }
 
-    /// Helper for converting a sql statement to a logical plan.
+    /// Helper for converting a query (SQL or PRQL) statement to a
+    /// logical plan.
     ///
-    /// Useful for our "local" clients, including the CLI and Python bindings.
+    /// Useful for our "local" clients, including the CLI, Python, and
+    /// JS bindings.
     ///
-    /// Errors if no statements or more than one statement is provided in the
-    /// query.
-    pub async fn sql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
-        const UNNAMED: String = String::new();
+    /// Errors if no statements or more than one statement is provided
+    /// in the query.
+    pub async fn query_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
+        let statements = self.parse_query(query)?;
 
-        let mut statements = self.parse_query(query)?;
+        self.parsed_to_lp(statements).await
+    }
+
+    /// Helper for converting SQL statement to a logical plan.
+    ///
+    /// Errors if no statements or more than one statement is provided
+    /// in the query.
+    pub async fn prql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
+        let stmt = crate::parser::parse_prql(query)?;
+
+        self.parsed_to_lp(stmt).await
+    }
+
+    /// Helper for converting PRQL statement to a logical plan.
+    ///
+    /// Errors if no statements or more than one statement is provided
+    /// in the query.
+    pub async fn sql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
+        let statements = crate::parser::parse_sql(query)?;
+
+        self.parsed_to_lp(statements).await
+    }
+
+    pub async fn parsed_to_lp(
+        &mut self,
+        statements: VecDeque<StatementWithExtensions>,
+    ) -> Result<LogicalPlan> {
+        const UNNAMED: String = String::new();
+        let mut statements = statements;
+
         match statements.len() {
             0 => Err(ExecError::String("No statements in query".to_string())),
             1 => {

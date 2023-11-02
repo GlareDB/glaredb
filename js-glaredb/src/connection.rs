@@ -146,10 +146,12 @@ impl Connection {
         Ok(con.clone())
     }
 
-    /// Run a SQL querying against a GlareDB database.
+    /// Run a SQL operation against a GlareDB database.
     ///
-    /// Note that this will only plan the query. To execute the query, call any
-    /// of `execute`, `show`, `toArrow`,  or `toPolars`
+    /// All operations that write or modify data are executed
+    /// directly, but all query operations run lazily when you process
+    /// their results with `show`, `toArrow`, or
+    /// `toPolars`, or call the `execute` method.
     ///
     /// # Examples
     ///
@@ -185,7 +187,10 @@ impl Connection {
     pub async fn sql(&self, query: String) -> napi::Result<JsLogicalPlan> {
         let cloned_sess = self.sess.clone();
         let mut sess = self.sess.lock().await;
-        let plan = sess.sql_to_lp(&query).await.map_err(JsGlareDbError::from)?;
+        let plan = sess
+            .query_to_lp(&query)
+            .await
+            .map_err(JsGlareDbError::from)?;
         match plan
             .to_owned()
             .try_into_datafusion_plan()
@@ -204,6 +209,27 @@ impl Connection {
         }
     }
 
+    /// Run a PRQL query against a GlareDB database. Does not change
+    /// the state or dialect of the connection object.
+    ///
+    /// ```javascript
+    /// import glaredb from "@glaredb/node"
+    ///
+    /// let con = glaredb.connect()
+    /// let cursor = await con.sql('from my_table | take 1');
+    /// await cursor.show()
+    /// ```
+    ///
+    /// All operations execute lazily when their results are
+    /// processed.
+    pub async fn prql(&self, query: &str) -> napi::Result<JsLogicalPlan> {
+        let cloned_sess = self.sess.clone();
+        let mut sess = self.sess.lock().await;
+        let plan = sess.prql_to_lp(query).await.map_err(JsGlareDbError::from)?;
+
+        Ok(JsLogicalPlan::new(plan, cloned_sess))
+    }
+
     /// Execute a query.
     ///
     /// # Examples
@@ -220,7 +246,10 @@ impl Connection {
     pub async fn execute(&self, query: String) -> napi::Result<()> {
         let sess = self.sess.clone();
         let mut sess = sess.lock().await;
-        let plan = sess.sql_to_lp(&query).await.map_err(JsGlareDbError::from)?;
+        let plan = sess
+            .query_to_lp(&query)
+            .await
+            .map_err(JsGlareDbError::from)?;
         let _ = sess
             .execute_inner(plan)
             .await
