@@ -29,6 +29,7 @@ use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast;
+use ioutil::resolve_path;
 
 mod join;
 
@@ -233,7 +234,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 /// Returns a reference to table func by inferring which function to use from a
 /// given path.
 fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
-    let ext = Path::new(path)
+    let path_buf = resolve_path(Path::new(path))?;
+    println!("path_buf: {:?}", path_buf);
+    let ext = path_buf
         .extension()
         .ok_or_else(|| DataFusionError::Plan(format!("missing file extension: {path}")))?
         .to_str()
