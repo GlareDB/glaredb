@@ -29,7 +29,6 @@ use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast;
-use ioutil::resolve_path;
 
 mod join;
 
