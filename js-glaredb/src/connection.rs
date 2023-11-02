@@ -4,7 +4,7 @@ use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
 use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
-use sqlexec::remote::client::RemoteClient;
+use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::LogicalPlan;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -97,6 +97,7 @@ impl Connection {
                 url.try_into().map_err(JsGlareDbError::from)?,
                 cloud_addr,
                 disable_tls,
+                RemoteClientType::Node,
             )
             .await
             .map_err(JsGlareDbError::from)?;

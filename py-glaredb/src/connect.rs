@@ -20,7 +20,7 @@ use datafusion_ext::vars::SessionVars;
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
 use sqlexec::{
     engine::{Engine, SessionStorageConfig},
-    remote::client::RemoteClient,
+    remote::client::{RemoteClient, RemoteClientType},
 };
 
 #[derive(Debug, Clone)]
@@ -128,6 +128,7 @@ pub fn connect(
                 url.try_into().map_err(PyGlareDbError::from)?,
                 cloud_addr,
                 disable_tls,
+                RemoteClientType::Python,
             )
             .await
             .map_err(PyGlareDbError::from)?;
