@@ -1811,6 +1811,7 @@ dependencies = [
  "decimal",
  "env_logger",
  "futures",
+ "ioutil",
  "once_cell",
  "parking_lot",
  "paste",
@@ -1844,6 +1845,7 @@ dependencies = [
  "futures",
  "gcp-bigquery-client",
  "glob",
+ "ioutil",
  "logutil",
  "mongodb",
  "mysql_async",
@@ -2931,6 +2933,7 @@ name = "ioutil"
 version = "0.6.1"
 dependencies = [
  "bytes",
+ "home",
 ]
 
 [[package]]
@@ -5860,7 +5863,7 @@ dependencies = [
  "datasources",
  "decimal",
  "futures",
- "home",
+ "ioutil",
  "logutil",
  "num-traits",
  "object_store",
