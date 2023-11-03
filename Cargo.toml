@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*", "xtask", "py-glaredb", "js-glaredb"]
+members = ["crates/*", "xtask", "bindings/*"]
 default-members = ["crates/*", "xtask"]
 resolver = "2"
 

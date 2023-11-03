@@ -1,0 +1,28 @@
+{
+  "name": "@glaredb/glaredb-win32-x64-msvc",
+  "version": "0.0.1",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "glaredb.win32-x64-msvc.node",
+  "files": [
+    "glaredb.win32-x64-msvc.node"
+  ],
+  "keywords": [
+    "database",
+    "transform",
+    "data-processing",
+    "rust"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">= 18"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  }
+}
