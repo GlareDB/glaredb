@@ -1,9 +1,12 @@
 set fallback
-build *args:
+
+deps: 
+  yarn install
+build *args: deps
   yarn build {{args}}
-build-dev:
+build-debug: deps
   yarn build:debug
-test:
+test: deps
   yarn test
 fmt:
   cargo fmt --all

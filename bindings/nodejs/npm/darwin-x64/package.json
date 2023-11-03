@@ -1,0 +1,28 @@
+{
+  "name": "@glaredb/glaredb-darwin-x64",
+  "version": "0.0.1",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "glaredb.darwin-x64.node",
+  "files": [
+    "glaredb.darwin-x64.node"
+  ],
+  "keywords": [
+    "database",
+    "transform",
+    "data-processing",
+    "rust"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">= 18"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  }
+}

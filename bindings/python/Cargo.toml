@@ -16,14 +16,14 @@ thiserror.workspace = true
 url.workspace = true
 anyhow = { workspace = true }
 pyo3 = { version = "0.19.2", features = ["abi3-py37", "extension-module"] }
-sqlexec = { path = "../crates/sqlexec" }
-metastore = { path = "../crates/metastore" }
-telemetry = { path = "../crates/telemetry" }
-pgsrv = { path = "../crates/pgsrv" }
-pgrepr = { path = "../crates/pgrepr" }
-datafusion_ext = { path = "../crates/datafusion_ext" }
-arrow_util = { path = "../crates/arrow_util" }
-glaredb = { path = "../crates/glaredb" }
+sqlexec = { path = "../../crates/sqlexec" }
+metastore = { path = "../../crates/metastore" }
+telemetry = { path = "../../crates/telemetry" }
+pgsrv = { path = "../../crates/pgsrv" }
+pgrepr = { path = "../../crates/pgrepr" }
+datafusion_ext = { path = "../../crates/datafusion_ext" }
+arrow_util = { path = "../../crates/arrow_util" }
+glaredb = { path = "../../crates/glaredb" }
 futures = "0.3.29"
 uuid = "1.4.1"
 async-trait = "0.1.74"
