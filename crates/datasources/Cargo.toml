@@ -19,7 +19,7 @@ datafusion = { workspace = true }
 decimal = { path = "../decimal" }
 deltalake = { workspace = true }
 futures = "0.3.29"
-gcp-bigquery-client = "0.17.0"
+gcp-bigquery-client = "0.18.0"
 logutil = {path = "../logutil"}
 protogen = {path = "../protogen"}
 datafusion_ext = { path = "../datafusion_ext" }
