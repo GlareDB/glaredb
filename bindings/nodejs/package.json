@@ -21,7 +21,11 @@
     "database",
     "transform",
     "data-processing",
-    "rust"
+    "rust",
+    "analytics",
+    "sql",
+    "data-engineering",
+    "data-science"
   ],
   "napi": {
     "name": "glaredb",
