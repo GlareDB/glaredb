@@ -24,7 +24,7 @@ gcp-bigquery-client = "0.18.0"
 logutil = {path = "../logutil"}
 protogen = {path = "../protogen"}
 datafusion_ext = { path = "../datafusion_ext" }
-mongodb = "2.6.0"
+mongodb = "2.7.1"
 mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }
 mysql_common = { version = "0.30.6", features = ["chrono"] }
 object_store = { workspace = true, features = ["gcp", "aws", "http"] }
