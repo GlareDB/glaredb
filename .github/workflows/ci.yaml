@@ -109,8 +109,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache: yarn
-          cache-dependency-path: bindings/nodejs/yarn.lock
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
         name: Cache
