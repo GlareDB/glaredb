@@ -18,7 +18,7 @@ object_store = { workspace = true, features = ["gcp"] }
 async-trait = "0.1.74"
 regex = "1.8.1"
 uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
-openssh = "0.9.9"
+openssh = "0.10.1"
 futures = "0.3.29"
 logutil = { path = "../logutil" }
 glaredb = { path = "../glaredb" }

@@ -57,4 +57,4 @@ calamine = { version = "0.22.1", features = ["dates"] }
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
-openssh = "0.9.9"
+openssh = "0.10.1"
