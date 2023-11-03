@@ -5,6 +5,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use glob::{glob_with, MatchOptions};
+use ioutil::resolve_path;
 use object_store::local::LocalFileSystem;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
@@ -22,8 +23,8 @@ impl Display for LocalStoreAccess {
 }
 impl LocalStoreAccess {
     fn meta_from_path(&self, path: PathBuf) -> Result<ObjectMeta> {
+        let path = resolve_path(&path)?;
         let meta = path.metadata()?;
-        let path = path.canonicalize()?;
         Ok(ObjectMeta {
             location: self.path(path.to_string_lossy().as_ref())?,
             last_modified: meta.modified()?.into(),
@@ -67,6 +68,7 @@ impl ObjStoreAccess for LocalStoreAccess {
 
         for path in paths {
             let path = path?;
+
             let meta = self.meta_from_path(path)?;
             objects.push(meta);
         }
