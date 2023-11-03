@@ -14,6 +14,6 @@ tokio-postgres = { version = "0.7.8", features = ["with-uuid-1", "with-serde_jso
 num-traits = "0.2.17"
 dtoa = "1.0.9"
 chrono = { workspace = true }
-chrono-tz = "0.8.3"
+chrono-tz = "0.8.4"
 tracing = "0.1"
 decimal = { path = "../decimal" }
