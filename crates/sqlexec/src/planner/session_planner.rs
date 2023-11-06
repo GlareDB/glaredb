@@ -30,7 +30,7 @@ use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::gcp::GoogleConfigKey;
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{OperationPermission, RuntimePreference};
 use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
     CopyToDestinationOptionsS3, CopyToFormatOptions, CopyToFormatOptionsCsv,
@@ -895,6 +895,16 @@ impl<'a> SessionPlanner<'a> {
                 let mut ctx_provider = PartialContextProvider::new(self.ctx, &state)?;
 
                 let provider = ctx_provider.table_provider(table_name.clone()).await?;
+
+                if !provider
+                    .allowed_operations
+                    .has(OperationPermission::WriteDML)
+                {
+                    return Err(PlanError::ObjectNotAllowedToWriteInto(
+                        table_name.to_owned_reference(),
+                    ));
+                }
+
                 let (runtime_preference, provider) = match (
                     provider.preference,
                     provider

@@ -297,11 +297,73 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
     }
 }
 
+/// Describes all the operations permissions that can be allotted to an object.
+// NOTE: Any permissions should be added after the current ones in order (just
+// as we do for protobufs). We can rename anything but the value (or enum repr)
+// should always be the same.
+#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
+#[repr(u64)]
+pub enum OperationPermission {
+    Unspecified = 0,
+    Read = 1 << 0,
+    WriteDML = 1 << 1,
+}
+
+/// Represents a set of allowed permissions for any object.
+#[derive(Default, Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+pub struct AllowedOperations(u64);
+
+impl From<u64> for AllowedOperations {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+impl From<AllowedOperations> for u64 {
+    fn from(value: AllowedOperations) -> Self {
+        let AllowedOperations(value) = value;
+        value
+    }
+}
+
+impl AllowedOperations {
+    /// Creates a new set of [`AllowedOperations`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Creates a set of [`AllowedOperations`] with given permission.
+    pub fn with(mut self, perm: OperationPermission) -> Self {
+        self.add(perm);
+        self
+    }
+
+    /// Returns true if the specified permission is allowed.
+    #[inline]
+    pub fn has(&self, perm: OperationPermission) -> bool {
+        self.0 & (perm as u64) != 0
+    }
+
+    /// Add the permission to the allowed operations set.
+    #[inline]
+    pub fn add(&mut self, perm: OperationPermission) {
+        self.0 |= perm as u64;
+    }
+
+    /// Revoke the permission from the allowed operations set.
+    #[inline]
+    pub fn revoke(&mut self, perm: OperationPermission) {
+        let perm = perm as u64;
+        self.0 = (self.0 | perm) ^ perm;
+    }
+}
+
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct DatabaseEntry {
     pub meta: EntryMeta,
     pub options: DatabaseOptions,
     pub tunnel_id: Option<u32>,
+    pub allowed_operations: AllowedOperations,
 }
 
 impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
@@ -312,6 +374,7 @@ impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
             meta,
             options: value.options.required("options")?,
             tunnel_id: value.tunnel_id,
+            allowed_operations: value.allowed_operations.into(),
         })
     }
 }
@@ -322,6 +385,7 @@ impl From<DatabaseEntry> for catalog::DatabaseEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.into()),
             tunnel_id: value.tunnel_id,
+            allowed_operations: value.allowed_operations.into(),
         }
     }
 }
@@ -352,6 +416,7 @@ pub struct TableEntry {
     pub meta: EntryMeta,
     pub options: TableOptions,
     pub tunnel_id: Option<u32>,
+    pub allowed_operations: AllowedOperations,
 }
 
 impl TableEntry {
@@ -372,6 +437,7 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
             meta,
             options: value.options.required("options".to_string())?,
             tunnel_id: value.tunnel_id,
+            allowed_operations: value.allowed_operations.into(),
         })
     }
 }
@@ -383,6 +449,7 @@ impl TryFrom<TableEntry> for catalog::TableEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.try_into()?),
             tunnel_id: value.tunnel_id,
+            allowed_operations: value.allowed_operations.into(),
         })
     }
 }
@@ -795,5 +862,36 @@ mod tests {
         };
 
         assert_eq!(expected, converted);
+    }
+
+    #[test]
+    fn test_allowed_operations() {
+        let mut a = AllowedOperations::new();
+        assert!(!a.has(OperationPermission::Read));
+        assert!(!a.has(OperationPermission::WriteDML));
+
+        a.add(OperationPermission::Read);
+        assert!(a.has(OperationPermission::Read));
+        assert!(!a.has(OperationPermission::WriteDML));
+
+        a.add(OperationPermission::WriteDML);
+        assert!(a.has(OperationPermission::Read));
+        assert!(a.has(OperationPermission::WriteDML));
+
+        a.revoke(OperationPermission::Read);
+        assert!(!a.has(OperationPermission::Read));
+        assert!(a.has(OperationPermission::WriteDML));
+
+        a.revoke(OperationPermission::Read);
+        assert!(!a.has(OperationPermission::Read));
+        assert!(a.has(OperationPermission::WriteDML));
+
+        a.add(OperationPermission::WriteDML);
+        assert!(!a.has(OperationPermission::Read));
+        assert!(a.has(OperationPermission::WriteDML));
+
+        a.revoke(OperationPermission::WriteDML);
+        assert!(!a.has(OperationPermission::Read));
+        assert!(!a.has(OperationPermission::WriteDML));
     }
 }

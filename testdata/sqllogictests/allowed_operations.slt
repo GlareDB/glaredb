@@ -1,0 +1,14 @@
+statement ok
+CREATE EXTERNAL DATABASE debug_db FROM debug;
+
+statement error Not allowed to write
+INSERT INTO debug_db.public.never_ending VALUES (1, 2, 3);
+
+statement ok
+CREATE EXTERNAL TABLE debug_table
+    FROM debug (
+        table_type 'never_ending'
+    );
+
+statement error Not allowed to write
+INSERT INTO debug_table VALUES (1, 2, 3);

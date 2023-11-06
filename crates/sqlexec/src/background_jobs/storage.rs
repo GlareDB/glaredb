@@ -147,6 +147,7 @@ mod tests {
                         }],
                     }),
                     tunnel_id: None,
+                    allowed_operations: Default::default(),
                 },
                 SaveMode::ErrorIfExists,
             )

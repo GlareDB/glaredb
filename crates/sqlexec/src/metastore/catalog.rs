@@ -2,8 +2,9 @@ use datafusion::datasource::{MemTable, TableProvider};
 use parking_lot::Mutex;
 use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::catalog::{
-    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
-    EntryType, FunctionEntry, FunctionType, SchemaEntry, TableEntry, TunnelEntry,
+    AllowedOperations, CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry,
+    DeploymentMetadata, EntryMeta, EntryType, FunctionEntry, FunctionType, OperationPermission,
+    SchemaEntry, TableEntry, TunnelEntry,
 };
 use protogen::metastore::types::options::{
     InternalColumnDefinition, TableOptions, TableOptionsInternal,
@@ -497,6 +498,9 @@ impl TempCatalog {
                 },
                 options: TableOptions::Internal(TableOptionsInternal { columns }),
                 tunnel_id: None,
+                allowed_operations: AllowedOperations::new()
+                    .with(OperationPermission::Read)
+                    .with(OperationPermission::WriteDML),
             }
         })
     }
@@ -539,6 +543,9 @@ impl TempCatalog {
                     columns: Vec::new(),
                 }),
                 tunnel_id: None,
+                allowed_operations: AllowedOperations::new()
+                    .with(OperationPermission::Read)
+                    .with(OperationPermission::WriteDML),
             });
         }
 
