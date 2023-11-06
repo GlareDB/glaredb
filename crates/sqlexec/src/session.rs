@@ -86,9 +86,9 @@ pub enum ExecutionResult {
     /// A view was created.
     CreateView,
     /// A table was renamed.
-    AlterTableRename,
+    AlterTable,
     /// A database was renamed.
-    AlterDatabaseRename,
+    AlterDatabase,
     /// A tunnel was altered.
     AlterTunnelRotateKeys,
     /// A client local variable was set.
@@ -173,8 +173,8 @@ impl ExecutionResult {
             ExecutionResult::CreateCredentials => "create_credentials",
             ExecutionResult::CreateSchema => "create_schema",
             ExecutionResult::CreateView => "create_view",
-            ExecutionResult::AlterTableRename => "alter_table_rename",
-            ExecutionResult::AlterDatabaseRename => "alter_database_rename",
+            ExecutionResult::AlterTable => "alter_table",
+            ExecutionResult::AlterDatabase => "alter_database",
             ExecutionResult::AlterTunnelRotateKeys => "alter_tunnel_rotate_keys",
             ExecutionResult::Set => "set_local",
             ExecutionResult::DropTables => "drop_tables",
@@ -195,8 +195,8 @@ impl ExecutionResult {
                 | ExecutionResult::CreateCredentials
                 | ExecutionResult::CreateSchema
                 | ExecutionResult::CreateView
-                | ExecutionResult::AlterTableRename
-                | ExecutionResult::AlterDatabaseRename
+                | ExecutionResult::AlterTable
+                | ExecutionResult::AlterDatabase
                 | ExecutionResult::AlterTunnelRotateKeys
                 | ExecutionResult::DropTables
                 | ExecutionResult::DropViews
@@ -232,8 +232,8 @@ impl ExecutionResult {
             "create_credentials" => ExecutionResult::CreateCredentials,
             "create_schema" => ExecutionResult::CreateSchema,
             "create_view" => ExecutionResult::CreateView,
-            "alter_table_rename" => ExecutionResult::AlterTableRename,
-            "alter_database_rename" => ExecutionResult::AlterDatabaseRename,
+            "alter_table" => ExecutionResult::AlterTable,
+            "alter_database" => ExecutionResult::AlterDatabase,
             "alter_tunnel_rotate_keys" => ExecutionResult::AlterTunnelRotateKeys,
             "set" => ExecutionResult::Set,
             "drop_tables" => ExecutionResult::DropTables,
@@ -288,8 +288,8 @@ impl fmt::Display for ExecutionResult {
             ExecutionResult::CreateCredentials => write!(f, "Credentials created"),
             ExecutionResult::CreateSchema => write!(f, "Schema create"),
             ExecutionResult::CreateView => write!(f, "View created"),
-            ExecutionResult::AlterTableRename => write!(f, "Table renamed"),
-            ExecutionResult::AlterDatabaseRename => write!(f, "Database renamed"),
+            ExecutionResult::AlterTable => write!(f, "Table altered"),
+            ExecutionResult::AlterDatabase => write!(f, "Database altered"),
             ExecutionResult::AlterTunnelRotateKeys => write!(f, "Keys rotated"),
             ExecutionResult::Set => write!(f, "Local variable set"),
             ExecutionResult::DropTables => write!(f, "Table(s) dropped"),

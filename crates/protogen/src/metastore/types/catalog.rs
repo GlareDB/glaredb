@@ -9,7 +9,8 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
-use std::fmt;
+use std::fmt::{self, Display};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogState {
@@ -297,64 +298,79 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
     }
 }
 
-/// Describes all the operations permissions that can be allotted to an object.
-// NOTE: Any permissions should be added after the current ones in order (just
-// as we do for protobufs). We can rename anything but the value (or enum repr)
-// should always be the same.
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
-#[repr(u64)]
-pub enum OperationPermission {
-    Unspecified = 0,
-    Read = 1 << 0,
-    WriteDML = 1 << 1,
+#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+pub enum SourceAccessMode {
+    ReadOnly,
+    ReadWrite,
 }
 
-/// Represents a set of allowed permissions for any object.
-#[derive(Default, Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
-pub struct AllowedOperations(u64);
-
-impl From<u64> for AllowedOperations {
-    fn from(value: u64) -> Self {
-        Self(value)
+impl FromStr for SourceAccessMode {
+    type Err = ProtoConvError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_uppercase();
+        let access_mode = catalog::SourceAccessMode::from_str_name(&s).ok_or_else(|| {
+            ProtoConvError::ParseError(format!("invalid source access mode: {s}"))
+        })?;
+        Ok(access_mode.into())
     }
 }
 
-impl From<AllowedOperations> for u64 {
-    fn from(value: AllowedOperations) -> Self {
-        let AllowedOperations(value) = value;
-        value
+impl Display for SourceAccessMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let access_mode: catalog::SourceAccessMode = (*self).into();
+        write!(f, "{}", access_mode.as_str_name())
     }
 }
 
-impl AllowedOperations {
-    /// Creates a new set of [`AllowedOperations`].
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Creates a set of [`AllowedOperations`] with given permission.
-    pub fn with(mut self, perm: OperationPermission) -> Self {
-        self.add(perm);
-        self
-    }
-
-    /// Returns true if the specified permission is allowed.
+impl SourceAccessMode {
     #[inline]
-    pub fn has(&self, perm: OperationPermission) -> bool {
-        self.0 & (perm as u64) != 0
+    pub fn has_read_access(&self) -> bool {
+        matches!(self, Self::ReadOnly | Self::ReadWrite)
     }
 
-    /// Add the permission to the allowed operations set.
     #[inline]
-    pub fn add(&mut self, perm: OperationPermission) {
-        self.0 |= perm as u64;
+    pub fn has_write_access(&self) -> bool {
+        matches!(self, Self::ReadWrite)
     }
+}
 
-    /// Revoke the permission from the allowed operations set.
-    #[inline]
-    pub fn revoke(&mut self, perm: OperationPermission) {
-        let perm = perm as u64;
-        self.0 = (self.0 | perm) ^ perm;
+impl From<catalog::SourceAccessMode> for SourceAccessMode {
+    fn from(value: catalog::SourceAccessMode) -> Self {
+        match value {
+            catalog::SourceAccessMode::ReadOnly => Self::ReadOnly,
+            catalog::SourceAccessMode::ReadWrite => Self::ReadWrite,
+        }
+    }
+}
+
+impl TryFrom<i32> for SourceAccessMode {
+    type Error = ProtoConvError;
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Ok(match value {
+            x if x == catalog::SourceAccessMode::ReadOnly as i32 => Self::ReadOnly,
+            x if x == catalog::SourceAccessMode::ReadWrite as i32 => Self::ReadWrite,
+            x => {
+                return Err(ProtoConvError::ParseError(format!(
+                    "invalid source access mode: {x}"
+                )))
+            }
+        })
+    }
+}
+
+impl From<SourceAccessMode> for catalog::SourceAccessMode {
+    fn from(value: SourceAccessMode) -> Self {
+        match value {
+            SourceAccessMode::ReadOnly => Self::ReadOnly,
+            SourceAccessMode::ReadWrite => Self::ReadWrite,
+        }
+    }
+}
+
+impl From<SourceAccessMode> for i32 {
+    fn from(value: SourceAccessMode) -> Self {
+        let value: catalog::SourceAccessMode = value.into();
+        value as i32
     }
 }
 
@@ -363,7 +379,7 @@ pub struct DatabaseEntry {
     pub meta: EntryMeta,
     pub options: DatabaseOptions,
     pub tunnel_id: Option<u32>,
-    pub allowed_operations: AllowedOperations,
+    pub access_mode: SourceAccessMode,
 }
 
 impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
@@ -374,7 +390,7 @@ impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
             meta,
             options: value.options.required("options")?,
             tunnel_id: value.tunnel_id,
-            allowed_operations: value.allowed_operations.into(),
+            access_mode: value.access_mode.try_into()?,
         })
     }
 }
@@ -385,7 +401,7 @@ impl From<DatabaseEntry> for catalog::DatabaseEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.into()),
             tunnel_id: value.tunnel_id,
-            allowed_operations: value.allowed_operations.into(),
+            access_mode: value.access_mode.into(),
         }
     }
 }
@@ -416,7 +432,7 @@ pub struct TableEntry {
     pub meta: EntryMeta,
     pub options: TableOptions,
     pub tunnel_id: Option<u32>,
-    pub allowed_operations: AllowedOperations,
+    pub access_mode: SourceAccessMode,
 }
 
 impl TableEntry {
@@ -437,7 +453,7 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
             meta,
             options: value.options.required("options".to_string())?,
             tunnel_id: value.tunnel_id,
-            allowed_operations: value.allowed_operations.into(),
+            access_mode: value.access_mode.try_into()?,
         })
     }
 }
@@ -449,7 +465,7 @@ impl TryFrom<TableEntry> for catalog::TableEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.try_into()?),
             tunnel_id: value.tunnel_id,
-            allowed_operations: value.allowed_operations.into(),
+            access_mode: value.access_mode.into(),
         })
     }
 }
@@ -862,36 +878,5 @@ mod tests {
         };
 
         assert_eq!(expected, converted);
-    }
-
-    #[test]
-    fn test_allowed_operations() {
-        let mut a = AllowedOperations::new();
-        assert!(!a.has(OperationPermission::Read));
-        assert!(!a.has(OperationPermission::WriteDML));
-
-        a.add(OperationPermission::Read);
-        assert!(a.has(OperationPermission::Read));
-        assert!(!a.has(OperationPermission::WriteDML));
-
-        a.add(OperationPermission::WriteDML);
-        assert!(a.has(OperationPermission::Read));
-        assert!(a.has(OperationPermission::WriteDML));
-
-        a.revoke(OperationPermission::Read);
-        assert!(!a.has(OperationPermission::Read));
-        assert!(a.has(OperationPermission::WriteDML));
-
-        a.revoke(OperationPermission::Read);
-        assert!(!a.has(OperationPermission::Read));
-        assert!(a.has(OperationPermission::WriteDML));
-
-        a.add(OperationPermission::WriteDML);
-        assert!(!a.has(OperationPermission::Read));
-        assert!(a.has(OperationPermission::WriteDML));
-
-        a.revoke(OperationPermission::WriteDML);
-        assert!(!a.has(OperationPermission::Read));
-        assert!(!a.has(OperationPermission::WriteDML));
     }
 }

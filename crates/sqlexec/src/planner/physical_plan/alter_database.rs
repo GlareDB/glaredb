@@ -9,7 +9,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use futures::stream;
-use protogen::metastore::types::service::{self, Mutation};
+use protogen::metastore::types::service::{self, AlterDatabaseOperation, Mutation};
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
@@ -17,13 +17,13 @@ use std::sync::Arc;
 use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 
 #[derive(Debug, Clone)]
-pub struct AlterDatabaseRenameExec {
+pub struct AlterDatabaseExec {
     pub catalog_version: u64,
     pub name: String,
-    pub new_name: String,
+    pub operation: AlterDatabaseOperation,
 }
 
-impl ExecutionPlan for AlterDatabaseRenameExec {
+impl ExecutionPlan for AlterDatabaseExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -60,7 +60,7 @@ impl ExecutionPlan for AlterDatabaseRenameExec {
     ) -> DataFusionResult<SendableRecordBatchStream> {
         if partition != 0 {
             return Err(DataFusionError::Execution(
-                "AlterDatabaseRenameExec only supports 1 partition".to_string(),
+                "AlterDatabaseExec only supports 1 partition".to_string(),
             ));
         }
 
@@ -69,7 +69,7 @@ impl ExecutionPlan for AlterDatabaseRenameExec {
             .get_extension::<CatalogMutator>()
             .expect("context should have catalog mutator");
 
-        let stream = stream::once(alter_database_rename(mutator, self.clone()));
+        let stream = stream::once(alter_database(mutator, self.clone()));
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
@@ -82,28 +82,26 @@ impl ExecutionPlan for AlterDatabaseRenameExec {
     }
 }
 
-impl DisplayAs for AlterDatabaseRenameExec {
+impl DisplayAs for AlterDatabaseExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "AlterDatabaseRenameExec")
+        write!(f, "AlterDatabaseExec")
     }
 }
 
-async fn alter_database_rename(
+async fn alter_database(
     mutator: Arc<CatalogMutator>,
-    plan: AlterDatabaseRenameExec,
+    plan: AlterDatabaseExec,
 ) -> DataFusionResult<RecordBatch> {
     mutator
         .mutate(
             plan.catalog_version,
-            [Mutation::AlterDatabaseRename(
-                service::AlterDatabaseRename {
-                    name: plan.name,
-                    new_name: plan.new_name,
-                },
-            )],
+            [Mutation::AlterDatabase(service::AlterDatabase {
+                name: plan.name,
+                operation: plan.operation,
+            })],
         )
         .await
-        .map_err(|e| DataFusionError::Execution(format!("failed to rename database: {e}")))?;
+        .map_err(|e| DataFusionError::Execution(format!("failed to alter database: {e}")))?;
 
-    Ok(new_operation_batch("alter_database_rename"))
+    Ok(new_operation_batch("alter_database"))
 }

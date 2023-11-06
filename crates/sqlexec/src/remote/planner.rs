@@ -22,13 +22,13 @@ use std::sync::Arc;
 use crate::metastore::catalog::{SessionCatalog, TempCatalog};
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
-    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
+    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
     CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
     DropTables, DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
 };
-use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
-use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
+use crate::planner::physical_plan::alter_database::AlterDatabaseExec;
+use crate::planner::physical_plan::alter_table::AlterTableExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::client_recv::ClientExchangeRecvExec;
 use crate::planner::physical_plan::client_send::ClientExchangeSendExec;
@@ -81,21 +81,22 @@ impl ExtensionPlanner for DDLExtensionPlanner {
         let extension_type = node.name().parse::<ExtensionType>().unwrap();
 
         match extension_type {
-            ExtensionType::AlterDatabaseRename => {
-                let lp = require_downcast_lp::<AlterDatabaseRename>(node);
-                let exec = AlterDatabaseRenameExec {
+            ExtensionType::AlterDatabase => {
+                let lp = require_downcast_lp::<AlterDatabase>(node);
+                let exec = AlterDatabaseExec {
                     catalog_version: self.catalog.version(),
                     name: lp.name.to_string(),
-                    new_name: lp.new_name.to_string(),
+                    operation: lp.operation.clone(),
                 };
                 Ok(Some(Arc::new(exec)))
             }
-            ExtensionType::AlterTableRename => {
-                let lp = require_downcast_lp::<AlterTableRename>(node);
-                let exec = AlterTableRenameExec {
+            ExtensionType::AlterTable => {
+                let lp = require_downcast_lp::<AlterTable>(node);
+                let exec = AlterTableExec {
                     catalog_version: self.catalog.version(),
-                    tbl_reference: lp.tbl_reference.clone(),
-                    new_tbl_reference: lp.new_tbl_reference.clone(),
+                    schema: lp.schema.to_owned(),
+                    name: lp.name.to_owned(),
+                    operation: lp.operation.clone(),
                 };
                 Ok(Some(Arc::new(exec)))
             }

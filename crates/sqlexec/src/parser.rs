@@ -127,17 +127,60 @@ impl fmt::Display for DropDatabaseStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AlterDatabaseRenameStmt {
-    pub name: Ident,
-    pub new_name: Ident,
+pub enum AlterDatabaseOperation {
+    RenameDatabase { new_name: Ident },
+    SetAccessMode { access_mode: Ident },
 }
 
-impl fmt::Display for AlterDatabaseRenameStmt {
+impl fmt::Display for AlterDatabaseOperation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ALTER DATABASE ")?;
-        write!(f, "{}", self.name)?;
-        write!(f, " RENAME TO ")?;
-        write!(f, "{}", self.new_name)
+        match self {
+            Self::RenameDatabase { new_name } => {
+                write!(f, "RENAME TO {new_name}")
+            }
+            Self::SetAccessMode { access_mode } => {
+                write!(f, "SET ACCESS_MODE TO {access_mode}")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlterDatabaseStmt {
+    pub name: Ident,
+    pub operation: AlterDatabaseOperation,
+}
+
+impl fmt::Display for AlterDatabaseStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ALTER DATABASE {} {}", self.name, self.operation)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AlterTableOperationExtension {
+    SetAccessMode { access_mode: Ident },
+}
+
+impl fmt::Display for AlterTableOperationExtension {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SetAccessMode { access_mode } => {
+                write!(f, "SET ACCESS_MODE TO {access_mode}")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlterTableStmtExtension {
+    pub name: ObjectName,
+    pub operation: AlterTableOperationExtension,
+}
+
+impl fmt::Display for AlterTableStmtExtension {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ALTER TABLE {} {}", self.name, self.operation)
     }
 }
 
@@ -326,8 +369,10 @@ pub enum StatementWithExtensions {
     CreateExternalDatabase(CreateExternalDatabaseStmt),
     /// Drop database extension.
     DropDatabase(DropDatabaseStmt),
-    // Alter database extension (rename).
-    AlterDatabaseRename(AlterDatabaseRenameStmt),
+    // Alter database extension.
+    AlterDatabase(AlterDatabaseStmt),
+    // Alter table extension.
+    AlterTableExtension(AlterTableStmtExtension),
     /// Create tunnel extension.
     CreateTunnel(CreateTunnelStmt),
     /// Drop tunnel extension.
@@ -349,7 +394,8 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateExternalTable(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateExternalDatabase(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropDatabase(stmt) => write!(f, "{}", stmt),
-            StatementWithExtensions::AlterDatabaseRename(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::AlterDatabase(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::AlterTableExtension(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::AlterTunnel(stmt) => write!(f, "{}", stmt),
@@ -504,6 +550,8 @@ impl<'a> CustomParser<'a> {
         if self.parser.parse_keyword(Keyword::DATABASE) {
             // ALTER DATABASE ...
             self.parse_alter_database()
+        } else if self.parser.parse_keyword(Keyword::TABLE) {
+            self.parse_alter_table()
         } else if self.consume_token(&Token::make_keyword("TUNNEL")) {
             // ALTER TUNNEL ...
             self.parse_alter_tunnel()
@@ -881,15 +929,56 @@ impl<'a> CustomParser<'a> {
         let name = self.parser.parse_identifier()?;
         validate_ident(&name)?;
 
-        if !self.parser.parse_keywords(&[Keyword::RENAME, Keyword::TO]) {
-            return self.expected("RENAME TO", self.parser.peek_token().token);
-        }
+        let operation = if self.parser.parse_keywords(&[Keyword::RENAME, Keyword::TO]) {
+            let new_name = self.parser.parse_identifier()?;
+            validate_ident(&new_name)?;
+            AlterDatabaseOperation::RenameDatabase { new_name }
+        } else if self.parser.parse_keyword(Keyword::SET) {
+            self.expect_token(&Token::make_keyword("ACCESS_MODE"))?;
+            self.expect_token(&Token::make_keyword("TO"))?;
 
-        let new_name = self.parser.parse_identifier()?;
-        validate_ident(&new_name)?;
+            let access_mode = self.parser.parse_identifier()?;
+            AlterDatabaseOperation::SetAccessMode { access_mode }
+        } else {
+            return self.expected(
+                "an alter database operation",
+                self.parser.peek_token().token,
+            );
+        };
 
-        Ok(StatementWithExtensions::AlterDatabaseRename(
-            AlterDatabaseRenameStmt { name, new_name },
+        Ok(StatementWithExtensions::AlterDatabase(AlterDatabaseStmt {
+            name,
+            operation,
+        }))
+    }
+
+    fn parse_alter_table(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
+        let only = self.parser.parse_keyword(Keyword::ONLY);
+        let name = self.parser.parse_object_name()?;
+
+        let operation = if self.parser.parse_keyword(Keyword::SET) {
+            self.expect_token(&Token::make_keyword("ACCESS_MODE"))?;
+            self.expect_token(&Token::make_keyword("TO"))?;
+
+            let access_mode = self.parser.parse_identifier()?;
+            AlterTableOperationExtension::SetAccessMode { access_mode }
+        } else {
+            let operations = self
+                .parser
+                .parse_comma_separated(Parser::parse_alter_table_operation)?;
+            return Ok(StatementWithExtensions::Statement(
+                ast::Statement::AlterTable {
+                    name,
+                    if_exists,
+                    only,
+                    operations,
+                },
+            ));
+        };
+
+        Ok(StatementWithExtensions::AlterTableExtension(
+            AlterTableStmtExtension { name, operation },
         ))
     }
 
@@ -1155,7 +1244,23 @@ mod tests {
 
     #[test]
     fn alter_database_roundtrips() {
-        let test_cases = ["ALTER DATABASE my_db RENAME TO your_db"];
+        let test_cases = [
+            "ALTER DATABASE my_db RENAME TO your_db",
+            "ALTER DATABASE my_db SET ACCESS_MODE TO readwrite",
+        ];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn alter_table_extension_roundtrips() {
+        let test_cases = ["ALTER TABLE my_db SET ACCESS_MODE TO readonly"];
 
         for test_case in test_cases {
             let stmt = CustomParser::parse_sql(test_case)

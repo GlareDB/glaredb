@@ -1,5 +1,4 @@
 use crate::metastore::catalog::CatalogMutator;
-use crate::planner::logical_plan::OwnedFullObjectReference;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -10,7 +9,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use futures::stream;
-use protogen::metastore::types::service::{self, Mutation};
+use protogen::metastore::types::service::{self, AlterTableOperation, Mutation};
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
@@ -18,13 +17,14 @@ use std::sync::Arc;
 use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 
 #[derive(Debug, Clone)]
-pub struct AlterTableRenameExec {
+pub struct AlterTableExec {
     pub catalog_version: u64,
-    pub tbl_reference: OwnedFullObjectReference,
-    pub new_tbl_reference: OwnedFullObjectReference,
+    pub schema: String,
+    pub name: String,
+    pub operation: AlterTableOperation,
 }
 
-impl ExecutionPlan for AlterTableRenameExec {
+impl ExecutionPlan for AlterTableExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -61,7 +61,7 @@ impl ExecutionPlan for AlterTableRenameExec {
     ) -> DataFusionResult<SendableRecordBatchStream> {
         if partition != 0 {
             return Err(DataFusionError::Execution(
-                "AlterTableRenameExec only supports 1 partition".to_string(),
+                "AlterTableExec only supports 1 partition".to_string(),
             ));
         }
 
@@ -83,28 +83,28 @@ impl ExecutionPlan for AlterTableRenameExec {
     }
 }
 
-impl DisplayAs for AlterTableRenameExec {
+impl DisplayAs for AlterTableExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "AlterTableRenameExec")
+        write!(f, "AlterTableExec")
     }
 }
 
 async fn alter_table_rename(
     mutator: Arc<CatalogMutator>,
-    plan: AlterTableRenameExec,
+    plan: AlterTableExec,
 ) -> DataFusionResult<RecordBatch> {
     // TODO: Error if schemas between references differ.
     mutator
         .mutate(
             plan.catalog_version,
-            [Mutation::AlterTableRename(service::AlterTableRename {
-                name: plan.tbl_reference.name.into_owned(),
-                new_name: plan.new_tbl_reference.name.into_owned(),
-                schema: plan.tbl_reference.schema.into_owned(),
+            [Mutation::AlterTable(service::AlterTable {
+                schema: plan.schema,
+                name: plan.name,
+                operation: plan.operation,
             })],
         )
         .await
-        .map_err(|e| DataFusionError::Execution(format!("failed to rename table: {e}")))?;
+        .map_err(|e| DataFusionError::Execution(format!("failed to alter table: {e}")))?;
 
-    Ok(new_operation_batch("alter_table_rename"))
+    Ok(new_operation_batch("alter_table"))
 }

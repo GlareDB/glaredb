@@ -49,6 +49,9 @@ pub enum PlanError {
     #[error("Invalid insert statement: {msg}")]
     InvalidInsertStatement { msg: &'static str },
 
+    #[error("Invalid alter statement: {msg}")]
+    InvalidAlterStatement { msg: &'static str },
+
     #[error("Invalid number of column aliases for view body; sql: {sql}, aliases: {aliases:?}")]
     InvalidNumberOfAliasesForView { sql: String, aliases: Vec<String> },
 

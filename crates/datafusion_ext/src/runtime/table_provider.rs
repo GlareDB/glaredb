@@ -8,7 +8,7 @@ use datafusion::{
     physical_plan::{ExecutionPlan, Statistics},
     prelude::Expr,
 };
-use protogen::metastore::types::catalog::{AllowedOperations, RuntimePreference};
+use protogen::metastore::types::catalog::RuntimePreference;
 use std::{any::Any, sync::Arc};
 
 use super::runtime_group::RuntimeGroupExec;
@@ -21,7 +21,6 @@ use super::runtime_group::RuntimeGroupExec;
 pub struct RuntimeAwareTableProvider {
     pub preference: RuntimePreference,
     pub provider: Arc<dyn TableProvider>,
-    pub allowed_operations: AllowedOperations,
 }
 
 impl RuntimeAwareTableProvider {
@@ -29,7 +28,6 @@ impl RuntimeAwareTableProvider {
         Self {
             preference,
             provider,
-            allowed_operations: AllowedOperations::new(),
         }
     }
 }
