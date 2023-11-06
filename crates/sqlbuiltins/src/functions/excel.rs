@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -8,6 +7,7 @@ use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
 use datasources::common::url::DatasourceUrl;
 use datasources::excel::read_excel_impl;
+use ioutil::resolve_path;
 use protogen::metastore::types::catalog::RuntimePreference;
 
 use super::table_location_and_opts;
@@ -61,16 +61,4 @@ impl TableFunc for ExcelScan {
             .map_err(|e| ExtensionError::Access(Box::new(e)))?;
         Ok(Arc::new(table))
     }
-}
-
-pub fn resolve_path(path: &Path) -> Result<PathBuf> {
-    if path.starts_with("~") {
-        if let Some(homedir) = home::home_dir() {
-            return Ok(homedir.join(path.strip_prefix("~").unwrap()));
-        }
-    }
-
-    path.canonicalize()
-        .map_err(|e| ExtensionError::Access(Box::new(e)))
-        .map(|p| p.to_path_buf())
 }

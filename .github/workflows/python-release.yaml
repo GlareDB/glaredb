@@ -35,7 +35,7 @@ jobs:
           manylinux: "auto"
           docker-options: "--env PROTOC=${{ env.PROTOC }}"
           target: ${{ matrix.target }}
-          args:  --release --out dist -m py-glaredb/Cargo.toml
+          args:  --release --out dist -m bindings/python/Cargo.toml
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
@@ -65,14 +65,14 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
-          working-directory: py-glaredb
+          working-directory: bindings/python
           sccache: 'true'
           container: 'off'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
           name: wheels
-          path: py-glaredb/dist
+          path: bindings/python/dist
 
   macos:
     runs-on: macos-12-xl
@@ -93,14 +93,14 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
-          working-directory: py-glaredb
+          working-directory: bindings/python
           sccache: 'true'
           container: 'off'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
           name: wheels
-          path: py-glaredb/dist
+          path: bindings/python/dist
 
   release:
     name: Release

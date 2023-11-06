@@ -16,11 +16,11 @@ bench cmd *args:
 
 # Run py-glaredb subcommands. see `py-glaredb/justfile` for more details.
 python cmd *args: protoc
-  just py-glaredb/{{cmd}} {{args}}
+  just bindings/python/{{cmd}} {{args}}
 
 # Run js-glaredb subcommands. see `js-glaredb/justfile` for more details.
 javascript cmd *args: protoc
-  just js-glaredb/{{cmd}} {{args}}
+  just bindings/nodejs/{{cmd}} {{args}}
 
 # Run glaredb server
 run *args: protoc
