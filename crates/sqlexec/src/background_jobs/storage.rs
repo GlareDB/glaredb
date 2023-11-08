@@ -104,7 +104,7 @@ mod tests {
     use datasources::native::access::{NativeTableStorage, SaveMode};
     use metastore::local::start_inprocess_inmemory;
     use protogen::metastore::types::{
-        catalog::{EntryMeta, EntryType, TableEntry},
+        catalog::{EntryMeta, EntryType, SourceAccessMode, TableEntry},
         options::{InternalColumnDefinition, TableOptions, TableOptionsInternal},
     };
     use tempfile::tempdir;
@@ -147,7 +147,7 @@ mod tests {
                         }],
                     }),
                     tunnel_id: None,
-                    allowed_operations: Default::default(),
+                    access_mode: SourceAccessMode::ReadOnly,
                 },
                 SaveMode::ErrorIfExists,
             )

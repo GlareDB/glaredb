@@ -9,7 +9,6 @@ alias slt := sql-logic-tests
 
 os_arch := os() + '-' + arch()
 
-
 # Run benchmarks subcommands. see `benchmarks/justfile` for more details.
 bench cmd *args:
   just benchmarks/{{cmd}} {{args}}

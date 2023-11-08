@@ -1,5 +1,5 @@
-mod alter_database_rename;
-mod alter_table_rename;
+mod alter_database;
+mod alter_table;
 mod alter_tunnel_rotate_keys;
 mod copy_to;
 mod create_credentials;
@@ -48,8 +48,8 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-pub use alter_database_rename::*;
-pub use alter_table_rename::*;
+pub use alter_database::*;
+pub use alter_table::*;
 pub use alter_tunnel_rotate_keys::*;
 pub use copy_to::*;
 pub use create_credentials::*;

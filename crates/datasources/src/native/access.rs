@@ -331,7 +331,7 @@ mod tests {
     use deltalake::protocol::SaveMode;
     use object_store_util::conf::StorageConfig;
     use protogen::metastore::types::{
-        catalog::{EntryMeta, EntryType, TableEntry},
+        catalog::{EntryMeta, EntryType, SourceAccessMode, TableEntry},
         options::{InternalColumnDefinition, TableOptions, TableOptionsInternal},
     };
     use tempfile::tempdir;
@@ -372,7 +372,7 @@ mod tests {
                 }],
             }),
             tunnel_id: None,
-            allowed_operations: Default::default(),
+            access_mode: SourceAccessMode::ReadOnly,
         };
 
         // Create a table, load it, delete it and load it again!

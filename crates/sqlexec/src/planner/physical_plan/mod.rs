@@ -1,5 +1,5 @@
-pub mod alter_database_rename;
-pub mod alter_table_rename;
+pub mod alter_database;
+pub mod alter_table;
 pub mod alter_tunnel_rotate_keys;
 pub mod client_recv;
 pub mod client_send;

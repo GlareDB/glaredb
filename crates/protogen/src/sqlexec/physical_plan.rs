@@ -59,23 +59,25 @@ pub struct CreateCredentialsExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
-pub struct AlterDatabaseRenameExec {
+pub struct AlterDatabaseExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
     #[prost(string, tag = "2")]
     pub name: String,
-    #[prost(string, tag = "3")]
-    pub new_name: String,
+    #[prost(message, tag = "3")]
+    pub operation: Option<crate::gen::metastore::service::AlterDatabaseOperation>,
 }
 
 #[derive(Clone, PartialEq, Message)]
-pub struct AlterTableRenameExec {
+pub struct AlterTableExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
-    #[prost(message, tag = "2")]
-    pub tbl_reference: Option<FullObjectReference>,
-    #[prost(message, tag = "3")]
-    pub new_tbl_reference: Option<FullObjectReference>,
+    #[prost(string, tag = "2")]
+    pub schema: String,
+    #[prost(string, tag = "3")]
+    pub name: String,
+    #[prost(message, tag = "4")]
+    pub operation: Option<crate::gen::metastore::service::AlterTableOperation>,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -339,9 +341,9 @@ pub enum ExecutionPlanExtensionType {
     RemoteScanExec(RemoteScanExec),
     // DDLs
     #[prost(message, tag = "3")]
-    AlterDatabaseRenameExec(AlterDatabaseRenameExec),
+    AlterDatabaseExec(AlterDatabaseExec),
     #[prost(message, tag = "4")]
-    AlterTableRenameExec(AlterTableRenameExec),
+    AlterTableExec(AlterTableExec),
     #[prost(message, tag = "5")]
     CreateCredentialsExec(CreateCredentialsExec),
     #[prost(message, tag = "6")]

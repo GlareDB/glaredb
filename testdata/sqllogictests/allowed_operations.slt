@@ -1,3 +1,5 @@
+# For external databases
+
 statement ok
 CREATE EXTERNAL DATABASE debug_db FROM debug;
 
@@ -5,10 +7,36 @@ statement error Not allowed to write
 INSERT INTO debug_db.public.never_ending VALUES (1, 2, 3);
 
 statement ok
+ALTER DATABASE debug_db SET ACCESS_MODE TO READ_WRITE;
+
+statement error Insert into not implemented for this table
+INSERT INTO debug_db.public.never_ending VALUES (1, 2, 3);
+
+statement ok
+ALTER DATABASE debug_db SET ACCESS_MODE TO READ_ONLY;
+
+statement error Not allowed to write
+INSERT INTO debug_db.public.never_ending VALUES (1, 2, 3);
+
+# For external tables
+
+statement ok
 CREATE EXTERNAL TABLE debug_table
     FROM debug (
         table_type 'never_ending'
     );
+
+statement error Not allowed to write
+INSERT INTO debug_table VALUES (1, 2, 3);
+
+statement ok
+ALTER TABLE debug_table SET ACCESS_MODE TO READ_WRITE;
+
+statement error Insert into not implemented for this table
+INSERT INTO debug_table VALUES (1, 2, 3);
+
+statement ok
+ALTER TABLE debug_table SET ACCESS_MODE TO READ_ONLY;
 
 statement error Not allowed to write
 INSERT INTO debug_table VALUES (1, 2, 3);
