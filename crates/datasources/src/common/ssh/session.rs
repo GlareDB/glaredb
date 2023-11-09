@@ -29,6 +29,9 @@ pub enum SshTunnelError {
     #[error("Cannot establish SSH tunnel: {0:?}")]
     SshPortForward(openssh::Error),
 
+    #[error("No remote addresses provided")]
+    NoRemoteAddressesProvided,
+
     #[error(transparent)]
     SshKey(#[from] SshKeyError),
 
@@ -123,6 +126,11 @@ mod unix_impl {
     {
         let temp_keyfile = generate_temp_keyfile(keypair.to_openssh()?.as_ref()).await?;
 
+        let remote_addr = remote_addr
+            .to_socket_addrs()?
+            .next()
+            .ok_or(SshTunnelError::NoRemoteAddressesProvided)?;
+
         let tunnel = SessionBuilder::default()
             .known_hosts_check(KnownHosts::Accept)
             .keyfile(temp_keyfile.path())
@@ -144,8 +152,8 @@ mod unix_impl {
         for _ in 0..10 {
             let local_addr = generate_random_port().await?;
 
-            let local = openssh::Socket::new(&local_addr)?;
-            let remote = openssh::Socket::new(remote_addr)?;
+            let local = openssh::Socket::from(local_addr);
+            let remote = openssh::Socket::from(remote_addr);
 
             match tunnel
                 .request_port_forward(ForwardType::Local, local, remote)
