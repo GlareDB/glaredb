@@ -3,7 +3,7 @@ use parking_lot::Mutex;
 use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
-    EntryType, FunctionEntry, FunctionType, SchemaEntry, TableEntry, TunnelEntry,
+    EntryType, FunctionEntry, FunctionType, SchemaEntry, SourceAccessMode, TableEntry, TunnelEntry,
 };
 use protogen::metastore::types::options::{
     InternalColumnDefinition, TableOptions, TableOptionsInternal,
@@ -497,6 +497,7 @@ impl TempCatalog {
                 },
                 options: TableOptions::Internal(TableOptionsInternal { columns }),
                 tunnel_id: None,
+                access_mode: SourceAccessMode::ReadWrite,
             }
         })
     }
@@ -539,6 +540,7 @@ impl TempCatalog {
                     columns: Vec::new(),
                 }),
                 tunnel_id: None,
+                access_mode: SourceAccessMode::ReadWrite,
             });
         }
 

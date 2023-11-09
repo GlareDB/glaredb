@@ -13,7 +13,7 @@ tracing = "0.1"
 tokio = { version = "1", features = ["full"] }
 tokio-postgres = "0.7.8"
 tempfile = "3"
-sqllogictest = "0.15.2"
+sqllogictest = "0.17.2"
 object_store = { workspace = true, features = ["gcp"] }
 async-trait = "0.1.74"
 regex = "1.8.1"

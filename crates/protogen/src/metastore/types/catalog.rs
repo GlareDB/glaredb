@@ -9,7 +9,8 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
-use std::fmt;
+use std::fmt::{self, Display};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogState {
@@ -297,11 +298,88 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
     }
 }
 
+#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+pub enum SourceAccessMode {
+    ReadOnly,
+    ReadWrite,
+}
+
+impl FromStr for SourceAccessMode {
+    type Err = ProtoConvError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_uppercase();
+        let access_mode = catalog::SourceAccessMode::from_str_name(&s).ok_or_else(|| {
+            ProtoConvError::ParseError(format!("invalid source access mode: {s}"))
+        })?;
+        Ok(access_mode.into())
+    }
+}
+
+impl Display for SourceAccessMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let access_mode: catalog::SourceAccessMode = (*self).into();
+        write!(f, "{}", access_mode.as_str_name())
+    }
+}
+
+impl SourceAccessMode {
+    #[inline]
+    pub fn has_read_access(&self) -> bool {
+        matches!(self, Self::ReadOnly | Self::ReadWrite)
+    }
+
+    #[inline]
+    pub fn has_write_access(&self) -> bool {
+        matches!(self, Self::ReadWrite)
+    }
+}
+
+impl From<catalog::SourceAccessMode> for SourceAccessMode {
+    fn from(value: catalog::SourceAccessMode) -> Self {
+        match value {
+            catalog::SourceAccessMode::ReadOnly => Self::ReadOnly,
+            catalog::SourceAccessMode::ReadWrite => Self::ReadWrite,
+        }
+    }
+}
+
+impl TryFrom<i32> for SourceAccessMode {
+    type Error = ProtoConvError;
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Ok(match value {
+            x if x == catalog::SourceAccessMode::ReadOnly as i32 => Self::ReadOnly,
+            x if x == catalog::SourceAccessMode::ReadWrite as i32 => Self::ReadWrite,
+            x => {
+                return Err(ProtoConvError::ParseError(format!(
+                    "invalid source access mode: {x}"
+                )))
+            }
+        })
+    }
+}
+
+impl From<SourceAccessMode> for catalog::SourceAccessMode {
+    fn from(value: SourceAccessMode) -> Self {
+        match value {
+            SourceAccessMode::ReadOnly => Self::ReadOnly,
+            SourceAccessMode::ReadWrite => Self::ReadWrite,
+        }
+    }
+}
+
+impl From<SourceAccessMode> for i32 {
+    fn from(value: SourceAccessMode) -> Self {
+        let value: catalog::SourceAccessMode = value.into();
+        value as i32
+    }
+}
+
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct DatabaseEntry {
     pub meta: EntryMeta,
     pub options: DatabaseOptions,
     pub tunnel_id: Option<u32>,
+    pub access_mode: SourceAccessMode,
 }
 
 impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
@@ -312,6 +390,7 @@ impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
             meta,
             options: value.options.required("options")?,
             tunnel_id: value.tunnel_id,
+            access_mode: value.access_mode.try_into()?,
         })
     }
 }
@@ -322,6 +401,7 @@ impl From<DatabaseEntry> for catalog::DatabaseEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.into()),
             tunnel_id: value.tunnel_id,
+            access_mode: value.access_mode.into(),
         }
     }
 }
@@ -352,6 +432,7 @@ pub struct TableEntry {
     pub meta: EntryMeta,
     pub options: TableOptions,
     pub tunnel_id: Option<u32>,
+    pub access_mode: SourceAccessMode,
 }
 
 impl TableEntry {
@@ -372,6 +453,7 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
             meta,
             options: value.options.required("options".to_string())?,
             tunnel_id: value.tunnel_id,
+            access_mode: value.access_mode.try_into()?,
         })
     }
 }
@@ -383,6 +465,7 @@ impl TryFrom<TableEntry> for catalog::TableEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.try_into()?),
             tunnel_id: value.tunnel_id,
+            access_mode: value.access_mode.into(),
         })
     }
 }

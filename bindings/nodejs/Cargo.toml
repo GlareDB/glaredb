@@ -1,0 +1,34 @@
+[package]
+edition = "2021"
+name = "js-glaredb"
+version = "0.0.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
+napi = { version = "2.12.2", default-features = false, features = ["full"] }
+napi-derive = "2.12.2"
+sqlexec = { path = "../../crates/sqlexec" }
+metastore = { path = "../../crates/metastore" }
+telemetry = { path = "../../crates/telemetry" }
+pgsrv = { path = "../../crates/pgsrv" }
+pgrepr = { path = "../../crates/pgrepr" }
+datafusion_ext = { path = "../../crates/datafusion_ext" }
+arrow_util = { path = "../../crates/arrow_util" }
+glaredb = { path = "../../crates/glaredb" }
+futures = "0.3.28"
+datafusion.workspace = true
+thiserror = { workspace = true }
+url = { workspace = true }
+anyhow = { workspace = true }
+once_cell = "1.18.0"
+async-trait = "0.1.72"
+bytes = "1.5.0"
+serde.workspace = true
+serde_json.workspace = true
+
+
+[build-dependencies]
+napi-build = "2.0.1"

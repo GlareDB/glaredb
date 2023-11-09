@@ -17,7 +17,7 @@ use datafusion::{
 };
 
 use super::logical_plan::{
-    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
+    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
     CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
     DropTables, DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
@@ -28,8 +28,8 @@ use super::logical_plan::{
 /// This should match all of the variants expressed in `protogen::sqlexec::logical_plan::LogicalPlanExtension`
 #[derive(Debug)]
 pub enum ExtensionType {
-    AlterDatabaseRename,
-    AlterTableRename,
+    AlterDatabase,
+    AlterTable,
     AlterTunnelRotateKeys,
     CreateCredentials,
     CreateExternalDatabase,
@@ -58,8 +58,8 @@ impl FromStr for ExtensionType {
     type Err = ExecError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            AlterDatabaseRename::EXTENSION_NAME => Self::AlterDatabaseRename,
-            AlterTableRename::EXTENSION_NAME => Self::AlterTableRename,
+            AlterDatabase::EXTENSION_NAME => Self::AlterDatabase,
+            AlterTable::EXTENSION_NAME => Self::AlterTable,
             AlterTunnelRotateKeys::EXTENSION_NAME => Self::AlterTunnelRotateKeys,
             CreateCredentials::EXTENSION_NAME => Self::CreateCredentials,
             CreateExternalDatabase::EXTENSION_NAME => Self::CreateExternalDatabase,
