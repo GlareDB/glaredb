@@ -105,10 +105,15 @@ impl TryFrom<Url> for ProxyDestination {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug)]
 pub struct AuthenticateClientResponse {
     pub ca_cert: String,
     pub ca_domain: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AuthenticateClientError {
+    pub msg: String,
 }
 
 #[derive(Debug)]
@@ -209,26 +214,32 @@ impl RemoteClient {
             body.insert("password", params.password);
             body.insert("org_name", params.org);
             body.insert("db_name", params.db_name);
-            body.insert("api_version", 2.to_string());
+            body.insert("api_version", 1.to_string());
             body.insert("client_type", client_type.to_string());
 
-            let client = reqwest::Client::new();
-            let res = client
+            let http_client = reqwest::Client::new();
+            let res = http_client
                 .post(format!(
                     "{}/api/internal/authenticate/client",
                     cloud_api_addr
                 ))
                 .json(&body)
                 .send()
-                .await?
-                .json::<AuthenticateClientResponse>()
                 .await?;
 
-            dst = dst.tls_config(
-                ClientTlsConfig::new()
-                    .ca_certificate(Certificate::from_pem(res.ca_cert))
-                    .domain_name(res.ca_domain),
-            )?;
+            if res.status().is_success() {
+                let cert = res.json::<AuthenticateClientResponse>().await?;
+                dst = dst.tls_config(
+                    ClientTlsConfig::new()
+                        .ca_certificate(Certificate::from_pem(cert.ca_cert))
+                        .domain_name(cert.ca_domain),
+                )?;
+            } else if res.status().is_client_error() {
+                let err = res.json::<AuthenticateClientError>().await?;
+                return Err(ExecError::String(err.msg));
+            } else {
+                return Err(ExecError::Internal("client authentication".to_string()));
+            }
         }
 
         let client = ExecutionServiceClient::connect(dst).await?;
