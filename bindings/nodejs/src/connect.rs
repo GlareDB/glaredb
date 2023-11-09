@@ -23,7 +23,7 @@ impl ConnectOptions {
     }
 
     fn disable_tls(&self) -> bool {
-        self.disable_tls.unwrap_or(true)
+        self.disable_tls.unwrap_or(false)
     }
 
     fn cloud_addr(&self) -> String {

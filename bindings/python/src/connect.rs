@@ -81,7 +81,7 @@ impl From<Option<String>> for PythonSessionConf {
 /// con = glaredb.connect("glaredb://<user>:<password>@<org>.remote.glaredb.com:6443/<deployment>")
 /// ```
 #[pyfunction]
-#[pyo3(signature = (data_dir_or_cloud_url = None, /, *, spill_path = None, disable_tls = true, cloud_addr = String::from("https://console.glaredb.com"), location = None, storage_options = None))]
+#[pyo3(signature = (data_dir_or_cloud_url = None, /, *, spill_path = None, disable_tls = false, cloud_addr = String::from("https://console.glaredb.com"), location = None, storage_options = None))]
 pub fn connect(
     py: Python,
     data_dir_or_cloud_url: Option<String>,

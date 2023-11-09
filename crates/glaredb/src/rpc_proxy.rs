@@ -20,10 +20,9 @@ pub struct RpcProxy {
 #[derive(Clone, Debug, Default, ValueEnum)]
 #[clap(rename_all = "snake")]
 pub enum TLSMode {
+    #[default]
     Required,
     SkipVerify,
-    /// Note: in the future, this will be 'Required' by default:
-    #[default]
     Disabled,
 }
 
