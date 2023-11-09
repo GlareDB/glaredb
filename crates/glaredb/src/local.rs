@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
-use sqlexec::remote::client::RemoteClient;
+use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::session::ExecutionResult;
 use std::env;
 use std::io::Write;
@@ -71,6 +71,7 @@ impl LocalSession {
                     url.try_into()?,
                     opts.cloud_addr.clone(),
                     opts.disable_tls,
+                    RemoteClientType::Cli,
                 )
                 .await?;
 
@@ -120,19 +121,17 @@ impl LocalSession {
     }
 
     async fn run_interactive(&mut self) -> Result<()> {
-        let info = match (&self.opts.storage_config, &self.opts.data_dir) {
+        match (&self.opts.storage_config, &self.opts.data_dir) {
             (
                 StorageConfigArgs {
                     location: Some(location),
                     ..
                 },
                 _,
-            ) => format!("Persisting database at location: {location}"),
-            (_, Some(path)) => format!("Persisting database at path: {}", path.display()),
-            (_, None) => "Using in-memory catalog".to_string(),
+            ) => println!("Persisting database at location: {location}"),
+            (_, Some(path)) => println!("Persisting database at path: {}", path.display()),
+            _ => (),
         };
-
-        println!("{info}");
 
         println!("Type {} for help.", "\\help".bold().italic());
 

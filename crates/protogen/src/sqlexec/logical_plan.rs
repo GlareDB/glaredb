@@ -3,8 +3,8 @@ use crate::{
     gen::metastore::{
         options::TableOptions,
         service::{
-            AlterDatabaseRename, AlterTunnelRotateKeys, CreateCredentials, CreateExternalDatabase,
-            CreateTunnel,
+            AlterDatabase, AlterTable, AlterTunnelRotateKeys, CreateCredentials,
+            CreateExternalDatabase, CreateTunnel,
         },
     },
     sqlexec::common::{FullObjectReference, FullSchemaReference},
@@ -126,14 +126,6 @@ pub struct DropViews {
 }
 
 #[derive(Clone, PartialEq, Message)]
-pub struct AlterTableRename {
-    #[prost(message, tag = "1")]
-    pub reference: Option<FullObjectReference>,
-    #[prost(message, tag = "2")]
-    pub new_reference: Option<FullObjectReference>,
-}
-
-#[derive(Clone, PartialEq, Message)]
 pub struct SetVariable {
     #[prost(string, tag = "1")]
     pub variable: String,
@@ -179,9 +171,9 @@ pub enum LogicalPlanExtensionType {
     #[prost(message, tag = "4")]
     DropTables(DropTables),
     #[prost(message, tag = "5")]
-    AlterTableRename(AlterTableRename),
+    AlterTable(AlterTable),
     #[prost(message, tag = "6")]
-    AlterDatabaseRename(AlterDatabaseRename),
+    AlterDatabase(AlterDatabase),
     #[prost(message, tag = "7")]
     AlterTunnelRotateKeys(AlterTunnelRotateKeys),
     #[prost(message, tag = "8")]

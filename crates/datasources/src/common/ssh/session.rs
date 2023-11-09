@@ -29,6 +29,9 @@ pub enum SshTunnelError {
     #[error("Cannot establish SSH tunnel: {0:?}")]
     SshPortForward(openssh::Error),
 
+    #[error("No remote addresses provided")]
+    NoRemoteAddressesProvided,
+
     #[error(transparent)]
     SshKey(#[from] SshKeyError),
 
@@ -101,7 +104,10 @@ impl SshTunnelAccess {
 mod unix_impl {
     use super::*;
     use openssh::{ForwardType, KnownHosts, Session, SessionBuilder};
-    use std::os::unix::prelude::PermissionsExt;
+    use std::{
+        net::{IpAddr, Ipv4Addr},
+        os::unix::prelude::PermissionsExt,
+    };
 
     #[derive(Debug)]
     pub struct SshTunnelSessionImpl(pub(super) Session);
@@ -123,6 +129,11 @@ mod unix_impl {
     {
         let temp_keyfile = generate_temp_keyfile(keypair.to_openssh()?.as_ref()).await?;
 
+        let remote_addr = remote_addr
+            .to_socket_addrs()?
+            .next()
+            .ok_or(SshTunnelError::NoRemoteAddressesProvided)?;
+
         let tunnel = SessionBuilder::default()
             .known_hosts_check(KnownHosts::Accept)
             .keyfile(temp_keyfile.path())
@@ -142,10 +153,11 @@ mod unix_impl {
         // Find open local port and attempt to create tunnel
         // Retry generating a port up to 10 times
         for _ in 0..10 {
-            let local_addr = generate_random_port().await?;
+            let port = get_random_localhost_port().await?;
+            let local_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
 
-            let local = openssh::Socket::new(&local_addr)?;
-            let remote = openssh::Socket::new(remote_addr)?;
+            let local = openssh::Socket::from(local_addr);
+            let remote = openssh::Socket::from(remote_addr);
 
             match tunnel
                 .request_port_forward(ForwardType::Local, local, remote)
@@ -192,8 +204,10 @@ mod unix_impl {
         Ok(temp_keyfile)
     }
 
-    /// Generate random port using operating system by using port 0.
-    async fn generate_random_port() -> Result<SocketAddr, io::Error> {
+    /// Get a random port to use for the localhost side of the ssh tunnel.
+    ///
+    /// Checking if the port is free is best-effort.
+    async fn get_random_localhost_port() -> Result<u16, io::Error> {
         // The 0 port indicates to the OS to assign a random port
         let listener = TcpListener::bind("localhost:0").await.map_err(|e| {
             io::Error::new(
@@ -201,7 +215,8 @@ mod unix_impl {
                 format!("Failed to bind to a random port due to {e}"),
             )
         })?;
-        listener.local_addr()
+        let addr = listener.local_addr()?;
+        Ok(addr.port())
     }
 
     #[cfg(test)]

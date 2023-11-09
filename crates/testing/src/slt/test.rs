@@ -10,7 +10,6 @@ use pgrepr::types::arrow_to_pg_type;
 use regex::{Captures, Regex};
 use sqlexec::engine::{Engine, EngineStorageConfig, SessionStorageConfig, TrackedSession};
 use sqlexec::errors::ExecError;
-use sqlexec::parser;
 use sqlexec::remote::client::RemoteClient;
 use sqlexec::session::ExecutionResult;
 use sqllogictest::{
@@ -291,8 +290,8 @@ impl AsyncDB for TestClient {
             Self::Rpc(RpcTestClient { session, .. }) => {
                 let mut session = session.lock().await;
                 const UNNAMED: String = String::new();
+                let statements = session.parse_query(sql)?;
 
-                let statements = parser::parse_sql(sql)?;
                 for stmt in statements {
                     session
                         .prepare_statement(UNNAMED, Some(stmt), Vec::new())

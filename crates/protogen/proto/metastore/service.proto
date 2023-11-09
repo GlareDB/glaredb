@@ -25,8 +25,8 @@ message Mutation {
     CreateExternalTable create_external_table = 6;
     CreateExternalDatabase create_external_database = 7;
     DropDatabase drop_database = 8;
-    AlterTableRename alter_table_rename = 9;
-    AlterDatabaseRename alter_database_rename = 10;
+    AlterTable alter_table = 9;
+    AlterDatabase alter_database = 10;
     CreateTunnel create_tunnel = 11;
     DropTunnel drop_tunnel = 12;
     AlterTunnelRotateKeys alter_tunnel_rotate_keys = 13;
@@ -94,15 +94,45 @@ message CreateExternalDatabase {
   // next: 5
 }
 
-message AlterTableRename {
-  string schema = 1;
-  string name = 2;
-  string new_name = 3;
+message AlterTableOperationRename {
+  string new_name = 1;
 }
 
-message AlterDatabaseRename {
+message AlterTableOperationSetAccessMode {
+  catalog.SourceAccessMode access_mode = 1;
+}
+
+message AlterTableOperation {
+  oneof operation {
+    AlterTableOperationRename alter_table_operation_rename = 1;
+    AlterTableOperationSetAccessMode alter_table_operation_set_access_mode = 2;
+  };
+}
+
+message AlterTable {
+  string schema = 1;
+  string name = 2;
+  AlterTableOperation operation = 3;
+}
+
+message AlterDatabaseOperationRename {
+  string new_name = 1;
+}
+
+message AlterDatabaseOperationSetAccessMode {
+  catalog.SourceAccessMode access_mode = 1;
+}
+
+message AlterDatabaseOperation {
+  oneof operation {
+    AlterDatabaseOperationRename alter_database_operation_rename = 1;
+    AlterDatabaseOperationSetAccessMode alter_database_operation_set_access_mode = 2;
+  };
+}
+
+message AlterDatabase {
   string name = 1;
-  string new_name = 2;
+  AlterDatabaseOperation operation = 2;
 }
 
 message CreateTunnel {

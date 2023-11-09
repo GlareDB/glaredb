@@ -59,23 +59,25 @@ pub struct CreateCredentialsExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
-pub struct AlterDatabaseRenameExec {
+pub struct AlterDatabaseExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
     #[prost(string, tag = "2")]
     pub name: String,
-    #[prost(string, tag = "3")]
-    pub new_name: String,
+    #[prost(message, tag = "3")]
+    pub operation: Option<crate::gen::metastore::service::AlterDatabaseOperation>,
 }
 
 #[derive(Clone, PartialEq, Message)]
-pub struct AlterTableRenameExec {
+pub struct AlterTableExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
-    #[prost(message, tag = "2")]
-    pub tbl_reference: Option<FullObjectReference>,
-    #[prost(message, tag = "3")]
-    pub new_tbl_reference: Option<FullObjectReference>,
+    #[prost(string, tag = "2")]
+    pub schema: String,
+    #[prost(string, tag = "3")]
+    pub name: String,
+    #[prost(message, tag = "4")]
+    pub operation: Option<crate::gen::metastore::service::AlterTableOperation>,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -88,6 +90,12 @@ pub struct AlterTunnelRotateKeysExec {
     pub if_exists: bool,
     #[prost(bytes = "vec", tag = "4")]
     pub new_ssh_key: ::prost::alloc::vec::Vec<u8>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct DescribeTableExec {
+    #[prost(message, tag = "1")]
+    pub entry: Option<TableEntry>,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -318,7 +326,7 @@ pub struct AnalyzeExec {
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -333,9 +341,9 @@ pub enum ExecutionPlanExtensionType {
     RemoteScanExec(RemoteScanExec),
     // DDLs
     #[prost(message, tag = "3")]
-    AlterDatabaseRenameExec(AlterDatabaseRenameExec),
+    AlterDatabaseExec(AlterDatabaseExec),
     #[prost(message, tag = "4")]
-    AlterTableRenameExec(AlterTableRenameExec),
+    AlterTableExec(AlterTableExec),
     #[prost(message, tag = "5")]
     CreateCredentialsExec(CreateCredentialsExec),
     #[prost(message, tag = "6")]
@@ -390,4 +398,6 @@ pub enum ExecutionPlanExtensionType {
     AnalyzeExec(AnalyzeExec),
     #[prost(message, tag = "30")]
     DataSourceMetricsExecAdapter(DataSourceMetricsExecAdapter),
+    #[prost(message, tag = "31")]
+    DescribeTable(DescribeTableExec),
 }

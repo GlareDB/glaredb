@@ -1,9 +1,0 @@
-set fallback
-build *args:
-  yarn build {{args}}
-build-dev:
-  yarn build:debug
-test:
-  yarn test
-fmt:
-  cargo fmt --all

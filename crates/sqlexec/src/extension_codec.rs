@@ -30,8 +30,8 @@ use uuid::Uuid;
 use crate::errors::ExecError;
 use crate::planner::extension::{ExtensionNode, ExtensionType, PhysicalExtensionNode};
 use crate::planner::logical_plan as plan;
-use crate::planner::physical_plan::alter_database_rename::AlterDatabaseRenameExec;
-use crate::planner::physical_plan::alter_table_rename::AlterTableRenameExec;
+use crate::planner::physical_plan::alter_database::AlterDatabaseExec;
+use crate::planner::physical_plan::alter_table::AlterTableExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::copy_to::CopyToExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
@@ -43,6 +43,7 @@ use crate::planner::physical_plan::create_temp_table::CreateTempTableExec;
 use crate::planner::physical_plan::create_tunnel::CreateTunnelExec;
 use crate::planner::physical_plan::create_view::CreateViewExec;
 use crate::planner::physical_plan::delete::DeleteExec;
+use crate::planner::physical_plan::describe_table::DescribeTableExec;
 use crate::planner::physical_plan::drop_credentials::DropCredentialsExec;
 use crate::planner::physical_plan::drop_database::DropDatabaseExec;
 use crate::planner::physical_plan::drop_schemas::DropSchemasExec;
@@ -160,16 +161,15 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 create_external_table.into_extension()
             }
-            PlanType::AlterTableRename(alter_table_rename) => {
-                let alter_table_rename =
-                    plan::AlterTableRename::try_decode(alter_table_rename, ctx, self)
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+            PlanType::AlterTable(alter_table) => {
+                let alter_table = plan::AlterTable::try_decode(alter_table, ctx, self)
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-                alter_table_rename.into_extension()
+                alter_table.into_extension()
             }
-            PlanType::AlterDatabaseRename(alter_database_rename) => {
+            PlanType::AlterDatabase(alter_database_rename) => {
                 let alter_database_rename =
-                    plan::AlterDatabaseRename::try_decode(alter_database_rename, ctx, self)
+                    plan::AlterDatabase::try_decode(alter_database_rename, ctx, self)
                         .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 alter_database_rename.into_extension()
@@ -273,11 +273,9 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 plan::CreateSchema::try_encode_extension(node, buf, self)
             }
             ExtensionType::DropTables => plan::DropTables::try_encode_extension(node, buf, self),
-            ExtensionType::AlterTableRename => {
-                plan::AlterTableRename::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::AlterDatabaseRename => {
-                plan::AlterDatabaseRename::try_encode_extension(node, buf, self)
+            ExtensionType::AlterTable => plan::AlterTable::try_encode_extension(node, buf, self),
+            ExtensionType::AlterDatabase => {
+                plan::AlterDatabase::try_encode_extension(node, buf, self)
             }
             ExtensionType::AlterTunnelRotateKeys => {
                 plan::AlterTunnelRotateKeys::try_encode_extension(node, buf, self)
@@ -295,6 +293,9 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 plan::CreateTempTable::try_encode_extension(node, buf, self)
             }
             ExtensionType::CreateView => plan::CreateView::try_encode_extension(node, buf, self),
+            ExtensionType::DescribeTable => {
+                plan::DescribeTable::try_encode_extension(node, buf, self)
+            }
             ExtensionType::DropCredentials => {
                 plan::DropCredentials::try_encode_extension(node, buf, self)
             }
@@ -367,7 +368,6 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
         let ext = proto::ExecutionPlanExtension::decode(buf)
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
         let ext = ext
             .inner
             .ok_or_else(|| DataFusionError::Plan("missing execution plan".to_string()))?;
@@ -450,30 +450,43 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 .map_err(|e| DataFusionError::External(Box::new(e)))?;
                 Arc::new(exec)
             }
-            proto::ExecutionPlanExtensionType::AlterDatabaseRenameExec(ext) => {
-                Arc::new(AlterDatabaseRenameExec {
+            proto::ExecutionPlanExtensionType::DescribeTable(describe_table) => {
+                let exec = DescribeTableExec::try_decode(
+                    describe_table,
+                    &EmptyFunctionRegistry,
+                    self.runtime
+                        .as_ref()
+                        .expect("runtime should be set on decoder"),
+                    self,
+                )
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                Arc::new(exec)
+            }
+            proto::ExecutionPlanExtensionType::AlterDatabaseExec(ext) => {
+                Arc::new(AlterDatabaseExec {
                     catalog_version: ext.catalog_version,
                     name: ext.name,
-                    new_name: ext.new_name,
+                    operation: ext
+                        .operation
+                        .ok_or_else(|| {
+                            DataFusionError::Internal(
+                                "missing alter database operation".to_string(),
+                            )
+                        })?
+                        .try_into()?,
                 })
             }
-            proto::ExecutionPlanExtensionType::AlterTableRenameExec(ext) => {
-                Arc::new(AlterTableRenameExec {
-                    catalog_version: ext.catalog_version,
-                    tbl_reference: ext
-                        .tbl_reference
-                        .ok_or_else(|| {
-                            DataFusionError::Internal("missing table references".to_string())
-                        })?
-                        .into(),
-                    new_tbl_reference: ext
-                        .new_tbl_reference
-                        .ok_or_else(|| {
-                            DataFusionError::Internal("missing new table references".to_string())
-                        })?
-                        .into(),
-                })
-            }
+            proto::ExecutionPlanExtensionType::AlterTableExec(ext) => Arc::new(AlterTableExec {
+                catalog_version: ext.catalog_version,
+                schema: ext.schema,
+                name: ext.name,
+                operation: ext
+                    .operation
+                    .ok_or_else(|| {
+                        DataFusionError::Internal("missing alter table operation".to_string())
+                    })?
+                    .try_into()?,
+            }),
             proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(ext) => {
                 Arc::new(AlterTunnelRotateKeysExec {
                     catalog_version: ext.catalog_version,
@@ -818,19 +831,18 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 or_replace: exec.or_replace,
                 arrow_schema: Some(exec.arrow_schema.clone().try_into()?),
             })
-        } else if let Some(exec) = node.as_any().downcast_ref::<AlterDatabaseRenameExec>() {
-            proto::ExecutionPlanExtensionType::AlterDatabaseRenameExec(
-                proto::AlterDatabaseRenameExec {
-                    catalog_version: exec.catalog_version,
-                    name: exec.name.clone(),
-                    new_name: exec.new_name.clone(),
-                },
-            )
-        } else if let Some(exec) = node.as_any().downcast_ref::<AlterTableRenameExec>() {
-            proto::ExecutionPlanExtensionType::AlterTableRenameExec(proto::AlterTableRenameExec {
+        } else if let Some(exec) = node.as_any().downcast_ref::<AlterDatabaseExec>() {
+            proto::ExecutionPlanExtensionType::AlterDatabaseExec(proto::AlterDatabaseExec {
                 catalog_version: exec.catalog_version,
-                tbl_reference: Some(exec.tbl_reference.clone().into()),
-                new_tbl_reference: Some(exec.new_tbl_reference.clone().into()),
+                name: exec.name.clone(),
+                operation: Some(exec.operation.clone().into()),
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<AlterTableExec>() {
+            proto::ExecutionPlanExtensionType::AlterTableExec(proto::AlterTableExec {
+                catalog_version: exec.catalog_version,
+                schema: exec.schema.to_owned(),
+                name: exec.name.to_owned(),
+                operation: Some(exec.operation.clone().into()),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<AlterTunnelRotateKeysExec>() {
             proto::ExecutionPlanExtensionType::AlterTunnelRotateKeysExec(
@@ -911,6 +923,10 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 sql: exec.sql.clone(),
                 columns: exec.columns.clone(),
                 or_replace: exec.or_replace,
+            })
+        } else if let Some(exec) = node.as_any().downcast_ref::<DescribeTableExec>() {
+            proto::ExecutionPlanExtensionType::DescribeTable(proto::DescribeTableExec {
+                entry: Some(exec.entry.clone().try_into()?),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<DropCredentialsExec>() {
             proto::ExecutionPlanExtensionType::DropCredentialsExec(proto::DropCredentialsExec {
@@ -1051,7 +1067,6 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
         };
 
         let enc = proto::ExecutionPlanExtension { inner: Some(inner) };
-
         enc.encode(buf)
             .map_err(|e| DataFusionError::External(Box::new(e)))
     }

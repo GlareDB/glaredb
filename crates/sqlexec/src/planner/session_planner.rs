@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{
@@ -8,7 +9,6 @@ use datafusion::common::parsers::CompressionTypeVariant;
 use datafusion::common::{FileType, OwnedSchemaReference, OwnedTableReference, ToDFSchema};
 use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
-use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
 use datafusion::sql::TableReference;
 use datafusion_ext::planner::SqlQueryPlanner;
@@ -31,7 +31,9 @@ use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, Snowflake
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::azure::AzureConfigKey;
 use object_store::gcp::GoogleConfigKey;
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{
+    CatalogEntry, DatabaseEntry, RuntimePreference, SourceAccessMode, TableEntry,
+};
 use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
     CopyToDestinationOptionsS3, CopyToFormatOptions, CopyToFormatOptionsCsv,
@@ -44,6 +46,7 @@ use protogen::metastore::types::options::{
     TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
     TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
 };
+use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use sqlbuiltins::validation::{
     validate_copyto_dest_creds_support, validate_copyto_dest_format_support,
@@ -55,16 +58,16 @@ use tracing::debug;
 use crate::context::local::LocalSessionContext;
 use crate::parser::options::StmtOptions;
 use crate::parser::{
-    self, validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,
-    AlterTunnelStmt, CopyToSource, CopyToStmt, CreateCredentialsStmt, CreateExternalDatabaseStmt,
-    CreateExternalTableStmt, CreateTunnelStmt, DropCredentialsStmt, DropDatabaseStmt,
-    DropTunnelStmt, StatementWithExtensions,
+    self, validate_ident, validate_object_name, AlterDatabaseStmt, AlterTableStmtExtension,
+    AlterTunnelAction, AlterTunnelStmt, CopyToSource, CopyToStmt, CreateCredentialsStmt,
+    CreateExternalDatabaseStmt, CreateExternalTableStmt, CreateTunnelStmt, DropCredentialsStmt,
+    DropDatabaseStmt, DropTunnelStmt, StatementWithExtensions,
 };
 use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 use crate::remote::table::StubRemoteTableProvider;
-use crate::resolve::EntryResolver;
+use crate::resolve::{EntryResolver, ResolvedEntry};
 
 use super::context_builder::PartialContextProvider;
 use super::extension::ExtensionNode;
@@ -98,8 +101,9 @@ impl<'a> SessionPlanner<'a> {
                 self.plan_create_external_database(stmt).await
             }
             StatementWithExtensions::DropDatabase(stmt) => self.plan_drop_database(stmt),
-            StatementWithExtensions::AlterDatabaseRename(stmt) => {
-                self.plan_alter_database_rename(stmt)
+            StatementWithExtensions::AlterDatabase(stmt) => self.plan_alter_database(stmt),
+            StatementWithExtensions::AlterTableExtension(stmt) => {
+                self.plan_alter_table_extension(stmt)
             }
             StatementWithExtensions::CreateTunnel(stmt) => self.plan_create_tunnel(stmt),
             StatementWithExtensions::DropTunnel(stmt) => self.plan_drop_tunnel(stmt),
@@ -709,6 +713,7 @@ impl<'a> SessionPlanner<'a> {
             }
 
             ast::Statement::Explain {
+                describe_alias: false,
                 verbose,
                 statement,
                 analyze,
@@ -719,6 +724,22 @@ impl<'a> SessionPlanner<'a> {
                     .explain_statement_to_plan(verbose, analyze, *statement)
                     .await?;
                 Ok(LogicalPlan::Datafusion(plan))
+            }
+            // DESCRIBE <table_name>
+            ast::Statement::ExplainTable {
+                describe_alias: true,
+                table_name,
+            } => {
+                validate_object_name(&table_name)?;
+                let table_name = object_name_to_table_ref(table_name)?;
+                let resolver = EntryResolver::from_context(self.ctx);
+                let entry = resolver
+                    .resolve_entry_from_reference(table_name.clone())?
+                    .try_into_table_entry()?;
+
+                let plan = DescribeTable { entry };
+
+                Ok(plan.into_logical_plan())
             }
 
             ast::Statement::CreateSchema {
@@ -938,10 +959,21 @@ impl<'a> SessionPlanner<'a> {
                     .insert_to_source_plan(&table_name, &columns, source)
                     .await?;
 
+                let access_mode = self
+                    .get_access_mode(table_name.clone())?
+                    .unwrap_or(SourceAccessMode::ReadOnly);
+
+                if !access_mode.has_write_access() {
+                    return Err(PlanError::ObjectNotAllowedToWriteInto(
+                        table_name.to_owned_reference(),
+                    ));
+                }
+
                 let state = self.ctx.df_ctx().state();
                 let mut ctx_provider = PartialContextProvider::new(self.ctx, &state)?;
 
-                let provider = ctx_provider.table_provider(table_name.clone()).await?;
+                let provider = ctx_provider.table_provider(table_name).await?;
+
                 let (runtime_preference, provider) = match (
                     provider.preference,
                     provider
@@ -980,15 +1012,29 @@ impl<'a> SessionPlanner<'a> {
                 let operation = operations.pop().unwrap();
 
                 match operation {
-                    AlterTableOperation::RenameTable { table_name } => {
+                    ast::AlterTableOperation::RenameTable { table_name } => {
                         validate_object_name(&name)?;
                         let name = object_name_to_table_ref(name)?;
+                        let name = self.ctx.resolve_table_ref(name)?;
 
-                        validate_object_name(&table_name)?;
-                        let new_name = object_name_to_table_ref(table_name)?;
-                        Ok(AlterTableRename {
-                            tbl_reference: self.ctx.resolve_table_ref(name)?,
-                            new_tbl_reference: self.ctx.resolve_table_ref(new_name)?,
+                        let schema = name.schema.into_owned();
+                        let name = name.name.into_owned();
+
+                        let new_name = match table_name {
+                            ObjectName(mut objs) if objs.len() == 1 => objs.pop().unwrap(),
+                            _ => {
+                                return Err(PlanError::InvalidAlterStatement {
+                                    msg: "new table name should be a valid table identifier",
+                                })
+                            }
+                        };
+                        validate_ident(&new_name)?;
+                        let new_name = normalize_ident(new_name);
+
+                        Ok(AlterTable {
+                            schema,
+                            name,
+                            operation: AlterTableOperation::RenameTable { new_name },
                         }
                         .into_logical_plan())
                     }
@@ -1297,14 +1343,47 @@ impl<'a> SessionPlanner<'a> {
         Ok(plan.into_logical_plan())
     }
 
-    fn plan_alter_database_rename(&self, stmt: AlterDatabaseRenameStmt) -> Result<LogicalPlan> {
+    fn plan_alter_database(&self, stmt: AlterDatabaseStmt) -> Result<LogicalPlan> {
         validate_ident(&stmt.name)?;
         let name = normalize_ident(stmt.name);
 
-        validate_ident(&stmt.new_name)?;
-        let new_name = normalize_ident(stmt.new_name);
+        let operation = match stmt.operation {
+            parser::AlterDatabaseOperation::RenameDatabase { new_name } => {
+                validate_ident(&new_name)?;
+                let new_name = normalize_ident(new_name);
+                AlterDatabaseOperation::RenameDatabase { new_name }
+            }
+            parser::AlterDatabaseOperation::SetAccessMode { access_mode } => {
+                let access_mode = SourceAccessMode::from_str(&access_mode.value)
+                    .map_err(|e| PlanError::String(format!("{e}")))?;
+                AlterDatabaseOperation::SetAccessMode { access_mode }
+            }
+        };
 
-        Ok(AlterDatabaseRename { name, new_name }.into_logical_plan())
+        Ok(AlterDatabase { name, operation }.into_logical_plan())
+    }
+
+    fn plan_alter_table_extension(&self, stmt: AlterTableStmtExtension) -> Result<LogicalPlan> {
+        validate_object_name(&stmt.name)?;
+        let name = object_name_to_table_ref(stmt.name)?;
+        let name = self.ctx.resolve_table_ref(name)?;
+        let schema = name.schema.into_owned();
+        let name = name.name.into_owned();
+
+        let operation = match stmt.operation {
+            parser::AlterTableOperationExtension::SetAccessMode { access_mode } => {
+                let access_mode = SourceAccessMode::from_str(&access_mode.value)
+                    .map_err(|e| PlanError::String(format!("{e}")))?;
+                AlterTableOperation::SetAccessMode { access_mode }
+            }
+        };
+
+        Ok(AlterTable {
+            schema,
+            name,
+            operation,
+        }
+        .into_logical_plan())
     }
 
     async fn plan_copy_to(&self, stmt: CopyToStmt) -> Result<LogicalPlan> {
@@ -1534,6 +1613,23 @@ impl<'a> SessionPlanner<'a> {
             None
         };
         Ok(credentials_options)
+    }
+
+    fn get_access_mode(&self, table_ref: TableReference<'a>) -> Result<Option<SourceAccessMode>> {
+        let resolver = EntryResolver::from_context(self.ctx);
+        let ent = resolver.resolve_entry_from_reference(table_ref)?;
+
+        Ok(match ent {
+            ResolvedEntry::NeedsExternalResolution {
+                db_ent: &DatabaseEntry { access_mode, .. },
+                ..
+            }
+            | ResolvedEntry::Entry(CatalogEntry::Database(DatabaseEntry { access_mode, .. }))
+            | ResolvedEntry::Entry(CatalogEntry::Table(TableEntry { access_mode, .. })) => {
+                Some(access_mode)
+            }
+            _ => None,
+        })
     }
 }
 

@@ -9,18 +9,17 @@ alias slt := sql-logic-tests
 
 os_arch := os() + '-' + arch()
 
-
 # Run benchmarks subcommands. see `benchmarks/justfile` for more details.
 bench cmd *args:
   just benchmarks/{{cmd}} {{args}}
 
 # Run py-glaredb subcommands. see `py-glaredb/justfile` for more details.
 python cmd *args: protoc
-  just py-glaredb/{{cmd}} {{args}}
+  just bindings/python/{{cmd}} {{args}}
 
 # Run js-glaredb subcommands. see `js-glaredb/justfile` for more details.
 javascript cmd *args: protoc
-  just js-glaredb/{{cmd}} {{args}}
+  just bindings/nodejs/{{cmd}} {{args}}
 
 # Run glaredb server
 run *args: protoc
@@ -69,6 +68,7 @@ rpc-tests: protoc
     'sqllogictests/functions/version' \
     'sqllogictests/joins/*' \
     'sqllogictests/topn/*' \
+    'sqllogictests/window/*' \
     'sqllogictests/aggregates' \
     'sqllogictests/alter' \
     'sqllogictests/create_table' \
@@ -79,12 +79,17 @@ rpc-tests: protoc
     'sqllogictests/demo_pg' \
     'sqllogictests/drop' \
     'sqllogictests/explain' \
+    'sqllogictests/external_table' \
+    'sqllogictests/http' \
     'sqllogictests/infer' \
     'sqllogictests/information_schema' \
     'sqllogictests/metabase' \
     'sqllogictests/name' \
     'sqllogictests/object_names' \
+    'sqllogictests/pg_catalog' \
     'sqllogictests/rpc' \
+    'sqllogictests/schema' \
+    'sqllogictests/search_path' \
     'sqllogictests/select' \
     'sqllogictests/simple' \
     'sqllogictests/table' \
@@ -94,7 +99,11 @@ rpc-tests: protoc
     'sqllogictests/update' \
     'sqllogictests/vars' \
     'sqllogictests/views' \
-    'sqllogictests/virtual_catalog'
+    'sqllogictests/virtual_catalog' \
+    'sqllogictests/xlsx' \
+    'sqllogictests/prql' \
+    'sqllogictests/describe_rpc' \
+    'sqllogictests/allowed_operations'
 
 #  Check formatting.
 fmt-check: protoc

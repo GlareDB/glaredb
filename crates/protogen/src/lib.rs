@@ -34,6 +34,9 @@ pub mod errors {
         #[error("Invalid table reference: {0:?}.{1:?}.{2:?}")]
         InvalidTableReference(String, String, String),
 
+        #[error("Parse Error: {0}")]
+        ParseError(String),
+
         #[error(transparent)]
         TimestampError(#[from] prost_types::TimestampError),
 
