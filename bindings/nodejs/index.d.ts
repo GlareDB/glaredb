@@ -90,10 +90,12 @@ export class Connection {
    */
   static defaultInMemory(): Promise<Connection>
   /**
-   * Run a SQL querying against a GlareDB database.
+   * Run a SQL operation against a GlareDB database.
    *
-   * Note that this will only plan the query. To execute the query, call any
-   * of `execute`, `show`, `toArrow`,  or `toPolars`
+   * All operations that write or modify data are executed
+   * directly, but all query operations run lazily when you process
+   * their results with `show`, `toArrow`, or
+   * `toPolars`, or call the `execute` method.
    *
    * # Examples
    *
@@ -127,6 +129,22 @@ export class Connection {
    * ```
    */
   sql(query: string): Promise<JsLogicalPlan>
+  /**
+   * Run a PRQL query against a GlareDB database. Does not change
+   * the state or dialect of the connection object.
+   *
+   * ```javascript
+   * import glaredb from "@glaredb/node"
+   *
+   * let con = glaredb.connect()
+   * let cursor = await con.sql('from my_table | take 1');
+   * await cursor.show()
+   * ```
+   *
+   * All operations execute lazily when their results are
+   * processed.
+   */
+  prql(query: string): Promise<JsLogicalPlan>
   /**
    * Execute a query.
    *

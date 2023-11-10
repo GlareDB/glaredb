@@ -42,7 +42,7 @@ impl ConnectOptions {
 }
 
 /// Connect to a GlareDB database.
-#[napi]
+#[napi(catch_unwind)]
 pub async fn connect(
     data_dir_or_cloud_url: Option<String>,
     options: Option<ConnectOptions>,

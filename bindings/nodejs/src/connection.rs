@@ -129,7 +129,7 @@ impl Connection {
     ///
     /// The database is only initialized once, and all subsequent calls will
     /// return the same connection.
-    #[napi]
+    #[napi(catch_unwind)]
     pub async fn default_in_memory() -> napi::Result<Connection> {
         let engine = Engine::from_data_dir(None)
             .await
@@ -158,7 +158,7 @@ impl Connection {
     /// Show the output of a query.
     ///
     /// ```javascript
-    /// import glaredb from "@glaredb/node"
+    /// import glaredb from "@glaredb/glaredb"
     ///
     /// let con = glaredb.connect()
     /// let cursor = await con.sql('select 1');
@@ -168,7 +168,7 @@ impl Connection {
     /// Convert the output of a query to a Pandas dataframe.
     ///
     /// ```javascript
-    /// import glaredb from "@glaredb/node"
+    /// import glaredb from "@glaredb/glaredb"
     ///
     /// let con = glaredb.connect()
     /// ```
@@ -178,12 +178,12 @@ impl Connection {
     /// inserting data into a table.
     ///
     /// ```javascript
-    /// import glaredb from "@glaredb/node"
+    /// import glaredb from "@glaredb/glaredb"
     ///
     /// con = glaredb.connect()
     /// await con.sql('create table my_table (a int)').then(cursor => cursor.execute())
     /// ```
-    #[napi]
+    #[napi(catch_unwind)]
     pub async fn sql(&self, query: String) -> napi::Result<JsLogicalPlan> {
         let cloned_sess = self.sess.clone();
         let mut sess = self.sess.lock().await;
@@ -213,7 +213,7 @@ impl Connection {
     /// the state or dialect of the connection object.
     ///
     /// ```javascript
-    /// import glaredb from "@glaredb/node"
+    /// import glaredb from "@glaredb/glaredb"
     ///
     /// let con = glaredb.connect()
     /// let cursor = await con.sql('from my_table | take 1');
@@ -222,10 +222,14 @@ impl Connection {
     ///
     /// All operations execute lazily when their results are
     /// processed.
-    pub async fn prql(&self, query: &str) -> napi::Result<JsLogicalPlan> {
+    #[napi(catch_unwind)]
+    pub async fn prql(&self, query: String) -> napi::Result<JsLogicalPlan> {
         let cloned_sess = self.sess.clone();
         let mut sess = self.sess.lock().await;
-        let plan = sess.prql_to_lp(query).await.map_err(JsGlareDbError::from)?;
+        let plan = sess
+            .prql_to_lp(&query)
+            .await
+            .map_err(JsGlareDbError::from)?;
 
         Ok(JsLogicalPlan::new(plan, cloned_sess))
     }
@@ -237,12 +241,12 @@ impl Connection {
     /// Creating a table.
     ///
     /// ```js
-    /// import glaredb from "@glaredb/node"
+    /// import glaredb from "@glaredb/glaredb"
     ///
     /// con = glaredb.connect()
     /// con.execute('create table my_table (a int)')
     /// ```
-    #[napi]
+    #[napi(catch_unwind)]
     pub async fn execute(&self, query: String) -> napi::Result<()> {
         let sess = self.sess.clone();
         let mut sess = sess.lock().await;
@@ -259,7 +263,7 @@ impl Connection {
     }
 
     /// Close the current session.
-    #[napi]
+    #[napi(catch_unwind)]
     pub async fn close(&self) -> napi::Result<()> {
         Ok(self.engine.shutdown().await.map_err(JsGlareDbError::from)?)
     }
