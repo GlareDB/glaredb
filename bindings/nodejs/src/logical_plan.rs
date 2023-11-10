@@ -29,29 +29,29 @@ impl JsLogicalPlan {
 
 #[napi]
 impl JsLogicalPlan {
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn to_string(&self) -> napi::Result<String> {
         Ok(format!("{:?}", self.lp))
     }
 
-    #[napi]
+    #[napi(catch_unwind)]
     pub async fn show(&self) -> napi::Result<()> {
         self.execute_inner().await?.show().await?;
         Ok(())
     }
 
-    #[napi]
+    #[napi(catch_unwind)]
     pub async fn execute(&self) -> napi::Result<()> {
         self.execute_inner().await?.execute().await?;
         Ok(())
     }
 
-    #[napi]
+    #[napi(catch_unwind)]
     pub async fn record_batches(&self) -> napi::Result<Vec<crate::record_batch::JsRecordBatch>> {
         self.execute_inner().await?.record_batches().await
     }
 
-    #[napi]
+    #[napi(catch_unwind)]
     pub async fn to_ipc(&self) -> napi::Result<napi::bindgen_prelude::Buffer> {
         let inner = self.execute_inner().await?.to_arrow_inner().await?;
         Ok(inner.into())
