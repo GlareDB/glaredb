@@ -204,42 +204,45 @@ impl RemoteClient {
         metadata.insert(DB_NAME_KEY, params.db_name.parse()?);
         metadata.insert(ORG_KEY, params.org.parse()?);
 
-        let mut dst: Endpoint = dst.try_into()?;
+        let mut body = HashMap::new();
+        body.insert("user", params.user);
+        body.insert("password", params.password);
+        body.insert("org_name", params.org);
+        body.insert("db_name", params.db_name);
+        body.insert("api_version", 1.to_string());
+        body.insert("client_type", client_type.to_string());
 
-        if !disable_tls {
-            info!("apply TLS certificate to rpc proxy connection");
+        info!("client authentication");
+        let http_client = reqwest::Client::new();
+        let res = http_client
+            .post(format!(
+                "{}/api/internal/authenticate/client",
+                cloud_api_addr
+            ))
+            .json(&body)
+            .send()
+            .await?;
 
-            let mut body = HashMap::new();
-            body.insert("user", params.user);
-            body.insert("password", params.password);
-            body.insert("org_name", params.org);
-            body.insert("db_name", params.db_name);
-            body.insert("api_version", 1.to_string());
-            body.insert("client_type", client_type.to_string());
-
-            let http_client = reqwest::Client::new();
-            let res = http_client
-                .post(format!(
-                    "{}/api/internal/authenticate/client",
-                    cloud_api_addr
-                ))
-                .json(&body)
-                .send()
-                .await?;
-
-            if res.status().is_success() {
-                let cert = res.json::<AuthenticateClientResponse>().await?;
-                dst = dst.tls_config(
-                    ClientTlsConfig::new()
-                        .ca_certificate(Certificate::from_pem(cert.ca_cert))
-                        .domain_name(cert.ca_domain),
-                )?;
-            } else if res.status().is_client_error() {
+        if res.status() != reqwest::StatusCode::OK {
+            if res.status().is_client_error() {
                 let err = res.json::<AuthenticateClientError>().await?;
                 return Err(ExecError::String(err.msg));
             } else {
                 return Err(ExecError::Internal("client authentication".to_string()));
             }
+        }
+
+        let mut dst: Endpoint = dst.try_into()?;
+
+        if !disable_tls {
+            info!("apply TLS certificate");
+
+            let cert = res.json::<AuthenticateClientResponse>().await?;
+            dst = dst.tls_config(
+                ClientTlsConfig::new()
+                    .ca_certificate(Certificate::from_pem(cert.ca_cert))
+                    .domain_name(cert.ca_domain),
+            )?;
         }
 
         let client = ExecutionServiceClient::connect(dst).await?;
