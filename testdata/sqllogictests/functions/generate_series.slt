@@ -8,7 +8,6 @@ select * from generate_series(1, 2, 3, 4);
 
 statement error may not be zero
 select * from generate_series(1, 2, 0);
-----
 
 query I
 select * from generate_series(1, 4);
