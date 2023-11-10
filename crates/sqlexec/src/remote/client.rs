@@ -24,7 +24,7 @@ use tonic::{
     transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
     IntoRequest, Streaming,
 };
-use tracing::info;
+use tracing::debug;
 use url::Url;
 use uuid::Uuid;
 
@@ -174,7 +174,7 @@ impl RemoteClient {
     ) -> Result<Self> {
         let mut dst: ProxyDestination = dst;
         if !disable_tls {
-            info!("set rpc destination scheme to https");
+            debug!("set rpc destination scheme to https");
 
             dst.dst
                 .set_scheme("https")
@@ -212,7 +212,7 @@ impl RemoteClient {
         body.insert("api_version", 2.to_string());
         body.insert("client_type", client_type.to_string());
 
-        info!("client authentication");
+        debug!("client authentication");
         let http_client = reqwest::Client::new();
         let res = http_client
             .post(format!(
@@ -228,15 +228,17 @@ impl RemoteClient {
                 let err = res.json::<AuthenticateClientError>().await?;
                 return Err(ExecError::String(err.msg));
             } else {
-                return Err(ExecError::Internal("client authentication".to_string()));
+                return Err(ExecError::Internal(format!(
+                    "client authentication: status: {}",
+                    res.status().as_str()
+                )));
             }
         }
 
         let mut dst: Endpoint = dst.try_into()?;
 
         if !disable_tls {
-            info!("apply TLS certificate");
-
+            debug!("apply TLS certificate");
             let cert = res.json::<AuthenticateClientResponse>().await?;
             dst = dst.tls_config(
                 ClientTlsConfig::new()
