@@ -1,5 +1,5 @@
 //! Data source implementations.
-
+pub mod lance;
 pub mod bigquery;
 pub mod common;
 pub mod debug;

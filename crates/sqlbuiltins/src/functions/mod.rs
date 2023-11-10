@@ -9,6 +9,7 @@ mod iceberg;
 mod mongo;
 mod mysql;
 mod object_store;
+mod lance;
 mod postgres;
 mod snowflake;
 mod virtual_listing;
@@ -31,6 +32,7 @@ use self::delta::DeltaScan;
 use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
 use self::iceberg::{IcebergDataFiles, IcebergScan, IcebergSnapshots};
+use self::lance::LanceScan;
 use self::mongo::ReadMongoDb;
 use self::mysql::ReadMysql;
 use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN};
@@ -116,6 +118,7 @@ impl BuiltinTableFuncs {
             Arc::new(IcebergSnapshots),
             Arc::new(IcebergDataFiles),
             Arc::new(ExcelScan),
+            Arc::new(LanceScan),
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),
