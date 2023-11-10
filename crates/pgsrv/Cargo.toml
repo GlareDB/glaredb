@@ -26,7 +26,7 @@ tokio-postgres = "0.7.8"
 webpki-roots = "0.25.1"
 rustls = "0.21.8"
 tokio-rustls = "0.24.1"
-rustls-pemfile = "1.0.3"
+rustls-pemfile = "1.0.4"
 
 [dev-dependencies]
 tempfile = "3"
