@@ -209,7 +209,7 @@ impl RemoteClient {
         body.insert("password", params.password);
         body.insert("org_name", params.org);
         body.insert("db_name", params.db_name);
-        body.insert("api_version", 1.to_string());
+        body.insert("api_version", 2.to_string());
         body.insert("client_type", client_type.to_string());
 
         info!("client authentication");
