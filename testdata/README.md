@@ -53,3 +53,27 @@ repo](https://github.com/PRQL/prql/tree/main/crates/prql-compiler/tests/integrat
 There's nothing specific to PRQL in these test files as they're just CSVs, but
 they're copied in such that we can have PRQL integration tests run in this repo
 using our SLT framework.
+
+## Azure storage container
+
+The storage container (bucket) in Azure was bootstrapped via the
+[azcopy](https://github.com/Azure/azure-storage-azcopy) utility.
+
+```shell
+azcopy copy \
+  'https://storage.cloud.google.com/glaredb-test' \
+  'https://glaredbtest.blob.core.windows.net/glaredb-test?<sas-token>' \
+  --recursive=true
+```
+
+Running this command should copy everything from the GCS bucket into the storage
+container.
+
+Requirements:
+- `GOOGLE_APPLICATION_CREDENTIALS` env var pointing to a service account file.
+  Note this can't be application default credentials.
+- `<sas-token>` needs to be replaced with a token with "Create", "Add", and
+  "Write" permissions. This can be done through the azure dashboard.
+
+(Untested): The `sync` command should let us update the contents of the azure
+container when we add additional test data to the gcs bucket.
