@@ -1,0 +1,105 @@
+# Azure tests for Iceberg tables
+
+statement ok
+CREATE CREDENTIALS azure_creds
+	PROVIDER azure
+	OPTIONS (
+		account_name = '${AZURE_ACCOUNT}',
+		access_key = '${AZURE_ACCESS_KEY}',
+	);
+
+
+# iceberg_snapshots
+
+# The actual number of snapshots is unknown, but we know we have at least two:
+# the initial snapshot, and the snapshot from the additional insert.
+query T
+select count(*) >= 2 from iceberg_snapshots('azure://glaredb-test/iceberg/tables/lineitem_versioned', azure_creds);
+----
+t
+
+# iceberg_data_files
+
+# These tables exist, and so they all must need _some_ number of data files.
+
+query T
+select count(*) >= 1 from iceberg_data_files('azure://glaredb-test/iceberg/tables/lineitem_simple', azure_creds);
+----
+t
+
+query T
+select count(*) >= 1 from iceberg_data_files('azure://glaredb-test/iceberg/tables/lineitem_versioned', azure_creds);
+----
+t
+
+query T
+select count(*) >= 1 from iceberg_data_files('azure://glaredb-test/iceberg/tables/lineitem_partitioned', azure_creds);
+----
+t
+
+# iceberg_scan
+
+# All tables were created from a source parquet file consisting of a 1000
+# records.
+
+query T
+select count(*) = 1000 from iceberg_scan('azure://glaredb-test/iceberg/tables/lineitem_simple', azure_creds);
+----
+t
+
+query T
+select count(*) = 1000 from iceberg_scan('azure://glaredb-test/iceberg/tables/lineitem_partitioned', azure_creds);
+----
+t
+
+# Note that this table has twice as many records since creating the second
+# version of the table was from inserting the source data again.
+query T
+select count(*) = 2000 from iceberg_scan('azure://glaredb-test/iceberg/tables/lineitem_versioned', azure_creds);
+----
+t
+
+query TI
+select l_shipmode, count(*)
+  from iceberg_scan('azure://glaredb-test/iceberg/tables/lineitem_simple', azure_creds)
+  group by l_shipmode
+  order by l_shipmode;
+----
+AIR        143
+FOB        136
+MAIL       144
+RAIL       130
+REG AIR    157
+SHIP       158
+TRUCK      132
+
+query TI
+select l_shipmode, count(*)
+  from iceberg_scan('azure://glaredb-test/iceberg/tables/lineitem_partitioned', azure_creds)
+  group by l_shipmode
+  order by l_shipmode;
+----
+AIR        143
+FOB        136
+MAIL       144
+RAIL       130
+REG AIR    157
+SHIP       158
+TRUCK      132
+
+# Note counts doubled here. Versioned table is made up of 2000 records instead
+# of 1000.
+query TI
+select l_shipmode, count(*)
+  from iceberg_scan('azure://glaredb-test/iceberg/tables/lineitem_versioned', azure_creds)
+  group by l_shipmode
+  order by l_shipmode;
+----
+AIR        286
+FOB        272
+MAIL       288
+RAIL       260
+REG AIR    314
+SHIP       316
+TRUCK      264
+

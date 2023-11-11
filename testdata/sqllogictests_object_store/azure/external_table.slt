@@ -1,0 +1,82 @@
+# # Tests for azure external tables.
+
+# # Credentials
+# statement ok
+# CREATE CREDENTIALS azure_creds
+# 	PROVIDER azure
+# 	OPTIONS (
+# 		account_name = '${AZURE_ACCOUNT}',
+# 		access_key = '${AZURE_ACCESS_KEY}',
+# 	);
+
+
+# statement ok
+# copy ( values (1, 2) ) to 'gs://${GCS_BUCKET_NAME}/ext-table.csv'
+# 	credentials gcp_creds;
+
+# statement ok
+# create external table ext_table from gcs (
+# 	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}',
+# 	bucket '${GCS_BUCKET_NAME}',
+# 	location 'ext-table.csv'
+# );
+
+# query II
+# select * from ext_table;
+# ----
+# 1	2
+
+# # Test "globs"
+
+# statement ok
+# copy ( values (3, 4) ) to 'gs://${GCS_BUCKET_NAME}/ext-table-1.csv'
+# 	credentials gcp_creds;
+
+# # Create table using credentials
+
+# statement ok
+# create external table ext_table_1 from gcs
+# 	credentials gcp_creds
+# 	(
+# 		bucket '${GCS_BUCKET_NAME}',
+# 		location 'ext-table*'
+# 	);
+
+# query II rowsort
+# select * from ext_table_1;
+# ----
+# 1	2
+# 3	4
+
+# # Test `file_type` option
+
+# statement ok
+# copy ( values (5, 6) ) to 'gs://${GCS_BUCKET_NAME}/pq-table-1'
+# 	format parquet credentials gcp_creds;
+
+# statement ok
+# copy ( values (7, 8) ) to 'gs://${GCS_BUCKET_NAME}/pq-table-2'
+# 	format parquet credentials gcp_creds;
+
+# statement error unable to resolve file type from the objects
+# create external table ext_table_2 from gcs
+# 	credentials gcp_creds
+# 	(
+# 		bucket '${GCS_BUCKET_NAME}',
+# 		location 'pq-table*'
+# 	);
+
+# statement ok
+# create external table ext_table_2 from gcs
+# 	credentials gcp_creds
+# 	(
+# 		bucket '${GCS_BUCKET_NAME}',
+# 		location 'pq-table*',
+# 		file_type parquet
+# 	);
+
+# query II rowsort
+# select * from ext_table_2;
+# ----
+# 5	6
+# 7	8

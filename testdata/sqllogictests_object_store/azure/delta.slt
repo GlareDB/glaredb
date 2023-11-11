@@ -42,6 +42,9 @@ select * from delta_azure_opts order by a;
 1   hello
 2   world
 
+# Below statement causes panic
+halt
+
 # Tests connection options validation during initial setup
 statement error
 create external table delta_azure_opts

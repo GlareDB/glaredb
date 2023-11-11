@@ -105,6 +105,8 @@ pub fn validate_table_creds_support(table: &str, creds: &str) -> Result<()> {
         (TableOptions::BIGQUERY, CredentialsOptions::GCP) |
         // AWS
         (TableOptions::S3_STORAGE, CredentialsOptions::AWS) |
+        // Azure
+        (TableOptions::AZURE, CredentialsOptions::AZURE) |
         // Delta & Iceberg
         (TableOptions::DELTA | TableOptions::ICEBERG, CredentialsOptions::GCP | CredentialsOptions::AWS | CredentialsOptions::AZURE)
     ) {

@@ -1,0 +1,31 @@
+# Creating external tables with parquet files.
+
+statement ok
+create schema parquet_azure;
+
+statement ok
+set search_path = parquet_azure;
+
+statement ok
+CREATE EXTERNAL TABLE userdata1
+    FROM azure
+    OPTIONS (
+        account_name = '${AZURE_ACCOUNT}',
+        access_key = '${AZURE_ACCESS_KEY}',
+        location = 'azure://glaredb-test/userdata1.parquet'
+    );
+
+statement ok
+select * from userdata1;
+
+query I
+select count(*) from userdata1;
+----
+1000
+
+query IT
+select count(*), gender from userdata1 group by gender order by gender;
+----
+67   (empty)
+482  Female
+451  Male
