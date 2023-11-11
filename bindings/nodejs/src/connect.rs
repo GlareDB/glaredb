@@ -23,7 +23,7 @@ impl ConnectOptions {
     }
 
     fn disable_tls(&self) -> bool {
-        self.disable_tls.unwrap_or(true)
+        self.disable_tls.unwrap_or(false)
     }
 
     fn cloud_addr(&self) -> String {
@@ -42,7 +42,7 @@ impl ConnectOptions {
 }
 
 /// Connect to a GlareDB database.
-#[napi]
+#[napi(catch_unwind)]
 pub async fn connect(
     data_dir_or_cloud_url: Option<String>,
     options: Option<ConnectOptions>,

@@ -1,7 +1,7 @@
 use datafusion::arrow::array::Array;
 use datafusion::arrow::datatypes::{DataType, FieldRef, SchemaRef, TimeUnit};
 use datafusion::arrow::record_batch::RecordBatch;
-use napi::{bindgen_prelude::*, JsObject};
+use napi::JsObject;
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
