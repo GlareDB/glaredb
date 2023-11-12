@@ -1416,7 +1416,7 @@ impl<'a> SessionPlanner<'a> {
         // 1: COPY <source> TO <s3|gcs|azure> OPTIONS (...)
         // 2: COPY <source> TO <dest> OPTIONS (...)
         //
-        // Where the first matches on fixes keywords, and the second matches on
+        // Where the first matches on fixed keywords, and the second matches on
         // the full object path (e.g. 'gs://bucket/object.csv'). This statement
         // is what lets us differentiate between those, and if `url` is `None`,
         // we'll resolve the actual object destination from the OPTIONS down

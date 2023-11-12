@@ -127,7 +127,9 @@ pub fn validate_copyto_dest_creds_support(dest: &str, creds: &str) -> Result<()>
         // Google cloud
         (CopyToDestinationOptions::GCS, CredentialsOptions::GCP) |
         // Aws
-        (CopyToDestinationOptions::S3_STORAGE, CredentialsOptions::AWS)
+        (CopyToDestinationOptions::S3_STORAGE, CredentialsOptions::AWS) |
+        // Azure
+        (CopyToDestinationOptions::AZURE, CredentialsOptions::AZURE)
     ) {
         Ok(())
     } else {

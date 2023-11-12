@@ -303,6 +303,21 @@ fn get_store_access(
                         Some(secret_access_key),
                     )?
                 }
+                DatasourceUrlType::Azure => {
+                    let (account, access_key) = match &creds.options {
+                        CredentialsOptions::Azure(azure) => {
+                            (azure.account_name.to_owned(), azure.access_key.to_owned())
+                        }
+                        other => {
+                            return Err(ExtensionError::String(format!(
+                                "invalid credentials for S3, got {}",
+                                other.as_str()
+                            )))
+                        }
+                    };
+
+                    create_azure_store_access(source_url, Some(account), Some(access_key))?
+                }
                 other => {
                     return Err(ExtensionError::String(format!(
                         "Cannot get {other} datasource with credentials"
@@ -386,7 +401,7 @@ fn create_azure_store_access(
     account: Option<String>,
     access_key: Option<String>,
 ) -> Result<Arc<dyn ObjStoreAccess>> {
-    let account = account.ok_or(ExtensionError::MissingNamedArgument("account"))?;
+    let account = account.ok_or(ExtensionError::MissingNamedArgument("account_name"))?;
     let access_key = access_key.ok_or(ExtensionError::MissingNamedArgument("access_key"))?;
 
     let mut opts = StorageOptions::default();
