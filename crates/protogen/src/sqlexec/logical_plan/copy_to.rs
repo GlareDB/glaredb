@@ -12,7 +12,7 @@ pub struct CopyTo {
 
 #[derive(Clone, PartialEq, Message)]
 pub struct CopyToDestinationOptions {
-    #[prost(oneof = "CopyToDestinationOptionsEnum", tags = "1, 2, 3")]
+    #[prost(oneof = "CopyToDestinationOptionsEnum", tags = "1, 2, 3, 4")]
     pub copy_to_destination_options_enum: Option<CopyToDestinationOptionsEnum>,
 }
 #[derive(Clone, PartialEq, Oneof)]
