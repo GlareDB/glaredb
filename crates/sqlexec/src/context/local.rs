@@ -85,6 +85,7 @@ impl LocalSessionContext {
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
             .with_extension(Arc::new(TempCatalog::default()));
+
         let state = SessionState::new_with_config_rt(conf, Arc::new(runtime))
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
@@ -134,6 +135,7 @@ impl LocalSessionContext {
             .with_extension(Arc::new(CatalogMutator::empty()))
             .with_extension(Arc::new(self.get_native_tables().clone()))
             .with_extension(Arc::new(TempCatalog::default()));
+
         let state = SessionState::new_with_config_rt(conf, runtime)
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 

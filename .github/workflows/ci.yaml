@@ -100,7 +100,27 @@ jobs:
 
       - name: Python Bindings Tests
         run: just python test
-
+  node-bindings-tests: 
+    name:  Node Binding Tests
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: Cache
+        with:
+          path: |
+            ~/.cargo/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Build nodejs
+        run: just js build-debug
+      - name: Node Bindings Tests
+        run: just js test
   pg-protocol:
     name: PG Protocol Tests
     runs-on: ubuntu-latest-8-cores

@@ -86,9 +86,9 @@ pub enum ExecutionResult {
     /// A view was created.
     CreateView,
     /// A table was renamed.
-    AlterTableRename,
+    AlterTable,
     /// A database was renamed.
-    AlterDatabaseRename,
+    AlterDatabase,
     /// A tunnel was altered.
     AlterTunnelRotateKeys,
     /// A client local variable was set.
@@ -173,8 +173,8 @@ impl ExecutionResult {
             ExecutionResult::CreateCredentials => "create_credentials",
             ExecutionResult::CreateSchema => "create_schema",
             ExecutionResult::CreateView => "create_view",
-            ExecutionResult::AlterTableRename => "alter_table_rename",
-            ExecutionResult::AlterDatabaseRename => "alter_database_rename",
+            ExecutionResult::AlterTable => "alter_table",
+            ExecutionResult::AlterDatabase => "alter_database",
             ExecutionResult::AlterTunnelRotateKeys => "alter_tunnel_rotate_keys",
             ExecutionResult::Set => "set_local",
             ExecutionResult::DropTables => "drop_tables",
@@ -195,8 +195,8 @@ impl ExecutionResult {
                 | ExecutionResult::CreateCredentials
                 | ExecutionResult::CreateSchema
                 | ExecutionResult::CreateView
-                | ExecutionResult::AlterTableRename
-                | ExecutionResult::AlterDatabaseRename
+                | ExecutionResult::AlterTable
+                | ExecutionResult::AlterDatabase
                 | ExecutionResult::AlterTunnelRotateKeys
                 | ExecutionResult::DropTables
                 | ExecutionResult::DropViews
@@ -232,8 +232,8 @@ impl ExecutionResult {
             "create_credentials" => ExecutionResult::CreateCredentials,
             "create_schema" => ExecutionResult::CreateSchema,
             "create_view" => ExecutionResult::CreateView,
-            "alter_table_rename" => ExecutionResult::AlterTableRename,
-            "alter_database_rename" => ExecutionResult::AlterDatabaseRename,
+            "alter_table" => ExecutionResult::AlterTable,
+            "alter_database" => ExecutionResult::AlterDatabase,
             "alter_tunnel_rotate_keys" => ExecutionResult::AlterTunnelRotateKeys,
             "set" => ExecutionResult::Set,
             "drop_tables" => ExecutionResult::DropTables,
@@ -288,8 +288,8 @@ impl fmt::Display for ExecutionResult {
             ExecutionResult::CreateCredentials => write!(f, "Credentials created"),
             ExecutionResult::CreateSchema => write!(f, "Schema create"),
             ExecutionResult::CreateView => write!(f, "View created"),
-            ExecutionResult::AlterTableRename => write!(f, "Table renamed"),
-            ExecutionResult::AlterDatabaseRename => write!(f, "Database renamed"),
+            ExecutionResult::AlterTable => write!(f, "Table altered"),
+            ExecutionResult::AlterDatabase => write!(f, "Database altered"),
             ExecutionResult::AlterTunnelRotateKeys => write!(f, "Keys rotated"),
             ExecutionResult::Set => write!(f, "Local variable set"),
             ExecutionResult::DropTables => write!(f, "Table(s) dropped"),
@@ -411,6 +411,7 @@ impl Session {
             let planner =
                 DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(ddl_planner)]);
             let plan = planner.create_physical_plan(&plan, &state).await?;
+
             Ok(plan)
         }
     }
@@ -600,16 +601,47 @@ impl Session {
         Ok(stream)
     }
 
-    /// Helper for converting a sql statement to a logical plan.
+    /// Helper for converting a query (SQL or PRQL) statement to a
+    /// logical plan.
     ///
-    /// Useful for our "local" clients, including the CLI and Python bindings.
+    /// Useful for our "local" clients, including the CLI, Python, and
+    /// JS bindings.
     ///
-    /// Errors if no statements or more than one statement is provided in the
-    /// query.
-    pub async fn sql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
-        const UNNAMED: String = String::new();
+    /// Errors if no statements or more than one statement is provided
+    /// in the query.
+    pub async fn query_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
+        let statements = self.parse_query(query)?;
 
-        let mut statements = self.parse_query(query)?;
+        self.parsed_to_lp(statements).await
+    }
+
+    /// Helper for converting SQL statement to a logical plan.
+    ///
+    /// Errors if no statements or more than one statement is provided
+    /// in the query.
+    pub async fn prql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
+        let stmt = crate::parser::parse_prql(query)?;
+
+        self.parsed_to_lp(stmt).await
+    }
+
+    /// Helper for converting PRQL statement to a logical plan.
+    ///
+    /// Errors if no statements or more than one statement is provided
+    /// in the query.
+    pub async fn sql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
+        let statements = crate::parser::parse_sql(query)?;
+
+        self.parsed_to_lp(statements).await
+    }
+
+    pub async fn parsed_to_lp(
+        &mut self,
+        statements: VecDeque<StatementWithExtensions>,
+    ) -> Result<LogicalPlan> {
+        const UNNAMED: String = String::new();
+        let mut statements = statements;
+
         match statements.len() {
             0 => Err(ExecError::String("No statements in query".to_string())),
             1 => {

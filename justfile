@@ -9,18 +9,17 @@ alias slt := sql-logic-tests
 
 os_arch := os() + '-' + arch()
 
-
 # Run benchmarks subcommands. see `benchmarks/justfile` for more details.
 bench cmd *args:
   just benchmarks/{{cmd}} {{args}}
 
 # Run py-glaredb subcommands. see `py-glaredb/justfile` for more details.
 python cmd *args: protoc
-  just py-glaredb/{{cmd}} {{args}}
+  just bindings/python/{{cmd}} {{args}}
 
 # Run js-glaredb subcommands. see `js-glaredb/justfile` for more details.
 javascript cmd *args: protoc
-  just js-glaredb/{{cmd}} {{args}}
+  just bindings/nodejs/{{cmd}} {{args}}
 
 # Run glaredb server
 run *args: protoc
@@ -101,7 +100,10 @@ rpc-tests: protoc
     'sqllogictests/vars' \
     'sqllogictests/views' \
     'sqllogictests/virtual_catalog' \
-    'sqllogictests/xlsx'
+    'sqllogictests/xlsx' \
+    'sqllogictests/prql' \
+    'sqllogictests/describe_rpc' \
+    'sqllogictests/allowed_operations'
 
 #  Check formatting.
 fmt-check: protoc

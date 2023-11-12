@@ -18,13 +18,13 @@ use protogen::{
 };
 use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
 use serde::Deserialize;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 use tonic::{
     metadata::MetadataMap,
     transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
     IntoRequest, Streaming,
 };
-use tracing::info;
+use tracing::debug;
 use url::Url;
 use uuid::Uuid;
 
@@ -105,10 +105,31 @@ impl TryFrom<Url> for ProxyDestination {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug)]
 pub struct AuthenticateClientResponse {
     pub ca_cert: String,
     pub ca_domain: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AuthenticateClientError {
+    pub msg: String,
+}
+
+#[derive(Debug)]
+pub enum RemoteClientType {
+    Cli,
+    Node,
+    Python,
+}
+impl fmt::Display for RemoteClientType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RemoteClientType::Cli => write!(f, "cli"),
+            RemoteClientType::Node => write!(f, "node"),
+            RemoteClientType::Python => write!(f, "python"),
+        }
+    }
 }
 
 /// An execution service client that has additonal metadata attached to each
@@ -149,10 +170,11 @@ impl RemoteClient {
         dst: ProxyDestination,
         cloud_api_addr: String,
         disable_tls: bool,
+        client_type: RemoteClientType,
     ) -> Result<Self> {
         let mut dst: ProxyDestination = dst;
         if !disable_tls {
-            info!("set rpc destination scheme to https");
+            debug!("set rpc destination scheme to https");
 
             dst.dst
                 .set_scheme("https")
@@ -163,6 +185,7 @@ impl RemoteClient {
             dst.params,
             cloud_api_addr,
             disable_tls,
+            client_type,
         )
         .await
     }
@@ -173,6 +196,7 @@ impl RemoteClient {
         params: ProxyAuthParams,
         cloud_api_addr: String,
         disable_tls: bool,
+        client_type: RemoteClientType,
     ) -> Result<Self> {
         let mut metadata = MetadataMap::new();
         metadata.insert(USER_KEY, params.user.parse()?);
@@ -180,33 +204,46 @@ impl RemoteClient {
         metadata.insert(DB_NAME_KEY, params.db_name.parse()?);
         metadata.insert(ORG_KEY, params.org.parse()?);
 
+        let mut body = HashMap::new();
+        body.insert("user", params.user);
+        body.insert("password", params.password);
+        body.insert("org_name", params.org);
+        body.insert("db_name", params.db_name);
+        body.insert("api_version", 2.to_string());
+        body.insert("client_type", client_type.to_string());
+
+        debug!("client authentication");
+        let http_client = reqwest::Client::new();
+        let res = http_client
+            .post(format!(
+                "{}/api/internal/authenticate/client",
+                cloud_api_addr
+            ))
+            .json(&body)
+            .send()
+            .await?;
+
+        if res.status() != reqwest::StatusCode::OK {
+            if res.status().is_client_error() {
+                let err = res.json::<AuthenticateClientError>().await?;
+                return Err(ExecError::String(err.msg));
+            } else {
+                return Err(ExecError::Internal(format!(
+                    "client authentication: status: {}",
+                    res.status().as_str()
+                )));
+            }
+        }
+
         let mut dst: Endpoint = dst.try_into()?;
 
         if !disable_tls {
-            info!("apply TLS certificate to rpc proxy connection");
-
-            let mut body = HashMap::new();
-            body.insert("user", params.user);
-            body.insert("password", params.password);
-            body.insert("org_name", params.org);
-            body.insert("db_name", params.db_name);
-
-            let client = reqwest::Client::new();
-            let res = client
-                .post(format!(
-                    "{}/api/internal/authenticate/client",
-                    cloud_api_addr
-                ))
-                .json(&body)
-                .send()
-                .await?
-                .json::<AuthenticateClientResponse>()
-                .await?;
-
+            debug!("apply TLS certificate");
+            let cert = res.json::<AuthenticateClientResponse>().await?;
             dst = dst.tls_config(
                 ClientTlsConfig::new()
-                    .ca_certificate(Certificate::from_pem(res.ca_cert))
-                    .domain_name(res.ca_domain),
+                    .ca_certificate(Certificate::from_pem(cert.ca_cert))
+                    .domain_name(cert.ca_domain),
             )?;
         }
 

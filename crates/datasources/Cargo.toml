@@ -6,8 +6,9 @@ edition = {workspace = true}
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ioutil = { path = "../ioutil" }
 apache-avro = "0.16"
-async-channel = "2.0.0"
+async-channel = "2.1.0"
 async-stream = "0.3.5"
 async-trait = "0.1.74"
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "deps/2023-10-27-update" }
@@ -19,13 +20,13 @@ datafusion = { workspace = true }
 decimal = { path = "../decimal" }
 deltalake = { workspace = true }
 futures = "0.3.29"
-gcp-bigquery-client = "0.17.0"
+gcp-bigquery-client = "0.18.0"
 logutil = {path = "../logutil"}
 protogen = {path = "../protogen"}
 datafusion_ext = { path = "../datafusion_ext" }
-mongodb = "2.6.0"
-mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }
-mysql_common = { version = "0.30.6", features = ["chrono"] }
+mongodb = "2.7.1"
+mysql_async = { version = "0.33.0", default-features = false, features = ["default-rustls"] }
+mysql_common = { version = "0.31", default-features = false, features = ["chrono"] }
 object_store = { workspace = true, features = ["gcp", "aws", "http"] }
 object_store_util = { path = "../object_store_util" }
 glob = "0.3.1"
@@ -45,8 +46,8 @@ snowflake_connector = { path = "../snowflake_connector" }
 tempfile = "3.8.1"
 ssh-key = { version = "0.6.2", features = ["ed25519", "alloc"] }
 thiserror.workspace = true
-tokio = { version = "1.33.0", features = ["full"] }
 tokio-util = { version = "*" }
+tokio = { version = "1.34.0", features = ["full"] }
 tokio-postgres = { version = "0.7.8", features = ["with-uuid-1", "with-serde_json-1","with-chrono-0_4"] }
 parking_lot = "0.12.1"
 tokio-rustls = "0.24.1"
@@ -60,4 +61,4 @@ tiberius = "0.12.2"
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
-openssh = "0.9.9"
+openssh = "0.10.1"

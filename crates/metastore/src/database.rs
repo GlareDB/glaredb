@@ -5,13 +5,13 @@ use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use protogen::metastore::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
-    EntryType, FunctionEntry, FunctionType, RuntimePreference, SchemaEntry, TableEntry,
-    TunnelEntry, ViewEntry,
+    EntryType, FunctionEntry, FunctionType, RuntimePreference, SchemaEntry, SourceAccessMode,
+    TableEntry, TunnelEntry, ViewEntry,
 };
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
 };
-use protogen::metastore::types::service::Mutation;
+use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
 use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
     BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
@@ -673,6 +673,7 @@ impl State {
                     },
                     options: create_database.options,
                     tunnel_id,
+                    access_mode: SourceAccessMode::ReadOnly,
                 };
                 self.entries.insert(oid, CatalogEntry::Database(ent))?;
 
@@ -817,6 +818,7 @@ impl State {
                     },
                     options: TableOptions::Internal(create_table.options),
                     tunnel_id: None,
+                    access_mode: SourceAccessMode::ReadWrite,
                 };
 
                 let policy =
@@ -857,85 +859,117 @@ impl State {
                     },
                     options: create_ext.options,
                     tunnel_id,
+                    access_mode: SourceAccessMode::ReadOnly,
                 };
 
                 let policy = CreatePolicy::new(create_ext.if_not_exists, create_ext.or_replace)?;
 
                 self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
             }
-            Mutation::AlterTableRename(alter_table_rename) => {
-                validate_object_name(&alter_table_rename.new_name)?;
-                if self.schema_names.contains_key(&alter_table_rename.new_name) {
-                    return Err(MetastoreError::DuplicateName(alter_table_rename.new_name));
-                }
-
-                let schema_id = match self.schema_names.get(&alter_table_rename.schema) {
-                    None => {
-                        return Err(MetastoreError::MissingNamedSchema(
-                            alter_table_rename.schema,
-                        ))
-                    }
+            Mutation::AlterTable(alter_table) => {
+                let schema_id = match self.schema_names.get(&alter_table.schema) {
+                    None => return Err(MetastoreError::MissingNamedSchema(alter_table.schema)),
                     Some(id) => *id,
                 };
 
                 let objs = match self.schema_objects.get_mut(&schema_id) {
                     None => {
                         return Err(MetastoreError::MissingNamedObject {
-                            schema: alter_table_rename.schema,
-                            name: alter_table_rename.name,
+                            schema: alter_table.schema,
+                            name: alter_table.name,
                         })
                     }
                     Some(objs) => objs,
                 };
 
-                let oid = match objs.tables.remove(&alter_table_rename.name) {
-                    None => {
-                        return Err(MetastoreError::MissingNamedObject {
-                            schema: alter_table_rename.schema,
-                            name: alter_table_rename.name,
-                        })
+                match alter_table.operation {
+                    AlterTableOperation::RenameTable { new_name } => {
+                        validate_object_name(&new_name)?;
+                        if self.schema_names.contains_key(&new_name) {
+                            return Err(MetastoreError::DuplicateName(new_name));
+                        }
+
+                        let oid = match objs.tables.remove(&alter_table.name) {
+                            None => {
+                                return Err(MetastoreError::MissingNamedObject {
+                                    schema: alter_table.schema,
+                                    name: alter_table.name,
+                                })
+                            }
+                            Some(id) => id,
+                        };
+
+                        let mut table = match self.entries.remove(&oid)?.unwrap() {
+                            CatalogEntry::Table(ent) => ent,
+                            other => unreachable!("unexpected entry type: {:?}", other),
+                        };
+
+                        table.meta.name = new_name;
+
+                        self.try_insert_table_namespace(
+                            CatalogEntry::Table(table.clone()),
+                            schema_id,
+                            table.meta.id,
+                            CreatePolicy::Create,
+                        )?;
                     }
-                    Some(id) => id,
+                    AlterTableOperation::SetAccessMode { access_mode } => {
+                        let oid = match objs.tables.get(&alter_table.name) {
+                            None => {
+                                return Err(MetastoreError::MissingNamedObject {
+                                    schema: alter_table.schema,
+                                    name: alter_table.name,
+                                })
+                            }
+                            Some(id) => id,
+                        };
+
+                        match self.entries.get_mut(oid)?.unwrap() {
+                            CatalogEntry::Table(ent) => {
+                                ent.access_mode = access_mode;
+                            }
+                            other => unreachable!("unexpected entry type: {:?}", other),
+                        };
+                    }
                 };
-
-                let mut table = match self.entries.remove(&oid)?.unwrap() {
-                    CatalogEntry::Table(ent) => ent,
-                    other => unreachable!("unexpected entry type: {:?}", other),
-                };
-
-                table.meta.name = alter_table_rename.new_name;
-
-                self.try_insert_table_namespace(
-                    CatalogEntry::Table(table.clone()),
-                    schema_id,
-                    table.meta.id,
-                    CreatePolicy::Create,
-                )?;
             }
-            Mutation::AlterDatabaseRename(alter_database_rename) => {
-                validate_object_name(&alter_database_rename.new_name)?;
-                if self
-                    .database_names
-                    .contains_key(&alter_database_rename.new_name)
-                {
-                    return Err(MetastoreError::DuplicateName(
-                        alter_database_rename.new_name,
-                    ));
-                }
+            Mutation::AlterDatabase(alter_database) => {
+                match alter_database.operation {
+                    AlterDatabaseOperation::RenameDatabase { new_name } => {
+                        validate_object_name(&new_name)?;
+                        if self.database_names.contains_key(&new_name) {
+                            return Err(MetastoreError::DuplicateName(new_name));
+                        }
 
-                let oid = match self.database_names.remove(&alter_database_rename.name) {
-                    None => {
-                        return Err(MetastoreError::MissingDatabase(alter_database_rename.name));
+                        let oid = match self.database_names.remove(&alter_database.name) {
+                            None => {
+                                return Err(MetastoreError::MissingDatabase(alter_database.name));
+                            }
+                            Some(objs) => objs,
+                        };
+
+                        let ent = self.entries.get_mut(&oid)?.unwrap();
+                        ent.get_meta_mut().name = new_name.clone();
+
+                        // Add to database map
+                        self.database_names.insert(new_name, oid);
                     }
-                    Some(objs) => objs,
+                    AlterDatabaseOperation::SetAccessMode { access_mode } => {
+                        let oid = match self.database_names.get(&alter_database.name) {
+                            None => {
+                                return Err(MetastoreError::MissingDatabase(alter_database.name));
+                            }
+                            Some(oid) => oid,
+                        };
+
+                        match self.entries.get_mut(oid)?.unwrap() {
+                            CatalogEntry::Database(db_ent) => {
+                                db_ent.access_mode = access_mode;
+                            }
+                            other => unreachable!("unexpected entry type: {:?}", other),
+                        };
+                    }
                 };
-
-                let ent = self.entries.get_mut(&oid)?.unwrap();
-                ent.get_meta_mut().name = alter_database_rename.new_name.clone();
-
-                // Add to database map
-                self.database_names
-                    .insert(alter_database_rename.new_name, oid);
             }
             Mutation::AlterTunnelRotateKeys(alter_tunnel_rotate_keys) => {
                 let oid = match self.tunnel_names.get(&alter_tunnel_rotate_keys.name) {
@@ -1103,6 +1137,7 @@ impl BuiltinCatalog {
                     },
                     options: DatabaseOptions::Internal(DatabaseOptionsInternal {}),
                     tunnel_id: None,
+                    access_mode: SourceAccessMode::ReadOnly,
                 }),
             );
         }
@@ -1147,6 +1182,7 @@ impl BuiltinCatalog {
                     },
                     options: TableOptions::new_internal(table.columns.clone()),
                     tunnel_id: None,
+                    access_mode: SourceAccessMode::ReadOnly,
                 }),
             );
             schema_objects
@@ -1298,7 +1334,7 @@ mod tests {
     use object_store::memory::InMemory;
     use protogen::metastore::types::options::DatabaseOptionsDebug;
     use protogen::metastore::types::options::TableOptionsDebug;
-    use protogen::metastore::types::service::AlterDatabaseRename;
+    use protogen::metastore::types::service::AlterDatabase;
     use protogen::metastore::types::service::DropDatabase;
     use protogen::metastore::types::service::{
         CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropSchema,
@@ -1804,9 +1840,11 @@ mod tests {
         let e = db
             .try_mutate(
                 initial,
-                vec![Mutation::AlterDatabaseRename(AlterDatabaseRename {
+                vec![Mutation::AlterDatabase(AlterDatabase {
                     name: DEFAULT_CATALOG.to_string(),
-                    new_name: "hello".to_string(),
+                    operation: AlterDatabaseOperation::RenameDatabase {
+                        new_name: "hello".to_string(),
+                    },
                 })],
             )
             .await

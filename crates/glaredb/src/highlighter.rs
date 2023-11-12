@@ -22,7 +22,7 @@ impl Validator for SQLValidator {
     }
 }
 
-fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) -> std::io::Result<()> {
+fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
     let dialect = GenericDialect;
 
     let mut tokenizer = Tokenizer::new(&dialect, query);
@@ -44,16 +44,17 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) -> std::io::Res
     // such as `select * from read_csv("
     // in this case we will try to find the quote and colorize the rest of the query
     // otherwise we will return the error
-    if let Err(err) = tokens {
+    if tokens.is_err() {
         let pos = query.find(&['\'', '"'][..]);
+
         match pos {
-            None => return Err(err),
+            None => return,
             Some(pos) => {
                 let (s1, s2) = query.split_at(pos);
-                colorize_sql(s1, st, is_hint)?;
+                colorize_sql(s1, st, is_hint);
 
                 st.push((new_style(), s2.to_string()));
-                return Ok(());
+                return;
             }
         }
     }
@@ -130,6 +131,8 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) -> std::io::Res
                 | Keyword::VIEW
                 | Keyword::EXCEPT
                 | Keyword::EXPLAIN
+                | Keyword::ANALYZE
+                | Keyword::DESCRIBE
                 | Keyword::EXCLUDE => {
                     st.push((new_style().fg(Color::LightGreen), format!("{w}")));
                 }
@@ -147,13 +150,12 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) -> std::io::Res
             }
         }
     }
-    Ok(())
 }
 
 impl Highlighter for SQLHighlighter {
     fn highlight(&self, line: &str, _cursor: usize) -> reedline::StyledText {
         let mut styled_text = StyledText::new();
-        colorize_sql(line, &mut styled_text, false).unwrap();
+        colorize_sql(line, &mut styled_text, false);
         styled_text
     }
 }
@@ -172,7 +174,7 @@ impl SQLHinter {
     }
     fn paint(&self) -> String {
         let mut styled_text = StyledText::new();
-        colorize_sql(&self.current_hint, &mut styled_text, true).unwrap();
+        colorize_sql(&self.current_hint, &mut styled_text, true);
         styled_text.render_simple()
     }
 }
