@@ -36,9 +36,11 @@ where
 }
 
 /// Wrapper around the tiberius client.
+#[derive(Debug)]
 pub struct Connection<S: AsyncRead + AsyncWrite + Unpin + Send> {
     /// The actual client to the server.
     client: tiberius::Client<S>,
+    /// Channel for requests from client.
     receiver: mpsc::UnboundedReceiver<Request>,
 }
 
@@ -88,6 +90,7 @@ where
 }
 
 /// Client side of the connection.
+#[derive(Debug)]
 pub struct Client {
     sender: mpsc::UnboundedSender<Request>,
 }
@@ -122,6 +125,13 @@ impl Client {
     }
 }
 
+impl Drop for Client {
+    fn drop(&mut self) {
+        let _ = self.sender.send(Request::Drop);
+    }
+}
+
+#[derive(Debug)]
 enum Request {
     /// Run a query, sending response items to the channel.
     Query {
@@ -137,6 +147,7 @@ enum Request {
 /// Note that the stream implementation for this returns _only_ rows. The
 /// `QueryStream` in tiberius will return `QueryItem`, however that's not useful
 /// in our case, we just care about the rows.
+#[derive(Debug)]
 pub struct QueryStream {
     receiver: mpsc::Receiver<Result<QueryItem>>,
     metadata: Option<ResultMetadata>,

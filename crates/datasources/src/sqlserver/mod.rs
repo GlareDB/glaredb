@@ -2,6 +2,8 @@ pub mod errors;
 
 mod client;
 
+use client::{Client, Connection, QueryStream};
+
 use async_trait::async_trait;
 use chrono::naive::{NaiveDateTime, NaiveTime};
 use chrono::{DateTime, NaiveDate, Timelike, Utc};
@@ -37,12 +39,14 @@ use std::any::Any;
 use std::borrow::{Borrow, Cow};
 use std::fmt::{self, Write};
 use std::pin::Pin;
+use std::process::Output;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
+use tracing::warn;
 
 pub struct SqlServerAccess {
     config: tiberius::Config,
@@ -55,57 +59,38 @@ impl SqlServerAccess {
     }
 }
 
-struct ClientPool {
-    config: tiberius::Config,
-    clients: Mutex<Vec<WrappedClient>>,
+#[derive(Debug)]
+struct SqlServerAccessState {
+    client: Client,
+    /// Handle for underlying sql server connection.
+    ///
+    /// Kept on struct to avoid dropping the connection.
+    _conn_handle: JoinHandle<()>,
 }
 
-impl ClientPool {
-    fn new(config: tiberius::Config) -> Self {
-        ClientPool {
-            config,
-            clients: Mutex::new(Vec::new()),
-        }
-    }
-
-    /// Put a client for reuse.
-    fn put_client(&self, wrapped: WrappedClient) {
-        let mut clients = self.clients.lock();
-        clients.push(wrapped);
-    }
-
-    /// Reuse or create a new client.
-    async fn reuse_or_connect(&self) -> Result<WrappedClient> {
-        let mut clients = self.clients.lock();
-        if let Some(client) = clients.pop() {
-            return Ok(client);
-        }
-        std::mem::drop(clients);
-
-        let client = WrappedClient::connect(self.config.clone()).await?;
-        Ok(client)
-    }
-}
-
-struct WrappedClient {
-    /// SQL Server client. `Compat` is used for compatability between tokio's
-    /// async read/write traits and futures' read/write traits.
-    client: tiberius::Client<Compat<TcpStream>>,
-}
-
-impl WrappedClient {
+impl SqlServerAccessState {
     async fn connect(config: tiberius::Config) -> Result<Self> {
         let socket = TcpStream::connect(config.get_addr()).await?;
         socket.set_nodelay(true)?;
-        let client = tiberius::Client::connect(config, socket.compat_write()).await?;
-        Ok(Self { client })
+        let (client, connection) = client::connect(config, socket.compat_write()).await?;
+
+        let handle = tokio::spawn(async move {
+            if let Err(e) = connection.run().await {
+                warn!(%e, "sql server connection errored");
+            }
+        });
+
+        Ok(SqlServerAccessState {
+            client,
+            _conn_handle: handle,
+        })
     }
 
     /// Get the arrow schema for a table.
-    async fn get_table_schema(&mut self, schema: &str, name: &str) -> Result<ArrowSchema> {
+    async fn get_table_schema(&self, schema: &str, name: &str) -> Result<ArrowSchema> {
         let mut query = self
             .client
-            .query(format!("SELECT * FROM {schema}.{name} WHERE false"), &[])
+            .query(format!("SELECT * FROM {schema}.{name} WHERE false"))
             .await?;
         let cols = query.columns().await?;
 
@@ -166,21 +151,19 @@ pub struct SqlServerTableProviderConfig {
 pub struct SqlServerTableProvider {
     schema: String,
     table: String,
-    clients: ClientPool,
+    state: Arc<SqlServerAccessState>,
     arrow_schema: ArrowSchemaRef,
 }
 
 impl SqlServerTableProvider {
     pub async fn try_new(conf: SqlServerTableProviderConfig) -> Result<Self> {
-        let clients = ClientPool::new(conf.access.config);
-        let mut client = clients.reuse_or_connect().await?;
-        let arrow_schema = client.get_table_schema(&conf.schema, &conf.table).await?;
-        clients.put_client(client);
+        let state = SqlServerAccessState::connect(conf.access.config).await?;
+        let arrow_schema = state.get_table_schema(&conf.schema, &conf.table).await?;
 
         Ok(Self {
             schema: conf.schema,
             table: conf.table,
-            clients,
+            state: Arc::new(state),
             arrow_schema: Arc::new(arrow_schema),
         })
     }
@@ -263,7 +246,7 @@ impl TableProvider for SqlServerTableProvider {
 
 struct SqlServerExec {
     query: String,
-    client: Mutex<Option<WrappedClient>>,
+    state: Arc<SqlServerAccessState>,
     arrow_schema: ArrowSchemaRef,
     metrics: ExecutionPlanMetricsSet,
 }
@@ -301,7 +284,7 @@ impl ExecutionPlan for SqlServerExec {
     fn execute(
         &self,
         partition: usize,
-        _context: Arc<TaskContext>,
+        context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         if partition != 0 {
             return Err(DataFusionError::Execution(
@@ -309,17 +292,20 @@ impl ExecutionPlan for SqlServerExec {
             ));
         }
 
-        let mut client = self.client.lock();
-        let client = match client.take() {
-            Some(client) => client,
-            None => {
-                return Err(DataFusionError::Execution(
-                    "partition executed more than once".to_string(),
-                ))
-            }
+        // Clones to ensure the future is static.
+        let query = self.query.clone();
+        let state = self.state.clone();
+        let fut = async move { state.client.query(query).await };
+
+        let stream = RowStream {
+            stream_state: RowStreamState::Opening {
+                opening_fut: Box::pin(fut),
+            },
+            arrow_schema: self.arrow_schema.clone(),
+            chunk_size: context.session_config().batch_size(),
         };
 
-        unimplemented!()
+        Ok(Box::pin(stream))
     }
 
     fn statistics(&self) -> Statistics {
@@ -349,25 +335,28 @@ impl fmt::Debug for SqlServerExec {
 /// Stream state.
 ///
 /// Transitions:
-/// Open -> Opening
 /// Opening -> Scan
 /// Scan -> Done
 enum RowStreamState {
-    Open {
-        query: String,
-    },
+    /// We're still opening the query stream.
     Opening {
-        opening_fut: BoxFuture<'static, tiberius::Result<tiberius::QueryStream<'static>>>,
+        opening_fut: BoxFuture<'static, Result<QueryStream>>,
     },
+    /// Actively streaming from the query stream.
     Scan {
-        stream: BoxStream<'static, tiberius::Result<tiberius::Row>>,
+        stream: BoxStream<'static, Vec<Result<tiberius::Row>>>,
     },
+    /// We finished streaming or hit an error.
     Done,
 }
 
 struct RowStream {
+    /// Current state of the stream.
     stream_state: RowStreamState,
+    /// Schema of the output results.
     arrow_schema: ArrowSchemaRef,
+    /// Configuration paramter for how large the batches should be.
+    chunk_size: usize,
 }
 
 impl RowStream {
@@ -375,22 +364,35 @@ impl RowStream {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<Option<DatafusionResult<RecordBatch>>> {
-        // loop {
-        //     match &mut self.stream_state {
-        //         RowStreamState::Open { client, query } => {
-        //             let query = std::mem::take(query);
-        //             let fut = client.client.simple_query(query);
-        //             self.stream_state = RowStreamState::Opening {
-        //                 opening_fut: Box::pin(fut),
-        //             };
+        loop {
+            match &mut self.stream_state {
+                RowStreamState::Opening { opening_fut } => {
+                    match ready!(opening_fut.poll_unpin(cx)) {
+                        Ok(stream) => {
+                            // We have the stream, advance state.
+                            let stream = Box::pin(stream.chunks(self.chunk_size));
+                            self.stream_state = RowStreamState::Scan { stream };
+                            continue;
+                        }
+                        Err(e) => {
+                            self.stream_state = RowStreamState::Done;
+                            return Poll::Ready(Some(Err(DataFusionError::External(Box::new(e)))));
+                        }
+                    };
+                }
 
-        //             break;
-        //         }
-        //         _ => unimplemented!(),
-        //     }
-        // }
+                RowStreamState::Scan { stream } => {
+                    match ready!(stream.poll_next_unpin(cx)) {
+                        Some(chunk) => {
+                            // TODO: Process chunks
+                        }
+                        None => self.stream_state = RowStreamState::Done,
+                    }
+                }
 
-        unimplemented!()
+                RowStreamState::Done => return Poll::Ready(None),
+            }
+        }
     }
 }
 
@@ -398,26 +400,7 @@ impl Stream for RowStream {
     type Item = DatafusionResult<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = &mut *self;
-
-        unimplemented!()
-
-        // let state = this
-        //     .stream_state
-        //     .take()
-        //     .expect("state should always exist at beginning of poll");
-
-        // let state = match &state {
-        //     RowStreamState::Open { query } => {
-        //         let fut = this.client.client.simple_query(query);
-        //         RowStreamState::Opening {
-        //             opening_fut: fut.boxed(),
-        //         }
-        //     }
-        //     _ => unimplemented!(),
-        // };
-
-        // unimplemented!()
+        self.poll_next_inner(cx)
     }
 }
 
