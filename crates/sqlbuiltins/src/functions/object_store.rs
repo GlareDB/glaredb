@@ -252,7 +252,7 @@ fn get_store_access(
                         .map(FuncParamValue::param_into)
                         .transpose()?;
                     let account = opts
-                        .remove("account")
+                        .remove("account_name")
                         .map(FuncParamValue::param_into)
                         .transpose()?;
 

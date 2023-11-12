@@ -147,7 +147,9 @@ pub fn validate_copyto_dest_format_support(dest: &str, format: &str) -> Result<(
         // Google cloud
         (CopyToDestinationOptions::GCS, _all) |
         // AWS
-        (CopyToDestinationOptions::S3_STORAGE, _all)
+        (CopyToDestinationOptions::S3_STORAGE, _all) |
+        // Azure
+        (CopyToDestinationOptions::AZURE, _all)
     ) {
         Ok(())
     } else {

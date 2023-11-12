@@ -35,16 +35,17 @@ use protogen::metastore::types::catalog::{
     CatalogEntry, DatabaseEntry, RuntimePreference, SourceAccessMode, TableEntry,
 };
 use protogen::metastore::types::options::{
-    CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
-    CopyToDestinationOptionsS3, CopyToFormatOptions, CopyToFormatOptionsCsv,
-    CopyToFormatOptionsJson, CopyToFormatOptionsParquet, CredentialsOptions, CredentialsOptionsAws,
-    CredentialsOptionsAzure, CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions,
-    DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo,
-    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DeltaLakeCatalog,
-    DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
-    TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
-    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
-    TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
+    CopyToDestinationOptions, CopyToDestinationOptionsAzure, CopyToDestinationOptionsGcs,
+    CopyToDestinationOptionsLocal, CopyToDestinationOptionsS3, CopyToFormatOptions,
+    CopyToFormatOptionsCsv, CopyToFormatOptionsJson, CopyToFormatOptionsParquet,
+    CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsAzure, CredentialsOptionsDebug,
+    CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug,
+    DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake, DeltaLakeCatalog, DeltaLakeUnityCatalog, StorageOptions,
+    TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
+    TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres,
+    TableOptionsS3, TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug,
+    TunnelOptionsInternal, TunnelOptionsSsh,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
@@ -1410,11 +1411,22 @@ impl<'a> SessionPlanner<'a> {
 
         let dest = normalize_ident(stmt.dest);
 
+        // We currently support two versions of COPY TO:
+        //
+        // 1: COPY <source> TO <s3|gcs|azure> OPTIONS (...)
+        // 2: COPY <source> TO <dest> OPTIONS (...)
+        //
+        // Where the first matches on fixes keywords, and the second matches on
+        // the full object path (e.g. 'gs://bucket/object.csv'). This statement
+        // is what lets us differentiate between those, and if `url` is `None`,
+        // we'll resolve the actual object destination from the OPTIONS down
+        // below.
         let (dest, uri) = if matches!(
             dest.as_str(),
             CopyToDestinationOptions::LOCAL
                 | CopyToDestinationOptions::GCS
                 | CopyToDestinationOptions::S3_STORAGE
+                | CopyToDestinationOptions::AZURE
         ) {
             (dest.as_str(), None)
         } else {
@@ -1423,10 +1435,7 @@ impl<'a> SessionPlanner<'a> {
                 DatasourceUrlType::File => CopyToDestinationOptions::LOCAL,
                 DatasourceUrlType::Gcs => CopyToDestinationOptions::GCS,
                 DatasourceUrlType::S3 => CopyToDestinationOptions::S3_STORAGE,
-                DatasourceUrlType::Azure => {
-                    // TODO: Sean
-                    return Err(internal!("Copy to for azure not currently supported"));
-                }
+                DatasourceUrlType::Azure => CopyToDestinationOptions::AZURE,
                 DatasourceUrlType::Http => return Err(internal!("invalid URL scheme")),
             };
             (d, Some(u))
@@ -1511,6 +1520,41 @@ impl<'a> SessionPlanner<'a> {
                     secret_access_key,
                     region,
                     bucket,
+                    location,
+                })
+            }
+            CopyToDestinationOptions::AZURE => {
+                let creds = match creds_options.as_ref() {
+                    Some(CredentialsOptions::Azure(c)) => Some(c),
+                    Some(other) => {
+                        return Err(PlanError::String(format!(
+                            "invalid credentials {other} for azure"
+                        )))
+                    }
+                    None => None,
+                };
+
+                // Get account and access key from credentials if provided. If
+                // not provided, require that they've been passed in through
+                // OPTIONS.
+                let (account, access_key) = match creds {
+                    Some(c) => (c.account_name.clone(), c.access_key.clone()),
+                    None => (
+                        m.remove_required("account_name")?,
+                        m.remove_required("access_key")?,
+                    ),
+                };
+
+                // Grab location from the 'TO <location>' if provided, or from
+                // OPTIONS.
+                let location = match uri {
+                    Some(uri) => uri.to_string(),
+                    None => m.remove_required("location")?,
+                };
+
+                CopyToDestinationOptions::Azure(CopyToDestinationOptionsAzure {
+                    account,
+                    access_key,
                     location,
                 })
             }

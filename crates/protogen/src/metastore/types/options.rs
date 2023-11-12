@@ -420,17 +420,35 @@ impl From<DeltaLakeUnityCatalog> for options::DeltaLakeUnityCatalog {
     }
 }
 
-// Options for a generic `ObjectStore`; to make them as versatile and compact as possible it's just
-// a wrapper for a map, like in `delta-rs`, except here it's a `BTreeMap` instead of a `HashMap`,
-// since the former is `Hash` unlike the latter. This enables us to capture a variety of different
-// (potentially optional) parameters across different object stores and use-cases.
-// The following is a list of supported config options in `object_store` crate by object store type:
-// - [Azure options](https://docs.rs/object_store/latest/object_store/azure/enum.AzureConfigKey.html#variants)
-// - [S3 options](https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html#variants)
-// - [Google options](https://docs.rs/object_store/latest/object_store/gcp/enum.GoogleConfigKey.html#variants)
+/// Options for a generic `ObjectStore`; to make them as versatile and compact
+/// as possible it's just a wrapper for a map, like in `delta-rs`, except here
+/// it's a `BTreeMap` instead of a `HashMap`, since the former is `Hash` unlike
+/// the latter. This enables us to capture a variety of different (potentially
+/// optional) parameters across different object stores and use-cases.
+///
+/// The following is a list of supported config options in `object_store` crate
+/// by object store type:
+///
+/// - [Azure options](https://docs.rs/object_store/latest/object_store/azure/enum.AzureConfigKey.html#variants)
+/// - [S3 options](https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html#variants)
+/// - [Google options](https://docs.rs/object_store/latest/object_store/gcp/enum.GoogleConfigKey.html#variants)
 #[derive(Debug, Default, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct StorageOptions {
     pub inner: BTreeMap<String, String>,
+}
+
+impl StorageOptions {
+    /// Create a new set of storage options from some iterator of (k, v).
+    pub fn new_from_iter<K, V, I>(iter: I) -> Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+        I: IntoIterator<Item = (K, V)>,
+    {
+        let iter = iter.into_iter().map(|(k, v)| (k.into(), v.into()));
+        let inner = BTreeMap::from_iter(iter);
+        StorageOptions { inner }
+    }
 }
 
 impl TryFrom<options::StorageOptions> for StorageOptions {
@@ -1254,18 +1272,21 @@ pub enum CopyToDestinationOptions {
     Local(CopyToDestinationOptionsLocal),
     Gcs(CopyToDestinationOptionsGcs),
     S3(CopyToDestinationOptionsS3),
+    Azure(CopyToDestinationOptionsAzure),
 }
 
 impl CopyToDestinationOptions {
     pub const LOCAL: &str = "local";
     pub const GCS: &str = "gcs";
     pub const S3_STORAGE: &str = "s3";
+    pub const AZURE: &str = "azure";
 
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Local(_) => Self::LOCAL,
             Self::Gcs(_) => Self::GCS,
             Self::S3(_) => Self::S3_STORAGE,
+            Self::Azure(_) => Self::AZURE,
         }
     }
 
@@ -1274,6 +1295,7 @@ impl CopyToDestinationOptions {
             Self::Local(CopyToDestinationOptionsLocal { location }) => location,
             Self::Gcs(CopyToDestinationOptionsGcs { location, .. }) => location,
             Self::S3(CopyToDestinationOptionsS3 { location, .. }) => location,
+            Self::Azure(CopyToDestinationOptionsAzure { location, .. }) => location,
         }
     }
 }
@@ -1296,6 +1318,13 @@ pub struct CopyToDestinationOptionsS3 {
     pub secret_access_key: Option<String>,
     pub region: String,
     pub bucket: String,
+    pub location: String,
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct CopyToDestinationOptionsAzure {
+    pub account: String,
+    pub access_key: String,
     pub location: String,
 }
 
