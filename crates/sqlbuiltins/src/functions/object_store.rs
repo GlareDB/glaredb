@@ -310,7 +310,7 @@ fn get_store_access(
                         }
                         other => {
                             return Err(ExtensionError::String(format!(
-                                "invalid credentials for S3, got {}",
+                                "invalid credentials for Azure, got {}",
                                 other.as_str()
                             )))
                         }
