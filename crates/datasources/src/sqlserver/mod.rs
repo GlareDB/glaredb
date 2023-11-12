@@ -1,5 +1,7 @@
 pub mod errors;
 
+mod client;
+
 use async_trait::async_trait;
 use chrono::naive::{NaiveDateTime, NaiveTime};
 use chrono::{DateTime, NaiveDate, Timelike, Utc};
@@ -355,7 +357,7 @@ enum RowStreamState {
         query: String,
     },
     Opening {
-        opening_fut: BoxFuture<'static, tiberius::Result<tiberius::QueryStream<'a>>>,
+        opening_fut: BoxFuture<'static, tiberius::Result<tiberius::QueryStream<'static>>>,
     },
     Scan {
         stream: BoxStream<'static, tiberius::Result<tiberius::Row>>,
@@ -364,7 +366,7 @@ enum RowStreamState {
 }
 
 struct RowStream {
-    stream_state: RowStreamState<'_>,
+    stream_state: RowStreamState,
     arrow_schema: ArrowSchemaRef,
 }
 
@@ -373,20 +375,20 @@ impl RowStream {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<Option<DatafusionResult<RecordBatch>>> {
-        loop {
-            match &mut self.stream_state {
-                RowStreamState::Open { client, query } => {
-                    let query = std::mem::take(query);
-                    let fut = client.client.simple_query(query);
-                    self.stream_state = RowStreamState::Opening {
-                        opening_fut: Box::pin(fut),
-                    };
+        // loop {
+        //     match &mut self.stream_state {
+        //         RowStreamState::Open { client, query } => {
+        //             let query = std::mem::take(query);
+        //             let fut = client.client.simple_query(query);
+        //             self.stream_state = RowStreamState::Opening {
+        //                 opening_fut: Box::pin(fut),
+        //             };
 
-                    break;
-                }
-                _ => unimplemented!(),
-            }
-        }
+        //             break;
+        //         }
+        //         _ => unimplemented!(),
+        //     }
+        // }
 
         unimplemented!()
     }
