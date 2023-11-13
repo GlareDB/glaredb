@@ -274,6 +274,11 @@ async fn get_db_lister(
                 .map_err(|e| ExtensionError::Access(Box::new(e)))?;
             Box::new(accessor)
         }
+        DatabaseOptions::SqlServer(_) => {
+            return Err(ExtensionError::Unimplemented(
+                "SQL Server information listing",
+            ))
+        }
         DatabaseOptions::Delta(_) => {
             return Err(ExtensionError::Unimplemented(
                 "deltalake information listing",

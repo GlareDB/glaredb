@@ -91,6 +91,7 @@ pub enum DatabaseOptions {
     Mongo(DatabaseOptionsMongo),
     Snowflake(DatabaseOptionsSnowflake),
     Delta(DatabaseOptionsDeltaLake),
+    SqlServer(DatabaseOptionsSqlServer),
 }
 
 impl DatabaseOptions {
@@ -102,6 +103,7 @@ impl DatabaseOptions {
     pub const MONGO: &str = "mongo";
     pub const SNOWFLAKE: &str = "snowflake";
     pub const DELTA: &str = "delta";
+    pub const SQL_SERVER: &str = "sql_server";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -113,6 +115,7 @@ impl DatabaseOptions {
             DatabaseOptions::Mongo(_) => Self::MONGO,
             DatabaseOptions::Snowflake(_) => Self::SNOWFLAKE,
             DatabaseOptions::Delta(_) => Self::DELTA,
+            DatabaseOptions::SqlServer(_) => Self::SQL_SERVER,
         }
     }
 }
@@ -143,6 +146,9 @@ impl TryFrom<options::database_options::Options> for DatabaseOptions {
                 DatabaseOptions::Snowflake(v.try_into()?)
             }
             options::database_options::Options::Delta(v) => DatabaseOptions::Delta(v.try_into()?),
+            options::database_options::Options::SqlServer(v) => {
+                DatabaseOptions::SqlServer(v.try_into()?)
+            }
         })
     }
 }
@@ -167,6 +173,9 @@ impl From<DatabaseOptions> for options::database_options::Options {
                 options::database_options::Options::Snowflake(v.into())
             }
             DatabaseOptions::Delta(v) => options::database_options::Options::Delta(v.into()),
+            DatabaseOptions::SqlServer(v) => {
+                options::database_options::Options::SqlServer(v.into())
+            }
         }
     }
 }
@@ -297,6 +306,28 @@ impl TryFrom<options::DatabaseOptionsMongo> for DatabaseOptionsMongo {
 impl From<DatabaseOptionsMongo> for options::DatabaseOptionsMongo {
     fn from(value: DatabaseOptionsMongo) -> Self {
         options::DatabaseOptionsMongo {
+            connection_string: value.connection_string,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct DatabaseOptionsSqlServer {
+    pub connection_string: String,
+}
+
+impl TryFrom<options::DatabaseOptionsSqlServer> for DatabaseOptionsSqlServer {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DatabaseOptionsSqlServer) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsSqlServer {
+            connection_string: value.connection_string,
+        })
+    }
+}
+
+impl From<DatabaseOptionsSqlServer> for options::DatabaseOptionsSqlServer {
+    fn from(value: DatabaseOptionsSqlServer) -> Self {
+        options::DatabaseOptionsSqlServer {
             connection_string: value.connection_string,
         }
     }
@@ -462,6 +493,7 @@ pub enum TableOptions {
     Snowflake(TableOptionsSnowflake),
     Delta(TableOptionsObjectStore),
     Iceberg(TableOptionsObjectStore),
+    SqlServer(TableOptionsSqlServer),
 }
 
 impl TableOptions {
@@ -477,6 +509,7 @@ impl TableOptions {
     pub const SNOWFLAKE: &str = "snowflake";
     pub const DELTA: &str = "delta";
     pub const ICEBERG: &str = "iceberg";
+    pub const SQL_SERVER: &str = "sql_server";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -496,6 +529,7 @@ impl TableOptions {
             TableOptions::Snowflake(_) => Self::SNOWFLAKE,
             TableOptions::Delta(_) => Self::DELTA,
             TableOptions::Iceberg(_) => Self::ICEBERG,
+            TableOptions::SqlServer(_) => Self::SQL_SERVER,
         }
     }
 }
@@ -522,6 +556,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::Snowflake(v) => TableOptions::Snowflake(v.try_into()?),
             options::table_options::Options::Delta(v) => TableOptions::Delta(v.try_into()?),
             options::table_options::Options::Iceberg(v) => TableOptions::Iceberg(v.try_into()?),
+            options::table_options::Options::SqlServer(v) => TableOptions::SqlServer(v.try_into()?),
         })
     }
 }
@@ -549,6 +584,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Snowflake(v) => options::table_options::Options::Snowflake(v.into()),
             TableOptions::Delta(v) => options::table_options::Options::Delta(v.into()),
             TableOptions::Iceberg(v) => options::table_options::Options::Iceberg(v.into()),
+            TableOptions::SqlServer(v) => options::table_options::Options::SqlServer(v.into()),
         })
     }
 }
@@ -860,6 +896,34 @@ impl From<TableOptionsMongo> for options::TableOptionsMongo {
             connection_string: value.connection_string,
             database: value.database,
             collection: value.collection,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct TableOptionsSqlServer {
+    pub connection_string: String,
+    pub schema: String,
+    pub table: String,
+}
+
+impl TryFrom<options::TableOptionsSqlServer> for TableOptionsSqlServer {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsSqlServer) -> Result<Self, Self::Error> {
+        Ok(TableOptionsSqlServer {
+            connection_string: value.connection_string,
+            schema: value.schema,
+            table: value.table,
+        })
+    }
+}
+
+impl From<TableOptionsSqlServer> for options::TableOptionsSqlServer {
+    fn from(value: TableOptionsSqlServer) -> Self {
+        options::TableOptionsSqlServer {
+            connection_string: value.connection_string,
+            schema: value.schema,
+            table: value.table,
         }
     }
 }
