@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 # Spins up a SQL Server docker container and loads it with data.
+#
+# Requires `sqlcmd` to be installed: <https://github.com/microsoft/go-sqlcmd>
 
 set -e
 
@@ -28,6 +30,8 @@ CONTAINER_ID=$(docker run \
        --name $CONTAINER_NAME \
        -d \
        mcr.microsoft.com/mssql/server:2022-latest)
+
+# sqlcmd -S localhost -U SA -P Password123 -i testdata/sqllogictests_sqlserver/data/setup-sqlserver.sql
 
 echo "server=tcp:localhost,1433;user=SA;password=Password123;TrustServerCertificate=true"
 
