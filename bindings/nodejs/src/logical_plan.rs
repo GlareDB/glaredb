@@ -46,12 +46,6 @@ impl JsLogicalPlan {
         Ok(())
     }
 
-    // TEMPORARILY DISABLED -- we need to figure out how to convert the raw record batches to JS objects.
-    // #[napi(catch_unwind)]
-    // pub async fn record_batches(&self) -> napi::Result<Vec<crate::record_batch::JsRecordBatch>> {
-    //     self.execute_inner().await?.record_batches().await
-    // }
-
     #[napi(catch_unwind)]
     pub async fn to_ipc(&self) -> napi::Result<napi::bindgen_prelude::Buffer> {
         let inner = self.execute_inner().await?.to_arrow_inner().await?;
