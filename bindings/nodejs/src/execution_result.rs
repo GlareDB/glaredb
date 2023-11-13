@@ -7,7 +7,6 @@ use futures::StreamExt;
 use sqlexec::session::ExecutionResult;
 
 use crate::error::JsGlareDbError;
-use crate::record_batch::JsRecordBatch;
 
 pub(crate) struct JsExecutionResult(pub(crate) ExecutionResult);
 
@@ -27,14 +26,17 @@ impl JsExecutionResult {
     pub(crate) async fn to_arrow_inner(&mut self) -> napi::Result<Vec<u8>> {
         let res = match &mut self.0 {
             ExecutionResult::Query { stream, .. } => {
-                let batch = stream.next().await.unwrap().map_err(JsGlareDbError::from)?;
-
                 let mut data_batch = vec![];
                 let cursor = std::io::Cursor::new(&mut data_batch);
-                let mut writer = FileWriter::try_new(cursor, batch.schema().as_ref()).unwrap();
+                let mut writer = FileWriter::try_new(cursor, stream.schema().as_ref())
+                    .map_err(JsGlareDbError::from)?;
 
-                writer.write(&batch).unwrap();
-                writer.finish().unwrap();
+                while let Some(batch) = stream.next().await {
+                    let batch = batch.map_err(JsGlareDbError::from)?;
+                    writer.write(&batch).map_err(JsGlareDbError::from)?;
+                }
+
+                writer.finish().map_err(JsGlareDbError::from)?;
                 drop(writer);
 
                 data_batch
@@ -42,20 +44,6 @@ impl JsExecutionResult {
             _ => vec![],
         };
         Ok(res)
-    }
-
-    pub(crate) async fn record_batches(&mut self) -> napi::Result<Vec<JsRecordBatch>> {
-        let mut batches = vec![];
-        match &mut self.0 {
-            ExecutionResult::Query { stream, .. } => {
-                while let Some(r) = stream.next().await {
-                    let batch = r.map_err(JsGlareDbError::from)?;
-                    batches.push(JsRecordBatch::from(batch));
-                }
-                Ok(batches)
-            }
-            _ => Ok(batches),
-        }
     }
 
     pub(crate) async fn show(&mut self) -> napi::Result<()> {

@@ -252,9 +252,8 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { connect, Connection, JsLogicalPlan, DataTypeKind } = nativeBinding
+const { connect, Connection, JsLogicalPlan } = nativeBinding
 
 module.exports.connect = connect
 module.exports.Connection = Connection
 module.exports.JsLogicalPlan = JsLogicalPlan
-module.exports.DataTypeKind = DataTypeKind
