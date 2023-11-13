@@ -271,7 +271,7 @@ impl TableProvider for SqlServerTableProvider {
         _overwrite: bool,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Execution(
-            "inserts not supported for SQL Server".to_string(),
+            "inserts not yet supported for SQL Server".to_string(),
         ))
     }
 }
