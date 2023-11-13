@@ -30,10 +30,15 @@ use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::Duration;
+use tiberius::FromSql;
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tracing::warn;
+
+/// Timeout when attempting to connecting to the remote server.
+pub const CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Configuration needed for accessing a sql server instance.
 pub struct SqlServerAccess {
@@ -75,7 +80,18 @@ struct SqlServerAccessState {
 
 impl SqlServerAccessState {
     async fn connect(config: tiberius::Config) -> Result<Self> {
-        let socket = TcpStream::connect(config.get_addr()).await?;
+        let socket =
+            match tokio::time::timeout(CONNECTION_TIMEOUT, TcpStream::connect(config.get_addr()))
+                .await
+            {
+                Ok(result) => result,
+                Err(_) => {
+                    return Err(SqlServerError::String(format!(
+                        "timed out connection to SQL Server after {} seconds",
+                        CONNECTION_TIMEOUT.as_secs(),
+                    )))
+                }
+            }?;
         socket.set_nodelay(true)?;
         let (client, connection) = client::connect(config, socket.compat_write()).await?;
 
@@ -123,10 +139,8 @@ impl SqlServerAccessState {
                 ColumnType::Bit => DataType::Boolean,
                 ColumnType::Int1 => DataType::Int8,
                 ColumnType::Int2 => DataType::Int16,
-                // TODO: We don't get n but from my testing, creating a table
-                // with INT (32-bit) returns the column type as Intn.
-                ColumnType::Int4 | ColumnType::Intn => DataType::Int32,
-                ColumnType::Int8 => DataType::Int64,
+                ColumnType::Int4 => DataType::Int32,
+                ColumnType::Int8 | ColumnType::Intn => DataType::Int64,
                 ColumnType::Float4 => DataType::Float32,
                 ColumnType::Float8 | ColumnType::Floatn => DataType::Float64,
                 // TODO: Double check that this mapping is correct.
@@ -142,6 +156,7 @@ impl SqlServerAccessState {
                 | ColumnType::NChar
                 | ColumnType::NText
                 | ColumnType::BigChar
+                | ColumnType::BigVarChar
                 | ColumnType::NVarchar => DataType::Utf8,
                 ColumnType::BigBinary => DataType::Binary,
                 other => {
@@ -463,7 +478,14 @@ fn rows_to_record_batch(
             DataType::Boolean => make_column!(BooleanBuilder, rows, col_idx),
             DataType::Int16 => make_column!(Int16Builder, rows, col_idx),
             DataType::Int32 => make_column!(Int32Builder, rows, col_idx),
-            DataType::Int64 => make_column!(Int64Builder, rows, col_idx),
+            DataType::Int64 => {
+                let mut arr = Int64Builder::with_capacity(rows.len());
+                for row in rows.iter() {
+                    let val: Option<Intn> = row.try_get(col_idx)?;
+                    arr.append_option(val.map(|v| v.0));
+                }
+                Arc::new(arr.finish())
+            }
             DataType::Float32 => make_column!(Float32Builder, rows, col_idx),
             DataType::Float64 => make_column!(Float64Builder, rows, col_idx),
             DataType::Utf8 => {
@@ -507,4 +529,31 @@ fn rows_to_record_batch(
 
     let batch = RecordBatch::try_new(schema, columns)?;
     Ok(batch)
+}
+
+/// Read a variable width integer from a column value.
+///
+/// SQL Server has the interesting property where a column can store ints of
+/// different sizes (so row 'A' might have the column be i32, and row 'B' it
+/// might be i64). Since we need to be able store column values all as one type,
+/// we just promote everything to i64 when reading.
+// TODO: Likely need to do this for the other 'n' types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+struct Intn(i64);
+
+impl<'a> FromSql<'a> for Intn {
+    fn from_sql(value: &'a tiberius::ColumnData<'static>) -> tiberius::Result<Option<Self>> {
+        Ok(match value {
+            tiberius::ColumnData::U8(v) => v.as_ref().map(|v| Intn(*v as i64)),
+            tiberius::ColumnData::I16(v) => v.as_ref().map(|v| Intn(*v as i64)),
+            tiberius::ColumnData::I32(v) => v.as_ref().map(|v| Intn(*v as i64)),
+            tiberius::ColumnData::I64(v) => v.as_ref().map(|v| Intn(*v)),
+            other => {
+                return Err(tiberius::error::Error::Conversion(
+                    format!("{other:?} to Intn").into(),
+                ))
+            }
+        })
+    }
 }
