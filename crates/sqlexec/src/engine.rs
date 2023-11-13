@@ -57,7 +57,7 @@ impl EngineStorageConfig {
         }
         let path = fs::canonicalize(path)?;
         Ok(Self {
-            location: Url::from_file_path(&path).map_err(|_| {
+            location: Url::from_directory_path(&path).map_err(|_| {
                 ExecError::String(format!(
                     "Failed to generate a file:// URL from path: {}",
                     path.display()
