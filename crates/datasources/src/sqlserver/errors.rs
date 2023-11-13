@@ -6,6 +6,8 @@ pub enum SqlServerError {
     Tiberius(#[from] tiberius::error::Error),
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Arrow(#[from] datafusion::arrow::error::ArrowError),
 }
 
 pub type Result<T, E = SqlServerError> = std::result::Result<T, E>;

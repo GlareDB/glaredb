@@ -6443,6 +6443,7 @@ dependencies = [
  "asynchronous-codec",
  "byteorder",
  "bytes",
+ "chrono",
  "connection-string",
  "encoding",
  "enumflags2",

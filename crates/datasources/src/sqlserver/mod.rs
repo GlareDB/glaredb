@@ -2,14 +2,12 @@ pub mod errors;
 
 mod client;
 
-use client::{Client, Connection, QueryStream};
+use client::{Client, QueryStream};
 
 use async_trait::async_trait;
-use chrono::naive::{NaiveDateTime, NaiveTime};
-use chrono::{DateTime, NaiveDate, Timelike, Utc};
-use datafusion::arrow::array::Decimal128Builder;
+use chrono::naive::NaiveDateTime;
 use datafusion::arrow::datatypes::{
-    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
@@ -18,34 +16,23 @@ use datafusion::execution::context::SessionState;
 use datafusion::execution::context::TaskContext;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::memory::MemoryExec;
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion::physical_plan::metrics::MetricsSet;
 use datafusion::physical_plan::{
-    execute_stream, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
-use datafusion::scalar::ScalarValue;
-use datafusion_ext::errors::ExtensionError;
-use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{Result, SqlServerError};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
-use parking_lot::Mutex;
-use protogen::metastore::types::options::TunnelOptions;
-use protogen::{FromOptionalField, ProtoConvError};
-use serde::{Deserialize, Serialize};
 use std::any::Any;
-use std::borrow::{Borrow, Cow};
-use std::fmt::{self, Write};
+use std::fmt;
 use std::pin::Pin;
-use std::process::Output;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
-use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
+use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tracing::warn;
 
 pub struct SqlServerAccess {
@@ -110,6 +97,9 @@ impl SqlServerAccessState {
             // TODO: Decimal/Numeric, tiberius doesn't seem to provide the
             // scale/precision.
 
+            // Tiberius' mapping of Rust types to SQL Server types:
+            // <https://docs.rs/tiberius/latest/tiberius/trait.FromSql.html>
+
             let arrow_typ = match col.column_type() {
                 ColumnType::Null => DataType::Null,
                 ColumnType::Bit => DataType::Binary,
@@ -119,7 +109,12 @@ impl SqlServerAccessState {
                 ColumnType::Int8 => DataType::Int64,
                 ColumnType::Float4 => DataType::Float32,
                 ColumnType::Float8 => DataType::Float64,
-                ColumnType::Datetime4 => DataType::Date32,
+                // TODO: Double check that this mapping is correct.
+                ColumnType::Datetime | ColumnType::Datetime2 | ColumnType::Datetime4 => {
+                    DataType::Timestamp(TimeUnit::Nanosecond, None)
+                }
+                // TODO: Tiberius doesn't give us the offset here.
+                ColumnType::DatetimeOffsetn => DataType::Timestamp(TimeUnit::Nanosecond, None),
                 ColumnType::Guid => DataType::Utf8,
                 // TODO: These actually have UTF-16 encoding...
                 ColumnType::Text
@@ -194,7 +189,7 @@ impl TableProvider for SqlServerTableProvider {
         &self,
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        filters: &[Expr],
+        _filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // Project the schema.
@@ -217,25 +212,25 @@ impl TableProvider for SqlServerTableProvider {
             None => String::new(),
         };
 
-        // TODO: Where
+        // TODO: Where/filters
 
         let query = format!(
             "SELECT {projection_string} FROM {}.{} {limit_string}",
             self.schema, self.table
         );
 
-        unimplemented!()
-        // Ok(Arc::new(SqlServerExec {
-        //     query,
-        //     arrow_schema: projected_schema,
-        //     metrics: ExecutionPlanMetricsSet::new(),
-        // }))
+        Ok(Arc::new(SqlServerExec {
+            query,
+            state: self.state.clone(),
+            arrow_schema: projected_schema,
+            metrics: ExecutionPlanMetricsSet::new(),
+        }))
     }
 
     async fn insert_into(
         &self,
-        state: &SessionState,
-        input: Arc<dyn ExecutionPlan>,
+        _state: &SessionState,
+        _input: Arc<dyn ExecutionPlan>,
         _overwrite: bool,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Execution(
@@ -244,6 +239,7 @@ impl TableProvider for SqlServerTableProvider {
     }
 }
 
+/// Execution plan for reading from SQL Server.
 struct SqlServerExec {
     query: String,
     state: Arc<SqlServerAccessState>,
@@ -305,7 +301,11 @@ impl ExecutionPlan for SqlServerExec {
             chunk_size: context.session_config().batch_size(),
         };
 
-        Ok(Box::pin(stream))
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            stream,
+            partition,
+            &self.metrics,
+        )))
     }
 
     fn statistics(&self) -> Statistics {
@@ -381,14 +381,16 @@ impl RowStream {
                     };
                 }
 
-                RowStreamState::Scan { stream } => {
-                    match ready!(stream.poll_next_unpin(cx)) {
-                        Some(chunk) => {
-                            // TODO: Process chunks
+                RowStreamState::Scan { stream } => match ready!(stream.poll_next_unpin(cx)) {
+                    Some(chunk) => match rows_to_record_batch(chunk, self.arrow_schema.clone()) {
+                        Ok(batch) => return Poll::Ready(Some(Ok(batch))),
+                        Err(e) => {
+                            self.stream_state = RowStreamState::Done;
+                            return Poll::Ready(Some(Err(DataFusionError::External(Box::new(e)))));
                         }
-                        None => self.stream_state = RowStreamState::Done,
-                    }
-                }
+                    },
+                    None => self.stream_state = RowStreamState::Done,
+                },
 
                 RowStreamState::Done => return Poll::Ready(None),
             }
@@ -408,4 +410,79 @@ impl RecordBatchStream for RowStream {
     fn schema(&self) -> ArrowSchemaRef {
         self.arrow_schema.clone()
     }
+}
+
+/// Convert a chunk of rows into a record batch.
+fn rows_to_record_batch(
+    rows: Vec<Result<tiberius::Row>>,
+    schema: ArrowSchemaRef,
+) -> Result<RecordBatch> {
+    use datafusion::arrow::array::{
+        Array, BinaryBuilder, BooleanBuilder, Float32Builder, Float64Builder, Int16Builder,
+        Int32Builder, Int64Builder, StringBuilder, TimestampNanosecondBuilder,
+    };
+
+    let rows = rows.into_iter().collect::<Result<Vec<_>>>()?;
+
+    /// Macro for generating the match arms when converting rows to a record batch.
+    macro_rules! make_column {
+        ($builder:ty, $rows:expr, $col_idx:expr) => {{
+            let mut arr = <$builder>::with_capacity($rows.len());
+            for row in $rows.iter() {
+                arr.append_option(row.try_get($col_idx)?);
+            }
+            Arc::new(arr.finish())
+        }};
+    }
+
+    let mut columns = Vec::with_capacity(schema.fields.len());
+    for (col_idx, field) in schema.fields.iter().enumerate() {
+        let col: Arc<dyn Array> = match field.data_type() {
+            DataType::Boolean => make_column!(BooleanBuilder, rows, col_idx),
+            DataType::Int16 => make_column!(Int16Builder, rows, col_idx),
+            DataType::Int32 => make_column!(Int32Builder, rows, col_idx),
+            DataType::Int64 => make_column!(Int64Builder, rows, col_idx),
+            DataType::Float32 => make_column!(Float32Builder, rows, col_idx),
+            DataType::Float64 => make_column!(Float64Builder, rows, col_idx),
+            DataType::Utf8 => {
+                // Assumes an average of 16 bytes per item.
+                let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
+                for row in rows.iter() {
+                    let val: Option<&str> = row.try_get(col_idx)?;
+                    arr.append_option(val);
+                }
+                Arc::new(arr.finish())
+            }
+            DataType::Binary => {
+                // Assumes an average of 16 bytes per item.
+                let mut arr = BinaryBuilder::with_capacity(rows.len(), rows.len() * 16);
+                for row in rows.iter() {
+                    let val: Option<&[u8]> = row.try_get(col_idx)?;
+                    arr.append_option(val);
+                }
+                Arc::new(arr.finish())
+            }
+            DataType::Timestamp(TimeUnit::Nanosecond, None) => {
+                let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len());
+                for row in rows.iter() {
+                    let val: Option<NaiveDateTime> = row.try_get(col_idx)?;
+                    let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
+                    arr.append_option(val);
+                }
+                Arc::new(arr.finish())
+            }
+
+            // TODO: All the others...
+            // Tiberius mapping: <https://docs.rs/tiberius/latest/tiberius/trait.FromSql.html>
+            other => {
+                return Err(SqlServerError::String(format!(
+                    "unsupported data type for sql server: {other}"
+                )))
+            }
+        };
+        columns.push(col);
+    }
+
+    let batch = RecordBatch::try_new(schema, columns)?;
+    Ok(batch)
 }
