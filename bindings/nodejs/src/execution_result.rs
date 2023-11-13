@@ -26,18 +26,17 @@ impl JsExecutionResult {
     pub(crate) async fn to_arrow_inner(&mut self) -> napi::Result<Vec<u8>> {
         let res = match &mut self.0 {
             ExecutionResult::Query { stream, .. } => {
-                let batch = stream.next().await;
-                if batch.is_none() {
-                    return Ok(vec![]);
-                }
-                let batch = batch.unwrap().map_err(JsGlareDbError::from)?;
-
                 let mut data_batch = vec![];
                 let cursor = std::io::Cursor::new(&mut data_batch);
-                let mut writer = FileWriter::try_new(cursor, batch.schema().as_ref()).unwrap();
+                let mut writer = FileWriter::try_new(cursor, stream.schema().as_ref())
+                    .map_err(JsGlareDbError::from)?;
 
-                writer.write(&batch).unwrap();
-                writer.finish().unwrap();
+                while let Some(batch) = stream.next().await {
+                    let batch = batch.map_err(JsGlareDbError::from)?;
+                    writer.write(&batch).map_err(JsGlareDbError::from)?;
+                }
+
+                writer.finish().map_err(JsGlareDbError::from)?;
                 drop(writer);
 
                 data_batch
