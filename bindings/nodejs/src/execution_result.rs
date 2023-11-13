@@ -7,7 +7,6 @@ use futures::StreamExt;
 use sqlexec::session::ExecutionResult;
 
 use crate::error::JsGlareDbError;
-use crate::record_batch::JsRecordBatch;
 
 pub(crate) struct JsExecutionResult(pub(crate) ExecutionResult);
 
@@ -27,7 +26,11 @@ impl JsExecutionResult {
     pub(crate) async fn to_arrow_inner(&mut self) -> napi::Result<Vec<u8>> {
         let res = match &mut self.0 {
             ExecutionResult::Query { stream, .. } => {
-                let batch = stream.next().await.unwrap().map_err(JsGlareDbError::from)?;
+                let batch = stream.next().await;
+                if batch.is_none() {
+                    return Ok(vec![]);
+                }
+                let batch = batch.unwrap().map_err(JsGlareDbError::from)?;
 
                 let mut data_batch = vec![];
                 let cursor = std::io::Cursor::new(&mut data_batch);
@@ -44,19 +47,20 @@ impl JsExecutionResult {
         Ok(res)
     }
 
-    pub(crate) async fn record_batches(&mut self) -> napi::Result<Vec<JsRecordBatch>> {
-        let mut batches = vec![];
-        match &mut self.0 {
-            ExecutionResult::Query { stream, .. } => {
-                while let Some(r) = stream.next().await {
-                    let batch = r.map_err(JsGlareDbError::from)?;
-                    batches.push(JsRecordBatch::from(batch));
-                }
-                Ok(batches)
-            }
-            _ => Ok(batches),
-        }
-    }
+    // TEMPORARILY DISABLED -- we need to figure out how to convert the raw record batches to JS objects.
+    // pub(crate) async fn record_batches(&mut self) -> napi::Result<Vec<JsRecordBatch>> {
+    //     let mut batches = vec![];
+    //     match &mut self.0 {
+    //         ExecutionResult::Query { stream, .. } => {
+    //             while let Some(r) = stream.next().await {
+    //                 let batch = r.map_err(JsGlareDbError::from)?;
+    //                 batches.push(JsRecordBatch::from(batch));
+    //             }
+    //             Ok(batches)
+    //         }
+    //         _ => Ok(batches),
+    //     }
+    // }
 
     pub(crate) async fn show(&mut self) -> napi::Result<()> {
         print_batch(&mut self.0).await?;
