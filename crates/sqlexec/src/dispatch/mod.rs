@@ -90,6 +90,8 @@ pub enum DispatchError {
     #[error(transparent)]
     IcebergDatasource(#[from] datasources::lake::iceberg::errors::IcebergError),
     #[error(transparent)]
+    SqlServerError(#[from] datasources::sqlserver::errors::SqlServerError),
+    #[error(transparent)]
     NativeDatasource(#[from] datasources::native::errors::NativeError),
     #[error(transparent)]
     CommonDatasource(#[from] datasources::common::errors::DatasourceCommonError),

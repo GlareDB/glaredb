@@ -191,7 +191,6 @@ jobs:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
       - name: Setup SnowSQL
-
         run: |
           curl -o snowsql.bash \
             https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
@@ -205,7 +204,6 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
 
       - name: Setup SQL Logic Test Fixtures
-
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           GCP_PROJECT_ID: glaredb-artifacts
@@ -267,6 +265,9 @@ jobs:
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
+          # Prepare SLT (SQL Server)
+          export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
+
           # Prepare SLT (MinIO)
           ./scripts/create-test-minio-store.sh
           
@@ -274,6 +275,8 @@ jobs:
           ./scripts/create-test-gcs-store.sh
 
           echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
+          # Run all data source tests without running tunnel tests or the basic
+          # SLT tests.
           just slt -v --exclude 'sqllogictests/*' --exclude '*/tunnels/ssh'
 
           echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
@@ -289,6 +292,7 @@ jobs:
           just sql-logic-tests --rpc-test 'sqllogictests_native/*'
           just sql-logic-tests --rpc-test 'sqllogictests_object_store/*'
           just sql-logic-tests --rpc-test 'sqllogictests_snowflake/*'
+          just sql-logic-tests --rpc-test 'sqllogictests_sqlserver/*'
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
           just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'

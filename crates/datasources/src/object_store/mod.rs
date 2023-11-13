@@ -390,7 +390,8 @@ pub fn init_session_registry<'a>(
             | TableOptions::BigQuery(_)
             | TableOptions::Mysql(_)
             | TableOptions::Mongo(_)
-            | TableOptions::Snowflake(_) => continue,
+            | TableOptions::Snowflake(_)
+            | TableOptions::SqlServer(_) => continue,
         };
 
         let base_url = access.base_url()?;
