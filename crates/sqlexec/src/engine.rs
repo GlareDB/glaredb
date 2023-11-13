@@ -53,7 +53,7 @@ pub struct EngineStorageConfig {
 impl EngineStorageConfig {
     pub fn try_from_path_buf(path: &PathBuf) -> Result<Self> {
         if !path.exists() {
-            std::fs::create_dir_all(&path)?;
+            std::fs::create_dir_all(path)?;
         }
         let path = fs::canonicalize(path)?;
         Ok(Self {
