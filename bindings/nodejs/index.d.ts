@@ -12,74 +12,6 @@ export interface ConnectOptions {
 }
 /** Connect to a GlareDB database. */
 export function connect(dataDirOrCloudUrl?: string | undefined | null, options?: ConnectOptions | undefined | null): Promise<Connection>
-export interface JsRecordBatch {
-  schema: JsSchema
-  columns: Array<JsDynArray>
-  rowCount: number
-}
-export interface JsDynArray {
-  datatype: DataTypeKind
-  nulls?: Array<number>
-  offsets?: Array<number>
-  values: Array<number>
-}
-export interface JsArrowArray {
-  datatype: DataTypeKind
-  data: object
-}
-export interface JsDataType {
-  kind: DataTypeKind
-  inner?: any
-}
-export interface JsSchema {
-  fields: Array<JsField>
-  metadata: Record<string, string>
-}
-export interface JsField {
-  name: string
-  dataType: DataTypeKind
-  nullable: boolean
-  dictId?: number
-  dictIsOrdered?: boolean
-  metadata: Record<string, string>
-}
-export const enum DataTypeKind {
-  Null = 'Null',
-  Boolean = 'Boolean',
-  Int8 = 'Int8',
-  Int16 = 'Int16',
-  Int32 = 'Int32',
-  Int64 = 'Int64',
-  UInt8 = 'UInt8',
-  UInt16 = 'UInt16',
-  UInt32 = 'UInt32',
-  UInt64 = 'UInt64',
-  Float16 = 'Float16',
-  Float32 = 'Float32',
-  Float64 = 'Float64',
-  Timestamp = 'Timestamp',
-  Date32 = 'Date32',
-  Date64 = 'Date64',
-  Time32 = 'Time32',
-  Time64 = 'Time64',
-  Duration = 'Duration',
-  Interval = 'Interval',
-  Binary = 'Binary',
-  FixedSizeBinary = 'FixedSizeBinary',
-  LargeBinary = 'LargeBinary',
-  Utf8 = 'Utf8',
-  LargeUtf8 = 'LargeUtf8',
-  List = 'List',
-  FixedSizeList = 'FixedSizeList',
-  LargeList = 'LargeList',
-  Struct = 'Struct',
-  Union = 'Union',
-  Dictionary = 'Dictionary',
-  Decimal128 = 'Decimal128',
-  Decimal256 = 'Decimal256',
-  Map = 'Map',
-  RunEndEncoded = 'RunEndEncoded'
-}
 /** A connected session to a GlareDB database. */
 export class Connection {
   /**
@@ -102,7 +34,7 @@ export class Connection {
    * Show the output of a query.
    *
    * ```javascript
-   * import glaredb from "@glaredb/node"
+   * import glaredb from "@glaredb/glaredb"
    *
    * let con = glaredb.connect()
    * let cursor = await con.sql('select 1');
@@ -112,7 +44,7 @@ export class Connection {
    * Convert the output of a query to a Pandas dataframe.
    *
    * ```javascript
-   * import glaredb from "@glaredb/node"
+   * import glaredb from "@glaredb/glaredb"
    *
    * let con = glaredb.connect()
    * ```
@@ -122,7 +54,7 @@ export class Connection {
    * inserting data into a table.
    *
    * ```javascript
-   * import glaredb from "@glaredb/node"
+   * import glaredb from "@glaredb/glaredb"
    *
    * con = glaredb.connect()
    * await con.sql('create table my_table (a int)').then(cursor => cursor.execute())
@@ -134,7 +66,7 @@ export class Connection {
    * the state or dialect of the connection object.
    *
    * ```javascript
-   * import glaredb from "@glaredb/node"
+   * import glaredb from "@glaredb/glaredb"
    *
    * let con = glaredb.connect()
    * let cursor = await con.sql('from my_table | take 1');
@@ -153,7 +85,7 @@ export class Connection {
    * Creating a table.
    *
    * ```js
-   * import glaredb from "@glaredb/node"
+   * import glaredb from "@glaredb/glaredb"
    *
    * con = glaredb.connect()
    * con.execute('create table my_table (a int)')
@@ -167,7 +99,6 @@ export class JsLogicalPlan {
   toString(): string
   show(): Promise<void>
   execute(): Promise<void>
-  recordBatches(): Promise<Array<JsRecordBatch>>
   toIpc(): Promise<Buffer>
   /**
    * Convert to a Polars DataFrame.

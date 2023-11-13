@@ -47,11 +47,6 @@ impl JsLogicalPlan {
     }
 
     #[napi(catch_unwind)]
-    pub async fn record_batches(&self) -> napi::Result<Vec<crate::record_batch::JsRecordBatch>> {
-        self.execute_inner().await?.record_batches().await
-    }
-
-    #[napi(catch_unwind)]
     pub async fn to_ipc(&self) -> napi::Result<napi::bindgen_prelude::Buffer> {
         let inner = self.execute_inner().await?.to_arrow_inner().await?;
         Ok(inner.into())
@@ -63,7 +58,7 @@ impl JsLogicalPlan {
     /// See https://www.npmjs.com/package/nodejs-polars
     pub async fn to_polars(&self) -> napi::Result<()> {
         // TODO: implement this in rust if possible?
-        // Currently, this is monkeypatched in js-glaredb/glaredb.js
+        // Currently, this is monkeypatched in glaredb.js
         unimplemented!("to_polars")
     }
 
@@ -73,7 +68,7 @@ impl JsLogicalPlan {
     /// See https://www.npmjs.com/package/apache-arrow
     pub async fn to_arrow(&self) -> napi::Result<()> {
         // TODO: implement this in rust if possible?
-        // Currently, this is monkeypatched in js-glaredb/glaredb.js
+        // Currently, this is monkeypatched in glaredb.js
         unimplemented!("to_arrow")
     }
 }
