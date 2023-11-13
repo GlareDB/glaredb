@@ -35,11 +35,16 @@ use tokio::task::JoinHandle;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tracing::warn;
 
+/// Configuration needed for accessing a sql server instance.
 pub struct SqlServerAccess {
     config: tiberius::Config,
 }
 
 impl SqlServerAccess {
+    /// Create access configuration from an ADO formatted connection string.
+    ///
+    /// ADO connection strings: <https://docs.microsoft.com/en-us/dotnet/framework/data/adonet/connection-strings>
+    /// Example: "server=tcp:localhost,1433;user=SA;password=<YourStrong@Passw0rd>;IntegratedSecurity=true;TrustServerCertificate=true"
     pub fn try_new_from_ado_string(conn_str: &str) -> Result<Self> {
         let config = tiberius::Config::from_ado_string(conn_str)?;
         Ok(Self { config })

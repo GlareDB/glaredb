@@ -27,15 +27,19 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use datasources::sqlserver::{
+    SqlServerAccess, SqlServerTableProvider, SqlServerTableProviderConfig,
+};
 use protogen::metastore::types::catalog::{
     CatalogEntry, CredentialsEntry, DatabaseEntry, FunctionEntry, TableEntry,
 };
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
     DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
-    TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
-    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions,
+    DatabaseOptionsSqlServer, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
+    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
+    TableOptionsSqlServer, TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
@@ -231,6 +235,16 @@ impl<'a> ExternalDispatcher<'a> {
                 let table = accessor.load_table(schema, name).await?;
                 Ok(Arc::new(table))
             }
+            DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string }) => {
+                let access = SqlServerAccess::try_new_from_ado_string(connection_string)?;
+                let table = SqlServerTableProvider::try_new(SqlServerTableProviderConfig {
+                    access,
+                    schema: schema.to_string(),
+                    table: name.to_string(),
+                })
+                .await?;
+                Ok(Arc::new(table))
+            }
         }
     }
 
@@ -418,6 +432,20 @@ impl<'a> ExternalDispatcher<'a> {
                 let table = IcebergTable::open(url, store).await?;
                 let reader = table.table_reader().await?;
                 Ok(reader)
+            }
+            TableOptions::SqlServer(TableOptionsSqlServer {
+                connection_string,
+                schema,
+                table,
+            }) => {
+                let access = SqlServerAccess::try_new_from_ado_string(connection_string)?;
+                let table = SqlServerTableProvider::try_new(SqlServerTableProviderConfig {
+                    access,
+                    schema: schema.to_string(),
+                    table: table.to_string(),
+                })
+                .await?;
+                Ok(Arc::new(table))
             }
         }
     }
