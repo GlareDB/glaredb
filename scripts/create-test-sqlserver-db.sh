@@ -29,5 +29,5 @@ CONTAINER_ID=$(docker run \
        -d \
        mcr.microsoft.com/mssql/server:2022-latest)
 
-echo "Container: ${CONTAINER_ID}" 1>&2
+echo "server=tcp:localhost,1433;user=SA;password=Password123;TrustServerCertificate=true"
 

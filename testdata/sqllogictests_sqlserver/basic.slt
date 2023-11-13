@@ -1,0 +1,8 @@
+# Basic tests for external database.
+
+statement ok
+CREATE EXTERNAL DATABASE external_db
+	FROM sql_server
+	OPTIONS (
+		connection_string = 'server=tcp:localhost,1433;user=SA;password=Password123;TrustServerCertificate=true',
+	);

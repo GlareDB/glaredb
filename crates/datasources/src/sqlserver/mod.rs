@@ -49,6 +49,19 @@ impl SqlServerAccess {
         let config = tiberius::Config::from_ado_string(conn_str)?;
         Ok(Self { config })
     }
+
+    /// Validate that we can connect to server.
+    pub async fn validate_access(&self) -> Result<()> {
+        let _state = SqlServerAccessState::connect(self.config.clone()).await?;
+        Ok(())
+    }
+
+    /// Validate that we can connect to a specific table.
+    pub async fn validate_table_access(&self, schema: &str, table: &str) -> Result<()> {
+        let state = SqlServerAccessState::connect(self.config.clone()).await?;
+        let _schema = state.get_table_schema(schema, table).await?;
+        Ok(())
+    }
 }
 
 #[derive(Debug)]

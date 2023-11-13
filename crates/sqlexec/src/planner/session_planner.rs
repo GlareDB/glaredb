@@ -28,6 +28,7 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use datasources::sqlserver::SqlServerAccess;
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::gcp::GoogleConfigKey;
 use protogen::metastore::types::catalog::{
@@ -39,11 +40,12 @@ use protogen::metastore::types::options::{
     CopyToFormatOptionsJson, CopyToFormatOptionsParquet, CredentialsOptions, CredentialsOptionsAws,
     CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery,
     DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DeltaLakeCatalog, DeltaLakeUnityCatalog,
-    StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
-    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug,
-    TunnelOptionsInternal, TunnelOptionsSsh,
+    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog,
+    DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
+    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
+    TableOptionsSqlServer, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
+    TunnelOptionsSsh,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
@@ -251,6 +253,15 @@ impl<'a> SessionPlanner<'a> {
                     storage_options,
                 })
             }
+            DatabaseOptions::SQL_SERVER => {
+                let connection_string: String = m.remove_required("connection_string")?;
+
+                // Validate
+                let access = SqlServerAccess::try_new_from_ado_string(&connection_string)?;
+                access.validate_access().await?;
+
+                DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string })
+            }
             DatabaseOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
                 DatabaseOptions::Debug(DatabaseOptionsDebug {})
@@ -378,6 +389,8 @@ impl<'a> SessionPlanner<'a> {
                 let database = m.remove_required("database")?;
                 let collection = m.remove_required("collection")?;
 
+                // TODO: Validate
+
                 TableOptions::Mongo(TableOptionsMongo {
                     connection_string,
                     database,
@@ -425,6 +438,24 @@ impl<'a> SessionPlanner<'a> {
                     table_name: access_info.table_name,
                 })
             }
+            TableOptions::SQL_SERVER => {
+                let connection_string: String = m.remove_required("connection_string")?;
+                let schema_name: String = m.remove_required("schema")?;
+                let table_name: String = m.remove_required("table")?;
+
+                // Validate
+                let access = SqlServerAccess::try_new_from_ado_string(&connection_string)?;
+                access
+                    .validate_table_access(&schema_name, &table_name)
+                    .await?;
+
+                TableOptions::SqlServer(TableOptionsSqlServer {
+                    connection_string,
+                    schema: schema_name,
+                    table: table_name,
+                })
+            }
+
             TableOptions::LOCAL => {
                 let location: String = m.remove_required("location")?;
 
