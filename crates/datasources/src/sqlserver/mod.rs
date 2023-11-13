@@ -95,7 +95,7 @@ impl SqlServerAccessState {
     async fn get_table_schema(&self, schema: &str, name: &str) -> Result<ArrowSchema> {
         let mut query = self
             .client
-            .query(format!("SELECT * FROM {schema}.{name} WHERE false"))
+            .query(format!("SELECT * FROM {schema}.{name} WHERE 1=0"))
             .await?;
         let cols = query.columns().await?;
 
@@ -120,17 +120,20 @@ impl SqlServerAccessState {
 
             let arrow_typ = match col.column_type() {
                 ColumnType::Null => DataType::Null,
-                ColumnType::Bit => DataType::Binary,
+                ColumnType::Bit => DataType::Boolean,
                 ColumnType::Int1 => DataType::Int8,
                 ColumnType::Int2 => DataType::Int16,
-                ColumnType::Int4 => DataType::Int32,
+                // TODO: We don't get n but from my testing, creating a table
+                // with INT (32-bit) returns the column type as Intn.
+                ColumnType::Int4 | ColumnType::Intn => DataType::Int32,
                 ColumnType::Int8 => DataType::Int64,
                 ColumnType::Float4 => DataType::Float32,
-                ColumnType::Float8 => DataType::Float64,
+                ColumnType::Float8 | ColumnType::Floatn => DataType::Float64,
                 // TODO: Double check that this mapping is correct.
-                ColumnType::Datetime | ColumnType::Datetime2 | ColumnType::Datetime4 => {
-                    DataType::Timestamp(TimeUnit::Nanosecond, None)
-                }
+                ColumnType::Datetime
+                | ColumnType::Datetime2
+                | ColumnType::Datetime4
+                | ColumnType::Datetimen => DataType::Timestamp(TimeUnit::Nanosecond, None),
                 // TODO: Tiberius doesn't give us the offset here.
                 ColumnType::DatetimeOffsetn => DataType::Timestamp(TimeUnit::Nanosecond, None),
                 ColumnType::Guid => DataType::Utf8,
@@ -140,6 +143,7 @@ impl SqlServerAccessState {
                 | ColumnType::NText
                 | ColumnType::BigChar
                 | ColumnType::NVarchar => DataType::Utf8,
+                ColumnType::BigBinary => DataType::Binary,
                 other => {
                     return Err(SqlServerError::String(format!(
                         "unsupported SQL Server type: {other:?}"

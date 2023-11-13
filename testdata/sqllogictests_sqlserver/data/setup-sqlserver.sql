@@ -19,7 +19,7 @@ CREATE TABLE bikeshare_stations (
     footprint_width   FLOAT,
     notes             TEXT,
     council_district  INT,
-    modified_date     TIMESTAMP
+    modified_date     DATETIME
 );
 
 BULK INSERT bikeshare_stations
@@ -36,7 +36,7 @@ CREATE TABLE bikeshare_trips (
     trip_id            BIGINT,
     subscriber_type    TEXT,
     bikeid             VARCHAR(255),
-    start_time         TIMESTAMP,
+    start_time         DATETIME,
     start_station_id   INT,
     start_station_name TEXT,
     end_station_id     INT,
