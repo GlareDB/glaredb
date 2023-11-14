@@ -414,9 +414,40 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await
             }
+            TableOptions::Azure(TableOptionsObjectStore {
+                location,
+                storage_options,
+                file_type,
+                compression,
+            }) => {
+                // File type should be known at this point since creating the
+                // table requires that we've either inferred the file type, or
+                // the user provided it.
+                let file_type = match file_type {
+                    Some(ft) => ft,
+                    None => {
+                        return Err(DispatchError::InvalidDispatch(
+                            "File type missing from table options",
+                        ))
+                    }
+                };
+
+                let access = Arc::new(GenericStoreAccess::new_from_location_and_opts(
+                    location,
+                    storage_options.clone(),
+                )?);
+                self.create_obj_store_table_provider(
+                    access,
+                    DatasourceUrl::try_new(location)?.path(), // TODO: Workaround again
+                    file_type,
+                    compression.as_ref(),
+                )
+                .await
+            }
             TableOptions::Delta(TableOptionsObjectStore {
                 location,
                 storage_options,
+                ..
             }) => {
                 let provider =
                     Arc::new(load_table_direct(location, storage_options.clone()).await?);
@@ -425,10 +456,14 @@ impl<'a> ExternalDispatcher<'a> {
             TableOptions::Iceberg(TableOptionsObjectStore {
                 location,
                 storage_options,
+                ..
             }) => {
                 let url = DatasourceUrl::try_new(location)?;
-                let store =
-                    GenericStoreAccess::from(location, storage_options.clone())?.create_store()?;
+                let store = GenericStoreAccess::new_from_location_and_opts(
+                    location,
+                    storage_options.clone(),
+                )?
+                .create_store()?;
                 let table = IcebergTable::open(url, store).await?;
                 let reader = table.table_reader().await?;
                 Ok(reader)
@@ -453,10 +488,11 @@ impl<'a> ExternalDispatcher<'a> {
     async fn create_obj_store_table_provider(
         &self,
         access: Arc<dyn ObjStoreAccess>,
-        location: &str,
+        path: impl AsRef<str>,
         file_type: &str,
         compression: Option<&String>,
     ) -> Result<Arc<dyn TableProvider>> {
+        let path = path.as_ref();
         let compression = compression
             .map(|c| c.parse::<FileCompressionType>())
             .transpose()?
@@ -477,7 +513,7 @@ impl<'a> ExternalDispatcher<'a> {
         };
 
         let accessor = ObjStoreAccessor::new(access)?;
-        let objects = accessor.list_globbed(location).await?;
+        let objects = accessor.list_globbed(path).await?;
 
         let state = self.df_ctx.state();
         let provider = accessor.into_table_provider(&state, ft, objects).await?;

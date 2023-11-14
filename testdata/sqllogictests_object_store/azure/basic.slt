@@ -1,0 +1,37 @@
+# Basic tests for azure external tables
+
+statement ok
+create schema azure;
+
+statement ok
+set search_path = azure;
+
+# Test CSV format
+statement ok
+CREATE EXTERNAL TABLE basic
+    FROM azure
+    OPTIONS (
+        account_name = '${AZURE_ACCOUNT}',
+        access_key = '${AZURE_ACCESS_KEY}',
+        location = 'azure://glaredb-test/bikeshare_stations.csv'
+    );
+
+statement ok
+select * from basic limit 1;
+
+# TODO add once bikeshare_stations has a parquet format and issues with CSVs
+# are resolved
+halt
+
+include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti
+
+statement ok
+CREATE EXTERNAL TABLE basic
+    FROM azure
+    OPTIONS (
+        account_name = '${AZURE_ACCOUNT}',
+        access_key = '${AZURE_ACCESS_KEY}',
+        location = 'azure://glaredb-test/bikeshare_stations.parquet'
+    );
+
+include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti

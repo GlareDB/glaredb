@@ -104,9 +104,10 @@ message TableOptions {
     TableOptionsSnowflake snowflake = 10;
     TableOptionsObjectStore delta = 11;
     TableOptionsObjectStore iceberg = 12;
-    TableOptionsSqlServer sql_server = 13;
+    TableOptionsObjectStore azure = 13;
+    TableOptionsSqlServer sql_server = 14;
   }
-  // next: 14
+  // next: 15
 }
 
 message TableOptionsInternal {
@@ -178,7 +179,16 @@ message TableOptionsSnowflake {
 
 message TableOptionsObjectStore {
   string location = 1;
+
+  // Storage options for use when creating the object store client.
   StorageOptions storage_options = 2;
+
+  // File type. For data lakes (delta and iceberg), this should be empty.
+  optional string file_type = 3;
+
+  // Optional compression used. For data lakes (delta and iceberg), this should
+  // be empty.
+  optional string compression = 4;
 }
 
 message TableOptionsSqlServer {
@@ -213,6 +223,7 @@ message CredentialsOptions {
     CredentialsOptionsDebug debug = 1;
     CredentialsOptionsGcp gcp = 2;
     CredentialsOptionsAws aws = 3;
+    CredentialsOptionsAzure azure = 4;
   }
 }
 
@@ -223,4 +234,11 @@ message CredentialsOptionsGcp { string service_account_key = 1; }
 message CredentialsOptionsAws {
   string access_key_id = 1;
   string secret_access_key = 2;
+}
+
+message CredentialsOptionsAzure {
+  string account_name = 1;
+  string access_key = 2;
+  // TODO: We may want to allow the user to give us just the "connection string"
+  // which contains the account and access key.
 }

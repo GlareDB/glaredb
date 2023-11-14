@@ -4,6 +4,7 @@ pub mod delta;
 pub mod iceberg;
 
 use object_store::aws::{AmazonS3Builder, AmazonS3ConfigKey};
+use object_store::azure::{AzureConfigKey, MicrosoftAzureBuilder};
 use object_store::gcp::{GoogleCloudStorageBuilder, GoogleConfigKey};
 use object_store::local::LocalFileSystem;
 use object_store::ObjectStore;
@@ -60,6 +61,21 @@ pub fn storage_options_into_object_store(
                     store = store.with_config(gcp_key, value);
                 }
             }
+            Ok(Arc::new(store.build()?))
+        }
+        DatasourceUrlType::Azure => {
+            let bucket = url
+                .host()
+                .ok_or_else(|| LakeStorageOptionsError::MissingHost(url.clone()))?;
+
+            let mut store = MicrosoftAzureBuilder::new().with_container_name(bucket);
+
+            for (key, value) in &opts.inner {
+                if let Ok(azure_key) = AzureConfigKey::from_str(key) {
+                    store = store.with_config(azure_key, value);
+                }
+            }
+
             Ok(Arc::new(store.build()?))
         }
         DatasourceUrlType::File => {

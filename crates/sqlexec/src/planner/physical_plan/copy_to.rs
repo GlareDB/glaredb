@@ -13,12 +13,17 @@ use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
 use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
+use datasources::common::url::DatasourceUrl;
 use datasources::object_store::gcs::GcsStoreAccess;
+use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::ObjStoreAccess;
 use futures::stream;
-use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
+use object_store::azure::AzureConfigKey;
+use protogen::metastore::types::options::{
+    CopyToDestinationOptions, CopyToFormatOptions, StorageOptions,
+};
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
@@ -124,6 +129,35 @@ impl CopyToExec {
                 };
                 get_sink_for_obj(format, &access, &s3_options.location)?
             }
+            (CopyToDestinationOptions::Azure(azure_options), format) => {
+                // Create storage options using well-known key names.
+                let opts = StorageOptions::new_from_iter([
+                    (AzureConfigKey::AccountName.as_ref(), azure_options.account),
+                    (AzureConfigKey::AccessKey.as_ref(), azure_options.access_key),
+                ]);
+                let access =
+                    GenericStoreAccess::new_from_location_and_opts(&azure_options.location, opts)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                // TODO: It's weird we need to do this here, but
+                // `get_sink_for_obj` is expected a path relative to the root of
+                // the store. The location we have here is the full url
+                // (azure://...) and so will actually cause object store to
+                // error.
+                //
+                // By converting to a data source url, we can get the path we
+                // need.
+                //
+                // @vaibhav I'd like for us to look into switchin all object
+                // store "locations" to use the full url (with scheme) so that
+                // we can be consistent with this. It would also help with user
+                // experience since they wouldn't need to know which part of the
+                // location is the "bucket" and which is the "location" (path).
+                let source_url = DatasourceUrl::try_new(&azure_options.location)
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                get_sink_for_obj(format, &access, &source_url.path())?
+            }
         };
 
         let stream = execute_stream(self.source, context.clone())?;
@@ -133,6 +167,7 @@ impl CopyToExec {
     }
 }
 
+/// Get a sink for writing a file to.
 fn get_sink_for_obj(
     format: CopyToFormatOptions,
     access: &dyn ObjStoreAccess,

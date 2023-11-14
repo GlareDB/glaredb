@@ -12,7 +12,7 @@ pub struct CopyTo {
 
 #[derive(Clone, PartialEq, Message)]
 pub struct CopyToDestinationOptions {
-    #[prost(oneof = "CopyToDestinationOptionsEnum", tags = "1, 2, 3")]
+    #[prost(oneof = "CopyToDestinationOptionsEnum", tags = "1, 2, 3, 4")]
     pub copy_to_destination_options_enum: Option<CopyToDestinationOptionsEnum>,
 }
 #[derive(Clone, PartialEq, Oneof)]
@@ -23,6 +23,8 @@ pub enum CopyToDestinationOptionsEnum {
     Gcs(CopyToDestinationOptionsGcs),
     #[prost(message, tag = "3")]
     S3(CopyToDestinationOptionsS3),
+    #[prost(message, tag = "4")]
+    Azure(CopyToDestinationOptionsAzure),
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -51,6 +53,16 @@ pub struct CopyToDestinationOptionsS3 {
     #[prost(string, tag = "4")]
     pub bucket: String,
     #[prost(string, tag = "5")]
+    pub location: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct CopyToDestinationOptionsAzure {
+    #[prost(string, tag = "1")]
+    pub account: String,
+    #[prost(string, tag = "2")]
+    pub access_key: String,
+    #[prost(string, tag = "3")]
     pub location: String,
 }
 
@@ -201,6 +213,17 @@ impl TryFrom<crate::metastore::types::options::CopyToDestinationOptions>
                     )),
                 })
             }
+            crate::metastore::types::options::CopyToDestinationOptions::Azure(azure) => {
+                Ok(CopyToDestinationOptions {
+                    copy_to_destination_options_enum: Some(CopyToDestinationOptionsEnum::Azure(
+                        CopyToDestinationOptionsAzure {
+                            account: azure.account,
+                            access_key: azure.access_key,
+                            location: azure.location,
+                        },
+                    )),
+                })
+            }
         }
     }
 }
@@ -233,7 +256,6 @@ impl TryFrom<CopyToDestinationOptions>
                     },
                 ),
             ),
-
             CopyToDestinationOptionsEnum::S3(s3) => Ok(
                 crate::metastore::types::options::CopyToDestinationOptions::S3(
                     crate::metastore::types::options::CopyToDestinationOptionsS3 {
@@ -242,6 +264,15 @@ impl TryFrom<CopyToDestinationOptions>
                         region: s3.region,
                         bucket: s3.bucket,
                         location: s3.location,
+                    },
+                ),
+            ),
+            CopyToDestinationOptionsEnum::Azure(azure) => Ok(
+                crate::metastore::types::options::CopyToDestinationOptions::Azure(
+                    crate::metastore::types::options::CopyToDestinationOptionsAzure {
+                        access_key: azure.access_key,
+                        account: azure.account,
+                        location: azure.location,
                     },
                 ),
             ),

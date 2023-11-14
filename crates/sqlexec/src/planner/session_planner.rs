@@ -30,22 +30,23 @@ use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use datasources::sqlserver::SqlServerAccess;
 use object_store::aws::AmazonS3ConfigKey;
+use object_store::azure::AzureConfigKey;
 use object_store::gcp::GoogleConfigKey;
 use protogen::metastore::types::catalog::{
     CatalogEntry, DatabaseEntry, RuntimePreference, SourceAccessMode, TableEntry,
 };
 use protogen::metastore::types::options::{
-    CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
-    CopyToDestinationOptionsS3, CopyToFormatOptions, CopyToFormatOptionsCsv,
-    CopyToFormatOptionsJson, CopyToFormatOptionsParquet, CredentialsOptions, CredentialsOptionsAws,
-    CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery,
-    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog,
-    DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
-    TableOptionsGcs, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
-    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
-    TableOptionsSqlServer, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
-    TunnelOptionsSsh,
+    CopyToDestinationOptions, CopyToDestinationOptionsAzure, CopyToDestinationOptionsGcs,
+    CopyToDestinationOptionsLocal, CopyToDestinationOptionsS3, CopyToFormatOptions,
+    CopyToFormatOptionsCsv, CopyToFormatOptionsJson, CopyToFormatOptionsParquet,
+    CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsAzure, CredentialsOptionsDebug,
+    CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug,
+    DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog, DeltaLakeUnityCatalog,
+    StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs,
+    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer,
+    TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
@@ -492,7 +493,7 @@ impl<'a> SessionPlanner<'a> {
                     bucket,
                     service_account_key,
                     location,
-                    file_type: format!("{file_type:?}").to_lowercase(),
+                    file_type: file_type.to_string(),
                     compression: compression.map(|c| c.to_string()),
                 })
             }
@@ -533,7 +534,55 @@ impl<'a> SessionPlanner<'a> {
                     access_key_id,
                     secret_access_key,
                     location,
-                    file_type: format!("{file_type:?}").to_lowercase(),
+                    file_type: file_type.to_string(),
+                    compression: compression.map(|c| c.to_string()),
+                })
+            }
+            TableOptions::AZURE => {
+                let (account, access_key) = match creds_options {
+                    Some(CredentialsOptions::Azure(c)) => {
+                        (Some(c.account_name.clone()), Some(c.access_key.clone()))
+                    }
+                    Some(other) => {
+                        return Err(PlanError::String(format!(
+                            "invalid credentials {other} for azure"
+                        )))
+                    }
+                    None => (None, None),
+                };
+
+                let account = m.remove_required_or("account_name", account)?;
+                let access_key = m.remove_required_or("access_key", access_key)?;
+
+                let location: String = m.remove_required("location")?;
+
+                let mut opts = StorageOptions::default();
+                opts.inner
+                    .insert(AzureConfigKey::AccountName.as_ref().to_string(), account);
+                opts.inner
+                    .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
+
+                let access = Arc::new(GenericStoreAccess::new_from_location_and_opts(
+                    &location,
+                    opts.clone(),
+                )?);
+
+                // TODO: Creating a data source url here is a workaround for
+                // getting the path to the file. Since we're using the generic
+                // object store access, it requires that "location" is the full
+                // url of the object, but that goes against our other
+                // assumptions that "location" is just the path.
+                let (file_type, compression) = validate_and_get_file_type_and_compression(
+                    access,
+                    DatasourceUrl::try_new(location.clone())?.path(),
+                    m,
+                )
+                .await?;
+
+                TableOptions::Azure(TableOptionsObjectStore {
+                    location,
+                    storage_options: opts,
+                    file_type: Some(file_type.to_string()),
                     compression: compression.map(|c| c.to_string()),
                 })
             }
@@ -551,16 +600,23 @@ impl<'a> SessionPlanner<'a> {
                     TableOptions::Delta(TableOptionsObjectStore {
                         location,
                         storage_options,
+                        file_type: None,
+                        compression: None,
                     })
                 } else {
                     let url = DatasourceUrl::try_new(&location)?;
-                    let store = GenericStoreAccess::from(&location, storage_options.clone())?
-                        .create_store()?;
+                    let store = GenericStoreAccess::new_from_location_and_opts(
+                        &location,
+                        storage_options.clone(),
+                    )?
+                    .create_store()?;
                     let _table = IcebergTable::open(url, store).await?;
 
                     TableOptions::Iceberg(TableOptionsObjectStore {
                         location,
                         storage_options,
+                        file_type: None,
+                        compression: None,
                     })
                 }
             }
@@ -649,6 +705,14 @@ impl<'a> SessionPlanner<'a> {
                 CredentialsOptions::Aws(CredentialsOptionsAws {
                     access_key_id,
                     secret_access_key,
+                })
+            }
+            CredentialsOptions::AZURE => {
+                let account_name = m.remove_required("account_name")?;
+                let access_key = m.remove_required("access_key")?;
+                CredentialsOptions::Azure(CredentialsOptionsAzure {
+                    account_name,
+                    access_key,
                 })
             }
             other => return Err(internal!("unsupported credentials provider: {other}")),
@@ -1377,11 +1441,22 @@ impl<'a> SessionPlanner<'a> {
 
         let dest = normalize_ident(stmt.dest);
 
+        // We currently support two versions of COPY TO:
+        //
+        // 1: COPY <source> TO <s3|gcs|azure> OPTIONS (...)
+        // 2: COPY <source> TO <dest> OPTIONS (...)
+        //
+        // Where the first matches on fixed keywords, and the second matches on
+        // the full object path (e.g. 'gs://bucket/object.csv'). This statement
+        // is what lets us differentiate between those, and if `url` is `None`,
+        // we'll resolve the actual object destination from the OPTIONS down
+        // below.
         let (dest, uri) = if matches!(
             dest.as_str(),
             CopyToDestinationOptions::LOCAL
                 | CopyToDestinationOptions::GCS
                 | CopyToDestinationOptions::S3_STORAGE
+                | CopyToDestinationOptions::AZURE
         ) {
             (dest.as_str(), None)
         } else {
@@ -1390,6 +1465,7 @@ impl<'a> SessionPlanner<'a> {
                 DatasourceUrlType::File => CopyToDestinationOptions::LOCAL,
                 DatasourceUrlType::Gcs => CopyToDestinationOptions::GCS,
                 DatasourceUrlType::S3 => CopyToDestinationOptions::S3_STORAGE,
+                DatasourceUrlType::Azure => CopyToDestinationOptions::AZURE,
                 DatasourceUrlType::Http => return Err(internal!("invalid URL scheme")),
             };
             (d, Some(u))
@@ -1474,6 +1550,41 @@ impl<'a> SessionPlanner<'a> {
                     secret_access_key,
                     region,
                     bucket,
+                    location,
+                })
+            }
+            CopyToDestinationOptions::AZURE => {
+                let creds = match creds_options.as_ref() {
+                    Some(CredentialsOptions::Azure(c)) => Some(c),
+                    Some(other) => {
+                        return Err(PlanError::String(format!(
+                            "invalid credentials {other} for azure"
+                        )))
+                    }
+                    None => None,
+                };
+
+                // Get account and access key from credentials if provided. If
+                // not provided, require that they've been passed in through
+                // OPTIONS.
+                let (account, access_key) = match creds {
+                    Some(c) => (c.account_name.clone(), c.access_key.clone()),
+                    None => (
+                        m.remove_required("account_name")?,
+                        m.remove_required("access_key")?,
+                    ),
+                };
+
+                // Grab location from the 'TO <location>' if provided, or from
+                // OPTIONS.
+                let location = match uri {
+                    Some(uri) => uri.to_string(),
+                    None => m.remove_required("location")?,
+                };
+
+                CopyToDestinationOptions::Azure(CopyToDestinationOptionsAzure {
+                    account,
+                    access_key,
                     location,
                 })
             }
@@ -1597,13 +1708,14 @@ impl<'a> SessionPlanner<'a> {
 }
 
 /// Creates an accessor from object store external table and validates if the
-/// location returns any objects. If objects are returned, tries to get the
-/// file type and compression of the object.
+/// location returns any objects. If objects are returned, tries to get the file
+/// type and compression of the object.
 async fn validate_and_get_file_type_and_compression(
     access: Arc<dyn ObjStoreAccess>,
-    location: &str,
+    path: impl AsRef<str>,
     m: &mut StmtOptions,
 ) -> Result<(FileType, Option<CompressionTypeVariant>)> {
+    let path = path.as_ref();
     let accessor =
         ObjStoreAccessor::new(access.clone()).map_err(|e| PlanError::InvalidExternalTable {
             source: Box::new(e),
@@ -1611,7 +1723,7 @@ async fn validate_and_get_file_type_and_compression(
 
     let objects =
         accessor
-            .list_globbed(location)
+            .list_globbed(path)
             .await
             .map_err(|e| PlanError::InvalidExternalTable {
                 source: Box::new(e),
@@ -1619,7 +1731,7 @@ async fn validate_and_get_file_type_and_compression(
 
     if objects.is_empty() {
         return Err(PlanError::InvalidExternalTable {
-            source: Box::new(internal!("object '{location}' not found")),
+            source: Box::new(internal!("object '{path}' not found")),
         });
     }
 
@@ -1628,7 +1740,7 @@ async fn validate_and_get_file_type_and_compression(
         None => objects
             .first()
             .ok_or_else(|| PlanError::InvalidExternalTable {
-                source: Box::new(internal!("object '{location} not found'")),
+                source: Box::new(internal!("object '{path} not found'")),
             })?
             .location
             .extension()
@@ -1912,6 +2024,16 @@ fn storage_options_with_credentials(
             storage_options.inner.insert(
                 AmazonS3ConfigKey::SecretAccessKey.as_ref().to_string(),
                 creds.secret_access_key,
+            );
+        }
+        CredentialsOptions::Azure(creds) => {
+            storage_options.inner.insert(
+                AzureConfigKey::AccountName.as_ref().to_string(),
+                creds.account_name,
+            );
+            storage_options.inner.insert(
+                AzureConfigKey::AccessKey.as_ref().to_string(),
+                creds.access_key,
             );
         }
     }

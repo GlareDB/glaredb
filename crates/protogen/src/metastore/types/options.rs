@@ -451,17 +451,35 @@ impl From<DeltaLakeUnityCatalog> for options::DeltaLakeUnityCatalog {
     }
 }
 
-// Options for a generic `ObjectStore`; to make them as versatile and compact as possible it's just
-// a wrapper for a map, like in `delta-rs`, except here it's a `BTreeMap` instead of a `HashMap`,
-// since the former is `Hash` unlike the latter. This enables us to capture a variety of different
-// (potentially optional) parameters across different object stores and use-cases.
-// The following is a list of supported config options in `object_store` crate by object store type:
-// - [Azure options](https://docs.rs/object_store/latest/object_store/azure/enum.AzureConfigKey.html#variants)
-// - [S3 options](https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html#variants)
-// - [Google options](https://docs.rs/object_store/latest/object_store/gcp/enum.GoogleConfigKey.html#variants)
+/// Options for a generic `ObjectStore`; to make them as versatile and compact
+/// as possible it's just a wrapper for a map, like in `delta-rs`, except here
+/// it's a `BTreeMap` instead of a `HashMap`, since the former is `Hash` unlike
+/// the latter. This enables us to capture a variety of different (potentially
+/// optional) parameters across different object stores and use-cases.
+///
+/// The following is a list of supported config options in `object_store` crate
+/// by object store type:
+///
+/// - [Azure options](https://docs.rs/object_store/latest/object_store/azure/enum.AzureConfigKey.html#variants)
+/// - [S3 options](https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html#variants)
+/// - [Google options](https://docs.rs/object_store/latest/object_store/gcp/enum.GoogleConfigKey.html#variants)
 #[derive(Debug, Default, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct StorageOptions {
     pub inner: BTreeMap<String, String>,
+}
+
+impl StorageOptions {
+    /// Create a new set of storage options from some iterator of (k, v).
+    pub fn new_from_iter<K, V, I>(iter: I) -> Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+        I: IntoIterator<Item = (K, V)>,
+    {
+        let iter = iter.into_iter().map(|(k, v)| (k.into(), v.into()));
+        let inner = BTreeMap::from_iter(iter);
+        StorageOptions { inner }
+    }
 }
 
 impl TryFrom<options::StorageOptions> for StorageOptions {
@@ -493,6 +511,7 @@ pub enum TableOptions {
     Snowflake(TableOptionsSnowflake),
     Delta(TableOptionsObjectStore),
     Iceberg(TableOptionsObjectStore),
+    Azure(TableOptionsObjectStore),
     SqlServer(TableOptionsSqlServer),
 }
 
@@ -509,6 +528,7 @@ impl TableOptions {
     pub const SNOWFLAKE: &str = "snowflake";
     pub const DELTA: &str = "delta";
     pub const ICEBERG: &str = "iceberg";
+    pub const AZURE: &str = "azure";
     pub const SQL_SERVER: &str = "sql_server";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
@@ -529,6 +549,7 @@ impl TableOptions {
             TableOptions::Snowflake(_) => Self::SNOWFLAKE,
             TableOptions::Delta(_) => Self::DELTA,
             TableOptions::Iceberg(_) => Self::ICEBERG,
+            TableOptions::Azure(_) => Self::AZURE,
             TableOptions::SqlServer(_) => Self::SQL_SERVER,
         }
     }
@@ -556,6 +577,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::Snowflake(v) => TableOptions::Snowflake(v.try_into()?),
             options::table_options::Options::Delta(v) => TableOptions::Delta(v.try_into()?),
             options::table_options::Options::Iceberg(v) => TableOptions::Iceberg(v.try_into()?),
+            options::table_options::Options::Azure(v) => TableOptions::Azure(v.try_into()?),
             options::table_options::Options::SqlServer(v) => TableOptions::SqlServer(v.try_into()?),
         })
     }
@@ -584,6 +606,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Snowflake(v) => options::table_options::Options::Snowflake(v.into()),
             TableOptions::Delta(v) => options::table_options::Options::Delta(v.into()),
             TableOptions::Iceberg(v) => options::table_options::Options::Iceberg(v.into()),
+            TableOptions::Azure(v) => options::table_options::Options::Azure(v.into()),
             TableOptions::SqlServer(v) => options::table_options::Options::SqlServer(v.into()),
         })
     }
@@ -871,7 +894,6 @@ impl From<TableOptionsS3> for options::TableOptionsS3 {
         }
     }
 }
-
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct TableOptionsMongo {
     pub connection_string: String,
@@ -975,6 +997,8 @@ impl From<TableOptionsSnowflake> for options::TableOptionsSnowflake {
 pub struct TableOptionsObjectStore {
     pub location: String,
     pub storage_options: StorageOptions,
+    pub file_type: Option<String>,
+    pub compression: Option<String>,
 }
 
 impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
@@ -983,6 +1007,8 @@ impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
         Ok(TableOptionsObjectStore {
             location: value.location,
             storage_options: value.storage_options.required("storage_options")?,
+            file_type: value.file_type,
+            compression: value.compression,
         })
     }
 }
@@ -992,6 +1018,8 @@ impl From<TableOptionsObjectStore> for options::TableOptionsObjectStore {
         options::TableOptionsObjectStore {
             location: value.location,
             storage_options: Some(value.storage_options.into()),
+            file_type: value.file_type,
+            compression: value.compression,
         }
     }
 }
@@ -1146,18 +1174,21 @@ pub enum CredentialsOptions {
     Debug(CredentialsOptionsDebug),
     Gcp(CredentialsOptionsGcp),
     Aws(CredentialsOptionsAws),
+    Azure(CredentialsOptionsAzure),
 }
 
 impl CredentialsOptions {
     pub const DEBUG: &str = "debug";
     pub const GCP: &str = "gcp";
     pub const AWS: &str = "aws";
+    pub const AZURE: &str = "azure";
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Debug(_) => Self::DEBUG,
             Self::Gcp(_) => Self::GCP,
             Self::Aws(_) => Self::AWS,
+            Self::Azure(_) => Self::AZURE,
         }
     }
 }
@@ -1175,6 +1206,7 @@ impl TryFrom<options::credentials_options::Options> for CredentialsOptions {
             options::credentials_options::Options::Debug(v) => Self::Debug(v.try_into()?),
             options::credentials_options::Options::Gcp(v) => Self::Gcp(v.try_into()?),
             options::credentials_options::Options::Aws(v) => Self::Aws(v.try_into()?),
+            options::credentials_options::Options::Azure(v) => Self::Azure(v.try_into()?),
         })
     }
 }
@@ -1192,6 +1224,7 @@ impl From<CredentialsOptions> for options::credentials_options::Options {
             CredentialsOptions::Debug(v) => options::credentials_options::Options::Debug(v.into()),
             CredentialsOptions::Gcp(v) => options::credentials_options::Options::Gcp(v.into()),
             CredentialsOptions::Aws(v) => options::credentials_options::Options::Aws(v.into()),
+            CredentialsOptions::Azure(v) => options::credentials_options::Options::Azure(v.into()),
         }
     }
 }
@@ -1273,23 +1306,51 @@ impl From<CredentialsOptionsAws> for options::CredentialsOptionsAws {
     }
 }
 
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct CredentialsOptionsAzure {
+    pub account_name: String,
+    pub access_key: String,
+}
+
+impl TryFrom<options::CredentialsOptionsAzure> for CredentialsOptionsAzure {
+    type Error = ProtoConvError;
+    fn try_from(value: options::CredentialsOptionsAzure) -> Result<Self, Self::Error> {
+        Ok(CredentialsOptionsAzure {
+            account_name: value.account_name,
+            access_key: value.access_key,
+        })
+    }
+}
+
+impl From<CredentialsOptionsAzure> for options::CredentialsOptionsAzure {
+    fn from(value: CredentialsOptionsAzure) -> Self {
+        options::CredentialsOptionsAzure {
+            account_name: value.account_name,
+            access_key: value.access_key,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum CopyToDestinationOptions {
     Local(CopyToDestinationOptionsLocal),
     Gcs(CopyToDestinationOptionsGcs),
     S3(CopyToDestinationOptionsS3),
+    Azure(CopyToDestinationOptionsAzure),
 }
 
 impl CopyToDestinationOptions {
     pub const LOCAL: &str = "local";
     pub const GCS: &str = "gcs";
     pub const S3_STORAGE: &str = "s3";
+    pub const AZURE: &str = "azure";
 
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Local(_) => Self::LOCAL,
             Self::Gcs(_) => Self::GCS,
             Self::S3(_) => Self::S3_STORAGE,
+            Self::Azure(_) => Self::AZURE,
         }
     }
 
@@ -1298,6 +1359,7 @@ impl CopyToDestinationOptions {
             Self::Local(CopyToDestinationOptionsLocal { location }) => location,
             Self::Gcs(CopyToDestinationOptionsGcs { location, .. }) => location,
             Self::S3(CopyToDestinationOptionsS3 { location, .. }) => location,
+            Self::Azure(CopyToDestinationOptionsAzure { location, .. }) => location,
         }
     }
 }
@@ -1320,6 +1382,13 @@ pub struct CopyToDestinationOptionsS3 {
     pub secret_access_key: Option<String>,
     pub region: String,
     pub bucket: String,
+    pub location: String,
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct CopyToDestinationOptionsAzure {
+    pub account: String,
+    pub access_key: String,
     pub location: String,
 }
 

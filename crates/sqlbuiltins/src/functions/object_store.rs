@@ -20,13 +20,15 @@ use datafusion_ext::functions::{
 
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::object_store::gcs::GcsStoreAccess;
+use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess};
 use futures::TryStreamExt;
+use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::catalog::RuntimePreference;
-use protogen::metastore::types::options::CredentialsOptions;
+use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
 
@@ -70,6 +72,7 @@ impl TableFunc for ObjScanTableFunc {
             DatasourceUrlType::Http => RuntimePreference::Remote,
             DatasourceUrlType::Gcs => RuntimePreference::Remote,
             DatasourceUrlType::S3 => RuntimePreference::Remote,
+            DatasourceUrlType::Azure => RuntimePreference::Remote,
         });
         let first = urls.next().unwrap();
 
@@ -243,6 +246,18 @@ fn get_store_access(
 
                     create_s3_store_access(source_url, &mut opts, access_key_id, secret_access_key)?
                 }
+                DatasourceUrlType::Azure => {
+                    let access_key = opts
+                        .remove("access_key")
+                        .map(FuncParamValue::param_into)
+                        .transpose()?;
+                    let account = opts
+                        .remove("account_name")
+                        .map(FuncParamValue::param_into)
+                        .transpose()?;
+
+                    create_azure_store_access(source_url, account, access_key)?
+                }
             }
         }
         1 => {
@@ -287,6 +302,21 @@ fn get_store_access(
                         Some(access_key_id),
                         Some(secret_access_key),
                     )?
+                }
+                DatasourceUrlType::Azure => {
+                    let (account, access_key) = match &creds.options {
+                        CredentialsOptions::Azure(azure) => {
+                            (azure.account_name.to_owned(), azure.access_key.to_owned())
+                        }
+                        other => {
+                            return Err(ExtensionError::String(format!(
+                                "invalid credentials for Azure, got {}",
+                                other.as_str()
+                            )))
+                        }
+                    };
+
+                    create_azure_store_access(source_url, Some(account), Some(access_key))?
                 }
                 other => {
                     return Err(ExtensionError::String(format!(
@@ -363,5 +393,25 @@ fn create_s3_store_access(
         bucket,
         access_key_id,
         secret_access_key,
+    }))
+}
+
+fn create_azure_store_access(
+    source_url: &DatasourceUrl,
+    account: Option<String>,
+    access_key: Option<String>,
+) -> Result<Arc<dyn ObjStoreAccess>> {
+    let account = account.ok_or(ExtensionError::MissingNamedArgument("account_name"))?;
+    let access_key = access_key.ok_or(ExtensionError::MissingNamedArgument("access_key"))?;
+
+    let mut opts = StorageOptions::default();
+    opts.inner
+        .insert(AzureConfigKey::AccountName.as_ref().to_owned(), account);
+    opts.inner
+        .insert(AzureConfigKey::AccessKey.as_ref().to_owned(), access_key);
+
+    Ok(Arc::new(GenericStoreAccess {
+        base_url: ObjectStoreUrl::try_from(source_url)?,
+        storage_options: opts,
     }))
 }
