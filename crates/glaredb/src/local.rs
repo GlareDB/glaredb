@@ -121,6 +121,31 @@ impl LocalSession {
     }
 
     async fn run_interactive(&mut self) -> Result<()> {
+        self.setup_command_line_interface();
+
+        let mut line_editor = self.initialize_line_editor();
+        let prompt = SQLPrompt {};
+        let mut scratch = String::with_capacity(1024);
+
+        loop {
+            let sig = line_editor.read_line(&prompt);
+            match sig {
+                Ok(Signal::Success(buffer)) => {
+                    if let Some(result) = self.process_user_input(&buffer, &mut scratch).await? {
+                        if result == ClientCommandResult::Exit {
+                            return Ok(());
+                        }
+                    }
+                }
+                Ok(Signal::CtrlD) => break,
+                Ok(Signal::CtrlC) => scratch.clear(),
+                Err(e) => return Err(anyhow!("Unable to read from prompt: {e}")),
+            }
+        }
+        Ok(())
+    }
+
+    fn setup_command_line_interface(&self) {
         match (&self.opts.storage_config, &self.opts.data_dir) {
             (
                 StorageConfigArgs {
@@ -134,59 +159,52 @@ impl LocalSession {
         };
 
         println!("Type {} for help.", "\\help".bold().italic());
+    }
 
+    fn initialize_line_editor(&self) -> Reedline {
         let history = Box::new(
             FileBackedHistory::with_file(100, get_history_path())
                 .expect("Error configuring history with file"),
         );
 
-        let mut line_editor = Reedline::create()
+        Reedline::create()
             .with_history(history)
             .with_hinter(Box::new(SQLHinter::new()))
             .with_highlighter(Box::new(SQLHighlighter))
-            .with_validator(Box::new(SQLValidator));
+            .with_validator(Box::new(SQLValidator))
+    }
 
-        let prompt = SQLPrompt {};
-        let mut scratch = String::with_capacity(1024);
-
-        loop {
-            let sig = line_editor.read_line(&prompt);
-            match sig {
-                Ok(Signal::Success(buffer)) => match buffer.as_str() {
-                    cmd if is_client_cmd(cmd) => match self.handle_client_cmd(cmd).await {
-                        Ok(ClientCommandResult::Continue) => (),
-                        Ok(ClientCommandResult::Exit) => return Ok(()),
-                        Err(e) => {
-                            println!("Error: {e}")
-                        }
-                    },
-                    _ => {
-                        let mut parts = buffer.splitn(2, ';');
-                        let first = parts.next().unwrap();
-                        scratch.push_str(first);
-
-                        let second = parts.next();
-                        if second.is_some() {
-                            match self.execute(&scratch).await {
-                                Ok(_) => {}
-                                Err(e) => println!("Error: {e}"),
-                            };
-                            scratch.clear();
-                        } else {
-                            scratch.push(' ');
-                        }
-                    }
-                },
-                Ok(Signal::CtrlD) => break,
-                Ok(Signal::CtrlC) => {
-                    scratch.clear();
-                }
+    async fn process_user_input(
+        &mut self,
+        buffer: &str,
+        scratch: &mut String,
+    ) -> Result<Option<ClientCommandResult>> {
+        match buffer {
+            cmd if is_client_cmd(cmd) => match self.handle_client_cmd(cmd).await {
+                Ok(result) => Ok(Some(result)),
                 Err(e) => {
-                    return Err(anyhow!("Unable to read from prompt: {e}"));
+                    println!("Error: {e}");
+                    Ok(None)
                 }
+            },
+            _ => {
+                let mut parts = buffer.splitn(2, ';');
+                let first = parts.next().unwrap();
+                scratch.push_str(first);
+
+                let second = parts.next();
+                if second.is_some() {
+                    match self.execute(scratch).await {
+                        Ok(_) => {}
+                        Err(e) => println!("Error: {e}"),
+                    };
+                    scratch.clear();
+                } else {
+                    scratch.push(' ');
+                }
+                Ok(None)
             }
         }
-        Ok(())
     }
 
     async fn execute_one(&mut self, query: &str) -> Result<()> {
