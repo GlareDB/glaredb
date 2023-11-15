@@ -58,6 +58,7 @@ webpki-roots = "0.25.1"
 dashmap = "5.5.0"
 calamine = { version = "0.22.1", features = ["dates"] }
 tiberius = { version = "0.12.2", default-features = false, features = ["tds73", "rustls", "chrono"] }
+lance = { git = "https://github.com/universalmind303/lance", rev = "81158eb540ff88ab5b4fce3a1170447760137412" }
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]

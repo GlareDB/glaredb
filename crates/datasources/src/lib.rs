@@ -1,10 +1,10 @@
 //! Data source implementations.
-
 pub mod bigquery;
 pub mod common;
 pub mod debug;
 pub mod excel;
 pub mod lake;
+pub mod lance;
 pub mod mongodb;
 pub mod mysql;
 pub mod native;
