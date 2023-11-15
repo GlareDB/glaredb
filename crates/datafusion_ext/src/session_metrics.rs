@@ -1,9 +1,7 @@
-use crate::context::local::Portal;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::Result as DatafusionResult;
 use datafusion::physical_plan::{ExecutionPlan, RecordBatchStream, SendableRecordBatchStream};
-use datafusion_ext::metrics::AggregatedMetrics;
 use futures::stream::{Stream, StreamExt};
 use serde_json::json;
 use telemetry::Tracker;
@@ -12,6 +10,8 @@ use uuid::Uuid;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+
+use crate::metrics::AggregatedMetrics;
 
 /// Result type used when we don't know the result of a query yet.
 const UNKNOWN_RESULT_TYPE: &str = "unknown";
@@ -106,18 +106,10 @@ pub struct QueryMetrics {
     pub bytes_written: Option<u64>,
 }
 
-impl QueryMetrics {
-    /// Create a new set of metrics for a portal.
-    ///
-    /// The returned set of metrics should be updated during query execution.
-    pub fn new_for_portal(portal: &Portal) -> QueryMetrics {
-        QueryMetrics {
-            query_text: portal
-                .stmt
-                .stmt
-                .clone()
-                .map(|stmt| stmt.to_string())
-                .unwrap_or("<empty>".to_string()),
+impl Default for QueryMetrics {
+    fn default() -> Self {
+        Self {
+            query_text: "<empty>".to_string(),
             result_type: UNKNOWN_RESULT_TYPE,
             execution_status: ExecutionStatus::Unknown,
             error_message: None,
@@ -165,10 +157,8 @@ impl BatchStreamWithMetricSender {
 
         let agg_metrics = AggregatedMetrics::new_from_plan(self.plan.as_ref());
         metrics.bytes_read = Some(agg_metrics.bytes_read);
+        metrics.bytes_written = agg_metrics.bytes_written;
         metrics.elapsed_compute_ns = Some(agg_metrics.elapsed_compute_ns);
-
-        // It's a normal read query. Nothing should be written.
-        debug_assert!(agg_metrics.bytes_written.is_none());
     }
 }
 

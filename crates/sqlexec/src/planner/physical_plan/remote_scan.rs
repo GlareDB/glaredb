@@ -6,12 +6,14 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::display::ProjectSchemaDisplay;
 use datafusion::physical_plan::expressions::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
 use datafusion::prelude::Expr;
+use datafusion_ext::metrics::AggregateMetricsStreamAdapter;
 use futures::{stream, TryStreamExt};
 use std::any::Any;
 use std::fmt;
@@ -72,6 +74,26 @@ pub struct RemoteScanExec {
     pub projection: Option<Vec<usize>>,
     pub filters: Vec<Expr>,
     pub limit: Option<usize>,
+    metrics: ExecutionPlanMetricsSet,
+}
+
+impl RemoteScanExec {
+    pub fn new(
+        provider: ProviderReference,
+        projected_schema: Arc<Schema>,
+        projection: Option<Vec<usize>>,
+        filters: Vec<Expr>,
+        limit: Option<usize>,
+    ) -> Self {
+        Self {
+            provider,
+            projected_schema,
+            projection,
+            filters,
+            limit,
+            metrics: ExecutionPlanMetricsSet::new(),
+        }
+    }
 }
 
 impl ExecutionPlan for RemoteScanExec {
@@ -127,6 +149,8 @@ impl ExecutionPlan for RemoteScanExec {
         let projection = self.projection.clone();
         let filters = self.filters.clone();
         let limit = self.limit;
+        let metrics = self.metrics.clone();
+
         let stream = stream::once(async move {
             // Recreate a session state from a task context. This is a bit hacky,
             // but all we really need to care about is the object stores in runtime
@@ -147,7 +171,11 @@ impl ExecutionPlan for RemoteScanExec {
             // which happens, unfortunately, during execution here (see above).
             // Hence, to execute the complete plan we need to coalesce the plan.
             let plan = CoalescePartitionsExec::new(plan);
-            plan.execute(0, context)
+
+            let stream = plan.execute(0, context)?;
+            let stream = RecordBatchStreamAdapter::new(plan.schema(), stream);
+            let stream = AggregateMetricsStreamAdapter::new(stream, Arc::new(plan), 0, &metrics);
+            Ok(stream) as DataFusionResult<_>
         })
         .try_flatten();
 
@@ -157,6 +185,10 @@ impl ExecutionPlan for RemoteScanExec {
 
     fn statistics(&self) -> Statistics {
         Statistics::default()
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
     }
 }
 

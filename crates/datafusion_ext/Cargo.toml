@@ -12,6 +12,8 @@ unicode_expressions = []
 
 [dependencies]
 ioutil = { path = "../ioutil" }
+telemetry = { path = "../telemetry" }
+serde_json = { workspace = true }
 datafusion = { workspace = true }
 async-trait = "0.1.74"
 async-recursion = "1.0.4"

@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion_ext::session_metrics::{BatchStreamWithMetricSender, SessionMetricsHandler};
 use futures::{Stream, StreamExt};
 use protogen::{
     gen::rpcsrv::common,
@@ -156,7 +156,23 @@ impl RpcHandler {
         info!(database_id=%req.database_id, "executing physical plan");
 
         let session = self.get_session(req.database_id)?;
-        let batches = session.physical_plan_execute(req.physical_plan).await?;
+        let (plan, batches) = session.physical_plan_execute(req.physical_plan).await?;
+
+        let session_metrics_handler = SessionMetricsHandler::new(
+            Uuid::nil(), // TODO
+            req.database_id,
+            Uuid::nil(), // TODO?
+            self.engine.get_tracker(),
+        );
+
+        // TODO: Get query information and fill in `QueryMetrics`.
+        let batches = BatchStreamWithMetricSender::new(
+            batches,
+            plan,
+            Default::default(),
+            session_metrics_handler,
+        );
+
         Ok(ExecutionResponseBatchStream {
             batches,
             buf: Vec::new(),
@@ -248,7 +264,7 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
 // TODO: StreamWriter
 // TODO: Possibly buffer record batches.
 struct ExecutionResponseBatchStream {
-    batches: SendableRecordBatchStream,
+    batches: BatchStreamWithMetricSender,
     buf: Vec<u8>,
 }
 

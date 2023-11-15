@@ -23,6 +23,9 @@ use datafusion::physical_plan::{
 use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::metrics::AggregatedMetrics;
+use datafusion_ext::session_metrics::{
+    BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetricsHandler,
+};
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use futures::{Stream, StreamExt};
@@ -35,9 +38,6 @@ use crate::background_jobs::JobRunner;
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
-use crate::metrics::{
-    BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetricsHandler,
-};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 
@@ -544,7 +544,10 @@ impl Session {
         };
 
         // Create "base" metrics.
-        let mut metrics = QueryMetrics::new_for_portal(portal);
+        let mut metrics = QueryMetrics::default();
+        if let Some(stmt) = &portal.stmt.stmt {
+            metrics.query_text = stmt.to_string();
+        }
 
         let stream = match self.execute_inner(plan).await {
             Ok((plan, result)) => match result {

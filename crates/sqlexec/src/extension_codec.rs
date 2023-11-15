@@ -420,13 +420,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                         DataFusionError::Internal(format!("Missing proivder for id: {provider_id}"))
                     })?;
 
-                Arc::new(RemoteScanExec {
-                    provider: ProviderReference::Provider(prov),
-                    projected_schema: Arc::new(projected_schema),
+                Arc::new(RemoteScanExec::new(
+                    ProviderReference::Provider(prov),
+                    Arc::new(projected_schema),
                     projection,
                     filters,
                     limit,
-                })
+                ))
             }
             proto::ExecutionPlanExtensionType::CreateSchema(ext) => Arc::new(CreateSchemaExec {
                 catalog_version: ext.catalog_version,
