@@ -5215,9 +5215,9 @@ dependencies = [
 
 [[package]]
 name = "prql-compiler"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "245e54abe336ce2937030501b132ba9363fdccb8a78cd553ecccf065b77860e5"
+checksum = "89369450e8ed4e569bdd6b109f719a532d18a4b20e5e828bbd9905475c3276b5"
 dependencies = [
  "anstream 0.3.2",
  "anyhow",
@@ -5241,9 +5241,9 @@ dependencies = [
 
 [[package]]
 name = "prqlc-ast"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ec908ca2bfd9d658a5db15e3b73d9d7a2d33d7c2a4c1f33393c6d7552000c94"
+checksum = "e72a8626577e4f8e956c7e17acb909ce49374da61563afa7324feb250dc1bece"
 dependencies = [
  "enum-as-inner 0.6.0",
  "semver 1.0.20",
@@ -5253,14 +5253,15 @@ dependencies = [
 
 [[package]]
 name = "prqlc-parser"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85ad56e613acd847c587b9f4b590e393aa34847a84b201dd152712056a7398c2"
+checksum = "e69c749add52b45bf21ec316f489d8dee5eb64a8d65373849fc3176296c1b348"
 dependencies = [
  "chumsky",
  "itertools 0.11.0",
  "prqlc-ast",
  "semver 1.0.20",
+ "stacker",
 ]
 
 [[package]]
