@@ -32,7 +32,6 @@ pub enum Commands {
     /// Starts an instance of the Metastore.
     #[clap(hide = true)]
     Metastore(MetastoreArgs),
-    // Version
 }
 
 impl Commands {
