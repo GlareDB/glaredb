@@ -413,7 +413,7 @@ pub struct CustomParser<'a> {
 impl CustomParser<'_> {
     const PRQL_OPTIONS: &'static Options = &Options {
         format: false,
-        target: Target::Sql(Some(PrqlDialect::Postgres)),
+        target: Target::Sql(Some(PrqlDialect::GlareDb)),
         signature_comment: false,
         color: false,
     };

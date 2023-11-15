@@ -858,6 +858,15 @@ Steve     Johnson   Nancy
 # select {track_id, genre_id, num, total, last_val}
 # filter genre_id >= 22
 
+query TTT
+from (read_csv '../../testdata/prql_integration/employees.csv')
+sort employee_id
+select {employee_id, reports_to}
+take 1
+----
+1  6
+
+
 # Make sure we can switch back to normal sql.
 statement ok
 set dialect = 'sql'
