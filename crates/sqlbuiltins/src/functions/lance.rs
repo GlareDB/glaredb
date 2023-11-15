@@ -12,7 +12,7 @@ use protogen::metastore::types::catalog::RuntimePreference;
 /// Function for scanning delta tables.
 ///
 /// Note that this is separate from the other object store functions since
-/// initializing object storage happens within the deltalake lib. We're
+/// initializing object storage happens within the lance lib. We're
 /// responsible for providing credentials, then it's responsible for creating
 /// the store.
 ///
