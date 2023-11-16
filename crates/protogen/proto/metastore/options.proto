@@ -106,8 +106,9 @@ message TableOptions {
     TableOptionsObjectStore iceberg = 12;
     TableOptionsObjectStore azure = 13;
     TableOptionsSqlServer sql_server = 14;
+    TableOptionsObjectStore lance = 15;
   }
-  // next: 15
+  // next: 16
 }
 
 message TableOptionsInternal {

@@ -18,6 +18,7 @@ use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
+use datasources::lance::scan_lance_table;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
@@ -481,6 +482,14 @@ impl<'a> ExternalDispatcher<'a> {
                 })
                 .await?;
                 Ok(Arc::new(table))
+            }
+            TableOptions::Lance(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            }) => {
+                let dataset = scan_lance_table(&location, storage_options.clone()).await?;
+                Ok(Arc::new(dataset))
             }
         }
     }
