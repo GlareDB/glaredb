@@ -1,0 +1,13 @@
+# Tests for asserting how we parse sql queries (and eventually expected errors).
+
+# Trailing commas in select list.
+query II rowsort
+select
+  a,
+  b,
+from generate_series(1, 2) s1(a), generate_series(1, 2) s2(b)
+----
+1 1
+1 2
+2 1
+2 2

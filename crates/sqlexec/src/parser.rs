@@ -4,7 +4,7 @@ use crate::errors::Result;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName};
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
-use datafusion::sql::sqlparser::parser::{Parser, ParserError};
+use datafusion::sql::sqlparser::parser::{Parser, ParserError, ParserOptions};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer, Word};
 use datafusion_ext::vars::Dialect;
 use prql_compiler::{compile, sql::Dialect as PrqlDialect, Options, Target};
@@ -413,15 +413,20 @@ pub struct CustomParser<'a> {
 impl CustomParser<'_> {
     const PRQL_OPTIONS: &'static Options = &Options {
         format: false,
-        target: Target::Sql(Some(PrqlDialect::Postgres)),
+        target: Target::Sql(Some(PrqlDialect::GlareDb)),
         signature_comment: false,
         color: false,
     };
-    const PRQL_DIALECT: &'static GenericDialect = &GenericDialect {};
+    const SQL_DIALECT: &'static GenericDialect = &GenericDialect {};
 
     pub fn new(mut sql: &str, dialect: Dialect) -> Result<CustomParser<'_>, ParserError> {
-        let tokens = Tokenizer::new(Self::PRQL_DIALECT, sql).tokenize()?;
-        let mut parser = Parser::new(Self::PRQL_DIALECT).with_tokens(tokens);
+        let tokens = Tokenizer::new(Self::SQL_DIALECT, sql).tokenize()?;
+        let mut parser = Parser::new(Self::SQL_DIALECT)
+            .with_options(ParserOptions {
+                trailing_commas: true,
+                ..Default::default()
+            })
+            .with_tokens(tokens);
         if let Dialect::Prql = dialect {
             sql = sql.trim_end_matches(';');
             // Special case for SET statements, which are not supported by PRQL.
@@ -432,7 +437,7 @@ impl CustomParser<'_> {
                 let s = compile(sql, opts).map_err(|e| {
                     ParserError::ParserError(format!("Error compiling PRQL: {}", e))
                 })?;
-                let tokens = Tokenizer::new(Self::PRQL_DIALECT, &s).tokenize()?;
+                let tokens = Tokenizer::new(Self::SQL_DIALECT, &s).tokenize()?;
                 parser = parser.with_tokens(tokens);
             }
         }
