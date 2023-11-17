@@ -12,7 +12,7 @@ pgsrv = {path = "../pgsrv"}
 tokio = { version = "1", features = ["full"] }
 tokio-postgres = "0.7.8"
 anyhow = "1.0"
-clap = { version = "4.4.7", features = ["derive"] }
+clap = { version = "4.4.8", features = ["derive"] }
 async-trait = "0.1.74"
 glob = "0.3.1"
 regex = "1.8.1"
