@@ -107,8 +107,8 @@ pub fn validate_table_creds_support(table: &str, creds: &str) -> Result<()> {
         (TableOptions::S3_STORAGE, CredentialsOptions::AWS) |
         // Azure
         (TableOptions::AZURE, CredentialsOptions::AZURE) |
-        // Delta & Iceberg
-        (TableOptions::DELTA | TableOptions::ICEBERG, CredentialsOptions::GCP | CredentialsOptions::AWS | CredentialsOptions::AZURE)
+        // Delta & Iceberg & Lance
+        (TableOptions::DELTA | TableOptions::ICEBERG | TableOptions::LANCE, CredentialsOptions::GCP | CredentialsOptions::AWS | CredentialsOptions::AZURE )
     ) {
         Ok(())
     } else {

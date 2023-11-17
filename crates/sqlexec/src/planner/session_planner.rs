@@ -19,6 +19,7 @@ use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
+use datasources::lance::scan_lance_table;
 use datasources::mongodb::{MongoAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
@@ -632,6 +633,21 @@ impl<'a> SessionPlanner<'a> {
 
                 TableOptions::Debug(TableOptionsDebug {
                     table_type: typ.to_string(),
+                })
+            }
+            TableOptions::LANCE => {
+                let location: String = m.remove_required("location")?;
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+                // Validate that the table exists.
+                let _table = scan_lance_table(&location, storage_options.clone()).await?;
+                TableOptions::Lance(TableOptionsObjectStore {
+                    location,
+                    storage_options,
+                    file_type: None,
+                    compression: None,
                 })
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
