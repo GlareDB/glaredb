@@ -32,4 +32,4 @@ tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 [workspace.dependencies.deltalake]
 git = "https://github.com/delta-io/delta-rs.git"
 rev = "5c324ccd0a8738251a9aea9452d7323400e5e8c6"
-features = ["s3", "gcs", "azure", "datafusion", "arrow", "parquet"]
+features = ["s3", "gcs", "azure", "datafusion", "arrow"]
