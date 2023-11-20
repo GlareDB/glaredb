@@ -9,7 +9,7 @@ use datafusion::{
     physical_plan::{
         coalesce_partitions::CoalescePartitionsExec, empty::EmptyExec,
         stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan,
-        Partitioning, SendableRecordBatchStream, Statistics,
+        Partitioning, SendableRecordBatchStream,
     },
 };
 use datasources::native::access::{NativeTable, NativeTableStorage, SaveMode};
@@ -101,10 +101,6 @@ impl ExecutionPlan for CreateTableExec {
             self.schema(),
             stream,
         )))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

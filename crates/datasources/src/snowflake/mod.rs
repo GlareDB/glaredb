@@ -13,9 +13,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
-use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, Partitioning, RecordBatchStream, Statistics,
-};
+use datafusion::physical_plan::{DisplayAs, DisplayFormatType, Partitioning, RecordBatchStream};
 use datafusion::scalar::ScalarValue;
 use datafusion::{
     arrow::datatypes::{Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
@@ -437,10 +435,6 @@ impl ExecutionPlan for SnowflakeExec {
             partition,
             &self.metrics,
         )))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 
     fn metrics(&self) -> Option<MetricsSet> {

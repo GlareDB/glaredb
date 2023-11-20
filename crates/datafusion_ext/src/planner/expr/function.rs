@@ -215,12 +215,14 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
-            } => Ok(Expr::Wildcard),
+            } => Ok(Expr::Wildcard { qualifier: None }),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
                 self.sql_expr_to_logical_expr(arg, schema, planner_context)
                     .await
             }
-            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => Ok(Expr::Wildcard),
+            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
+                Ok(Expr::Wildcard { qualifier: None })
+            }
             _ => Err(DataFusionError::NotImplemented(format!(
                 "Unsupported qualified wildcard argument: {sql:?}"
             ))),

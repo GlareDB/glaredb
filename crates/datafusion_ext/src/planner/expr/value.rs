@@ -17,6 +17,7 @@
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use async_recursion::async_recursion;
+use datafusion::arrow::array::new_null_array;
 use datafusion::arrow::compute::kernels::cast_utils::parse_interval_month_day_nano;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{DFSchema, DataFusionError, Result, ScalarValue};
@@ -133,15 +134,15 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         let data_types: HashSet<DataType> = values.iter().map(|e| e.data_type()).collect();
 
         if data_types.is_empty() {
-            Ok(lit(ScalarValue::new_list(None, DataType::Utf8)))
+            Ok(lit(ScalarValue::List(new_null_array(&DataType::Null, 0))))
         } else if data_types.len() > 1 {
             Err(DataFusionError::NotImplemented(format!(
                 "Arrays with different types are not supported: {data_types:?}",
             )))
         } else {
             let data_type = values[0].data_type();
-
-            Ok(lit(ScalarValue::new_list(Some(values), data_type)))
+            let arr = ScalarValue::new_list(&values, &data_type);
+            Ok(lit(ScalarValue::List(arr)))
         }
     }
 

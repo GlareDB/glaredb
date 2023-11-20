@@ -7,7 +7,6 @@ use datafusion::physical_plan::expressions::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-    Statistics,
 };
 use futures::{stream, Stream, StreamExt, TryStreamExt};
 use protogen::gen::rpcsrv::service::RecordBatchResponse;
@@ -84,10 +83,6 @@ impl ExecutionPlan for RemoteExecutionExec {
             self.schema(),
             stream,
         )))
-    }
-
-    fn statistics(&self) -> Statistics {
-        self.plan.statistics()
     }
 }
 

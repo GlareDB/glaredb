@@ -989,6 +989,7 @@ impl<'a> SessionPlanner<'a> {
                 table: false,
                 on: None,
                 returning: None,
+                ignore: false,
             } if after_columns.is_empty() => {
                 validate_object_name(&table_name)?;
                 let table_name = object_name_to_table_ref(table_name)?;
@@ -1198,7 +1199,14 @@ impl<'a> SessionPlanner<'a> {
                 using: None,
                 selection,
                 returning: None,
+                order_by,
+                limit: None,
             } if tables.is_empty() => {
+                if !order_by.is_empty() {
+                    return Err(PlanError::InvalidDeleteStatement {
+                        msg: "DELETE FROM does not support ORDER BY",
+                    });
+                }
                 let (table_name, schema) = match from.len() {
                     0 => {
                         return Err(PlanError::InvalidDeleteStatement {
@@ -1827,15 +1835,16 @@ fn object_name_to_schema_ref(name: ObjectName) -> Result<OwnedSchemaReference> {
 /// modifications were made to fit our use case.
 fn convert_data_type(sql_type: &ast::DataType) -> Result<DataType> {
     match sql_type {
-        ast::DataType::Array(Some(inner_sql_type)) => {
+        ast::DataType::Array(ast::ArrayElemTypeDef::AngleBracket(inner_sql_type))
+        | ast::DataType::Array(ast::ArrayElemTypeDef::SquareBracket(inner_sql_type)) => {
             let data_type = convert_simple_data_type(inner_sql_type)?;
 
             Ok(DataType::List(Arc::new(Field::new(
                 "field", data_type, true,
             ))))
         }
-        ast::DataType::Array(None) => {
-            Err(internal!("Arrays with unspecified type is not supported",))
+        ast::DataType::Array(ast::ArrayElemTypeDef::None) => {
+            return Err(internal!("Arrays with unspecified type is not supported",))
         }
         other => convert_simple_data_type(other),
     }
@@ -1862,7 +1871,7 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
             ast::DataType::Char(_)
             | ast::DataType::Varchar(_)
             | ast::DataType::Text
-            | ast::DataType::String => Ok(DataType::Utf8),
+            | ast::DataType::String(_) => Ok(DataType::Utf8),
             ast::DataType::Timestamp(None, tz_info) => {
                 let tz = if matches!(tz_info, ast::TimezoneInfo::Tz)
                     || matches!(tz_info, ast::TimezoneInfo::WithTimeZone)
@@ -1933,7 +1942,11 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
             | ast::DataType::Dec(_)
             | ast::DataType::BigNumeric(_)
             | ast::DataType::BigDecimal(_)
-            | ast::DataType::Clob(_) => Err(internal!(
+            | ast::DataType::Clob(_)
+            | ast::DataType::Bytes(_)
+            | ast::DataType::Int64
+            | ast::DataType::Float64
+            | ast::DataType::Struct(_) => Err(internal!(
                 "Unsupported SQL type {:?}",
                 sql_type
             )),

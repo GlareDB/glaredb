@@ -13,7 +13,7 @@ use datafusion::{
     physical_expr::PhysicalSortExpr,
     physical_plan::{
         stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan,
-        Partitioning, SendableRecordBatchStream, Statistics,
+        Partitioning, SendableRecordBatchStream,
     },
 };
 use futures::stream;
@@ -143,9 +143,5 @@ impl ExecutionPlan for DescribeTableExec {
             self.schema(),
             stream,
         )))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }

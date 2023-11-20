@@ -9,7 +9,7 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{
     stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    SendableRecordBatchStream,
 };
 use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
@@ -95,10 +95,6 @@ impl ExecutionPlan for ClientExchangeSendExec {
             Self::arrow_schema(),
             stream,
         )))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

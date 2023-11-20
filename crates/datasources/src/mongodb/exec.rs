@@ -10,7 +10,7 @@ use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
+    SendableRecordBatchStream,
 };
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{Stream, StreamExt};
@@ -100,10 +100,6 @@ impl ExecutionPlan for MongoBsonExec {
             partition,
             &self.metrics,
         )))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 
     fn metrics(&self) -> Option<MetricsSet> {

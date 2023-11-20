@@ -38,10 +38,11 @@ impl TableFunc for LanceScan {
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         let (source_url, storage_options) = table_location_and_opts(ctx, args, &mut opts)?;
-        let dataset = scan_lance_table(&source_url.to_string(), storage_options)
+        let _dataset = scan_lance_table(&source_url.to_string(), storage_options)
             .await
             .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
-        Ok(Arc::new(dataset))
+        unimplemented!()
+        // Ok(Arc::new(dataset))
     }
 }

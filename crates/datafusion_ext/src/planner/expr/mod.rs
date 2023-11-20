@@ -237,7 +237,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 .await
             }
 
-            SQLExpr::Cast { expr, data_type } => Ok(Expr::Cast(Cast::new(
+            SQLExpr::Cast {
+                expr, data_type, ..
+            } => Ok(Expr::Cast(Cast::new(
                 Box::new(
                     self.sql_expr_to_logical_expr(*expr, schema, planner_context)
                         .await?,
@@ -245,7 +247,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 self.convert_data_type(&data_type)?,
             ))),
 
-            SQLExpr::TryCast { expr, data_type } => Ok(Expr::TryCast(TryCast::new(
+            SQLExpr::TryCast {
+                expr, data_type, ..
+            } => Ok(Expr::TryCast(TryCast::new(
                 Box::new(
                     self.sql_expr_to_logical_expr(*expr, schema, planner_context)
                         .await?,
@@ -434,6 +438,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 expr,
                 trim_where,
                 trim_what,
+                ..
             } => {
                 self.sql_trim_to_expr(*expr, trim_where, trim_what, schema, planner_context)
                     .await

@@ -5,10 +5,12 @@ use datafusion::common::Result as DfResult;
 use datafusion::error::DataFusionError;
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::insert::DataSink;
+use datafusion::physical_plan::metrics::MetricsSet;
 use datafusion::physical_plan::DisplayAs;
 use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
 use object_store::{path::Path as ObjectPath, ObjectStore};
+use std::any::Any;
 use std::fmt::Display;
 use std::sync::Arc;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
@@ -91,20 +93,25 @@ impl JsonSink {
 
 #[async_trait]
 impl DataSink for JsonSink {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     async fn write_all(
         &self,
-        data: Vec<SendableRecordBatchStream>,
+        data: SendableRecordBatchStream,
         _context: &Arc<TaskContext>,
     ) -> DfResult<u64> {
-        let mut count = 0;
-        for stream in data {
-            count += self
-                .stream_into_inner(stream)
-                .await
-                .map(|x| x as u64)
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        }
+        let count = self
+            .stream_into_inner(data)
+            .await
+            .map(|x| x as u64)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(count)
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        None
     }
 }
 

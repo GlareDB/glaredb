@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::Schema;
-use datafusion::common::tree_node::Transformed;
+use datafusion::common::tree_node::{Transformed, TreeNode};
 use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::context::SessionState;
@@ -11,7 +11,6 @@ use datafusion::physical_planner::{DefaultPhysicalPlanner, ExtensionPlanner, Phy
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
-use datafusion_ext::transform::TreeNodeExt;
 use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::CopyToDestinationOptions;
 use tracing::debug;

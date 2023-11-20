@@ -14,7 +14,7 @@ use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::logical_expr::TableType;
 use datafusion::physical_plan::union::UnionExec;
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
 use errors::ObjectStoreSourceError;
@@ -306,7 +306,7 @@ impl TableProvider for ObjStoreTableProvider {
                 )
                 .await?
         } else {
-            Default::default()
+            Statistics::new_unknown(&self.schema())
         };
 
         let config = FileScanConfig {

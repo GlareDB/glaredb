@@ -488,8 +488,9 @@ impl<'a> ExternalDispatcher<'a> {
                 storage_options,
                 ..
             }) => {
-                let dataset = scan_lance_table(location, storage_options.clone()).await?;
-                Ok(Arc::new(dataset))
+                let _dataset = scan_lance_table(location, storage_options.clone()).await?;
+                unimplemented!()
+                // Ok(Arc::new(dataset))
             }
         }
     }

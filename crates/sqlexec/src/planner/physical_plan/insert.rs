@@ -9,7 +9,7 @@ use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::{
     stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
@@ -89,10 +89,6 @@ impl ExecutionPlan for InsertExec {
             self.schema(),
             stream,
         )))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

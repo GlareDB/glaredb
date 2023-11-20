@@ -17,7 +17,7 @@ use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{DisplayAs, DisplayFormatType};
 use datafusion::physical_plan::{
-    ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
+    ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream,
 };
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
@@ -280,10 +280,6 @@ impl ExecutionPlan for DebugTableExec {
                 limit: self.limit,
             }),
         })
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

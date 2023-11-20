@@ -7,7 +7,7 @@ use datafusion::physical_plan::execute_stream;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::{
     stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    SendableRecordBatchStream,
 };
 use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
@@ -90,10 +90,6 @@ impl ExecutionPlan for CopyToExec {
             stream,
         )))
     }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
-    }
 }
 
 impl DisplayAs for CopyToExec {
@@ -161,7 +157,7 @@ impl CopyToExec {
         };
 
         let stream = execute_stream(self.source, context.clone())?;
-        let count = sink.write_all(vec![stream], &context).await?;
+        let count = sink.write_all(stream, &context).await?;
 
         Ok(new_operation_with_count_batch("copy", count))
     }

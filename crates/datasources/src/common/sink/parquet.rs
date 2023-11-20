@@ -1,12 +1,15 @@
 use async_trait::async_trait;
 use datafusion::common::Result as DfResult;
+use datafusion::error::DataFusionError;
 use datafusion::execution::TaskContext;
 use datafusion::parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 use datafusion::physical_plan::insert::DataSink;
+use datafusion::physical_plan::metrics::MetricsSet;
 use datafusion::physical_plan::DisplayAs;
 use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
 use object_store::{path::Path as ObjectPath, ObjectStore};
+use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
@@ -86,15 +89,24 @@ impl ParquetSink {
 
 #[async_trait]
 impl DataSink for ParquetSink {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     async fn write_all(
         &self,
-        data: Vec<SendableRecordBatchStream>,
+        data: SendableRecordBatchStream,
         _context: &Arc<TaskContext>,
     ) -> DfResult<u64> {
-        let mut count = 0;
-        for stream in data {
-            count += self.stream_into_inner(stream).await.map(|x| x as u64)?;
-        }
+        let count = self
+            .stream_into_inner(data)
+            .await
+            .map(|x| x as u64)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(count)
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        None
     }
 }

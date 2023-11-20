@@ -6,7 +6,7 @@ set search_path = public;
 query T
 select current_schemas()::text;
 ----
-[public]
+public
 
 # Create a new schema, add it to search path.
 
@@ -16,15 +16,17 @@ create schema current_schemas_test;
 statement ok
 set search_path = 'public,current_schemas_test';
 
-query T
+query T rowsort
 select current_schemas()::text;
 ----
-[public, current_schemas_test]
+current_schemas_test
+public
 
 statement ok
 set search_path = public,current_schemas_test;
 
-query T
+query T rowsort
 select current_schemas()::text;
 ----
-[public, current_schemas_test]
+current_schemas_test
+public

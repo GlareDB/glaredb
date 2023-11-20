@@ -5,7 +5,7 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{
     stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    SendableRecordBatchStream,
 };
 use datafusion::prelude::Expr;
 use datasources::native::access::NativeTableStorage;
@@ -76,10 +76,6 @@ impl ExecutionPlan for UpdateExec {
             self.schema(),
             stream,
         )))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

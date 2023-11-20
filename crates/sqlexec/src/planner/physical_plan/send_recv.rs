@@ -7,7 +7,6 @@ use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::RecordBatchStream;
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-    Statistics,
 };
 use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
@@ -139,10 +138,6 @@ impl ExecutionPlan for SendRecvJoinExec {
         };
 
         Ok(Box::pin(stream))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

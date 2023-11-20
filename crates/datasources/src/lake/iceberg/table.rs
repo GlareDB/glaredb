@@ -336,7 +336,7 @@ impl TableProvider for IcebergTableReader {
             object_store_url: object_url,
             file_schema: self.schema(),
             projection: projection.cloned(),
-            statistics: Statistics::default(),
+            statistics: Statistics::new_unknown(&self.schema()),
             file_groups: vec![partitioned_files],
             limit,
             table_partition_cols: Vec::new(),
@@ -406,10 +406,6 @@ impl ExecutionPlan for IcebergTableScan {
         context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
         self.parquet_scan.execute(partition, context)
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

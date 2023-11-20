@@ -2,19 +2,21 @@ use crate::native::errors::{NativeError, Result};
 use crate::native::insert::NativeTableInsertExec;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema, TimeUnit};
+use datafusion::common::stats::Precision;
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::SessionState;
 
 use datafusion::logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableType};
-use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
+use deltalake::logstore::default_logstore::DefaultLogStore;
+use deltalake::logstore::{LogStore, LogStoreConfig};
 use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::delete::DeleteBuilder;
 use deltalake::operations::update::UpdateBuilder;
-use deltalake::storage::DeltaObjectStore;
+use deltalake::storage::config::StorageOptions;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use futures::StreamExt;
 use object_store::path::Path as ObjectStorePath;
@@ -93,12 +95,12 @@ impl NativeTableStorage {
         table: &TableEntry,
         save_mode: SaveMode,
     ) -> Result<NativeTable> {
-        let delta_store = self.create_delta_store_for_table(table).await?;
+        let log_store = self.create_log_store_for_table(table).await?;
         let opts = Self::opts_from_ent(table)?;
         let tbl = {
             let mut builder = CreateBuilder::new()
                 .with_table_name(&table.meta.name)
-                .with_object_store(delta_store)
+                .with_log_store(log_store)
                 .with_save_mode(save_mode);
 
             for col in &opts.columns {
@@ -131,8 +133,8 @@ impl NativeTableStorage {
     pub async fn load_table(&self, table: &TableEntry) -> Result<NativeTable> {
         let _ = Self::opts_from_ent(table)?; // Check that this is the correct table type.
 
-        let delta_store = self.create_delta_store_for_table(table).await?;
-        let mut table = DeltaTable::new(delta_store, DeltaTableConfig::default());
+        let log_store = self.create_log_store_for_table(table).await?;
+        let mut table = DeltaTable::new(log_store, DeltaTableConfig::default());
 
         table.load().await?;
 
@@ -163,18 +165,23 @@ impl NativeTableStorage {
         Ok(opts)
     }
 
-    async fn create_delta_store_for_table(
-        &self,
-        table: &TableEntry,
-    ) -> Result<Arc<DeltaObjectStore>> {
+    async fn create_log_store_for_table(&self, table: &TableEntry) -> Result<Arc<dyn LogStore>> {
         let prefix = self.table_prefix(table.meta.id);
 
         // Add the table prefix to the shared store and the root URL
         let prefixed = PrefixStore::new(self.store.clone(), prefix.clone());
         let url = self.root_url.join(&prefix)?;
 
-        let delta_store = DeltaObjectStore::new(Arc::new(prefixed), url);
-        Ok(Arc::new(delta_store))
+        // TODO: This shouldn't take a config, it should just be taking a url
+        // (which also shouldn't be needed?)
+        let log_store = DefaultLogStore::new(
+            Arc::new(prefixed),
+            LogStoreConfig {
+                location: url,
+                options: StorageOptions::default(),
+            },
+        );
+        Ok(Arc::new(log_store))
     }
 
     pub async fn delete_rows_where(
@@ -184,7 +191,7 @@ impl NativeTableStorage {
     ) -> Result<usize> {
         let table = self.load_table(table_entry).await?;
         if let Some(where_expr) = where_expr {
-            let deleted_rows = DeleteBuilder::new(table.delta.object_store(), table.delta.state)
+            let deleted_rows = DeleteBuilder::new(table.delta.log_store(), table.delta.state)
                 .with_predicate(where_expr)
                 .await?
                 .1
@@ -195,11 +202,11 @@ impl NativeTableStorage {
             let stats = table.statistics();
             if let Some(stats) = stats {
                 let num_rows = stats.num_rows;
-                if let Some(num_rows) = num_rows {
+                if let Precision::Exact(num_rows) | Precision::Inexact(num_rows) = num_rows {
                     records = num_rows;
                 }
             }
-            DeleteBuilder::new(table.delta.object_store(), table.delta.state).await?;
+            DeleteBuilder::new(table.delta.log_store(), table.delta.state).await?;
             Ok(records)
         }
     }
@@ -211,7 +218,7 @@ impl NativeTableStorage {
         where_expr: Option<Expr>,
     ) -> Result<usize> {
         let table = self.load_table(table).await?;
-        let mut builder = UpdateBuilder::new(table.delta.object_store(), table.delta.state);
+        let mut builder = UpdateBuilder::new(table.delta.log_store(), table.delta.state);
         for update in updates.into_iter() {
             builder = builder.with_update(update.0, update.1);
         }
@@ -252,7 +259,7 @@ impl NativeTable {
         } else {
             SaveMode::Append
         };
-        let store = self.delta.object_store();
+        let store = self.delta.log_store();
         let snapshot = self.delta.state.clone();
         Arc::new(NativeTableInsertExec::new(
             input, store, snapshot, save_mode,
@@ -289,18 +296,8 @@ impl TableProvider for NativeTable {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        let stats = self
-            .statistics()
-            .unwrap_or_default()
-            .num_rows
-            .unwrap_or_default();
-        if stats == 0 {
-            let schema = TableProvider::schema(&self.delta);
-            Ok(Arc::new(EmptyExec::new(false, schema)))
-        } else {
-            let plan = self.delta.scan(session, projection, filters, limit).await?;
-            Ok(Arc::new(ReadOnlyDataSourceMetricsExecAdapter::new(plan)))
-        }
+        let plan = self.delta.scan(session, projection, filters, limit).await?;
+        Ok(Arc::new(ReadOnlyDataSourceMetricsExecAdapter::new(plan)))
     }
 
     fn supports_filter_pushdown(

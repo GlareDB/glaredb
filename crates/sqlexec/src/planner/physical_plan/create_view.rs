@@ -7,7 +7,7 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{
     stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    SendableRecordBatchStream,
 };
 use futures::stream;
 use protogen::metastore::types::service::{self, Mutation};
@@ -78,10 +78,6 @@ impl ExecutionPlan for CreateViewExec {
             self.schema(),
             stream,
         )))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

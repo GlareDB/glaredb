@@ -10,7 +10,6 @@ use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-    Statistics,
 };
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::AggregateMetricsStreamAdapter;
@@ -181,10 +180,6 @@ impl ExecutionPlan for RemoteScanExec {
 
         let schema = self.schema();
         Ok(Box::pin(RecordBatchStreamAdapter::new(schema, stream)))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 
     fn metrics(&self) -> Option<MetricsSet> {

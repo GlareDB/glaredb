@@ -19,7 +19,7 @@ use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{DisplayAs, DisplayFormatType};
 use datafusion::physical_plan::{
-    ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
+    ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream,
 };
 use datafusion::{
     arrow::datatypes::{
@@ -419,10 +419,6 @@ impl ExecutionPlan for BigQueryExec {
             partition,
             &self.metrics,
         )))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 
     fn metrics(&self) -> Option<MetricsSet> {

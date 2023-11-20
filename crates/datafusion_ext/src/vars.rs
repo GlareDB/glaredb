@@ -5,6 +5,7 @@ mod inner;
 mod utils;
 mod value;
 use constants::*;
+use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::config::{ConfigExtension, ExtensionOptions};
 use datafusion::scalar::ScalarValue;
@@ -246,25 +247,13 @@ impl VarProvider for SessionVars {
             "current_schema" => ScalarValue::Utf8(self.search_path().get(0).cloned()),
             "connection_id" => ScalarValue::Utf8(Some(self.connection_id().to_string())),
             "current_schemas" => {
-                let schemas = self
-                    .search_path()
-                    .into_iter()
-                    .map(|path| ScalarValue::Utf8(Some(path)))
-                    .collect::<Vec<_>>();
-                ScalarValue::List(
-                    Some(schemas),
-                    Field::new("item", DataType::Utf8, true).into(),
-                )
+                let schemas: StringArray = self.search_path().into();
+                ScalarValue::List(Arc::new(schemas))
             }
             "current_schemas_include_implicit" => {
-                let schemas = self
-                    .implicit_search_path_iter()
-                    .map(|path| ScalarValue::Utf8(Some(path)))
-                    .collect::<Vec<_>>();
-                ScalarValue::List(
-                    Some(schemas),
-                    Field::new("item", DataType::Utf8, true).into(),
-                )
+                let schemas: StringArray =
+                    self.implicit_search_path_iter().collect::<Vec<_>>().into();
+                ScalarValue::List(Arc::new(schemas))
             }
             s => Err(datafusion::error::DataFusionError::External(
                 VarError::UnknownVariable(s.to_string()).into(),

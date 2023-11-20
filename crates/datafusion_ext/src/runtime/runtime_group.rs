@@ -67,7 +67,7 @@ impl ExecutionPlan for RuntimeGroupExec {
         self.child.execute(partition, context)
     }
 
-    fn statistics(&self) -> Statistics {
+    fn statistics(&self) -> DataFusionResult<Statistics> {
         self.child.statistics()
     }
 

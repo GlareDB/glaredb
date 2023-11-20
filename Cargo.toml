@@ -14,8 +14,8 @@ codegen-units = 1
 strip = true
 
 [workspace.dependencies]
-datafusion = { version = "32.0", features = ["avro"] }
-datafusion-proto = { version = "32.0" }
+datafusion = { version = "33.0", features = ["avro"] }
+datafusion-proto = { version = "33.0" }
 object_store = { version = "0.7" }
 tokio = { version = "1", features = ["full"] }
 url = "2.4.0"
@@ -31,5 +31,5 @@ tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 
 [workspace.dependencies.deltalake]
 git = "https://github.com/delta-io/delta-rs.git"
-rev = "5c324ccd0a8738251a9aea9452d7323400e5e8c6"
+rev = "2c8c0ecd3914e69ec8b8be9daa71999f9f660525"
 features = ["s3", "gcs", "azure", "datafusion", "arrow"]

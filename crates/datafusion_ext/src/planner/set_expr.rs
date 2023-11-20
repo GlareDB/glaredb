@@ -51,6 +51,11 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                             "UNION ALL BY NAME not implemented".to_string(),
                         ))
                     }
+                    SetQuantifier::DistinctByName => {
+                        return Err(DataFusionError::NotImplemented(
+                            "UNION DISTINCT BY NAME not implemented".to_string(),
+                        ))
+                    }
                 };
 
                 let left_plan = self.set_expr_to_plan(*left, planner_context).await?;

@@ -25,7 +25,7 @@ use datafusion::physical_plan::memory::MemoryExec;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
     execute_stream, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
+    SendableRecordBatchStream,
 };
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::ExtensionError;
@@ -499,10 +499,6 @@ impl ExecutionPlan for MysqlExec {
             partition,
             &self.metrics,
         )))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 
     fn metrics(&self) -> Option<MetricsSet> {

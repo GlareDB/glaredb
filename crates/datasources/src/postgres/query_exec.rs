@@ -14,7 +14,7 @@ use datafusion::{
     physical_plan::{
         metrics::{ExecutionPlanMetricsSet, MetricsSet},
         DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-        SendableRecordBatchStream, Statistics,
+        SendableRecordBatchStream,
     },
 };
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
@@ -88,10 +88,6 @@ impl ExecutionPlan for PostgresQueryExec {
             partition,
             &self.metrics,
         )))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 
     fn metrics(&self) -> Option<MetricsSet> {

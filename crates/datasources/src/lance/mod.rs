@@ -1,4 +1,4 @@
-use datafusion::error::Result;
+use datafusion::error::{DataFusionError, Result};
 use lance::{dataset::builder::DatasetBuilder, Dataset};
 use protogen::metastore::types::options::StorageOptions;
 
@@ -7,5 +7,5 @@ pub async fn scan_lance_table(location: &str, options: StorageOptions) -> Result
         .with_storage_options(options.inner.into_iter().collect())
         .load()
         .await
-        .map_err(|e| e.into())
+        .map_err(|e| DataFusionError::External(Box::new(e)))
 }

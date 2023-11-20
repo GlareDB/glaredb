@@ -110,10 +110,6 @@ impl ExecutionPlan for CreateCredentialsExec {
             stream,
         )))
     }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
-    }
 }
 
 async fn create_credentials(

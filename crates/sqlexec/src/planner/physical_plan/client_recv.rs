@@ -6,7 +6,7 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
+    SendableRecordBatchStream,
 };
 use futures::{FutureExt, Stream, StreamExt};
 use std::any::Any;
@@ -84,10 +84,6 @@ impl ExecutionPlan for ClientExchangeRecvExec {
         };
 
         Ok(Box::pin(stream))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

@@ -40,7 +40,7 @@ use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::scalar::ScalarValue;
 use datafusion::{
     physical_expr::PhysicalSortExpr,
-    physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, Statistics},
+    physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning},
 };
 use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 use futures::stream;

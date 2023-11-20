@@ -48,7 +48,7 @@ use datafusion::sql::planner::IdentNormalizer;
 use datafusion::sql::planner::ParserOptions;
 use datafusion::sql::sqlparser::ast::ExactNumberInfo;
 use datafusion::sql::sqlparser::ast::TimezoneInfo;
-use datafusion::sql::sqlparser::ast::{ColumnDef as SQLColumnDef, ColumnOption};
+use datafusion::sql::sqlparser::ast::{ArrayElemTypeDef, ColumnDef as SQLColumnDef, ColumnOption};
 use datafusion::sql::sqlparser::ast::{DataType as SQLDataType, Ident, ObjectName, TableAlias};
 
 use crate::utils::make_decimal_type;
@@ -195,16 +195,19 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 
     pub(crate) fn convert_data_type(&self, sql_type: &SQLDataType) -> Result<DataType> {
         match sql_type {
-            SQLDataType::Array(Some(inner_sql_type)) => {
+            SQLDataType::Array(ArrayElemTypeDef::AngleBracket(inner_sql_type))
+            | SQLDataType::Array(ArrayElemTypeDef::SquareBracket(inner_sql_type)) => {
                 let data_type = self.convert_simple_data_type(inner_sql_type)?;
 
                 Ok(DataType::List(Arc::new(Field::new(
                     "field", data_type, true,
                 ))))
             }
-            SQLDataType::Array(None) => Err(DataFusionError::NotImplemented(
-                "Arrays with unspecified type is not supported".to_string(),
-            )),
+            SQLDataType::Array(ArrayElemTypeDef::None) => {
+                return Err(DataFusionError::NotImplemented(
+                    "Arrays with unspecified type is not supported".to_string(),
+                ))
+            }
             other => self.convert_simple_data_type(other),
         }
     }
@@ -228,7 +231,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             SQLDataType::Char(_)
             | SQLDataType::Varchar(_)
             | SQLDataType::Text
-            | SQLDataType::String => Ok(DataType::Utf8),
+            | SQLDataType::String(_) => Ok(DataType::Utf8),
             SQLDataType::Timestamp(None, tz_info) => {
                 let tz = if matches!(tz_info, TimezoneInfo::Tz)
                     || matches!(tz_info, TimezoneInfo::WithTimeZone)
@@ -298,7 +301,11 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             | SQLDataType::Dec(_)
             | SQLDataType::BigNumeric(_)
             | SQLDataType::BigDecimal(_)
-            | SQLDataType::Clob(_) => Err(DataFusionError::NotImplemented(format!(
+            | SQLDataType::Clob(_)
+            | SQLDataType::Bytes(_)
+            | SQLDataType::Int64
+            | SQLDataType::Float64
+            | SQLDataType::Struct(_) => Err(DataFusionError::NotImplemented(format!(
                 "Unsupported SQL type {sql_type:?}"
             ))),
         }

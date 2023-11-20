@@ -72,10 +72,6 @@ impl ExecutionPlan for CreateTempTableExec {
             stream,
         )))
     }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
-    }
 }
 
 impl DisplayAs for CreateTempTableExec {
