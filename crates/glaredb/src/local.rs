@@ -148,7 +148,7 @@ impl LocalSession {
 
         let prompt = SQLPrompt {};
         let mut scratch = String::with_capacity(1024);
-
+        
         loop {
             let sig = line_editor.read_line(&prompt);
             match sig {

@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 pub struct LocalArgs {
     /// Execute a query, exiting upon completion.
     ///
@@ -87,7 +87,7 @@ pub struct LocalClientOpts {
 }
 
 impl LocalClientOpts {
-    pub(crate) fn help_string() -> Result<String> {
+    pub fn help_string() -> Result<String> {
         let pairs = [
             ("\\help", "Show this help text"),
             (
