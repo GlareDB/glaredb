@@ -513,6 +513,7 @@ pub enum TableOptions {
     Iceberg(TableOptionsObjectStore),
     Azure(TableOptionsObjectStore),
     SqlServer(TableOptionsSqlServer),
+    Lance(TableOptionsObjectStore),
 }
 
 impl TableOptions {
@@ -530,6 +531,7 @@ impl TableOptions {
     pub const ICEBERG: &str = "iceberg";
     pub const AZURE: &str = "azure";
     pub const SQL_SERVER: &str = "sql_server";
+    pub const LANCE: &str = "lance";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -551,6 +553,7 @@ impl TableOptions {
             TableOptions::Iceberg(_) => Self::ICEBERG,
             TableOptions::Azure(_) => Self::AZURE,
             TableOptions::SqlServer(_) => Self::SQL_SERVER,
+            TableOptions::Lance(_) => Self::LANCE,
         }
     }
 }
@@ -579,6 +582,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::Iceberg(v) => TableOptions::Iceberg(v.try_into()?),
             options::table_options::Options::Azure(v) => TableOptions::Azure(v.try_into()?),
             options::table_options::Options::SqlServer(v) => TableOptions::SqlServer(v.try_into()?),
+            options::table_options::Options::Lance(v) => TableOptions::Lance(v.try_into()?),
         })
     }
 }
@@ -608,6 +612,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Iceberg(v) => options::table_options::Options::Iceberg(v.into()),
             TableOptions::Azure(v) => options::table_options::Options::Azure(v.into()),
             TableOptions::SqlServer(v) => options::table_options::Options::SqlServer(v.into()),
+            TableOptions::Lance(v) => options::table_options::Options::Lance(v.into()),
         })
     }
 }

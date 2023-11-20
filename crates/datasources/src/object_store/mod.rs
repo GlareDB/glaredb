@@ -377,6 +377,11 @@ pub fn init_session_registry<'a>(
                 location,
                 storage_options,
                 ..
+            })
+            | TableOptions::Lance(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
             }) => Arc::new(GenericStoreAccess::new_from_location_and_opts(
                 location,
                 storage_options.clone(),

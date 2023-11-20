@@ -60,7 +60,18 @@ impl RunCommand for LocalArgs {
                         "only one of query or an SQL file can be passed at a time"
                     ))
                 }
-                (Some(file), None) => Some(tokio::fs::read_to_string(file.as_str()).await?),
+                (Some(file), None) => {
+                    if file.to_ascii_lowercase() == "version" {
+                        return Err(anyhow!(
+                            "'version' is not a valid command, did you mean '--version'?"
+                        ));
+                    }
+                    let path = std::path::Path::new(file.as_str());
+                    if !path.exists() {
+                        return Err(anyhow!("file '{}' does not exist", file));
+                    }
+                    Some(tokio::fs::read_to_string(path).await?)
+                }
                 (None, Some(query)) => Some(query),
                 (None, None) => None,
             };
