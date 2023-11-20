@@ -4,6 +4,7 @@ pub struct CreateCredentials {
     pub name: String,
     pub options: CredentialsOptions,
     pub comment: String,
+    pub or_replace: bool,
 }
 
 impl UserDefinedLogicalNodeCore for CreateCredentials {
@@ -41,19 +42,11 @@ impl ExtensionNode for CreateCredentials {
     const EXTENSION_NAME: &'static str = "CreateCredentials";
 
     fn try_decode(
-        proto: Self::ProtoRepr,
-        _ctx: &SessionContext,
-        _codec: &dyn LogicalExtensionCodec,
+        _: Self::ProtoRepr,
+        _: &SessionContext,
+        _: &dyn LogicalExtensionCodec,
     ) -> std::result::Result<Self, ProtoConvError> {
-        let options = proto
-            .options
-            .ok_or(ProtoConvError::RequiredField("options".to_string()))?;
-
-        Ok(Self {
-            name: proto.name,
-            options: options.try_into()?,
-            comment: proto.comment,
-        })
+        unimplemented!()
     }
 
     fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
@@ -63,31 +56,7 @@ impl ExtensionNode for CreateCredentials {
         }
     }
 
-    fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()> {
-        use ::protogen::sqlexec::logical_plan::{LogicalPlanExtension, LogicalPlanExtensionType};
-
-        use protogen::gen::metastore::service as protogen;
-        let Self {
-            name,
-            options,
-            comment,
-        } = self.clone();
-
-        let proto = protogen::CreateCredentials {
-            name,
-            options: Some(options.into()),
-            comment,
-        };
-        let plan_type = LogicalPlanExtensionType::CreateCredentials(proto);
-
-        let lp_extension = LogicalPlanExtension {
-            inner: Some(plan_type),
-        };
-
-        lp_extension
-            .encode(buf)
-            .map_err(|e| internal!("{}", e.to_string()))?;
-
-        Ok(())
+    fn try_encode(&self, _: &mut Vec<u8>, _: &dyn LogicalExtensionCodec) -> Result<()> {
+        unimplemented!()
     }
 }
