@@ -713,7 +713,10 @@ impl<'a> CustomParser<'a> {
         }))
     }
 
-    fn parse_create_credentials(&mut self, or_replace: bool) -> Result<StatementWithExtensions, ParserError> {
+    fn parse_create_credentials(
+        &mut self,
+        or_replace: bool,
+    ) -> Result<StatementWithExtensions, ParserError> {
         let name = self.parser.parse_identifier()?;
         validate_ident(&name)?;
 

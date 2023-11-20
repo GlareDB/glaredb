@@ -130,7 +130,7 @@ async fn create_credentials(
                 name: plan.name,
                 options: plan.options,
                 comment: plan.comment,
-                or_replace: plan.or_replace
+                or_replace: plan.or_replace,
             })],
         )
         .await
