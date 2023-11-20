@@ -289,6 +289,11 @@ impl Engine {
         })
     }
 
+    /// Returns the telemetry tracker used by this engine.
+    pub fn get_tracker(&self) -> Arc<Tracker> {
+        self.tracker.clone()
+    }
+
     /// Create a new `Engine` instance from the provided storage configuration with a in-process metastore
     pub async fn from_storage_options(
         location: &str,

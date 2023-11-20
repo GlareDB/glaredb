@@ -26,6 +26,13 @@ pub struct DataSourceMetricsOpts {
 }
 
 impl DataSourceMetricsOpts {
+    pub const fn read_write() -> Self {
+        Self {
+            track_reads: true,
+            track_writes: true,
+        }
+    }
+
     pub const fn read_only() -> Self {
         Self {
             track_reads: true,
@@ -149,6 +156,13 @@ impl<S: RecordBatchStream + Unpin> RecordBatchStream for DataSourceMetricsStream
 pub trait DataSourceMetricsOptsType: 'static + Debug + Clone + Sync + Send {
     const OPTS: DataSourceMetricsOpts;
     const DISPLAY_NAME_PREFIX: &'static str;
+}
+
+#[derive(Debug, Clone)]
+pub struct ReadWriteDataSourceMetricsOptsType;
+impl DataSourceMetricsOptsType for ReadWriteDataSourceMetricsOptsType {
+    const OPTS: DataSourceMetricsOpts = DataSourceMetricsOpts::read_write();
+    const DISPLAY_NAME_PREFIX: &'static str = "ReadWrite";
 }
 
 #[derive(Debug, Clone)]
@@ -282,6 +296,79 @@ impl Stream for BoxedStreamAdapater {
 }
 
 impl RecordBatchStream for BoxedStreamAdapater {
+    fn schema(&self) -> SchemaRef {
+        self.stream.schema()
+    }
+}
+
+/// A wrapper around record batch stream to capture all inner datasource metrics
+/// as aggregate for a given execution.
+pub struct AggregateMetricsStreamAdapter<S> {
+    stream: S,
+    // Save the plan to capture aggregate metrics from.
+    plan: Arc<dyn ExecutionPlan>,
+    // Actual metrics store.
+    metrics: DataSourceMetrics,
+}
+
+impl<S: RecordBatchStream + Unpin> AggregateMetricsStreamAdapter<S> {
+    /// Create a new stream with a new set of data source metrics for the given
+    /// partition.
+    pub fn new(
+        stream: S,
+        plan: Arc<dyn ExecutionPlan>,
+        partition: usize,
+        metrics: &ExecutionPlanMetricsSet,
+    ) -> Self {
+        Self {
+            stream,
+            plan,
+            metrics: DataSourceMetrics::new(
+                partition,
+                metrics,
+                DataSourceMetricsOpts::read_write(),
+            ),
+        }
+    }
+}
+
+impl<S: RecordBatchStream + Unpin> Stream for AggregateMetricsStreamAdapter<S> {
+    type Item = Result<RecordBatch>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let poll = self.stream.poll_next_unpin(cx);
+
+        if let Poll::Ready(maybe_batch) = &poll {
+            // Accumulate the metrics on each poll since this is not the last exec,
+            // i.e., not guaranteed to run till the end.
+            //
+            // TODO: This might not be very efficient since [`AggregateMetrics`]
+            // iterates over the complete tree.
+            let agg_metrics = AggregatedMetrics::new_from_plan(self.plan.as_ref());
+
+            self.metrics
+                .bytes_read
+                .as_ref()
+                .expect("AggregateMetricsStreamAdapter should have bytes_read gauge")
+                .set(agg_metrics.bytes_read as usize);
+
+            self.metrics
+                .bytes_written
+                .as_ref()
+                .expect("AggregateMetricsStreamAdapter should have bytes_written gauge")
+                .set(agg_metrics.bytes_written.unwrap_or_default() as usize);
+
+            match &maybe_batch {
+                Some(Ok(batch)) => self.metrics.baseline.record_output(batch.num_rows()),
+                _ => self.metrics.baseline.done(),
+            };
+        }
+
+        poll
+    }
+}
+
+impl<S: RecordBatchStream + Unpin> RecordBatchStream for AggregateMetricsStreamAdapter<S> {
     fn schema(&self) -> SchemaRef {
         self.stream.schema()
     }

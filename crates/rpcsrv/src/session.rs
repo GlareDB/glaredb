@@ -1,6 +1,6 @@
 use crate::errors::Result;
 use datafusion::arrow::datatypes::Schema;
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::physical_plan::{ExecutionPlan, SendableRecordBatchStream};
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_proto::physical_plan::AsExecutionPlan;
 use datafusion_proto::protobuf::PhysicalPlanNode;
@@ -51,7 +51,7 @@ impl RemoteSession {
     pub async fn physical_plan_execute(
         &self,
         physical_plan: impl AsRef<[u8]>,
-    ) -> Result<SendableRecordBatchStream> {
+    ) -> Result<(Arc<dyn ExecutionPlan>, SendableRecordBatchStream)> {
         let codec = self.session.extension_codec();
         let plan = PhysicalPlanNode::try_decode(physical_plan.as_ref())?;
 
@@ -61,8 +61,8 @@ impl RemoteSession {
             &codec,
         )?;
 
-        let stream = self.session.execute_physical(plan)?;
-        Ok(stream)
+        let stream = self.session.execute_physical(plan.clone())?;
+        Ok((plan, stream))
     }
 
     pub async fn register_broadcast_stream(&self, stream: ExecutionBatchStream) -> Result<()> {

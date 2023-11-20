@@ -9,6 +9,7 @@ edition.workspace = true
 sqlexec = { path = "../sqlexec" }
 proxyutil = { path = "../proxyutil" }
 datafusion_ext = { path = "../datafusion_ext" }
+telemetry = { path = "../telemetry" }
 datafusion = { workspace = true }
 datafusion-proto = { workspace = true }
 serde = { workspace = true }

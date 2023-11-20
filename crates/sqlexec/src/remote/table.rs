@@ -77,13 +77,13 @@ impl TableProvider for StubRemoteTableProvider {
             None => self.schema.clone(),
         };
 
-        let exec = RemoteScanExec {
+        let exec = RemoteScanExec::new(
             provider,
             projected_schema,
-            projection: projection.cloned(),
-            filters: filters.to_vec(),
+            projection.cloned(),
+            filters.to_vec(),
             limit,
-        };
+        );
 
         Ok(Arc::new(exec))
     }
