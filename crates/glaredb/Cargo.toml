@@ -38,6 +38,5 @@ atty = "0.2.14"
 
 [dev-dependencies]
 predicates = "3.0.4"
-wait-timeout = "0.2.0"
 assert_cmd = "2.0.12"
 tokio-postgres = "0.7.8"
