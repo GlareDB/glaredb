@@ -6,6 +6,7 @@ use crate::pg_proxy::PgProxy;
 use crate::rpc_proxy::RpcProxy;
 use crate::server::{ComputeServer, ServerConfig};
 use anyhow::{anyhow, Result};
+use atty::Stream;
 use clap::Subcommand;
 use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
@@ -70,9 +71,34 @@ impl RunCommand for LocalArgs {
                     if !path.exists() {
                         return Err(anyhow!("file '{}' does not exist", file));
                     }
+
                     Some(tokio::fs::read_to_string(path).await?)
                 }
                 (None, Some(query)) => Some(query),
+                // If no query and it's not a tty, try to read from stdin.
+                // Should work with both a query string and a file.
+                // echo "select 1;" | ./glaredb
+                // ./glaredb < query.sql
+                (None, None) if atty::isnt(Stream::Stdin) => {
+                    let mut query = String::new();
+                    loop {
+                        let mut line = String::new();
+                        std::io::stdin().read_line(&mut line)?;
+                        if line.is_empty() {
+                            break;
+                        }
+                        let path = std::path::Path::new(line.as_str());
+                        if path.exists() {
+                            let contents = tokio::fs::read_to_string(path).await?;
+                            query.push_str(&contents);
+                            break;
+                        } else {
+                            query.push_str(&line);
+                        }
+                    }
+
+                    Some(query)
+                }
                 (None, None) => None,
             };
 
