@@ -15,7 +15,7 @@ tonic = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
 thiserror = { workspace = true }
-tokio = { version = "1", features = ["full"] }
+tokio = { workspace = true }
 tracing = "0.1"
 async-trait = "0.1.74"
 datafusion = { workspace = true }
