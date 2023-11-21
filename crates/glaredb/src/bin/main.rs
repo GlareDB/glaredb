@@ -43,7 +43,6 @@ struct Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-
     // If some one runs "glaredb", we want them to default to running the local
     // version. This pulls out the args and places them in a local command to
     // keep all the below logic.
