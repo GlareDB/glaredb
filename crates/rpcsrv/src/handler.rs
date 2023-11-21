@@ -64,12 +64,12 @@ impl RpcHandler {
         //
         // This will check that we actually received a proxy request, and not a
         // request from the client.
-        let (db_id, storage_conf) = match req {
+        let (db_id, user_id, storage_conf) = match req {
             InitializeSessionRequest::Proxy(req) => {
                 let storage_conf = SessionStorageConfig {
                     gcs_bucket: req.storage_conf.gcs_bucket,
                 };
-                (req.db_id, storage_conf)
+                (req.db_id, Some(req.user_id), storage_conf)
             }
             InitializeSessionRequest::Client(req) if self.allow_client_init => {
                 let mut db_id = Uuid::nil();
@@ -78,7 +78,7 @@ impl RpcHandler {
                         db_id = test_db_id;
                     }
                 }
-                (db_id, SessionStorageConfig::default())
+                (db_id, None, SessionStorageConfig::default())
             }
             _ => {
                 return Err(RpcsrvError::SessionInitalizeError(
@@ -109,6 +109,7 @@ impl RpcHandler {
         Ok(InitializeSessionResponse {
             database_id: db_id,
             catalog: initial_state,
+            user_id,
         })
     }
 
@@ -159,7 +160,7 @@ impl RpcHandler {
         let (plan, batches) = session.physical_plan_execute(req.physical_plan).await?;
 
         let session_metrics_handler = SessionMetricsHandler::new(
-            Uuid::nil(), // TODO
+            req.user_id.unwrap_or_default(),
             req.database_id,
             Uuid::nil(), // TODO?
             self.engine.get_tracker(),
