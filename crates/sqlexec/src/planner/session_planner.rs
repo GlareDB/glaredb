@@ -866,8 +866,11 @@ impl<'a> SessionPlanner<'a> {
                         .iter()
                         .zip(df_fields.iter())
                         .map(|(field, df_field)| {
-                            cast(col(df_field.name()), field.data_type().clone())
-                                .alias(field.name())
+                            cast(
+                                col(df_field.unqualified_column()),
+                                field.data_type().clone(),
+                            )
+                            .alias(field.name())
                         })
                         .collect();
 
