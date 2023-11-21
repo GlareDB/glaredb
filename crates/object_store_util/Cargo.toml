@@ -12,7 +12,7 @@ tempfile = "3"
 futures = "0.3.29"
 async-trait = "0.1.74"
 thiserror.workspace = true
-tokio = { version = "1", features = ["full"] }
+tokio = { workspace = true }
 bytes = "1.4.0"
 tracing = "0.1"
 moka = { version = "0.12.1", features = ["future"] }

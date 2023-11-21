@@ -19,7 +19,7 @@ object_store_util = { path = "../object_store_util" }
 dashmap = "5.5.0"
 metastore = { path = "../metastore" }
 thiserror.workspace = true
-tokio = { version = "1", features = ["full"] }
+tokio = { workspace = true }
 async-trait = "0.1.74"
 serde_json = { workspace = true }
 datafusion = { workspace = true }
