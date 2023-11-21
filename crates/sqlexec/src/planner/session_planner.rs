@@ -1844,7 +1844,7 @@ fn convert_data_type(sql_type: &ast::DataType) -> Result<DataType> {
             ))))
         }
         ast::DataType::Array(ast::ArrayElemTypeDef::None) => {
-            return Err(internal!("Arrays with unspecified type is not supported",))
+            Err(internal!("Arrays with unspecified type is not supported",))
         }
         other => convert_simple_data_type(other),
     }

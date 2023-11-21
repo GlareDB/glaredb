@@ -203,11 +203,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     "field", data_type, true,
                 ))))
             }
-            SQLDataType::Array(ArrayElemTypeDef::None) => {
-                return Err(DataFusionError::NotImplemented(
-                    "Arrays with unspecified type is not supported".to_string(),
-                ))
-            }
+            SQLDataType::Array(ArrayElemTypeDef::None) => Err(DataFusionError::NotImplemented(
+                "Arrays with unspecified type is not supported".to_string(),
+            )),
             other => self.convert_simple_data_type(other),
         }
     }
