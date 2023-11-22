@@ -40,7 +40,7 @@ select * from ndjson_scan([]);
 
 # Glob patterns not supported on HTTP
 
-statement error Unexpected status code '404 Not Found' 
+statement error Unexpected status code '404 Not Found'
 select * from ndjson_scan(
   'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/*.ndjson'
 );
@@ -49,4 +49,3 @@ statement error Note that globbing is not supported for HTTP.
 select * from ndjson_scan(
   'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/*.ndjson'
 );
- 

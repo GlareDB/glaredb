@@ -256,23 +256,21 @@ fn kdl_matches() -> ScalarUDF {
     ScalarUDF {
         name: "kdl_matches".to_string(),
         signature: Signature::new(
-            // ARGS: (<FIELD>, <QUERY>)
-            TypeSignature::OneOf(vec![
-                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
-                TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::Utf8]),
-            ]),
+            TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
             Volatility::Immutable,
         ),
         return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
         fun: Arc::new(move |input| {
-            let doc: kdl::KdlDocument = get_nth_scalar_value(input, 0)
+            let doc: kdl::KdlDocument = get_nth_scalar_value(input, 1)
                 .unwrap()
                 .to_string()
                 .parse()
-                .unwrap();
+                .map_err(|err: kdl::KdlError| {
+                    datafusion::common::DataFusionError::Execution(err.to_string())
+                })?;
 
             Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(
-                doc.query(get_nth_scalar_value(input, 1).unwrap().to_string())
+                doc.query(get_nth_scalar_value(input, 0).unwrap().to_string())
                     .is_ok(),
             ))))
         }),

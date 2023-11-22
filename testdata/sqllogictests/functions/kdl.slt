@@ -1,17 +1,26 @@
 statement ok
-create table cows (id integer, docs string);
-
-insert into cows (0, 'name = "betsy" details { a=1; b=100 }')
+create table cows (id int, docs string);
 
 statement ok
-select count(*) from test where kdl_matches(test.docs, "a = 1");
----
-0
+insert into cows values (0, 'name "betsy" status="amazing" age=89; details 9001 a=1 b=100;');
 
 statement error
-select * from test where kdl_matches(test.docs, "a = 1");
+select * from cows where kdl_matches(cows.docs, 'name == betsy;');
 
-statement ok
-select count(*) from test where kdl_matches(test.docs, "name = betsy");
----
+# statement error
+# select * from cows where kdl_matches('[b = 1];', cows.docs);
+
+query I
+select count(*) from cows where kdl_matches('[details.a=100];', cows.docs);
+----
+0
+
+query I
+select count(*) from cows where kdl_matches('[a=1]', cows.docs);
+----
+1
+
+query I
+select count(*) from cows where kdl_matches('[details = 9001]', cows.docs);
+----
 1
