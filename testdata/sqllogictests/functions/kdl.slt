@@ -2,25 +2,30 @@ statement ok
 create table cows (id int, docs string);
 
 statement ok
-insert into cows values (0, 'name "betsy" status="amazing" age=89; details 9001 a=1 b=100;');
+
+insert into cows values (0, 'name "betsy" status="amazing" age=89; details "classic" a=1 b=100;');
+insert into cows values (1, 'name "zabby" status="electric" age=120; details "zesty" a=1 b=400;');
 
 statement error
-select * from cows where kdl_matches(cows.docs, 'name == betsy;');
+select * from cows where kdl_matches('name == betsy;', cows.docs);
 
-# statement error
-# select * from cows where kdl_matches('[b = 1];', cows.docs);
+statement error
+select * from cows where kdl_matches(cows.docs, '+;');
+
+statement error
+select count(*) from cows where kdl_matches(cows.docs, 'details[a] == 100;');
 
 query I
-select count(*) from cows where kdl_matches('[details.a=100];', cows.docs);
+select count(*) from cows where kdl_matches(cows.docs, '[a]');
 ----
-0
+2
 
 query I
-select count(*) from cows where kdl_matches('[a=1]', cows.docs);
-----
-1
-
-query I
-select count(*) from cows where kdl_matches('[details = 9001]', cows.docs);
+select count(*) from cows where kdl_matches(cows.docs, '[b=100]');
 ----
 1
+
+query I
+select count(*) from cows where kdl_matches(cows.docs, '[status]');
+----
+2

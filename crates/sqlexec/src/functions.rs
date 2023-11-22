@@ -261,18 +261,35 @@ fn kdl_matches() -> ScalarUDF {
         ),
         return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
         fun: Arc::new(move |input| {
-            let doc: kdl::KdlDocument = get_nth_scalar_value(input, 1)
-                .unwrap()
-                .to_string()
-                .parse()
-                .map_err(|err: kdl::KdlError| {
+            let doc: kdl::KdlDocument = match get_nth_scalar_value(input, 0) {
+                Some(val) => val.to_string().parse().map_err(|err: kdl::KdlError| {
                     datafusion::common::DataFusionError::Execution(err.to_string())
-                })?;
+                })?,
+                None => {
+                    return Err(datafusion::common::DataFusionError::Execution(
+                        "invalid field for KDL".to_string(),
+                    ))
+                }
+            };
+            let filter = match get_nth_scalar_value(input, 1) {
+                Some(val) => val,
+                None => {
+                    return Err(datafusion::common::DataFusionError::Execution(
+                        "unknown KQL query".to_string(),
+                    ))
+                }
+            };
 
-            Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(
-                doc.query(get_nth_scalar_value(input, 0).unwrap().to_string())
-                    .is_ok(),
-            ))))
+            let res = match doc.query(filter.to_string()) {
+                Ok(val) => val.is_some(),
+                Err(e) => {
+                    return Err(datafusion::common::DataFusionError::Execution(
+                        e.to_string(),
+                    ))
+                }
+            };
+
+            Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(res))))
         }),
     }
 }
