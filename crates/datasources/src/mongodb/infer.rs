@@ -11,8 +11,8 @@ const MAX_SAMPLE_SIZE: usize = 100;
 const MIN_SAMPLE_SIZE: usize = 10;
 
 /// Recursion limit for inferring the schema for nested documents.
-//
-// The MongoDB kernel rejects nesting of greater than 100.
+///
+/// The MongoDB kernel rejects nesting of greater than 100.
 const RECURSION_LIMIT: usize = 100;
 
 /// Sample a table to allow inferring the table's schema.
