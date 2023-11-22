@@ -1,0 +1,17 @@
+statement ok
+create table cows (id integer, docs string);
+
+insert into cows (0, 'name = "betsy" details { a=1; b=100 }')
+
+statement ok
+select count(*) from test where kdl_matches(test.docs, "a = 1");
+---
+0
+
+statement error
+select * from test where kdl_matches(test.docs, "a = 1");
+
+statement ok
+select count(*) from test where kdl_matches(test.docs, "name = betsy");
+---
+1

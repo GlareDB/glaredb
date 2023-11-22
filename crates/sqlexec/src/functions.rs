@@ -30,6 +30,7 @@ pub enum BuiltinScalarFunction {
     /// postgres functions
     /// All of these functions are  in the `pg_catalog` schema.
     Pg(BuiltinPostgresFunctions),
+    KdlMatches,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -43,7 +44,7 @@ pub enum BuiltinPostgresFunctions {
     /// ```
     GetUserById,
     /// SQL function `pg_table_is_visible`
-    ///     
+    ///
     /// `pg_table_is_visible(table_oid int)` -> `Boolean`
     /// ```sql
     /// select pg_table_is_visible(1);
@@ -69,7 +70,7 @@ pub enum BuiltinPostgresFunctions {
     /// ```sql
     HasSchemaPrivilege,
     /// SQL function `has_database_privilege`
-    ///     
+    ///
     /// `has_database_privilege(user_name text, database_name text, privilege text) -> Boolean`
     /// ```sql
     /// select has_database_privilege('foo', 'bar', 'baz');
@@ -179,6 +180,7 @@ impl BuiltinScalarFunction {
             Self::ConnectionId => string_var("connection_id"),
             Self::Version => string_var("version"),
             Self::Pg(pg) => pg.into_expr(args),
+            Self::KdlMatches => udf_to_expr(kdl_matches(), args),
         }
     }
 }
@@ -237,6 +239,7 @@ impl FromStr for BuiltinScalarFunction {
         match s.to_lowercase().as_str() {
             "connection_id" => Ok(Self::ConnectionId),
             "version" => Ok(Self::Version),
+            "kdl_matches" => Ok(Self::KdlMatches),
             s => BuiltinPostgresFunctions::from_str(s).map(Self::Pg),
         }
     }
@@ -247,6 +250,33 @@ fn udf_to_expr(udf: ScalarUDF, args: Vec<Expr>) -> Expr {
         udf.into(),
         args,
     ))
+}
+
+fn kdl_matches() -> ScalarUDF {
+    ScalarUDF {
+        name: "kdl_matches".to_string(),
+        signature: Signature::new(
+            // ARGS: (<FIELD>, <QUERY>)
+            TypeSignature::OneOf(vec![
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::Utf8]),
+            ]),
+            Volatility::Immutable,
+        ),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
+        fun: Arc::new(move |input| {
+            let doc: kdl::KdlDocument = get_nth_scalar_value(input, 0)
+                .unwrap()
+                .to_string()
+                .parse()
+                .unwrap();
+
+            Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(
+                doc.query(get_nth_scalar_value(input, 1).unwrap().to_string())
+                    .is_ok(),
+            ))))
+        }),
+    }
 }
 
 fn pg_get_userbyid() -> ScalarUDF {
@@ -391,6 +421,7 @@ mod tests {
             ("connection_id", ConnectionId),
             ("current_schemas", CurrentSchemas.into()),
             ("current_catalog", CurrentCatalog.into()),
+            ("kdl_matches", KdlMatches.into()),
             ("pg_get_userbyid", GetUserById.into()),
             ("pg_table_is_visible", TableIsVisible.into()),
             ("pg_encoding_to_char", EncodingToChar.into()),
