@@ -62,6 +62,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - run: just protoc
+
+      # https://github.com/actions/setup-node/issues/899
+      - name: Enable Corepack before setting up Node
+        run: corepack enable
+
       - name: Setup node
         uses: actions/setup-node@v4
         if: ${{ !matrix.settings.docker }}
@@ -127,6 +132,7 @@ jobs:
           name: bindings-${{ matrix.settings.target }}
           path: bindings/nodejs/${{ env.APP_NAME }}.*.node
           if-no-files-found: error
+
   publish:
     name: Publish
     runs-on: ubuntu-2004-8-cores
@@ -136,6 +142,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - run: just protoc
+
+      # https://github.com/actions/setup-node/issues/899
+      - name: Enable Corepack before setting up Node
+        run: corepack enable
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
