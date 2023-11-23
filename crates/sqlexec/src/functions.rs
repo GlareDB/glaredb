@@ -4,6 +4,7 @@ use datafusion::common::ScalarValue;
 use datafusion::error::Result;
 use datafusion::logical_expr::{ColumnarValue, ScalarUDF, Signature, TypeSignature, Volatility};
 use datafusion::prelude::Expr;
+use kdl::{KdlDocument, KdlNode, KdlQuery};
 use sqlbuiltins::builtins::POSTGRES_SCHEMA;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -30,13 +31,49 @@ pub enum BuiltinScalarFunction {
     /// postgres functions
     /// All of these functions are  in the `pg_catalog` schema.
     Pg(BuiltinPostgresFunctions),
+
+    // KdlMatches and KdlSelect (kdl_matches and kdl_select) allow for
+    // accessing KDL documents using the KQL (a CSS-inspired selector
+    // langauge and an analog to XPath) language. Matches is a
+    // predicate and can be used in `WHERE` statements while Select is
+    // a projection operator.
     KdlMatches,
+    KdlSelect,
+}
+
+impl BuiltinScalarFunction {
+    pub fn find_function(name: &str) -> Option<Self> {
+        Self::from_str(name).ok()
+    }
+    pub fn into_expr(self, args: Vec<Expr>) -> Expr {
+        match self {
+            Self::ConnectionId => string_var("connection_id"),
+            Self::Version => string_var("version"),
+            Self::Pg(pg) => pg.into_expr(args),
+            Self::KdlMatches => udf_to_expr(kdl_matches(), args),
+            Self::KdlSelect => udf_to_expr(kdl_select(), args),
+        }
+    }
+}
+
+impl FromStr for BuiltinScalarFunction {
+    type Err = datafusion::common::DataFusionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "connection_id" => Ok(Self::ConnectionId),
+            "version" => Ok(Self::Version),
+            "kdl_matches" => Ok(Self::KdlMatches),
+            "kdl_select" => Ok(Self::KdlSelect),
+            s => BuiltinPostgresFunctions::from_str(s).map(Self::Pg),
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum BuiltinPostgresFunctions {
-    /// SQL function `pg_get_userbyid`
+    /// SQL function `pg_userbyid`
     ///
     /// `pg_get_userbyid(userid int)` -> `String`
     /// ```sql
@@ -134,6 +171,12 @@ pub enum BuiltinPostgresFunctions {
     CurrentCatalog,
 }
 
+impl From<BuiltinPostgresFunctions> for BuiltinScalarFunction {
+    fn from(f: BuiltinPostgresFunctions) -> Self {
+        Self::Pg(f)
+    }
+}
+
 impl BuiltinPostgresFunctions {
     fn into_expr(self, args: Vec<Expr>) -> Expr {
         match self {
@@ -168,26 +211,6 @@ impl BuiltinPostgresFunctions {
                 .alias("current_schemas")
             }
         }
-    }
-}
-
-impl BuiltinScalarFunction {
-    pub fn find_function(name: &str) -> Option<Self> {
-        Self::from_str(name).ok()
-    }
-    pub fn into_expr(self, args: Vec<Expr>) -> Expr {
-        match self {
-            Self::ConnectionId => string_var("connection_id"),
-            Self::Version => string_var("version"),
-            Self::Pg(pg) => pg.into_expr(args),
-            Self::KdlMatches => udf_to_expr(kdl_matches(), args),
-        }
-    }
-}
-
-impl From<BuiltinPostgresFunctions> for BuiltinScalarFunction {
-    fn from(f: BuiltinPostgresFunctions) -> Self {
-        Self::Pg(f)
     }
 }
 
@@ -232,19 +255,6 @@ impl FromStr for BuiltinPostgresFunctions {
     }
 }
 
-impl FromStr for BuiltinScalarFunction {
-    type Err = datafusion::common::DataFusionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "connection_id" => Ok(Self::ConnectionId),
-            "version" => Ok(Self::Version),
-            "kdl_matches" => Ok(Self::KdlMatches),
-            s => BuiltinPostgresFunctions::from_str(s).map(Self::Pg),
-        }
-    }
-}
-
 fn udf_to_expr(udf: ScalarUDF, args: Vec<Expr>) -> Expr {
     Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
         udf.into(),
@@ -256,42 +266,110 @@ fn kdl_matches() -> ScalarUDF {
     ScalarUDF {
         name: "kdl_matches".to_string(),
         signature: Signature::new(
-            TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
+            TypeSignature::OneOf(vec![
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::LargeUtf8]),
+                TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::LargeUtf8]),
+            ]),
             Volatility::Immutable,
         ),
         return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
         fun: Arc::new(move |input| {
-            let doc: kdl::KdlDocument = match get_nth_scalar_value(input, 0) {
-                Some(val) => val.to_string().parse().map_err(|err: kdl::KdlError| {
-                    datafusion::common::DataFusionError::Execution(err.to_string())
-                })?,
-                None => {
-                    return Err(datafusion::common::DataFusionError::Execution(
-                        "invalid field for KDL".to_string(),
-                    ))
-                }
-            };
-            let filter = match get_nth_scalar_value(input, 1) {
-                Some(val) => val,
-                None => {
-                    return Err(datafusion::common::DataFusionError::Execution(
-                        "unknown KQL query".to_string(),
-                    ))
-                }
-            };
+            let (doc, filter) = kdl_parse_udf_args(input)?;
 
-            let res = match doc.query(filter.to_string()) {
-                Ok(val) => val.is_some(),
-                Err(e) => {
-                    return Err(datafusion::common::DataFusionError::Execution(
-                        e.to_string(),
-                    ))
-                }
-            };
-
-            Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(res))))
+            Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(
+                doc.query(filter)
+                    .map_err(|e| datafusion::common::DataFusionError::Execution(e.to_string()))
+                    .map(|val| val.is_some())?,
+            ))))
         }),
     }
+}
+
+fn kdl_select() -> ScalarUDF {
+    ScalarUDF {
+        name: "kdl_select".to_string(),
+        signature: Signature::new(
+            // args: <FIELD>, <QUERY>
+            TypeSignature::OneOf(vec![
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::LargeUtf8]),
+                TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::LargeUtf8]),
+            ]),
+            Volatility::Immutable,
+        ),
+        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+        fun: Arc::new(move |input| {
+            let (sdoc, filter) = kdl_parse_udf_args(input)?;
+
+            let out: Vec<&KdlNode> = sdoc
+                .query_all(filter)
+                .map_err(|e| datafusion::common::DataFusionError::Execution(e.to_string()))
+                .map(|iter| iter.collect())?;
+
+            let mut doc = sdoc.clone();
+            let elems = doc.nodes_mut();
+            elems.clear();
+            for item in &out {
+                elems.push(item.to_owned().clone())
+            }
+
+            // TODO: consider if we should always return LargeUtf8?
+            // could end up with truncation (or an error) the document
+            // is too long and we write the data to a table that is
+            // established (and mostly) shorter values.
+            Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
+                doc.to_string(),
+            ))))
+        }),
+    }
+}
+
+fn kdl_parse_udf_args(args: &[ColumnarValue]) -> Result<(KdlDocument, KdlQuery)> {
+    // parse the filter first, because it's probably shorter and
+    // erroring earlier would be preferable to parsing a large that we
+    // don't need/want.
+    let filter: kdl::KdlQuery = match get_nth_scalar_value(args, 1) {
+        Some(ScalarValue::Utf8(Some(val))) | Some(ScalarValue::LargeUtf8(Some(val))) => {
+            val.parse().map_err(|err: kdl::KdlError| {
+                datafusion::common::DataFusionError::Execution(err.to_string())
+            })?
+        }
+        Some(val) => {
+            return Err(datafusion::common::DataFusionError::Execution(format!(
+                "invalid type for KQL expression {}",
+                val.data_type(),
+            )))
+        }
+        None => {
+            return Err(datafusion::common::DataFusionError::Execution(
+                "unknown KQL query".to_string(),
+            ))
+        }
+    };
+
+    let doc: kdl::KdlDocument = match get_nth_scalar_value(args, 0) {
+        Some(ScalarValue::Utf8(Some(val))) | Some(ScalarValue::LargeUtf8(Some(val))) => {
+            val.parse().map_err(|err: kdl::KdlError| {
+                datafusion::common::DataFusionError::Execution(err.to_string())
+            })?
+        }
+        Some(val) => {
+            return Err(datafusion::common::DataFusionError::Execution(format!(
+                "invalid type for KDL value {}",
+                val.data_type(),
+            )))
+        }
+        None => {
+            return Err(datafusion::common::DataFusionError::Execution(
+                "invalid field for KDL".to_string(),
+            ))
+        }
+    };
+
+    Ok((doc, filter))
 }
 
 fn pg_get_userbyid() -> ScalarUDF {
@@ -436,7 +514,7 @@ mod tests {
             ("connection_id", ConnectionId),
             ("current_schemas", CurrentSchemas.into()),
             ("current_catalog", CurrentCatalog.into()),
-            ("kdl_matches", KdlMatches.into()),
+            ("kdl_matches", KdlMatches),
             ("pg_get_userbyid", GetUserById.into()),
             ("pg_table_is_visible", TableIsVisible.into()),
             ("pg_encoding_to_char", EncodingToChar.into()),
