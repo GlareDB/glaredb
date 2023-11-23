@@ -5,13 +5,15 @@ use mongodb::bson::{doc, Bson, Document};
 use mongodb::Collection;
 use std::collections::HashMap;
 
-const SAMPLE_PCT: f32 = 0.01;
+const SAMPLE_PCT: f32 = 0.05;
 
-const MAX_SAMPLE_SIZE: usize = 30;
+const MAX_SAMPLE_SIZE: usize = 100;
 const MIN_SAMPLE_SIZE: usize = 10;
 
 /// Recursion limit for inferring the schema for nested documents.
-const RECURSION_LIMIT: usize = 5;
+///
+/// The MongoDB kernel rejects nesting of greater than 100.
+const RECURSION_LIMIT: usize = 100;
 
 /// Sample a table to allow inferring the table's schema.
 pub struct TableSampler {
@@ -112,7 +114,10 @@ fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
                 DataType::Utf8
             }
         }
-        Bson::Array(_) => DataType::Utf8, // TODO: Proper type.
+        Bson::Array(array_doc) => match array_doc.to_owned().pop() {
+            Some(val) => bson_to_arrow_type(0, &val)?,
+            None => DataType::Utf8,
+        },
         Bson::Document(nested) => {
             let fields = fields_from_document(depth + 1, nested)?;
             DataType::Struct(fields.into())
@@ -121,13 +126,15 @@ fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
         Bson::Null => DataType::Null,
         Bson::RegularExpression(_) => DataType::Utf8,
         Bson::JavaScriptCode(_) => DataType::Utf8,
-        Bson::JavaScriptCodeWithScope(_) => DataType::Utf8,
+        Bson::JavaScriptCodeWithScope(_) => {
+            return Err(MongoError::UnsupportedBsonType("CodeWithScope"))
+        }
         Bson::Int32(_) => DataType::Float64,
         Bson::Int64(_) => DataType::Float64,
-        Bson::Timestamp(_) => DataType::Timestamp(TimeUnit::Microsecond, None), // TODO: Nanosecond
-        Bson::Binary(_) => DataType::Binary,                                    // TODO: Subtype?
+        Bson::Timestamp(_) => return Err(MongoError::UnsupportedBsonType("OplogTimestamp")),
+        Bson::Binary(_) => DataType::Binary, // TODO: Subtype?
         Bson::ObjectId(_) => DataType::Utf8,
-        Bson::DateTime(_) => DataType::Timestamp(TimeUnit::Microsecond, None), // TODO: Nanosecond
+        Bson::DateTime(_) => DataType::Timestamp(TimeUnit::Millisecond, None),
         Bson::Symbol(_) => DataType::Utf8,
         Bson::Decimal128(_) => DataType::Decimal128(38, 10),
         Bson::Undefined => DataType::Null,
