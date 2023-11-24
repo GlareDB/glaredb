@@ -9,7 +9,7 @@ edition = { workspace = true }
 logutil = {path = "../logutil"}
 glaredb = {path = "../glaredb"}
 pgsrv = {path = "../pgsrv"}
-tokio = { version = "1", features = ["full"] }
+tokio = { workspace = true }
 tokio-postgres = "0.7.8"
 anyhow = "1.0"
 clap = { version = "4.4.8", features = ["derive"] }
