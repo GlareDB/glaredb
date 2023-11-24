@@ -52,7 +52,7 @@ tokio-postgres = { version = "0.7.8", features = ["with-uuid-1", "with-serde_jso
 parking_lot = "0.12.1"
 tokio-rustls = "0.24.1"
 tracing = "0.1"
-uuid = "1.4.1"
+uuid = "1.6.1"
 url.workspace = true
 webpki-roots = "0.25.3"
 dashmap = "5.5.0"
