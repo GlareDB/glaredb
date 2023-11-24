@@ -9,7 +9,6 @@ pub mod parser;
 pub mod remote;
 pub mod session;
 
-mod background_jobs;
 mod dispatch;
 mod functions;
 mod planner;

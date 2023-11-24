@@ -1,4 +1,3 @@
-use crate::background_jobs::JobRunner;
 use crate::context::remote::RemoteSessionContext;
 use crate::errors::{ExecError, Result};
 use crate::metastore::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
@@ -267,8 +266,6 @@ pub struct Engine {
     spill_path: Option<PathBuf>,
     /// Number of active sessions.
     session_counter: Arc<AtomicU64>,
-    /// Background jobs to run.
-    background_jobs: JobRunner,
 }
 
 impl Engine {
@@ -285,7 +282,6 @@ impl Engine {
             storage,
             spill_path,
             session_counter: Arc::new(AtomicU64::new(0)),
-            background_jobs: JobRunner::new(Default::default()),
         })
     }
 
@@ -340,12 +336,6 @@ impl Engine {
         self
     }
 
-    /// Attempts to shutdown the engine gracefully.
-    pub async fn shutdown(&self) -> Result<()> {
-        self.background_jobs.close().await?;
-        Ok(())
-    }
-
     /// Get the current number of sessions.
     pub fn session_count(&self) -> u64 {
         self.session_counter.load(Ordering::Relaxed)
@@ -374,7 +364,6 @@ impl Engine {
             native,
             self.tracker.clone(),
             self.spill_path.clone(),
-            self.background_jobs.clone(),
         )?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
@@ -403,13 +392,8 @@ impl Engine {
         let state = metastore.get_cached_state().await?;
         let catalog = SessionCatalog::new(state);
 
-        let context = RemoteSessionContext::new(
-            catalog,
-            metastore.into(),
-            native,
-            self.background_jobs.clone(),
-            self.spill_path.clone(),
-        )?;
+        let context =
+            RemoteSessionContext::new(catalog, metastore.into(), native, self.spill_path.clone())?;
 
         Ok(context)
     }

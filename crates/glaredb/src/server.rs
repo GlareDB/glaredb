@@ -161,7 +161,6 @@ impl ComputeServer {
             match signal::ctrl_c().await {
                 Ok(()) => {
                     info!("shutdown triggered");
-                    let engine_shutdown = engine.shutdown();
 
                     // Don't wait for active-sessions if integration testing is
                     // not set. This helps when doing "CTRL-C" during testing.
@@ -179,13 +178,6 @@ impl ComputeServer {
                             tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
                         }
                     }
-
-                    match engine_shutdown.await {
-                        Ok(()) => {}
-                        Err(err) => {
-                            error!(%err, "unable to shutdown the engine gracefully");
-                        }
-                    };
 
                     // Shutdown!
                     let _ = tx.send(());
