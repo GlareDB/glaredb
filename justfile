@@ -60,7 +60,7 @@ sql-logic-tests *args: protoc
 
 # Run SQL Logic Tests over RPC
 rpc-tests: protoc
-  just sql-logic-tests -v --rpc-test \
+  just sql-logic-tests --rpc-test \
     'sqllogictests/cast/*' \
     'sqllogictests/cte/*' \
     'sqllogictests/functions/delta_scan' \
