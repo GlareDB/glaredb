@@ -6,7 +6,7 @@ use datafusion::arrow::datatypes::{
     DataType, Field, Schema, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::parsers::CompressionTypeVariant;
-use datafusion::common::{FileType, OwnedSchemaReference, OwnedTableReference, ToDFSchema};
+use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
 use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
@@ -26,7 +26,7 @@ use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
+use datasources::object_store::{file_type_from_path, FileType, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use datasources::sqlserver::SqlServerAccess;

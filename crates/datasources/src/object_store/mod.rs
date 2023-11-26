@@ -1,10 +1,12 @@
 use std::any::Any;
+use std::fmt;
 use std::fmt::{Debug, Display};
+use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::common::FileType;
+use datafusion::common::FileType as DfFileType;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::physical_plan::FileScanConfig;
 use datafusion::datasource::TableProvider;
@@ -18,13 +20,12 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
 use errors::ObjectStoreSourceError;
+use errors::Result;
 use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::options::{TableOptions, TableOptionsObjectStore};
-
-use errors::Result;
 
 use crate::common::exprs_to_phys_exprs;
 use crate::common::url::DatasourceUrl;
@@ -334,6 +335,40 @@ impl TableProvider for ObjStoreTableProvider {
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
         Ok(Arc::new(ReadOnlyDataSourceMetricsExecAdapter::new(plan)))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FileType {
+    DfFileType(DfFileType),
+    BSON,
+}
+
+impl FromStr for FileType {
+    type Err = DataFusionError;
+
+    fn from_str(s: &str) -> DatafusionResult<Self> {
+        match DfFileType::from_str(s) {
+            Ok(ft) => Ok(FileType::DfFileType(ft)),
+            Err(err) => {
+                let s = s.to_uppercase();
+                match s.as_str() {
+                    "BSON" => Ok(FileType::BSON),
+                    _ => Err(err),
+                }
+            }
+        }
+    }
+}
+
+impl Display for FileType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self {
+            Self::DfFileType(ft) => std::fmt::Display::fmt(&ft, f),
+            FileType::BSON => {
+                write!(f, "bson")
+            }
+        }
     }
 }
 

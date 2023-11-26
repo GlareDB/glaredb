@@ -203,6 +203,7 @@ fn get_sink_for_obj(
                 array: json_opts.array,
             },
         )),
+        CopyToFormatOptions::Bson => todo!("implement bson sink"),
     };
     Ok(sink)
 }
