@@ -19,7 +19,6 @@ use uuid::Uuid;
 
 use std::sync::Arc;
 
-use catalog::session_catalog::{SessionCatalog, TempCatalog};
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
     AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
@@ -57,6 +56,7 @@ use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 use crate::planner::physical_plan::set_var::SetVarExec;
 use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
+use catalog::session_catalog::{SessionCatalog, TempCatalog};
 
 use super::client::RemoteSessionClient;
 

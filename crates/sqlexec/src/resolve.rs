@@ -1,6 +1,6 @@
-use datafusion::sql::TableReference;
 use crate::context::local::LocalSessionContext;
 use catalog::session_catalog::{SessionCatalog, TempCatalog};
+use datafusion::sql::TableReference;
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, TableEntry};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use std::{borrow::Cow, sync::Arc};

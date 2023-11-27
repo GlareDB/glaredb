@@ -1,5 +1,5 @@
+use crate::errors::{CatalogError, Result};
 use datafusion::datasource::{MemTable, TableProvider};
-use crate::errors::{ CatalogError, Result };
 use parking_lot::Mutex;
 use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::catalog::{
