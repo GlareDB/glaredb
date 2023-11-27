@@ -2233,12 +2233,15 @@ name = "datasources"
 version = "0.7.0"
 dependencies = [
  "apache-avro",
+ "arrow-array",
+ "arrow-schema",
  "async-channel",
  "async-stream",
  "async-trait",
  "bigquery-storage",
  "bitflags 2.4.1",
  "bitvec",
+ "bson",
  "bytes",
  "calamine",
  "chrono",
