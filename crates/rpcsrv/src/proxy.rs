@@ -111,11 +111,16 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
                 // got back from Cloud.
                 let db_id = Uuid::parse_str(&details.database_id)
                     .map_err(|e| RpcsrvError::InvalidId("database", e))?;
+
+                let user_id = Uuid::parse_str(&details.user_id)
+                    .map_err(|e| RpcsrvError::InvalidId("user", e))?;
+
                 let new_req = InitializeSessionRequest::Proxy(InitializeSessionRequestFromProxy {
                     storage_conf: SessionStorageConfig {
                         gcs_bucket: Some(details.gcs_storage_bucket),
                     },
                     db_id,
+                    user_id,
                 });
 
                 // And proxy it forward.

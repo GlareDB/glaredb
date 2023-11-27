@@ -1,4 +1,3 @@
-use crate::background_jobs::JobRunner;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog};
@@ -60,8 +59,6 @@ pub struct LocalSessionContext {
     df_ctx: DfSessionContext,
     /// Read tables from the environment.
     env_reader: Option<Box<dyn EnvironmentReader>>,
-    /// Job runner for background jobs.
-    _background_jobs: JobRunner,
 }
 
 impl LocalSessionContext {
@@ -74,7 +71,6 @@ impl LocalSessionContext {
         native_tables: NativeTableStorage,
         metrics_handler: SessionMetricsHandler,
         spill_path: Option<PathBuf>,
-        background_jobs: JobRunner,
     ) -> Result<LocalSessionContext> {
         let database_id = vars.database_id();
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
@@ -102,7 +98,6 @@ impl LocalSessionContext {
             metrics_handler,
             df_ctx,
             env_reader: None,
-            _background_jobs: background_jobs,
         })
     }
 

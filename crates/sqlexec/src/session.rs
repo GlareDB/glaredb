@@ -34,7 +34,6 @@ use pgrepr::format::Format;
 use telemetry::Tracker;
 use uuid::Uuid;
 
-use crate::background_jobs::JobRunner;
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
@@ -348,7 +347,6 @@ impl Session {
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
-        background_jobs: JobRunner,
     ) -> Result<Session> {
         let metrics_handler = SessionMetricsHandler::new(
             vars.user_id(),
@@ -364,7 +362,6 @@ impl Session {
             native_tables,
             metrics_handler,
             spill_path,
-            background_jobs,
         )?;
 
         Ok(Session { ctx })

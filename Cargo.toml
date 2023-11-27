@@ -18,7 +18,7 @@ datafusion = { version = "32.0", features = ["avro"] }
 datafusion-proto = { version = "32.0" }
 object_store = { version = "0.7" }
 tokio = { version = "1", features = ["full"] }
-url = "2.4.0"
+url = "2.5.0"
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.108"
