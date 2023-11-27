@@ -17,7 +17,7 @@ use crate::{error::PyGlareDbError, logical_plan::PyLogicalPlan, runtime::wait_fo
 #[derive(Clone)]
 pub struct Connection {
     pub(super) sess: PyTrackedSession,
-    pub(super) engine: Arc<Engine>,
+    pub(super) _engine: Arc<Engine>,
 }
 
 impl Connection {
@@ -39,7 +39,7 @@ impl Connection {
                     .await?;
                 Ok(Connection {
                     sess: Arc::new(Mutex::new(sess)),
-                    engine: Arc::new(engine),
+                    _engine: Arc::new(engine),
                 }) as Result<_, PyGlareDbError>
             })
         })?;
@@ -181,9 +181,8 @@ impl Connection {
     }
 
     /// Close the current session.
-    pub fn close(&mut self, py: Python<'_>) -> PyResult<()> {
-        wait_for_future(py, async move {
-            Ok(self.engine.shutdown().await.map_err(PyGlareDbError::from)?)
-        })
+    pub fn close(&mut self, _py: Python<'_>) -> PyResult<()> {
+        // TODO: Remove this method. No longer required.
+        Ok(())
     }
 }

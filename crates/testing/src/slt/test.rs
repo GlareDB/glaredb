@@ -234,7 +234,7 @@ impl PgTestClient {
 #[derive(Clone)]
 pub struct RpcTestClient {
     session: Arc<Mutex<TrackedSession>>,
-    engine: Arc<Engine>,
+    _engine: Arc<Engine>,
 }
 
 impl RpcTestClient {
@@ -253,12 +253,8 @@ impl RpcTestClient {
             .await?;
         Ok(RpcTestClient {
             session: Arc::new(Mutex::new(session)),
-            engine: Arc::new(engine),
+            _engine: Arc::new(engine),
         })
-    }
-
-    async fn close(&self) -> Result<()> {
-        Ok(self.engine.shutdown().await?)
     }
 }
 
@@ -272,7 +268,7 @@ impl TestClient {
     pub async fn close(self) -> Result<()> {
         match self {
             Self::Pg(pg_client) => pg_client.close().await,
-            Self::Rpc(rpc_client) => rpc_client.close().await,
+            Self::Rpc(_) => Ok(()),
         }
     }
 }

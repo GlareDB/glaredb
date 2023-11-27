@@ -154,7 +154,7 @@ pub fn connect(
 
         Ok(Connection {
             sess,
-            engine: Arc::new(engine),
+            _engine: Arc::new(engine),
         })
     })
 }
