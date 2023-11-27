@@ -143,10 +143,7 @@ pub enum ExecError {
     DispatchError(#[from] crate::dispatch::DispatchError),
 
     #[error(transparent)]
-    MetastoreWorker(#[from] crate::metastore::client::MetastoreClientError),
-
-    #[error(transparent)]
-    SessionCatalog(#[from] crate::metastore::catalog::SessionCatalogError),
+    Catalog(#[from] catalog::errors::CatalogError),
 
     #[error("{0:?}")]
     TonicTransport(#[from] tonic::transport::Error),

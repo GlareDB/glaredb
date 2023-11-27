@@ -14,7 +14,7 @@ use sqlbuiltins::builtins::{
     SCHEMA_CURRENT_SESSION,
 };
 
-use crate::metastore::catalog::{SessionCatalog, TempCatalog};
+use catalog::session_catalog::{SessionCatalog, TempCatalog};
 
 use super::{DispatchError, Result};
 

@@ -1,10 +1,10 @@
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
-use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
+use catalog::session_catalog::{CatalogMutator, SessionCatalog, TempCatalog};
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::common::SchemaReference;
 use datafusion::execution::context::{

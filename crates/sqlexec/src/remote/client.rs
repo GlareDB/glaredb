@@ -1,8 +1,8 @@
 use crate::{
     errors::{ExecError, Result},
     extension_codec::GlareDBExtensionCodec,
-    metastore::catalog::SessionCatalog,
 };
+use catalog::session_catalog::SessionCatalog;
 use datafusion::{datasource::TableProvider, physical_plan::ExecutionPlan};
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};

@@ -45,7 +45,7 @@ use protogen::metastore::types::options::{
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 
-use crate::metastore::catalog::SessionCatalog;
+use catalog::session_catalog::SessionCatalog;
 
 use super::listing::CatalogLister;
 use super::{DispatchError, Result};

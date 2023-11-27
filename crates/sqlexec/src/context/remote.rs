@@ -18,9 +18,9 @@ use crate::{
     dispatch::external::ExternalDispatcher,
     errors::{ExecError, Result},
     extension_codec::GlareDBExtensionCodec,
-    metastore::catalog::{CatalogMutator, SessionCatalog},
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
+use catalog::session_catalog::{CatalogMutator, SessionCatalog};
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 

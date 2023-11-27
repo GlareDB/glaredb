@@ -1385,6 +1385,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "catalog"
+version = "0.7.0"
+dependencies = [
+ "datafusion",
+ "logutil",
+ "metastore",
+ "object_store",
+ "parking_lot",
+ "protogen",
+ "sqlbuiltins",
+ "thiserror",
+ "tokio",
+ "tonic",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6777,6 +6795,7 @@ dependencies = [
  "arrow_util",
  "async-trait",
  "bytes",
+ "catalog",
  "dashmap",
  "datafusion",
  "datafusion-proto",
