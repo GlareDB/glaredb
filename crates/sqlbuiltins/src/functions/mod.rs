@@ -35,7 +35,7 @@ use self::iceberg::{IcebergDataFiles, IcebergScan, IcebergSnapshots};
 use self::lance::LanceScan;
 use self::mongo::ReadMongoDb;
 use self::mysql::ReadMysql;
-use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN};
+use self::object_store::{BSON_SCAN, CSV_SCAN, JSON_SCAN, PARQUET_SCAN};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
@@ -112,6 +112,7 @@ impl BuiltinTableFuncs {
             Arc::new(PARQUET_SCAN),
             Arc::new(CSV_SCAN),
             Arc::new(JSON_SCAN),
+            Arc::new(BSON_SCAN),
             // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),
