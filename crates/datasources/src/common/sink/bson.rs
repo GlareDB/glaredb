@@ -1,6 +1,9 @@
 use crate::common::errors::Result;
 use async_trait::async_trait;
-use datafusion::arrow::array::{ArrayRef, AsArray};
+use datafusion::arrow::array::cast::as_string_array;
+use datafusion::arrow::array::{types::*, Array, ArrayRef, AsArray, StructArray};
+use datafusion::arrow::datatypes::{DataType, Fields, IntervalUnit, TimeUnit};
+use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::record_batch::{RecordBatch, RecordBatchWriter};
 use datafusion::common::Result as DfResult;
 use datafusion::error::DataFusionError;
@@ -14,8 +17,7 @@ use std::{fmt::Debug, fmt::Display, io::Write, sync::Arc};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use super::SharedBuffer;
-use arrow_array::{types::*, Array, StructArray};
-use arrow_schema::{ArrowError, DataType, IntervalUnit, TimeUnit};
+
 const BUFFER_SIZE: usize = 2 * 1024 * 1024;
 
 #[derive(Debug)]
@@ -213,7 +215,7 @@ struct BsonBatchConverter {
 }
 
 impl BsonBatchConverter {
-    fn new(batch: StructArray, fields: arrow_schema::Fields) -> Self {
+    fn new(batch: StructArray, fields: Fields) -> Self {
         let mut field_names = Vec::<String>::with_capacity(fields.len());
         for name in &fields {
             field_names.push(name.to_string())
@@ -294,12 +296,12 @@ fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
             .as_primitive::<UInt64Type>()
             .iter()
             .for_each(|val| out.push(bson::Bson::Int64(val.unwrap_or_default() as i64))),
-        DataType::Utf8 | DataType::LargeUtf8 => arrow_array::cast::as_string_array(array)
-            .iter()
-            .for_each(|val| match val {
+        DataType::Utf8 | DataType::LargeUtf8 => {
+            as_string_array(array).iter().for_each(|val| match val {
                 Some(v) => out.push(bson::Bson::String(v.to_string())),
                 None => out.push(bson::Bson::Null),
-            }),
+            })
+        }
         DataType::Float16 => array
             .as_primitive::<Float16Type>()
             .iter()
@@ -370,7 +372,7 @@ fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
             .as_primitive::<IntervalYearMonthType>()
             .iter()
             .for_each(|val| out.push(bson::Bson::Int32(val.unwrap_or_default()))),
-        DataType::Interval(arrow_schema::IntervalUnit::MonthDayNano) => {
+        DataType::Interval(IntervalUnit::MonthDayNano) => {
             return Err(ArrowError::CastError(
                 "calendar type is not representable in BSON".to_string(),
             ))

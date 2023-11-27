@@ -2233,8 +2233,6 @@ name = "datasources"
 version = "0.7.0"
 dependencies = [
  "apache-avro",
- "arrow-array",
- "arrow-schema",
  "async-channel",
  "async-stream",
  "async-trait",
