@@ -3,7 +3,6 @@ use std::{sync::Arc, vec};
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field};
-use datafusion::common::FileType as DfFileType;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
@@ -24,20 +23,18 @@ use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::{FileType, MultiSourceTableProvider, ObjStoreAccess};
+use datasources::object_store::{file_type::FileType, MultiSourceTableProvider, ObjStoreAccess};
+
 use futures::TryStreamExt;
 use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
-pub const PARQUET_SCAN: ObjScanTableFunc =
-    ObjScanTableFunc(FileType::DfFileType(DfFileType::PARQUET), "parquet_scan");
+pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
 
-pub const CSV_SCAN: ObjScanTableFunc =
-    ObjScanTableFunc(FileType::DfFileType(DfFileType::CSV), "csv_scan");
+pub const CSV_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "csv_scan");
 
-pub const JSON_SCAN: ObjScanTableFunc =
-    ObjScanTableFunc(FileType::DfFileType(DfFileType::JSON), "ndjson_scan");
+pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson_scan");
 
 pub const BSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::BSON, "bson_scan");
 
@@ -146,13 +143,13 @@ impl TableFunc for ObjScanTableFunc {
 
         let Self(ft, _) = self;
         let ft: Arc<dyn FileFormat> = match ft {
-            FileType::DfFileType(DfFileType::CSV) => Arc::new(
+            FileType::CSV => Arc::new(
                 CsvFormat::default()
                     .with_file_compression_type(file_compression)
                     .with_schema_infer_max_rec(Some(20480)),
             ),
-            FileType::DfFileType(DfFileType::PARQUET) => Arc::new(ParquetFormat::default()),
-            FileType::DfFileType(DfFileType::JSON) => {
+            FileType::PARQUET => Arc::new(ParquetFormat::default()),
+            FileType::JSON => {
                 Arc::new(JsonFormat::default().with_file_compression_type(file_compression))
             }
             FileType::BSON => {
