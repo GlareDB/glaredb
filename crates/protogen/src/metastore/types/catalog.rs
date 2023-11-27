@@ -317,20 +317,22 @@ impl FromStr for SourceAccessMode {
 
 impl Display for SourceAccessMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let access_mode: catalog::SourceAccessMode = (*self).into();
-        write!(f, "{}", access_mode.as_str_name())
+        write!(f, "{}", self.as_str())
     }
 }
 
 impl SourceAccessMode {
-    #[inline]
-    pub fn has_read_access(&self) -> bool {
+    pub const fn has_read_access(&self) -> bool {
         matches!(self, Self::ReadOnly | Self::ReadWrite)
     }
 
-    #[inline]
-    pub fn has_write_access(&self) -> bool {
+    pub const fn has_write_access(&self) -> bool {
         matches!(self, Self::ReadWrite)
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        // TODO: Maybe lowercase this.
+        catalog::SourceAccessMode::from(*self).as_str_name()
     }
 }
 
@@ -878,5 +880,23 @@ mod tests {
         };
 
         assert_eq!(expected, converted);
+    }
+
+    #[test]
+    fn source_access_mode_as_str() {
+        let mode = SourceAccessMode::ReadOnly;
+        assert_eq!("READ_ONLY", mode.as_str());
+        let mode = SourceAccessMode::ReadWrite;
+        assert_eq!("READ_WRITE", mode.as_str());
+    }
+
+    #[test]
+    fn source_access_mode_from_str() {
+        let mode = SourceAccessMode::from_str("READ_ONLY").unwrap();
+        assert_eq!(SourceAccessMode::ReadOnly, mode);
+        let mode = SourceAccessMode::from_str("READ_WRITE").unwrap();
+        assert_eq!(SourceAccessMode::ReadWrite, mode);
+
+        let _ = SourceAccessMode::from_str("DELETE").unwrap_err();
     }
 }
