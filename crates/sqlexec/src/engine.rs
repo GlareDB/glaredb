@@ -1,7 +1,7 @@
 use crate::context::remote::RemoteSessionContext;
 use crate::errors::{ExecError, Result};
-use crate::metastore::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
 use crate::session::Session;
+use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
 use std::collections::HashMap;
 
 use object_store::aws::AmazonS3ConfigKey;
@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use crate::metastore::catalog::SessionCatalog;
+use catalog::session_catalog::SessionCatalog;
 use datafusion_ext::vars::SessionVars;
 use datasources::common::errors::DatasourceCommonError;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};

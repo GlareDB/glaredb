@@ -11,6 +11,7 @@ pub mod remote;
 
 use std::{path::PathBuf, sync::Arc};
 
+use catalog::session_catalog::SessionCatalog;
 use datafusion::{
     config::{CatalogOptions, ConfigOptions, Extensions, OptimizerOptions},
     execution::{
@@ -23,7 +24,7 @@ use datafusion_ext::vars::SessionVars;
 use datasources::object_store::init_session_registry;
 use protogen::metastore::types::catalog::CatalogEntry;
 
-use crate::{errors::Result, metastore::catalog::SessionCatalog};
+use crate::errors::Result;
 
 /// Create a new datafusion runtime env common to both remote and local
 /// sessions.

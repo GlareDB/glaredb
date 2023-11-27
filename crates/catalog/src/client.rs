@@ -49,9 +49,9 @@
 //! easiest way to accomplish the desired catalog caching behavior, and not due
 //! to any limitations in metastore itself.
 
+use crate::errors::{CatalogError, Result};
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
 use protogen::gen::metastore::service::{FetchCatalogRequest, MutateRequest};
-use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::{catalog::CatalogState, service::Mutation};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -63,50 +63,6 @@ use tokio::task::JoinHandle;
 use tonic::transport::Channel;
 use tracing::{debug, debug_span, error, warn, Instrument};
 use uuid::Uuid;
-
-#[derive(Debug, thiserror::Error)]
-pub enum MetastoreClientError {
-    #[error("Metastore database worker overloaded; request type: {request_type_tag}")]
-    MetastoreDatabaseWorkerOverload { request_type_tag: &'static str },
-
-    #[error("Metastore request channel closed; request type: {request_type_tag}")]
-    MetastoreRequestChannelClosed { request_type_tag: &'static str },
-
-    #[error("Metastore response channel closed; request type: {request_type_tag}")]
-    MetastoreResponseChannelClosed { request_type_tag: &'static str },
-
-    #[error(transparent)]
-    ProtoConvError(#[from] protogen::errors::ProtoConvError),
-
-    // TODO: Need to be more granular about errors from Metastore.
-    #[error("Failed Metastore request: {message}")]
-    MetastoreTonic {
-        strategy: ResolveErrorStrategy,
-        message: String,
-    },
-
-    #[error("Internal error: {0}")]
-    Internal(String),
-}
-
-impl From<tonic::Status> for MetastoreClientError {
-    fn from(value: tonic::Status) -> Self {
-        // Try to get the strategy from the response from metastore. This can be
-        // used to try to resolve the error automatically.
-        let strat = value
-            .metadata()
-            .get(protogen::metastore::strategy::RESOLVE_ERROR_STRATEGY_META)
-            .map(|val| ResolveErrorStrategy::from_bytes(val.as_ref()))
-            .unwrap_or(ResolveErrorStrategy::Unknown);
-
-        Self::MetastoreTonic {
-            strategy: strat,
-            message: value.message().to_string(),
-        }
-    }
-}
-
-type Result<T, E = MetastoreClientError> = std::result::Result<T, E>;
 
 /// Number of outstanding requests per database.
 const PER_DATABASE_BUFFER: usize = 128;
@@ -196,19 +152,13 @@ impl MetastoreClientHandle {
         let result = match self.send.try_send(req) {
             Ok(_) => match rx.await {
                 Ok(result) => Ok(result),
-                Err(_) => Err(MetastoreClientError::MetastoreResponseChannelClosed {
-                    request_type_tag: tag,
-                }),
+                Err(_) => Err(CatalogError::new(format!("response channel closed: {tag}"))),
             },
-            Err(mpsc::error::TrySendError::Full(_)) => {
-                Err(MetastoreClientError::MetastoreDatabaseWorkerOverload {
-                    request_type_tag: tag,
-                })
-            }
+            Err(mpsc::error::TrySendError::Full(_)) => Err(CatalogError::new(format!(
+                "response channel overloaded: {tag}"
+            ))),
             Err(mpsc::error::TrySendError::Closed(_)) => {
-                Err(MetastoreClientError::MetastoreRequestChannelClosed {
-                    request_type_tag: tag,
-                })
+                Err(CatalogError::new(format!("request channel closed: {tag}")))
             }
         };
 
@@ -426,11 +376,7 @@ impl StatefulWorker {
 
         let catalog: CatalogState = match resp.catalog {
             Some(c) => c.try_into()?,
-            None => {
-                return Err(MetastoreClientError::Internal(
-                    "missing field: 'catalog'".to_string(),
-                ))
-            }
+            None => return Err(CatalogError::new("missing field: 'catalog'")),
         };
 
         let (send, recv) = mpsc::channel(PER_DATABASE_BUFFER);
@@ -530,8 +476,8 @@ impl StatefulWorker {
                             mutations,
                         }))
                         .await
-                        .map_err(MetastoreClientError::from),
-                    Err(e) => Err(MetastoreClientError::from(e)),
+                        .map_err(CatalogError::from),
+                    Err(e) => Err(CatalogError::new(e.to_string())),
                 };
 
                 let result = match result {

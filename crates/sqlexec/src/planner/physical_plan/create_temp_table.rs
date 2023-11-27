@@ -5,7 +5,8 @@ use datafusion::{
 };
 use futures::StreamExt;
 
-use crate::{metastore::catalog::TempCatalog, planner::logical_plan::OwnedFullObjectReference};
+use crate::planner::logical_plan::OwnedFullObjectReference;
+use catalog::session_catalog::TempCatalog;
 
 use super::*;
 

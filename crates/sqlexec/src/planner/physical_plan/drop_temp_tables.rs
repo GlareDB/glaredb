@@ -1,5 +1,5 @@
-use crate::metastore::catalog::TempCatalog;
 use crate::planner::logical_plan::OwnedFullObjectReference;
+use catalog::session_catalog::TempCatalog;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};

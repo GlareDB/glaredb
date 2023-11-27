@@ -21,13 +21,11 @@ use protogen::metastore::types::catalog::{
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 
 use crate::context::local::LocalSessionContext;
+use crate::dispatch::system::SystemTableDispatcher;
 use crate::parser::CustomParser;
 use crate::planner::errors::PlanError;
 use crate::planner::session_planner::SessionPlanner;
-use crate::{
-    dispatch::system::SystemTableDispatcher,
-    metastore::catalog::{SessionCatalog, TempCatalog},
-};
+use catalog::session_catalog::{SessionCatalog, TempCatalog};
 
 use self::external::ExternalDispatcher;
 use self::listing::CatalogLister;

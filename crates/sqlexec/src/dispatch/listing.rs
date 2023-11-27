@@ -4,7 +4,7 @@ use datafusion_ext::{errors::ExtensionError, functions::VirtualLister};
 use protogen::metastore::types::catalog::CatalogEntry;
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 
-use crate::metastore::catalog::SessionCatalog;
+use catalog::session_catalog::SessionCatalog;
 
 pub struct CatalogLister {
     pub catalog: SessionCatalog,

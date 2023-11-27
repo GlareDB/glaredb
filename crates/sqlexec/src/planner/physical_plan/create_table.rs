@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use catalog::session_catalog::{CatalogMutator, SessionCatalog};
 use datafusion::{
     arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
     datasource::TableProvider,
@@ -21,7 +22,6 @@ use tracing::debug;
 use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
 use crate::{
     errors::ExecError,
-    metastore::catalog::{CatalogMutator, SessionCatalog},
     planner::{logical_plan::OwnedFullObjectReference, physical_plan::new_operation_batch},
 };
 use futures::StreamExt;
