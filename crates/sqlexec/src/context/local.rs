@@ -4,7 +4,8 @@ use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
-use catalog::session_catalog::{CatalogMutator, SessionCatalog, TempCatalog};
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::{SessionCatalog, TempCatalog};
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::common::SchemaReference;
 use datafusion::execution::context::{

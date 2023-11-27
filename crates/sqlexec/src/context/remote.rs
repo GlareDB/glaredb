@@ -20,7 +20,8 @@ use crate::{
     extension_codec::GlareDBExtensionCodec,
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
-use catalog::session_catalog::{CatalogMutator, SessionCatalog};
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::SessionCatalog;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 

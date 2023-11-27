@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use catalog::session_catalog::{CatalogMutator, SessionCatalog};
+use catalog::{mutator::CatalogMutator, session_catalog::SessionCatalog};
 use datafusion::{
     arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
     datasource::TableProvider,

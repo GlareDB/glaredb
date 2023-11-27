@@ -11,7 +11,8 @@ use crate::planner::physical_plan::{
 };
 use crate::remote::client::RemoteClient;
 use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
-use catalog::session_catalog::{CatalogMutator, SessionCatalog};
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
