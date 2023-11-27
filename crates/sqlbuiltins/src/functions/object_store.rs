@@ -39,8 +39,7 @@ pub const CSV_SCAN: ObjScanTableFunc =
 pub const JSON_SCAN: ObjScanTableFunc =
     ObjScanTableFunc(FileType::DfFileType(DfFileType::JSON), "ndjson_scan");
 
-pub const BSON_SCAN: ObjScanTableFunc =
-    ObjScanTableFunc(FileType::DfFileType(DfFileType::BSON), "bson_scan");
+pub const BSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::BSON, "bson_scan");
 
 #[derive(Debug, Clone)]
 pub struct ObjScanTableFunc(FileType, &'static str);
@@ -147,14 +146,19 @@ impl TableFunc for ObjScanTableFunc {
 
         let Self(ft, _) = self;
         let ft: Arc<dyn FileFormat> = match ft {
-            FileType::CSV => Arc::new(
+            FileType::DfFileType(DfFileType::CSV) => Arc::new(
                 CsvFormat::default()
                     .with_file_compression_type(file_compression)
                     .with_schema_infer_max_rec(Some(20480)),
             ),
-            FileType::PARQUET => Arc::new(ParquetFormat::default()),
-            FileType::JSON => {
+            FileType::DfFileType(DfFileType::PARQUET) => Arc::new(ParquetFormat::default()),
+            FileType::DfFileType(DfFileType::JSON) => {
                 Arc::new(JsonFormat::default().with_file_compression_type(file_compression))
+            }
+            FileType::BSON => {
+                return Err(ExtensionError::Unimplemented(
+                    "bson object files are not yet implemented",
+                ))
             }
             ft => {
                 return Err(ExtensionError::String(format!(
