@@ -9,6 +9,7 @@ edition = { workspace = true }
 arrow_util = { path = "../arrow_util" }
 logutil = { path = "../logutil" }
 protogen = { path = "../protogen" }
+catalog = { path = "../catalog" }
 proxyutil = { path = "../proxyutil" }
 pgrepr = { path = "../pgrepr" }
 telemetry = { path = "../telemetry" }

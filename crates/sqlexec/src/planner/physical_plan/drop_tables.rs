@@ -1,4 +1,4 @@
-use crate::metastore::catalog::CatalogMutator;
+use catalog::session_catalog::CatalogMutator;
 use crate::planner::logical_plan::OwnedFullObjectReference;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;

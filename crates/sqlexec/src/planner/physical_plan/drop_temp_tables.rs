@@ -1,4 +1,4 @@
-use crate::metastore::catalog::TempCatalog;
+use catalog::session_catalog::TempCatalog;
 use crate::planner::logical_plan::OwnedFullObjectReference;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;

@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use std::sync::Arc;
 
-use crate::metastore::catalog::{SessionCatalog, TempCatalog};
+use catalog::session_catalog::{SessionCatalog, TempCatalog};
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
     AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredentials,

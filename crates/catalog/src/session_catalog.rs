@@ -1,4 +1,5 @@
 use datafusion::datasource::{MemTable, TableProvider};
+use crate::errors::{ CatalogError, Result };
 use parking_lot::Mutex;
 use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::catalog::{
@@ -14,18 +15,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 
-use super::client::{MetastoreClientError, MetastoreClientHandle};
-
-#[derive(Debug, thiserror::Error)]
-pub enum SessionCatalogError {
-    #[error("Metastore client not configured")]
-    MetastoreClientNotConfigured,
-
-    #[error(transparent)]
-    WorkerClientError(#[from] MetastoreClientError),
-}
-
-type Result<T, E = SessionCatalogError> = std::result::Result<T, E>;
+use super::client::MetastoreClientHandle;
 
 /// Wrapper around a metastore client for mutating the catalog.
 #[derive(Clone)]
@@ -37,6 +27,7 @@ impl CatalogMutator {
     pub fn empty() -> Self {
         CatalogMutator { client: None }
     }
+
     pub fn new(client: Option<MetastoreClientHandle>) -> Self {
         CatalogMutator { client }
     }
@@ -58,7 +49,7 @@ impl CatalogMutator {
     ) -> Result<Arc<CatalogState>> {
         let client = match &self.client {
             Some(client) => client,
-            None => return Err(SessionCatalogError::MetastoreClientNotConfigured),
+            None => return Err(CatalogError::new("metastore client not configured")),
         };
 
         // Note that when we have transactions, these shouldn't be sent until
@@ -66,9 +57,9 @@ impl CatalogMutator {
         let mutations: Vec<_> = mutations.into_iter().collect();
         let state = match client.try_mutate(catalog_version, mutations.clone()).await {
             Ok(state) => state,
-            Err(MetastoreClientError::MetastoreTonic {
-                strategy: ResolveErrorStrategy::FetchCatalogAndRetry,
-                message,
+            Err(CatalogError {
+                msg,
+                strategy: Some(ResolveErrorStrategy::FetchCatalogAndRetry),
             }) => {
                 // Go ahead and refetch the catalog and retry the mutation.
                 //
@@ -76,7 +67,7 @@ impl CatalogMutator {
                 // when validating mutations. What this means is that retrying
                 // here should be semantically equivalent to manually refreshing
                 // the catalog and rerunning and replanning the query.
-                debug!(error_message = message, "retrying mutations");
+                debug!(error_message = msg, "retrying mutations");
 
                 client.refresh_cached_state().await?;
                 let state = client.get_cached_state().await?;
@@ -84,7 +75,7 @@ impl CatalogMutator {
 
                 client.try_mutate(version, mutations).await?
             }
-            Err(e) => return Err(e.into()),
+            Err(e) => return Err(e),
         };
 
         Ok(state)

@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
+use catalog::session_catalog::{CatalogMutator, SessionCatalog};
 use crate::planner::physical_plan::{
     get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
     GENERIC_OPERATION_PHYSICAL_SCHEMA,
