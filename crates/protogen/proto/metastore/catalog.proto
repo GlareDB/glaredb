@@ -125,7 +125,11 @@ message EntryMeta {
   // Temp objects should never be persisted.
   bool is_temp = 7;
 
-  // next: 8
+  // Optional example string for 
+  optional string sql_example = 8;
+  // Optional description string
+  optional string description = 9;
+  // next: 10
 }
 
 // Defines what kind of access is allowed on the data source.

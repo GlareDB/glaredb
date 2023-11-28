@@ -171,6 +171,9 @@ pub static GLARE_FUNCTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
             false,
         ),
         ("builtin", DataType::Boolean, false),
+        ("example", DataType::Utf8, true),
+        ("description", DataType::Utf8, true),
+        
     ]),
 });
 
