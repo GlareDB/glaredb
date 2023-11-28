@@ -5,7 +5,7 @@ use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
 use catalog::mutator::CatalogMutator;
-use catalog::session_catalog::{SessionCatalog, TempCatalog};
+use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::common::SchemaReference;
 use datafusion::execution::context::{
@@ -80,8 +80,7 @@ impl LocalSessionContext {
         let mut conf: SessionConfig = opts.into();
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
-            .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(TempCatalog::default()));
+            .with_extension(Arc::new(native_tables.clone()));
 
         let state = SessionState::new_with_config_rt(conf, Arc::new(runtime))
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
@@ -129,8 +128,7 @@ impl LocalSessionContext {
         let mut conf: SessionConfig = opts.into();
         conf = conf
             .with_extension(Arc::new(CatalogMutator::empty()))
-            .with_extension(Arc::new(self.get_native_tables().clone()))
-            .with_extension(Arc::new(TempCatalog::default()));
+            .with_extension(Arc::new(self.get_native_tables().clone()));
 
         let state = SessionState::new_with_config_rt(conf, runtime)
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
@@ -163,14 +161,6 @@ impl LocalSessionContext {
 
     pub fn get_native_tables(&self) -> &NativeTableStorage {
         &self.tables
-    }
-
-    pub fn get_temp_objects(&self) -> Arc<TempCatalog> {
-        self.df_ctx
-            .state()
-            .config()
-            .get_extension::<TempCatalog>()
-            .expect("local contexts should have temp objects")
     }
 
     /// Return the DF session context.

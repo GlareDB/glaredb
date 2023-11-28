@@ -1,5 +1,4 @@
 //! Builtin table returning functions.
-//! mod bigquery;
 
 mod bigquery;
 mod delta;

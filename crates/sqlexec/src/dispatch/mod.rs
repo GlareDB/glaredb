@@ -165,7 +165,6 @@ impl ViewPlanner for LocalSessionContext {
 pub struct Dispatcher<'a> {
     catalog: &'a SessionCatalog,
     tables: &'a NativeTableStorage,
-    temp_objects: &'a TempCatalog,
     view_planner: &'a dyn ViewPlanner,
     // TODO: Remove need for this.
     df_ctx: &'a DfSessionContext,
@@ -177,7 +176,6 @@ impl<'a> Dispatcher<'a> {
     pub fn new(
         catalog: &'a SessionCatalog,
         tables: &'a NativeTableStorage,
-        temp_objects: &'a TempCatalog,
         view_planner: &'a dyn ViewPlanner,
         df_ctx: &'a DfSessionContext,
         disable_local_fs_access: bool,
@@ -185,7 +183,6 @@ impl<'a> Dispatcher<'a> {
         Dispatcher {
             catalog,
             tables,
-            temp_objects,
             view_planner,
             df_ctx,
             disable_local_fs_access,
@@ -205,7 +202,8 @@ impl<'a> Dispatcher<'a> {
             // Temp tables
             CatalogEntry::Table(tbl) if tbl.meta.is_temp => {
                 let provider = self
-                    .temp_objects
+                    .catalog
+                    .get_temp_catalog()
                     .get_temp_table_provider(&tbl.meta.name)
                     .ok_or_else(|| DispatchError::MissingTempTable {
                         name: tbl.meta.name.to_string(),
@@ -214,7 +212,7 @@ impl<'a> Dispatcher<'a> {
             }
             // Dispatch to builtin tables.
             CatalogEntry::Table(tbl) if tbl.meta.builtin => {
-                SystemTableDispatcher::new(self.catalog, self.temp_objects).dispatch(&tbl)
+                SystemTableDispatcher::new(self.catalog).dispatch(&tbl)
             }
             // Dispatch to external tables.
             CatalogEntry::Table(tbl) if tbl.meta.external => {

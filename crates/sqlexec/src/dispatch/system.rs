@@ -21,15 +21,11 @@ use super::{DispatchError, Result};
 /// Dispatch to builtin system tables.
 pub struct SystemTableDispatcher<'a> {
     catalog: &'a SessionCatalog,
-    temp_objects: &'a TempCatalog,
 }
 
 impl<'a> SystemTableDispatcher<'a> {
-    pub fn new(catalog: &'a SessionCatalog, temp_objects: &'a TempCatalog) -> Self {
-        SystemTableDispatcher {
-            catalog,
-            temp_objects,
-        }
+    pub fn new(catalog: &'a SessionCatalog) -> Self {
+        SystemTableDispatcher { catalog }
     }
 
     pub fn dispatch(&self, ent: &TableEntry) -> Result<Arc<dyn TableProvider>> {
@@ -275,7 +271,7 @@ impl<'a> SystemTableDispatcher<'a> {
         }
 
         // Append temporary tables.
-        for table in self.temp_objects.get_table_entries() {
+        for table in self.catalog.get_temp_catalog().get_table_entries() {
             // TODO: Assign OID to temporary tables
             oid.append_value(table.meta.id);
             schema_oid.append_value(table.meta.parent);

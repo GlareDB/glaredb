@@ -8,12 +8,24 @@ use protogen::metastore::types::catalog::{
 use protogen::metastore::types::options::{
     InternalColumnDefinition, TableOptions, TableOptionsInternal,
 };
-use sqlbuiltins::builtins::{DEFAULT_SCHEMA, SCHEMA_CURRENT_SESSION};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 
 use super::client::MetastoreClientHandle;
+
+/// Configuration for letting the catalog know how to resolve certain items.
+///
+/// Note this was created to avoid needing to import the constants from
+/// `sqlbuiltins` since it would create a dependency cycle. This may be removed
+/// in the future.
+#[derive(Debug, Clone, Copy)]
+pub struct ResolveConfig {
+    /// Default schema to use when resolving a catalog entry.
+    pub default_schema_oid: u32,
+    /// Schema to use for the session schema for holding temporary items.
+    pub session_schema_oid: u32,
+}
 
 /// The session local catalog.
 ///
@@ -33,11 +45,15 @@ pub struct SessionCatalog {
     schema_names: HashMap<String, u32>,
     /// Map schema IDs to objects in the schema.
     schema_objects: HashMap<u32, SchemaObjects>,
+    /// Config for resolving entries.
+    resolve_conf: ResolveConfig,
+    /// Catalog for holding temporary session objects.
+    temp: TempCatalog,
 }
 
 impl SessionCatalog {
     /// Create a new session catalog with an initial state.
-    pub fn new(state: Arc<CatalogState>) -> SessionCatalog {
+    pub fn new(state: Arc<CatalogState>, resolve_conf: ResolveConfig) -> SessionCatalog {
         let mut catalog = SessionCatalog {
             state,
             database_names: HashMap::new(),
@@ -45,6 +61,8 @@ impl SessionCatalog {
             credentials_names: HashMap::new(),
             schema_names: HashMap::new(),
             schema_objects: HashMap::new(),
+            resolve_conf,
+            temp: TempCatalog::new(resolve_conf),
         };
         catalog.rebuild_name_maps();
         catalog
@@ -62,6 +80,11 @@ impl SessionCatalog {
 
     pub fn get_state(&self) -> &Arc<CatalogState> {
         &self.state
+    }
+
+    /// Get a reference to the temporary catalog.
+    pub fn get_temp_catalog(&self) -> &TempCatalog {
+        &self.temp
     }
 
     pub fn resolve_table(&self, _database: &str, schema: &str, name: &str) -> Option<&TableEntry> {
@@ -175,8 +198,9 @@ impl SessionCatalog {
 
     /// Resolve builtin table functions from 'public' schema
     pub fn resolve_builtin_table_function(&self, name: &str) -> Option<FunctionEntry> {
-        let schema_id = self.schema_names.get(DEFAULT_SCHEMA)?;
-        let obj = self.schema_objects.get(schema_id)?;
+        let obj = self
+            .schema_objects
+            .get(&self.resolve_conf.default_schema_oid)?;
         let obj_id = obj.objects.get(name)?;
 
         let ent = self
@@ -372,9 +396,19 @@ impl NamespacedCatalogEntry<'_> {
 }
 
 /// Temporary objects that are dropped when the session is dropped.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone)]
 pub struct TempCatalog {
-    inner: Mutex<TempObjectsInner>,
+    inner: Arc<Mutex<TempObjectsInner>>,
+    temp_schema_oid: u32,
+}
+
+impl TempCatalog {
+    fn new(resolve_conf: ResolveConfig) -> Self {
+        TempCatalog {
+            inner: Arc::new(Mutex::new(TempObjectsInner::default())),
+            temp_schema_oid: resolve_conf.session_schema_oid,
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -405,7 +439,7 @@ impl TempCatalog {
                 meta: EntryMeta {
                     entry_type: EntryType::Table,
                     id: 0,
-                    parent: SCHEMA_CURRENT_SESSION.oid,
+                    parent: self.temp_schema_oid,
                     name: name.to_string(),
                     builtin: false,
                     external: false,
@@ -446,7 +480,7 @@ impl TempCatalog {
                 meta: EntryMeta {
                     entry_type: EntryType::Table,
                     id: 0,
-                    parent: SCHEMA_CURRENT_SESSION.oid,
+                    parent: self.temp_schema_oid,
                     name: name.to_string(),
                     builtin: false,
                     external: false,

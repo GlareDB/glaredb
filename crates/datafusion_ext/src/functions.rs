@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -9,6 +10,7 @@ use datafusion::arrow::datatypes::Fields;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Signature;
+use datafusion::scalar::ScalarValue;
 use decimal::Decimal128;
 use protogen::metastore::types::catalog::{CredentialsEntry, DatabaseEntry, RuntimePreference};
 use protogen::rpcsrv::types::func_param_value::{
@@ -47,8 +49,19 @@ pub trait TableFunc: Sync + Send {
 pub trait TableFuncContextProvider: Sync + Send {
     fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
     fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
+
+    // TODO: Remove this if `create_provider` runs remotely since we don't want
+    // remote session vars.
     fn get_session_vars(&self) -> SessionVars;
+
+    /// Get the session state.
+    ///
+    /// Both local and remote contexts should have:
+    /// - NativeTableStorage
+    /// - CatalogMutator
     fn get_session_state(&self) -> SessionState;
+
+    // TODO: Remove
     fn get_catalog_lister(&self) -> Box<dyn VirtualLister>;
 }
 
@@ -63,10 +76,6 @@ pub trait VirtualLister: Sync + Send {
     /// List columns for a specific table in the datasource.
     async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields>;
 }
-
-use std::fmt;
-
-use datafusion::scalar::ScalarValue;
 
 /// Value from a function parameter.
 #[derive(Debug, Clone)]
