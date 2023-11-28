@@ -14,7 +14,7 @@ prost = { workspace = true }
 prost-types = { workspace = true }
 proptest = "1.4"
 proptest-derive = "0.4"
-uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tracing = "0.1"
 
 [build-dependencies]

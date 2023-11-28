@@ -65,6 +65,9 @@ message InitializeSessionRequestFromProxy {
 
   // ID of database we're initializing a session for.
   bytes db_id = 3;
+
+  // ID of the user that initialized the session.
+  bytes user_id = 4;
 }
 
 // Request for initializing a session.
@@ -82,6 +85,8 @@ message InitializeSessionResponse {
   bytes database_id = 1;
   // The initial catalog for the database.
   metastore.catalog.CatalogState catalog = 2;
+  // User ID for which the session was initialized
+  bytes user_id = 3;
 }
 
 message FetchCatalogRequest { bytes database_id = 1; }
@@ -101,8 +106,12 @@ message DispatchAccessRequest {
 // Execute a physical plan and get the stream.
 message PhysicalPlanExecuteRequest {
   bytes database_id = 1;
-  /// The protobuf serialized physical plan.
+  // The protobuf serialized physical plan.
   bytes physical_plan = 2;
+  // User id (which is trying to execute the plan).
+  //
+  // Required for sending metrics.
+  bytes user_id = 3;
 }
 
 message TableProviderResponse {

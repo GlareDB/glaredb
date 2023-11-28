@@ -1,8 +1,9 @@
-use crate::background_jobs::JobRunner;
 use crate::context::remote::RemoteSessionContext;
+use crate::distexec::executor::TaskExecutor;
+use crate::distexec::scheduler::Scheduler;
 use crate::errors::{ExecError, Result};
-use crate::metastore::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
 use crate::session::Session;
+use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
 use std::collections::HashMap;
 
 use object_store::aws::AmazonS3ConfigKey;
@@ -15,7 +16,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use crate::metastore::catalog::SessionCatalog;
+use catalog::session_catalog::SessionCatalog;
 use datafusion_ext::vars::SessionVars;
 use datasources::common::errors::DatasourceCommonError;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
@@ -267,8 +268,10 @@ pub struct Engine {
     spill_path: Option<PathBuf>,
     /// Number of active sessions.
     session_counter: Arc<AtomicU64>,
-    /// Background jobs to run.
-    background_jobs: JobRunner,
+    /// Scheduler for running tasks (physical plan).
+    task_scheduler: Scheduler,
+    /// Task executors.
+    _task_executors: Vec<TaskExecutor>,
 }
 
 impl Engine {
@@ -279,13 +282,26 @@ impl Engine {
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
     ) -> Result<Engine> {
+        let (task_scheduler, executor_builder) = Scheduler::new();
+        // Build executors.
+        let num_executors = num_cpus::get();
+        let task_executors: Vec<_> = (0..num_executors)
+            .map(|_| executor_builder.build_only_local())
+            .collect();
+
+        assert!(
+            !task_executors.is_empty(),
+            "there should be at least one executor"
+        );
+
         Ok(Engine {
             supervisor: MetastoreClientSupervisor::new(metastore, DEFAULT_METASTORE_CLIENT_CONFIG),
             tracker,
             storage,
             spill_path,
             session_counter: Arc::new(AtomicU64::new(0)),
-            background_jobs: JobRunner::new(Default::default()),
+            task_scheduler,
+            _task_executors: task_executors,
         })
     }
 
@@ -340,12 +356,6 @@ impl Engine {
         self
     }
 
-    /// Attempts to shutdown the engine gracefully.
-    pub async fn shutdown(&self) -> Result<()> {
-        self.background_jobs.close().await?;
-        Ok(())
-    }
-
     /// Get the current number of sessions.
     pub fn session_count(&self) -> u64 {
         self.session_counter.load(Ordering::Relaxed)
@@ -374,7 +384,7 @@ impl Engine {
             native,
             self.tracker.clone(),
             self.spill_path.clone(),
-            self.background_jobs.clone(),
+            self.task_scheduler.clone(),
         )?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
@@ -403,13 +413,8 @@ impl Engine {
         let state = metastore.get_cached_state().await?;
         let catalog = SessionCatalog::new(state);
 
-        let context = RemoteSessionContext::new(
-            catalog,
-            metastore.into(),
-            native,
-            self.background_jobs.clone(),
-            self.spill_path.clone(),
-        )?;
+        let context =
+            RemoteSessionContext::new(catalog, metastore.into(), native, self.spill_path.clone())?;
 
         Ok(context)
     }

@@ -6,7 +6,7 @@ use datafusion::datasource::{MemTable, TableProvider};
 use datafusion::logical_expr::TypeSignature;
 use datasources::common::ssh::key::SshKey;
 use datasources::common::ssh::SshConnectionParameters;
-use protogen::metastore::types::catalog::{CatalogEntry, EntryType, TableEntry};
+use protogen::metastore::types::catalog::{CatalogEntry, EntryType, SourceAccessMode, TableEntry};
 use protogen::metastore::types::options::TunnelOptions;
 use sqlbuiltins::builtins::{
     DATABASE_DEFAULT, GLARE_COLUMNS, GLARE_CREDENTIALS, GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA,
@@ -14,7 +14,7 @@ use sqlbuiltins::builtins::{
     SCHEMA_CURRENT_SESSION,
 };
 
-use crate::metastore::catalog::{SessionCatalog, TempCatalog};
+use catalog::session_catalog::{SessionCatalog, TempCatalog};
 
 use super::{DispatchError, Result};
 
@@ -75,6 +75,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut builtin = BooleanBuilder::new();
         let mut external = BooleanBuilder::new();
         let mut datasource = StringBuilder::new();
+        let mut access_mode = StringBuilder::new();
 
         for db in self
             .catalog
@@ -92,6 +93,7 @@ impl<'a> SystemTableDispatcher<'a> {
             };
 
             datasource.append_value(db.options.as_str());
+            access_mode.append_value(db.access_mode.as_str());
         }
 
         let batch = RecordBatch::try_new(
@@ -102,6 +104,7 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(builtin.finish()),
                 Arc::new(external.finish()),
                 Arc::new(datasource.finish()),
+                Arc::new(access_mode.finish()),
             ],
         )
         .unwrap();
@@ -237,6 +240,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut builtin = BooleanBuilder::new();
         let mut external = BooleanBuilder::new();
         let mut datasource = StringBuilder::new();
+        let mut access_mode = StringBuilder::new();
 
         for table in self
             .catalog
@@ -267,6 +271,7 @@ impl<'a> SystemTableDispatcher<'a> {
             };
 
             datasource.append_value(table.options.as_str());
+            access_mode.append_value(table.access_mode.as_str());
         }
 
         // Append temporary tables.
@@ -280,6 +285,7 @@ impl<'a> SystemTableDispatcher<'a> {
             builtin.append_value(table.meta.builtin);
             external.append_value(table.meta.external);
             datasource.append_value(table.options.as_str());
+            access_mode.append_value(SourceAccessMode::ReadWrite.as_str());
         }
 
         let batch = RecordBatch::try_new(
@@ -293,6 +299,7 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(builtin.finish()),
                 Arc::new(external.finish()),
                 Arc::new(datasource.finish()),
+                Arc::new(access_mode.finish()),
             ],
         )
         .unwrap();

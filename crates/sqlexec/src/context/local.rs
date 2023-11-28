@@ -1,11 +1,11 @@
-use crate::background_jobs::JobRunner;
+use crate::distexec::scheduler::Scheduler;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
-use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
+use catalog::session_catalog::{CatalogMutator, SessionCatalog, TempCatalog};
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::common::SchemaReference;
 use datafusion::execution::context::{
@@ -60,8 +60,8 @@ pub struct LocalSessionContext {
     df_ctx: DfSessionContext,
     /// Read tables from the environment.
     env_reader: Option<Box<dyn EnvironmentReader>>,
-    /// Job runner for background jobs.
-    _background_jobs: JobRunner,
+    /// Task scheduler.
+    task_scheduler: Scheduler,
 }
 
 impl LocalSessionContext {
@@ -74,7 +74,7 @@ impl LocalSessionContext {
         native_tables: NativeTableStorage,
         metrics_handler: SessionMetricsHandler,
         spill_path: Option<PathBuf>,
-        background_jobs: JobRunner,
+        task_scheduler: Scheduler,
     ) -> Result<LocalSessionContext> {
         let database_id = vars.database_id();
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
@@ -102,7 +102,7 @@ impl LocalSessionContext {
             metrics_handler,
             df_ctx,
             env_reader: None,
-            _background_jobs: background_jobs,
+            task_scheduler,
         })
     }
 
@@ -167,6 +167,10 @@ impl LocalSessionContext {
 
     pub fn get_native_tables(&self) -> &NativeTableStorage {
         &self.tables
+    }
+
+    pub fn get_task_scheduler(&self) -> Scheduler {
+        self.task_scheduler.clone()
     }
 
     pub fn get_temp_objects(&self) -> Arc<TempCatalog> {

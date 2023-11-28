@@ -1,8 +1,8 @@
 use crate::{
     errors::{ExecError, Result},
     extension_codec::GlareDBExtensionCodec,
-    metastore::catalog::SessionCatalog,
 };
+use catalog::session_catalog::SessionCatalog;
 use datafusion::{datasource::TableProvider, physical_plan::ExecutionPlan};
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
@@ -270,6 +270,7 @@ impl RemoteClient {
         let remote_sess_client = RemoteSessionClient {
             inner: self.clone(),
             database_id: resp.database_id,
+            user_id: resp.user_id,
         };
 
         Ok((
@@ -297,6 +298,7 @@ impl RemoteClient {
 pub struct RemoteSessionClient {
     inner: RemoteClient,
     database_id: Uuid,
+    user_id: Option<Uuid>,
 }
 
 impl RemoteSessionClient {
@@ -388,6 +390,7 @@ impl RemoteSessionClient {
         let mut request = service::PhysicalPlanExecuteRequest::from(PhysicalPlanExecuteRequest {
             database_id: self.database_id(),
             physical_plan,
+            user_id: self.user_id,
         })
         .into_request();
         self.inner.append_auth_metadata(request.metadata_mut());

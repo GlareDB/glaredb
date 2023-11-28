@@ -60,6 +60,7 @@ impl From<InitializeSessionRequestFromClient> for service::InitializeSessionRequ
 pub struct InitializeSessionRequestFromProxy {
     pub storage_conf: SessionStorageConfig,
     pub db_id: Uuid,
+    pub user_id: Uuid,
 }
 
 impl TryFrom<service::InitializeSessionRequestFromProxy> for InitializeSessionRequestFromProxy {
@@ -68,6 +69,7 @@ impl TryFrom<service::InitializeSessionRequestFromProxy> for InitializeSessionRe
         Ok(Self {
             storage_conf: value.storage_conf.required("storage configuration")?,
             db_id: Uuid::from_slice(&value.db_id)?,
+            user_id: Uuid::from_slice(&value.user_id)?,
         })
     }
 }
@@ -77,6 +79,7 @@ impl From<InitializeSessionRequestFromProxy> for service::InitializeSessionReque
         Self {
             storage_conf: Some(value.storage_conf.into()),
             db_id: value.db_id.into_bytes().into(),
+            user_id: value.user_id.into_bytes().into(),
         }
     }
 }
@@ -127,6 +130,7 @@ impl From<InitializeSessionRequest> for service::InitializeSessionRequest {
 pub struct InitializeSessionResponse {
     pub database_id: Uuid,
     pub catalog: CatalogState,
+    pub user_id: Option<Uuid>,
 }
 
 impl TryFrom<service::InitializeSessionResponse> for InitializeSessionResponse {
@@ -135,6 +139,7 @@ impl TryFrom<service::InitializeSessionResponse> for InitializeSessionResponse {
         Ok(Self {
             database_id: Uuid::from_slice(&value.database_id)?,
             catalog: value.catalog.required("catalog state")?,
+            user_id: Uuid::from_slice(&value.user_id).ok(),
         })
     }
 }
@@ -145,6 +150,10 @@ impl TryFrom<InitializeSessionResponse> for service::InitializeSessionResponse {
         Ok(Self {
             database_id: value.database_id.into_bytes().into(),
             catalog: Some(value.catalog.try_into()?),
+            user_id: value
+                .user_id
+                .map(|v| v.into_bytes().into())
+                .unwrap_or_default(),
         })
     }
 }
@@ -260,6 +269,7 @@ impl From<DispatchAccessRequest> for service::DispatchAccessRequest {
 pub struct PhysicalPlanExecuteRequest {
     pub database_id: Uuid,
     pub physical_plan: Vec<u8>,
+    pub user_id: Option<Uuid>,
 }
 
 impl TryFrom<service::PhysicalPlanExecuteRequest> for PhysicalPlanExecuteRequest {
@@ -268,6 +278,7 @@ impl TryFrom<service::PhysicalPlanExecuteRequest> for PhysicalPlanExecuteRequest
         Ok(Self {
             database_id: Uuid::from_slice(&value.database_id)?,
             physical_plan: value.physical_plan,
+            user_id: Uuid::from_slice(&value.user_id).ok(),
         })
     }
 }
@@ -277,6 +288,10 @@ impl From<PhysicalPlanExecuteRequest> for service::PhysicalPlanExecuteRequest {
         Self {
             database_id: value.database_id.into_bytes().into(),
             physical_plan: value.physical_plan,
+            user_id: value
+                .user_id
+                .map(|v| v.into_bytes().into())
+                .unwrap_or_default(),
         }
     }
 }

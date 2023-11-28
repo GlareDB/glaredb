@@ -9,6 +9,7 @@ edition = { workspace = true }
 arrow_util = { path = "../arrow_util" }
 logutil = { path = "../logutil" }
 protogen = { path = "../protogen" }
+catalog = { path = "../catalog" }
 proxyutil = { path = "../proxyutil" }
 pgrepr = { path = "../pgrepr" }
 telemetry = { path = "../telemetry" }
@@ -28,7 +29,7 @@ bytes = "1.4.0"
 futures = "0.3.29"
 tracing = "0.1"
 object_store = { workspace = true }
-uuid = { version = "1.4.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 regex = "1.8"
 tonic = { workspace = true }
 tokio-postgres = "0.7.8"
@@ -39,6 +40,8 @@ serde = { workspace = true }
 itertools = "0.12.0"
 reqwest = { version = "0.11.22", default-features = false, features = ["json"] }
 prql-compiler = "0.10.1"
+num_cpus = "1.16.0"
+async-channel = "2.1.0"
 
 [dev-dependencies]
 tempfile = "3"

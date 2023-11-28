@@ -74,6 +74,7 @@ pub static GLARE_DATABASES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("builtin", DataType::Boolean, false),
         ("external", DataType::Boolean, false),
         ("datasource", DataType::Utf8, false),
+        ("access_mode", DataType::Utf8, false), // `SourceAccessMode::as_str()`
     ]),
 });
 
@@ -124,6 +125,7 @@ pub static GLARE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("builtin", DataType::Boolean, false),
         ("external", DataType::Boolean, false),
         ("datasource", DataType::Utf8, false),
+        ("access_mode", DataType::Utf8, false), // `SourceAccessMode::as_str()`
     ]),
 });
 
@@ -280,10 +282,22 @@ pub static GLARE_EXTERNAL_DATASOURCES: Lazy<BuiltinView> = Lazy::new(|| BuiltinV
     schema: INTERNAL_SCHEMA,
     name: "external_datasources",
     sql: "
-WITH datasources(oid, name, datasource, object_type, external) AS (
-    SELECT oid, database_name, datasource, 'database', external FROM glare_catalog.databases
+WITH datasources(oid, name, datasource, object_type, external, access_mode) AS (
+    SELECT oid,
+           database_name,
+           datasource,
+           'database',
+           external,
+           access_mode
+    FROM glare_catalog.databases
     UNION
-    SELECT oid, table_name, datasource, 'table', external FROM glare_catalog.tables
+    SELECT oid,
+           table_name,
+           datasource,
+           'table',
+           external,
+           access_mode
+    FROM glare_catalog.tables
 )
 SELECT * FROM datasources WHERE external = true",
 });
