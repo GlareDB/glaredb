@@ -264,7 +264,8 @@ fn get_store_access(
             // Credentials object
             let creds: IdentValue = args.next().unwrap().param_into()?;
             let creds = ctx
-                .get_credentials_entry(creds.as_str())
+                .get_session_catalog()
+                .resolve_credentials(creds.as_str())
                 .ok_or(ExtensionError::String(format!(
                     "missing credentials object: {creds}"
                 )))?;

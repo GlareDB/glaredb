@@ -6,13 +6,15 @@ use std::sync::Arc;
 use crate::errors::{ExtensionError, Result};
 use crate::vars::SessionVars;
 use async_trait::async_trait;
+use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::Fields;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Signature;
+use datafusion::prelude::SessionContext;
 use datafusion::scalar::ScalarValue;
 use decimal::Decimal128;
-use protogen::metastore::types::catalog::{CredentialsEntry, DatabaseEntry, RuntimePreference};
+use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::rpcsrv::types::func_param_value::{
     FuncParamValue as ProtoFuncParamValue, FuncParamValueArrayVariant,
     FuncParamValueEnum as ProtoFuncParamValueEnum,
@@ -47,8 +49,8 @@ pub trait TableFunc: Sync + Send {
     }
 }
 pub trait TableFuncContextProvider: Sync + Send {
-    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
-    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
+    /// Get a reference to the session catalog.
+    fn get_session_catalog(&self) -> &SessionCatalog;
 
     // TODO: Remove this if `create_provider` runs remotely since we don't want
     // remote session vars.
@@ -63,6 +65,40 @@ pub trait TableFuncContextProvider: Sync + Send {
 
     // TODO: Remove
     fn get_catalog_lister(&self) -> Box<dyn VirtualLister>;
+}
+
+pub struct DefaultTableContextProvider<'a> {
+    pub session_catalog: &'a SessionCatalog,
+    pub df_ctx: &'a SessionContext,
+}
+
+impl<'a> DefaultTableContextProvider<'a> {
+    pub fn new(catalog: &'a SessionCatalog, df_ctx: &'a SessionContext) -> Self {
+        Self {
+            session_catalog: catalog,
+            df_ctx,
+        }
+    }
+}
+
+impl<'a> TableFuncContextProvider for DefaultTableContextProvider<'a> {
+    fn get_session_catalog(&self) -> &SessionCatalog {
+        self.session_catalog
+    }
+
+    fn get_session_vars(&self) -> SessionVars {
+        let cfg = self.df_ctx.copied_config();
+        let vars = cfg.options().extensions.get::<SessionVars>().unwrap();
+        vars.clone()
+    }
+
+    fn get_session_state(&self) -> SessionState {
+        self.df_ctx.state()
+    }
+
+    fn get_catalog_lister(&self) -> Box<dyn VirtualLister> {
+        unimplemented!()
+    }
 }
 
 #[async_trait]

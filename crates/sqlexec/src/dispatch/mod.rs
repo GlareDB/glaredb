@@ -12,7 +12,9 @@ use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::SessionContext as DfSessionContext;
 use datafusion::prelude::{Column, Expr};
-use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, VirtualLister};
+use datafusion_ext::functions::{
+    DefaultTableContextProvider, FuncParamValue, TableFuncContextProvider, VirtualLister,
+};
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{
@@ -264,32 +266,12 @@ impl<'a> Dispatcher<'a> {
         };
         let prov = resolve_func
             .unwrap()
-            .create_provider(self, args, opts)
+            .create_provider(
+                &DefaultTableContextProvider::new(self.catalog, self.df_ctx),
+                args,
+                opts,
+            )
             .await?;
         Ok(prov)
-    }
-}
-
-impl<'a> TableFuncContextProvider for Dispatcher<'a> {
-    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry> {
-        self.catalog.resolve_database(name)
-    }
-
-    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry> {
-        self.catalog.resolve_credentials(name)
-    }
-
-    fn get_session_vars(&self) -> SessionVars {
-        let cfg = self.df_ctx.copied_config();
-        let vars = cfg.options().extensions.get::<SessionVars>().unwrap();
-        vars.clone()
-    }
-
-    fn get_session_state(&self) -> SessionState {
-        self.df_ctx.state()
-    }
-
-    fn get_catalog_lister(&self) -> Box<dyn VirtualLister> {
-        Box::new(CatalogLister::new(self.catalog.clone(), false))
     }
 }
