@@ -48,7 +48,7 @@ impl BsonSink {
         }
     }
 
-    async fn pstream_into_inner(&self, stream: SendableRecordBatchStream) -> Result<usize> {
+    async fn stream_into_inner(&self, stream: SendableRecordBatchStream) -> Result<usize> {
         self.formatted_stream(stream).await
     }
 
