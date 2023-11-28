@@ -1,3 +1,4 @@
+use crate::distexec::scheduler::Scheduler;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::parser::StatementWithExtensions;
@@ -59,6 +60,8 @@ pub struct LocalSessionContext {
     df_ctx: DfSessionContext,
     /// Read tables from the environment.
     env_reader: Option<Box<dyn EnvironmentReader>>,
+    /// Task scheduler.
+    task_scheduler: Scheduler,
 }
 
 impl LocalSessionContext {
@@ -71,6 +74,7 @@ impl LocalSessionContext {
         native_tables: NativeTableStorage,
         metrics_handler: SessionMetricsHandler,
         spill_path: Option<PathBuf>,
+        task_scheduler: Scheduler,
     ) -> Result<LocalSessionContext> {
         let database_id = vars.database_id();
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
@@ -98,6 +102,7 @@ impl LocalSessionContext {
             metrics_handler,
             df_ctx,
             env_reader: None,
+            task_scheduler,
         })
     }
 
@@ -162,6 +167,10 @@ impl LocalSessionContext {
 
     pub fn get_native_tables(&self) -> &NativeTableStorage {
         &self.tables
+    }
+
+    pub fn get_task_scheduler(&self) -> Scheduler {
+        self.task_scheduler.clone()
     }
 
     pub fn get_temp_objects(&self) -> Arc<TempCatalog> {
