@@ -44,6 +44,46 @@ pub struct ObjScanTableFunc(FileType, &'static str);
 
 #[async_trait]
 impl TableFunc for ObjScanTableFunc {
+    fn sql_example(&self) -> Option<String> {
+        fn build_example(extension: &str) -> String {
+            format!(
+                r#"
+-- Read a relative path.
+SELECT * FROM {ext}_scan('./my_data.{ext}');
+-- Read all {ext} files in a directory.
+SELECT * FROM {ext}_scan('./directory_of_data/*.{ext}');
+-- Read {ext} files from multiple directories.
+SELECT * FROM {ext}_scan('./**/*.{ext}');
+-- Read multiple explicitly provided files.
+SELECT * FROM {ext}_scan(['./directory_of_data/1.{ext}', './directory_of_data/2.{ext}']);
+"#,
+                ext = extension
+            )
+        }
+        Some(build_example(self.0.to_string().as_str()))
+    }
+    fn description(&self) -> Option<String> {
+        fn build_description(extension: &str) -> String {
+            format!(
+                r#"
+Syntax: 
+-- Single url or path.
+{ext}_scan(<url>)
+-- Multiple urls or paths.
+{ext}_scan([<url>])
+-- Using a cloud credentials object.
+{ext}_scan(<url>, <credential_object>)
+-- Required named argument for S3 buckets.
+{ext}_scan(<url>, <credentials_object>, region => '<aws_region>')
+-- Pass S3 credentials using named arguments.
+{ext}_scan(<url>, access_key_id => '<aws_access_key_id>', secret_access_key => '<aws_secret_access_key>', region => '<aws_region>')
+-- Pass GCS credentials using named arguments.
+{ext}_scan(<url>, service_account_key => '<gcp_service_account_key>'"#,
+                ext = extension
+            )
+        }
+        Some(build_description(self.0.to_string().as_str()))
+    }
     fn runtime_preference(&self) -> RuntimePreference {
         RuntimePreference::Unspecified
     }

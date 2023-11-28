@@ -47,6 +47,16 @@ pub trait TableFunc: Sync + Send {
     fn signature(&self) -> Option<Signature> {
         None
     }
+    /// Return a sql example for this function.
+    /// Defaults to None.
+    fn sql_example(&self) -> Option<String> {
+        None
+    }
+    /// Return a description for this function.
+    /// Defaults to None.
+    fn description(&self) -> Option<String> {
+        None
+    }
 }
 pub trait TableFuncContextProvider: Sync + Send {
     /// Get a reference to the session catalog.

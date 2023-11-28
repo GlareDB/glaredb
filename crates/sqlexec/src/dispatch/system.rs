@@ -425,6 +425,8 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut function_type = StringBuilder::new();
         let mut parameters = ListBuilder::new(StringBuilder::new());
         let mut builtin = BooleanBuilder::new();
+        let mut sql_examples = StringBuilder::new();
+        let mut descriptions = StringBuilder::new();
 
         for func in self
             .catalog
@@ -440,6 +442,9 @@ impl<'a> SystemTableDispatcher<'a> {
             schema_oid.append_value(ent.meta.parent);
             function_name.append_value(&ent.meta.name);
             function_type.append_value(ent.func_type.as_str());
+            sql_examples.append_option(ent.meta.sql_example.as_ref());
+            descriptions.append_option(ent.meta.description.as_ref());
+            
 
             const EMPTY: [Option<&'static str>; 0] = [];
             if let Some(sig) = &ent.signature {
@@ -464,6 +469,9 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(function_type.finish()),
                 Arc::new(parameters.finish()),
                 Arc::new(builtin.finish()),
+                Arc::new(sql_examples.finish()),
+                Arc::new(descriptions.finish()),
+
             ],
         )
         .unwrap();
