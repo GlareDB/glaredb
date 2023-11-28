@@ -18,7 +18,7 @@ use protogen::{
 };
 use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
 use serde::Deserialize;
-use sqlbuiltins::builtins::{DEFAULT_SCHEMA, SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
+use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
 use std::{collections::HashMap, fmt, sync::Arc};
 use tonic::{
     metadata::MetadataMap,

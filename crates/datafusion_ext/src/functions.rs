@@ -7,14 +7,14 @@ use crate::errors::{ExtensionError, Result};
 use crate::vars::SessionVars;
 use async_trait::async_trait;
 use catalog::session_catalog::SessionCatalog;
-use datafusion::arrow::datatypes::Fields;
+use datafusion::arrow::datatypes::{Field, Fields};
 use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Signature;
 use datafusion::prelude::SessionContext;
 use datafusion::scalar::ScalarValue;
 use decimal::Decimal128;
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{EntryType, RuntimePreference};
 use protogen::rpcsrv::types::func_param_value::{
     FuncParamValue as ProtoFuncParamValue, FuncParamValueArrayVariant,
     FuncParamValueEnum as ProtoFuncParamValueEnum,
@@ -64,12 +64,12 @@ pub trait TableFuncContextProvider: Sync + Send {
     fn get_session_state(&self) -> SessionState;
 
     // TODO: Remove
-    fn get_catalog_lister(&self) -> Box<dyn VirtualLister>;
+    fn get_catalog_lister(&self) -> Box<dyn VirtualLister + '_>;
 }
 
 pub struct DefaultTableContextProvider<'a> {
-    pub session_catalog: &'a SessionCatalog,
-    pub df_ctx: &'a SessionContext,
+    session_catalog: &'a SessionCatalog,
+    df_ctx: &'a SessionContext,
 }
 
 impl<'a> DefaultTableContextProvider<'a> {
@@ -96,11 +96,14 @@ impl<'a> TableFuncContextProvider for DefaultTableContextProvider<'a> {
         self.df_ctx.state()
     }
 
-    fn get_catalog_lister(&self) -> Box<dyn VirtualLister> {
-        unimplemented!()
+    fn get_catalog_lister(&self) -> Box<dyn VirtualLister + '_> {
+        Box::new(SessionCatalogLister {
+            catalog: self.session_catalog,
+        })
     }
 }
 
+/// Get information about external data sources.
 #[async_trait]
 pub trait VirtualLister: Sync + Send {
     /// List schemas for a data source.
@@ -111,6 +114,69 @@ pub trait VirtualLister: Sync + Send {
 
     /// List columns for a specific table in the datasource.
     async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields>;
+}
+
+/// A virtual listing implementation for the session catalog.
+pub struct SessionCatalogLister<'a> {
+    pub catalog: &'a SessionCatalog,
+}
+
+#[async_trait]
+impl<'a> VirtualLister for SessionCatalogLister<'a> {
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        let schemas = self
+            .catalog
+            .iter_entries()
+            .filter_map(|ent| {
+                if ent.entry_type() == EntryType::Schema {
+                    Some(ent.entry.get_meta().name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        Ok(schemas)
+    }
+
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        let tables = self
+            .catalog
+            .iter_entries()
+            .filter_map(|ent| {
+                let is_in_schema = ent
+                    .parent_entry
+                    .map(|schema_ent| schema_ent.get_meta().name == schema)
+                    .unwrap_or(false);
+                if ent.entry_type() == EntryType::Table && is_in_schema {
+                    Some(ent.entry.get_meta().name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        Ok(tables)
+    }
+
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
+        // TODO: Database isn't actually used here. I want to avoid adding
+        // `sqlbuiltins` as dep to this crate to avoid possibilities of a cyle.
+        // But obviously hard coding this here isn't amazing.
+        let ent = self
+            .catalog
+            .resolve_table("default", schema, table)
+            .ok_or_else(|| ExtensionError::String(format!("Missing table: {schema}.{table}")))?;
+
+        let cols = ent.get_internal_columns().ok_or_else(|| {
+            ExtensionError::String(format!("Columns not tracked for table: {schema}.{table}"))
+        })?;
+
+        let cols: Vec<_> = cols
+            .iter()
+            .map(|col| Field::new(col.name.clone(), col.arrow_type.clone(), col.nullable))
+            .collect();
+
+        Ok(cols.into())
+    }
 }
 
 /// Value from a function parameter.

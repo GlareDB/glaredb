@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::array::{BooleanBuilder, ListBuilder, StringBuilder, UInt32Builder};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
@@ -13,8 +14,6 @@ use sqlbuiltins::builtins::{
     GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS,
     SCHEMA_CURRENT_SESSION,
 };
-
-use catalog::session_catalog::{SessionCatalog, TempCatalog};
 
 use super::{DispatchError, Result};
 

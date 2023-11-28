@@ -396,6 +396,8 @@ impl NamespacedCatalogEntry<'_> {
 }
 
 /// Temporary objects that are dropped when the session is dropped.
+///
+/// Cheaply cloneable with interior mutability.
 #[derive(Debug, Clone)]
 pub struct TempCatalog {
     inner: Arc<Mutex<TempObjectsInner>>,

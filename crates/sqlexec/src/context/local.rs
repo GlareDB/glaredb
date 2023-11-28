@@ -82,9 +82,12 @@ impl LocalSessionContext {
         let opts = new_datafusion_session_config_opts(&vars);
 
         let mut conf: SessionConfig = opts.into();
+        // TODO: Can we remove the temp catalog here? It's pretty disgusting,
+        // but it's needed for the create temp table execution plan.
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
-            .with_extension(Arc::new(native_tables.clone()));
+            .with_extension(Arc::new(native_tables.clone()))
+            .with_extension(Arc::new(catalog.get_temp_catalog().clone()));
 
         let state = SessionState::new_with_config_rt(conf, Arc::new(runtime))
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
@@ -131,9 +134,11 @@ impl LocalSessionContext {
         let runtime = self.df_ctx.runtime_env();
         let opts = new_datafusion_session_config_opts(&vars);
         let mut conf: SessionConfig = opts.into();
+        // TODO: Just like above, the temp catalog here is kinda gross.
         conf = conf
             .with_extension(Arc::new(CatalogMutator::empty()))
-            .with_extension(Arc::new(self.get_native_tables().clone()));
+            .with_extension(Arc::new(self.get_native_tables().clone()))
+            .with_extension(Arc::new(catalog.get_temp_catalog().clone()));
 
         let state = SessionState::new_with_config_rt(conf, runtime)
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));

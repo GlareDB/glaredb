@@ -9,12 +9,8 @@ use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::TableProvider;
-use datafusion::execution::context::SessionState;
 use datafusion::prelude::SessionContext;
-use datafusion_ext::functions::{
-    DefaultTableContextProvider, FuncParamValue, TableFuncContextProvider, VirtualLister,
-};
-use datafusion_ext::vars::SessionVars;
+use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
@@ -33,9 +29,7 @@ use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, Snowflake
 use datasources::sqlserver::{
     SqlServerAccess, SqlServerTableProvider, SqlServerTableProviderConfig,
 };
-use protogen::metastore::types::catalog::{
-    CatalogEntry, CredentialsEntry, DatabaseEntry, FunctionEntry, TableEntry,
-};
+use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionEntry, TableEntry};
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
     DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,

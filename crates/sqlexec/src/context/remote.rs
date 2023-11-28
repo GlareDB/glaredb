@@ -63,12 +63,13 @@ impl RemoteSessionContext {
         let mut conf: SessionConfig = opts.into();
 
         // Add in remote only extensions.
+        //
+        // Note: No temp catalog here since we should not be executing create
+        // temp tables remotely.
         conf = conf
             .with_extension(Arc::new(StagedClientStreams::default()))
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()));
-
-        // TODO: Query planners for handling custom plans.
 
         let df_ctx = DfSessionContext::new_with_config_rt(conf, Arc::new(runtime));
 
