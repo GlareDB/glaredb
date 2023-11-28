@@ -6793,6 +6793,7 @@ name = "sqlexec"
 version = "0.7.0"
 dependencies = [
  "arrow_util",
+ "async-channel",
  "async-trait",
  "bytes",
  "catalog",
@@ -6805,6 +6806,7 @@ dependencies = [
  "itertools 0.12.0",
  "logutil",
  "metastore",
+ "num_cpus",
  "object_store",
  "object_store_util",
  "once_cell",

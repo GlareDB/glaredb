@@ -1,4 +1,6 @@
 use crate::context::remote::RemoteSessionContext;
+use crate::distexec::executor::TaskExecutor;
+use crate::distexec::scheduler::Scheduler;
 use crate::errors::{ExecError, Result};
 use crate::session::Session;
 use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
@@ -266,6 +268,10 @@ pub struct Engine {
     spill_path: Option<PathBuf>,
     /// Number of active sessions.
     session_counter: Arc<AtomicU64>,
+    /// Scheduler for running tasks (physical plan).
+    task_scheduler: Scheduler,
+    /// Task executors.
+    _task_executors: Vec<TaskExecutor>,
 }
 
 impl Engine {
@@ -276,12 +282,26 @@ impl Engine {
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
     ) -> Result<Engine> {
+        let (task_scheduler, executor_builder) = Scheduler::new();
+        // Build executors.
+        let num_executors = num_cpus::get();
+        let task_executors: Vec<_> = (0..num_executors)
+            .map(|_| executor_builder.build_only_local())
+            .collect();
+
+        assert!(
+            !task_executors.is_empty(),
+            "there should be at least one executor"
+        );
+
         Ok(Engine {
             supervisor: MetastoreClientSupervisor::new(metastore, DEFAULT_METASTORE_CLIENT_CONFIG),
             tracker,
             storage,
             spill_path,
             session_counter: Arc::new(AtomicU64::new(0)),
+            task_scheduler,
+            _task_executors: task_executors,
         })
     }
 
@@ -364,6 +384,7 @@ impl Engine {
             native,
             self.tracker.clone(),
             self.spill_path.clone(),
+            self.task_scheduler.clone(),
         )?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);

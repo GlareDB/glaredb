@@ -5,8 +5,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::datasource::file_format::FileFormat;
+use datafusion::datasource::listing::PartitionedFile;
 use datafusion::datasource::physical_plan::FileScanConfig;
-use datafusion::datasource::TableProvider;
+use datafusion::datasource::{get_statistics_with_limit, TableProvider};
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::object_store::ObjectStoreUrl;
@@ -296,23 +297,24 @@ impl TableProvider for ObjStoreTableProvider {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        let statistics = if !self.objects.is_empty() {
-            self.file_format
-                .infer_stats(
-                    ctx,
-                    &self.store,
-                    self.arrow_schema.clone(),
-                    &self.objects[0],
-                )
-                .await?
-        } else {
-            Default::default()
-        };
+        // See datafusion's `ListingTable::list_files_for_scan`.
+        let files = futures::stream::iter(&self.objects)
+            .map(|object| async {
+                let file: PartitionedFile = object.clone().into();
+                let stats = self
+                    .file_format
+                    .infer_stats(ctx, &self.store, self.schema(), object)
+                    .await?;
+                Ok((file, stats))
+            })
+            .boxed()
+            .buffered(ctx.config_options().execution.meta_fetch_concurrency);
+        let (files, statistics) = get_statistics_with_limit(files, self.schema(), limit).await?;
 
         let config = FileScanConfig {
             object_store_url: self.base_url.clone(),
             file_schema: self.arrow_schema.clone(),
-            file_groups: vec![self.objects.iter().map(|o| o.clone().into()).collect()],
+            file_groups: vec![files],
             statistics,
             projection: projection.cloned(),
             limit,

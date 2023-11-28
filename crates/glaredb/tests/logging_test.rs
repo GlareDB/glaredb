@@ -1,6 +1,7 @@
 mod setup;
+
 use predicates::boolean::PredicateBooleanExt;
-use setup::*;
+use setup::{make_cli, DEFAULT_TIMEOUT};
 
 #[test]
 fn test_verbose_logging_flag() {
