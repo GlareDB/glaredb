@@ -145,6 +145,9 @@ pub enum ExecError {
     #[error(transparent)]
     Catalog(#[from] catalog::errors::CatalogError),
 
+    #[error(transparent)]
+    DistExecError(#[from] crate::distexec::DistExecError),
+
     #[error("{0:?}")]
     TonicTransport(#[from] tonic::transport::Error),
 

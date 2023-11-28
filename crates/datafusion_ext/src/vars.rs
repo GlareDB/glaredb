@@ -93,7 +93,8 @@ impl SessionVars {
      max_tunnel_count: Option<usize>,
      max_credentials_count: Option<usize>,
      is_cloud_instance: bool,
-     dialect: Dialect
+     dialect: Dialect,
+     enable_experimental_scheduler: bool,
     }
 }
 
