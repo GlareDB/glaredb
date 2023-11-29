@@ -783,6 +783,7 @@ impl<'a> SessionPlanner<'a> {
                 name,
                 options,
                 comment: stmt.comment,
+                or_replace: stmt.or_replace
             }
             .into_logical_plan()
         } else {
@@ -790,6 +791,7 @@ impl<'a> SessionPlanner<'a> {
                 name,
                 options,
                 comment: stmt.comment,
+                                or_replace: stmt.or_replace
             }
             .into_logical_plan()
         };

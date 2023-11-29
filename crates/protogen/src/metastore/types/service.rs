@@ -621,6 +621,7 @@ pub struct CreateCredentials {
     pub name: String,
     pub options: CredentialsOptions,
     pub comment: String,
+    pub or_replace: bool,
 }
 
 impl TryFrom<service::CreateCredentials> for CreateCredentials {
@@ -630,6 +631,7 @@ impl TryFrom<service::CreateCredentials> for CreateCredentials {
             name: value.name,
             options: value.options.required("options")?,
             comment: value.comment,
+            or_replace: value.or_replace,
         })
     }
 }
@@ -640,6 +642,7 @@ impl From<CreateCredentials> for service::CreateCredentials {
             name: value.name,
             options: Some(value.options.into()),
             comment: value.comment,
+            or_replace: value.or_replace,
         }
     }
 }
