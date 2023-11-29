@@ -1,5 +1,4 @@
 //! Builtin table returning functions.
-//! mod bigquery;
 
 mod bigquery;
 mod delta;
@@ -166,7 +165,8 @@ fn table_location_and_opts(
     if let Some(func_param) = args.next() {
         let creds: IdentValue = func_param.param_into()?;
         maybe_cred_opts = Some(
-            ctx.get_credentials_entry(creds.as_str())
+            ctx.get_session_catalog()
+                .resolve_credentials(creds.as_str())
                 .cloned()
                 .ok_or(ExtensionError::String(format!(
                     "missing credentials object: {creds}"

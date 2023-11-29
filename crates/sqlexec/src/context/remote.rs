@@ -20,7 +20,8 @@ use crate::{
     extension_codec::GlareDBExtensionCodec,
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
-use catalog::session_catalog::{CatalogMutator, SessionCatalog};
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::SessionCatalog;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 
@@ -62,12 +63,13 @@ impl RemoteSessionContext {
         let mut conf: SessionConfig = opts.into();
 
         // Add in remote only extensions.
+        //
+        // Note: No temp catalog here since we should not be executing create
+        // temp tables remotely.
         conf = conf
             .with_extension(Arc::new(StagedClientStreams::default()))
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()));
-
-        // TODO: Query planners for handling custom plans.
 
         let df_ctx = DfSessionContext::new_with_config_rt(conf, Arc::new(runtime));
 

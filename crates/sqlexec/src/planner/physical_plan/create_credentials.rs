@@ -4,7 +4,7 @@ use protogen::metastore::types::{options::CredentialsOptions, service, service::
 use protogen::sqlexec::physical_plan::ExecutionPlanExtensionType;
 
 use crate::planner::errors::internal;
-use catalog::session_catalog::CatalogMutator;
+use catalog::mutator::CatalogMutator;
 use protogen::export::prost::Message;
 
 #[derive(Clone, Debug)]
