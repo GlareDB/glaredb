@@ -447,7 +447,7 @@ impl TempCatalog {
                     external: false,
                     is_temp: true,
                     sql_example: None,
-                    description: None
+                    description: None,
                 },
                 options: TableOptions::Internal(TableOptionsInternal { columns }),
                 tunnel_id: None,
@@ -490,7 +490,7 @@ impl TempCatalog {
                     external: false,
                     is_temp: true,
                     sql_example: None,
-                    description: None
+                    description: None,
                 },
                 options: TableOptions::Internal(TableOptionsInternal {
                     columns: Vec::new(),

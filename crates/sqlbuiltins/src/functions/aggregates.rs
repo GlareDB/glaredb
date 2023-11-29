@@ -229,7 +229,6 @@ make_const!(
     description => "Returns the population variance of a column"
 );
 
-
 impl BuiltinFunction for AggregateFunction {
     fn name(&self) -> &str {
         use AggregateFunction::*;
