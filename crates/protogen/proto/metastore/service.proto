@@ -34,6 +34,7 @@ message Mutation {
     CreateCredentials create_credentials = 15;
     DropCredentials drop_credentials = 16;
     UpdateDeploymentStorage update_deployment_storage = 17;
+    CreateCredential create_credential = 18;
   }
   // next: 18
 }
@@ -159,6 +160,13 @@ message CreateCredentials {
   options.CredentialsOptions options = 2;
   string comment = 3;
 }
+
+message CreateCredential {
+  string name = 1;
+  options.CredentialsOptions options = 2;
+  string comment = 3;;
+}
+
 
 message DropCredentials {
   string name = 1;
