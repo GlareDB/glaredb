@@ -13,10 +13,8 @@ use datafusion::physical_plan::ExecutionPlan;
 
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
-use datasources::lake::storage_options_into_object_store;
 use protogen::metastore::types::catalog::RuntimePreference;
-
-use crate::functions::table_location_and_opts;
+use sqlexec::engine::EngineStorageConfig;
 
 #[derive(Debug, Clone, Copy)]
 pub struct BsonScan {}
@@ -37,11 +35,6 @@ impl TableFunc for BsonScan {
         args: Vec<FuncParamValue>,
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>, ExtensionError> {
-        let (loc, opts) = table_location_and_opts(ctx, args, &mut opts)?;
-
-        let _store = storage_options_into_object_store(&loc, &opts)
-            .map_err(|err| ExtensionError::Access(Box::new(err)))?;
-
         Ok(Arc::new(BsonTableProvider {
             schema: Arc::new(Schema::empty()),
         }))
