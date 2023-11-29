@@ -4,7 +4,7 @@ pub struct CreateCredential {
     pub name: String,
     pub options: CredentialsOptions,
     pub comment: String,
-        pub or_replace: bool,
+    pub or_replace: bool,
 }
 
 impl UserDefinedLogicalNodeCore for CreateCredential {
@@ -73,14 +73,14 @@ impl ExtensionNode for CreateCredential {
             name,
             options,
             comment,
-            or_replace
+            or_replace,
         } = self.clone();
 
         let proto = protogen::CreateCredential {
             name,
             options: Some(options.into()),
             comment,
-            or_replace
+            or_replace,
         };
         let plan_type = LogicalPlanExtensionType::CreateCredential(proto);
 

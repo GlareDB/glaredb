@@ -306,7 +306,7 @@ pub struct CreateCredentialStmt {
     pub options: StmtOptions,
     /// Optional comment (what the credentials are for).
     pub comment: String,
-        /// replace if it exists
+    /// replace if it exists
     pub or_replace: bool,
 }
 
@@ -778,7 +778,7 @@ impl<'a> CustomParser<'a> {
                 provider,
                 options,
                 comment,
-                or_replace
+                or_replace,
             })
         } else {
             StatementWithExtensions::CreateCredential(CreateCredentialStmt {
@@ -786,7 +786,7 @@ impl<'a> CustomParser<'a> {
                 provider,
                 options,
                 comment,
-                or_replace
+                or_replace,
             })
         };
 

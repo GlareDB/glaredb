@@ -662,7 +662,7 @@ impl TryFrom<service::CreateCredential> for CreateCredential {
             name: value.name,
             options: value.options.required("options")?,
             comment: value.comment,
-            or_replace: value.or_replace
+            or_replace: value.or_replace,
         })
     }
 }
@@ -673,7 +673,7 @@ impl From<CreateCredential> for service::CreateCredential {
             name: value.name,
             options: Some(value.options.into()),
             comment: value.comment,
-            or_replace: value.or_replace
+            or_replace: value.or_replace,
         }
     }
 }

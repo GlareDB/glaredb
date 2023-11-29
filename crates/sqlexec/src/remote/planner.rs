@@ -118,7 +118,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     name: lp.name.clone(),
                     options: lp.options.clone(),
                     comment: lp.comment.clone(),
-                    or_replace: lp.or_replace
+                    or_replace: lp.or_replace,
                 };
                 Ok(Some(Arc::new(exec)))
             }

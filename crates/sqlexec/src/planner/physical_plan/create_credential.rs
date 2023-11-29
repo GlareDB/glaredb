@@ -29,7 +29,7 @@ impl PhysicalExtensionNode for CreateCredentialExec {
             catalog_version: self.catalog_version,
             options: Some(self.options.clone().into()),
             comment: self.comment.clone(),
-            or_replace: self.or_replace
+            or_replace: self.or_replace,
         };
         let ty = ExecutionPlanExtensionType::CreateCredentialExec(proto);
         let extension =
@@ -57,7 +57,7 @@ impl PhysicalExtensionNode for CreateCredentialExec {
             catalog_version: proto.catalog_version,
             options: options.try_into()?,
             comment: proto.comment,
-            or_replace: proto.or_replace
+            or_replace: proto.or_replace,
         })
     }
 }
