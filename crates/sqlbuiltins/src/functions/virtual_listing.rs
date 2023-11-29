@@ -203,19 +203,16 @@ impl TableFunc for ListColumns {
 async fn get_db_lister(
     ctx: &dyn TableFuncContextProvider,
     dbname: String,
-) -> Result<Box<dyn VirtualLister>> {
-    let db = ctx
-        .get_database_entry(&dbname)
-        .ok_or(ExtensionError::MissingObject {
+) -> Result<Box<dyn VirtualLister + '_>> {
+    let db = ctx.get_session_catalog().resolve_database(&dbname).ok_or(
+        ExtensionError::MissingObject {
             obj_typ: "database",
             name: dbname,
-        })?;
+        },
+    )?;
 
     let lister: Box<dyn VirtualLister> = match &db.options {
-        DatabaseOptions::Internal(_) => {
-            // TODO: https://github.com/GlareDB/glaredb/issues/1153
-            ctx.get_catalog_lister()
-        }
+        DatabaseOptions::Internal(_) => ctx.get_catalog_lister(),
         DatabaseOptions::Debug(_) => Box::new(DebugVirtualLister),
         DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
             // TODO: We're not using the configured tunnel?

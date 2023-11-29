@@ -1,16 +1,20 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::fmt::Display;
 use std::sync::Arc;
 
 use crate::errors::{ExtensionError, Result};
 use crate::vars::SessionVars;
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::Fields;
+use catalog::session_catalog::SessionCatalog;
+use datafusion::arrow::datatypes::{Field, Fields};
 use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Signature;
+use datafusion::prelude::SessionContext;
+use datafusion::scalar::ScalarValue;
 use decimal::Decimal128;
-use protogen::metastore::types::catalog::{CredentialsEntry, DatabaseEntry, RuntimePreference};
+use protogen::metastore::types::catalog::{EntryType, RuntimePreference};
 use protogen::rpcsrv::types::func_param_value::{
     FuncParamValue as ProtoFuncParamValue, FuncParamValueArrayVariant,
     FuncParamValueEnum as ProtoFuncParamValueEnum,
@@ -45,13 +49,61 @@ pub trait TableFunc: Sync + Send {
     }
 }
 pub trait TableFuncContextProvider: Sync + Send {
-    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
-    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
+    /// Get a reference to the session catalog.
+    fn get_session_catalog(&self) -> &SessionCatalog;
+
+    // TODO: Remove this if `create_provider` runs remotely since we don't want
+    // remote session vars.
     fn get_session_vars(&self) -> SessionVars;
+
+    /// Get the session state.
+    ///
+    /// Both local and remote contexts should have:
+    /// - NativeTableStorage
+    /// - CatalogMutator
     fn get_session_state(&self) -> SessionState;
-    fn get_catalog_lister(&self) -> Box<dyn VirtualLister>;
+
+    // TODO: Remove
+    fn get_catalog_lister(&self) -> Box<dyn VirtualLister + '_>;
 }
 
+pub struct DefaultTableContextProvider<'a> {
+    session_catalog: &'a SessionCatalog,
+    df_ctx: &'a SessionContext,
+}
+
+impl<'a> DefaultTableContextProvider<'a> {
+    pub fn new(catalog: &'a SessionCatalog, df_ctx: &'a SessionContext) -> Self {
+        Self {
+            session_catalog: catalog,
+            df_ctx,
+        }
+    }
+}
+
+impl<'a> TableFuncContextProvider for DefaultTableContextProvider<'a> {
+    fn get_session_catalog(&self) -> &SessionCatalog {
+        self.session_catalog
+    }
+
+    fn get_session_vars(&self) -> SessionVars {
+        let cfg = self.df_ctx.copied_config();
+        let vars = cfg.options().extensions.get::<SessionVars>().unwrap();
+        vars.clone()
+    }
+
+    fn get_session_state(&self) -> SessionState {
+        self.df_ctx.state()
+    }
+
+    fn get_catalog_lister(&self) -> Box<dyn VirtualLister + '_> {
+        Box::new(SessionCatalogLister {
+            catalog: self.session_catalog,
+        })
+    }
+}
+
+/// Get information about external data sources.
 #[async_trait]
 pub trait VirtualLister: Sync + Send {
     /// List schemas for a data source.
@@ -64,9 +116,68 @@ pub trait VirtualLister: Sync + Send {
     async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields>;
 }
 
-use std::fmt;
+/// A virtual listing implementation for the session catalog.
+pub struct SessionCatalogLister<'a> {
+    pub catalog: &'a SessionCatalog,
+}
 
-use datafusion::scalar::ScalarValue;
+#[async_trait]
+impl<'a> VirtualLister for SessionCatalogLister<'a> {
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        let schemas = self
+            .catalog
+            .iter_entries()
+            .filter_map(|ent| {
+                if ent.entry_type() == EntryType::Schema {
+                    Some(ent.entry.get_meta().name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        Ok(schemas)
+    }
+
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        let tables = self
+            .catalog
+            .iter_entries()
+            .filter_map(|ent| {
+                let is_in_schema = ent
+                    .parent_entry
+                    .map(|schema_ent| schema_ent.get_meta().name == schema)
+                    .unwrap_or(false);
+                if ent.entry_type() == EntryType::Table && is_in_schema {
+                    Some(ent.entry.get_meta().name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        Ok(tables)
+    }
+
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
+        // TODO: Database isn't actually used here. I want to avoid adding
+        // `sqlbuiltins` as dep to this crate to avoid possibilities of a cyle.
+        // But obviously hard coding this here isn't amazing.
+        let ent = self
+            .catalog
+            .resolve_table("default", schema, table)
+            .ok_or_else(|| ExtensionError::String(format!("Missing table: {schema}.{table}")))?;
+
+        let cols = ent.get_internal_columns().ok_or_else(|| {
+            ExtensionError::String(format!("Columns not tracked for table: {schema}.{table}"))
+        })?;
+
+        let cols: Vec<_> = cols
+            .iter()
+            .map(|col| Field::new(col.name.clone(), col.arrow_type.clone(), col.nullable))
+            .collect();
+
+        Ok(cols.into())
+    }
+}
 
 /// Value from a function parameter.
 #[derive(Debug, Clone)]
