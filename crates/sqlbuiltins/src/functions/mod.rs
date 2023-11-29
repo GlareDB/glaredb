@@ -2,6 +2,7 @@
 //! mod bigquery;
 
 mod bigquery;
+mod bson;
 mod delta;
 mod excel;
 mod generate_series;
