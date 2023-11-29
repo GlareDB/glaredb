@@ -1,0 +1,14 @@
+# Test the builtin 'functions' table `glare_catalog.functions
+
+statement ok 
+select * from glare_catalog.functions;
+
+query I rowsort
+select distinct function_type from glare_catalog.functions;
+----
+aggregate
+scalar
+table
+
+statement ok
+select description, example from glare_catalog.functions
