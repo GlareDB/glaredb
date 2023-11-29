@@ -1,63 +1,20 @@
-use std::collections::HashMap;
-use std::fmt;
-use std::fmt::Display;
-use std::sync::Arc;
+use std::fmt::{self, Display};
 
 use crate::errors::{ExtensionError, Result};
 use crate::vars::SessionVars;
 use async_trait::async_trait;
 use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::{Field, Fields};
-use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::Signature;
 use datafusion::prelude::SessionContext;
 use datafusion::scalar::ScalarValue;
 use decimal::Decimal128;
-use protogen::metastore::types::catalog::{EntryType, RuntimePreference};
+use protogen::metastore::types::catalog::EntryType;
 use protogen::rpcsrv::types::func_param_value::{
     FuncParamValue as ProtoFuncParamValue, FuncParamValueArrayVariant,
     FuncParamValueEnum as ProtoFuncParamValueEnum,
 };
 
-#[async_trait]
-pub trait TableFunc: Sync + Send {
-    /// The name for this table function. This name will be used when looking up
-    /// function implementations.
-    fn name(&self) -> &str;
-    fn runtime_preference(&self) -> RuntimePreference;
-    fn detect_runtime(
-        &self,
-        _args: &[FuncParamValue],
-        _parent: RuntimePreference,
-    ) -> Result<RuntimePreference> {
-        Ok(self.runtime_preference())
-    }
-
-    /// Return a table provider using the provided args.
-    async fn create_provider(
-        &self,
-        ctx: &dyn TableFuncContextProvider,
-        args: Vec<FuncParamValue>,
-        opts: HashMap<String, FuncParamValue>,
-    ) -> Result<Arc<dyn TableProvider>>;
-    /// Return the signature for this function.
-    /// Defaults to None.
-    // TODO: Remove the default impl once we have `signature` implemented for all functions
-    fn signature(&self) -> Option<Signature> {
-        None
-    }
-    /// Return a sql example for this function.
-    /// Defaults to None.
-    fn sql_example(&self) -> Option<String> {
-        None
-    }
-    /// Return a description for this function.
-    /// Defaults to None.
-    fn description(&self) -> Option<String> {
-        None
-    }
-}
 pub trait TableFuncContextProvider: Sync + Send {
     /// Get a reference to the session catalog.
     fn get_session_catalog(&self) -> &SessionCatalog;

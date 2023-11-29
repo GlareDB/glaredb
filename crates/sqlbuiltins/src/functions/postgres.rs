@@ -6,18 +6,16 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 use protogen::metastore::types::catalog::RuntimePreference;
+
+use crate::builtins::{BuiltinFunction, TableFunc};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadPostgres;
 
-#[async_trait]
-impl TableFunc for ReadPostgres {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Remote
-    }
+impl BuiltinFunction for ReadPostgres {
     fn name(&self) -> &str {
         "read_postgres"
     }
@@ -27,6 +25,13 @@ impl TableFunc for ReadPostgres {
             vec![DataType::Utf8],
             Volatility::Stable,
         ))
+    }
+}
+
+#[async_trait]
+impl TableFunc for ReadPostgres {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
     }
     async fn create_provider(
         &self,

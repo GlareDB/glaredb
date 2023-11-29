@@ -13,11 +13,20 @@
 //! database node will be able to see it, but will not be able to execute
 //! appropriately. We can revisit this if this isn't acceptable long-term.
 
-use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
+use async_trait::async_trait;
+use datafusion::{
+    arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema},
+    datasource::TableProvider,
+    logical_expr::Signature,
+};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_GLAREDB_BUILTIN_ID;
-use protogen::metastore::types::options::InternalColumnDefinition;
-use std::sync::Arc;
+use protogen::metastore::types::{
+    catalog::{EntryMeta, EntryType, RuntimePreference},
+    options::InternalColumnDefinition,
+};
+use std::{collections::HashMap, sync::Arc};
 
 /// The default catalog that exists in all GlareDB databases.
 pub const DEFAULT_CATALOG: &str = "default";
@@ -173,7 +182,6 @@ pub static GLARE_FUNCTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("builtin", DataType::Boolean, false),
         ("example", DataType::Utf8, true),
         ("description", DataType::Utf8, true),
-        
     ]),
 });
 
@@ -601,6 +609,68 @@ impl BuiltinView {
             &PG_TABLE,
             &PG_VIEWS,
         ]
+    }
+}
+
+#[async_trait]
+/// A builtin table function.
+/// Table functions are ones that are used in the FROM clause.
+/// e.g. `SELECT * FROM my_table_func(...)`
+pub trait TableFunc: Sync + Send + BuiltinFunction {
+    fn runtime_preference(&self) -> RuntimePreference;
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> datafusion_ext::errors::Result<RuntimePreference> {
+        Ok(self.runtime_preference())
+    }
+
+    /// Return a table provider using the provided args.
+    async fn create_provider(
+        &self,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> datafusion_ext::errors::Result<Arc<dyn TableProvider>>;
+}
+
+/// A builtin function.
+/// This trait is implemented by all builtin functions.
+pub trait BuiltinFunction {
+    /// The name for this function. This name will be used when looking up
+    /// function implementations.
+    fn name(&self) -> &str;
+    /// Return the signature for this function.
+    /// Defaults to None.
+    // TODO: Remove the default impl once we have `signature` implemented for all functions
+    fn signature(&self) -> Option<Signature> {
+        None
+    }
+    /// Return a sql example for this function.
+    /// Defaults to None.
+    fn sql_example(&self) -> Option<String> {
+        None
+    }
+    /// Return a description for this function.
+    /// Defaults to None.
+    fn description(&self) -> Option<String> {
+        None
+    }
+
+    /// Return the entry meta for this function.
+    fn to_entry_meta(&self, id: u32, parent: u32) -> EntryMeta {
+        EntryMeta {
+            entry_type: EntryType::Function,
+            id,
+            parent,
+            name: self.name().to_string(),
+            builtin: true,
+            external: false,
+            is_temp: false,
+            sql_example: self.sql_example(),
+            description: self.description(),
+        }
     }
 }
 

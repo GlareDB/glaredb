@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::builtins::{BuiltinFunction, TableFunc};
 use crate::functions::table_location_and_opts;
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::lance::scan_lance_table;
 use protogen::metastore::types::catalog::RuntimePreference;
 
@@ -20,15 +21,17 @@ use protogen::metastore::types::catalog::RuntimePreference;
 #[derive(Debug, Clone, Copy)]
 pub struct LanceScan;
 
+impl BuiltinFunction for LanceScan {
+    fn name(&self) -> &str {
+        "lance_scan"
+    }
+}
+
 #[async_trait]
 impl TableFunc for LanceScan {
     fn runtime_preference(&self) -> RuntimePreference {
         // TODO: Detect runtime.
         RuntimePreference::Remote
-    }
-
-    fn name(&self) -> &str {
-        "lance_scan"
     }
 
     async fn create_provider(

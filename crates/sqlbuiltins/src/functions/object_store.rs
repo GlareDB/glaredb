@@ -15,7 +15,7 @@ use datafusion::logical_expr::{Signature, Volatility};
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
-    FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
+    FromFuncParamValue, FuncParamValue, IdentValue, TableFuncContextProvider,
 };
 
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
@@ -30,6 +30,8 @@ use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
+use crate::builtins::{BuiltinFunction, TableFunc};
+
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
 
 pub const CSV_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "csv_scan");
@@ -39,8 +41,10 @@ pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson
 #[derive(Debug, Clone)]
 pub struct ObjScanTableFunc(FileType, &'static str);
 
-#[async_trait]
-impl TableFunc for ObjScanTableFunc {
+impl BuiltinFunction for ObjScanTableFunc {
+    fn name(&self) -> &str {
+        self.1
+    }
     fn sql_example(&self) -> Option<String> {
         fn build_example(extension: &str) -> String {
             format!(
@@ -81,9 +85,6 @@ Syntax:
         }
         Some(build_description(self.0.to_string().as_str()))
     }
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Unspecified
-    }
 
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
@@ -95,6 +96,14 @@ Syntax:
             Volatility::Stable,
         ))
     }
+}
+
+#[async_trait]
+impl TableFunc for ObjScanTableFunc {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Unspecified
+    }
+
     fn detect_runtime(
         &self,
         args: &[FuncParamValue],
@@ -123,11 +132,6 @@ Syntax:
                 "cannot mix different types of urls".to_owned(),
             ))
         }
-    }
-
-    fn name(&self) -> &str {
-        let Self(_, name) = self;
-        name
     }
 
     async fn create_provider(
