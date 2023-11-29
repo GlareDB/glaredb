@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use datafusion::common::FileType;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
@@ -20,7 +21,6 @@ use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lance::scan_lance_table;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
-use datasources::object_store::file_type::FileType;
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
@@ -518,7 +518,6 @@ impl<'a> ExternalDispatcher<'a> {
             FileType::JSON => {
                 Arc::new(JsonFormat::default().with_file_compression_type(compression))
             }
-            FileType::BSON => return Err(DispatchError::InvalidDispatch("unimplemented")),
             _ => return Err(DispatchError::InvalidDispatch("Unsupported file type")),
         };
 

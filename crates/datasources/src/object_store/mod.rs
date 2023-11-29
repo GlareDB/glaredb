@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::common::FileType;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::listing::PartitionedFile;
 use datafusion::datasource::physical_plan::FileScanConfig;
@@ -27,14 +28,12 @@ use protogen::metastore::types::options::{TableOptions, TableOptionsObjectStore}
 
 use crate::common::exprs_to_phys_exprs;
 use crate::common::url::DatasourceUrl;
-use crate::object_store::file_type::FileType;
 use crate::object_store::gcs::GcsStoreAccess;
 use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::local::LocalStoreAccess;
 use crate::object_store::s3::S3StoreAccess;
 
 pub mod errors;
-pub mod file_type;
 pub mod gcs;
 pub mod generic;
 pub mod http;

@@ -1,9 +1,9 @@
 use std::{collections::BTreeMap, fmt};
 
-use datafusion::{common::parsers::CompressionTypeVariant, sql::sqlparser::parser::ParserError};
-use datasources::{
-    debug::DebugTableType, mongodb::MongoProtocol, object_store::file_type::FileType,
-};
+use datafusion::common::parsers::CompressionTypeVariant;
+use datafusion::common::FileType;
+use datafusion::sql::sqlparser::parser::ParserError;
+use datasources::{debug::DebugTableType, mongodb::MongoProtocol};
 use protogen::metastore::types::options::StorageOptions;
 
 /// Contains the value parsed from Options(...).
