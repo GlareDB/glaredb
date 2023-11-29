@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::builtins::{BuiltinFunction, TableFunc};
 use crate::functions::table_location_and_opts;
 use async_trait::async_trait;
 use datafusion::arrow::array::{Int32Builder, Int64Builder, StringBuilder, UInt64Builder};
@@ -8,7 +9,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lake::storage_options_into_object_store;
 use protogen::metastore::types::catalog::RuntimePreference;
@@ -17,15 +18,17 @@ use protogen::metastore::types::catalog::RuntimePreference;
 #[derive(Debug, Clone, Copy)]
 pub struct IcebergScan;
 
+impl BuiltinFunction for IcebergScan {
+    fn name(&self) -> &str {
+        "iceberg_scan"
+    }
+}
+
 #[async_trait]
 impl TableFunc for IcebergScan {
     fn runtime_preference(&self) -> RuntimePreference {
         // TODO: Detect runtime
         RuntimePreference::Remote
-    }
-
-    fn name(&self) -> &str {
-        "iceberg_scan"
     }
 
     async fn create_provider(
@@ -52,13 +55,16 @@ impl TableFunc for IcebergScan {
 #[derive(Debug, Clone, Copy)]
 pub struct IcebergSnapshots;
 
+impl BuiltinFunction for IcebergSnapshots {
+    fn name(&self) -> &str {
+        "iceberg_snapshots"
+    }
+}
+
 #[async_trait]
 impl TableFunc for IcebergSnapshots {
     fn runtime_preference(&self) -> RuntimePreference {
         RuntimePreference::Remote
-    }
-    fn name(&self) -> &str {
-        "iceberg_snapshots"
     }
 
     async fn create_provider(
@@ -114,13 +120,16 @@ impl TableFunc for IcebergSnapshots {
 #[derive(Debug, Clone, Copy)]
 pub struct IcebergDataFiles;
 
+impl BuiltinFunction for IcebergDataFiles {
+    fn name(&self) -> &str {
+        "iceberg_data_files"
+    }
+}
+
 #[async_trait]
 impl TableFunc for IcebergDataFiles {
     fn runtime_preference(&self) -> RuntimePreference {
         RuntimePreference::Remote
-    }
-    fn name(&self) -> &str {
-        "iceberg_data_files"
     }
 
     async fn create_provider(

@@ -6,18 +6,16 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use protogen::metastore::types::catalog::RuntimePreference;
+
+use crate::builtins::{BuiltinFunction, TableFunc};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadSnowflake;
 
-#[async_trait]
-impl TableFunc for ReadSnowflake {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Remote
-    }
+impl BuiltinFunction for ReadSnowflake {
     fn name(&self) -> &str {
         "read_snowflake"
     }
@@ -27,6 +25,13 @@ impl TableFunc for ReadSnowflake {
             vec![DataType::Utf8],
             Volatility::Stable,
         ))
+    }
+}
+
+#[async_trait]
+impl TableFunc for ReadSnowflake {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
     }
     async fn create_provider(
         &self,

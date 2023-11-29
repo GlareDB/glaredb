@@ -17,16 +17,31 @@ use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{
-    FromFuncParamValue, FuncParamValue, TableFunc, TableFuncContextProvider,
-};
+use datafusion_ext::functions::{FromFuncParamValue, FuncParamValue, TableFuncContextProvider};
 use decimal::Decimal128;
 use futures::Stream;
 use num_traits::Zero;
 use protogen::metastore::types::catalog::RuntimePreference;
 
+use crate::builtins::{BuiltinFunction, TableFunc};
+
 #[derive(Debug, Clone, Copy)]
 pub struct GenerateSeries;
+
+impl BuiltinFunction for GenerateSeries {
+    fn name(&self) -> &str {
+        "generate_series"
+    }
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::new(
+            TypeSignature::OneOf(vec![
+                TypeSignature::Uniform(2, vec![DataType::Int64, DataType::Decimal128(38, 0)]),
+                TypeSignature::Uniform(3, vec![DataType::Int64, DataType::Decimal128(38, 0)]),
+            ]),
+            Volatility::Immutable,
+        ))
+    }
+}
 
 #[async_trait]
 impl TableFunc for GenerateSeries {
@@ -42,9 +57,6 @@ impl TableFunc for GenerateSeries {
             RuntimePreference::Unspecified => Ok(RuntimePreference::Local),
             other => Ok(other),
         }
-    }
-    fn name(&self) -> &str {
-        "generate_series"
     }
 
     async fn create_provider(
@@ -123,16 +135,6 @@ impl TableFunc for GenerateSeries {
             }
             _ => return Err(ExtensionError::InvalidNumArgs),
         }
-    }
-
-    fn signature(&self) -> Option<Signature> {
-        Some(Signature::new(
-            TypeSignature::OneOf(vec![
-                TypeSignature::Uniform(2, vec![DataType::Int64, DataType::Decimal128(38, 0)]),
-                TypeSignature::Uniform(3, vec![DataType::Int64, DataType::Decimal128(38, 0)]),
-            ]),
-            Volatility::Immutable,
-        ))
     }
 }
 

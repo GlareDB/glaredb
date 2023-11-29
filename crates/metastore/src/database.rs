@@ -14,8 +14,8 @@ use protogen::metastore::types::options::{
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
 use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
-    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
-    FIRST_NON_SCHEMA_ID,
+    BuiltinDatabase, BuiltinFunction, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT,
+    DEFAULT_SCHEMA, FIRST_NON_SCHEMA_ID,
 };
 use sqlbuiltins::functions::{BUILTIN_AGGREGATE_FUNCS, BUILTIN_SCALAR_FUNCS, BUILTIN_TABLE_FUNCS};
 use sqlbuiltins::validation::{
@@ -1290,17 +1290,7 @@ impl BuiltinCatalog {
             entries.insert(
                 oid,
                 CatalogEntry::Function(FunctionEntry {
-                    meta: EntryMeta {
-                        entry_type: EntryType::Function,
-                        id: oid,
-                        parent: *schema_id,
-                        name: func.name().to_string(),
-                        builtin: true,
-                        external: false,
-                        is_temp: false,
-                        sql_example: func.sql_example(),
-                        description: func.description(),
-                    },
+                    meta: func.to_entry_meta(oid, *schema_id),
                     func_type: FunctionType::TableReturning,
                     runtime_preference: func.runtime_preference(),
                     signature: func.signature(),
@@ -1324,17 +1314,7 @@ impl BuiltinCatalog {
             entries.insert(
                 oid,
                 CatalogEntry::Function(FunctionEntry {
-                    meta: EntryMeta {
-                        entry_type: EntryType::Function,
-                        id: oid,
-                        parent: *schema_id,
-                        name: func.to_string(),
-                        builtin: true,
-                        external: false,
-                        is_temp: false,
-                        sql_example: None,
-                        description: None,
-                    },
+                    meta: func.to_entry_meta(oid, *schema_id),
                     func_type: FunctionType::Scalar,
                     runtime_preference: RuntimePreference::Unspecified,
                     signature: Some(func.signature()),
@@ -1357,17 +1337,7 @@ impl BuiltinCatalog {
             entries.insert(
                 oid,
                 CatalogEntry::Function(FunctionEntry {
-                    meta: EntryMeta {
-                        entry_type: EntryType::Function,
-                        id: oid,
-                        parent: *schema_id,
-                        name: func.to_string(),
-                        builtin: true,
-                        external: false,
-                        is_temp: false,
-                        sql_example: None,
-                        description: None,
-                    },
+                    meta: func.to_entry_meta(oid, *schema_id),
                     func_type: FunctionType::Aggregate,
                     runtime_preference: RuntimePreference::Unspecified,
                     signature: Some(func.signature()),

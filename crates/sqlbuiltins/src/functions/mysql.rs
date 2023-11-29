@@ -6,21 +6,20 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use protogen::metastore::types::catalog::RuntimePreference;
+
+use crate::builtins::{BuiltinFunction, TableFunc};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadMysql;
 
-#[async_trait]
-impl TableFunc for ReadMysql {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Remote
-    }
+impl BuiltinFunction for ReadMysql {
     fn name(&self) -> &str {
         "read_mysql"
     }
+
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             3,
@@ -28,6 +27,14 @@ impl TableFunc for ReadMysql {
             Volatility::Stable,
         ))
     }
+}
+
+#[async_trait]
+impl TableFunc for ReadMysql {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
+    }
+
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,

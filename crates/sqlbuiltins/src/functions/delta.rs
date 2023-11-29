@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::builtins::{BuiltinFunction, TableFunc};
 use crate::functions::table_location_and_opts;
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::lake::delta::access::load_table_direct;
 use protogen::metastore::types::catalog::RuntimePreference;
 
@@ -20,17 +21,18 @@ use protogen::metastore::types::catalog::RuntimePreference;
 #[derive(Debug, Clone, Copy)]
 pub struct DeltaScan;
 
+impl BuiltinFunction for DeltaScan {
+    fn name(&self) -> &str {
+        "delta_scan"
+    }
+}
+
 #[async_trait]
 impl TableFunc for DeltaScan {
     fn runtime_preference(&self) -> RuntimePreference {
         // TODO: Detect runtime.
         RuntimePreference::Remote
     }
-
-    fn name(&self) -> &str {
-        "delta_scan"
-    }
-
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,

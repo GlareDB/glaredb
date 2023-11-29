@@ -9,7 +9,7 @@ use datafusion::datasource::{MemTable, TableProvider};
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
-    FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider, VirtualLister,
+    FuncParamValue, IdentValue, TableFuncContextProvider, VirtualLister,
 };
 use datasources::bigquery::BigQueryAccessor;
 use datasources::debug::DebugVirtualLister;
@@ -23,20 +23,22 @@ use protogen::metastore::types::options::{
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
 };
 
+use crate::builtins::{BuiltinFunction, TableFunc};
+
 #[derive(Debug, Clone, Copy)]
 pub struct ListSchemas;
+impl BuiltinFunction for ListSchemas {
+    fn name(&self) -> &str {
+        "list_schemas"
+    }
+}
 
 #[async_trait]
 impl TableFunc for ListSchemas {
     fn runtime_preference(&self) -> RuntimePreference {
-        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
+        // Currently all of our db's are "external"  it'd never be preferred to run this locally.
         RuntimePreference::Remote
     }
-
-    fn name(&self) -> &str {
-        "list_schemas"
-    }
-
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
@@ -73,15 +75,17 @@ impl TableFunc for ListSchemas {
 #[derive(Debug, Clone, Copy)]
 pub struct ListTables;
 
+impl BuiltinFunction for ListTables {
+    fn name(&self) -> &str {
+        "list_tables"
+    }
+}
+
 #[async_trait]
 impl TableFunc for ListTables {
     fn runtime_preference(&self) -> RuntimePreference {
         // Currently all of our db's are "external" so it'd never be preferred to run this locally.
         RuntimePreference::Remote
-    }
-
-    fn name(&self) -> &str {
-        "list_tables"
     }
 
     async fn create_provider(
@@ -121,13 +125,7 @@ impl TableFunc for ListTables {
 #[derive(Debug, Clone, Copy)]
 pub struct ListColumns;
 
-#[async_trait]
-impl TableFunc for ListColumns {
-    fn runtime_preference(&self) -> RuntimePreference {
-        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
-        RuntimePreference::Remote
-    }
-
+impl BuiltinFunction for ListColumns {
     fn name(&self) -> &str {
         "list_columns"
     }
@@ -137,6 +135,14 @@ impl TableFunc for ListColumns {
             vec![DataType::Utf8],
             Volatility::Stable,
         ))
+    }
+}
+
+#[async_trait]
+impl TableFunc for ListColumns {
+    fn runtime_preference(&self) -> RuntimePreference {
+        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
+        RuntimePreference::Remote
     }
     async fn create_provider(
         &self,

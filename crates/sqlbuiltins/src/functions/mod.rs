@@ -1,5 +1,6 @@
 //! Builtin table returning functions.
-
+//! mod bigquery;
+mod aggregates;
 mod bigquery;
 mod delta;
 mod excel;
@@ -10,6 +11,7 @@ mod mongo;
 mod mysql;
 mod object_store;
 mod postgres;
+mod scalars;
 mod snowflake;
 mod virtual_listing;
 
@@ -21,7 +23,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use once_cell::sync::Lazy;
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
@@ -38,7 +40,7 @@ use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON,
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
-
+use crate::builtins::TableFunc;
 /// Builtin table returning functions available for all sessions.
 pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
 pub static BUILTIN_SCALAR_FUNCS: Lazy<BuiltinScalarFuncs> = Lazy::new(BuiltinScalarFuncs::new);
@@ -87,6 +89,7 @@ impl BuiltinScalarFuncs {
         self.funcs.values()
     }
 }
+
 impl Default for BuiltinScalarFuncs {
     fn default() -> Self {
         Self::new()
