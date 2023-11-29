@@ -740,6 +740,7 @@ impl<'a> SessionPlanner<'a> {
             name,
             options,
             comment: stmt.comment,
+            or_replace: stmt.or_replace,
         };
 
         Ok(plan.into_logical_plan())

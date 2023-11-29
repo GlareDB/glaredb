@@ -710,16 +710,21 @@ impl State {
             }
             Mutation::CreateCredentials(create_credentials) => {
                 validate_object_name(&create_credentials.name)?;
-                if self
-                    .credentials_names
-                    .get(&create_credentials.name)
-                    .is_some()
-                {
-                    return Err(MetastoreError::DuplicateName(create_credentials.name));
-                }
 
-                // Create new entry
-                let oid = self.next_oid();
+                let oid = match (
+                    self.credentials_names.get(&create_credentials.name),
+                    create_credentials.or_replace,
+                ) {
+                    // If the credential already exists and we're not replacing it,
+                    (Some(_), false) => {
+                        return Err(MetastoreError::DuplicateName(create_credentials.name));
+                    }
+                    // If the credential already exists and we're replacing it,
+                    (Some(oid), true) => *oid,
+                    // If the credential doesn't exist, create a new one.
+                    (None, _) => self.next_oid(),
+                };
+
                 let ent = CredentialsEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Credentials,

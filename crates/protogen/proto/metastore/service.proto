@@ -158,6 +158,7 @@ message CreateCredentials {
   string name = 1;
   options.CredentialsOptions options = 2;
   string comment = 3;
+  bool or_replace = 4;
 }
 
 message DropCredentials {

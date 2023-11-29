@@ -272,14 +272,18 @@ pub struct CreateCredentialsStmt {
     pub options: StmtOptions,
     /// Optional comment (what the credentials are for).
     pub comment: String,
+    /// replace if it exists
+    pub or_replace: bool,
 }
 
 impl fmt::Display for CreateCredentialsStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "CREATE CREDENTIALS {} PROVIDER {}",
-            self.name, self.provider
+            "CREATE {or_replace}CREDENTIALS {name} PROVIDER {provider}",
+            or_replace = if self.or_replace { "OR REPLACE " } else { "" },
+            name = self.name,
+            provider = self.provider
         )?;
         if !self.options.is_empty() {
             write!(f, " {}", self.options)?;
@@ -534,7 +538,7 @@ impl<'a> CustomParser<'a> {
             self.parse_create_tunnel()
         } else if self.parser.parse_keyword(Keyword::CREDENTIALS) {
             // CREATE CREDENTIALS ...
-            self.parse_create_credentials()
+            self.parse_create_credentials(or_replace)
         } else {
             // Fall back to underlying parser.
 
@@ -709,7 +713,10 @@ impl<'a> CustomParser<'a> {
         }))
     }
 
-    fn parse_create_credentials(&mut self) -> Result<StatementWithExtensions, ParserError> {
+    fn parse_create_credentials(
+        &mut self,
+        or_replace: bool,
+    ) -> Result<StatementWithExtensions, ParserError> {
         let name = self.parser.parse_identifier()?;
         validate_ident(&name)?;
 
@@ -732,6 +739,7 @@ impl<'a> CustomParser<'a> {
                 provider,
                 options,
                 comment,
+                or_replace,
             },
         ))
     }
