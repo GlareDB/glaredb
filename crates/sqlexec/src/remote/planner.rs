@@ -57,7 +57,7 @@ use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 use crate::planner::physical_plan::set_var::SetVarExec;
 use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
-use catalog::session_catalog::{SessionCatalog, TempCatalog};
+use catalog::session_catalog::SessionCatalog;
 
 use super::client::RemoteSessionClient;
 
@@ -77,7 +77,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
         node: &dyn UserDefinedLogicalNode,
         _logical_inputs: &[&DfLogicalPlan],
         physical_inputs: &[Arc<dyn ExecutionPlan>],
-        session_state: &SessionState,
+        _session_state: &SessionState,
     ) -> Result<Option<Arc<dyn ExecutionPlan>>> {
         let extension_type = node.name().parse::<ExtensionType>().unwrap();
 
@@ -218,17 +218,12 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 Ok(Some(exec))
             }
             ExtensionType::DropTables => {
-                let tmp_catalog = session_state
-                    .task_ctx()
-                    .session_config()
-                    .get_extension::<TempCatalog>()
-                    .unwrap();
                 let plan = require_downcast_lp::<DropTables>(node);
                 let mut drops = Vec::with_capacity(plan.tbl_references.len());
                 let mut temp_table_drops = Vec::with_capacity(plan.tbl_references.len());
 
                 for r in &plan.tbl_references {
-                    if tmp_catalog.contains_table(&r.name) {
+                    if self.catalog.get_temp_catalog().contains_table(&r.name) {
                         temp_table_drops.push(r.clone());
                     } else if self
                         .catalog

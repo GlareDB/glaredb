@@ -5,7 +5,21 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use catalog::session_catalog::{CatalogMutator, SessionCatalog};
+use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
+use crate::distexec::scheduler::{OutputSink, Scheduler};
+use crate::distexec::stream::create_coalescing_adapter;
+use crate::environment::EnvironmentReader;
+use crate::errors::{ExecError, Result};
+use crate::parser::StatementWithExtensions;
+use crate::planner::logical_plan::*;
+use crate::planner::physical_plan::{
+    get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
+    GENERIC_OPERATION_PHYSICAL_SCHEMA,
+};
+use crate::remote::client::RemoteClient;
+use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -27,20 +41,6 @@ use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use telemetry::Tracker;
 use uuid::Uuid;
-
-use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
-use crate::distexec::scheduler::{OutputSink, Scheduler};
-use crate::distexec::stream::create_coalescing_adapter;
-use crate::environment::EnvironmentReader;
-use crate::errors::{ExecError, Result};
-use crate::parser::StatementWithExtensions;
-use crate::planner::logical_plan::*;
-use crate::planner::physical_plan::{
-    get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
-    GENERIC_OPERATION_PHYSICAL_SCHEMA,
-};
-use crate::remote::client::RemoteClient;
-use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 
 static EMPTY_EXEC_PLAN: Lazy<Arc<dyn ExecutionPlan>> = Lazy::new(|| {
     Arc::new(EmptyExec::new(
@@ -414,6 +414,7 @@ impl Session {
             let plan = planner.create_physical_plan(&plan, &state).await?;
             Ok(plan)
         } else {
+            // TODO: Possible to not require a catalog clone here?
             let ddl_planner = DDLExtensionPlanner::new(self.ctx.get_session_catalog().clone());
             let planner =
                 DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(ddl_planner)]);

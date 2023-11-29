@@ -1,5 +1,5 @@
 use crate::planner::logical_plan::OwnedFullSchemaReference;
-use catalog::session_catalog::CatalogMutator;
+use catalog::mutator::CatalogMutator;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};

@@ -2,7 +2,7 @@ use crate::{
     errors::{ExecError, Result},
     extension_codec::GlareDBExtensionCodec,
 };
-use catalog::session_catalog::SessionCatalog;
+use catalog::session_catalog::{ResolveConfig, SessionCatalog};
 use datafusion::{datasource::TableProvider, physical_plan::ExecutionPlan};
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
@@ -18,6 +18,7 @@ use protogen::{
 };
 use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
 use serde::Deserialize;
+use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
 use std::{collections::HashMap, fmt, sync::Arc};
 use tonic::{
     metadata::MetadataMap,
@@ -275,7 +276,13 @@ impl RemoteClient {
 
         Ok((
             remote_sess_client,
-            SessionCatalog::new(Arc::new(resp.catalog)),
+            SessionCatalog::new(
+                Arc::new(resp.catalog),
+                ResolveConfig {
+                    default_schema_oid: SCHEMA_DEFAULT.oid,
+                    session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
+                },
+            ),
         ))
     }
 
