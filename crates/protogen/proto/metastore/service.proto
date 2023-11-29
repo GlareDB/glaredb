@@ -165,7 +165,8 @@ message CreateCredentials {
 message CreateCredential {
   string name = 1;
   options.CredentialsOptions options = 2;
-  string comment = 3;;
+  string comment = 3;
+  bool or_replace = 4;
 }
 
 

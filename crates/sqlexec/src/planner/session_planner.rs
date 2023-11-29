@@ -90,6 +90,7 @@ struct PlanCredentialArgs {
     options: StmtOptions,
     /// Optional comment (what the credentials are for).
     comment: String,
+    or_replace: bool,
 }
 
 impl From<CreateCredentialsStmt> for PlanCredentialArgs {
@@ -99,6 +100,7 @@ impl From<CreateCredentialsStmt> for PlanCredentialArgs {
             provider: value.provider,
             options: value.options,
             comment: value.comment,
+            or_replace: value.or_replace,
         }
     }
 }
@@ -110,6 +112,7 @@ impl From<CreateCredentialStmt> for PlanCredentialArgs {
             provider: value.provider,
             options: value.options,
             comment: value.comment,
+            or_replace: value.or_replace,
         }
     }
 }
@@ -783,7 +786,7 @@ impl<'a> SessionPlanner<'a> {
                 name,
                 options,
                 comment: stmt.comment,
-                or_replace: stmt.or_replace
+                or_replace: stmt.or_replace,
             }
             .into_logical_plan()
         } else {
@@ -791,7 +794,7 @@ impl<'a> SessionPlanner<'a> {
                 name,
                 options,
                 comment: stmt.comment,
-                                or_replace: stmt.or_replace
+                or_replace: stmt.or_replace,
             }
             .into_logical_plan()
         };

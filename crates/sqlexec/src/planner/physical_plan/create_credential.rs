@@ -4,7 +4,7 @@ use protogen::metastore::types::{options::CredentialsOptions, service, service::
 use protogen::sqlexec::physical_plan::ExecutionPlanExtensionType;
 
 use crate::planner::errors::internal;
-use catalog::session_catalog::CatalogMutator;
+use catalog::mutator::CatalogMutator;
 use protogen::export::prost::Message;
 
 #[derive(Clone, Debug)]
@@ -13,6 +13,7 @@ pub struct CreateCredentialExec {
     pub catalog_version: u64,
     pub options: CredentialsOptions,
     pub comment: String,
+    pub or_replace: bool,
 }
 
 impl PhysicalExtensionNode for CreateCredentialExec {
@@ -28,6 +29,7 @@ impl PhysicalExtensionNode for CreateCredentialExec {
             catalog_version: self.catalog_version,
             options: Some(self.options.clone().into()),
             comment: self.comment.clone(),
+            or_replace: self.or_replace
         };
         let ty = ExecutionPlanExtensionType::CreateCredentialExec(proto);
         let extension =
@@ -55,6 +57,7 @@ impl PhysicalExtensionNode for CreateCredentialExec {
             catalog_version: proto.catalog_version,
             options: options.try_into()?,
             comment: proto.comment,
+            or_replace: proto.or_replace
         })
     }
 }
@@ -127,6 +130,7 @@ async fn create_credentials(
                 name: plan.name,
                 options: plan.options,
                 comment: plan.comment,
+                or_replace: plan.or_replace,
             })],
         )
         .await

@@ -80,6 +80,7 @@ impl ExtensionNode for CreateCredential {
             name,
             options: Some(options.into()),
             comment,
+            or_replace
         };
         let plan_type = LogicalPlanExtensionType::CreateCredential(proto);
 

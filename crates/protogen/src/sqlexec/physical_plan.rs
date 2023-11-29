@@ -70,6 +70,8 @@ pub struct CreateCredentialExec {
     pub options: Option<crate::gen::metastore::options::CredentialsOptions>,
     #[prost(string, tag = "4")]
     pub comment: String,
+    #[prost(bool, tag = "5")]
+    pub or_replace: bool,
 }
 
 #[derive(Clone, PartialEq, Message)]
