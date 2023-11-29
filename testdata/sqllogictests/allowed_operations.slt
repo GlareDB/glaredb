@@ -85,3 +85,11 @@ WHERE name = 'debug_table';
 ----
 READ_ONLY
 
+# Check if the default catalog is `READ_WRITE`.
+query T
+SELECT access_mode
+FROM glare_catalog.databases
+WHERE database_name = 'default';
+----
+READ_WRITE
+

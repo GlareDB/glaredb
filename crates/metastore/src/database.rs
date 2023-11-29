@@ -1137,7 +1137,7 @@ impl BuiltinCatalog {
                     },
                     options: DatabaseOptions::Internal(DatabaseOptionsInternal {}),
                     tunnel_id: None,
-                    access_mode: SourceAccessMode::ReadOnly,
+                    access_mode: SourceAccessMode::ReadWrite,
                 }),
             );
         }
