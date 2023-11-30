@@ -23,7 +23,6 @@ use std::sync::Arc;
 use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 
 /// Helper table provider for create an appropirate exec.
-#[derive(Debug)]
 pub struct SystemOperationTableProvider {
     pub operation: Arc<dyn SystemOperation>,
 }
@@ -63,7 +62,6 @@ impl TableProvider for SystemOperationTableProvider {
 ///
 /// We may want to look at making this serializable in the future (and callable
 /// outside of a table func).
-#[derive(Debug)]
 pub struct SystemOperationExec {
     pub operation: Arc<dyn SystemOperation>,
 }
@@ -126,5 +124,13 @@ impl ExecutionPlan for SystemOperationExec {
 impl DisplayAs for SystemOperationExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "SystemOperationExec: {}", self.operation.name())
+    }
+}
+
+impl fmt::Debug for SystemOperationExec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SystemOperationExec")
+            .field("operation", &self.operation.name())
+            .finish()
     }
 }

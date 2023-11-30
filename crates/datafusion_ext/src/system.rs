@@ -9,7 +9,7 @@ use std::sync::Arc;
 ///
 /// This should be focused on operations that do not require user interactions
 /// (e.g. background operations like optimizing tables or running caching jobs).
-pub trait SystemOperation: fmt::Debug + Sync + Send {
+pub trait SystemOperation: Sync + Send {
     /// Name of the operation. Use for debugging as well as generating
     /// appropriate errors.
     fn name(&self) -> &'static str;
