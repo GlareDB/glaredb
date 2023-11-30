@@ -10,11 +10,15 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_plan::ExecutionPlan;
+use object_store::{ObjectMeta, ObjectStore};
 
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datasources::object_store::generic::GenericStoreAccess;
+use datasources::object_store::ObjStoreAccess;
 use protogen::metastore::types::catalog::RuntimePreference;
-use sqlexec::engine::EngineStorageConfig;
+
+use crate::functions::table_location_and_opts;
 
 #[derive(Debug, Clone, Copy)]
 pub struct BsonScan {}
@@ -35,13 +39,42 @@ impl TableFunc for BsonScan {
         args: Vec<FuncParamValue>,
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>, ExtensionError> {
+        let (source_url, storage_options) = table_location_and_opts(ctx, args, &mut opts)?;
+
+        let store_access = GenericStoreAccess::new_from_location_and_opts(
+            source_url.to_string().as_str(),
+            storage_options,
+        )
+        .map_err(|e| ExtensionError::Arrow(e.into()))?;
+
+        let store = store_access
+            .create_store()
+            .map_err(|e| ExtensionError::Arrow(e.into()))?
+            .clone();
+        let path = source_url.path();
+
+        let list = store_access
+            .list_globbed(&store, path.as_ref())
+            .await
+            .map_err(|e| ExtensionError::Arrow(e.into()))?;
+
+        if list.is_empty() {
+            return Err(ExtensionError::String(format!(
+                "no matching objects for '{path}'"
+            )));
+        }
+
         Ok(Arc::new(BsonTableProvider {
+            objects: list.to_owned(),
+            store: Arc::new(store),
             schema: Arc::new(Schema::empty()),
         }))
     }
 }
 
 pub struct BsonTableProvider {
+    objects: Vec<ObjectMeta>,
+    store: Arc<dyn ObjectStore>,
     schema: Arc<Schema>,
 }
 
@@ -73,6 +106,17 @@ impl TableProvider for BsonTableProvider {
         _filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        if self.schema.fields.is_empty() {
+            return Err(DataFusionError::Internal(
+                "schema should have been inferred".to_string(),
+            ));
+        }
+
+        for obj in &self.objects {
+            let file = self.store.get(&obj.location);
+            print!("{:?}", file.await?.type_id());
+        }
+
         Err(DataFusionError::NotImplemented("bson scan".to_string()))
     }
 }
