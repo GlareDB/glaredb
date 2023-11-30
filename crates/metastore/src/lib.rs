@@ -4,5 +4,6 @@ pub mod local;
 pub mod srv;
 
 mod database;
+mod entries;
 mod storage;
 pub mod util;

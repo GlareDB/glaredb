@@ -1,0 +1,13 @@
+// Catalog state diffs.
+
+syntax = "proto3";
+
+package metastore.diff;
+
+import "metastore/catalog.proto";
+
+// Difference between two catalog states.
+message StateDiff {
+  uint64 version_a = 1;
+  uint64 version_b = 2;
+}

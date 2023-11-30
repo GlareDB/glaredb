@@ -1,4 +1,5 @@
 //! Module for handling the catalog for a single database.
+use crate::entries::{DatabaseEntries, UndoAction, UndoLog};
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
 use once_cell::sync::Lazy;
@@ -30,10 +31,6 @@ use uuid::Uuid;
 
 /// Special id indicating that databases have no parents.
 const DATABASE_PARENT_ID: u32 = 0;
-
-/// Absolute max number of database objects that can exist in the catalog. This
-/// is not configurable when creating a session.
-const MAX_DATABASE_OBJECTS: usize = 2048;
 
 /// A global builtin catalog. This is meant to be cloned for every database
 /// catalog.
@@ -195,77 +192,6 @@ impl DatabaseCatalog {
         self.require_full_load.store(false, Ordering::Relaxed);
 
         Ok(())
-    }
-}
-
-/// A thin wrapper around a hashmap for database entries.
-///
-/// Mutating methods on this type prevent mutating default (builtin) objects.
-#[derive(Debug, Clone)]
-struct DatabaseEntries(HashMap<u32, CatalogEntry>);
-
-impl DatabaseEntries {
-    /// Get an immutable reference to the catalog entry if it exists. Errors if
-    /// the entry is builtin.
-    fn get(&self, oid: &u32) -> Result<Option<&CatalogEntry>> {
-        match self.0.get(oid) {
-            Some(ent) if ent.get_meta().builtin => {
-                Err(MetastoreError::CannotModifyBuiltin(ent.clone()))
-            }
-            Some(ent) => Ok(Some(ent)),
-            None => Ok(None),
-        }
-    }
-
-    /// Get a mutable reference to the catalog entry if it exists. Errors if the
-    /// entry is builtin.
-    fn get_mut(&mut self, oid: &u32) -> Result<Option<&mut CatalogEntry>> {
-        match self.0.get_mut(oid) {
-            Some(ent) if ent.get_meta().builtin => {
-                Err(MetastoreError::CannotModifyBuiltin(ent.clone()))
-            }
-            Some(ent) => Ok(Some(ent)),
-            None => Ok(None),
-        }
-    }
-
-    /// Remove an entry. Errors if the entry is builtin.
-    fn remove(&mut self, oid: &u32) -> Result<Option<CatalogEntry>> {
-        if let Some(ent) = self.0.get(oid) {
-            if ent.get_meta().builtin {
-                return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));
-            }
-        }
-
-        Ok(self.0.remove(oid))
-    }
-    /// Insert an entry.
-    fn insert(&mut self, oid: u32, ent: CatalogEntry) -> Result<Option<CatalogEntry>> {
-        if self.0.len() > MAX_DATABASE_OBJECTS {
-            return Err(MetastoreError::MaxNumberOfObjects {
-                max: MAX_DATABASE_OBJECTS,
-            });
-        }
-
-        if let Some(ent) = self.0.get(&oid) {
-            if ent.get_meta().builtin {
-                return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));
-            }
-        }
-
-        Ok(self.0.insert(oid, ent))
-    }
-}
-
-impl From<HashMap<u32, CatalogEntry>> for DatabaseEntries {
-    fn from(value: HashMap<u32, CatalogEntry>) -> Self {
-        DatabaseEntries(value)
-    }
-}
-
-impl AsRef<HashMap<u32, CatalogEntry>> for DatabaseEntries {
-    fn as_ref(&self) -> &HashMap<u32, CatalogEntry> {
-        &self.0
     }
 }
 
@@ -454,19 +380,21 @@ impl State {
             }
         }
 
-        let internal_state = State {
-            version: state.version,
-            deployment: state.deployment,
-            oid_counter: persisted.extra.oid_counter,
-            entries: state.entries.into(),
-            database_names,
-            tunnel_names,
-            credentials_names,
-            schema_names,
-            schema_objects,
-        };
+        unimplemented!()
 
-        Ok(internal_state)
+        // let internal_state = State {
+        //     version: state.version,
+        //     deployment: state.deployment,
+        //     oid_counter: persisted.extra.oid_counter,
+        //     entries: state.entries.into(),
+        //     database_names,
+        //     tunnel_names,
+        //     credentials_names,
+        //     schema_names,
+        //     schema_objects,
+        // };
+
+        // Ok(internal_state)
     }
 
     /// Create a persisted catalog containing only user objects.
@@ -521,7 +449,10 @@ impl State {
     }
 
     /// Execute mutations against the state.
-    fn mutate(&mut self, mutations: Vec<Mutation>) -> Result<()> {
+    fn mutate(&mut self, mutations: Vec<Mutation>) -> Result<UndoLog> {
+        // Ensure we have an empty undo log.
+        let _ = self.entries.take_undo_log();
+
         // We don't care if this overflows. When comparing versions, we just
         // care about if they're different. We can always assume that if a a
         // session's catalog does not match metastore's catalog version, then
@@ -532,7 +463,10 @@ impl State {
             self.mutate_one(mutation)?;
         }
 
-        Ok(())
+        // Get the undo log for the mutations we just made.
+        let undos = self.entries.take_undo_log();
+
+        Ok(undos)
     }
 
     /// Execute a single mutation against the state.
@@ -547,7 +481,7 @@ impl State {
                     Some(id) => id,
                 };
 
-                self.entries.remove(&database_id)?.unwrap();
+                self.entries.remove(database_id)?;
             }
             Mutation::DropTunnel(drop_tunnel) => {
                 let if_exists = drop_tunnel.if_exists;
@@ -557,7 +491,7 @@ impl State {
                     Some(id) => id,
                 };
 
-                self.entries.remove(&tunnel_id)?.unwrap();
+                self.entries.remove(tunnel_id)?;
             }
             Mutation::DropCredentials(drop_credentials) => {
                 let if_exists = drop_credentials.if_exists;
@@ -567,7 +501,7 @@ impl State {
                     Some(id) => id,
                 };
 
-                self.entries.remove(&credentials_id)?.unwrap();
+                self.entries.remove(credentials_id)?;
             }
             Mutation::DropSchema(drop_schema) => {
                 let if_exists = drop_schema.if_exists;
@@ -587,7 +521,7 @@ impl State {
                         let objs = self.schema_objects.remove(&schema_id).unwrap(); // Checked above.
                         for child_oid in objs.iter_oids() {
                             // TODO: Dependency checking.
-                            self.entries.remove(child_oid)?.unwrap(); // Bug if it doesn't exist.
+                            self.entries.remove(*child_oid)?;
                         }
                     }
                     None => (), // Empty schema that never had any child objects
@@ -599,7 +533,7 @@ impl State {
                     }
                 }
 
-                self.entries.remove(&schema_id)?.unwrap(); // Bug if doesn't exist.
+                self.entries.remove(schema_id)?;
             }
             // Can drop db objects like tables and views
             Mutation::DropObject(drop_object) => {
@@ -636,7 +570,7 @@ impl State {
                     Some(id) => id,
                 };
 
-                self.entries.remove(&ent_id)?.unwrap(); // Bug if doesn't exist.
+                self.entries.remove(ent_id)?;
             }
             Mutation::CreateExternalDatabase(create_database) => {
                 validate_object_name(&create_database.name)?;
@@ -675,6 +609,7 @@ impl State {
                     tunnel_id,
                     access_mode: SourceAccessMode::ReadOnly,
                 };
+
                 self.entries.insert(oid, CatalogEntry::Database(ent))?;
 
                 // Add to database map
@@ -801,6 +736,7 @@ impl State {
                     },
                 };
                 self.entries.insert(oid, CatalogEntry::Schema(ent))?;
+
                 // Add to name map
                 self.schema_names.insert(create_schema.name, oid);
             }
@@ -935,19 +871,10 @@ impl State {
                             Some(id) => id,
                         };
 
-                        let mut table = match self.entries.remove(&oid)?.unwrap() {
-                            CatalogEntry::Table(ent) => ent,
-                            other => unreachable!("unexpected entry type: {:?}", other),
-                        };
-
-                        table.meta.name = new_name;
-
-                        self.try_insert_table_namespace(
-                            CatalogEntry::Table(table.clone()),
-                            schema_id,
-                            table.meta.id,
-                            CreatePolicy::Create,
-                        )?;
+                        self.entries.alter_entry(oid, |mut ent| {
+                            ent.get_meta_mut().name = new_name.clone();
+                            ent
+                        });
                     }
                     AlterTableOperation::SetAccessMode { access_mode } => {
                         let oid = match objs.tables.get(&alter_table.name) {
@@ -960,12 +887,13 @@ impl State {
                             Some(id) => id,
                         };
 
-                        match self.entries.get_mut(oid)?.unwrap() {
-                            CatalogEntry::Table(ent) => {
-                                ent.access_mode = access_mode;
+                        self.entries.alter_entry(*oid, |mut ent| {
+                            match &mut ent {
+                                CatalogEntry::Table(table) => table.access_mode = access_mode,
+                                other => unreachable!("unexpected entry type: {:?}", other),
                             }
-                            other => unreachable!("unexpected entry type: {:?}", other),
-                        };
+                            ent
+                        });
                     }
                 };
             }
@@ -984,8 +912,10 @@ impl State {
                             Some(objs) => objs,
                         };
 
-                        let ent = self.entries.get_mut(&oid)?.unwrap();
-                        ent.get_meta_mut().name = new_name.clone();
+                        self.entries.alter_entry(oid, |mut ent| {
+                            ent.get_meta_mut().name = new_name.clone();
+                            ent
+                        })?;
 
                         // Add to database map
                         self.database_names.insert(new_name, oid);
@@ -998,12 +928,13 @@ impl State {
                             Some(oid) => oid,
                         };
 
-                        match self.entries.get_mut(oid)?.unwrap() {
-                            CatalogEntry::Database(db_ent) => {
-                                db_ent.access_mode = access_mode;
+                        self.entries.alter_entry(*oid, |mut ent| {
+                            match &mut ent {
+                                CatalogEntry::Database(db_ent) => db_ent.access_mode = access_mode,
+                                other => unreachable!("unexpected entry type: {:?}", other),
                             }
-                            other => unreachable!("unexpected entry type: {:?}", other),
-                        };
+                            ent
+                        });
                     }
                 };
             }
@@ -1016,20 +947,20 @@ impl State {
                     Some(oid) => oid,
                 };
 
-                match self.entries.get_mut(oid)?.unwrap() {
-                    CatalogEntry::Tunnel(tunnel_entry) => match &mut tunnel_entry.options {
-                        TunnelOptions::Ssh(tunnel_options_ssh) => {
-                            tunnel_options_ssh.ssh_key = alter_tunnel_rotate_keys.new_ssh_key;
-                        }
-                        opt => {
-                            return Err(MetastoreError::TunnelNotSupportedForAction {
-                                tunnel: opt.to_string(),
-                                action: "rotating keys",
-                            })
-                        }
-                    },
-                    _ => unreachable!("entry should be a tunnel"),
-                };
+                // match self.entries.get_mut(oid)?.unwrap() {
+                //     CatalogEntry::Tunnel(tunnel_entry) => match &mut tunnel_entry.options {
+                //         TunnelOptions::Ssh(tunnel_options_ssh) => {
+                //             tunnel_options_ssh.ssh_key = alter_tunnel_rotate_keys.new_ssh_key;
+                //         }
+                //         opt => {
+                //             return Err(MetastoreError::TunnelNotSupportedForAction {
+                //                 tunnel: opt.to_string(),
+                //                 action: "rotating keys",
+                //             })
+                //         }
+                //     },
+                //     _ => unreachable!("entry should be a tunnel"),
+                // };
             }
             Mutation::UpdateDeploymentStorage(update_deployment_storage) => {
                 // Update the new storage size
@@ -1060,14 +991,14 @@ impl State {
                     return Ok(());
                 }
                 objs.tables.insert(ent.get_meta().name.clone(), oid);
-                self.entries.insert(oid, ent)?;
+                self.entries.insert(oid, ent)?
             }
             CreatePolicy::CreateOrReplace => {
                 if objs.tables.contains_key(&ent.get_meta().name) {
-                    self.entries.insert(oid, ent)?;
+                    self.entries.insert(oid, ent)?
                 } else {
                     objs.tables.insert(ent.get_meta().name.clone(), oid);
-                    self.entries.insert(oid, ent)?;
+                    self.entries.insert(oid, ent)?
                 }
             }
             CreatePolicy::Create => {
@@ -1075,9 +1006,9 @@ impl State {
                     return Err(MetastoreError::DuplicateName(ent.get_meta().name.clone()));
                 }
                 objs.tables.insert(ent.get_meta().name.clone(), oid);
-                self.entries.insert(oid, ent)?;
+                self.entries.insert(oid, ent)?
             }
-        }
+        };
 
         Ok(())
     }
