@@ -772,6 +772,8 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: create_credential.options,
                     comment: create_credential.comment,
