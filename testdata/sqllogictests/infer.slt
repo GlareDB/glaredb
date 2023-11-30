@@ -46,7 +46,7 @@ select count(*) from '../../testdata/parquet/userdata1.unknown'
 query I
 select count(*) from '../../testdata/parquet/*.parquet'
 ----
-1000
+2000
 
 statement error missing file extension
 select count(*) from '../../testdata/parquet/*'

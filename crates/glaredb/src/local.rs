@@ -25,7 +25,6 @@ use std::env;
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::Instant;
-use tracing::error;
 use url::Url;
 
 #[derive(Debug, Clone, Copy)]
@@ -38,7 +37,7 @@ enum ClientCommandResult {
 
 pub struct LocalSession {
     sess: TrackedSession,
-    engine: Engine,
+    _engine: Engine,
     opts: LocalClientOpts,
 }
 
@@ -102,22 +101,19 @@ impl LocalSession {
                 .await?
         };
 
-        Ok(LocalSession { sess, engine, opts })
+        Ok(LocalSession {
+            sess,
+            _engine: engine,
+            opts,
+        })
     }
 
     pub async fn run(mut self, query: Option<String>) -> Result<()> {
-        let result = if let Some(query) = query {
+        if let Some(query) = query {
             self.execute_one(&query).await
         } else {
             self.run_interactive().await
-        };
-
-        // Try to shutdown the engine gracefully.
-        if let Err(err) = self.engine.shutdown().await {
-            error!(%err, "unable to shutdown the engine gracefully");
         }
-
-        result
     }
 
     async fn run_interactive(&mut self) -> Result<()> {

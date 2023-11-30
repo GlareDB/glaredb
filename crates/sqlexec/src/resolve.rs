@@ -1,12 +1,9 @@
+use crate::context::local::LocalSessionContext;
+use catalog::session_catalog::SessionCatalog;
 use datafusion::sql::TableReference;
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, TableEntry};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
-use std::{borrow::Cow, sync::Arc};
-
-use crate::{
-    context::local::LocalSessionContext,
-    metastore::catalog::{SessionCatalog, TempCatalog},
-};
+use std::borrow::Cow;
 
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("failed to resolve: {0}")]
@@ -51,8 +48,6 @@ impl<'a> ResolvedEntry<'a> {
 pub struct EntryResolver<'a> {
     /// Catalog to lookup entries in.
     pub catalog: &'a SessionCatalog,
-    /// Temp objects scoped to a session.
-    pub temp_objects: Arc<TempCatalog>,
     /// Schemas to use when looking up a table.
     pub schema_search_path: Vec<String>,
 }
@@ -61,7 +56,6 @@ impl<'a> EntryResolver<'a> {
     pub fn from_context(ctx: &'a LocalSessionContext) -> Self {
         EntryResolver {
             catalog: ctx.get_session_catalog(),
-            temp_objects: ctx.get_temp_objects(),
             schema_search_path: ctx.get_session_vars().implicit_search_path(),
         }
     }
@@ -76,7 +70,7 @@ impl<'a> EntryResolver<'a> {
                 // where if there exists a persist table named "t1" and a temp
                 // table also named "t1", the temp table is what gets used in
                 // the query.
-                if let Some(table) = self.temp_objects.resolve_temp_table(table) {
+                if let Some(table) = self.catalog.get_temp_catalog().resolve_temp_table(table) {
                     return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
                 }
 
@@ -97,7 +91,7 @@ impl<'a> EntryResolver<'a> {
             TableReference::Partial { schema, table } => {
                 // "current_session" references the temp catalog.
                 if schema == CURRENT_SESSION_SCHEMA {
-                    if let Some(table) = self.temp_objects.resolve_temp_table(table) {
+                    if let Some(table) = self.catalog.get_temp_catalog().resolve_temp_table(table) {
                         return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
                     }
                 }
@@ -111,7 +105,7 @@ impl<'a> EntryResolver<'a> {
                 schema,
                 table,
             } => {
-                if let Some(table) = self.temp_objects.resolve_temp_table(table) {
+                if let Some(table) = self.catalog.get_temp_catalog().resolve_temp_table(table) {
                     return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
                 }
                 // If catalog is anything but "default", we know we need to do
@@ -130,7 +124,7 @@ impl<'a> EntryResolver<'a> {
 
                 // We also support referencing fully qualified temp table names.
                 if schema == CURRENT_SESSION_SCHEMA {
-                    if let Some(table) = self.temp_objects.resolve_temp_table(table) {
+                    if let Some(table) = self.catalog.get_temp_catalog().resolve_temp_table(table) {
                         return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
                     }
                 }

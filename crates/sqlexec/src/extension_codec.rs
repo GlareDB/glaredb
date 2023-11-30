@@ -34,6 +34,7 @@ use crate::planner::physical_plan::alter_database::AlterDatabaseExec;
 use crate::planner::physical_plan::alter_table::AlterTableExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::copy_to::CopyToExec;
+use crate::planner::physical_plan::create_credential::CreateCredentialExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
 use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
@@ -188,6 +189,13 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
                 create_credentials.into_extension()
             }
+            PlanType::CreateCredential(create_credential) => {
+                let create_credential =
+                    plan::CreateCredential::try_decode(create_credential, ctx, self)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+                create_credential.into_extension()
+            }
             PlanType::CreateExternalDatabase(create_external_db) => {
                 let create_external_db =
                     plan::CreateExternalDatabase::try_decode(create_external_db, ctx, self)
@@ -279,6 +287,9 @@ impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }
             ExtensionType::AlterTunnelRotateKeys => {
                 plan::AlterTunnelRotateKeys::try_encode_extension(node, buf, self)
+            }
+            ExtensionType::CreateCredential => {
+                plan::CreateCredential::try_encode_extension(node, buf, self)
             }
             ExtensionType::CreateCredentials => {
                 plan::CreateCredentials::try_encode_extension(node, buf, self)
@@ -441,6 +452,18 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::CreateCredentialsExec(create_credentials) => {
                 let exec = CreateCredentialsExec::try_decode(
                     create_credentials,
+                    &EmptyFunctionRegistry,
+                    self.runtime
+                        .as_ref()
+                        .expect("runtime should be set on decoder"),
+                    self,
+                )
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                Arc::new(exec)
+            }
+            proto::ExecutionPlanExtensionType::CreateCredentialExec(create_credential) => {
+                let exec = CreateCredentialExec::try_decode(
+                    create_credential,
                     &EmptyFunctionRegistry,
                     self.runtime
                         .as_ref()

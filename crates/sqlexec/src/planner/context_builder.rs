@@ -66,7 +66,6 @@ impl<'a> PartialContextProvider<'a> {
         Dispatcher::new(
             self.ctx.get_session_catalog(),
             self.ctx.get_native_tables(),
-            &self.resolver.temp_objects,
             self.ctx,
             self.ctx.df_ctx(),
             self.ctx.get_session_vars().is_cloud_instance(),

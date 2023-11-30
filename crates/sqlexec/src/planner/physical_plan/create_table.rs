@@ -1,5 +1,9 @@
 use std::sync::Arc;
 
+use catalog::{
+    mutator::CatalogMutator,
+    session_catalog::{ResolveConfig, SessionCatalog},
+};
 use datafusion::{
     arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
     datasource::TableProvider,
@@ -21,7 +25,6 @@ use tracing::debug;
 use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
 use crate::{
     errors::ExecError,
-    metastore::catalog::{CatalogMutator, SessionCatalog},
     planner::{logical_plan::OwnedFullObjectReference, physical_plan::new_operation_batch},
 };
 use futures::StreamExt;
@@ -148,9 +151,19 @@ impl CreateTableExec {
             }
         });
 
-        // Note that we're not changing out the catalog stored on the context,
-        // we're just using it here to get the new table entry easily.
-        let new_catalog = SessionCatalog::new(state);
+        // Note that we're not changing out the catalog stored on the context
+        // here. The session's catalog will get swapped out at the beginning of
+        // the next query execution.
+        //
+        // TODO: We should be returning _what_ was updated from metastore
+        // instead of needing to do this. Sean has a stash working on this.
+        let new_catalog = SessionCatalog::new(
+            state,
+            ResolveConfig {
+                default_schema_oid: 0,
+                session_schema_oid: 0,
+            },
+        );
 
         let ent = new_catalog
             .resolve_table(

@@ -18,7 +18,7 @@ pub(super) type JsTrackedSession = Arc<Mutex<TrackedSession>>;
 #[derive(Clone)]
 pub struct Connection {
     pub(crate) sess: JsTrackedSession,
-    pub(crate) engine: Arc<Engine>,
+    pub(crate) _engine: Arc<Engine>,
 }
 
 #[derive(Debug, Clone)]
@@ -122,7 +122,7 @@ impl Connection {
 
         Ok(Connection {
             sess,
-            engine: Arc::new(engine),
+            _engine: Arc::new(engine),
         })
     }
     /// Returns a default connection to an in-memory database.
@@ -140,7 +140,7 @@ impl Connection {
             .map_err(JsGlareDbError::from)?;
         let con = Connection {
             sess: Arc::new(Mutex::new(sess)),
-            engine: Arc::new(engine),
+            _engine: Arc::new(engine),
         };
 
         Ok(con.clone())
@@ -265,7 +265,8 @@ impl Connection {
     /// Close the current session.
     #[napi(catch_unwind)]
     pub async fn close(&self) -> napi::Result<()> {
-        Ok(self.engine.shutdown().await.map_err(JsGlareDbError::from)?)
+        // TODO: Remove this method. No longer required.
+        Ok(())
     }
 }
 

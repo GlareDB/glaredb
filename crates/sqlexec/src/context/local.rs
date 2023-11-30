@@ -1,11 +1,12 @@
-use crate::background_jobs::JobRunner;
+use crate::distexec::scheduler::Scheduler;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
-use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::common::SchemaReference;
 use datafusion::execution::context::{
@@ -60,8 +61,8 @@ pub struct LocalSessionContext {
     df_ctx: DfSessionContext,
     /// Read tables from the environment.
     env_reader: Option<Box<dyn EnvironmentReader>>,
-    /// Job runner for background jobs.
-    _background_jobs: JobRunner,
+    /// Task scheduler.
+    task_scheduler: Scheduler,
 }
 
 impl LocalSessionContext {
@@ -74,17 +75,19 @@ impl LocalSessionContext {
         native_tables: NativeTableStorage,
         metrics_handler: SessionMetricsHandler,
         spill_path: Option<PathBuf>,
-        background_jobs: JobRunner,
+        task_scheduler: Scheduler,
     ) -> Result<LocalSessionContext> {
         let database_id = vars.database_id();
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(&vars);
 
         let mut conf: SessionConfig = opts.into();
+        // TODO: Can we remove the temp catalog here? It's pretty disgusting,
+        // but it's needed for the create temp table execution plan.
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(TempCatalog::default()));
+            .with_extension(Arc::new(catalog.get_temp_catalog().clone()));
 
         let state = SessionState::new_with_config_rt(conf, Arc::new(runtime))
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
@@ -102,7 +105,7 @@ impl LocalSessionContext {
             metrics_handler,
             df_ctx,
             env_reader: None,
-            _background_jobs: background_jobs,
+            task_scheduler,
         })
     }
 
@@ -131,10 +134,11 @@ impl LocalSessionContext {
         let runtime = self.df_ctx.runtime_env();
         let opts = new_datafusion_session_config_opts(&vars);
         let mut conf: SessionConfig = opts.into();
+        // TODO: Just like above, the temp catalog here is kinda gross.
         conf = conf
             .with_extension(Arc::new(CatalogMutator::empty()))
             .with_extension(Arc::new(self.get_native_tables().clone()))
-            .with_extension(Arc::new(TempCatalog::default()));
+            .with_extension(Arc::new(catalog.get_temp_catalog().clone()));
 
         let state = SessionState::new_with_config_rt(conf, runtime)
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
@@ -169,12 +173,8 @@ impl LocalSessionContext {
         &self.tables
     }
 
-    pub fn get_temp_objects(&self) -> Arc<TempCatalog> {
-        self.df_ctx
-            .state()
-            .config()
-            .get_extension::<TempCatalog>()
-            .expect("local contexts should have temp objects")
+    pub fn get_task_scheduler(&self) -> Scheduler {
+        self.task_scheduler.clone()
     }
 
     /// Return the DF session context.

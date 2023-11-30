@@ -5,13 +5,21 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
+use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
+use crate::distexec::scheduler::{OutputSink, Scheduler};
+use crate::distexec::stream::create_coalescing_adapter;
+use crate::environment::EnvironmentReader;
+use crate::errors::{ExecError, Result};
+use crate::parser::StatementWithExtensions;
+use crate::planner::logical_plan::*;
 use crate::planner::physical_plan::{
     get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
     GENERIC_OPERATION_PHYSICAL_SCHEMA,
 };
 use crate::remote::client::RemoteClient;
 use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -33,13 +41,6 @@ use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use telemetry::Tracker;
 use uuid::Uuid;
-
-use crate::background_jobs::JobRunner;
-use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
-use crate::environment::EnvironmentReader;
-use crate::errors::{ExecError, Result};
-use crate::parser::StatementWithExtensions;
-use crate::planner::logical_plan::*;
 
 static EMPTY_EXEC_PLAN: Lazy<Arc<dyn ExecutionPlan>> = Lazy::new(|| {
     Arc::new(EmptyExec::new(
@@ -79,6 +80,8 @@ pub enum ExecutionResult {
     CreateDatabase,
     /// Tunnel created.
     CreateTunnel,
+    /// Credentials created.
+    CreateCredential,
     /// Credentials created.
     CreateCredentials,
     /// Schema created.
@@ -170,6 +173,7 @@ impl ExecutionResult {
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateTunnel => "create_tunnel",
+            ExecutionResult::CreateCredential => "create_credential",
             ExecutionResult::CreateCredentials => "create_credentials",
             ExecutionResult::CreateSchema => "create_schema",
             ExecutionResult::CreateView => "create_view",
@@ -192,6 +196,7 @@ impl ExecutionResult {
             ExecutionResult::CreateTable
                 | ExecutionResult::CreateDatabase
                 | ExecutionResult::CreateTunnel
+                | ExecutionResult::CreateCredential
                 | ExecutionResult::CreateCredentials
                 | ExecutionResult::CreateSchema
                 | ExecutionResult::CreateView
@@ -229,6 +234,7 @@ impl ExecutionResult {
             "create_table" => ExecutionResult::CreateTable,
             "create_database" => ExecutionResult::CreateDatabase,
             "create_tunnel" => ExecutionResult::CreateTunnel,
+            "create_credential" => ExecutionResult::CreateCredential,
             "create_credentials" => ExecutionResult::CreateCredentials,
             "create_schema" => ExecutionResult::CreateSchema,
             "create_view" => ExecutionResult::CreateView,
@@ -285,7 +291,8 @@ impl fmt::Display for ExecutionResult {
             ExecutionResult::CreateTable => write!(f, "Table created"),
             ExecutionResult::CreateDatabase => write!(f, "Database created"),
             ExecutionResult::CreateTunnel => write!(f, "Tunnel created"),
-            ExecutionResult::CreateCredentials => write!(f, "Credentials created"),
+            ExecutionResult::CreateCredential => write!(f, "Credential created"),
+            ExecutionResult::CreateCredentials => write!(f, "Credentials created\nDEPRECATION WARNING. `CREATE CREDENTIALS` is deprecated and will be removed in a future release. Please use `CREATE CREDENTIAL` instead."),
             ExecutionResult::CreateSchema => write!(f, "Schema create"),
             ExecutionResult::CreateView => write!(f, "View created"),
             ExecutionResult::AlterTable => write!(f, "Table altered"),
@@ -348,7 +355,7 @@ impl Session {
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
-        background_jobs: JobRunner,
+        task_scheduler: Scheduler,
     ) -> Result<Session> {
         let metrics_handler = SessionMetricsHandler::new(
             vars.user_id(),
@@ -364,7 +371,7 @@ impl Session {
             native_tables,
             metrics_handler,
             spill_path,
-            background_jobs,
+            task_scheduler,
         )?;
 
         Ok(Session { ctx })
@@ -407,6 +414,7 @@ impl Session {
             let plan = planner.create_physical_plan(&plan, &state).await?;
             Ok(plan)
         } else {
+            // TODO: Possible to not require a catalog clone here?
             let ddl_planner = DDLExtensionPlanner::new(self.ctx.get_session_catalog().clone());
             let planner =
                 DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(ddl_planner)]);
@@ -417,12 +425,28 @@ impl Session {
     }
 
     /// Execute a datafusion physical plan.
-    pub fn execute_physical(
+    pub async fn execute_physical(
         &self,
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
         let context = self.ctx.task_context();
-        let stream = execute_stream(plan, context)?;
+        let stream = if self.ctx.get_session_vars().enable_experimental_scheduler() {
+            let scheduler = self.ctx.get_task_scheduler();
+            let (sink, stream) =
+                create_coalescing_adapter(plan.output_partitioning(), plan.schema());
+            let sink = Arc::new(sink);
+
+            let output = OutputSink {
+                batches: sink.clone(),
+                errors: sink,
+            };
+
+            scheduler.schedule(plan, context, output)?;
+            Box::pin(stream)
+        } else {
+            execute_stream(plan, context)?
+        };
+
         Ok(stream)
     }
 
@@ -487,7 +511,7 @@ impl Session {
             }
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan).await?;
-                let stream = self.execute_physical(physical.clone())?;
+                let stream = self.execute_physical(physical.clone()).await?;
 
                 let stream = ExecutionResult::from_stream(stream).await;
 

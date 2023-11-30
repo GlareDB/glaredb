@@ -1,6 +1,5 @@
 //! Various table dispatchers.
 pub mod external;
-pub mod listing;
 pub mod system;
 
 use std::collections::HashMap;
@@ -8,29 +7,24 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::datasource::{TableProvider, ViewTable};
-use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::SessionContext as DfSessionContext;
 use datafusion::prelude::{Column, Expr};
-use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, VirtualLister};
-use datafusion_ext::vars::SessionVars;
+use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{
-    CatalogEntry, CredentialsEntry, DatabaseEntry, EntryMeta, EntryType, FunctionEntry, ViewEntry,
+    CatalogEntry, DatabaseEntry, EntryMeta, EntryType, FunctionEntry, ViewEntry,
 };
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 
 use crate::context::local::LocalSessionContext;
+use crate::dispatch::system::SystemTableDispatcher;
 use crate::parser::CustomParser;
 use crate::planner::errors::PlanError;
 use crate::planner::session_planner::SessionPlanner;
-use crate::{
-    dispatch::system::SystemTableDispatcher,
-    metastore::catalog::{SessionCatalog, TempCatalog},
-};
+use catalog::session_catalog::SessionCatalog;
 
 use self::external::ExternalDispatcher;
-use self::listing::CatalogLister;
 
 type Result<T, E = DispatchError> = std::result::Result<T, E>;
 
@@ -167,7 +161,6 @@ impl ViewPlanner for LocalSessionContext {
 pub struct Dispatcher<'a> {
     catalog: &'a SessionCatalog,
     tables: &'a NativeTableStorage,
-    temp_objects: &'a TempCatalog,
     view_planner: &'a dyn ViewPlanner,
     // TODO: Remove need for this.
     df_ctx: &'a DfSessionContext,
@@ -179,7 +172,6 @@ impl<'a> Dispatcher<'a> {
     pub fn new(
         catalog: &'a SessionCatalog,
         tables: &'a NativeTableStorage,
-        temp_objects: &'a TempCatalog,
         view_planner: &'a dyn ViewPlanner,
         df_ctx: &'a DfSessionContext,
         disable_local_fs_access: bool,
@@ -187,7 +179,6 @@ impl<'a> Dispatcher<'a> {
         Dispatcher {
             catalog,
             tables,
-            temp_objects,
             view_planner,
             df_ctx,
             disable_local_fs_access,
@@ -207,7 +198,8 @@ impl<'a> Dispatcher<'a> {
             // Temp tables
             CatalogEntry::Table(tbl) if tbl.meta.is_temp => {
                 let provider = self
-                    .temp_objects
+                    .catalog
+                    .get_temp_catalog()
                     .get_temp_table_provider(&tbl.meta.name)
                     .ok_or_else(|| DispatchError::MissingTempTable {
                         name: tbl.meta.name.to_string(),
@@ -216,7 +208,7 @@ impl<'a> Dispatcher<'a> {
             }
             // Dispatch to builtin tables.
             CatalogEntry::Table(tbl) if tbl.meta.builtin => {
-                SystemTableDispatcher::new(self.catalog, self.temp_objects).dispatch(&tbl)
+                SystemTableDispatcher::new(self.catalog).dispatch(&tbl)
             }
             // Dispatch to external tables.
             CatalogEntry::Table(tbl) if tbl.meta.external => {
@@ -268,32 +260,12 @@ impl<'a> Dispatcher<'a> {
         };
         let prov = resolve_func
             .unwrap()
-            .create_provider(self, args, opts)
+            .create_provider(
+                &DefaultTableContextProvider::new(self.catalog, self.df_ctx),
+                args,
+                opts,
+            )
             .await?;
         Ok(prov)
-    }
-}
-
-impl<'a> TableFuncContextProvider for Dispatcher<'a> {
-    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry> {
-        self.catalog.resolve_database(name)
-    }
-
-    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry> {
-        self.catalog.resolve_credentials(name)
-    }
-
-    fn get_session_vars(&self) -> SessionVars {
-        let cfg = self.df_ctx.copied_config();
-        let vars = cfg.options().extensions.get::<SessionVars>().unwrap();
-        vars.clone()
-    }
-
-    fn get_session_state(&self) -> SessionState {
-        self.df_ctx.state()
-    }
-
-    fn get_catalog_lister(&self) -> Box<dyn VirtualLister> {
-        Box::new(CatalogLister::new(self.catalog.clone(), false))
     }
 }

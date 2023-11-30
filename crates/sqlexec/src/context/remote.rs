@@ -15,13 +15,13 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::{
-    background_jobs::JobRunner,
     dispatch::external::ExternalDispatcher,
     errors::{ExecError, Result},
     extension_codec::GlareDBExtensionCodec,
-    metastore::catalog::{CatalogMutator, SessionCatalog},
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::SessionCatalog;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 
@@ -42,8 +42,6 @@ pub struct RemoteSessionContext {
     tables: NativeTableStorage,
     /// Datafusion session context used for execution.
     df_ctx: DfSessionContext,
-    /// Job runner for background jobs.
-    _background_jobs: JobRunner,
     /// Cached table providers.
     provider_cache: ProviderCache,
 }
@@ -54,7 +52,6 @@ impl RemoteSessionContext {
         catalog: SessionCatalog,
         catalog_mutator: CatalogMutator,
         native_tables: NativeTableStorage,
-        background_jobs: JobRunner,
         spill_path: Option<PathBuf>,
     ) -> Result<Self> {
         // TODO: We'll want to remove this eventually. We should be able to
@@ -66,12 +63,13 @@ impl RemoteSessionContext {
         let mut conf: SessionConfig = opts.into();
 
         // Add in remote only extensions.
+        //
+        // Note: No temp catalog here since we should not be executing create
+        // temp tables remotely.
         conf = conf
             .with_extension(Arc::new(StagedClientStreams::default()))
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()));
-
-        // TODO: Query planners for handling custom plans.
 
         let df_ctx = DfSessionContext::new_with_config_rt(conf, Arc::new(runtime));
 
@@ -79,7 +77,6 @@ impl RemoteSessionContext {
             catalog: Mutex::new(catalog),
             tables: native_tables,
             df_ctx,
-            _background_jobs: background_jobs,
             provider_cache: ProviderCache::default(),
         })
     }

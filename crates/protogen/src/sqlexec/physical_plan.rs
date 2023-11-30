@@ -56,6 +56,22 @@ pub struct CreateCredentialsExec {
     pub options: Option<crate::gen::metastore::options::CredentialsOptions>,
     #[prost(string, tag = "4")]
     pub comment: String,
+    #[prost(bool, tag = "5")]
+    pub or_replace: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct CreateCredentialExec {
+    #[prost(string, tag = "1")]
+    pub name: String,
+    #[prost(uint64, tag = "2")]
+    pub catalog_version: u64,
+    #[prost(message, tag = "3")]
+    pub options: Option<crate::gen::metastore::options::CredentialsOptions>,
+    #[prost(string, tag = "4")]
+    pub comment: String,
+    #[prost(bool, tag = "5")]
+    pub or_replace: bool,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -400,4 +416,6 @@ pub enum ExecutionPlanExtensionType {
     DataSourceMetricsExecAdapter(DataSourceMetricsExecAdapter),
     #[prost(message, tag = "31")]
     DescribeTable(DescribeTableExec),
+    #[prost(message, tag = "32")]
+    CreateCredentialExec(CreateCredentialExec),
 }

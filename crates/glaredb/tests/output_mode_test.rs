@@ -1,6 +1,6 @@
 mod setup;
 
-use setup::*;
+use crate::setup::{make_cli, DEFAULT_TIMEOUT};
 
 fn test_output_mode(mode: &str, expected: &str) {
     let mut cmd = make_cli();
