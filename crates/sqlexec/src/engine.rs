@@ -4,6 +4,7 @@ use crate::distexec::scheduler::Scheduler;
 use crate::errors::{ExecError, Result};
 use crate::session::Session;
 use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
+use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
 use std::collections::HashMap;
 
 use object_store::aws::AmazonS3ConfigKey;
@@ -16,7 +17,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use catalog::session_catalog::SessionCatalog;
+use catalog::session_catalog::{ResolveConfig, SessionCatalog};
 use datafusion_ext::vars::SessionVars;
 use datasources::common::errors::DatasourceCommonError;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
@@ -375,7 +376,13 @@ impl Engine {
             .new_native_tables_storage(database_id, &storage)?;
 
         let state = metastore.get_cached_state().await?;
-        let catalog = SessionCatalog::new(state);
+        let catalog = SessionCatalog::new(
+            state,
+            ResolveConfig {
+                default_schema_oid: SCHEMA_DEFAULT.oid,
+                session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
+            },
+        );
 
         let session = Session::new(
             vars,
@@ -411,7 +418,13 @@ impl Engine {
             .new_native_tables_storage(database_id, &storage)?;
 
         let state = metastore.get_cached_state().await?;
-        let catalog = SessionCatalog::new(state);
+        let catalog = SessionCatalog::new(
+            state,
+            ResolveConfig {
+                default_schema_oid: SCHEMA_DEFAULT.oid,
+                session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
+            },
+        );
 
         let context =
             RemoteSessionContext::new(catalog, metastore.into(), native, self.spill_path.clone())?;

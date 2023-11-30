@@ -8,13 +8,14 @@ edition.workspace = true
 [dependencies]
 datafusion = { workspace = true }
 logutil = { path = "../logutil" }
-metastore = { path = "../metastore" }
 object_store = { workspace = true }
 parking_lot = "0.12.1"
 protogen = { path = "../protogen" }
-sqlbuiltins = { path = "../sqlbuiltins" }
 thiserror.workspace = true
 tokio = { workspace = true }
 tonic = { workspace = true }
 tracing = "0.1"
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
+
+[dev-dependencies]
+metastore = { path = "../metastore" }
