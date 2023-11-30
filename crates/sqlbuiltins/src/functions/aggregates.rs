@@ -25,7 +25,7 @@ make_const!(
     APPROX_MEDIAN,
     name => "approx_median",
     example => "approx_median(a)",
-    description => "Gives the approximate median of a column"
+    description => "Gives the approximate median of a column."
 );
 
 make_const!(
@@ -171,7 +171,7 @@ make_const!(
 make_const!(
     REGR_R2,
     name => "regr_r2",
-    example => "regr_r2(x, y)",
+    example => "regr_r2(y, x)",
     description => "Returns the coefficient of determination (R-squared) for non-null pairs in a group."
 );
 make_const!(

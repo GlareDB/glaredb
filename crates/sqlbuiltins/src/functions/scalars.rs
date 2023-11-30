@@ -512,7 +512,7 @@ make_const!(
     DIGEST,
     name => "digest",
     example => "digest('hello', 'sha256')",
-    description => " Compute the digest of a string using the specified algorithm. Valid algorithms are: md5, sha224, sha256, sha384, sha512, blake2s, blake2b, blake3"
+    description => "Compute the digest of a string using the specified algorithm. Valid algorithms are: md5, sha224, sha256, sha384, sha512, blake2s, blake2b, blake3"
 );
 make_const!(
     MD5_FUNCTION,
