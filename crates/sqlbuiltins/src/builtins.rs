@@ -34,11 +34,33 @@ pub const POSTGRES_SCHEMA: &str = "pg_catalog";
 /// Schema to store temporary objects (only valid for current session).
 pub const CURRENT_SESSION_SCHEMA: &str = "current_session";
 
-/// First oid available for other builtin objects.
+/// First oid available for other builtin objects that don't have a stable OID.
 ///
-/// All builtin schemas have a stable oid since all objects, including user
-/// objects, rely on the oid of schemas.
-pub const FIRST_NON_SCHEMA_ID: u32 = FIRST_GLAREDB_BUILTIN_ID + 100;
+/// Builtin schemas have stable OIDs since everything (builtin and user objects)
+/// depends on a schema.
+///
+/// Builtin tables have stable OIDs since some depend on data written to disk.
+///
+/// First glaredb builtin OID: 16384
+/// First user object OID: 20000
+///
+/// This means we have ~3600 OIDs to play with for builtin objects. Note that
+/// once a builtin object is given a stable OID, it **must not** be changed ever
+/// (unless you're the person willing to write a migration system).
+///
+/// Stable OIDs should also not be reused. E.g. if we end up removing a table in
+/// the future, we should default to not using that OID in the future (there are
+/// cases where an OID is safe to reuse, but that should be determined
+/// case-by-case).
+///
+/// General OID ranges:
+/// Builtin schemas: 16385 - 16400 (16 OIDs)
+/// Builtin tables: 16401 - 16500 (100 OIDs)
+///
+/// Constructing the builtin catalog happens in metastore, and errors on
+/// encountering a duplicated OID. A test exists to ensure it's able to be
+/// built.
+pub const FIRST_NON_STATIC_OID: u32 = FIRST_GLAREDB_BUILTIN_ID + 116;
 
 #[derive(Debug, Clone)]
 pub struct BuiltinDatabase {
@@ -63,6 +85,7 @@ pub struct BuiltinTable {
     pub schema: &'static str,
     pub name: &'static str,
     pub columns: Vec<InternalColumnDefinition>,
+    pub oid: u32,
 }
 
 pub static GLARE_DATABASES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
@@ -76,6 +99,7 @@ pub static GLARE_DATABASES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("datasource", DataType::Utf8, false),
         ("access_mode", DataType::Utf8, false), // `SourceAccessMode::as_str()`
     ]),
+    oid: 16401,
 });
 
 pub static GLARE_TUNNELS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
@@ -87,6 +111,7 @@ pub static GLARE_TUNNELS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("builtin", DataType::Boolean, false),
         ("tunnel_type", DataType::Utf8, false),
     ]),
+    oid: 16402,
 });
 
 pub static GLARE_CREDENTIALS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
@@ -99,6 +124,7 @@ pub static GLARE_CREDENTIALS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("provider", DataType::Utf8, false),
         ("comment", DataType::Utf8, false),
     ]),
+    oid: 16403,
 });
 
 pub static GLARE_SCHEMAS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
@@ -111,6 +137,7 @@ pub static GLARE_SCHEMAS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("schema_name", DataType::Utf8, false),
         ("builtin", DataType::Boolean, false),
     ]),
+    oid: 16404,
 });
 
 pub static GLARE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
@@ -127,6 +154,7 @@ pub static GLARE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("datasource", DataType::Utf8, false),
         ("access_mode", DataType::Utf8, false), // `SourceAccessMode::as_str()`
     ]),
+    oid: 16405,
 });
 
 pub static GLARE_VIEWS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
@@ -141,6 +169,7 @@ pub static GLARE_VIEWS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("builtin", DataType::Boolean, false),
         ("sql", DataType::Utf8, false),
     ]),
+    oid: 16406,
 });
 
 pub static GLARE_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
@@ -155,6 +184,7 @@ pub static GLARE_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("data_type", DataType::Utf8, false),
         ("is_nullable", DataType::Boolean, false),
     ]),
+    oid: 16407,
 });
 
 pub static GLARE_FUNCTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
@@ -172,6 +202,7 @@ pub static GLARE_FUNCTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ),
         ("builtin", DataType::Boolean, false),
     ]),
+    oid: 16408,
 });
 
 pub static GLARE_SSH_KEYS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
@@ -182,6 +213,7 @@ pub static GLARE_SSH_KEYS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
         ("ssh_tunnel_name", DataType::Utf8, false),
         ("public_key", DataType::Utf8, false),
     ]),
+    oid: 16409,
 });
 
 pub static GLARE_DEPLOYMENT_METADATA: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
@@ -191,6 +223,21 @@ pub static GLARE_DEPLOYMENT_METADATA: Lazy<BuiltinTable> = Lazy::new(|| BuiltinT
         ("key", DataType::Utf8, false),
         ("value", DataType::Utf8, false),
     ]),
+    oid: 16410,
+});
+
+/// Cached table metadata for external databases.
+///
+/// The cached data lives in an on-disk (delta) table alongside user table data.
+pub static GLARE_CACHED_EXTERNAL_DATABASE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
+    schema: INTERNAL_SCHEMA,
+    name: "cached_external_database_tables",
+    columns: InternalColumnDefinition::from_tuples([
+        ("database_oid", DataType::UInt32, false), // External database this entry is for.
+        ("schema_name", DataType::Utf8, false),    // Schema name (in external database).
+        ("table_name", DataType::Utf8, false),     // Table name (in external database).
+    ]),
+    oid: 16411,
 });
 
 impl BuiltinTable {
@@ -222,6 +269,7 @@ impl BuiltinTable {
             &GLARE_FUNCTIONS,
             &GLARE_SSH_KEYS,
             &GLARE_DEPLOYMENT_METADATA,
+            &GLARE_CACHED_EXTERNAL_DATABASE_TABLES,
         ]
     }
 }
@@ -610,7 +658,17 @@ mod tests {
     fn builtin_schema_oid_range() {
         let mut oids = HashSet::new();
         for schema in BuiltinSchema::builtins() {
-            assert!(schema.oid < FIRST_NON_SCHEMA_ID);
+            assert!(schema.oid < FIRST_NON_STATIC_OID);
+            assert!(schema.oid >= FIRST_GLAREDB_BUILTIN_ID);
+            assert!(oids.insert(schema.oid), "duplicate oid: {}", schema.oid);
+        }
+    }
+
+    #[test]
+    fn builtin_table_oid_range() {
+        let mut oids = HashSet::new();
+        for schema in BuiltinTable::builtins() {
+            assert!(schema.oid < FIRST_NON_STATIC_OID);
             assert!(schema.oid >= FIRST_GLAREDB_BUILTIN_ID);
             assert!(oids.insert(schema.oid), "duplicate oid: {}", schema.oid);
         }

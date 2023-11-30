@@ -1,4 +1,7 @@
-use protogen::metastore::strategy::{ResolveErrorStrategy, RESOLVE_ERROR_STRATEGY_META};
+use protogen::metastore::{
+    strategy::{ResolveErrorStrategy, RESOLVE_ERROR_STRATEGY_META},
+    types::catalog::CatalogEntry,
+};
 
 #[derive(thiserror::Error, Debug)]
 pub enum MetastoreError {
@@ -22,6 +25,13 @@ pub enum MetastoreError {
 
     #[error("Builtin object persisted when it shouldn't have been: {0:?}")]
     BuiltinObjectPersisted(protogen::metastore::types::catalog::EntryMeta),
+
+    #[error("OID repeated: OID: {oid}; ent1: {ent1:?}, ent2: {ent2:?}")]
+    BuiltinRepeatedOid {
+        oid: u32,
+        ent1: CatalogEntry,
+        ent2: CatalogEntry,
+    },
 
     #[error("Missing database: {0}")]
     MissingDatabase(String),

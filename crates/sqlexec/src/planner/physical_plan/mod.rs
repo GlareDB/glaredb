@@ -27,6 +27,7 @@ pub mod remote_scan;
 pub mod send_recv;
 pub mod set_var;
 pub mod show_var;
+pub mod system_operation;
 pub mod update;
 pub mod values;
 
