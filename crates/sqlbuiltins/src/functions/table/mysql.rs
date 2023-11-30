@@ -7,18 +7,20 @@ use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
-use protogen::metastore::types::catalog::RuntimePreference;
+use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
-use crate::builtins::{BuiltinFunction, TableFunc};
+use crate::builtins::{ConstBuiltinFunction, TableFunc};
 
 #[derive(Debug, Clone, Copy)]
-pub struct ReadPostgres;
+pub struct ReadMysql;
 
-impl BuiltinFunction for ReadPostgres {
-    fn name(&self) -> &str {
-        "read_postgres"
-    }
+impl ConstBuiltinFunction for ReadMysql {
+    const NAME: &'static str = "read_mysql";
+    const DESCRIPTION: &'static str = "Reads a MySQL table";
+    const EXAMPLE: &'static str =
+        "SELECT * FROM read_mysql('mysql://localhost:3306', 'database', 'table')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             3,
@@ -29,10 +31,11 @@ impl BuiltinFunction for ReadPostgres {
 }
 
 #[async_trait]
-impl TableFunc for ReadPostgres {
+impl TableFunc for ReadMysql {
     fn runtime_preference(&self) -> RuntimePreference {
         RuntimePreference::Remote
     }
+
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
@@ -46,13 +49,17 @@ impl TableFunc for ReadPostgres {
                 let schema: String = args.next().unwrap().param_into()?;
                 let table: String = args.next().unwrap().param_into()?;
 
-                let access = PostgresAccess::new_from_conn_str(conn_str, None);
-                let prov_conf = PostgresTableProviderConfig {
-                    access,
-                    schema,
-                    table,
-                };
-                let prov = PostgresTableProvider::try_new(prov_conf)
+                let access = MysqlAccessor::connect(&conn_str, None)
+                    .await
+                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+                let prov = access
+                    .into_table_provider(
+                        MysqlTableAccess {
+                            schema: schema.clone(),
+                            name: table.clone(),
+                        },
+                        true,
+                    )
                     .await
                     .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 

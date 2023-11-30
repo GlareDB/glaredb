@@ -8,17 +8,20 @@ use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
-use crate::builtins::{BuiltinFunction, TableFunc};
+use crate::builtins::{ConstBuiltinFunction, TableFunc};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadSnowflake;
 
-impl BuiltinFunction for ReadSnowflake {
-    fn name(&self) -> &str {
-        "read_snowflake"
-    }
+impl ConstBuiltinFunction for ReadSnowflake {
+    const NAME: &'static str = "read_snowflake";
+    const DESCRIPTION: &'static str = "Reads a Snowflake table";
+    const EXAMPLE: &'static str =
+        "SELECT * FROM read_snowflake('account', 'username', 'password', 'database', 'warehouse', 'role', 'schema', 'table')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             8,

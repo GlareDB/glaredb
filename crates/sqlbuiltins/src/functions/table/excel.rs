@@ -8,19 +8,21 @@ use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::common::url::DatasourceUrl;
 use datasources::excel::read_excel_impl;
 use ioutil::resolve_path;
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
-use crate::builtins::{BuiltinFunction, TableFunc};
+use crate::builtins::{ConstBuiltinFunction, TableFunc};
 
 use super::table_location_and_opts;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ExcelScan;
 
-impl BuiltinFunction for ExcelScan {
-    fn name(&self) -> &str {
-        "read_excel"
-    }
+impl ConstBuiltinFunction for ExcelScan {
+    const NAME: &'static str = "read_excel";
+    const DESCRIPTION: &'static str = "Reads an Excel file from the local filesystem";
+    const EXAMPLE: &'static str =
+        "SELECT * FROM read_excel('file:///path/to/file.xlsx', sheet_name => 'Sheet1')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 }
 
 #[async_trait]

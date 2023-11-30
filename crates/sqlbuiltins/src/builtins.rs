@@ -23,7 +23,7 @@ use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_GLAREDB_BUILTIN_ID;
 use protogen::metastore::types::{
-    catalog::{EntryMeta, EntryType, RuntimePreference},
+    catalog::{EntryMeta, EntryType, FunctionEntry, FunctionType, RuntimePreference},
     options::InternalColumnDefinition,
 };
 use std::{collections::HashMap, sync::Arc};
@@ -635,12 +635,43 @@ pub trait TableFunc: Sync + Send + BuiltinFunction {
     ) -> datafusion_ext::errors::Result<Arc<dyn TableProvider>>;
 }
 
+/// The same as `BuiltinFunction` , but with const values.
+pub trait ConstBuiltinFunction: Sync + Send {
+    const NAME: &'static str;
+    const DESCRIPTION: &'static str;
+    const EXAMPLE: &'static str;
+    const FUNCTION_TYPE: FunctionType;
+    fn signature(&self) -> Option<Signature> {
+        None
+    }
+}
+
+impl<T> BuiltinFunction for T
+where
+    T: ConstBuiltinFunction,
+{
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+    fn sql_example(&self) -> Option<String> {
+        Some(Self::EXAMPLE.to_string())
+    }
+    fn description(&self) -> Option<String> {
+        Some(Self::DESCRIPTION.to_string())
+    }
+    fn function_type(&self) -> FunctionType {
+        Self::FUNCTION_TYPE
+    }
+    fn signature(&self) -> Option<Signature> {
+        self.signature()
+    }
+}
 /// A builtin function.
 /// This trait is implemented by all builtin functions.
-pub trait BuiltinFunction {
+pub trait BuiltinFunction: Sync + Send {
     /// The name for this function. This name will be used when looking up
     /// function implementations.
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
     /// Return the signature for this function.
     /// Defaults to None.
     // TODO: Remove the default impl once we have `signature` implemented for all functions
@@ -657,10 +688,12 @@ pub trait BuiltinFunction {
     fn description(&self) -> Option<String> {
         None
     }
+    // Returns the function type. 'aggregate', 'scalar', or 'table'
+    fn function_type(&self) -> FunctionType;
 
-    /// Return the entry meta for this function.
-    fn to_entry_meta(&self, id: u32, parent: u32) -> EntryMeta {
-        EntryMeta {
+    // convert to a builtin `FunctionEntry`
+    fn as_function_entry(&self, id: u32, parent: u32) -> FunctionEntry {
+        let meta = EntryMeta {
             entry_type: EntryType::Function,
             id,
             parent,
@@ -670,6 +703,13 @@ pub trait BuiltinFunction {
             is_temp: false,
             sql_example: self.sql_example(),
             description: self.description(),
+        };
+
+        FunctionEntry {
+            meta,
+            func_type: self.function_type(),
+            runtime_preference: RuntimePreference::Unspecified,
+            signature: self.signature(),
         }
     }
 }

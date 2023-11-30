@@ -27,7 +27,7 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess};
 use futures::TryStreamExt;
 use object_store::azure::AzureConfigKey;
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
 use crate::builtins::{BuiltinFunction, TableFunc};
@@ -42,24 +42,15 @@ pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson
 pub struct ObjScanTableFunc(FileType, &'static str);
 
 impl BuiltinFunction for ObjScanTableFunc {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         self.1
+    }
+    fn function_type(&self) -> FunctionType {
+        FunctionType::TableReturning
     }
     fn sql_example(&self) -> Option<String> {
         fn build_example(extension: &str) -> String {
-            format!(
-                r#"
--- Read a relative path.
-SELECT * FROM {ext}_scan('./my_data.{ext}');
--- Read all {ext} files in a directory.
-SELECT * FROM {ext}_scan('./directory_of_data/*.{ext}');
--- Read {ext} files from multiple directories.
-SELECT * FROM {ext}_scan('./**/*.{ext}');
--- Read multiple explicitly provided files.
-SELECT * FROM {ext}_scan(['./directory_of_data/1.{ext}', './directory_of_data/2.{ext}']);
-"#,
-                ext = extension
-            )
+            format!("{ext}_scan('./my_data.{ext}')", ext = extension)
         }
         Some(build_example(self.0.to_string().as_str()))
     }

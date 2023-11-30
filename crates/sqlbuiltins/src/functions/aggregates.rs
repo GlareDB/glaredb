@@ -1,273 +1,247 @@
+// we make use of the document! macro to generate the documentation for the builtin functions.
+// specifically the `stringify!` macro is used to get the name of the function.
+// `Abs` would otherwise be `Abs` instead of `abs`. and so on.
+#![allow(non_camel_case_types)]
+
+use crate::{builtins::BuiltinFunction, document};
 use datafusion::logical_expr::AggregateFunction;
+use protogen::metastore::types::catalog::FunctionType;
 
-use crate::builtins::BuiltinFunction;
-
-// mostly using a macro here to preserve the formatting.
-// rustfmt will otherwise compact the lines.
-macro_rules! make_const {
-    (
-        $var_name:ident,
-        name => $name:expr,
-        example => $example:expr,
-        description => $description:expr
-    ) => {
-        const $var_name: (&str, &str, &str) = ($name, $example, $description);
-    };
-}
-make_const! {
-    APPROX_DISTINCT,
-    name => "approx_distinct",
-    example => "approx_distinct(a)",
-    description => "Gives the approximate count of distinct elements using HyperLogLog."
+document! {
+    "Gives the approximate count of distinct elements using HyperLogLog.",
+    "approx_distinct(a)",
+    approx_distinct
 }
 
-make_const!(
-    APPROX_MEDIAN,
-    name => "approx_median",
-    example => "approx_median(a)",
-    description => "Gives the approximate median of a column."
-);
+document! {
+    "Gives the approximate median of a column.",
+    "approx_median(a)",
+    approx_median
+}
 
-make_const!(
-    APPROX_PERCENTILE_CONT,
-    name => "approx_percentile_cont",
-    example => "approx_percentile_cont(a)",
-    description => "Gives the approximate percentile of a column"
-);
+document! {
+    "Gives the approximate percentile of a column",
+    "approx_percentile_cont(a)",
+    approx_percentile_cont
+}
 
-make_const!(
-    APPROX_PERCENTILE_CONT_WITH_WEIGHT,
-    name => "approx_percentile_cont_with_weight",
-    example => "approx_percentile_cont_with_weight(a)",
-    description => "Gives the approximate percentile of a column with a weight column"
-);
+document! {
+    "Gives the approximate percentile of a column with a weight column",
+    "approx_percentile_cont_with_weight(a)",
+    approx_percentile_cont_with_weight
+}
 
-make_const!(
-    ARRAY_AGG,
-    name => "array_agg",
-    example => "array_agg(a)",
-    description => "Returns a list containing all the values of a column"
+document! {
+    "Returns a list containing all the values of a column",
+    "array_agg(a)",
+    array_agg
+}
+document! {
+    "Returns the average of a column",
+    "avg(a)",
+    avg
+}
+document! {
+    "Returns the bitwise AND of a column",
+    "bit_and(a)",
+    bit_and
+}
+document! {
+    "Returns the bitwise OR of a column",
+    "bit_or(a)",
+    bit_or
+}
+document! {
+    "Returns the bitwise XOR of a column",
+    "bit_xor(a)",
+    bit_xor
+}
+document!(
+    "Returns the boolean AND of a column",
+    "bool_and(a)",
+    bool_and
 );
-make_const!(
-    AVG,
-    name => "avg",
-    example => "avg(a)",
-    description => "Returns the average of a column"
-);
-make_const!(
-    BIT_AND,
-    name => "bit_and",
-    example => "bit_and(a)",
-    description => "Returns the bitwise AND of a column"
-);
-make_const!(
-    BIT_OR,
-    name => "bit_or",
-    example => "bit_or(a)",
-    description => "Returns the bitwise OR of a column"
-);
-make_const!(
-    BIT_XOR,
-    name => "bit_xor",
-    example => "bit_xor(a)",
-    description => "Returns the bitwise XOR of a column"
-);
-make_const!(
-    BOOL_AND,
-    name => "bool_and",
-    example => "bool_and(a)",
-    description => "Returns the boolean AND of a column"
-);
-make_const!(
-    BOOL_OR,
-    name => "bool_or",
-    example => "bool_or(a)",
-    description => "Returns the boolean OR of a column"
-);
-make_const!(
-    CORRELATION,
-    name => "correlation",
-    example => "correlation(x, y)",
-    description => "Returns the correlation coefficient of two columns"
-);
-make_const!(
-    COUNT,
-    name => "count",
-    example => "count(a)",
-    description => "Returns the number of rows in a column"
-);
-make_const!(
-    COVARIANCE,
-    name => "covariance",
-    example => "covariance(x, y)",
-    description => "Returns the covariance of two columns"
-);
-make_const!(
-    COVARIANCE_POP,
-    name => "covariance_pop",
-    example => "covariance_pop(x, y)",
-    description => "Returns the population covariance of two columns"
-);
-make_const!(
-    FIRST_VALUE,
-    name => "first_value",
-    example => "first_value(a)",
-    description => "Returns the first value in a column"
-);
-make_const!(
-    GROUPING,
-    name => "grouping",
-    example => "grouping(a)",
-    description => "Returns 1 if a column is aggregated, 0 otherwise"
-);
-make_const!(
-    LAST_VALUE,
-    name => "last_value",
-    example => "last_value(a)",
-    description => "Returns the last value in a column"
-);
-make_const!(
-    MAX,
-    name => "max",
-    example => "max(a)",
-    description => "Returns the maximum value in a column"
-);
-make_const!(
-    MEDIAN,
-    name => "median",
-    example => "median(a)",
-    description => "Returns the median value in a column"
-);
-make_const!(
-    MIN,
-    name => "min",
-    example => "min(a)",
-    description => "Returns the minimum value in a column"
-);
-make_const!(
-    REGR_AVGX,
-    name => "regr_avgx",
-    example => "regr_avgx(y, x)",
-    description => "Returns the average of the independent variable for non-null pairs in a group, where x is the independent variable and y is the dependent variable."
-);
-make_const!(
-    REGR_AVGY,
-    name => "regr_avgy",
-    example => "regr_avgy(y, x)",
-    description => "Returns the average of the dependent variable for non-null pairs in a group, where x is the independent variable and y is the dependent variable."
-);
-make_const!(
-    REGR_COUNT,
-    name => "regr_count",
-    example => "regr_count(y, x)",
-    description => "Returns the number of non-null number pairs in a group."
-);
-make_const!(
-    REGR_INTERCEPT,
-    name => "regr_intercept",
-    example => "regr_intercept(y, x)",
-    description => "Returns the intercept of the univariate linear regression line for non-null pairs in a group."
-);
-make_const!(
-    REGR_R2,
-    name => "regr_r2",
-    example => "regr_r2(y, x)",
-    description => "Returns the coefficient of determination (R-squared) for non-null pairs in a group."
-);
-make_const!(
-    REGR_SLOPE,
-    name => "regr_slope",
-    example => "regr_slope(y, x)",
-    description => "Returns the slope of the linear regression line for non-null pairs in a group."
-);
-make_const!(
-    REGR_SXX,
-    name => "regr_sxx",
-    example => "regr_sxx(y, x)",
-    description => "Returns the sum of squares of the independent variable for non-null pairs in a group."
-);
-make_const!(
-    REGR_SXY,
-    name => "regr_sxy",
-    example => "regr_sxy(y, x)",
-    description => "Returns the sum of products of independent times dependent variable for non-null pairs in a group."
-);
-make_const!(
-    REGR_SYY,
-    name => "regr_syy",
-    example => "regr_syy(y, x)",
-    description => "Returns the sum of squares of the dependent variable for non-null pairs in a group."
-);
-make_const!(
-    STDDEV,
-    name => "stddev",
-    example => "stddev(a)",
-    description => "Returns the sample standard deviation of a column"
-);
-make_const!(
-    STDDEV_POP,
-    name => "stddev_pop",
-    example => "stddev_pop(a)",
-    description => "Returns the population standard deviation of a column"
-);
-make_const!(
-    SUM,
-    name => "sum",
-    example => "sum(a)",
-    description => "Returns the sum of a column"
-);
-make_const!(
-    VARIANCE,
-    name => "variance",
-    example => "variance(a)",
-    description => "Returns the sample variance of a column"
-);
-make_const!(
-    VARIANCE_POP,
-    name => "variance_pop",
-    example => "variance_pop(a)",
-    description => "Returns the population variance of a column"
-);
+document! {
+    "Returns the boolean OR of a column",
+    "bool_or(a)",
+    bool_or
+}
+
+document! {
+    "Returns the correlation coefficient of two columns",
+    "correlation(x, y)",
+    correlation
+}
+document! {
+    "Returns the number of rows in a column",
+    "count(a)",
+    count
+}
+document! {
+    "Returns the covariance of two columns",
+    "covariance(x, y)",
+    covariance
+}
+document! {
+    "Returns the population covariance of two columns",
+    "covariance_pop(x, y)",
+    covariance_pop
+}
+document! {
+    "Returns the first value in a column",
+    "first_value(a)",
+    first_value
+}
+document! {
+    "Returns 1 if a column is aggregated, 0 otherwise",
+    "grouping(a)",
+    grouping
+}
+document! {
+    "Returns the last value in a column",
+    "last_value(a)",
+    last_value
+}
+document! {
+    "Returns the maximum value in a column",
+    "max(a)",
+    max
+}
+document! {
+    "Returns the median value in a column",
+    "median(a)",
+    median
+}
+document! {
+    "Returns the minimum value in a column",
+    "min(a)",
+    min
+}
+document! {
+    "Returns the average of the independent variable for non-null pairs in a group, where x is the independent variable and y is the dependent variable.",
+    "regr_avgx(y, x)",
+    regr_avgx
+}
+
+document! {
+    "Returns the average of the dependent variable for non-null pairs in a group, where x is the independent variable and y is the dependent variable.",
+    "regr_avgy(y, x)",
+    regr_avgy
+}
+
+document! {
+    "Returns the number of non-null number pairs in a group.",
+    "regr_count(y, x)",
+    regr_count
+}
+
+document! {
+    "Returns the intercept of the univariate linear regression line for non-null pairs in a group.",
+    "regr_intercept(y, x)",
+    regr_intercept
+}
+
+document! {
+    "Returns the coefficient of determination (R-squared) for non-null pairs in a group.",
+    "regr_r2(y, x)",
+    regr_r2
+}
+
+document! {
+    "Returns the slope of the linear regression line for non-null pairs in a group.",
+    "regr_slope(y, x)",
+    regr_slope
+}
+
+document! {
+    "Returns the sum of squares of the independent variable for non-null pairs in a group.",
+    "regr_sxx(y, x)",
+    regr_sxx
+}
+
+document! {
+    "Returns the sum of products of independent times dependent variable for non-null pairs in a group.",
+    "regr_sxy(y, x)",
+    regr_sxy
+}
+
+document! {
+    "Returns the sum of squares of the dependent variable for non-null pairs in a group.",
+    "regr_syy(y, x)",
+    regr_syy
+}
+
+document! {
+    "Returns the sample standard deviation of a column",
+    "stddev(a)",
+    stddev
+}
+
+document! {
+    "Returns the population standard deviation of a column",
+    "stddev_pop(a)",
+    stddev_pop
+}
+
+document! {
+    "Returns the sum of a column",
+    "sum(a)",
+    sum
+}
+document! {
+    "Returns the sample variance of a column",
+    "variance(a)",
+    variance
+}
+
+document! {
+    "Returns the population variance of a column",
+    "variance_pop(a)",
+    variance_pop
+}
 
 impl BuiltinFunction for AggregateFunction {
-    fn name(&self) -> &str {
+    fn function_type(&self) -> FunctionType {
+        FunctionType::Aggregate
+    }
+    fn name(&self) -> &'static str {
         use AggregateFunction::*;
         match self {
-            ApproxDistinct => APPROX_DISTINCT.0,
-            ApproxMedian => APPROX_MEDIAN.0,
-            ApproxPercentileCont => APPROX_PERCENTILE_CONT.0,
-            ApproxPercentileContWithWeight => APPROX_PERCENTILE_CONT_WITH_WEIGHT.0,
-            ArrayAgg => ARRAY_AGG.0,
-            Avg => AVG.0,
-            BitAnd => BIT_AND.0,
-            BitOr => BIT_OR.0,
-            BitXor => BIT_XOR.0,
-            BoolAnd => BOOL_AND.0,
-            BoolOr => BOOL_OR.0,
-            Correlation => CORRELATION.0,
-            Count => COUNT.0,
-            Covariance => COVARIANCE.0,
-            CovariancePop => COVARIANCE_POP.0,
-            FirstValue => FIRST_VALUE.0,
-            Grouping => GROUPING.0,
-            LastValue => LAST_VALUE.0,
-            Max => MAX.0,
-            Median => MEDIAN.0,
-            Min => MIN.0,
-            RegrAvgx => REGR_AVGX.0,
-            RegrAvgy => REGR_AVGY.0,
-            RegrCount => REGR_COUNT.0,
-            RegrIntercept => REGR_INTERCEPT.0,
-            RegrR2 => REGR_R2.0,
-            RegrSlope => REGR_SLOPE.0,
-            RegrSXX => REGR_SXX.0,
-            RegrSXY => REGR_SXY.0,
-            RegrSYY => REGR_SYY.0,
-            Stddev => STDDEV.0,
-            StddevPop => STDDEV_POP.0,
-            Sum => SUM.0,
-            Variance => VARIANCE.0,
-            VariancePop => VARIANCE_POP.0,
+            ApproxDistinct => approx_distinct::NAME,
+            ApproxMedian => approx_median::NAME,
+            ApproxPercentileCont => approx_percentile_cont::NAME,
+            ApproxPercentileContWithWeight => approx_percentile_cont_with_weight::NAME,
+            ArrayAgg => array_agg::NAME,
+            Avg => avg::NAME,
+            BitAnd => bit_and::NAME,
+            BitOr => bit_or::NAME,
+            BitXor => bit_xor::NAME,
+            BoolAnd => bool_and::NAME,
+            BoolOr => bool_or::NAME,
+            Correlation => correlation::NAME,
+            Count => count::NAME,
+            Covariance => covariance::NAME,
+            CovariancePop => covariance_pop::NAME,
+            FirstValue => first_value::NAME,
+            Grouping => grouping::NAME,
+            LastValue => last_value::NAME,
+            Max => max::NAME,
+            Median => median::NAME,
+            Min => min::NAME,
+            RegrAvgx => regr_avgx::NAME,
+            RegrAvgy => regr_avgy::NAME,
+            RegrCount => regr_count::NAME,
+            RegrIntercept => regr_intercept::NAME,
+            RegrR2 => regr_r2::NAME,
+            RegrSlope => regr_slope::NAME,
+            RegrSXX => regr_sxx::NAME,
+            RegrSXY => regr_sxy::NAME,
+            RegrSYY => regr_syy::NAME,
+            Stddev => stddev::NAME,
+            StddevPop => stddev_pop::NAME,
+            Sum => sum::NAME,
+            Variance => variance::NAME,
+            VariancePop => variance_pop::NAME,
         }
     }
 
@@ -278,41 +252,41 @@ impl BuiltinFunction for AggregateFunction {
         use AggregateFunction::*;
         Some(
             match self {
-                ApproxDistinct => APPROX_DISTINCT.1,
-                ApproxMedian => APPROX_MEDIAN.1,
-                ApproxPercentileCont => APPROX_PERCENTILE_CONT.1,
-                ApproxPercentileContWithWeight => APPROX_PERCENTILE_CONT_WITH_WEIGHT.1,
-                ArrayAgg => ARRAY_AGG.1,
-                Avg => AVG.1,
-                BitAnd => BIT_AND.1,
-                BitOr => BIT_OR.1,
-                BitXor => BIT_XOR.1,
-                BoolAnd => BOOL_AND.1,
-                BoolOr => BOOL_OR.1,
-                Correlation => CORRELATION.1,
-                Count => COUNT.1,
-                Covariance => COVARIANCE.1,
-                CovariancePop => COVARIANCE_POP.1,
-                FirstValue => FIRST_VALUE.1,
-                Grouping => GROUPING.1,
-                LastValue => LAST_VALUE.1,
-                Max => MAX.1,
-                Median => MEDIAN.1,
-                Min => MIN.1,
-                RegrAvgx => REGR_AVGX.1,
-                RegrAvgy => REGR_AVGY.1,
-                RegrCount => REGR_COUNT.1,
-                RegrIntercept => REGR_INTERCEPT.1,
-                RegrR2 => REGR_R2.1,
-                RegrSlope => REGR_SLOPE.1,
-                RegrSXX => REGR_SXX.1,
-                RegrSXY => REGR_SXY.1,
-                RegrSYY => REGR_SYY.1,
-                Stddev => STDDEV.1,
-                StddevPop => STDDEV_POP.1,
-                Sum => SUM.1,
-                Variance => VARIANCE.1,
-                VariancePop => VARIANCE_POP.1,
+                ApproxDistinct => approx_distinct::EXAMPLE,
+                ApproxMedian => approx_median::EXAMPLE,
+                ApproxPercentileCont => approx_percentile_cont::EXAMPLE,
+                ApproxPercentileContWithWeight => approx_percentile_cont_with_weight::EXAMPLE,
+                ArrayAgg => array_agg::EXAMPLE,
+                Avg => avg::EXAMPLE,
+                BitAnd => bit_and::EXAMPLE,
+                BitOr => bit_or::EXAMPLE,
+                BitXor => bit_xor::EXAMPLE,
+                BoolAnd => bool_and::EXAMPLE,
+                BoolOr => bool_or::EXAMPLE,
+                Correlation => correlation::EXAMPLE,
+                Count => count::EXAMPLE,
+                Covariance => covariance::EXAMPLE,
+                CovariancePop => covariance_pop::EXAMPLE,
+                FirstValue => first_value::EXAMPLE,
+                Grouping => grouping::EXAMPLE,
+                LastValue => last_value::EXAMPLE,
+                Max => max::EXAMPLE,
+                Median => median::EXAMPLE,
+                Min => min::EXAMPLE,
+                RegrAvgx => regr_avgx::EXAMPLE,
+                RegrAvgy => regr_avgy::EXAMPLE,
+                RegrCount => regr_count::EXAMPLE,
+                RegrIntercept => regr_intercept::EXAMPLE,
+                RegrR2 => regr_r2::EXAMPLE,
+                RegrSlope => regr_slope::EXAMPLE,
+                RegrSXX => regr_sxx::EXAMPLE,
+                RegrSXY => regr_sxy::EXAMPLE,
+                RegrSYY => regr_syy::EXAMPLE,
+                Stddev => stddev::EXAMPLE,
+                StddevPop => stddev_pop::EXAMPLE,
+                Sum => sum::EXAMPLE,
+                Variance => variance::EXAMPLE,
+                VariancePop => variance_pop::EXAMPLE,
             }
             .to_string(),
         )
@@ -321,41 +295,41 @@ impl BuiltinFunction for AggregateFunction {
         use AggregateFunction::*;
         Some(
             match self {
-                ApproxDistinct => APPROX_DISTINCT.2,
-                ApproxMedian => APPROX_MEDIAN.2,
-                ApproxPercentileCont => APPROX_PERCENTILE_CONT.2,
-                ApproxPercentileContWithWeight => APPROX_PERCENTILE_CONT_WITH_WEIGHT.2,
-                ArrayAgg => ARRAY_AGG.2,
-                Avg => AVG.2,
-                BitAnd => BIT_AND.2,
-                BitOr => BIT_OR.2,
-                BitXor => BIT_XOR.2,
-                BoolAnd => BOOL_AND.2,
-                BoolOr => BOOL_OR.2,
-                Correlation => CORRELATION.2,
-                Count => COUNT.2,
-                Covariance => COVARIANCE.2,
-                CovariancePop => COVARIANCE_POP.2,
-                FirstValue => FIRST_VALUE.2,
-                Grouping => GROUPING.2,
-                LastValue => LAST_VALUE.2,
-                Max => MAX.2,
-                Median => MEDIAN.2,
-                Min => MIN.2,
-                RegrAvgx => REGR_AVGX.2,
-                RegrAvgy => REGR_AVGY.2,
-                RegrCount => REGR_COUNT.2,
-                RegrIntercept => REGR_INTERCEPT.2,
-                RegrR2 => REGR_R2.2,
-                RegrSlope => REGR_SLOPE.2,
-                RegrSXX => REGR_SXX.2,
-                RegrSXY => REGR_SXY.2,
-                RegrSYY => REGR_SYY.2,
-                Stddev => STDDEV.2,
-                StddevPop => STDDEV_POP.2,
-                Sum => SUM.2,
-                Variance => VARIANCE.2,
-                VariancePop => VARIANCE_POP.2,
+                ApproxDistinct => approx_distinct::DESCRIPTION,
+                ApproxMedian => approx_median::DESCRIPTION,
+                ApproxPercentileCont => approx_percentile_cont::DESCRIPTION,
+                ApproxPercentileContWithWeight => approx_percentile_cont_with_weight::DESCRIPTION,
+                ArrayAgg => array_agg::DESCRIPTION,
+                Avg => avg::DESCRIPTION,
+                BitAnd => bit_and::DESCRIPTION,
+                BitOr => bit_or::DESCRIPTION,
+                BitXor => bit_xor::DESCRIPTION,
+                BoolAnd => bool_and::DESCRIPTION,
+                BoolOr => bool_or::DESCRIPTION,
+                Correlation => correlation::DESCRIPTION,
+                Count => count::DESCRIPTION,
+                Covariance => covariance::DESCRIPTION,
+                CovariancePop => covariance_pop::DESCRIPTION,
+                FirstValue => first_value::DESCRIPTION,
+                Grouping => grouping::DESCRIPTION,
+                LastValue => last_value::DESCRIPTION,
+                Max => max::DESCRIPTION,
+                Median => median::DESCRIPTION,
+                Min => min::DESCRIPTION,
+                RegrAvgx => regr_avgx::DESCRIPTION,
+                RegrAvgy => regr_avgy::DESCRIPTION,
+                RegrCount => regr_count::DESCRIPTION,
+                RegrIntercept => regr_intercept::DESCRIPTION,
+                RegrR2 => regr_r2::DESCRIPTION,
+                RegrSlope => regr_slope::DESCRIPTION,
+                RegrSXX => regr_sxx::DESCRIPTION,
+                RegrSXY => regr_sxy::DESCRIPTION,
+                RegrSYY => regr_syy::DESCRIPTION,
+                Stddev => stddev::DESCRIPTION,
+                StddevPop => stddev_pop::DESCRIPTION,
+                Sum => sum::DESCRIPTION,
+                Variance => variance::DESCRIPTION,
+                VariancePop => variance_pop::DESCRIPTION,
             }
             .to_string(),
         )
