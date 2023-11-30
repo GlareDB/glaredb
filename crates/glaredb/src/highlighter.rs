@@ -137,7 +137,7 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                     st.push((new_style().fg(Color::LightGreen), format!("{w}")));
                 }
                 Keyword::NoKeyword => match w.value.to_uppercase().as_str() {
-                    "TUNNEL" | "PROVIDER" => {
+                    "TUNNEL" | "PROVIDER" | "CREDENTIAL" => {
                         st.push((new_style().fg(Color::LightGreen), format!("{w}")))
                     }
                     _ => st.push((new_style(), format!("{w}"))),

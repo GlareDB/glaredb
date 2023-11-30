@@ -297,6 +297,38 @@ impl fmt::Display for CreateCredentialsStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateCredentialStmt {
+    /// Name of the credentials as it exists in GlareDB.
+    pub name: Ident,
+    /// The credentials provider.
+    pub provider: Ident,
+    /// Credentials specific options.
+    pub options: StmtOptions,
+    /// Optional comment (what the credentials are for).
+    pub comment: String,
+    /// replace if it exists
+    pub or_replace: bool,
+}
+
+impl fmt::Display for CreateCredentialStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "CREATE CREDENTIAL {} PROVIDER {}",
+            self.name, self.provider
+        )?;
+        if !self.options.is_empty() {
+            write!(f, " {}", self.options)?;
+        }
+
+        if !self.comment.is_empty() {
+            write!(f, " COMMENT '{}'", self.comment)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropCredentialsStmt {
     pub names: Vec<Ident>,
     pub if_exists: bool,
@@ -384,6 +416,8 @@ pub enum StatementWithExtensions {
     /// Alter tunnel extension.
     AlterTunnel(AlterTunnelStmt),
     /// Create credentials extension.
+    CreateCredential(CreateCredentialStmt),
+    /// Create credentials extension.
     CreateCredentials(CreateCredentialsStmt),
     /// Drop credentials extension.
     DropCredentials(DropCredentialsStmt),
@@ -403,6 +437,7 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::AlterTunnel(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::CreateCredential(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateCredentials(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropCredentials(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CopyTo(stmt) => write!(f, "{}", stmt),
@@ -536,9 +571,12 @@ impl<'a> CustomParser<'a> {
         } else if self.consume_token(&Token::make_keyword("TUNNEL")) {
             // CREATE TUNNEL ...
             self.parse_create_tunnel()
+        } else if self.consume_token(&Token::make_keyword("CREDENTIAL")) {
+            // CREATE CREDENTIAL ...
+            self.parse_create_credentials(false, or_replace)
         } else if self.parser.parse_keyword(Keyword::CREDENTIALS) {
             // CREATE CREDENTIALS ...
-            self.parse_create_credentials(or_replace)
+            self.parse_create_credentials(true, or_replace)
         } else {
             // Fall back to underlying parser.
 
@@ -715,6 +753,7 @@ impl<'a> CustomParser<'a> {
 
     fn parse_create_credentials(
         &mut self,
+        deprecated: bool,
         or_replace: bool,
     ) -> Result<StatementWithExtensions, ParserError> {
         let name = self.parser.parse_identifier()?;
@@ -733,15 +772,25 @@ impl<'a> CustomParser<'a> {
             "".to_owned()
         };
 
-        Ok(StatementWithExtensions::CreateCredentials(
-            CreateCredentialsStmt {
+        let stmt = if deprecated {
+            StatementWithExtensions::CreateCredentials(CreateCredentialsStmt {
                 name,
                 provider,
                 options,
                 comment,
                 or_replace,
-            },
-        ))
+            })
+        } else {
+            StatementWithExtensions::CreateCredential(CreateCredentialStmt {
+                name,
+                provider,
+                options,
+                comment,
+                or_replace,
+            })
+        };
+
+        Ok(stmt)
     }
 
     fn parse_object_type(&mut self, object_type: &str) -> Result<Ident, ParserError> {

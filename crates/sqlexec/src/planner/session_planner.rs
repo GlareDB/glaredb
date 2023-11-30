@@ -62,9 +62,9 @@ use crate::context::local::LocalSessionContext;
 use crate::parser::options::StmtOptions;
 use crate::parser::{
     self, validate_ident, validate_object_name, AlterDatabaseStmt, AlterTableStmtExtension,
-    AlterTunnelAction, AlterTunnelStmt, CopyToSource, CopyToStmt, CreateCredentialsStmt,
-    CreateExternalDatabaseStmt, CreateExternalTableStmt, CreateTunnelStmt, DropCredentialsStmt,
-    DropDatabaseStmt, DropTunnelStmt, StatementWithExtensions,
+    AlterTunnelAction, AlterTunnelStmt, CopyToSource, CopyToStmt, CreateCredentialStmt,
+    CreateCredentialsStmt, CreateExternalDatabaseStmt, CreateExternalTableStmt, CreateTunnelStmt,
+    DropCredentialsStmt, DropDatabaseStmt, DropTunnelStmt, StatementWithExtensions,
 };
 use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::*;
@@ -79,6 +79,42 @@ use super::physical_plan::remote_scan::ProviderReference;
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {
     ctx: &'a LocalSessionContext,
+}
+
+struct PlanCredentialArgs {
+    /// Name of the credentials as it exists in GlareDB.
+    name: Ident,
+    /// The credentials provider.
+    provider: Ident,
+    /// Credentials specific options.
+    options: StmtOptions,
+    /// Optional comment (what the credentials are for).
+    comment: String,
+    or_replace: bool,
+}
+
+impl From<CreateCredentialsStmt> for PlanCredentialArgs {
+    fn from(value: CreateCredentialsStmt) -> Self {
+        PlanCredentialArgs {
+            name: value.name,
+            provider: value.provider,
+            options: value.options,
+            comment: value.comment,
+            or_replace: value.or_replace,
+        }
+    }
+}
+
+impl From<CreateCredentialStmt> for PlanCredentialArgs {
+    fn from(value: CreateCredentialStmt) -> Self {
+        PlanCredentialArgs {
+            name: value.name,
+            provider: value.provider,
+            options: value.options,
+            comment: value.comment,
+            or_replace: value.or_replace,
+        }
+    }
 }
 
 impl<'a> SessionPlanner<'a> {
@@ -111,7 +147,12 @@ impl<'a> SessionPlanner<'a> {
             StatementWithExtensions::CreateTunnel(stmt) => self.plan_create_tunnel(stmt),
             StatementWithExtensions::DropTunnel(stmt) => self.plan_drop_tunnel(stmt),
             StatementWithExtensions::AlterTunnel(stmt) => self.plan_alter_tunnel(stmt),
-            StatementWithExtensions::CreateCredentials(stmt) => self.plan_create_credentials(stmt),
+            StatementWithExtensions::CreateCredential(stmt) => {
+                self.plan_create_credentials(stmt.into(), false)
+            }
+            StatementWithExtensions::CreateCredentials(stmt) => {
+                self.plan_create_credentials(stmt.into(), true)
+            }
             StatementWithExtensions::DropCredentials(stmt) => self.plan_drop_credentials(stmt),
             StatementWithExtensions::CopyTo(stmt) => self.plan_copy_to(stmt).await,
         }
@@ -697,7 +738,11 @@ impl<'a> SessionPlanner<'a> {
         Ok(plan.into_logical_plan())
     }
 
-    fn plan_create_credentials(&self, mut stmt: CreateCredentialsStmt) -> Result<LogicalPlan> {
+    fn plan_create_credentials(
+        &self,
+        mut stmt: PlanCredentialArgs,
+        deprecated: bool,
+    ) -> Result<LogicalPlan> {
         let m = &mut stmt.options;
 
         let provider = normalize_ident(stmt.provider);
@@ -736,14 +781,25 @@ impl<'a> SessionPlanner<'a> {
 
         let name = normalize_ident(stmt.name);
 
-        let plan = CreateCredentials {
-            name,
-            options,
-            comment: stmt.comment,
-            or_replace: stmt.or_replace,
+        let plan = if deprecated {
+            CreateCredentials {
+                name,
+                options,
+                comment: stmt.comment,
+                or_replace: stmt.or_replace,
+            }
+            .into_logical_plan()
+        } else {
+            CreateCredential {
+                name,
+                options,
+                comment: stmt.comment,
+                or_replace: stmt.or_replace,
+            }
+            .into_logical_plan()
         };
 
-        Ok(plan.into_logical_plan())
+        Ok(plan)
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
