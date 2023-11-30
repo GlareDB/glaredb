@@ -81,6 +81,8 @@ pub enum ExecutionResult {
     /// Tunnel created.
     CreateTunnel,
     /// Credentials created.
+    CreateCredential,
+    /// Credentials created.
     CreateCredentials,
     /// Schema created.
     CreateSchema,
@@ -171,6 +173,7 @@ impl ExecutionResult {
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateTunnel => "create_tunnel",
+            ExecutionResult::CreateCredential => "create_credential",
             ExecutionResult::CreateCredentials => "create_credentials",
             ExecutionResult::CreateSchema => "create_schema",
             ExecutionResult::CreateView => "create_view",
@@ -193,6 +196,7 @@ impl ExecutionResult {
             ExecutionResult::CreateTable
                 | ExecutionResult::CreateDatabase
                 | ExecutionResult::CreateTunnel
+                | ExecutionResult::CreateCredential
                 | ExecutionResult::CreateCredentials
                 | ExecutionResult::CreateSchema
                 | ExecutionResult::CreateView
@@ -230,6 +234,7 @@ impl ExecutionResult {
             "create_table" => ExecutionResult::CreateTable,
             "create_database" => ExecutionResult::CreateDatabase,
             "create_tunnel" => ExecutionResult::CreateTunnel,
+            "create_credential" => ExecutionResult::CreateCredential,
             "create_credentials" => ExecutionResult::CreateCredentials,
             "create_schema" => ExecutionResult::CreateSchema,
             "create_view" => ExecutionResult::CreateView,
@@ -286,7 +291,8 @@ impl fmt::Display for ExecutionResult {
             ExecutionResult::CreateTable => write!(f, "Table created"),
             ExecutionResult::CreateDatabase => write!(f, "Database created"),
             ExecutionResult::CreateTunnel => write!(f, "Tunnel created"),
-            ExecutionResult::CreateCredentials => write!(f, "Credentials created"),
+            ExecutionResult::CreateCredential => write!(f, "Credential created"),
+            ExecutionResult::CreateCredentials => write!(f, "Credentials created\nDEPRECATION WARNING. `CREATE CREDENTIALS` is deprecated and will be removed in a future release. Please use `CREATE CREDENTIAL` instead."),
             ExecutionResult::CreateSchema => write!(f, "Schema create"),
             ExecutionResult::CreateView => write!(f, "View created"),
             ExecutionResult::AlterTable => write!(f, "Table altered"),
@@ -424,7 +430,6 @@ impl Session {
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
         let context = self.ctx.task_context();
-
         let stream = if self.ctx.get_session_vars().enable_experimental_scheduler() {
             let scheduler = self.ctx.get_task_scheduler();
             let (sink, stream) =
