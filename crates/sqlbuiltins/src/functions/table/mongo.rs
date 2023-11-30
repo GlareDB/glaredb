@@ -8,17 +8,19 @@ use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
-use crate::builtins::{BuiltinFunction, TableFunc};
+use crate::builtins::{ConstBuiltinFunction, TableFunc};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadMongoDb;
 
-impl BuiltinFunction for ReadMongoDb {
-    fn name(&self) -> &str {
-        "read_mongodb"
-    }
+impl ConstBuiltinFunction for ReadMongoDb {
+    const NAME: &'static str = "read_mongodb";
+    const DESCRIPTION: &'static str = "Reads a MongoDB table";
+    const EXAMPLE: &'static str =
+        "SELECT * FROM read_mongodb('mongodb://localhost:27017', 'database', 'collection')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(

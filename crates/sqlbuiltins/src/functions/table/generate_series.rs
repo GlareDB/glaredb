@@ -21,17 +21,18 @@ use datafusion_ext::functions::{FromFuncParamValue, FuncParamValue, TableFuncCon
 use decimal::Decimal128;
 use futures::Stream;
 use num_traits::Zero;
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
-use crate::builtins::{BuiltinFunction, TableFunc};
+use crate::builtins::{ConstBuiltinFunction, TableFunc};
 
 #[derive(Debug, Clone, Copy)]
 pub struct GenerateSeries;
 
-impl BuiltinFunction for GenerateSeries {
-    fn name(&self) -> &str {
-        "generate_series"
-    }
+impl ConstBuiltinFunction for GenerateSeries {
+    const NAME: &'static str = "generate_series";
+    const DESCRIPTION: &'static str = "Generate a series of values";
+    const EXAMPLE: &'static str = "SELECT * FROM generate_series(1, 10, 2)";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::OneOf(vec![

@@ -5,8 +5,7 @@ use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use protogen::metastore::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
-    EntryType, FunctionEntry, FunctionType, RuntimePreference, SchemaEntry, SourceAccessMode,
-    TableEntry, TunnelEntry, ViewEntry,
+    EntryType, SchemaEntry, SourceAccessMode, TableEntry, TunnelEntry, ViewEntry,
 };
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
@@ -14,10 +13,10 @@ use protogen::metastore::types::options::{
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
 use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
-    BuiltinDatabase, BuiltinFunction, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT,
-    DEFAULT_SCHEMA, FIRST_NON_SCHEMA_ID,
+    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
+    FIRST_NON_SCHEMA_ID,
 };
-use sqlbuiltins::functions::{BUILTIN_AGGREGATE_FUNCS, BUILTIN_SCALAR_FUNCS, BUILTIN_TABLE_FUNCS};
+use sqlbuiltins::functions::{BUILTIN_FUNCS, BUILTIN_TABLE_FUNCS};
 use sqlbuiltins::validation::{
     validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
 };
@@ -1288,16 +1287,10 @@ impl BuiltinCatalog {
             let schema_id = schema_names
                 .get(DEFAULT_SCHEMA)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
+            let mut entry = func.as_function_entry(oid, *schema_id);
+            entry.runtime_preference = func.runtime_preference();
 
-            entries.insert(
-                oid,
-                CatalogEntry::Function(FunctionEntry {
-                    meta: func.to_entry_meta(oid, *schema_id),
-                    func_type: FunctionType::TableReturning,
-                    runtime_preference: func.runtime_preference(),
-                    signature: func.signature(),
-                }),
-            );
+            entries.insert(oid, CatalogEntry::Function(entry));
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
@@ -1306,8 +1299,7 @@ impl BuiltinCatalog {
 
             oid += 1;
         }
-
-        for func in BUILTIN_SCALAR_FUNCS.iter_funcs() {
+        for func in BUILTIN_FUNCS.iter_funcs() {
             // Put them all in the default schema.
             let schema_id = schema_names
                 .get(DEFAULT_SCHEMA)
@@ -1315,41 +1307,13 @@ impl BuiltinCatalog {
 
             entries.insert(
                 oid,
-                CatalogEntry::Function(FunctionEntry {
-                    meta: func.to_entry_meta(oid, *schema_id),
-                    func_type: FunctionType::Scalar,
-                    runtime_preference: RuntimePreference::Unspecified,
-                    signature: Some(func.signature()),
-                }),
+                CatalogEntry::Function(func.as_function_entry(oid, *schema_id)),
             );
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
                 .functions
-                .insert(func.to_string(), oid);
-
-            oid += 1;
-        }
-        for func in BUILTIN_AGGREGATE_FUNCS.iter_funcs() {
-            // Put them all in the default schema.
-            let schema_id = schema_names
-                .get(DEFAULT_SCHEMA)
-                .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
-
-            entries.insert(
-                oid,
-                CatalogEntry::Function(FunctionEntry {
-                    meta: func.to_entry_meta(oid, *schema_id),
-                    func_type: FunctionType::Aggregate,
-                    runtime_preference: RuntimePreference::Unspecified,
-                    signature: Some(func.signature()),
-                }),
-            );
-            schema_objects
-                .get_mut(schema_id)
-                .unwrap()
-                .functions
-                .insert(func.to_string().to_ascii_uppercase(), oid);
+                .insert(func.name().to_string(), oid);
 
             oid += 1;
         }
