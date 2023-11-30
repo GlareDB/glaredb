@@ -194,7 +194,7 @@ make_const!(
     RANDOM,
     name => "random",
     example => "random()",
-    description => "Compute a random number between 0 and 1."
+    description => "Compute a pseudo-random number between 0 and 1."
 );
 make_const!(
     ROUND,
@@ -416,7 +416,7 @@ make_const!(
     TRIM,
     name => "trim",
     example => "trim(' hello ')",
-    description => "Remove all spaces from the start and end of a string."
+    description => "Remove all spaces from the beginning and end of a string."
 );
 make_const!(
     UPPER,
@@ -464,7 +464,7 @@ make_const!(
     DATE_BIN,
     name => "date_bin",
     example => "date_bin('15 minutes', TIMESTAMP '2022-01-01 15:07:00', TIMESTAMP '2020-01-01)",
-    description => "Returns the date truncated to the specified unit."
+    description => "Returns the date binned to the specified interval."
 );
 make_const!(
     DATE_TRUNC,
@@ -577,20 +577,20 @@ make_const!(
 make_const!(
     ARRAY_DIMS,
     name => "array_dims",
-    example => "array_dims([1, 2])",
+    example => "array_dims([[[1]]])",
     description => "Returns the dimensions of an array."
 );
 make_const!(
     ARRAY_EMPTY,
     name => "empty",
-    example => "empty()",
-    description => "Check if an array is empty."
+    example => "empty([])",
+    description => "Check if an array is empty. Returns true if empty"
 );
 make_const!(
     ARRAY_ELEMENT,
     name => "array_element",
     example => "array_element([1, 2], 1)",
-    description => "Returns the element of an array at the specified index."
+    description => "Returns the element of an array at the specified index (using one-based indexing)"
 );
 make_const!(
     FLATTEN,
@@ -625,7 +625,7 @@ make_const!(
 make_const!(
     ARRAY_NDIMS,
     name => "array_ndims",
-    example => "array_ndims([1, 2])",
+    example => "array_ndims([ [1, 2], [3, 4] ])",
     description => "Returns the number of dimensions of an array."
 );
 make_const!(
