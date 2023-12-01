@@ -48,6 +48,12 @@ impl BuiltinFuncs {
     }
 }
 
+impl Default for BuiltinFuncs {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // Define a macro to associate doc strings and examples with items
 // The macro helps preserve the line wrapping. rustfmt will otherwise collapse the lines.
 #[macro_export]
