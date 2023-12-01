@@ -1,15 +1,19 @@
 use std::any::Any;
 use std::collections::HashMap;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
+use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
+use datafusion::execution::TaskContext;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::streaming::PartitionStream;
+use datafusion::physical_plan::{ExecutionPlan, RecordBatchStream};
 use object_store::{ObjectMeta, ObjectStore};
 
 use datafusion_ext::errors::ExtensionError;
@@ -64,7 +68,13 @@ impl TableFunc for BsonScan {
             )));
         }
 
+        let sample_size = match opts.get("schema_sample_size") {
+            Some(v) => v.to_owned().param_into()?,
+            None => 100,
+        };
+
         Ok(Arc::new(BsonTableProvider {
+            _sample_size: sample_size as usize,
             objects: list.to_owned(),
             store: Arc::new(store),
             schema: Arc::new(Schema::empty()),
@@ -76,6 +86,7 @@ pub struct BsonTableProvider {
     objects: Vec<ObjectMeta>,
     store: Arc<dyn ObjectStore>,
     schema: Arc<Schema>,
+    _sample_size: usize,
 }
 
 #[async_trait]
