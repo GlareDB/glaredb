@@ -9,7 +9,7 @@ use datafusion::{
     prelude::Expr,
 };
 use pyo3::prelude::*;
-use sqlexec::LogicalPlan;
+use sqlexec::{LogicalPlan, OperationInfo};
 
 use crate::{
     connection::PyTrackedSession, error::PyGlareDbError, execution_result::PyExecutionResult,
@@ -22,18 +22,19 @@ use datafusion::error::Result as DatafusionResult;
 pub struct PyLogicalPlan {
     pub(super) lp: LogicalPlan,
     pub(super) session: PyTrackedSession,
+    pub(super) op: OperationInfo,
 }
 
 impl PyLogicalPlan {
-    pub(super) fn new(lp: LogicalPlan, session: PyTrackedSession) -> Self {
-        Self { lp, session }
+    pub(super) fn new(lp: LogicalPlan, session: PyTrackedSession, op: OperationInfo) -> Self {
+        Self { lp, session, op }
     }
 
     fn execute_inner(&self, py: Python) -> PyResult<PyExecutionResult> {
         wait_for_future(py, async move {
             let mut sess = self.session.lock().await;
             let (_, stream) = sess
-                .execute_inner(self.lp.clone())
+                .execute_inner(self.lp.clone(), &self.op)
                 .await
                 .map_err(PyGlareDbError::from)?;
 

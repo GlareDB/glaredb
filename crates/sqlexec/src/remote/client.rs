@@ -382,6 +382,7 @@ impl RemoteSessionClient {
     pub async fn physical_plan_execute(
         &mut self,
         physical_plan: Arc<dyn ExecutionPlan>,
+        query_text: String,
     ) -> Result<Streaming<service::RecordBatchResponse>> {
         // Encode the physical plan into a protobuf message.
         let physical_plan = {
@@ -398,6 +399,7 @@ impl RemoteSessionClient {
             database_id: self.database_id(),
             physical_plan,
             user_id: self.user_id,
+            query_text,
         })
         .into_request();
         self.inner.append_auth_metadata(request.metadata_mut());

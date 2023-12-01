@@ -14,7 +14,7 @@ mod functions;
 mod planner;
 mod resolve;
 
-pub use planner::logical_plan::LogicalPlan;
+pub use planner::logical_plan::{LogicalPlan, OperationInfo};
 
 pub mod export {
     pub use datafusion::sql::sqlparser;
