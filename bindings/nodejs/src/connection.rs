@@ -5,7 +5,7 @@ use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::remote::client::{RemoteClient, RemoteClientType};
-use sqlexec::LogicalPlan;
+use sqlexec::{LogicalPlan, OperationInfo};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -187,10 +187,14 @@ impl Connection {
     pub async fn sql(&self, query: String) -> napi::Result<JsLogicalPlan> {
         let cloned_sess = self.sess.clone();
         let mut sess = self.sess.lock().await;
+
         let plan = sess
             .query_to_lp(&query)
             .await
             .map_err(JsGlareDbError::from)?;
+
+        let op = OperationInfo::new().with_query_text(query);
+
         match plan
             .to_owned()
             .try_into_datafusion_plan()
@@ -200,12 +204,17 @@ impl Connection {
             | DFLogicalPlan::Dml(_)
             | DFLogicalPlan::Ddl(_)
             | DFLogicalPlan::Copy(_) => {
-                sess.execute_inner(plan)
+                sess.execute_inner(plan, &op)
                     .await
                     .map_err(JsGlareDbError::from)?;
-                Ok(JsLogicalPlan::new(LogicalPlan::Noop, cloned_sess))
+
+                Ok(JsLogicalPlan::new(
+                    LogicalPlan::Noop,
+                    cloned_sess,
+                    Default::default(),
+                ))
             }
-            _ => Ok(JsLogicalPlan::new(plan, cloned_sess)),
+            _ => Ok(JsLogicalPlan::new(plan, cloned_sess, op)),
         }
     }
 
@@ -231,7 +240,9 @@ impl Connection {
             .await
             .map_err(JsGlareDbError::from)?;
 
-        Ok(JsLogicalPlan::new(plan, cloned_sess))
+        let op = OperationInfo::new().with_query_text(query);
+
+        Ok(JsLogicalPlan::new(plan, cloned_sess, op))
     }
 
     /// Execute a query.
@@ -250,12 +261,16 @@ impl Connection {
     pub async fn execute(&self, query: String) -> napi::Result<()> {
         let sess = self.sess.clone();
         let mut sess = sess.lock().await;
+
         let plan = sess
             .query_to_lp(&query)
             .await
             .map_err(JsGlareDbError::from)?;
+
+        let op = OperationInfo::new().with_query_text(query);
+
         let _ = sess
-            .execute_inner(plan)
+            .execute_inner(plan, &op)
             .await
             .map_err(JsGlareDbError::from)?;
 

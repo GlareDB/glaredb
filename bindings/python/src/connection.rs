@@ -5,7 +5,7 @@ use futures::lock::Mutex;
 use once_cell::sync::OnceCell;
 use pyo3::{prelude::*, types::PyType};
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
-use sqlexec::LogicalPlan;
+use sqlexec::{LogicalPlan, OperationInfo};
 use std::sync::Arc;
 
 pub(super) type PyTrackedSession = Arc<Mutex<TrackedSession>>;
@@ -108,10 +108,14 @@ impl Connection {
         let cloned_sess = self.sess.clone();
         wait_for_future(py, async move {
             let mut sess = self.sess.lock().await;
+
             let plan = sess
                 .query_to_lp(query)
                 .await
                 .map_err(PyGlareDbError::from)?;
+
+            let op = OperationInfo::new().with_query_text(query);
+
             match plan
                 .to_owned()
                 .try_into_datafusion_plan()
@@ -121,12 +125,17 @@ impl Connection {
                 | DFLogicalPlan::Dml(_)
                 | DFLogicalPlan::Ddl(_)
                 | DFLogicalPlan::Copy(_) => {
-                    sess.execute_inner(plan)
+                    sess.execute_inner(plan, &op)
                         .await
                         .map_err(PyGlareDbError::from)?;
-                    Ok(PyLogicalPlan::new(LogicalPlan::Noop, cloned_sess))
+
+                    Ok(PyLogicalPlan::new(
+                        LogicalPlan::Noop,
+                        cloned_sess,
+                        Default::default(),
+                    ))
                 }
-                _ => Ok(PyLogicalPlan::new(plan, cloned_sess)),
+                _ => Ok(PyLogicalPlan::new(plan, cloned_sess, op)),
             }
         })
     }
@@ -149,8 +158,9 @@ impl Connection {
         wait_for_future(py, async move {
             let mut sess = self.sess.lock().await;
             let plan = sess.prql_to_lp(query).await.map_err(PyGlareDbError::from)?;
+            let op = OperationInfo::new().with_query_text(query);
 
-            Ok(PyLogicalPlan::new(plan, cloned_sess))
+            Ok(PyLogicalPlan::new(plan, cloned_sess, op))
         })
     }
 
@@ -174,7 +184,12 @@ impl Connection {
                 .query_to_lp(query)
                 .await
                 .map_err(PyGlareDbError::from)?;
-            sess.execute_inner(plan).await.map_err(PyGlareDbError::from)
+
+            let op = OperationInfo::new().with_query_text(query);
+
+            sess.execute_inner(plan, &op)
+                .await
+                .map_err(PyGlareDbError::from)
         })?;
 
         Ok(PyExecutionResult(exec_result))
