@@ -1,4 +1,6 @@
 //! Utilities for logging and tracing.
+use std::path::PathBuf;
+
 use tracing::{subscriber, trace, Level};
 use tracing_subscriber::{
     filter::EnvFilter,
@@ -71,7 +73,7 @@ pub fn init_test() {
 
 /// Initialize a trace subsriber printing to the console using the given
 /// verbosity count.
-pub fn init(verbosity: impl Into<Verbosity>, mode: LoggingMode) {
+pub fn init(verbosity: impl Into<Verbosity>, mode: LoggingMode, log_file: Option<&PathBuf>) {
     let verbosity: Verbosity = verbosity.into();
     let level: Level = verbosity.into();
 
@@ -84,8 +86,17 @@ pub fn init(verbosity: impl Into<Verbosity>, mode: LoggingMode) {
             subscriber::set_global_default(subscriber)
         }
         LoggingMode::Full => {
-            let subscriber = full_fmt(level).with_env_filter(env_filter).finish();
-            subscriber::set_global_default(subscriber)
+            let subscriber = full_fmt(level).with_env_filter(env_filter);
+
+            if let Some(file) = log_file {
+                let debug_log = {
+                    let file = std::fs::File::create(file).expect("Failed to create log file");
+                    std::sync::Arc::new(file)
+                };
+                subscriber::set_global_default(subscriber.with_writer(debug_log).finish())
+            } else {
+                subscriber::set_global_default(subscriber.finish())
+            }
         }
         LoggingMode::Compact => {
             let subscriber = compact_fmt(level).with_env_filter(env_filter).finish();
