@@ -6,7 +6,9 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion_ext::session_metrics::{BatchStreamWithMetricSender, SessionMetricsHandler};
+use datafusion_ext::session_metrics::{
+    BatchStreamWithMetricSender, QueryMetrics, SessionMetricsHandler,
+};
 use futures::{Stream, StreamExt};
 use protogen::{
     gen::rpcsrv::common,
@@ -162,17 +164,17 @@ impl RpcHandler {
         let session_metrics_handler = SessionMetricsHandler::new(
             req.user_id.unwrap_or_default(),
             req.database_id,
-            Uuid::nil(), // TODO?
+            Uuid::nil(), // TODO: Connection ID?
             self.engine.get_tracker(),
         );
 
-        // TODO: Get query information and fill in `QueryMetrics`.
-        let batches = BatchStreamWithMetricSender::new(
-            batches,
-            plan,
-            Default::default(),
-            session_metrics_handler,
-        );
+        let query_metrics = QueryMetrics {
+            query_text: req.query_text,
+            ..Default::default()
+        };
+
+        let batches =
+            BatchStreamWithMetricSender::new(batches, plan, query_metrics, session_metrics_handler);
 
         Ok(ExecutionResponseBatchStream {
             batches,
