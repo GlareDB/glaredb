@@ -1,5 +1,5 @@
 //! Utilities for logging and tracing.
-use std::path::PathBuf;
+use std::{fs::File, path::PathBuf, sync::Arc};
 
 use tracing::{subscriber, trace, Level};
 use tracing_subscriber::{
@@ -90,8 +90,8 @@ pub fn init(verbosity: impl Into<Verbosity>, mode: LoggingMode, log_file: Option
 
             if let Some(file) = log_file {
                 let debug_log = {
-                    let file = std::fs::File::create(file).expect("Failed to create log file");
-                    std::sync::Arc::new(file)
+                    let file = File::create(file).expect("Failed to create log file");
+                    Arc::new(file)
                 };
                 subscriber::set_global_default(subscriber.with_writer(debug_log).finish())
             } else {

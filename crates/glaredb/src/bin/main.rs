@@ -55,7 +55,9 @@ fn main() -> Result<()> {
     // _unless_ the user specified a logging related option.
     match (&command, cli.log_mode, cli.verbose) {
         (Commands::Local(args), None, 0) => {
-            logutil::init(1, LoggingMode::Full.into(), Some(&args.logs))
+            if let Some(file) = &args.log_file {
+                logutil::init(1, LoggingMode::Full.into(), Some(file))
+            }
         }
         _ => logutil::init(cli.verbose, cli.log_mode.unwrap_or_default().into(), None),
     }

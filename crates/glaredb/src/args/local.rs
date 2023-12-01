@@ -15,9 +15,9 @@ pub struct LocalArgs {
     /// Execute an SQL file.
     pub file: Option<String>,
 
-    /// File for logs to be written to, defaults to debug.log
-    #[clap(long, value_parser, default_value = "debug.log")]
-    pub logs: PathBuf,
+    /// File for logs to be written to
+    #[clap(long, value_parser)]
+    pub log_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Parser)]
