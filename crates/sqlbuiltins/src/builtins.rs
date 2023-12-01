@@ -688,6 +688,10 @@ pub trait BuiltinFunction: Sync + Send {
     fn description(&self) -> Option<String> {
         None
     }
+    /// Return a help string for this function.
+    fn help(&self) -> &'static str {
+        "Sorry, no help available for this function. 😕"
+    }
     // Returns the function type. 'aggregate', 'scalar', or 'table'
     fn function_type(&self) -> FunctionType;
 

@@ -46,6 +46,9 @@ impl BuiltinFuncs {
     pub fn iter_funcs(&self) -> impl Iterator<Item = &Arc<dyn BuiltinFunction>> {
         self.funcs.values()
     }
+    pub fn find_function(&self, name: &str) -> Option<Arc<dyn BuiltinFunction>> {
+        self.funcs.get(name).cloned()
+    }
 }
 
 impl Default for BuiltinFuncs {

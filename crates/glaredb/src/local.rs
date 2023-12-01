@@ -243,6 +243,9 @@ impl LocalSession {
         let val = ss.next();
 
         match (cmd, val) {
+            ("\\help", Some(val)) => {
+                termimad::print_text(LocalClientOpts::help_for_builtin(val)?);
+            }
             ("\\help", None) => {
                 print!("{}", LocalClientOpts::help_string()?);
             }

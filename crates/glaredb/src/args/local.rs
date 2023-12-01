@@ -1,3 +1,5 @@
+use sqlbuiltins::functions::{BUILTIN_FUNCS, BUILTIN_TABLE_FUNCS};
+
 use super::*;
 
 #[derive(Parser, Debug)]
@@ -110,5 +112,19 @@ impl LocalClientOpts {
         }
 
         Ok(buf)
+    }
+
+    pub fn help_for_builtin(function: &str) -> Result<&'static str> {
+        let msg = BUILTIN_FUNCS
+            .find_function(function)
+            .map(|f| f.help())
+            .or_else(|| {
+                BUILTIN_TABLE_FUNCS
+                    .find_function(function)
+                    .map(|f| f.help())
+            })
+            .unwrap();
+        
+        Ok(msg)
     }
 }

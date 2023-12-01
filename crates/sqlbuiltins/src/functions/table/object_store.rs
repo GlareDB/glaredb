@@ -35,7 +35,6 @@ use crate::builtins::{BuiltinFunction, TableFunc};
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
 
 pub const CSV_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "csv_scan");
-
 pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson_scan");
 
 #[derive(Debug, Clone)]
@@ -54,27 +53,14 @@ impl BuiltinFunction for ObjScanTableFunc {
         }
         Some(build_example(self.0.to_string().as_str()))
     }
-    fn description(&self) -> Option<String> {
-        fn build_description(extension: &str) -> String {
-            format!(
-                r#"
-Syntax: 
--- Single url or path.
-{ext}_scan(<url>)
--- Multiple urls or paths.
-{ext}_scan([<url>])
--- Using a cloud credentials object.
-{ext}_scan(<url>, <credential_object>)
--- Required named argument for S3 buckets.
-{ext}_scan(<url>, <credentials_object>, region => '<aws_region>')
--- Pass S3 credentials using named arguments.
-{ext}_scan(<url>, access_key_id => '<aws_access_key_id>', secret_access_key => '<aws_secret_access_key>', region => '<aws_region>')
--- Pass GCS credentials using named arguments.
-{ext}_scan(<url>, service_account_key => '<gcp_service_account_key>'"#,
-                ext = extension
-            )
+    fn help(&self) -> &'static str {
+        match self.0 {
+            FileType::CSV => include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/docs/functions/table/read_csv.md"
+            )),
+            _ => "No help available",
         }
-        Some(build_description(self.0.to_string().as_str()))
     }
 
     fn signature(&self) -> Option<Signature> {
