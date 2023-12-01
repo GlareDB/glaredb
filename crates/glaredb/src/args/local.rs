@@ -17,7 +17,7 @@ pub struct LocalArgs {
 
     /// File for logs to be written to, defaults to debug.log
     #[clap(long, value_parser, default_value = "debug.log")]
-    pub logs: PathBuf
+    pub logs: PathBuf,
 }
 
 #[derive(Debug, Clone, Parser)]
