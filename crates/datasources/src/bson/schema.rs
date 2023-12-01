@@ -1,8 +1,9 @@
-use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use std::collections::HashMap;
 
-use crate::bson::errors::{BsonError, Result};
 use bson::{Bson, Document};
+use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+
+use crate::bson::errors::{BsonError, Result};
 
 /// Recursion limit for inferring the schema for nested documents.
 ///

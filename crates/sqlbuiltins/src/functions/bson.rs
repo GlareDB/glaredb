@@ -1,19 +1,16 @@
 use std::any::Any;
 use std::collections::HashMap;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
-use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
-use datafusion::execution::TaskContext;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
-use datafusion::physical_plan::streaming::PartitionStream;
-use datafusion::physical_plan::{ExecutionPlan, RecordBatchStream};
+use datafusion::physical_plan::ExecutionPlan;
 use object_store::{ObjectMeta, ObjectStore};
 
 use datafusion_ext::errors::ExtensionError;
@@ -68,66 +65,28 @@ impl TableFunc for BsonScan {
             )));
         }
 
-        let sample_size = match opts.get("schema_sample_size") {
+        let _sample_size = match opts.get("schema_sample_size") {
             Some(v) => v.to_owned().param_into()?,
             None => 100,
         };
 
-        Ok(Arc::new(BsonTableProvider {
-            _sample_size: sample_size as usize,
-            objects: list.to_owned(),
-            store: Arc::new(store),
-            schema: Arc::new(Schema::empty()),
-        }))
-    }
-}
+        // TODO: sample until we get to the number of sample size;
 
-pub struct BsonTableProvider {
-    objects: Vec<ObjectMeta>,
-    store: Arc<dyn ObjectStore>,
-    schema: Arc<Schema>,
-    _sample_size: usize,
-}
+        // TODO: hold on to the sample; if we run out of documents we
+        // should just return what we have; [big initial samples used
+        // to just force everything into memory at once].
 
-#[async_trait]
-impl TableProvider for BsonTableProvider {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+        // TODO: have an argument to read things serially. (and maybe
+        // sort objects in the glob by name in this case, and an
+        // option to do it anyway?)
 
-    fn schema(&self) -> SchemaRef {
-        self.schema.clone()
-    }
+        // TODO: take the inferred schema, and write a Partition
+        // handler for every object, add then all to a vector and
+        // return a StreamingTable.
 
-    fn table_type(&self) -> TableType {
-        TableType::Base
-    }
-
-    fn supports_filter_pushdown(
-        &self,
-        _filter: &Expr,
-    ) -> Result<TableProviderFilterPushDown, DataFusionError> {
-        Ok(TableProviderFilterPushDown::Unsupported)
-    }
-
-    async fn scan(
-        &self,
-        _ctx: &SessionState,
-        _projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
-        _limit: Option<usize>,
-    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        if self.schema.fields.is_empty() {
-            return Err(DataFusionError::Internal(
-                "schema should have been inferred".to_string(),
-            ));
-        }
-
-        for obj in &self.objects {
-            let file = self.store.get(&obj.location);
-            print!("{:?}", file.await?.type_id());
-        }
-
-        Err(DataFusionError::NotImplemented("bson scan".to_string()))
+        Ok(Arc::new(StreamingTable::try_new(
+            Arc::new(Schema::empty()), // <= inferred schema
+            Vec::new(),                // <= vector of partition scanners
+        )?))
     }
 }
