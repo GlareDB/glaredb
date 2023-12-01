@@ -8,10 +8,10 @@ use crate::server::{ComputeServer, ServerConfig};
 use anyhow::{anyhow, Result};
 use atty::Stream;
 use clap::Subcommand;
+use ioutil::ensure_dir;
 use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use std::collections::HashMap;
-use std::fs;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
@@ -216,17 +216,7 @@ impl RunCommand for MetastoreArgs {
                 }
             }
             (None, None, Some(p)) => {
-                // Error if the path exists and is not a directory else
-                // create the directory.
-                if p.exists() && !p.is_dir() {
-                    return Err(anyhow!(
-                        "Path '{}' is not a valid directory",
-                        p.to_string_lossy()
-                    ));
-                } else if !p.exists() {
-                    fs::create_dir_all(&p)?;
-                }
-
+                ensure_dir(&p)?;
                 StorageConfig::Local { path: p }
             }
             (None, None, None) => StorageConfig::Memory,

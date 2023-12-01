@@ -7,6 +7,7 @@ use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG
 use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
 use std::collections::HashMap;
 
+use ioutil::ensure_dir;
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::{path::Path as ObjectPath, prefix::PrefixStore};
 use object_store::{Error as ObjectStoreError, ObjectStore};
@@ -54,9 +55,7 @@ pub struct EngineStorageConfig {
 
 impl EngineStorageConfig {
     pub fn try_from_path_buf(path: &PathBuf) -> Result<Self> {
-        if !path.exists() {
-            std::fs::create_dir_all(path)?;
-        }
+        ensure_dir(path)?;
         let path = fs::canonicalize(path)?;
         Ok(Self {
             location: Url::from_directory_path(&path).map_err(|_| {
