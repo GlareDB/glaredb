@@ -397,6 +397,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
 
 pub struct RemotePhysicalPlanner<'a> {
     pub database_id: Uuid,
+    pub query_text: &'a str,
     pub remote_client: RemoteSessionClient,
     pub catalog: &'a SessionCatalog,
 }
@@ -527,6 +528,7 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
                 let physical = Arc::new(RemoteExecutionExec::new(
                     self.remote_client.clone(),
                     physical,
+                    self.query_text.to_string(),
                 ));
 
                 // Create a wrapper physical plan which drives both the

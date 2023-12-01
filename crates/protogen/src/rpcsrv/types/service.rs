@@ -270,6 +270,7 @@ pub struct PhysicalPlanExecuteRequest {
     pub database_id: Uuid,
     pub physical_plan: Vec<u8>,
     pub user_id: Option<Uuid>,
+    pub query_text: String,
 }
 
 impl TryFrom<service::PhysicalPlanExecuteRequest> for PhysicalPlanExecuteRequest {
@@ -279,6 +280,7 @@ impl TryFrom<service::PhysicalPlanExecuteRequest> for PhysicalPlanExecuteRequest
             database_id: Uuid::from_slice(&value.database_id)?,
             physical_plan: value.physical_plan,
             user_id: Uuid::from_slice(&value.user_id).ok(),
+            query_text: value.query_text,
         })
     }
 }
@@ -292,6 +294,7 @@ impl From<PhysicalPlanExecuteRequest> for service::PhysicalPlanExecuteRequest {
                 .user_id
                 .map(|v| v.into_bytes().into())
                 .unwrap_or_default(),
+            query_text: value.query_text,
         }
     }
 }
