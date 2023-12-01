@@ -18,7 +18,7 @@ pub static ARROW_CAST_FUNC: Lazy<ArrowCastFunction> = Lazy::new(|| ArrowCastFunc
 pub static BUILTIN_FUNCS: Lazy<BuiltinFuncs> = Lazy::new(BuiltinFuncs::new);
 
 pub struct BuiltinFuncs {
-    funcs: HashMap<String, Arc<dyn BuiltinFunction>>,
+    pub(self) funcs: HashMap<String, Arc<dyn BuiltinFunction>>,
 }
 
 impl BuiltinFuncs {
@@ -49,6 +49,24 @@ impl BuiltinFuncs {
     pub fn find_function(&self, name: &str) -> Option<Arc<dyn BuiltinFunction>> {
         self.funcs.get(name).cloned()
     }
+}
+
+/// Find the closest matching string to the target string in the candidates list, using edit distance(case insensitve)
+/// Input `candidates` must not be empty otherwise it will panic
+pub fn find_closest_match(target: &str) -> String {
+    let target = target.to_lowercase();
+    BUILTIN_FUNCS
+        .funcs
+        .keys()
+        .chain(BUILTIN_TABLE_FUNCS.funcs.keys())
+        .min_by_key(|candidate| {
+            datafusion::common::utils::datafusion_strsim::levenshtein(
+                &candidate.to_lowercase(),
+                &target,
+            )
+        })
+        .expect("BuiltinFuncs::find_closest_match: funcs is empty")
+        .to_string()
 }
 
 impl Default for BuiltinFuncs {

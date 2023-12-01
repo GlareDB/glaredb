@@ -39,7 +39,7 @@ use crate::builtins::TableFunc;
 
 /// All builtin table functions.
 pub struct BuiltinTableFuncs {
-    funcs: HashMap<String, Arc<dyn TableFunc>>,
+    pub(super) funcs: HashMap<String, Arc<dyn TableFunc>>,
 }
 
 impl BuiltinTableFuncs {

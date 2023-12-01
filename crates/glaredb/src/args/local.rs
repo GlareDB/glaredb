@@ -1,4 +1,4 @@
-use sqlbuiltins::functions::{BUILTIN_FUNCS, BUILTIN_TABLE_FUNCS};
+use sqlbuiltins::functions::{find_closest_match, BUILTIN_FUNCS, BUILTIN_TABLE_FUNCS};
 
 use super::*;
 
@@ -91,7 +91,7 @@ pub struct LocalClientOpts {
 impl LocalClientOpts {
     pub fn help_string() -> Result<String> {
         let pairs = [
-            ("\\help", "Show this help text"),
+            ("\\help ?FUNC", "Show this help text. Optionally shows additional help text for a provided sql function."),
             (
                 "\\mode MODE",
                 "Set the output mode [table, json, ndjson, csv]",
@@ -114,17 +114,24 @@ impl LocalClientOpts {
         Ok(buf)
     }
 
-    pub fn help_for_builtin(function: &str) -> Result<&'static str> {
-        let msg = BUILTIN_FUNCS
+    pub fn help_for_builtin(function: &str) -> Result<String> {
+        let msg = BUILTIN_TABLE_FUNCS
             .find_function(function)
-            .map(|f| f.help())
+            .map(|f| f.help().to_string())
             .or_else(|| {
-                BUILTIN_TABLE_FUNCS
+                BUILTIN_FUNCS
                     .find_function(function)
-                    .map(|f| f.help())
+                    .map(|f| f.help().to_string())
             })
-            .unwrap();
-        
+            .unwrap_or_else(|| {
+                let closest_match = find_closest_match(function);
+
+                format!(
+                    "Function `{}` not found. Did you mean `{}`?",
+                    function, closest_match
+                )
+            });
+
         Ok(msg)
     }
 }
