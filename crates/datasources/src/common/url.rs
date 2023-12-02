@@ -1,15 +1,14 @@
 //! Utility for source "URLs".
+use std::{borrow::Cow, fmt::Display, path::PathBuf};
 
 use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
-use std::{borrow::Cow, fmt::Display, path::PathBuf};
+use url::Url;
 
-use datafusion::scalar::ScalarValue;
 use datafusion_ext::{
     errors::ExtensionError,
     functions::{FromFuncParamValue, FuncParamValue},
 };
-use url::Url;
 
 use super::errors::{DatasourceCommonError, Result};
 
@@ -50,17 +49,15 @@ impl Display for DatasourceUrl {
     }
 }
 
-impl FromFuncParamValue for DatasourceUrl {
-    fn from_param(value: FuncParamValue) -> datafusion_ext::errors::Result<Self> {
-        let url_string: String = value.param_into()?;
+impl TryFrom<FuncParamValue> for DatasourceUrl {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> datafusion_ext::errors::Result<Self> {
+        let url_string: String = value.try_into()?;
         Self::try_new(&url_string).map_err(|_e| ExtensionError::InvalidParamValue {
             param: url_string,
             expected: "datasource url",
         })
-    }
-
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(value, FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))))
     }
 }
 
@@ -162,6 +159,18 @@ impl TryFrom<&str> for DatasourceUrl {
     type Error = DatasourceCommonError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::try_new(value)
+    }
+}
+
+impl FromFuncParamValue for DatasourceUrl {
+    fn from_param(value: FuncParamValue) -> Result<Self, ExtensionError> {
+        value
+            .to_owned()
+            .try_into()
+            .map_err(|_| ExtensionError::InvalidParamValue {
+                param: value.to_string(),
+                expected: "url",
+            })
     }
 }
 

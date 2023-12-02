@@ -278,6 +278,13 @@ impl FuncParamValue {
     {
         T::from_param_ref(self)
     }
+
+    pub fn is_valid<T: FromFuncParamValue>(&self) -> bool {
+        match T::from_param(self.to_owned()) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
 }
 
 pub trait FromFuncParamValue: Sized {
@@ -286,40 +293,41 @@ pub trait FromFuncParamValue: Sized {
     fn from_param_ref(value: &FuncParamValue) -> Result<Self> {
         Self::from_param(value.clone())
     }
-
-    /// Check if the value is valid (able to convert).
-    ///
-    /// If `is_param_valid` returns true, `from_param` should be safely
-    /// `unwrap`able (i.e., not panic).
-    fn is_param_valid(value: &FuncParamValue) -> bool;
 }
 
-impl FromFuncParamValue for String {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
+impl TryFrom<FuncParamValue> for String {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
         match value {
-            FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => Ok(s),
+            FuncParamValue::Scalar(ScalarValue::Utf8(Some(s)))
+            | FuncParamValue::Scalar(ScalarValue::LargeUtf8(Some(s))) => Ok(s),
             other => Err(ExtensionError::InvalidParamValue {
                 param: other.to_string(),
                 expected: "string",
             }),
         }
     }
-
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(value, FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))))
-    }
 }
 
-impl<T> FromFuncParamValue for Vec<T>
+impl<T> TryFrom<FuncParamValue> for Vec<T>
 where
-    T: FromFuncParamValue,
+    T: std::convert::TryFrom<FuncParamValue>,
 {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Array(arr) => {
                 let mut res = Vec::with_capacity(arr.len());
                 for val in arr {
-                    res.push(T::from_param(val)?);
+                    let item = val.to_owned();
+                    res.push(
+                        T::try_from(item).map_err(|_| ExtensionError::InvalidParamValue {
+                            param: val.to_string(),
+                            expected: "list value",
+                        })?,
+                    )
                 }
                 Ok(res)
             }
@@ -328,14 +336,6 @@ where
                 param: other.to_string(),
                 expected: "list",
             }),
-        }
-    }
-
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        if let FuncParamValue::Array(arr) = value {
-            arr.iter().all(|v| T::is_param_valid(v))
-        } else {
-            false
         }
     }
 }
@@ -366,6 +366,33 @@ impl From<IdentValue> for String {
     }
 }
 
+impl TryFrom<FuncParamValue> for IdentValue {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Ident(v) => Ok(IdentValue(v)),
+            FuncParamValue::Scalar(sv) => match sv {
+                ScalarValue::Utf8(Some(v)) | ScalarValue::LargeUtf8(Some(v)) => {
+                    Ok(IdentValue(v.to_owned().try_into().map_err(|_| {
+                        ExtensionError::InvalidParamValue {
+                            param: v.to_string(),
+                            expected: "identifer",
+                        }
+                    })?))
+                }
+                other => Err(ExtensionError::InvalidParamValue {
+                    param: other.to_string(),
+                    expected: "identifer",
+                }),
+            },
+            other => Err(ExtensionError::InvalidParamValue {
+                param: other.to_string(),
+                expected: "identifer",
+            }),
+        }
+    }
+}
 impl FromFuncParamValue for IdentValue {
     fn from_param(value: FuncParamValue) -> Result<Self> {
         match value {
@@ -375,10 +402,6 @@ impl FromFuncParamValue for IdentValue {
                 expected: "ident",
             }),
         }
-    }
-
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(value, FuncParamValue::Ident(_))
     }
 }
 
@@ -405,20 +428,6 @@ impl FromFuncParamValue for i64 {
                 expected: "integer",
             }),
         }
-    }
-
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(
-            value,
-            FuncParamValue::Scalar(ScalarValue::Int8(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::Int16(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::Int32(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::Int64(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::UInt8(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::UInt16(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::UInt32(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::UInt64(Some(_)))
-        )
     }
 }
 
@@ -447,13 +456,57 @@ impl FromFuncParamValue for f64 {
             }),
         }
     }
+}
 
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(
-            value,
-            FuncParamValue::Scalar(ScalarValue::Float32(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::Float64(Some(_)))
-        ) || i64::is_param_valid(value)
+impl FromFuncParamValue for bool {
+    fn from_param(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Scalar(s) => match s {
+                ScalarValue::Null => Ok(false),
+                ScalarValue::Boolean(Some(v)) => Ok(v),
+                ScalarValue::Utf8(Some(v)) | ScalarValue::LargeUtf8(Some(v)) => {
+                    match v.to_lowercase().as_str() {
+                        "true" => Ok(true),
+                        "false" => Ok(false),
+                        _ => Err(ExtensionError::InvalidParamValue {
+                            param: v.to_string(),
+                            expected: "boolean",
+                        }),
+                    }
+                }
+                ScalarValue::Int8(_)
+                | ScalarValue::Int16(_)
+                | ScalarValue::Int32(_)
+                | ScalarValue::Int64(_)
+                | ScalarValue::UInt16(_)
+                | ScalarValue::UInt32(_)
+                | ScalarValue::UInt64(_) => {
+                    let v: i64 =
+                        s.to_owned()
+                            .try_into()
+                            .map_err(|_| ExtensionError::InvalidParamValue {
+                                param: s.to_string(),
+                                expected: "boolean",
+                            })?;
+                    match v {
+                        0 => Ok(false),
+                        1 => Ok(true),
+                        _ => Err(ExtensionError::InvalidParamValue {
+                            param: s.to_string(),
+                            expected: "boolean",
+                        }),
+                    }
+                }
+                other => Err(ExtensionError::InvalidParamValue {
+                    param: other.to_string(),
+                    expected: "boolean",
+                }),
+            },
+            other => Err(ExtensionError::InvalidParamValue {
+                param: other.to_string(),
+                expected: "boolean",
+            }),
+        }
     }
 }
 
@@ -482,13 +535,5 @@ impl FromFuncParamValue for Decimal128 {
                 expected: "decimal",
             }),
         }
-    }
-
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(
-            value,
-            FuncParamValue::Scalar(ScalarValue::Decimal128(Some(_), _, _))
-        ) || f64::is_param_valid(value)
-            || i64::is_param_valid(value)
     }
 }

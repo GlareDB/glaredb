@@ -38,10 +38,10 @@ impl TableFunc for ReadBigQuery {
         match args.len() {
             4 => {
                 let mut args = args.into_iter();
-                let service_account: String = args.next().unwrap().param_into()?;
-                let project_id: String = args.next().unwrap().param_into()?;
-                let dataset_id: String = args.next().unwrap().param_into()?;
-                let table_id: String = args.next().unwrap().param_into()?;
+                let service_account: String = args.next().unwrap().try_into()?;
+                let project_id: String = args.next().unwrap().try_into()?;
+                let dataset_id: String = args.next().unwrap().try_into()?;
+                let table_id: String = args.next().unwrap().try_into()?;
 
                 let access = BigQueryAccessor::connect(service_account, project_id)
                     .await

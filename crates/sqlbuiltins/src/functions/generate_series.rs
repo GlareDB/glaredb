@@ -17,9 +17,7 @@ use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{
-    FromFuncParamValue, FuncParamValue, TableFunc, TableFuncContextProvider,
-};
+use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
 use decimal::Decimal128;
 use futures::Stream;
 use num_traits::Zero;
@@ -59,14 +57,14 @@ impl TableFunc for GenerateSeries {
                 let start = args.next().unwrap();
                 let stop = args.next().unwrap();
 
-                if i64::is_param_valid(&start) && i64::is_param_valid(&stop) {
+                if start.is_valid::<i64>() || stop.is_valid::<i64>() {
                     create_straming_table::<GenerateSeriesTypeInt>(
                         GenerateSeriesTypeInt,
                         start.param_into()?,
                         stop.param_into()?,
                         1,
                     )
-                } else if Decimal128::is_param_valid(&start) && Decimal128::is_param_valid(&stop) {
+                } else if start.is_valid::<Decimal128>() && stop.is_valid::<Decimal128>() {
                     let start: Decimal128 = start.param_into()?;
                     let stop: Decimal128 = stop.param_into()?;
                     let step = Decimal128::new(1, 0)?;
@@ -90,19 +88,16 @@ impl TableFunc for GenerateSeries {
                 let stop = args.next().unwrap();
                 let step = args.next().unwrap();
 
-                if i64::is_param_valid(&start)
-                    && i64::is_param_valid(&stop)
-                    && i64::is_param_valid(&step)
-                {
+                if start.is_valid::<i64>() && stop.is_valid::<i64>() && step.is_valid::<i64>() {
                     create_straming_table::<GenerateSeriesTypeInt>(
                         GenerateSeriesTypeInt,
                         start.param_into()?,
                         stop.param_into()?,
                         step.param_into()?,
                     )
-                } else if Decimal128::is_param_valid(&start)
-                    && Decimal128::is_param_valid(&stop)
-                    && Decimal128::is_param_valid(&step)
+                } else if start.is_valid::<Decimal128>()
+                    && stop.is_valid::<Decimal128>()
+                    && step.is_valid::<Decimal128>()
                 {
                     let start: Decimal128 = start.param_into()?;
                     let stop: Decimal128 = stop.param_into()?;

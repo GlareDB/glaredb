@@ -159,14 +159,14 @@ fn table_location_and_opts(
 ) -> Result<(DatasourceUrl, StorageOptions)> {
     let mut args = args.into_iter();
     let first = args.next().unwrap();
-    let url: String = first.param_into()?;
+    let url: String = first.try_into()?;
     let source_url =
         DatasourceUrl::try_new(url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
     let mut maybe_cred_opts = None;
     // Check if a credentials object has been supplied
     if let Some(func_param) = args.next() {
-        let creds: IdentValue = func_param.param_into()?;
+        let creds: IdentValue = func_param.try_into()?;
         maybe_cred_opts = Some(
             ctx.get_session_catalog()
                 .resolve_credentials(creds.as_str())
@@ -197,7 +197,7 @@ fn table_location_and_opts(
             let region = opts
                 .remove(REGION_KEY)
                 .ok_or(ExtensionError::MissingNamedArgument(REGION_KEY))?
-                .param_into()?;
+                .try_into()?;
 
             storage_options.inner.insert(
                 AmazonS3ConfigKey::AccessKeyId.as_ref().to_string(),
