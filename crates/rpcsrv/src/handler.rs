@@ -13,6 +13,7 @@ use futures::{Stream, StreamExt};
 use protogen::{
     gen::rpcsrv::common,
     gen::rpcsrv::service,
+    gen::rpcsrv::simple,
     rpcsrv::types::service::{
         DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse, InitializeSessionRequest,
         InitializeSessionResponse, PhysicalPlanExecuteRequest, TableProviderResponse,
@@ -37,6 +38,8 @@ pub struct RpcHandler {
     engine: Arc<Engine>,
 
     /// Open sessions.
+    ///
+    /// Keyed by database id.
     sessions: DashMap<Uuid, RemoteSession>,
 
     /// Allow initialize session messages from client.
@@ -58,6 +61,31 @@ impl RpcHandler {
         }
     }
 
+    /// Get an existing session for a database, or creates a new one using the
+    /// provided configuration.
+    async fn get_or_initialize_session(
+        &self,
+        db_id: Uuid,
+        storage_conf: SessionStorageConfig,
+    ) -> Result<RemoteSession> {
+        let sess = match self.sessions.get(&db_id) {
+            Some(sess) => sess.clone(),
+            None => {
+                info!(session_id=%db_id, "initializing remote session");
+                let context = self
+                    .engine
+                    .new_remote_session_context(db_id, storage_conf)
+                    .await?;
+
+                let sess = RemoteSession::new(context);
+                self.sessions.insert(db_id, sess.clone());
+                sess
+            }
+        };
+
+        Ok(sess)
+    }
+
     async fn initialize_session_inner(
         &self,
         req: InitializeSessionRequest,
@@ -68,9 +96,7 @@ impl RpcHandler {
         // request from the client.
         let (db_id, user_id, storage_conf) = match req {
             InitializeSessionRequest::Proxy(req) => {
-                let storage_conf = SessionStorageConfig {
-                    gcs_bucket: req.storage_conf.gcs_bucket,
-                };
+                let storage_conf = SessionStorageConfig::from(req.storage_conf);
                 (req.db_id, Some(req.user_id), storage_conf)
             }
             InitializeSessionRequest::Client(req) if self.allow_client_init => {
@@ -90,23 +116,8 @@ impl RpcHandler {
             }
         };
 
-        let sess = match self.get_session(db_id) {
-            Ok(session) => session,
-            Err(_) => {
-                info!(session_id=%db_id, "initializing remote session");
-
-                let context = self
-                    .engine
-                    .new_remote_session_context(db_id, storage_conf)
-                    .await?;
-
-                RemoteSession::new(context)
-            }
-        };
-
+        let sess = self.get_or_initialize_session(db_id, storage_conf).await?;
         let initial_state = sess.get_refreshed_catalog_state().await?;
-
-        self.sessions.insert(db_id, sess);
 
         Ok(InitializeSessionResponse {
             database_id: db_id,
@@ -259,6 +270,19 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
     ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
         let resp = self.broadcast_exchange_inner(request.into_inner()).await?;
         Ok(Response::new(resp))
+    }
+}
+
+#[async_trait]
+impl simple::simple_service_server::SimpleService for RpcHandler {
+    type ExecuteQueryStream =
+        Pin<Box<dyn Stream<Item = Result<simple::ExecuteQueryResponse, Status>> + Send>>;
+
+    async fn execute_query(
+        &self,
+        request: Request<simple::ExecuteQueryRequest>,
+    ) -> Result<Response<Self::ExecuteQueryStream>, Status> {
+        unimplemented!()
     }
 }
 

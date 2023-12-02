@@ -1,16 +1,14 @@
 // Definitions for the "simple query interface".
 //
 // This interface provides a way for an external service (Cloud) to submit
-// potentially long running queries to a glaredb database. These queries are
-// "one shot" meaning the session running the query is not long-lived, and
-// serves to just execute the query.
+// potentially long running queries to a glaredb database. There is no guarantee
+// about the lifetime of the session used for executing these queries.
 //
 // Design decisions/requirements:
 //
 // - No authentication overhead or needing to go through proxies.
 // - No need to get to response data for a query, just needs to know if the
-// query
-// succeeded/failed.
+//   query succeeded/failed.
 // - Not exposed to the user in any way.
 //
 // Note that this will likely be replaced by a FlightSQL implementation (which
@@ -21,16 +19,13 @@
 
 syntax = "proto3";
 
-package rpcsrv.simple;
+import "rpcsrv/common.proto";
 
-// Storage config for the session.
-// TODO: This was copied from rpcsrv.service, but I don't know if this is what
-// we want to use long term.
-message SessionStorageConfig { optional string gcs_bucket = 1; }
+package rpcsrv.simple;
 
 message ExecuteQueryRequest {
   // Info needed to create the session.
-  SessionStorageConfig config = 1;
+  common.SessionStorageConfig config = 1;
 
   // Database id we're executing the query for.
   bytes database_id = 2;
@@ -47,6 +42,10 @@ message QueryResultError {
   string msg = 1;
 }
 
+// Result of the query execution.
+//
+// TODO: We may want to extend this to actually stream/return the record
+// batches.
 message ExecuteQueryResponse {
   oneof result {
     QueryResultSuccess success = 1;

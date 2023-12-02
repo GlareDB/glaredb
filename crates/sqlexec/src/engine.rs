@@ -27,6 +27,7 @@ use metastore::util::MetastoreClientMode;
 use object_store_util::conf::StorageConfig;
 use object_store_util::shared::SharedObjectStore;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
+use protogen::rpcsrv::types::common;
 use telemetry::Tracker;
 use tonic::transport::Channel;
 use tracing::{debug, info};
@@ -40,6 +41,14 @@ pub struct SessionStorageConfig {
     /// If this is omitted, the engine storage config should either be set to
     /// local, in-memory or provided via CLI location and storage options.
     pub gcs_bucket: Option<String>,
+}
+
+impl From<common::SessionStorageConfig> for SessionStorageConfig {
+    fn from(value: common::SessionStorageConfig) -> Self {
+        SessionStorageConfig {
+            gcs_bucket: value.gcs_bucket,
+        }
+    }
 }
 
 /// Storage configuration for the compute node.
