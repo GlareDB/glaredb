@@ -373,6 +373,9 @@ impl Engine {
 
     /// Create a new local session, initializing it with the provided session
     /// variables.
+    // TODO: This is _very_ easy to mess up with the vars since we implement
+    // default (which defaults to the nil uuid), but using default would is
+    // incorrect in any case we're running Cloud.
     pub async fn new_local_session_context(
         &self,
         vars: SessionVars,
@@ -443,6 +446,11 @@ impl Engine {
 }
 
 /// A thin wrapper around a session.
+///
+/// This is used to allow the engine to track the number of active sessions.
+/// When this session is no longer used (dropped), the resulting counter will
+/// decrement. This is useful to allow the engine to wait for active sessions to
+/// complete on shutdown.
 pub struct TrackedSession {
     inner: Session,
     session_counter: Arc<AtomicU64>,
