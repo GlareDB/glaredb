@@ -69,6 +69,16 @@ pub struct ServerArgs {
     #[clap(long, hide = true, value_parser)]
     pub disable_rpc_auth: bool,
 
+    /// Enable the simple query RPC service.
+    ///
+    /// (Internal)
+    ///
+    /// This used to enable Cloud to hit a glaredb instance with SQL queries
+    /// without the overhead of managing system credentials or going through
+    /// proxied.
+    #[clap(long, hide = true, value_parser)]
+    pub enable_simple_query_rpc: bool,
+
     /// API key for segment.
     ///
     /// (Internal)

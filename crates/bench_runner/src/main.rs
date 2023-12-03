@@ -73,6 +73,7 @@ fn main() -> Result<()> {
             None,
             false,
             false,
+            /* enable_simple_query_rpc = */ false,
         )
         .await?;
         tokio::spawn(server.serve(server_conf));

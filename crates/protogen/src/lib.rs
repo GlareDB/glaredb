@@ -72,7 +72,7 @@ pub mod errors {
     }
 
     impl From<std::convert::Infallible> for ProtoConvError {
-        fn from(value: std::convert::Infallible) -> Self {
+        fn from(_value: std::convert::Infallible) -> Self {
             unreachable!()
         }
     }

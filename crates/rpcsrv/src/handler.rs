@@ -321,11 +321,23 @@ impl Stream for ExecutionResponseBatchStream {
     }
 }
 
-// TODO: Do we want this implemented on the same handler as our remote exec
-// stuff? The only thing we need is the engine. We don't share open session
-// between this and remote exec.
+/// The "simple query" rpc handler.
+///
+/// Note that this doesn't keep state about sessions, and session only last the
+/// lifetime of a query.
+pub struct SimpleHandler {
+    /// Core db engine for creating sessions.
+    engine: Arc<Engine>,
+}
+
+impl SimpleHandler {
+    pub fn new(engine: Arc<Engine>) -> SimpleHandler {
+        SimpleHandler { engine }
+    }
+}
+
 #[async_trait]
-impl simple::simple_service_server::SimpleService for RpcHandler {
+impl simple::simple_service_server::SimpleService for SimpleHandler {
     type ExecuteQueryStream = SimpleExecuteQueryStream;
 
     async fn execute_query(

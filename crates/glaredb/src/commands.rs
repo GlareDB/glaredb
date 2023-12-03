@@ -127,10 +127,19 @@ impl RunCommand for ServerArgs {
             ignore_pg_auth,
             disable_rpc_auth,
             segment_key,
+            enable_simple_query_rpc,
         } = self;
 
         // Map an empty string to None. Makes writing the terraform easier.
         let segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
+
+        // If we don't enable the rpc service, then trying to enable the simple
+        // interface doesn't make sense.
+        if rpc_bind.is_none() && enable_simple_query_rpc {
+            return Err(anyhow!(
+                "An rpc bind address needs to be provided to enable the simple query interface"
+            ));
+        }
 
         let auth: Box<dyn LocalAuthenticator> = match password {
             Some(password) => Box::new(SingleUserAuthenticator { user, password }),
@@ -157,6 +166,7 @@ impl RunCommand for ServerArgs {
                 spill_path,
                 /* integration_testing = */ false,
                 disable_rpc_auth,
+                enable_simple_query_rpc,
             )
             .await?;
             server.serve(conf).await
