@@ -660,10 +660,11 @@ impl BuiltinView {
     }
 }
 
-#[async_trait]
 /// A builtin table function.
 /// Table functions are ones that are used in the FROM clause.
 /// e.g. `SELECT * FROM my_table_func(...)`
+// TODO: Move this and the below traits out of this file.
+#[async_trait]
 pub trait TableFunc: Sync + Send + BuiltinFunction {
     fn runtime_preference(&self) -> RuntimePreference;
     fn detect_runtime(
