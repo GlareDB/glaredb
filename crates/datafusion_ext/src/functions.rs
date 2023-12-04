@@ -360,13 +360,20 @@ impl FromFuncParamValue for i64 {
                 ScalarValue::UInt8(Some(v)) => Ok(v as i64),
                 ScalarValue::UInt16(Some(v)) => Ok(v as i64),
                 ScalarValue::UInt32(Some(v)) => Ok(v as i64),
-                ScalarValue::UInt64(Some(v)) => Ok(v as i64), // TODO: Handle overflow?
+                ScalarValue::UInt64(Some(v)) => {
+                    if v > i64::MAX as u64 {
+                        return Err(ExtensionError::InvalidParamValue {
+                            param: s.to_string(),
+                            expected: "int64",
+                        });
+                    }
+                    Ok(v as i64)
+                }
                 other => Err(ExtensionError::InvalidParamValue {
                     param: other.to_string(),
                     expected: "integer",
                 }),
             },
-
             other => Err(ExtensionError::InvalidParamValue {
                 param: other.to_string(),
                 expected: "integer",
