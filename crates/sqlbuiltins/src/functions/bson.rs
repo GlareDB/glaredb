@@ -2,16 +2,12 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
+use bytes::BytesMut;
 use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
 use datafusion::parquet::data_type::AsBytes;
-
 use futures::StreamExt;
-use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
-
-use bytes::BytesMut;
-use object_store::buffered::BufReader;
+use tokio_util::codec::LengthDelimitedCodec;
 
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
@@ -86,12 +82,7 @@ impl TableFunc for BsonScan {
         let _serial_scan = opts.get("serial_scan").is_some();
 
         // build a vector of streams, one for each file, that handle BSON's framing.
-        let mut readers = VecDeque::<
-            futures::stream::Map<
-                FramedRead<BufReader, LengthDelimitedCodec>,
-                fn(Result<BytesMut, std::io::Error>) -> Result<bson::Document, ExtensionError>,
-            >,
-        >::with_capacity(list.len());
+        let mut readers = VecDeque::with_capacity(list.len());
         for obj in list {
             readers.push_back(
                 // BSON is just length-prefixed byte sequences
@@ -126,11 +117,7 @@ impl TableFunc for BsonScan {
                                 bt?.freeze().as_bytes().to_owned().as_slice(),
                             )?
                             .to_owned())
-                        }
-                            as fn(
-                                Result<BytesMut, std::io::Error>,
-                            ) -> Result<bson::Document, ExtensionError>,
-                    ),
+                        }),
             );
         }
 
@@ -154,8 +141,8 @@ impl TableFunc for BsonScan {
 
         // if we had to read through one or more than of the input files in the glob, we already
         // have their documents and should truncate the vector of readers.
-        if first_active > 0 && first_active < readers.len() {
-            readers.range(first_active..);
+        for _ in 0..first_active {
+            readers.pop_front();
         }
 
         // infer the sechema; in the future we can allow users to specify the schema directly; in
