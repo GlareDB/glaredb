@@ -345,7 +345,7 @@ fn kdl_parse_udf_args(args: &[ColumnarValue]) -> Result<(KdlDocument, KdlQuery)>
         }
         None => {
             return Err(datafusion::common::DataFusionError::Execution(
-                "unknown KQL query".to_string(),
+                "missing KQL query".to_string(),
             ))
         }
     };
