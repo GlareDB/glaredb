@@ -73,9 +73,8 @@ pub struct ServerArgs {
     ///
     /// (Internal)
     ///
-    /// This used to enable Cloud to hit a glaredb instance with SQL queries
-    /// without the overhead of managing system credentials or going through
-    /// proxied.
+    /// Enables Cloud to query glaredb without the overhead of managing system
+    /// credentials or using a proxy.
     #[clap(long, hide = true, value_parser)]
     pub enable_simple_query_rpc: bool,
 

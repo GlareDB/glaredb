@@ -31,6 +31,10 @@ message ExecuteQueryRequest {
   bytes database_id = 2;
 
   // The sql query to execute.
+  //
+  // Currently this only accepts a single sql command. This would fail if
+  // provided 'select 1; select 2;'
+  //
   // TODO: Multiple commands?
   string query_text = 3;
 }
