@@ -13,6 +13,12 @@ statement error
 select * from cows where kdl_matches(cows.docs, '+;');
 
 statement error
+select kdl_select('foo', cows.docs) from cows where kdl_matches(cows.docs, '[b=100]');
+
+statement error
+select kdl_select(cows.docs, '?$*;') from cows where kdl_matches(cows.docs, '[b=100]');
+
+statement error
 select count(*) from cows where kdl_matches(cows.docs, 'details[a] == 100;');
 
 query I
@@ -29,3 +35,13 @@ query I
 select count(*) from cows where kdl_matches(cows.docs, '[status]');
 ----
 2
+
+query
+select cows.docs from cows where kdl_matches(cows.docs, '[b=100]');
+----
+name "betsy" status="amazing" age=89; details "classic" a=1 b=100;
+
+query
+select kdl_select(cows.docs, '[age=120]') from cows where kdl_matches(cows.docs, '[b=100]');
+----
+(empty)
