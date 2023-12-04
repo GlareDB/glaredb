@@ -90,10 +90,11 @@ impl TableFunc for ObjScanTableFunc {
         let mut args = args.iter();
         let url_arg = args.next().unwrap().to_owned();
 
-        let urls: Vec<DatasourceUrl> = url_arg
-            .try_into()
-            .map(|o| vec![o])
-            .map_err(|_| ExtensionError::String("cannot mix different types of urls".to_owned()))?;
+        let urls: Vec<DatasourceUrl> = if url_arg.is_valid::<DatasourceUrl>() {
+            vec![url_arg.try_into()?]
+        } else {
+            url_arg.try_into()?
+        };
 
         let mut urls = urls.iter().map(|url| match url.datasource_url_type() {
             DatasourceUrlType::File => RuntimePreference::Local,
@@ -124,10 +125,10 @@ impl TableFunc for ObjScanTableFunc {
         }
 
         let mut args = args.into_iter();
-        let url_arg = args.next().unwrap();
+        let url_arg = args.next().unwrap().to_owned();
 
         let urls: Vec<DatasourceUrl> = if url_arg.is_valid::<DatasourceUrl>() {
-            vec![url_arg.to_owned().try_into()?]
+            vec![url_arg.try_into()?]
         } else {
             url_arg.try_into()?
         };
