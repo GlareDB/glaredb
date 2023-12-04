@@ -341,8 +341,8 @@ document! {
     name => substr
 }
 document! {
-    doc => "TODO",
-    example => "TODO",
+    doc => "Convert a number or binary value to a hexadecimal string",
+    example => "to_hex(99999)",
     name => to_hex
 }
 document! {
