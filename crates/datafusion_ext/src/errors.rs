@@ -28,6 +28,9 @@ pub enum ExtensionError {
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
     #[error(transparent)]
+    BsonDeserialize(#[from] bson::de::Error),
+
+    #[error(transparent)]
     DecimalError(#[from] decimal::DecimalError),
 
     #[error(transparent)]

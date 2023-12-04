@@ -2226,6 +2226,7 @@ version = "0.7.0"
 dependencies = [
  "async-recursion",
  "async-trait",
+ "bson",
  "catalog",
  "ctor",
  "datafusion",
@@ -6762,6 +6763,8 @@ name = "sqlbuiltins"
 version = "0.7.0"
 dependencies = [
  "async-trait",
+ "bson",
+ "bytes",
  "datafusion",
  "datafusion_ext",
  "datasources",
@@ -6782,6 +6785,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-postgres",
+ "tokio-util",
  "tonic",
  "tracing",
  "url",

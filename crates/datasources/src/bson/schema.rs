@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::iter::IntoIterator;
 
 use bson::{Bson, Document};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
@@ -11,16 +12,19 @@ use crate::bson::errors::{BsonError, Result};
 const RECURSION_LIMIT: usize = 100;
 
 pub fn schema_from_document(doc: &Document) -> Result<Schema> {
-    let fields = fields_from_document(0, doc)?;
+    let fields = fields_from_document(0, doc.iter())?;
     Ok(Schema::new(fields))
 }
 
-fn fields_from_document(depth: usize, doc: &Document) -> Result<Vec<Field>> {
+fn fields_from_document<'a>(
+    depth: usize,
+    doc_iter: impl Iterator<Item = (&'a String, &'a Bson)>,
+) -> Result<Vec<Field>> {
     if depth >= RECURSION_LIMIT {
         return Err(BsonError::RecursionLimitExceeded(RECURSION_LIMIT));
     }
 
-    let doc_iter = doc.iter();
+    // let doc_iter = doc.iter();
     let (_, size) = doc_iter.size_hint();
     let mut fields = Vec::with_capacity(size.unwrap_or_default());
 
@@ -57,7 +61,7 @@ fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
             None => DataType::Utf8,
         },
         Bson::Document(nested) => {
-            let fields = fields_from_document(depth + 1, nested)?;
+            let fields = fields_from_document(depth + 1, nested.iter())?;
             DataType::Struct(fields.into())
         }
         Bson::Boolean(_) => DataType::Boolean,

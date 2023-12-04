@@ -1,6 +1,7 @@
 pub mod builder;
 pub mod errors;
 pub mod schema;
+pub mod stream;
 
 use datafusion::arrow::array::cast::as_string_array;
 use datafusion::arrow::array::{types::*, Array, ArrayRef, AsArray, StructArray};
