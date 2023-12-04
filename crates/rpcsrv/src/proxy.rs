@@ -5,9 +5,9 @@ use futures::{Stream, StreamExt};
 use protogen::gen::rpcsrv::common;
 use protogen::gen::rpcsrv::service;
 use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
+use protogen::rpcsrv::types::common::SessionStorageConfig;
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromProxy, InitializeSessionResponse,
-    SessionStorageConfig,
 };
 use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, ServiceProtocol};
 use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
