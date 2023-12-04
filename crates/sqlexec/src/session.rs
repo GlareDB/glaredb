@@ -402,12 +402,14 @@ impl Session {
     pub async fn create_physical_plan(
         &self,
         plan: DfLogicalPlan,
+        op: &OperationInfo,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();
         let plan = state.optimize(&plan)?;
         if let Some(client) = self.ctx.exec_client() {
             let planner = RemotePhysicalPlanner {
                 database_id: self.ctx.get_database_id(),
+                query_text: op.query_text(),
                 remote_client: client,
                 catalog: self.ctx.get_session_catalog(),
             };
@@ -498,6 +500,7 @@ impl Session {
     pub async fn execute_inner(
         &mut self,
         plan: LogicalPlan,
+        op: &OperationInfo,
     ) -> Result<(Arc<dyn ExecutionPlan>, ExecutionResult)> {
         // Note that transaction support is fake, in that we don't currently do
         // anything and do not provide any transactional semantics.
@@ -510,7 +513,7 @@ impl Session {
                 Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery))
             }
             LogicalPlan::Datafusion(plan) => {
-                let physical = self.create_physical_plan(plan).await?;
+                let physical = self.create_physical_plan(plan, op).await?;
                 let stream = self.execute_physical(physical.clone()).await?;
 
                 let stream = ExecutionResult::from_stream(stream).await;
@@ -567,13 +570,18 @@ impl Session {
             None => return Ok(ExecutionResult::EmptyQuery),
         };
 
-        // Create "base" metrics.
-        let mut metrics = QueryMetrics::default();
+        let mut op = OperationInfo::default();
         if let Some(stmt) = &portal.stmt.stmt {
-            metrics.query_text = stmt.to_string();
+            op = op.with_query_text(stmt.to_string());
         }
 
-        let stream = match self.execute_inner(plan).await {
+        // Create "base" metrics.
+        let mut metrics = QueryMetrics {
+            query_text: op.query_text().to_owned(),
+            ..Default::default()
+        };
+
+        let stream = match self.execute_inner(plan, &op).await {
             Ok((plan, result)) => match result {
                 ExecutionResult::Error(e) => {
                     metrics.execution_status = ExecutionStatus::Fail;
@@ -664,11 +672,9 @@ impl Session {
 
     pub async fn parsed_to_lp(
         &mut self,
-        statements: VecDeque<StatementWithExtensions>,
+        mut statements: VecDeque<StatementWithExtensions>,
     ) -> Result<LogicalPlan> {
         const UNNAMED: String = String::new();
-        let mut statements = statements;
-
         match statements.len() {
             0 => Err(ExecError::String("No statements in query".to_string())),
             1 => {

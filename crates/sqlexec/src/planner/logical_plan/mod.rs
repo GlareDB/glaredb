@@ -99,6 +99,26 @@ pub static GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA: Lazy<DFSchemaRef> = Lazy:
     )
 });
 
+#[derive(Clone, Debug, Default)]
+pub struct OperationInfo {
+    query: Option<String>,
+}
+
+impl OperationInfo {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_query_text(mut self, query_text: impl Into<String>) -> Self {
+        self.query = Some(query_text.into());
+        self
+    }
+
+    pub fn query_text(&self) -> &str {
+        self.query.as_deref().unwrap_or_default()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {
     /// Plans related to querying the underlying data store. This will run

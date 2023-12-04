@@ -10,28 +10,8 @@ use crate::{
     metastore::types::{catalog::CatalogState, FromOptionalField},
 };
 
+use super::common::SessionStorageConfig;
 use super::func_param_value::FuncParamValue;
-
-pub struct SessionStorageConfig {
-    pub gcs_bucket: Option<String>,
-}
-
-impl TryFrom<service::SessionStorageConfig> for SessionStorageConfig {
-    type Error = ProtoConvError;
-    fn try_from(value: service::SessionStorageConfig) -> Result<Self, Self::Error> {
-        Ok(SessionStorageConfig {
-            gcs_bucket: value.gcs_bucket,
-        })
-    }
-}
-
-impl From<SessionStorageConfig> for service::SessionStorageConfig {
-    fn from(value: SessionStorageConfig) -> Self {
-        service::SessionStorageConfig {
-            gcs_bucket: value.gcs_bucket,
-        }
-    }
-}
 
 pub struct InitializeSessionRequestFromClient {
     pub test_db_id: Option<Uuid>,
@@ -270,6 +250,7 @@ pub struct PhysicalPlanExecuteRequest {
     pub database_id: Uuid,
     pub physical_plan: Vec<u8>,
     pub user_id: Option<Uuid>,
+    pub query_text: String,
 }
 
 impl TryFrom<service::PhysicalPlanExecuteRequest> for PhysicalPlanExecuteRequest {
@@ -279,6 +260,7 @@ impl TryFrom<service::PhysicalPlanExecuteRequest> for PhysicalPlanExecuteRequest
             database_id: Uuid::from_slice(&value.database_id)?,
             physical_plan: value.physical_plan,
             user_id: Uuid::from_slice(&value.user_id).ok(),
+            query_text: value.query_text,
         })
     }
 }
@@ -292,6 +274,7 @@ impl From<PhysicalPlanExecuteRequest> for service::PhysicalPlanExecuteRequest {
                 .user_id
                 .map(|v| v.into_bytes().into())
                 .unwrap_or_default(),
+            query_text: value.query_text,
         }
     }
 }
