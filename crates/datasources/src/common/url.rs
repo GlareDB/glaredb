@@ -5,10 +5,8 @@ use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use url::Url;
 
-use datafusion_ext::{
-    errors::ExtensionError,
-    functions::{FromFuncParamValue, FuncParamValue},
-};
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::FuncParamValue;
 
 use super::errors::{DatasourceCommonError, Result};
 
@@ -46,18 +44,6 @@ impl Display for DatasourceUrl {
             Self::File(p) => write!(f, "{}", p.to_string_lossy()),
             Self::Url(u) => write!(f, "{u}"),
         }
-    }
-}
-
-impl TryFrom<FuncParamValue> for DatasourceUrl {
-    type Error = ExtensionError;
-
-    fn try_from(value: FuncParamValue) -> datafusion_ext::errors::Result<Self> {
-        let url_string: String = value.try_into()?;
-        Self::try_new(&url_string).map_err(|_e| ExtensionError::InvalidParamValue {
-            param: url_string,
-            expected: "datasource url",
-        })
     }
 }
 
@@ -162,15 +148,15 @@ impl TryFrom<&str> for DatasourceUrl {
     }
 }
 
-impl FromFuncParamValue for DatasourceUrl {
-    fn from_param(value: FuncParamValue) -> Result<Self, ExtensionError> {
-        value
-            .to_owned()
-            .try_into()
-            .map_err(|_| ExtensionError::InvalidParamValue {
-                param: value.to_string(),
-                expected: "url",
-            })
+impl TryFrom<FuncParamValue> for DatasourceUrl {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> datafusion_ext::errors::Result<Self> {
+        let url_string: String = value.try_into()?;
+        Self::try_new(&url_string).map_err(|_e| ExtensionError::InvalidParamValue {
+            param: url_string,
+            expected: "datasource url",
+        })
     }
 }
 

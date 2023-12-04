@@ -256,7 +256,7 @@ fn get_store_access(
         }
         1 => {
             // Credentials object
-            let creds: IdentValue = args.next().unwrap().param_into()?;
+            let creds: IdentValue = args.next().unwrap().try_into()?;
             let creds = ctx
                 .get_session_catalog()
                 .resolve_credentials(creds.as_str())

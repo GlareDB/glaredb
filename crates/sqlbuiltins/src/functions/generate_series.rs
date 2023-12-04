@@ -60,13 +60,13 @@ impl TableFunc for GenerateSeries {
                 if start.is_valid::<i64>() || stop.is_valid::<i64>() {
                     create_straming_table::<GenerateSeriesTypeInt>(
                         GenerateSeriesTypeInt,
-                        start.param_into()?,
-                        stop.param_into()?,
+                        start.try_into()?,
+                        stop.try_into()?,
                         1,
                     )
                 } else if start.is_valid::<Decimal128>() && stop.is_valid::<Decimal128>() {
-                    let start: Decimal128 = start.param_into()?;
-                    let stop: Decimal128 = stop.param_into()?;
+                    let start: Decimal128 = start.try_into()?;
+                    let stop: Decimal128 = stop.try_into()?;
                     let step = Decimal128::new(1, 0)?;
                     let scale = [start, stop, step].iter().map(|s| s.scale()).max().unwrap();
                     create_straming_table::<GenerateSeriesTypeDecimal128>(
@@ -91,17 +91,17 @@ impl TableFunc for GenerateSeries {
                 if start.is_valid::<i64>() && stop.is_valid::<i64>() && step.is_valid::<i64>() {
                     create_straming_table::<GenerateSeriesTypeInt>(
                         GenerateSeriesTypeInt,
-                        start.param_into()?,
-                        stop.param_into()?,
-                        step.param_into()?,
+                        start.try_into()?,
+                        stop.try_into()?,
+                        step.try_into()?,
                     )
                 } else if start.is_valid::<Decimal128>()
                     && stop.is_valid::<Decimal128>()
                     && step.is_valid::<Decimal128>()
                 {
-                    let start: Decimal128 = start.param_into()?;
-                    let stop: Decimal128 = stop.param_into()?;
-                    let step: Decimal128 = step.param_into()?;
+                    let start: Decimal128 = start.try_into()?;
+                    let stop: Decimal128 = stop.try_into()?;
+                    let step: Decimal128 = step.try_into()?;
                     let scale = [start, stop, step].iter().map(|s| s.scale()).max().unwrap();
                     create_straming_table::<GenerateSeriesTypeDecimal128>(
                         GenerateSeriesTypeDecimal128 { scale },

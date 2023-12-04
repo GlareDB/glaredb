@@ -263,35 +263,11 @@ impl FuncParamValue {
         s
     }
 
-    /// Wrapper over `FromFuncParamValue::from_param`.
-    pub fn param_into<T>(self) -> Result<T>
-    where
-        T: FromFuncParamValue,
-    {
-        T::from_param(self)
-    }
-
-    /// Wrapper over `FromFuncParamValue::from_param`.
-    pub fn param_ref_into<T>(&self) -> Result<T>
-    where
-        T: FromFuncParamValue,
-    {
-        T::from_param_ref(self)
-    }
-
-    pub fn is_valid<T: FromFuncParamValue>(&self) -> bool {
-        match T::from_param(self.to_owned()) {
+    pub fn is_valid<T: TryFrom<FuncParamValue>>(&self) -> bool {
+        match T::try_from(self.to_owned()) {
             Ok(_) => true,
             Err(_) => false,
         }
-    }
-}
-
-pub trait FromFuncParamValue: Sized {
-    /// Get the value from parameter.
-    fn from_param(value: FuncParamValue) -> Result<Self>;
-    fn from_param_ref(value: &FuncParamValue) -> Result<Self> {
-        Self::from_param(value.clone())
     }
 }
 
@@ -393,20 +369,11 @@ impl TryFrom<FuncParamValue> for IdentValue {
         }
     }
 }
-impl FromFuncParamValue for IdentValue {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
-        match value {
-            FuncParamValue::Ident(s) => Ok(Self(s)),
-            other => Err(ExtensionError::InvalidParamValue {
-                param: other.to_string(),
-                expected: "ident",
-            }),
-        }
-    }
-}
 
-impl FromFuncParamValue for i64 {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
+impl TryFrom<FuncParamValue> for i64 {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Scalar(s) => match s {
                 ScalarValue::Int8(Some(v)) => Ok(v as i64),
@@ -431,8 +398,10 @@ impl FromFuncParamValue for i64 {
     }
 }
 
-impl FromFuncParamValue for f64 {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
+impl TryFrom<FuncParamValue> for f64 {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Scalar(s) => match s {
                 ScalarValue::Int8(Some(v)) => Ok(v as f64),
@@ -458,8 +427,10 @@ impl FromFuncParamValue for f64 {
     }
 }
 
-impl FromFuncParamValue for bool {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
+impl TryFrom<FuncParamValue> for bool {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Scalar(s) => match s {
                 ScalarValue::Null => Ok(false),
@@ -510,8 +481,10 @@ impl FromFuncParamValue for bool {
     }
 }
 
-impl FromFuncParamValue for Decimal128 {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
+impl TryFrom<FuncParamValue> for Decimal128 {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Scalar(s) => match s {
                 ScalarValue::Int8(Some(v)) => Ok(Decimal128::try_from_int(v)?),
