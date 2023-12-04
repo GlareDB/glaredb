@@ -31,10 +31,13 @@ use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
+pub const READ_PARQUET: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "read_parquet");
 
 pub const CSV_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "csv_scan");
+pub const READ_CSV: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "read_csv");
 
 pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson_scan");
+pub const READ_JSON: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "read_ndjson");
 
 #[derive(Debug, Clone)]
 pub struct ObjScanTableFunc(FileType, &'static str);
