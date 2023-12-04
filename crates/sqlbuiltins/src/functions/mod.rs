@@ -1,5 +1,4 @@
 //! Builtin table returning functions.
-//! mod bigquery;
 
 mod bigquery;
 mod delta;
@@ -35,7 +34,7 @@ use self::iceberg::{IcebergDataFiles, IcebergScan, IcebergSnapshots};
 use self::lance::LanceScan;
 use self::mongo::ReadMongoDb;
 use self::mysql::ReadMysql;
-use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN};
+use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
@@ -110,8 +109,11 @@ impl BuiltinTableFuncs {
             Arc::new(ReadSnowflake),
             // Object store
             Arc::new(PARQUET_SCAN),
+            Arc::new(READ_PARQUET),
             Arc::new(CSV_SCAN),
+            Arc::new(READ_CSV),
             Arc::new(JSON_SCAN),
+            Arc::new(READ_JSON),
             // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),
@@ -166,7 +168,8 @@ fn table_location_and_opts(
     if let Some(func_param) = args.next() {
         let creds: IdentValue = func_param.param_into()?;
         maybe_cred_opts = Some(
-            ctx.get_credentials_entry(creds.as_str())
+            ctx.get_session_catalog()
+                .resolve_credentials(creds.as_str())
                 .cloned()
                 .ok_or(ExtensionError::String(format!(
                     "missing credentials object: {creds}"

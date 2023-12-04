@@ -112,6 +112,8 @@ message PhysicalPlanExecuteRequest {
   //
   // Required for sending metrics.
   bytes user_id = 3;
+  // Query text (for collecting metrics).
+  string query_text = 4;
 }
 
 message TableProviderResponse {

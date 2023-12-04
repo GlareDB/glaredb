@@ -1,4 +1,4 @@
-use sqlexec::LogicalPlan;
+use sqlexec::{LogicalPlan, OperationInfo};
 
 use crate::{
     connection::JsTrackedSession, error::JsGlareDbError, execution_result::JsExecutionResult,
@@ -9,17 +9,18 @@ use crate::{
 pub struct JsLogicalPlan {
     pub(crate) lp: LogicalPlan,
     pub(crate) session: JsTrackedSession,
+    pub(crate) op: OperationInfo,
 }
 
 impl JsLogicalPlan {
-    pub(super) fn new(lp: LogicalPlan, session: JsTrackedSession) -> Self {
-        Self { lp, session }
+    pub(super) fn new(lp: LogicalPlan, session: JsTrackedSession, op: OperationInfo) -> Self {
+        Self { lp, session, op }
     }
 
     async fn execute_inner(&self) -> napi::Result<JsExecutionResult> {
         let mut sess = self.session.lock().await;
         let (_, stream) = sess
-            .execute_inner(self.lp.clone())
+            .execute_inner(self.lp.clone(), &self.op)
             .await
             .map_err(JsGlareDbError::from)?;
 

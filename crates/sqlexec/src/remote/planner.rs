@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
-    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
+    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredential, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
     CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
     DropTables, DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
@@ -32,6 +32,7 @@ use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKe
 use crate::planner::physical_plan::client_recv::ClientExchangeRecvExec;
 use crate::planner::physical_plan::client_send::ClientExchangeSendExec;
 use crate::planner::physical_plan::copy_to::CopyToExec;
+use crate::planner::physical_plan::create_credential::CreateCredentialExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
 use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
@@ -56,7 +57,7 @@ use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 use crate::planner::physical_plan::set_var::SetVarExec;
 use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
-use catalog::session_catalog::{SessionCatalog, TempCatalog};
+use catalog::session_catalog::SessionCatalog;
 
 use super::client::RemoteSessionClient;
 
@@ -76,7 +77,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
         node: &dyn UserDefinedLogicalNode,
         _logical_inputs: &[&DfLogicalPlan],
         physical_inputs: &[Arc<dyn ExecutionPlan>],
-        session_state: &SessionState,
+        _session_state: &SessionState,
     ) -> Result<Option<Arc<dyn ExecutionPlan>>> {
         let extension_type = node.name().parse::<ExtensionType>().unwrap();
 
@@ -110,6 +111,17 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 };
                 Ok(Some(Arc::new(exec)))
             }
+            ExtensionType::CreateCredential => {
+                let lp = require_downcast_lp::<CreateCredential>(node);
+                let exec = CreateCredentialExec {
+                    catalog_version: self.catalog.version(),
+                    name: lp.name.clone(),
+                    options: lp.options.clone(),
+                    comment: lp.comment.clone(),
+                    or_replace: lp.or_replace,
+                };
+                Ok(Some(Arc::new(exec)))
+            }
             ExtensionType::CreateCredentials => {
                 let lp = require_downcast_lp::<CreateCredentials>(node);
                 let exec = CreateCredentialsExec {
@@ -117,6 +129,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     name: lp.name.clone(),
                     options: lp.options.clone(),
                     comment: lp.comment.clone(),
+                    or_replace: lp.or_replace,
                 };
                 Ok(Some(Arc::new(exec)))
             }
@@ -207,17 +220,12 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 Ok(Some(exec))
             }
             ExtensionType::DropTables => {
-                let tmp_catalog = session_state
-                    .task_ctx()
-                    .session_config()
-                    .get_extension::<TempCatalog>()
-                    .unwrap();
                 let plan = require_downcast_lp::<DropTables>(node);
                 let mut drops = Vec::with_capacity(plan.tbl_references.len());
                 let mut temp_table_drops = Vec::with_capacity(plan.tbl_references.len());
 
                 for r in &plan.tbl_references {
-                    if tmp_catalog.contains_table(&r.name) {
+                    if self.catalog.get_temp_catalog().contains_table(&r.name) {
                         temp_table_drops.push(r.clone());
                     } else if self
                         .catalog
@@ -389,6 +397,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
 
 pub struct RemotePhysicalPlanner<'a> {
     pub database_id: Uuid,
+    pub query_text: &'a str,
     pub remote_client: RemoteSessionClient,
     pub catalog: &'a SessionCatalog,
 }
@@ -519,6 +528,7 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
                 let physical = Arc::new(RemoteExecutionExec::new(
                     self.remote_client.clone(),
                     physical,
+                    self.query_text.to_string(),
                 ));
 
                 // Create a wrapper physical plan which drives both the

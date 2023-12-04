@@ -2,6 +2,7 @@ mod alter_database;
 mod alter_table;
 mod alter_tunnel_rotate_keys;
 mod copy_to;
+mod create_credential;
 mod create_credentials;
 mod create_external_database;
 mod create_external_table;
@@ -52,6 +53,7 @@ pub use alter_database::*;
 pub use alter_table::*;
 pub use alter_tunnel_rotate_keys::*;
 pub use copy_to::*;
+pub use create_credential::*;
 pub use create_credentials::*;
 pub use create_external_database::*;
 pub use create_external_table::*;
@@ -96,6 +98,26 @@ pub static GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA: Lazy<DFSchemaRef> = Lazy:
             .unwrap(),
     )
 });
+
+#[derive(Clone, Debug, Default)]
+pub struct OperationInfo {
+    query: Option<String>,
+}
+
+impl OperationInfo {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_query_text(mut self, query_text: impl Into<String>) -> Self {
+        self.query = Some(query_text.into());
+        self
+    }
+
+    pub fn query_text(&self) -> &str {
+        self.query.as_deref().unwrap_or_default()
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum LogicalPlan {

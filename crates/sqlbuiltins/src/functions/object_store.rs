@@ -32,10 +32,13 @@ use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
+pub const READ_PARQUET: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "read_parquet");
 
 pub const CSV_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "csv_scan");
+pub const READ_CSV: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "read_csv");
 
 pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson_scan");
+pub const READ_JSON: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "read_ndjson");
 
 #[derive(Debug, Clone)]
 pub struct ObjScanTableFunc(FileType, &'static str);
@@ -265,7 +268,8 @@ fn get_store_access(
             // Credentials object
             let creds: IdentValue = args.next().unwrap().param_into()?;
             let creds = ctx
-                .get_credentials_entry(creds.as_str())
+                .get_session_catalog()
+                .resolve_credentials(creds.as_str())
                 .ok_or(ExtensionError::String(format!(
                     "missing credentials object: {creds}"
                 )))?;

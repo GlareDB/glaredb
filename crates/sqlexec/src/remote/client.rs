@@ -2,7 +2,7 @@ use crate::{
     errors::{ExecError, Result},
     extension_codec::GlareDBExtensionCodec,
 };
-use catalog::session_catalog::SessionCatalog;
+use catalog::session_catalog::{ResolveConfig, SessionCatalog};
 use datafusion::{datasource::TableProvider, physical_plan::ExecutionPlan};
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
@@ -18,6 +18,7 @@ use protogen::{
 };
 use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
 use serde::Deserialize;
+use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
 use std::{collections::HashMap, fmt, sync::Arc};
 use tonic::{
     metadata::MetadataMap,
@@ -275,7 +276,13 @@ impl RemoteClient {
 
         Ok((
             remote_sess_client,
-            SessionCatalog::new(Arc::new(resp.catalog)),
+            SessionCatalog::new(
+                Arc::new(resp.catalog),
+                ResolveConfig {
+                    default_schema_oid: SCHEMA_DEFAULT.oid,
+                    session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
+                },
+            ),
         ))
     }
 
@@ -375,6 +382,7 @@ impl RemoteSessionClient {
     pub async fn physical_plan_execute(
         &mut self,
         physical_plan: Arc<dyn ExecutionPlan>,
+        query_text: String,
     ) -> Result<Streaming<service::RecordBatchResponse>> {
         // Encode the physical plan into a protobuf message.
         let physical_plan = {
@@ -391,6 +399,7 @@ impl RemoteSessionClient {
             database_id: self.database_id(),
             physical_plan,
             user_id: self.user_id,
+            query_text,
         })
         .into_request();
         self.inner.append_auth_metadata(request.metadata_mut());

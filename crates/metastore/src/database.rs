@@ -710,16 +710,21 @@ impl State {
             }
             Mutation::CreateCredentials(create_credentials) => {
                 validate_object_name(&create_credentials.name)?;
-                if self
-                    .credentials_names
-                    .get(&create_credentials.name)
-                    .is_some()
-                {
-                    return Err(MetastoreError::DuplicateName(create_credentials.name));
-                }
 
-                // Create new entry
-                let oid = self.next_oid();
+                let oid = match (
+                    self.credentials_names.get(&create_credentials.name),
+                    create_credentials.or_replace,
+                ) {
+                    // If the credential already exists and we're not replacing it,
+                    (Some(_), false) => {
+                        return Err(MetastoreError::DuplicateName(create_credentials.name));
+                    }
+                    // If the credential already exists and we're replacing it,
+                    (Some(oid), true) => *oid,
+                    // If the credential doesn't exist, create a new one.
+                    (None, _) => self.next_oid(),
+                };
+
                 let ent = CredentialsEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Credentials,
@@ -738,6 +743,37 @@ impl State {
 
                 // Add to creadentials map
                 self.credentials_names.insert(create_credentials.name, oid);
+            }
+            Mutation::CreateCredential(create_credential) => {
+                validate_object_name(&create_credential.name)?;
+                if self
+                    .credentials_names
+                    .get(&create_credential.name)
+                    .is_some()
+                {
+                    return Err(MetastoreError::DuplicateName(create_credential.name));
+                }
+
+                // Create new entry
+                let oid = self.next_oid();
+                let ent = CredentialsEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Credentials,
+                        id: oid,
+                        // The credentials, just like databases doesn't have any parent.
+                        parent: DATABASE_PARENT_ID,
+                        name: create_credential.name.clone(),
+                        builtin: false,
+                        external: false,
+                        is_temp: false,
+                    },
+                    options: create_credential.options,
+                    comment: create_credential.comment,
+                };
+                self.entries.insert(oid, CatalogEntry::Credentials(ent))?;
+
+                // Add to creadentials map
+                self.credentials_names.insert(create_credential.name, oid);
             }
             Mutation::CreateSchema(create_schema) => {
                 validate_object_name(&create_schema.name)?;
@@ -1137,7 +1173,7 @@ impl BuiltinCatalog {
                     },
                     options: DatabaseOptions::Internal(DatabaseOptionsInternal {}),
                     tunnel_id: None,
-                    access_mode: SourceAccessMode::ReadOnly,
+                    access_mode: SourceAccessMode::ReadWrite,
                 }),
             );
         }
