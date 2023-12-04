@@ -3,7 +3,8 @@ use metastore::util::MetastoreClientMode;
 use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
-use rpcsrv::handler::RpcHandler;
+use protogen::gen::rpcsrv::simple::simple_service_server::SimpleServiceServer;
+use rpcsrv::handler::{RpcHandler, SimpleHandler};
 use sqlexec::engine::{Engine, EngineStorageConfig};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -31,6 +32,7 @@ pub struct ServerConfig {
 pub struct ComputeServer {
     integration_testing: bool,
     disable_rpc_auth: bool,
+    enable_simple_query_rpc: bool,
     pg_handler: Arc<ProtocolHandler>,
     engine: Arc<Engine>,
 }
@@ -38,6 +40,7 @@ pub struct ComputeServer {
 impl ComputeServer {
     /// Connect to the given source, performing any bootstrap steps as
     /// necessary.
+    // TODO: Pull out args into a struct.
     #[allow(clippy::too_many_arguments)]
     pub async fn connect(
         metastore_addr: Option<String>,
@@ -50,6 +53,7 @@ impl ComputeServer {
         spill_path: Option<PathBuf>,
         integration_testing: bool,
         disable_rpc_auth: bool,
+        enable_simple_query_rpc: bool,
     ) -> Result<Self> {
         // Our bare container image doesn't have a '/tmp' dir on startup (nor
         // does it specify an alternate dir to use via `TMPDIR`).
@@ -134,6 +138,7 @@ impl ComputeServer {
         Ok(ComputeServer {
             integration_testing,
             disable_rpc_auth,
+            enable_simple_query_rpc,
             pg_handler: Arc::new(ProtocolHandler::new(engine.clone(), handler_conf)),
             engine,
         })
@@ -196,12 +201,18 @@ impl ComputeServer {
                 self.integration_testing,
             );
             tokio::spawn(async move {
-                if let Err(e) = Server::builder()
+                let mut server = Server::builder()
                     .trace_fn(|_| debug_span!("rpc_service_request"))
-                    .add_service(ExecutionServiceServer::new(handler))
-                    .serve(addr)
-                    .await
-                {
+                    .add_service(ExecutionServiceServer::new(handler));
+
+                // Add in the simple interface if requested.
+                if self.enable_simple_query_rpc {
+                    info!("enabling simple query rpc service");
+                    let handler = SimpleHandler::new(self.engine.clone());
+                    server = server.add_service(SimpleServiceServer::new(handler));
+                }
+
+                if let Err(e) = server.serve(addr).await {
                     // TODO: Maybe panic instead? Revisit once we have
                     // everything working.
                     error!(%e, "rpc service died");
@@ -249,6 +260,16 @@ mod tests {
 
     use super::*;
 
+    // TODO: Add tests for:
+    //
+    // - Running a sql query over the postgres protocol
+    // - Running a physical plan over rpc
+    // - Running a sql query over rpc (simple)
+    //
+    // The tests should assert that we're properly starting things up based on
+    // the config values provided (and inversely, that we don't start things up
+    // if the config indicates we shouldn't).
+
     #[tokio::test]
     async fn no_hang_on_rpc_service_start() {
         let pg_listener = TcpListener::bind("localhost:0").await.unwrap();
@@ -272,6 +293,7 @@ mod tests {
             None,
             false,
             false,
+            /* enable_simple_query_rpc = */ false,
         )
         .await
         .unwrap();

@@ -10,28 +10,8 @@ use crate::{
     metastore::types::{catalog::CatalogState, FromOptionalField},
 };
 
+use super::common::SessionStorageConfig;
 use super::func_param_value::FuncParamValue;
-
-pub struct SessionStorageConfig {
-    pub gcs_bucket: Option<String>,
-}
-
-impl TryFrom<service::SessionStorageConfig> for SessionStorageConfig {
-    type Error = ProtoConvError;
-    fn try_from(value: service::SessionStorageConfig) -> Result<Self, Self::Error> {
-        Ok(SessionStorageConfig {
-            gcs_bucket: value.gcs_bucket,
-        })
-    }
-}
-
-impl From<SessionStorageConfig> for service::SessionStorageConfig {
-    fn from(value: SessionStorageConfig) -> Self {
-        service::SessionStorageConfig {
-            gcs_bucket: value.gcs_bucket,
-        }
-    }
-}
 
 pub struct InitializeSessionRequestFromClient {
     pub test_db_id: Option<Uuid>,
