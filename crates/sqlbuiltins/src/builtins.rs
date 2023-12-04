@@ -13,11 +13,20 @@
 //! database node will be able to see it, but will not be able to execute
 //! appropriately. We can revisit this if this isn't acceptable long-term.
 
-use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
+use async_trait::async_trait;
+use datafusion::{
+    arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema},
+    datasource::TableProvider,
+    logical_expr::Signature,
+};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_GLAREDB_BUILTIN_ID;
-use protogen::metastore::types::options::InternalColumnDefinition;
-use std::sync::Arc;
+use protogen::metastore::types::{
+    catalog::{EntryMeta, EntryType, FunctionEntry, FunctionType, RuntimePreference},
+    options::InternalColumnDefinition,
+};
+use std::{collections::HashMap, sync::Arc};
 
 /// The default catalog that exists in all GlareDB databases.
 pub const DEFAULT_CATALOG: &str = "default";
@@ -171,6 +180,8 @@ pub static GLARE_FUNCTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
             false,
         ),
         ("builtin", DataType::Boolean, false),
+        ("example", DataType::Utf8, true),
+        ("description", DataType::Utf8, true),
     ]),
 });
 
@@ -598,6 +609,108 @@ impl BuiltinView {
             &PG_TABLE,
             &PG_VIEWS,
         ]
+    }
+}
+
+#[async_trait]
+/// A builtin table function.
+/// Table functions are ones that are used in the FROM clause.
+/// e.g. `SELECT * FROM my_table_func(...)`
+pub trait TableFunc: Sync + Send + BuiltinFunction {
+    fn runtime_preference(&self) -> RuntimePreference;
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> datafusion_ext::errors::Result<RuntimePreference> {
+        Ok(self.runtime_preference())
+    }
+
+    /// Return a table provider using the provided args.
+    async fn create_provider(
+        &self,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> datafusion_ext::errors::Result<Arc<dyn TableProvider>>;
+}
+
+/// The same as `BuiltinFunction` , but with const values.
+pub trait ConstBuiltinFunction: Sync + Send {
+    const NAME: &'static str;
+    const DESCRIPTION: &'static str;
+    const EXAMPLE: &'static str;
+    const FUNCTION_TYPE: FunctionType;
+    fn signature(&self) -> Option<Signature> {
+        None
+    }
+}
+
+impl<T> BuiltinFunction for T
+where
+    T: ConstBuiltinFunction,
+{
+    fn name(&self) -> &'static str {
+        Self::NAME
+    }
+    fn sql_example(&self) -> Option<String> {
+        Some(Self::EXAMPLE.to_string())
+    }
+    fn description(&self) -> Option<String> {
+        Some(Self::DESCRIPTION.to_string())
+    }
+    fn function_type(&self) -> FunctionType {
+        Self::FUNCTION_TYPE
+    }
+    fn signature(&self) -> Option<Signature> {
+        self.signature()
+    }
+}
+/// A builtin function.
+/// This trait is implemented by all builtin functions.
+pub trait BuiltinFunction: Sync + Send {
+    /// The name for this function. This name will be used when looking up
+    /// function implementations.
+    fn name(&self) -> &'static str;
+    /// Return the signature for this function.
+    /// Defaults to None.
+    // TODO: Remove the default impl once we have `signature` implemented for all functions
+    fn signature(&self) -> Option<Signature> {
+        None
+    }
+    /// Return a sql example for this function.
+    /// Defaults to None.
+    fn sql_example(&self) -> Option<String> {
+        None
+    }
+    /// Return a description for this function.
+    /// Defaults to None.
+    fn description(&self) -> Option<String> {
+        None
+    }
+    // Returns the function type. 'aggregate', 'scalar', or 'table'
+    fn function_type(&self) -> FunctionType;
+
+    // convert to a builtin `FunctionEntry`
+    fn as_function_entry(&self, id: u32, parent: u32) -> FunctionEntry {
+        let meta = EntryMeta {
+            entry_type: EntryType::Function,
+            id,
+            parent,
+            name: self.name().to_string(),
+            builtin: true,
+            external: false,
+            is_temp: false,
+            sql_example: self.sql_example(),
+            description: self.description(),
+        };
+
+        FunctionEntry {
+            meta,
+            func_type: self.function_type(),
+            runtime_preference: RuntimePreference::Unspecified,
+            signature: self.signature(),
+        }
     }
 }
 

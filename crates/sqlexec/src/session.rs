@@ -672,11 +672,9 @@ impl Session {
 
     pub async fn parsed_to_lp(
         &mut self,
-        statements: VecDeque<StatementWithExtensions>,
+        mut statements: VecDeque<StatementWithExtensions>,
     ) -> Result<LogicalPlan> {
         const UNNAMED: String = String::new();
-        let mut statements = statements;
-
         match statements.len() {
             0 => Err(ExecError::String("No statements in query".to_string())),
             1 => {

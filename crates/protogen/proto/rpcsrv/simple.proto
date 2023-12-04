@@ -1,0 +1,63 @@
+// Definitions for the "simple query interface".
+//
+// This interface provides a way for an external service (Cloud) to submit
+// potentially long running queries to a glaredb database. There is no guarantee
+// about the lifetime of the session used for executing these queries.
+//
+// Design decisions/requirements:
+//
+// - No authentication overhead or needing to go through proxies.
+// - No need to get to response data for a query, just needs to know if the
+//   query succeeded/failed.
+// - Not exposed to the user in any way.
+//
+// Note that this will likely be replaced by a FlightSQL implementation (which
+// would be exposed to the user, unlike what we're doing here).
+//
+// Design docs/rationale:
+// https://github.com/GlareDB/meta/blob/main/notes/2023-11-25.simple-query-interface.md
+
+syntax = "proto3";
+
+import "rpcsrv/common.proto";
+
+package rpcsrv.simple;
+
+message ExecuteQueryRequest {
+  // Info needed to create the session.
+  common.SessionStorageConfig config = 1;
+
+  // Database id we're executing the query for.
+  bytes database_id = 2;
+
+  // The sql query to execute.
+  //
+  // Currently this only accepts a single sql command. This would fail if
+  // provided 'select 1; select 2;'
+  //
+  // TODO: Multiple commands?
+  string query_text = 3;
+}
+
+message QueryResultSuccess {}
+
+message QueryResultError {
+  // The error message for why the query failed.
+  string msg = 1;
+}
+
+// Result of the query execution.
+//
+// TODO: We may want to extend this to actually stream/return the record
+// batches.
+message ExecuteQueryResponse {
+  oneof result {
+    QueryResultSuccess success = 1;
+    QueryResultError error = 2;
+  }
+}
+
+service SimpleService {
+  // Execute a query.
+  rpc ExecuteQuery(ExecuteQueryRequest) returns (stream ExecuteQueryResponse);
+}
