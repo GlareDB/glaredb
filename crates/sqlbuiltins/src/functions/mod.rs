@@ -58,7 +58,7 @@ impl Default for BuiltinFuncs {
 // The macro helps preserve the line wrapping. rustfmt will otherwise collapse the lines.
 #[macro_export]
 macro_rules! document {
-    ($doc:expr, $example:expr, $item:ident) => {
+    (doc => $doc:expr, example => $example:expr, name => $item:ident) => {
         #[doc = $doc]
         pub struct $item;
 
@@ -68,7 +68,7 @@ macro_rules! document {
             const NAME: &'static str = stringify!($item);
         }
     };
-    ($doc:expr, $example:expr, $name:expr => $item:ident) => {
+    (doc => $doc:expr, example => $example:expr, $name:expr => $item:ident) => {
         #[doc = $doc]
         pub struct $item;
 

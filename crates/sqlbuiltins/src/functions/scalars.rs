@@ -20,594 +20,594 @@ impl ConstBuiltinFunction for ArrowCastFunction {
 }
 
 document! {
-    "Compute the absolute value of a number.",
-    "abs(-1)",
-    abs
+    doc => "Compute the absolute value of a number",
+    example => "abs(-1)",
+    name => abs
 }
 document! {
-    "Compute the inverse cosine (arc cosine) of a number.",
-    "acos(0.5)",
-    acos
+    doc => "Compute the inverse cosine (arc cosine) of a number",
+    example => "acos(0.5)",
+    name => acos
 }
 document! {
-    "Compute the inverse hyperbolic cosine of a number.",
-    "acosh(1)",
-    acosh
+    doc => "Compute the inverse hyperbolic cosine of a number",
+    example => "acosh(1)",
+    name => acosh
 }
 document! {
-    "Compute the inverse sine (arc sine) of a number.",
-    "asin(0.5)",
-    asin
+    doc => "Compute the inverse sine (arc sine) of a number",
+    example => "asin(0.5)",
+    name => asin
 }
 document! {
-    "Compute the inverse hyperbolic sine of a number.",
-    "asinh(1)",
-    asinh
+    doc => "Compute the inverse hyperbolic sine of a number",
+    example => "asinh(1)",
+    name => asinh
 }
 document! {
-    "Computes the arctangent of a number.",
-    "atan(1)",
-    atan
+    doc => "Computes the arctangent of a number",
+    example => "atan(1)",
+    name => atan
 }
 document! {
-    "Computes the arctangent of y/x given y and x.",
-    "atan2(1, 1)",
-    atan2
+    doc => "Computes the arctangent of y/x given y and x",
+    example => "atan2(1, 1)",
+    name => atan2
 }
 document! {
-    "Compute the inverse hyperbolic tangent of a number.",
-    "atanh(0.5)",
-    atanh
+    doc => "Compute the inverse hyperbolic tangent of a number",
+    example => "atanh(0.5)",
+    name => atanh
 }
 document! {
-    "Compute the cube root of a number.",
-    "cbrt(27)",
-    cbrt
+    doc => "Compute the cube root of a number",
+    example => "cbrt(27)",
+    name => cbrt
 }
 document! {
-    "Compute the smallest integer greater than or equal to a number.",
-    "ceil(1.1)",
-    ceil
+    doc => "Compute the smallest integer greater than or equal to a number",
+    example => "ceil(1.1)",
+    name => ceil
 }
 document! {
-    "Compute the cosine of a number.",
-    "cos(0)",
-    cos
+    doc => "Compute the cosine of a number",
+    example => "cos(0)",
+    name => cos
 }
 document! {
-    "Compute the cotangent of a number.",
-    "cot(1)",
-    cot
+    doc => "Compute the cotangent of a number",
+    example => "cot(1)",
+    name => cot
 }
 document! {
-    "Compute the hyperbolic cosine of a number.",
-    "cosh(0)",
-    cosh
+    doc => "Compute the hyperbolic cosine of a number",
+    example => "cosh(0)",
+    name => cosh
 }
 document! {
-    "Converts an angle measured in radians to an approximately equivalent angle measured in degrees.",
-    "degrees(1)",
-    degrees
+    doc => "Converts an angle measured in radians to an approximately equivalent angle measured in degrees",
+    example => "degrees(1)",
+    name => degrees
 }
 document! {
-    "Compute the base-e exponential of a number.",
-    "exp(1)",
-    exp
+    doc => "Compute the base-e exponential of a number",
+    example => "exp(1)",
+    name => exp
 }
 document! {
-    "Compute the factorial of a number.",
-    "factorial(5)",
-    factorial
+    doc => "Compute the factorial of a number",
+    example => "factorial(5)",
+    name => factorial
 }
 document! {
-    "Compute the largest integer less than or equal to a number.",
-    "floor(1.1)",
-    floor
+    doc => "Compute the largest integer less than or equal to a number",
+    example => "floor(1.1)",
+    name => floor
 }
 document! {
-    "Compute the greatest common divisor of two integers.",
-    "gcd(10, 15)",
-    gcd
+    doc => "Compute the greatest common divisor of two integers",
+    example => "gcd(10, 15)",
+    name => gcd
 }
 document! {
-    "Returns true if the argument is NaN, false otherwise.",
-    "isnan(1)",
-    isnan
+    doc => "Returns true if the argument is NaN, false otherwise",
+    example => "isnan(1)",
+    name => isnan
 }
 document! {
-    "Returns true if the argument is zero, false otherwise.",
-    "iszero(0)",
-    iszero
+    doc => "Returns true if the argument is zero, false otherwise",
+    example => "iszero(0)",
+    name => iszero
 }
 document! {
-    "Compute the least common multiple of two integers.",
-    "lcm(10, 15)",
-    lcm
+    doc => "Compute the least common multiple of two integers",
+    example => "lcm(10, 15)",
+    name => lcm
 }
 document! {
-    "Compute the natural logarithm of a number.",
-    "ln(1)",
-    ln
+    doc => "Compute the natural logarithm of a number",
+    example => "ln(1)",
+    name => ln
 }
 document! {
-    "Compute the logarithm of a number in a specified base.",
-    "log(1)",
-    log
+    doc => "Compute the logarithm of a number in a specified base",
+    example => "log(1)",
+    name => log
 }
 document! {
-    "Compute the base-10 logarithm of a number.",
-    "log10(1)",
-    log10
+    doc => "Compute the base-10 logarithm of a number",
+    example => "log10(1)",
+    name => log10
 }
 document! {
-    "Compute the base-2 logarithm of a number.",
-    "log2(1)",
-    log2
+    doc => "Compute the base-2 logarithm of a number",
+    example => "log2(1)",
+    name => log2
 }
 document! {
-    "Returns the first argument if it is not NaN, otherwise returns the second argument.",
-    "nanvl(1, 2)",
-    nanvl
+    doc => "Returns the first argument if it is not NaN, otherwise returns the second argument",
+    example => "nanvl(1, 2)",
+    name => nanvl
 }
 document! {
-    "Compute the constant π.",
-    "pi()",
-    pi
+    doc => "Compute the constant π",
+    example => "pi()",
+    name => pi
 }
 
 document! {
-    "Compute the power of a number.",
-    "pow(2, 3)",
-    pow
+    doc => "Compute the power of a number",
+    example => "pow(2, 3)",
+    name => pow
 }
 document! {
-    "Converts an angle measured in degrees to an approximately equivalent angle measured in radians.",
-    "radians(1)",
-    radians
+    doc => "Converts an angle measured in degrees to an approximately equivalent angle measured in radians",
+    example => "radians(1)",
+    name => radians
 }
 document! {
-    "Compute a pseudo-random number between 0 and 1.",
-    "random()",
-    random
+    doc => "Compute a pseudo-random number between 0 and 1",
+    example => "random()",
+    name => random
 }
 document! {
-    "Round a number to the nearest integer.",
-    "round(1.1)",
-    round
+    doc => "Round a number to the nearest integer",
+    example => "round(1.1)",
+    name => round
 }
 document! {
-    "Compute the sign of a number.",
-    "signum(1)",
-    signum
+    doc => "Compute the sign of a number",
+    example => "signum(1)",
+    name => signum
 }
 document! {
-    "Compute the sine of a number.",
-    "sin(0)",
-    sin
+    doc => "Compute the sine of a number",
+    example => "sin(0)",
+    name => sin
 }
 document! {
-    "Compute the hyperbolic sine of a number.",
-    "sinh(0)",
-    sinh
+    doc => "Compute the hyperbolic sine of a number",
+    example => "sinh(0)",
+    name => sinh
 }
 document! {
-    "Compute the square root of a number.",
-    "sqrt(4)",
-    sqrt
+    doc => "Compute the square root of a number",
+    example => "sqrt(4)",
+    name => sqrt
 }
 document! {
-    "Compute the tangent of a number.",
-    "tan(0)",
-    tan
+    doc => "Compute the tangent of a number",
+    example => "tan(0)",
+    name => tan
 }
 document! {
-    "Compute the hyperbolic tangent of a number.",
-    "tanh(0)",
-    tanh
+    doc => "Compute the hyperbolic tangent of a number",
+    example => "tanh(0)",
+    name => tanh
 }
 document! {
-    "Truncate a number to the nearest integer. If a second argument is provided, truncate to the specified number of decimal places.",
-    "trunc(1.1111, 2)",
-    trunc
+    doc => "Truncate a number to the nearest integer. If a second argument is provided, truncate to the specified number of decimal places",
+    example => "trunc(1.1111, 2)",
+    name => trunc
 }
 document! {
-    "Returns the first non-null argument, or null if all arguments are null.",
-    "coalesce(null, 1)",
-    coalesce
+    doc => "Returns the first non-null argument, or null if all arguments are null",
+    example => "coalesce(null, 1)",
+    name => coalesce
 }
 document! {
-    "Returns null if the arguments are equal, otherwise returns the first argument.",
-    "nullif(1, 1)",
-    nullif
+    doc => "Returns null if the arguments are equal, otherwise returns the first argument",
+    example => "nullif(1, 1)",
+    name => nullif
 }
 document! {
-    "Compute the ASCII code of the first character of a string.",
-    "ascii('a')",
-    ascii
+    doc => "Compute the ASCII code of the first character of a string",
+    example => "ascii('a')",
+    name => ascii
 }
 document! {
-    "Compute the number of bits in a string.",
-    "bit_length('hello')",
-    bit_length
+    doc => "Compute the number of bits in a string",
+    example => "bit_length('hello')",
+    name => bit_length
 }
 document! {
-    "Remove the longest string containing only characters from a set of characters from the start and end of a string.",
-    "btrim('hello', 'eh')",
-    btrim
+    doc => "Remove the longest string containing only characters from a set of characters from the start and end of a string",
+    example => "btrim('hello', 'eh')",
+    name => btrim
 }
 document! {
-    "Compute the number of characters in a string.",
-    "character_length('hello')",
-    character_length
+    doc => "Compute the number of characters in a string",
+    example => "character_length('hello')",
+    name => character_length
 }
 document! {
-    "Concatenate two strings.",
-    "concat('hello', 'world')",
-    concat
+    doc => "Concatenate two strings",
+    example => "concat('hello', 'world')",
+    name => concat
 }
 document! {
-    "Concatenate two strings with a separator.",
-    "concat_ws(',', 'hello', 'world')",
-    concat_ws
+    doc => "Concatenate two strings with a separator",
+    example => "concat_ws(',', 'hello', 'world')",
+    name => concat_ws
 }
 document! {
-    "Compute the character with the given ASCII code.",
-    "chr(97)",
-    chr
+    doc => "Compute the character with the given ASCII code",
+    example => "chr(97)",
+    name => chr
 }
 document! {
-    "Capitalize the first letter of each word in a string.",
-    "initcap('hello world')",
-    initcap
+    doc => "Capitalize the first letter of each word in a string",
+    example => "initcap('hello world')",
+    name => initcap
 }
 document! {
-    "Extract a substring from the start of a string with the given length.",
-    "left('hello', 2)",
-    left
+    doc => "Extract a substring from the start of a string with the given length",
+    example => "left('hello', 2)",
+    name => left
 }
 document! {
-    "Convert a string to lowercase.",
-    "lower('HELLO')",
-    lower
+    doc => "Convert a string to lowercase",
+    example => "lower('HELLO')",
+    name => lower
 }
 document! {
-    "Pad a string to the left to a specified length with a sequence of characters.",
-    "lpad('hello', 10, '12')",
-    lpad
+    doc => "Pad a string to the left to a specified length with a sequence of characters",
+    example => "lpad('hello', 10, '12')",
+    name => lpad
 }
 document! {
-    "Remove all spaces from the start of a string.",
-    "ltrim(' hello ')",
-    ltrim
+    doc => "Remove all spaces from the start of a string",
+    example => "ltrim(' hello ')",
+    name => ltrim
 }
 document! {
-    "Compute the number of bytes in a string.",
-    "octet_length('hello')",
-    octet_length
+    doc => "Compute the number of bytes in a string",
+    example => "octet_length('hello')",
+    name => octet_length
 }
 document! {
-    "Repeat a string a specified number of times.",
-    "repeat('hello', 2)",
-    repeat
+    doc => "Repeat a string a specified number of times",
+    example => "repeat('hello', 2)",
+    name => repeat
 }
 document! {
-    "Replace all occurrences of a substring in a string with a new substring.",
-    "replace('hello', 'l', 'r')",
-    replace
+    doc => "Replace all occurrences of a substring in a string with a new substring",
+    example => "replace('hello', 'l', 'r')",
+    name => replace
 }
 document! {
-    "Reverse the characters in a string.",
-    "reverse('hello')",
-    reverse
+    doc => "Reverse the characters in a string",
+    example => "reverse('hello')",
+    name => reverse
 }
 document! {
-    "Extract a substring from the end of a string with the given length.",
-    "right('hello', 2)",
-    right
+    doc => "Extract a substring from the end of a string with the given length",
+    example => "right('hello', 2)",
+    name => right
 }
 document! {
-    "Pad a string to the right to a specified length with a sequence of characters.",
-    "rpad('hello', 10, '12')",
-    rpad
+    doc => "Pad a string to the right to a specified length with a sequence of characters",
+    example => "rpad('hello', 10, '12')",
+    name => rpad
 }
 document! {
-    "Remove all spaces from the end of a string.",
-    "rtrim(' hello ')",
-    rtrim
+    doc => "Remove all spaces from the end of a string",
+    example => "rtrim(' hello ')",
+    name => rtrim
 }
 document! {
-    "Split a string on a delimiter and return the nth field.",
-    "split_part('hello.world', '.', 2)",
-    split_part
+    doc => "Split a string on a delimiter and return the nth field",
+    example => "split_part('hello.world', '.', 2)",
+    name => split_part
 }
 document! {
-    "Split a string on a delimiter and return an array of the fields.",
-    "string_to_array('hello world', ' ')",
-    string_to_array
+    doc => "Split a string on a delimiter and return an array of the fields",
+    example => "string_to_array('hello world', ' ')",
+    name => string_to_array
 }
 document! {
-    "Returns true if the first string starts with the second string, false otherwise.",
-    "starts_with('hello world', 'hello')",
-    starts_with
+    doc => "Returns true if the first string starts with the second string, false otherwise",
+    example => "starts_with('hello world', 'hello')",
+    name => starts_with
 }
 document! {
-    "Find the position of the first occurrence of a substring in a string.",
-    "strpos('hello world', 'world')",
-    strpos
+    doc => "Find the position of the first occurrence of a substring in a string",
+    example => "strpos('hello world', 'world')",
+    name => strpos
 }
 document! {
-    "Extract a substring from a string with the given start position and length.",
-    "substr('hello', 2, 2)",
-    substr
+    doc => "Extract a substring from a string with the given start position and length",
+    example => "substr('hello', 2, 2)",
+    name => substr
 }
 document! {
-    "TODO",
-    "TODO",
-    to_hex
+    doc => "TODO",
+    example => "TODO",
+    name => to_hex
 }
 document! {
-    "Replace all occurrences of a set of characters in a string with a new set of characters.",
-    "translate('hello', 'el', '12')",
-    translate
+    doc => "Replace all occurrences of a set of characters in a string with a new set of characters",
+    example => "translate('hello', 'el', '12')",
+    name => translate
 }
 document! {
-    "Remove all spaces from the beginning and end of a string.",
-    "trim(' hello ')",
-    trim
+    doc => "Remove all spaces from the beginning and end of a string",
+    example => "trim(' hello ')",
+    name => trim
 }
 document! {
-    "Convert a string to uppercase.",
-    "upper('hello')",
-    upper
+    doc => "Convert a string to uppercase",
+    example => "upper('hello')",
+    name => upper
 }
 document! {
-    "Generate a random UUID.",
-    "uuid()",
-    uuid
+    doc => "Generate a random UUID",
+    example => "uuid()",
+    name => uuid
 }
 document! {
-    "Returns true if the first string matches the second string as a regular expression, false otherwise.",
-    "regexp_match('hello world', 'hello')",
-    regexp_match
+    doc => "Returns true if the first string matches the second string as a regular expression, false otherwise",
+    example => "regexp_match('hello world', 'hello')",
+    name => regexp_match
 }
 document! {
-    "Replace all occurrences of a substring in a string with a new substring using a regular expression.",
-    "regexp_replace('hello world', 'hello', 'goodbye')",
-    regexp_replace
+    doc => "Replace all occurrences of a substring in a string with a new substring using a regular expression",
+    example => "regexp_replace('hello world', 'hello', 'goodbye')",
+    name => regexp_replace
 }
 document! {
-    "Returns the current timestamp.",
-    "now()",
-    now
+    doc => "Returns the current timestamp",
+    example => "now()",
+    name => now
 }
 document! {
-    "Returns the current date.",
-    "current_date()",
-    current_date
+    doc => "Returns the current date",
+    example => "current_date()",
+    name => current_date
 }
 document! {
-    "Returns the current time in UTC",
-    "current_time()",
-    current_time
+    doc => "Returns the current time in UTC",
+    example => "current_time()",
+    name => current_time
 }
 document! {
-    "Returns the date binned to the specified interval.",
-    "date_bin('15 minutes', TIMESTAMP '2022-01-01 15:07:00', TIMESTAMP '2020-01-01)",
-    date_bin
+    doc => "Returns the date binned to the specified interval",
+    example => "date_bin('15 minutes', TIMESTAMP '2022-01-01 15:07:00', TIMESTAMP '2020-01-01)",
+    name => date_bin
 }
 document! {
-    "Returns the date truncated to the specified unit.",
-    "date_trunc('day', '2020-01-01')",
-    date_trunc
+    doc => "Returns the date truncated to the specified unit",
+    example => "date_trunc('day', '2020-01-01')",
+    name => date_trunc
 }
 document! {
-    "Returns the specified part of a date.",
-    "date_part('year', '2020-01-01')",
-    date_part
+    doc => "Returns the specified part of a date",
+    example => "date_part('year', '2020-01-01')",
+    name => date_part
 }
 document! {
-    "Converts a string to a timestamp (Timestamp<ns, UTC>). Alias for `TIMESTAMP <string>`.",
-    "to_timestamp('2020-09-08T12:00:00+00:00')",
-    to_timestamp
+    doc => "Converts a string to a timestamp (Timestamp<ns, UTC>). Alias for `TIMESTAMP <string>`",
+    example => "to_timestamp('2020-09-08T12:00:00+00:00')",
+    name => to_timestamp
 }
 document! {
-    "Converts a string to a timestamp with millisecond precision (Timestamp<ms, UTC>)",
-    "to_timestamp_millis('2020-09-08T12:00:00+00:00')",
-    to_timestamp_millis
+    doc => "Converts a string to a timestamp with millisecond precision (Timestamp<ms, UTC>)",
+    example => "to_timestamp_millis('2020-09-08T12:00:00+00:00')",
+    name => to_timestamp_millis
 }
 document! {
-    "Converts a string to a timestamp with microsecond precision (Timestamp<µs, UTC>)",
-    "to_timestamp_micros('2020-09-08T12:00:00+00:00')",
-    to_timestamp_micros
+    doc => "Converts a string to a timestamp with microsecond precision (Timestamp<µs, UTC>)",
+    example => "to_timestamp_micros('2020-09-08T12:00:00+00:00')",
+    name => to_timestamp_micros
 }
 document! {
-    "Converts a string to a timestamp with second precision (Timestamp<s, UTC>)",
-    "to_timestamp_seconds('2020-09-08T12:00:00+00:00')",
-    to_timestamp_seconds
+    doc => "Converts a string to a timestamp with second precision (Timestamp<s, UTC>)",
+    example => "to_timestamp_seconds('2020-09-08T12:00:00+00:00')",
+    name => to_timestamp_seconds
 }
 document! {
-    "Converts a unix timestamp (seconds since 1970-01-01 00:00:00 UTC) to a timestamp (Timestamp<s, UTC>).",
-    "from_unixtime(1600000000)",
-    from_unixtime
+    doc => "Converts a unix timestamp (seconds since 1970-01-01 00:00:00 UTC) to a timestamp (Timestamp<s, UTC>)",
+    example => "from_unixtime(1600000000)",
+    name => from_unixtime
 }
 document! {
-    "Compute the digest of a string using the specified algorithm. Valid algorithms are: md5, sha224, sha256, sha384, sha512, blake2s, blake2b, blake3",
-    "digest('hello', 'sha256')",
-    digest
+    doc => "Compute the digest of a string using the specified algorithm. Valid algorithms are: md5, sha224, sha256, sha384, sha512, blake2s, blake2b, blake3",
+    example => "digest('hello', 'sha256')",
+    name => digest
 }
 document! {
-    "Compute the MD5 digest of a string. Alias for `digest(<string>, 'md5')`.",
-    "md5('hello')",
-    md5
+    doc => "Compute the MD5 digest of a string. Alias for `digest(<string>, 'md5')`",
+    example => "md5('hello')",
+    name => md5
 }
 document! {
-    "Compute the SHA-224 digest of a string. Alias for `digest(<string>, 'sha224')`.",
-    "sha224('hello')",
-    sha224
+    doc => "Compute the SHA-224 digest of a string. Alias for `digest(<string>, 'sha224')`",
+    example => "sha224('hello')",
+    name => sha224
 }
 document! {
-    "Compute the SHA-256 digest of a string. Alias for `digest(<string>, 'sha256')`.",
-    "sha256('hello')",
-    sha256
+    doc => "Compute the SHA-256 digest of a string. Alias for `digest(<string>, 'sha256')`",
+    example => "sha256('hello')",
+    name => sha256
 }
 document! {
-    "Compute the SHA-384 digest of a string. Alias for `digest(<string>, 'sha384')`.",
-    "sha384('hello')",
-    sha384
+    doc => "Compute the SHA-384 digest of a string. Alias for `digest(<string>, 'sha384')`",
+    example => "sha384('hello')",
+    name => sha384
 }
 document! {
-    "Compute the SHA-512 digest of a string. Alias for `digest(<string>, 'sha512')`.",
-    "sha512('hello')",
-    sha512
+    doc => "Compute the SHA-512 digest of a string. Alias for `digest(<string>, 'sha512')`",
+    example => "sha512('hello')",
+    name => sha512
 }
 document! {
-    " Encode a string using the specified encoding. Valid encodings are: hex, base64",
-    "encode('hello', 'hex')",
-    encode
+    doc => "Encode a string using the specified encoding. Valid encodings are: hex, base64",
+    example => "encode('hello', 'hex')",
+    name => encode
 }
 document! {
-    "Decode a string using the specified encoding. Valid encodings are: hex, base64",
-    "decode('68656c6c6f', 'hex')",
-    decode
+    doc => "Decode a string using the specified encoding. Valid encodings are: hex, base64",
+    example => "decode('68656c6c6f', 'hex')",
+    name => decode
 }
 document! {
-    "Returns the Arrow type of the argument.",
-    "arrow_typeof(1)",
-    arrow_typeof
+    doc => "Returns the Arrow type of the argument",
+    example => "arrow_typeof(1)",
+    name => arrow_typeof
 }
 document! {
-    "Append an element to the end of an array.",
-    "array_append([1, 2], 3)",
-    array_append
+    doc => "Append an element to the end of an array",
+    example => "array_append([1, 2], 3)",
+    name => array_append
 }
 document! {
-    "Concatenate two arrays.",
-    "array_concat([1, 2], [3, 4])",
-    array_concat
+    doc => "Concatenate two arrays",
+    example => "array_concat([1, 2], [3, 4])",
+    name => array_concat
 }
 document! {
-    "Returns the dimensions of an array.",
-    "array_dims([[[1]]])",
-    array_dims
+    doc => "Returns the dimensions of an array",
+    example => "array_dims([[[1]]])",
+    name => array_dims
 }
 document! {
-    "Check if an array is empty. Returns true if empty",
-    "empty([])",
-    empty
+    doc => "Returns a boolean indicating whether the array is empty",
+    example => "empty([])",
+    name => empty
 }
 document! {
-    "Returns the element of an array at the specified index (using one-based indexing)",
-    "array_element([1, 2], 1)",
-    array_element
+    doc => "Returns the element of an array at the specified index (using one-based indexing)",
+    example => "array_element([1, 2], 1)",
+    name => array_element
 }
 document! {
-    "Flatten an array of arrays.",
-    "flatten([[1, 2], [3, 4]])",
-    flatten
+    doc => "Flatten an array of arrays",
+    example => "flatten([[1, 2], [3, 4]])",
+    name => flatten
 }
 document! {
-    "Returns true if the first array contains all elements of the second array",
-    "array_has_all([1, 2], [1, 2, 3])",
-    array_has_all
+    doc => "Returns true if the first array contains all elements of the second array",
+    example => "array_has_all([1, 2], [1, 2, 3])",
+    name => array_has_all
 }
 document! {
-    "Returns true if the first array contains any elements of the second array",
-    "array_has_any([1, 2], [1, 2, 3])",
-    array_has_any
+    doc => "Returns true if the first array contains any elements of the second array",
+    example => "array_has_any([1, 2], [1, 2, 3])",
+    name => array_has_any
 }
 document! {
-    "Returns true if the array contains the specified element",
-    "array_contains([1, 2], 1)",
-    array_contains
+    doc => "Returns true if the array contains the specified element",
+    example => "array_contains([1, 2], 1)",
+    name => array_contains
 }
 document! {
-    "Returns the length of an array.",
-    "array_length([1, 2])",
-    array_length
+    doc => "Returns the length of an array",
+    example => "array_length([1, 2])",
+    name => array_length
 }
 document! {
-    "Returns the number of dimensions of an array.",
-    "array_ndims([ [1, 2], [3, 4] ])",
-    array_ndims
+    doc => "Returns the number of dimensions of an array",
+    example => "array_ndims([ [1, 2], [3, 4] ])",
+    name => array_ndims
 }
 document! {
-    "Remove the last element of an array.",
-    "array_pop_back([1, 2])",
-    array_pop_back
+    doc => "Remove the last element of an array",
+    example => "array_pop_back([1, 2])",
+    name => array_pop_back
 }
 document! {
-    "Find the position of the first occurrence of an element in an array.",
-    "array_position([1, 2], 2)",
-    array_position
+    doc => "Find the position of the first occurrence of an element in an array",
+    example => "array_position([1, 2], 2)",
+    name => array_position
 }
 document! {
-    "Find the positions of all occurrences of an element in an array.",
-    "array_positions([1, 2, 1], 1)",
-    array_positions
+    doc => "Find the positions of all occurrences of an element in an array",
+    example => "array_positions([1, 2, 1], 1)",
+    name => array_positions
 }
 document! {
-    "Prepend an element to the start of an array.",
-    "array_prepend([1, 2], 3)",
-    array_prepend
+    doc => "Prepend an element to the start of an array",
+    example => "array_prepend([1, 2], 3)",
+    name => array_prepend
 }
 document! {
-    "Repeat an element a specified number of times to create an array.",
-    "array_repeat(1, 2)",
-    array_repeat
+    doc => "Repeat an element a specified number of times to create an array",
+    example => "array_repeat(1, 2)",
+    name => array_repeat
 }
 document! {
-    "Remove the first occurrence of an element from an array.",
-    "array_remove([1, 2, 1], 1)",
-    array_remove
+    doc => "Remove the first occurrence of an element from an array",
+    example => "array_remove([1, 2, 1], 1)",
+    name => array_remove
 }
 document! {
-    "Remove the first n occurrences of an element from an array.",
-    "array_remove_n([1, 2, 1], 1, 2)",
-    array_remove_n
+    doc => "Remove the first n occurrences of an element from an array",
+    example => "array_remove_n([1, 2, 1], 1, 2)",
+    name => array_remove_n
 }
 document! {
-    "Remove all occurrences of an element from an array.",
-    "array_remove_all([1, 2, 1], 1)",
-    array_remove_all
+    doc => "Remove all occurrences of an element from an array",
+    example => "array_remove_all([1, 2, 1], 1)",
+    name => array_remove_all
 }
 document! {
-    "Replace the first occurrence of an element in an array with a new element.",
-    "array_replace([1, 2, 1], 1, 3)",
-    array_replace
+    doc => "Replace the first occurrence of an element in an array with a new element",
+    example => "array_replace([1, 2, 1], 1, 3)",
+    name => array_replace
 }
 document! {
-    "Replace the first n occurrences of an element in an array with a new element.",
-    "array_replace_n([1, 2, 1], 1, 3, 2)",
-    array_replace_n
+    doc => "Replace the first n occurrences of an element in an array with a new element",
+    example => "array_replace_n([1, 2, 1], 1, 3, 2)",
+    name => array_replace_n
 }
 document! {
-    "Replace all occurrences of an element in an array with a new element.",
-    "array_replace_all([1, 2, 1], 1, 3)",
-    array_replace_all
+    doc => "Replace all occurrences of an element in an array with a new element",
+    example => "array_replace_all([1, 2, 1], 1, 3)",
+    name => array_replace_all
 }
 document! {
-    "Extract a slice from an array.",
-    "array_slice([1, 2, 3, 4], 1, 2)",
-    array_slice
+    doc => "Extract a slice from an array",
+    example => "array_slice([1, 2, 3, 4], 1, 2)",
+    name => array_slice
 }
 document! {
-    "Convert an array to a string with a separator.",
-    "array_to_string([1, 2, 3], ',')",
-    array_to_string
+    doc => "Convert an array to a string with a separator",
+    example => "array_to_string([1, 2, 3], ',')",
+    name => array_to_string
 }
 document! {
-    "Returns the number of elements in an array.",
-    "cardinality([1, 2, 3])",
-    cardinality
+    doc => "Returns the number of elements in an array",
+    example => "cardinality([1, 2, 3])",
+    name => cardinality
 }
 document! {
-    "Create an array from a list of elements.",
-    "make_array(1, 2, 3)",
-    make_array
+    doc => "Create an array from a list of elements",
+    example => "make_array(1, 2, 3)",
+    name => make_array
 }
 document! {
-    "Create a struct from a list of elements. The field names will always be `cN` where N is the index of the element.",
-    "struct(1, 'hello')",
+    doc => "Create a struct from a list of elements. The field names will always be `cN` where N is the index of the element",
+    example => "struct(1, 'hello')",
     "struct" => struct_
 }
 

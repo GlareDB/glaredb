@@ -8,196 +8,196 @@ use datafusion::logical_expr::AggregateFunction;
 use protogen::metastore::types::catalog::FunctionType;
 
 document! {
-    "Gives the approximate count of distinct elements using HyperLogLog.",
-    "approx_distinct(a)",
-    approx_distinct
+    doc => "Gives the approximate count of distinct elements using HyperLogLog",
+    example => "approx_distinct(a)",
+    name => approx_distinct
 }
 
 document! {
-    "Gives the approximate median of a column.",
-    "approx_median(a)",
-    approx_median
+    doc => "Gives the approximate median of a column",
+    example => "approx_median(a)",
+    name => approx_median
 }
 
 document! {
-    "Gives the approximate percentile of a column",
-    "approx_percentile_cont(a)",
-    approx_percentile_cont
+    doc => "Gives the approximate percentile of a column",
+    example => "approx_percentile_cont(a)",
+    name => approx_percentile_cont
 }
 
 document! {
-    "Gives the approximate percentile of a column with a weight column",
-    "approx_percentile_cont_with_weight(a)",
-    approx_percentile_cont_with_weight
+    doc => "Gives the approximate percentile of a column with a weight column",
+    example => "approx_percentile_cont_with_weight(a)",
+    name => approx_percentile_cont_with_weight
 }
 
 document! {
-    "Returns a list containing all the values of a column",
-    "array_agg(a)",
-    array_agg
+    doc => "Returns a list containing all the values of a column",
+    example => "array_agg(a)",
+    name => array_agg
 }
 document! {
-    "Returns the average of a column",
-    "avg(a)",
-    avg
+    doc => "Returns the average of a column",
+    example => "avg(a)",
+    name => avg
 }
 document! {
-    "Returns the bitwise AND of a column",
-    "bit_and(a)",
-    bit_and
+    doc => "Returns the bitwise AND of a column",
+    example => "bit_and(a)",
+    name => bit_and
 }
 document! {
-    "Returns the bitwise OR of a column",
-    "bit_or(a)",
-    bit_or
+    doc => "Returns the bitwise OR of a column",
+    example => "bit_or(a)",
+    name => bit_or
 }
 document! {
-    "Returns the bitwise XOR of a column",
-    "bit_xor(a)",
-    bit_xor
+    doc => "Returns the bitwise XOR of a column",
+    example => "bit_xor(a)",
+    name => bit_xor
 }
 document!(
-    "Returns the boolean AND of a column",
-    "bool_and(a)",
-    bool_and
+    doc => "Returns the boolean AND of a column",
+    example => "bool_and(a)",
+    name => bool_and
 );
 document! {
-    "Returns the boolean OR of a column",
-    "bool_or(a)",
-    bool_or
+    doc => "Returns the boolean OR of a column",
+    example => "bool_or(a)",
+    name => bool_or
 }
 
 document! {
-    "Returns the correlation coefficient of two columns",
-    "correlation(x, y)",
-    correlation
+    doc => "Returns the correlation coefficient of two columns",
+    example => "correlation(x, y)",
+    name => correlation
 }
 document! {
-    "Returns the number of rows in a column",
-    "count(a)",
-    count
+    doc => "Returns the number of rows in a column",
+    example => "count(a)",
+    name => count
 }
 document! {
-    "Returns the covariance of two columns",
-    "covariance(x, y)",
-    covariance
+    doc => "Returns the covariance of two columns",
+    example => "covariance(x, y)",
+    name => covariance
 }
 document! {
-    "Returns the population covariance of two columns",
-    "covariance_pop(x, y)",
-    covariance_pop
+    doc => "Returns the population covariance of two columns",
+    example => "covariance_pop(x, y)",
+    name => covariance_pop
 }
 document! {
-    "Returns the first value in a column",
-    "first_value(a)",
-    first_value
+    doc => "Returns the first value in a column",
+    example => "first_value(a)",
+    name => first_value
 }
 document! {
-    "Returns 1 if a column is aggregated, 0 otherwise",
-    "grouping(a)",
-    grouping
+    doc => "Returns 1 if a column is aggregated, 0 otherwise",
+    example => "grouping(a)",
+    name => grouping
 }
 document! {
-    "Returns the last value in a column",
-    "last_value(a)",
-    last_value
+    doc => "Returns the last value in a column",
+    example => "last_value(a)",
+    name => last_value
 }
 document! {
-    "Returns the maximum value in a column",
-    "max(a)",
-    max
+    doc => "Returns the maximum value in a column",
+    example => "max(a)",
+    name => max
 }
 document! {
-    "Returns the median value in a column",
-    "median(a)",
-    median
+    doc => "Returns the median value in a column",
+    example => "median(a)",
+    name => median
 }
 document! {
-    "Returns the minimum value in a column",
-    "min(a)",
-    min
+    doc => "Returns the minimum value in a column",
+    example => "min(a)",
+    name => min
 }
 document! {
-    "Returns the average of the independent variable for non-null pairs in a group, where x is the independent variable and y is the dependent variable.",
-    "regr_avgx(y, x)",
-    regr_avgx
-}
-
-document! {
-    "Returns the average of the dependent variable for non-null pairs in a group, where x is the independent variable and y is the dependent variable.",
-    "regr_avgy(y, x)",
-    regr_avgy
+    doc => "Returns the average of the independent variable for non-null pairs in a group, where x is the independent variable and y is the dependent variable",
+    example => "regr_avgx(y, x)",
+    name => regr_avgx
 }
 
 document! {
-    "Returns the number of non-null number pairs in a group.",
-    "regr_count(y, x)",
-    regr_count
+    doc => "Returns the average of the dependent variable for non-null pairs in a group, where x is the independent variable and y is the dependent variable",
+    example => "regr_avgy(y, x)",
+    name => regr_avgy
 }
 
 document! {
-    "Returns the intercept of the univariate linear regression line for non-null pairs in a group.",
-    "regr_intercept(y, x)",
-    regr_intercept
+    doc => "Returns the number of non-null number pairs in a group",
+    example => "regr_count(y, x)",
+    name => regr_count
 }
 
 document! {
-    "Returns the coefficient of determination (R-squared) for non-null pairs in a group.",
-    "regr_r2(y, x)",
-    regr_r2
+    doc => "Returns the intercept of the univariate linear regression line for non-null pairs in a group",
+    example => "regr_intercept(y, x)",
+    name => regr_intercept
 }
 
 document! {
-    "Returns the slope of the linear regression line for non-null pairs in a group.",
-    "regr_slope(y, x)",
-    regr_slope
+    doc => "Returns the coefficient of determination (R-squared) for non-null pairs in a group",
+    example => "regr_r2(y, x)",
+    name => regr_r2
 }
 
 document! {
-    "Returns the sum of squares of the independent variable for non-null pairs in a group.",
-    "regr_sxx(y, x)",
-    regr_sxx
+    doc => "Returns the slope of the linear regression line for non-null pairs in a group",
+    example => "regr_slope(y, x)",
+    name => regr_slope
 }
 
 document! {
-    "Returns the sum of products of independent times dependent variable for non-null pairs in a group.",
-    "regr_sxy(y, x)",
-    regr_sxy
+    doc => "Returns the sum of squares of the independent variable for non-null pairs in a group",
+    example => "regr_sxx(y, x)",
+    name => regr_sxx
 }
 
 document! {
-    "Returns the sum of squares of the dependent variable for non-null pairs in a group.",
-    "regr_syy(y, x)",
-    regr_syy
+    doc => "Returns the sum of products of independent times dependent variable for non-null pairs in a group",
+    example => "regr_sxy(y, x)",
+    name => regr_sxy
 }
 
 document! {
-    "Returns the sample standard deviation of a column",
-    "stddev(a)",
-    stddev
+    doc => "Returns the sum of squares of the dependent variable for non-null pairs in a group",
+    example => "regr_syy(y, x)",
+    name => regr_syy
 }
 
 document! {
-    "Returns the population standard deviation of a column",
-    "stddev_pop(a)",
-    stddev_pop
+    doc => "Returns the sample standard deviation of a column",
+    example => "stddev(a)",
+    name => stddev
 }
 
 document! {
-    "Returns the sum of a column",
-    "sum(a)",
-    sum
-}
-document! {
-    "Returns the sample variance of a column",
-    "variance(a)",
-    variance
+    doc => "Returns the population standard deviation of a column",
+    example => "stddev_pop(a)",
+    name => stddev_pop
 }
 
 document! {
-    "Returns the population variance of a column",
-    "variance_pop(a)",
-    variance_pop
+    doc => "Returns the sum of a column",
+    example => "sum(a)",
+    name => sum
+}
+document! {
+    doc => "Returns the sample variance of a column",
+    example => "variance(a)",
+    name => variance
+}
+
+document! {
+    doc => "Returns the population variance of a column",
+    example => "variance_pop(a)",
+    name => variance_pop
 }
 
 impl BuiltinFunction for AggregateFunction {

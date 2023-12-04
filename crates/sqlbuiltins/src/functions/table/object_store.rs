@@ -53,31 +53,18 @@ impl BuiltinFunction for ObjScanTableFunc {
     }
     fn sql_example(&self) -> Option<String> {
         fn build_example(extension: &str) -> String {
-            format!("{ext}_scan('./my_data.{ext}')", ext = extension)
+            format!(
+                "SELECT * FROM {ext}_scan('./my_data.{ext}')",
+                ext = extension
+            )
         }
         Some(build_example(self.0.to_string().as_str()))
     }
     fn description(&self) -> Option<String> {
-        fn build_description(extension: &str) -> String {
-            format!(
-                r#"
-Syntax: 
--- Single url or path.
-{ext}_scan(<url>)
--- Multiple urls or paths.
-{ext}_scan([<url>])
--- Using a cloud credentials object.
-{ext}_scan(<url>, <credential_object>)
--- Required named argument for S3 buckets.
-{ext}_scan(<url>, <credentials_object>, region => '<aws_region>')
--- Pass S3 credentials using named arguments.
-{ext}_scan(<url>, access_key_id => '<aws_access_key_id>', secret_access_key => '<aws_secret_access_key>', region => '<aws_region>')
--- Pass GCS credentials using named arguments.
-{ext}_scan(<url>, service_account_key => '<gcp_service_account_key>'"#,
-                ext = extension
-            )
-        }
-        Some(build_description(self.0.to_string().as_str()))
+        Some(format!(
+            "Returns a table by scanning the given {ext} file(s).",
+            ext = self.0.to_string().to_lowercase()
+        ))
     }
 
     fn signature(&self) -> Option<Signature> {
