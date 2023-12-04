@@ -83,12 +83,7 @@ impl TableFunc for BsonScan {
 
         // by default we'll set up streams that could, in theory (after the sample) read from the
         // files in parallel, leading to a table that will be streamed
-        let _serial_scan = match opts.get("serial_scan") {
-            // TODO: have a scan mode selector: (scan serially; read
-            // everything into memory; stream;)
-            Some(_) => true, // TODO: parse actual value;
-            None => false,
-        };
+        let _serial_scan = opts.get("serial_scan").is_some();
 
         // build a vector of streams, one for each file, that handle BSON's framing.
         let mut readers = VecDeque::<
