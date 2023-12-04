@@ -264,10 +264,7 @@ impl FuncParamValue {
     }
 
     pub fn is_valid<T: TryFrom<FuncParamValue>>(&self) -> bool {
-        match T::try_from(self.to_owned()) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        T::try_from(self.to_owned()).is_ok()
     }
 }
 
@@ -350,12 +347,7 @@ impl TryFrom<FuncParamValue> for IdentValue {
             FuncParamValue::Ident(v) => Ok(IdentValue(v)),
             FuncParamValue::Scalar(sv) => match sv {
                 ScalarValue::Utf8(Some(v)) | ScalarValue::LargeUtf8(Some(v)) => {
-                    Ok(IdentValue(v.to_owned().try_into().map_err(|_| {
-                        ExtensionError::InvalidParamValue {
-                            param: v.to_string(),
-                            expected: "identifer",
-                        }
-                    })?))
+                    Ok(IdentValue(v.to_owned()))
                 }
                 other => Err(ExtensionError::InvalidParamValue {
                     param: other.to_string(),
