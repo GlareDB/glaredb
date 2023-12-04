@@ -77,8 +77,9 @@ impl TableFunc for BsonScan {
             None => 100,
         };
 
-        // by default we'll set up streams that could, in theory (after the sample) read from the
-        // files in parallel, leading to a table that will be streamed
+        // by default we'll set up streams that could, in theory (after the
+        // sample) read from the files in parallel, leading to a table that will
+        // be streamed
         let _serial_scan = opts.get("serial_scan").is_some();
 
         // build a vector of streams, one for each file, that handle BSON's framing.
@@ -87,11 +88,12 @@ impl TableFunc for BsonScan {
             readers.push_back(
                 // BSON is just length-prefixed byte sequences
                 LengthDelimitedCodec::builder()
-                    // set up the framing parameters, use a 16MB max-doc size, which is the same as
-                    // the MongoDB server, this is arbitrary, and we could easily support larger
-                    // documents, but one has to draw the line somewhere, 16MB is (frankly) absurdly
-                    // large for a row size, and anything larger wouldn't be round-trippable to
-                    // MongoDB.
+                    // set up the framing parameters, use a 16MB max-doc size,
+                    // which is the same as the MongoDB server, this is
+                    // arbitrary, and we could easily support larger documents,
+                    // but one has to draw the line somewhere, 16MB is (frankly)
+                    // absurdly large for a row size, and anything larger
+                    // wouldn't be round-trippable to MongoDB.
                     .max_frame_length(16 * 1024 * 1024)
                     .length_field_type::<u32>() // actually signed int32s
                     .length_field_offset(0) // length field is first
@@ -105,13 +107,15 @@ impl TableFunc for BsonScan {
                     ))
                     // convert the chunk of bytes to bson.
                     .map(
-                        // TODO: this probably wants to be a raw document eventually, so we can put
-                        // all the _fields_ in a map, iterate over the document once, and check each
-                        // bson field name against the schema, and only pull out the fields that
-                        // match. This is easier in the short term but less performant for large
-                        // documents where the docuemnts are a superset of the schema, we'll end up
-                        // doing much more parsing work than is actually needed for the bson
-                        // documents.
+                        // TODO: this probably wants to be a raw document
+                        // eventually, so we can put all the _fields_ in a map,
+                        // iterate over the document once, and check each bson
+                        // field name against the schema, and only pull out the
+                        // fields that match. This is easier in the short term
+                        // but less performant for large documents where the
+                        // docuemnts are a superset of the schema, we'll end up
+                        // doing much more parsing work than is actually needed
+                        // for the bson documents.
                         |bt: Result<BytesMut, std::io::Error>| -> Result<bson::Document, ExtensionError> {
                             Ok(bson::de::from_slice::<bson::Document>(
                                 bt?.freeze().as_bytes().to_owned().as_slice(),
@@ -121,8 +125,8 @@ impl TableFunc for BsonScan {
             );
         }
 
-        // iterate through the readers and build up a sample of the first <n> documents to be used
-        // to infer the schema.
+        // iterate through the readers and build up a sample of the first <n>
+        // documents to be used to infer the schema.
         let mut sample = Vec::<bson::Document>::with_capacity(sample_size as usize);
         let mut first_active: usize = 0;
         'readers: for reader in readers.iter_mut() {
@@ -139,22 +143,24 @@ impl TableFunc for BsonScan {
             first_active += 1;
         }
 
-        // if we had to read through one or more than of the input files in the glob, we already
-        // have their documents and should truncate the vector of readers.
+        // if we had to read through one or more than of the input files in the
+        // glob, we already have their documents and should truncate the vector
+        // of readers.
         for _ in 0..first_active {
             readers.pop_front();
         }
 
-        // infer the sechema; in the future we can allow users to specify the schema directly; in
-        // the future users could specify the schema (kind of as a base-level projection, but we'd
-        // need a schema specification language). Or have some other strategy for inference rather
-        // than every unique field from the first <n> documents.
+        // infer the sechema; in the future we can allow users to specify the
+        // schema directly; in the future users could specify the schema (kind
+        // of as a base-level projection, but we'd need a schema specification
+        // language). Or have some other strategy for inference rather than
+        // every unique field from the first <n> documents.
         let schema = merge_schemas(sample.iter().map(|doc| schema_from_document(doc).unwrap()))
             .map_err(|e| ExtensionError::String(e.to_string()))?;
 
-        // TODO: create two partion scanner implementations and add them to a vector as below: one
-        // that just returns the documents from the sample in the table and a second one for each
-        // reader.
+        // TODO: create two partion scanner implementations and add them to a
+        // vector as below: one that just returns the documents from the sample
+        // in the table and a second one for each reader.
 
         Ok(Arc::new(StreamingTable::try_new(
             Arc::new(schema), // <= inferred schema
