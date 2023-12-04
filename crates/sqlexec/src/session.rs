@@ -81,6 +81,8 @@ pub enum ExecutionResult {
     /// Tunnel created.
     CreateTunnel,
     /// Credentials created.
+    CreateCredential,
+    /// Credentials created.
     CreateCredentials,
     /// Schema created.
     CreateSchema,
@@ -171,6 +173,7 @@ impl ExecutionResult {
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateTunnel => "create_tunnel",
+            ExecutionResult::CreateCredential => "create_credential",
             ExecutionResult::CreateCredentials => "create_credentials",
             ExecutionResult::CreateSchema => "create_schema",
             ExecutionResult::CreateView => "create_view",
@@ -193,6 +196,7 @@ impl ExecutionResult {
             ExecutionResult::CreateTable
                 | ExecutionResult::CreateDatabase
                 | ExecutionResult::CreateTunnel
+                | ExecutionResult::CreateCredential
                 | ExecutionResult::CreateCredentials
                 | ExecutionResult::CreateSchema
                 | ExecutionResult::CreateView
@@ -230,6 +234,7 @@ impl ExecutionResult {
             "create_table" => ExecutionResult::CreateTable,
             "create_database" => ExecutionResult::CreateDatabase,
             "create_tunnel" => ExecutionResult::CreateTunnel,
+            "create_credential" => ExecutionResult::CreateCredential,
             "create_credentials" => ExecutionResult::CreateCredentials,
             "create_schema" => ExecutionResult::CreateSchema,
             "create_view" => ExecutionResult::CreateView,
@@ -286,7 +291,8 @@ impl fmt::Display for ExecutionResult {
             ExecutionResult::CreateTable => write!(f, "Table created"),
             ExecutionResult::CreateDatabase => write!(f, "Database created"),
             ExecutionResult::CreateTunnel => write!(f, "Tunnel created"),
-            ExecutionResult::CreateCredentials => write!(f, "Credentials created"),
+            ExecutionResult::CreateCredential => write!(f, "Credential created"),
+            ExecutionResult::CreateCredentials => write!(f, "Credentials created\nDEPRECATION WARNING. `CREATE CREDENTIALS` is deprecated and will be removed in a future release. Please use `CREATE CREDENTIAL` instead."),
             ExecutionResult::CreateSchema => write!(f, "Schema create"),
             ExecutionResult::CreateView => write!(f, "View created"),
             ExecutionResult::AlterTable => write!(f, "Table altered"),
@@ -396,12 +402,14 @@ impl Session {
     pub async fn create_physical_plan(
         &self,
         plan: DfLogicalPlan,
+        op: &OperationInfo,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();
         let plan = state.optimize(&plan)?;
         if let Some(client) = self.ctx.exec_client() {
             let planner = RemotePhysicalPlanner {
                 database_id: self.ctx.get_database_id(),
+                query_text: op.query_text(),
                 remote_client: client,
                 catalog: self.ctx.get_session_catalog(),
             };
@@ -424,7 +432,6 @@ impl Session {
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
         let context = self.ctx.task_context();
-
         let stream = if self.ctx.get_session_vars().enable_experimental_scheduler() {
             let scheduler = self.ctx.get_task_scheduler();
             let (sink, stream) =
@@ -493,6 +500,7 @@ impl Session {
     pub async fn execute_inner(
         &mut self,
         plan: LogicalPlan,
+        op: &OperationInfo,
     ) -> Result<(Arc<dyn ExecutionPlan>, ExecutionResult)> {
         // Note that transaction support is fake, in that we don't currently do
         // anything and do not provide any transactional semantics.
@@ -505,7 +513,7 @@ impl Session {
                 Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery))
             }
             LogicalPlan::Datafusion(plan) => {
-                let physical = self.create_physical_plan(plan).await?;
+                let physical = self.create_physical_plan(plan, op).await?;
                 let stream = self.execute_physical(physical.clone()).await?;
 
                 let stream = ExecutionResult::from_stream(stream).await;
@@ -562,13 +570,18 @@ impl Session {
             None => return Ok(ExecutionResult::EmptyQuery),
         };
 
-        // Create "base" metrics.
-        let mut metrics = QueryMetrics::default();
+        let mut op = OperationInfo::default();
         if let Some(stmt) = &portal.stmt.stmt {
-            metrics.query_text = stmt.to_string();
+            op = op.with_query_text(stmt.to_string());
         }
 
-        let stream = match self.execute_inner(plan).await {
+        // Create "base" metrics.
+        let mut metrics = QueryMetrics {
+            query_text: op.query_text().to_owned(),
+            ..Default::default()
+        };
+
+        let stream = match self.execute_inner(plan, &op).await {
             Ok((plan, result)) => match result {
                 ExecutionResult::Error(e) => {
                     metrics.execution_status = ExecutionStatus::Fail;
