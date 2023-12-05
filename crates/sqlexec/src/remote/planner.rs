@@ -69,6 +69,7 @@ impl DDLExtensionPlanner {
         Self { catalog }
     }
 }
+
 #[async_trait]
 impl ExtensionPlanner for DDLExtensionPlanner {
     async fn plan_extension(
@@ -398,10 +399,100 @@ pub struct RemotePhysicalPlanner<'a> {
 }
 
 impl<'a> RemotePhysicalPlanner<'a> {
-    fn pushdown_remote_pref(
-        &self,
-        root: Arc<dyn ExecutionPlan>,
-    ) -> Result<(RuntimeGroupExec, Vec<ClientExchangeSendExec>)> {
+    /// Push down "remote" exec as far down as possible and replace any "local"
+    /// execs that are found (children to the remote). Finally, pack the
+    /// remote exec in a [`SendRecvJoinExec`] so the plan transformation looks
+    /// something like:
+    ///
+    /// ### Original plan:
+    ///
+    /// ```txt
+    ///                  +-----------+
+    ///                  | A (Local) |
+    ///                  +-----+-----+
+    ///                        |
+    ///                        v
+    ///               +-----------------+
+    ///       +-------+ B (Unspecified) +-------+
+    ///       |       +--------+--------+       |
+    ///       v                |                v
+    /// +------------+         |          +-----------+
+    /// | C (Remote) |         |          | F (Local) |
+    /// +-----+------+         v          +-----------+
+    ///       |          +------------+
+    ///       v          | E (Remote) |
+    /// +-----------+    +------------+
+    /// | D (Local) |
+    /// +-----------+
+    /// ```
+    ///
+    /// ### Transformed plan:
+    ///
+    /// ```txt
+    ///                           +-----------+
+    ///                           | A (Local) |
+    ///                           +-----+-----+
+    ///                                 |
+    ///                                 v
+    ///                        +-----------------+
+    ///          +-------------+ B (Unspecified) +-------+
+    ///          |             +--------+--------+       |
+    ///          |                      |                v
+    ///          v                      |          +-----------+
+    /// +------------------+            |          | F (Local) |
+    /// | SendRecvJoinExec |            v          +-----------+
+    /// |                  |   +------------------+
+    /// |        C         |   | SendRecvJoinExec |
+    /// |        |         |   |                  |
+    /// |        v         |   |        E         |
+    /// |   D (Send-Recv)  |   +------------------+
+    /// +------------------+
+    /// ```
+    ///
+    /// > **Note:** All nodes shown in the graphs above (except `B`) are
+    /// > [`RuntimeGroupExec`]s. Other nodes are omitted for simplicity.
+    ///
+    /// We don't "pull-up" the remote exec as much as possible because we want
+    /// to stop pulling once a "local" node is met but there's no certain way of
+    /// knowing that the node is to be run locally (since that information lies
+    /// with its n'th parent, i.e., [`RuntimeGroupExec`]).
+    ///
+    /// For example, take the following plan in consideration which tries to
+    /// copy contents from a remote table in a local file:
+    ///
+    /// ```txt
+    /// RuntimeExec (local)
+    ///         |
+    ///     CopyToExec
+    ///         |
+    ///       Limit
+    ///         |
+    /// RuntimeExec (remote)
+    ///         |
+    ///     TableScan
+    /// ```
+    ///
+    /// If we were to pull "remote" up until the "local", we would end up with
+    /// something like:
+    ///
+    /// ```txt
+    /// RuntimeExec (local)
+    ///         |
+    /// RuntimeExec (remote)
+    ///         |
+    ///     CopyToExec
+    ///         |
+    ///       Limit
+    ///         |
+    ///     TableScan
+    /// ```
+    ///
+    /// This ends up running the `CopyToExec` on remote which is completely
+    /// incorrect.
+    // TODO: Figure out how to "pull-up" remote more accurately. One solution
+    // might be to specialize cases where we know we can pull up, i.e., know
+    // that the node has to execute on local.
+    fn pushdown_remote_pref(&self, root: Arc<dyn ExecutionPlan>) -> Result<Arc<dyn ExecutionPlan>> {
         let root_pref = root
             .as_any()
             .downcast_ref::<RuntimeGroupExec>()
@@ -426,20 +517,21 @@ impl<'a> RemotePhysicalPlanner<'a> {
 
                             let mut input = exec.child.clone();
 
-                            // Create the receive exec. This will be executed on the
-                            // remote node.
+                            // Create the receive exec. This will be executed on
+                            // the remote node.
                             let recv = ClientExchangeRecvExec {
                                 work_id,
                                 schema: input.schema(),
                             };
 
-                            // Temporary coalesce exec until our custom plans support partition.
+                            // Temporary coalesce exec until our custom plans
+                            // support partition.
                             if input.output_partitioning().partition_count() != 1 {
                                 input = Arc::new(CoalescePartitionsExec::new(input));
                             }
 
-                            // And create the associated send exec. This will be
-                            // executed locally, and pushes batches over the
+                            // And create the associated send exec. This will
+                            // be executed locally, and pushes batches over the
                             // broadcast endpoint.
                             let send = ClientExchangeSendExec {
                                 database_id: self.database_id,
@@ -465,94 +557,18 @@ impl<'a> RemotePhysicalPlanner<'a> {
                 Ok(transformed)
             })?;
 
-            Ok((
-                RuntimeGroupExec::new(RuntimePreference::Remote, plan),
-                sends,
-            ))
+            Ok(self.create_join_exec(plan, sends))
         } else {
-            let mut children_and_sends = Vec::new();
-            let mut any_local = matches!(root_pref, RuntimePreference::Local);
-            let mut none_remote = true;
+            let new_children = root
+                .children()
+                .into_iter()
+                .map(|child| self.pushdown_remote_pref(child))
+                .collect::<Result<Vec<_>>>()?;
 
-            for child in root.children() {
-                let (new_child, sends) = self.pushdown_remote_pref(child)?;
-
-                match new_child.preference {
-                    RuntimePreference::Local => {
-                        any_local = true;
-                    }
-                    RuntimePreference::Remote => {
-                        none_remote = false;
-                    }
-                    _ => (),
-                }
-
-                children_and_sends.push((new_child, sends));
-            }
-
-            if any_local {
-                // Create the remote execs as they are.
-                let children: Vec<Arc<dyn ExecutionPlan>> = children_and_sends
-                    .into_iter()
-                    .map(|(child, sends)| {
-                        if matches!(child.preference, RuntimePreference::Remote) {
-                            self.create_join_exec(child.child, sends)
-                        } else {
-                            assert!(sends.is_empty());
-                            child.child
-                        }
-                    })
-                    .collect();
-
-                let plan = if children.is_empty() {
-                    root
-                } else {
-                    root.with_new_children(children)?
-                };
-
-                // Mark this as being executed on local.
-                Ok((
-                    RuntimeGroupExec::new(RuntimePreference::Local, plan),
-                    Vec::new(),
-                ))
-            } else if none_remote {
-                // This implies that the whole plan can be executed on local.
-                // Keep the actual preference intact.
-
-                let children: Vec<_> = children_and_sends
-                    .into_iter()
-                    .map(|(child, _)| child.child)
-                    .collect();
-
-                let plan = if children.is_empty() {
-                    root
-                } else {
-                    root.with_new_children(children)?
-                };
-
-                Ok((
-                    RuntimeGroupExec::new(RuntimePreference::Unspecified, plan),
-                    Vec::new(),
-                ))
+            if new_children.is_empty() {
+                Ok(root)
             } else {
-                // We can "pull up" the remote preference now.
-                let (children, sends): (Vec<_>, Vec<_>) = children_and_sends
-                    .into_iter()
-                    .map(|(child, sends)| (child.child, sends))
-                    .unzip();
-
-                let sends: Vec<_> = sends.into_iter().flatten().collect();
-
-                let plan = if children.is_empty() {
-                    root
-                } else {
-                    root.with_new_children(children)?
-                };
-
-                Ok((
-                    RuntimeGroupExec::new(RuntimePreference::Remote, plan),
-                    sends,
-                ))
+                Ok(root.with_new_children(new_children)?)
             }
         }
     }
@@ -597,13 +613,9 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         .create_physical_plan(logical_plan, session_state)
         .await?;
 
-        // Root of the plan should be local so all the send execs are wrapped up
-        // in joins if required.
-        let local_physical = RuntimeGroupExec::new(RuntimePreference::Local, physical);
-        let (physical, sends) = self.pushdown_remote_pref(Arc::new(local_physical))?;
-        assert!(sends.is_empty());
-
-        Ok(Arc::new(physical))
+        // Push down "remote" as down as possible. This ensures the correctness
+        // of the plan.
+        self.pushdown_remote_pref(physical)
     }
 
     fn create_physical_expr(
