@@ -67,7 +67,7 @@ jobs:
         uses: actions/setup-node@v4
         if: ${{ !matrix.settings.docker }}
         with:
-          node-version: lts
+          node-version: 20
           check-latest: true
 
       - name: Install
@@ -104,7 +104,7 @@ jobs:
         uses: actions/setup-node@v4
         if: matrix.settings.target == 'i686-pc-windows-msvc'
         with:
-          node-version: lts
+          node-version: 20
           check-latest: true
           architecture: x86
       - name: Build in docker
@@ -138,7 +138,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: lts
+          node-version: 20
           check-latest: true
           registry-url: "https://registry.npmjs.org"
       - name: Install dependencies
