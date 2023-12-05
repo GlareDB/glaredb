@@ -23,7 +23,8 @@ use futures::Stream;
 use num_traits::Zero;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
-use crate::builtins::{ConstBuiltinFunction, TableFunc};
+use super::TableFunc;
+use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
 pub struct GenerateSeries;

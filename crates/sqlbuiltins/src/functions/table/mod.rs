@@ -15,13 +15,15 @@ mod virtual_listing;
 use ::object_store::aws::AmazonS3ConfigKey;
 use ::object_store::azure::AzureConfigKey;
 use ::object_store::gcp::GoogleConfigKey;
-use std::collections::HashMap;
-use std::sync::Arc;
-
+use async_trait::async_trait;
+use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
+use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use self::bigquery::ReadBigQuery;
 use self::delta::DeltaScan;
@@ -35,7 +37,34 @@ use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON,
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
-use crate::builtins::TableFunc;
+
+use super::BuiltinFunction;
+
+/// A builtin table function.
+/// Table functions are ones that are used in the FROM clause.
+/// e.g. `SELECT * FROM my_table_func(...)`
+#[async_trait]
+pub trait TableFunc: BuiltinFunction {
+    /// Get the preference for where a function should run.
+    fn runtime_preference(&self) -> RuntimePreference;
+
+    /// Determine the runtime from the arguments to the function.
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        Ok(self.runtime_preference())
+    }
+
+    /// Return a table provider using the provided args.
+    async fn create_provider(
+        &self,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> Result<Arc<dyn TableProvider>>;
+}
 
 /// All builtin table functions.
 pub struct BuiltinTableFuncs {
