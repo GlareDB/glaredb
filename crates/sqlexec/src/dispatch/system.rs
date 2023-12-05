@@ -7,12 +7,13 @@ use datafusion::datasource::{MemTable, TableProvider};
 use datafusion::logical_expr::TypeSignature;
 use datasources::common::ssh::key::SshKey;
 use datasources::common::ssh::SshConnectionParameters;
+use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType, SourceAccessMode, TableEntry};
 use protogen::metastore::types::options::TunnelOptions;
 use sqlbuiltins::builtins::{
-    DATABASE_DEFAULT, GLARE_COLUMNS, GLARE_CREDENTIALS, GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA,
-    GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS,
-    SCHEMA_CURRENT_SESSION,
+    BuiltinTable, DATABASE_DEFAULT, GLARE_CACHED_EXTERNAL_DATABASE_TABLES, GLARE_COLUMNS,
+    GLARE_CREDENTIALS, GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA, GLARE_FUNCTIONS, GLARE_SCHEMAS,
+    GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
 };
 
 use super::{DispatchError, Result};
@@ -20,14 +21,15 @@ use super::{DispatchError, Result};
 /// Dispatch to builtin system tables.
 pub struct SystemTableDispatcher<'a> {
     catalog: &'a SessionCatalog,
+    tables: &'a NativeTableStorage,
 }
 
 impl<'a> SystemTableDispatcher<'a> {
-    pub fn new(catalog: &'a SessionCatalog) -> Self {
-        SystemTableDispatcher { catalog }
+    pub fn new(catalog: &'a SessionCatalog, tables: &'a NativeTableStorage) -> Self {
+        SystemTableDispatcher { catalog, tables }
     }
 
-    pub fn dispatch(&self, ent: &TableEntry) -> Result<Arc<dyn TableProvider>> {
+    pub async fn dispatch(&self, ent: &TableEntry) -> Result<Arc<dyn TableProvider>> {
         let schema_ent = self
             .catalog
             .get_by_oid(ent.meta.parent)
@@ -54,12 +56,43 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_ssh_keys()?)
         } else if GLARE_DEPLOYMENT_METADATA.matches(schema, name) {
             Arc::new(self.build_glare_deployment_metadata()?)
+        } else if GLARE_CACHED_EXTERNAL_DATABASE_TABLES.matches(schema, name) {
+            self.load_persisted_table(&GLARE_CACHED_EXTERNAL_DATABASE_TABLES)
+                .await?
         } else {
             return Err(DispatchError::MissingBuiltinTable {
                 schema: schema.to_string(),
                 name: name.to_string(),
             });
         })
+    }
+
+    /// Load a persisted system table from storage.
+    ///
+    /// Currently we lazily create tables, so if we don't find one, this returns
+    /// an empty table.
+    async fn load_persisted_table(&self, table: &BuiltinTable) -> Result<Arc<dyn TableProvider>> {
+        let ent = self
+            .catalog
+            .get_by_oid(table.oid)
+            .expect("entry should be in catalog");
+        let ent = match ent {
+            CatalogEntry::Table(ent) => ent,
+            other => panic!("unexpected entry type: {other:?}"),
+        };
+
+        match self.tables.load_table(ent).await {
+            Ok(table) => Ok(Arc::new(table)),
+            Err(_e) => {
+                // TODO: I don't know if delta provides a guarantee about the
+                // error returned if the table doesn't exist. We might want to
+                // have a dedicated 'exists' method or something.
+                let empty = RecordBatch::new_empty(Arc::new(table.arrow_schema()));
+                Ok(Arc::new(
+                    MemTable::try_new(Arc::new(table.arrow_schema()), vec![vec![empty]]).unwrap(),
+                ))
+            }
+        }
     }
 
     fn build_glare_databases(&self) -> MemTable {
