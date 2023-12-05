@@ -79,7 +79,7 @@ pub enum BuiltinPostgresFunctions {
     /// ```sql
     /// select pg_get_userbyid(1);
     /// ```
-    GetUserById,
+    // GetUserById,
     /// SQL function `pg_table_is_visible`
     ///
     /// `pg_table_is_visible(table_oid int)` -> `Boolean`
@@ -180,7 +180,7 @@ impl From<BuiltinPostgresFunctions> for BuiltinScalarFunction {
 impl BuiltinPostgresFunctions {
     fn into_expr(self, args: Vec<Expr>) -> Expr {
         match self {
-            Self::GetUserById => udf_to_expr(pg_get_userbyid(), args),
+            // Self::GetUserById => udf_to_expr(pg_get_userbyid(), args),
             Self::TableIsVisible => udf_to_expr(pg_table_is_visible(), args),
             Self::EncodingToChar => udf_to_expr(pg_encoding_to_char(), args),
             Self::ArrayToString => udf_to_expr(pg_array_to_string(), args),
@@ -219,7 +219,7 @@ impl FromStr for BuiltinPostgresFunctions {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "pg_get_userbyid" => Ok(Self::GetUserById),
+            // "pg_get_userbyid" => Ok(Self::GetUserById),
             "pg_table_is_visible" => Ok(Self::TableIsVisible),
             "pg_encoding_to_char" => Ok(Self::EncodingToChar),
             "array_to_string" => Ok(Self::ArrayToString),
@@ -515,14 +515,14 @@ mod tests {
             ("current_schemas", CurrentSchemas.into()),
             ("current_catalog", CurrentCatalog.into()),
             ("kdl_matches", KdlMatches),
-            ("pg_get_userbyid", GetUserById.into()),
+            // ("pg_get_userbyid", GetUserById.into()),
             ("pg_table_is_visible", TableIsVisible.into()),
             ("pg_encoding_to_char", EncodingToChar.into()),
             ("array_to_string", ArrayToString.into()),
             ("has_schema_privilege", HasSchemaPrivilege.into()),
             ("has_database_privilege", HasDatabasePrivilege.into()),
             ("has_table_privilege", HasTablePrivilege.into()),
-            ("pg_catalog.pg_get_userbyid", GetUserById.into()),
+            // ("pg_catalog.pg_get_userbyid", GetUserById.into()),
             ("pg_catalog.pg_table_is_visible", TableIsVisible.into()),
             ("pg_catalog.pg_encoding_to_char", EncodingToChar.into()),
             ("pg_catalog.array_to_string", ArrayToString.into()),

@@ -2,7 +2,6 @@ use crate::context::local::LocalSessionContext;
 use crate::dispatch::DispatchError;
 use crate::dispatch::Dispatcher;
 use crate::errors::ExecError;
-use crate::functions::BuiltinScalarFunction;
 use crate::planner::errors::PlanError;
 use crate::remote::client::RemoteSessionClient;
 use crate::resolve::EntryResolver;
@@ -27,6 +26,7 @@ use protogen::metastore::types::catalog::{
 };
 use protogen::metastore::types::options::TableOptions;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
+use sqlbuiltins::functions::BUILTIN_FUNCS;
 use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -395,7 +395,7 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
     }
 
     fn get_builtin(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr> {
-        BuiltinScalarFunction::find_function(name).map(|f| f.into_expr(args))
+        BUILTIN_FUNCS.find_udf(name).map(|f| f.into_expr(args))
     }
 
     async fn get_variable_type(&mut self, _variable_names: &[String]) -> Option<DataType> {

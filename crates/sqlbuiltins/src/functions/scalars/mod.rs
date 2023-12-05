@@ -3,6 +3,8 @@
 // `Abs` would otherwise be `Abs` instead of `abs`. and so on.
 #![allow(non_camel_case_types)]
 
+pub mod postgres;
+
 use crate::{
     document,
     functions::{BuiltinFunction, ConstBuiltinFunction},

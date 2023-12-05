@@ -3,9 +3,11 @@ mod aggregates;
 mod scalars;
 mod table;
 
+use crate::functions::scalars::postgres::BUILTIN_POSTGRES_FUNCTIONS;
+
 use self::scalars::ArrowCastFunction;
 use self::table::BuiltinTableFuncs;
-use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Signature};
+use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature, ScalarUDF};
 use once_cell::sync::Lazy;
 use protogen::metastore::types::catalog::{
     EntryMeta, EntryType, FunctionEntry, FunctionType, RuntimePreference,
@@ -83,10 +85,19 @@ pub trait ConstBuiltinFunction: Sync + Send {
         None
     }
 }
+/// A builtin function provided by GlareDB.
+/// Note: upcoming release of DataFusion will have a similar trait that'll likely be used instead.
+pub trait BuiltinScalarUDF: BuiltinFunction {
+    fn udf(&self) -> ScalarUDF;
+    fn into_expr(&self, args: Vec<Expr>) -> Expr;
+    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction>
+    where
+        Self: Sized;
+}
 
 impl<T> BuiltinFunction for T
 where
-    T: ConstBuiltinFunction,
+    T: ConstBuiltinFunction + Sized,
 {
     fn name(&self) -> &str {
         Self::NAME
@@ -107,6 +118,7 @@ where
 
 pub struct BuiltinFuncs {
     funcs: HashMap<String, Arc<dyn BuiltinFunction>>,
+    udfs: HashMap<String, Arc<dyn BuiltinScalarUDF>>,
 }
 
 impl BuiltinFuncs {
@@ -126,13 +138,30 @@ impl BuiltinFuncs {
         let arrow_cast = (arrow_cast.name().to_string(), arrow_cast);
         let arrow_cast = std::iter::once(arrow_cast);
 
+        let postgres_funcs = BUILTIN_POSTGRES_FUNCTIONS.clone();
+        let postgres_funcs = postgres_funcs.iter().map(|f| {
+            let key = f.name().to_string();
+            let value: Arc<dyn BuiltinScalarUDF> = f.clone();
+            (key, value)
+        });
+
         let funcs: HashMap<String, Arc<dyn BuiltinFunction>> =
             scalars.chain(aggregates).chain(arrow_cast).collect();
+        let udfs = postgres_funcs.collect();
 
-        BuiltinFuncs { funcs }
+        BuiltinFuncs { funcs, udfs }
     }
     pub fn iter_funcs(&self) -> impl Iterator<Item = &Arc<dyn BuiltinFunction>> {
         self.funcs.values()
+    }
+    pub fn find_function(&self, name: &str) -> Option<Arc<dyn BuiltinFunction>> {
+        self.funcs.get(name).cloned()
+    }
+    pub fn iter_udfs(&self) -> impl Iterator<Item = &Arc<dyn BuiltinScalarUDF>> {
+        self.udfs.values()
+    }
+    pub fn find_udf(&self, name: &str) -> Option<Arc<dyn BuiltinScalarUDF>> {
+        self.udfs.get(name).cloned()
     }
 }
 

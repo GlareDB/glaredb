@@ -148,6 +148,7 @@ pub fn connect(
                 .await
                 .map_err(PyGlareDbError::from)?
         };
+        
 
         session.register_env_reader(Box::new(PyEnvironmentReader));
         let sess = Arc::new(Mutex::new(session));
