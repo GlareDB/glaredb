@@ -15,19 +15,17 @@ use datafusion::physical_plan::{
 };
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, VirtualLister};
-use datafusion_ext::system::SystemOperation;
 use datasources::native::access::{NativeTableStorage, SaveMode};
-use futures::{stream, Future, StreamExt};
+use futures::{stream, StreamExt};
 use protogen::metastore::types::catalog::FunctionType;
 use protogen::metastore::types::catalog::{CatalogEntry, RuntimePreference, TableEntry};
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt;
-use std::pin::Pin;
 use std::sync::Arc;
 use tracing::warn;
 
-use super::SystemOperationTableProvider;
+use super::{SystemOperation, SystemOperationTableProvider};
 use crate::builtins::GLARE_CACHED_EXTERNAL_DATABASE_TABLES;
 use crate::functions::table::virtual_listing::get_virtual_lister_for_external_db;
 
@@ -103,7 +101,7 @@ impl TableFunc for CacheExternalDatabaseTables {
         let op = CacheExternalDatabaseTablesOperation { listers, table };
 
         Ok(Arc::new(SystemOperationTableProvider {
-            operation: Arc::new(op),
+            operation: SystemOperation::CacheExternalTables(op),
         }))
     }
 }
@@ -115,22 +113,20 @@ struct ListerForDatabase {
     lister: Arc<dyn VirtualLister>,
 }
 
-struct CacheExternalDatabaseTablesOperation {
+#[derive(Clone)]
+pub struct CacheExternalDatabaseTablesOperation {
     /// Virtual listers for external databases we'll be listing from.
     listers: Vec<ListerForDatabase>,
     /// Table we'll be writing the cache to.
     table: TableEntry,
 }
 
-impl SystemOperation for CacheExternalDatabaseTablesOperation {
-    fn name(&self) -> &'static str {
+impl CacheExternalDatabaseTablesOperation {
+    pub fn name(&self) -> &'static str {
         "cache_external_database_tables"
     }
 
-    fn create_future(
-        &self,
-        context: Arc<TaskContext>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), DataFusionError>> + Send>> {
+    pub async fn execute(&self, context: Arc<TaskContext>) -> Result<(), DataFusionError> {
         let storage = context
             .session_config()
             .get_extension::<NativeTableStorage>()
@@ -138,28 +134,25 @@ impl SystemOperation for CacheExternalDatabaseTablesOperation {
 
         let table = self.table.clone();
         let listers = self.listers.clone();
-        let fut = async move {
-            // Note we may want to reconsider this in the future if we want to
-            // selectively update data sources. Currently this overwrites the
-            // entire table everytime.
 
-            let table = storage
-                .create_table(&table, SaveMode::Overwrite)
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-            let input_plan = Arc::new(StreamingListerExec { listers });
-            let exec = table.insert_exec(input_plan, true);
-            let mut stream = exec.execute(0, context)?;
+        // Note we may want to reconsider this in the future if we want to
+        // selectively update data sources. Currently this overwrites the
+        // entire table everytime.
 
-            // Execute stream to completion
-            while let Some(result) = stream.next().await {
-                let _ = result?;
-            }
+        let table = storage
+            .create_table(&table, SaveMode::Overwrite)
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        let input_plan = Arc::new(StreamingListerExec { listers });
+        let exec = table.insert_exec(input_plan, true);
+        let mut stream = exec.execute(0, context)?;
 
-            Ok(())
-        };
+        // Execute stream to completion
+        while let Some(result) = stream.next().await {
+            let _ = result?;
+        }
 
-        Box::pin(fut)
+        Ok(())
     }
 }
 

@@ -3,6 +3,7 @@
 pub mod cache_external_tables;
 
 use async_trait::async_trait;
+use cache_external_tables::CacheExternalDatabaseTablesOperation;
 use datafusion::arrow::array::{Date64Builder, StringBuilder};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -17,13 +18,42 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use datafusion::prelude::Expr;
-use datafusion_ext::system::SystemOperation;
 use futures::stream;
 use once_cell::sync::Lazy;
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// A system operation can execute an arbitrary operation.
+///
+/// This should be focused on operations that do not require user interactions
+/// (e.g. background operations like optimizing tables or running caching jobs).
+#[derive(Clone)]
+pub enum SystemOperation {
+    CacheExternalTables(CacheExternalDatabaseTablesOperation),
+}
+
+impl SystemOperation {
+    /// Name of the operation. Used for debugging as well as generating
+    /// appropriate errors.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::CacheExternalTables(inner) => inner.name(),
+        }
+    }
+
+    /// Create a boxed future for executing the operation.
+    ///
+    /// Accepts a datafusion context that's expected to have
+    /// `NativeTabelStorage`.
+    pub async fn execute(&self, context: Arc<TaskContext>) -> Result<(), DataFusionError> {
+        match self {
+            Self::CacheExternalTables(inner) => inner.execute(context).await?,
+        }
+        Ok(())
+    }
+}
 
 /// Schema of the output batch once the operation completes.
 pub static SYSTEM_OPERATION_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
@@ -34,9 +64,9 @@ pub static SYSTEM_OPERATION_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
     ]))
 });
 
-/// Helper table provider for create an appropirate exec.
+/// Helper table provider to create an appropirate exec.
 pub struct SystemOperationTableProvider {
-    pub operation: Arc<dyn SystemOperation>,
+    pub operation: SystemOperation,
 }
 
 #[async_trait]
@@ -76,7 +106,7 @@ impl TableProvider for SystemOperationTableProvider {
 /// We may want to look at making this serializable in the future (and callable
 /// outside of a table func).
 pub struct SystemOperationExec {
-    operation: Arc<dyn SystemOperation>,
+    operation: SystemOperation,
     projection: Option<Vec<usize>>,
 }
 
@@ -126,11 +156,11 @@ impl ExecutionPlan for SystemOperationExec {
 
         let name = self.operation.name();
         let projection = self.projection.clone();
-        let fut = self.operation.create_future(context);
+        let op = self.operation.clone();
 
         let out = stream::once(async move {
             let start = SystemTime::now();
-            fut.await?;
+            op.execute(context).await?;
             let end = SystemTime::now();
 
             let mut name_arr = StringBuilder::new();
