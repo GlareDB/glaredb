@@ -231,15 +231,34 @@ async fn get_virtual_lister_from_context(
         },
     )?;
 
-    let lister = get_virtual_lister_for_options(&db.options).await?;
+    let lister = get_virtual_lister_for_db(ctx, &db.options).await?;
     Ok(lister)
 }
 
-pub(crate) async fn get_virtual_lister_for_options(
+/// Get a lister for a database (including internal).
+///
+/// Lifetime annotations just indicate that the returned lister has a shorter
+/// lifetime bound than everything else. This is needed since lister may be for
+/// the session catalog (bounded to the lifetime of the context) _or_ we create
+/// a client for an external database (unbounded lifetime).
+pub(crate) async fn get_virtual_lister_for_db<'a, 'b: 'a, 'c: 'b>(
+    ctx: &'c dyn TableFuncContextProvider,
+    opts: &'b DatabaseOptions,
+) -> Result<Box<dyn VirtualLister + 'a>> {
+    match opts {
+        DatabaseOptions::Internal(_) => Ok(ctx.get_catalog_lister()),
+        other => get_virtual_lister_for_external_db(other).await,
+    }
+}
+
+/// Gets a lister for an external database using the provided options.
+///
+/// Will panic if attempting to get a lister for an internal database.
+pub(crate) async fn get_virtual_lister_for_external_db(
     opts: &DatabaseOptions,
 ) -> Result<Box<dyn VirtualLister>> {
     let lister: Box<dyn VirtualLister> = match opts {
-        DatabaseOptions::Internal(_) => unimplemented!(),
+        DatabaseOptions::Internal(_) => panic!("attempted to get lister for internal db"),
         DatabaseOptions::Debug(_) => Box::new(DebugVirtualLister),
         DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
             // TODO: We're not using the configured tunnel?

@@ -37,7 +37,7 @@ use self::mysql::ReadMysql;
 use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
-use self::system::CacheExternalDatabaseTables;
+use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
 
 use super::BuiltinFunction;
@@ -103,7 +103,7 @@ impl BuiltinTableFuncs {
             // Series generating
             Arc::new(GenerateSeries),
             // System operations
-            // Arc::new(CacheExternalDatabaseTables),
+            Arc::new(CacheExternalDatabaseTables),
         ];
         let funcs: HashMap<String, Arc<dyn TableFunc>> = funcs
             .into_iter()

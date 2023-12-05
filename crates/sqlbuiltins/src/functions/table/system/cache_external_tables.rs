@@ -1,7 +1,5 @@
-//! Table functions for triggering system-related functionality. Users are
-//! unlikely to use these, but there's no harm if they do.
-
 use crate::functions::table::TableFunc;
+use crate::functions::ConstBuiltinFunction;
 use async_trait::async_trait;
 use datafusion::arrow::array::{StringBuilder, UInt32Builder};
 use datafusion::arrow::datatypes::Schema;
@@ -9,7 +7,6 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
-use datafusion::logical_expr::{Signature, Volatility};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
@@ -19,8 +16,9 @@ use datafusion::physical_plan::{
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, VirtualLister};
 use datafusion_ext::system::SystemOperation;
-use datasources::native::access::NativeTableStorage;
+use datasources::native::access::{NativeTableStorage, SaveMode};
 use futures::{stream, Future, StreamExt};
+use protogen::metastore::types::catalog::FunctionType;
 use protogen::metastore::types::catalog::{CatalogEntry, RuntimePreference, TableEntry};
 use std::any::Any;
 use std::collections::HashMap;
@@ -29,94 +27,86 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tracing::warn;
 
-use crate::builtins::{ConstBuiltinFunction, GLARE_CACHED_EXTERNAL_DATABASE_TABLES};
-use crate::functions::table::virtual_listing::get_virtual_lister_for_options;
+use super::SystemOperationTableProvider;
+use crate::builtins::GLARE_CACHED_EXTERNAL_DATABASE_TABLES;
+use crate::functions::table::virtual_listing::get_virtual_lister_for_external_db;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CacheExternalDatabaseTables;
 
-// impl ConstBuiltinFunction for CacheExternalDatabaseTables {}
+impl ConstBuiltinFunction for CacheExternalDatabaseTables {
+    const NAME: &'static str = "cache_external_database_tables";
+    const DESCRIPTION: &'static str = "Cache tables from external databases.";
+    const EXAMPLE: &'static str = "select * from cache_external_database_tables();";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+}
 
-// #[async_trait]
-// impl TableFunc for CacheExternalDatabaseTables {
-//     fn runtime_preference(&self) -> RuntimePreference {
-//         RuntimePreference::Remote
-//     }
+#[async_trait]
+impl TableFunc for CacheExternalDatabaseTables {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
+    }
 
-//     // fn name(&self) -> &str {
-//     //     "cache_external_database_tables"
-//     // }
+    async fn create_provider(
+        &self,
+        context: &dyn TableFuncContextProvider,
+        _args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        // TODO: We can allow selectively updating cached tables in the future
+        // with something like `cache_external_database_tables(my_db)`.
+        // Currently this just does everything.
 
-//     // fn signature(&self) -> Option<Signature> {
-//     //     Some(Signature::uniform(0, Vec::new(), Volatility::Stable))
-//     // }
+        let external_db_ents: Vec<_> = context
+            .get_session_catalog()
+            .iter_entries()
+            .filter_map(|ent| match ent.entry {
+                CatalogEntry::Database(db_ent) if db_ent.meta.external => Some(db_ent),
+                _ => None,
+            })
+            .collect();
 
-//     async fn create_provider(
-//         &self,
-//         context: &dyn TableFuncContextProvider,
-//         _args: Vec<FuncParamValue>,
-//         _opts: HashMap<String, FuncParamValue>,
-//     ) -> Result<Arc<dyn TableProvider>> {
-//         // TODO: Try to reduce clones.
-//         //
-//         // TODO: We can allow selectively updating cached tables in the future
-//         // with something like `cache_external_database_tables(my_db)`.
-//         // Currently this just does everything.
+        let listers: Vec<ListerForDatabase> = stream::iter(external_db_ents.into_iter())
+            .filter_map(|ent| async {
+                match get_virtual_lister_for_external_db(&ent.options).await {
+                    Ok(lister) => Some(ListerForDatabase {
+                        oid: ent.meta.id,
+                        lister: lister.into(),
+                    }),
+                    Err(e) => {
+                        // TODO: We'll want to store errors in a table too so we
+                        // can easily present them to the user at a later date
+                        // (e.g. "failed to get information for database because
+                        // ...").
+                        warn!(%e, oid = %ent.meta.id, "failed to get virtual lister for database");
+                        None
+                    }
+                }
+            })
+            .collect()
+            .await;
 
-//         let db_ents: Vec<_> = context
-//             .get_session_catalog()
-//             .iter_entries()
-//             .filter_map(|ent| {
-//                 if let CatalogEntry::Database(db_ent) = ent.entry {
-//                     Some(db_ent)
-//                 } else {
-//                     None
-//                 }
-//             })
-//             .collect();
+        let table = match context
+            .get_session_catalog()
+            .get_by_oid(GLARE_CACHED_EXTERNAL_DATABASE_TABLES.oid)
+            .ok_or_else(|| ExtensionError::MissingObject {
+                obj_typ: "table",
+                name: GLARE_CACHED_EXTERNAL_DATABASE_TABLES.name.to_string(),
+            })? {
+            CatalogEntry::Table(ent) => ent.clone(),
+            other => panic!(
+                "Unexpected entry type for builtin table: {}, got: {other:?}",
+                GLARE_CACHED_EXTERNAL_DATABASE_TABLES.name
+            ),
+        };
 
-//         let listers: Vec<ListerForDatabase> = stream::iter(db_ents.into_iter())
-//             .filter_map(|ent| async {
-//                 match get_virtual_lister_for_options(&ent.options).await {
-//                     Ok(lister) => Some(ListerForDatabase {
-//                         oid: ent.meta.id,
-//                         lister: lister.into(),
-//                     }),
-//                     Err(e) => {
-//                         // TODO: We'll want to store errors in a table too so we
-//                         // can easily present them to the user at a later date
-//                         // (e.g. "failed to get information for database because
-//                         // ...").
-//                         warn!(%e, oid = %ent.meta.id, "failed to get virtual lister for database");
-//                         None
-//                     }
-//                 }
-//             })
-//             .collect()
-//             .await;
+        let op = CacheExternalDatabaseTablesOperation { listers, table };
 
-//         let table = match context
-//             .get_session_catalog()
-//             .get_by_oid(GLARE_CACHED_EXTERNAL_DATABASE_TABLES.oid)
-//             .ok_or_else(|| ExtensionError::MissingObject {
-//                 obj_typ: "table",
-//                 name: GLARE_CACHED_EXTERNAL_DATABASE_TABLES.name.to_string(),
-//             })? {
-//             CatalogEntry::Table(ent) => ent.clone(),
-//             other => panic!(
-//                 "Unexpected entry type for builtin table: {}, got: {other:?}",
-//                 GLARE_CACHED_EXTERNAL_DATABASE_TABLES.name
-//             ),
-//         };
-
-//         let op = CacheExternalDatabaseTablesOperation { listers, table };
-
-//         unimplemented!()
-//         // Ok(Arc::new(SystemOperationTableProvider {
-//         //     operation: Arc::new(op),
-//         // }))
-//     }
-// }
+        Ok(Arc::new(SystemOperationTableProvider {
+            operation: Arc::new(op),
+        }))
+    }
+}
 
 #[derive(Clone)]
 struct ListerForDatabase {
@@ -149,10 +139,14 @@ impl SystemOperation for CacheExternalDatabaseTablesOperation {
         let table = self.table.clone();
         let listers = self.listers.clone();
         let fut = async move {
-            let table = storage.load_table(&table).await.unwrap();
-            let input_plan = Arc::new(StreamingListerExec { listers });
             // Note we may want to reconsider this in the future if we want to
             // selectively update data sources.
+
+            let table = storage
+                .create_table(&table, SaveMode::Overwrite)
+                .await
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+            let input_plan = Arc::new(StreamingListerExec { listers });
             let exec = table.insert_exec(input_plan, true);
             let mut stream = exec.execute(0, context)?;
 

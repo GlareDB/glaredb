@@ -80,6 +80,7 @@ impl BuiltinDatabase {
 }
 
 /// A builtin table.
+// TODO: Do we want something to indicate if a table is persisted in delta?
 #[derive(Debug, Clone)]
 pub struct BuiltinTable {
     pub schema: &'static str,

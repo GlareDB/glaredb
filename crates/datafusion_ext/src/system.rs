@@ -1,7 +1,6 @@
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::TaskContext;
 use futures::Future;
-use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 

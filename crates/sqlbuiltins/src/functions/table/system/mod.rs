@@ -1,5 +1,12 @@
+//! Table functions for triggering system-related functionality. Users are
+//! unlikely to use these, but there's no harm if they do.
+pub mod cache_external_tables;
+
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::Schema;
+use datafusion::arrow::array::{
+    BooleanBuilder, Date64Builder, ListBuilder, StringBuilder, UInt32Builder,
+};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -14,13 +21,21 @@ use datafusion::physical_plan::{
 use datafusion::prelude::Expr;
 use datafusion_ext::system::SystemOperation;
 use futures::{stream, Future};
-use parking_lot::Mutex;
+use once_cell::sync::Lazy;
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
+/// Schema of the output batch once the operation completes.
+pub static SYSTEM_OPERATION_PHYSICAL_SCHME: Lazy<Arc<Schema>> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![
+        Field::new("system_operation_name", DataType::Utf8, false),
+        Field::new("started_at", DataType::Date64, false),
+        Field::new("finished_at", DataType::Date64, false),
+    ]))
+});
 
 /// Helper table provider for create an appropirate exec.
 pub struct SystemOperationTableProvider {
@@ -34,7 +49,7 @@ impl TableProvider for SystemOperationTableProvider {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        GENERIC_OPERATION_PHYSICAL_SCHEMA.clone()
+        SYSTEM_OPERATION_PHYSICAL_SCHME.clone()
     }
 
     fn table_type(&self) -> TableType {
@@ -72,7 +87,7 @@ impl ExecutionPlan for SystemOperationExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        GENERIC_OPERATION_PHYSICAL_SCHEMA.clone()
+        SYSTEM_OPERATION_PHYSICAL_SCHME.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -107,10 +122,34 @@ impl ExecutionPlan for SystemOperationExec {
             ));
         }
 
+        let schema = self.schema();
+        let name = self.operation.name();
         let fut = self.operation.create_future(context);
+
         let out = stream::once(async move {
+            let start = SystemTime::now();
             let _ = fut.await?;
-            Ok(new_operation_batch("system_op"))
+            let end = SystemTime::now();
+
+            let mut name_arr = StringBuilder::new();
+            let mut start_arr = Date64Builder::new();
+            let mut end_arr = Date64Builder::new();
+
+            name_arr.append_value(name);
+            start_arr.append_value(start.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64);
+            end_arr.append_value(end.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64);
+
+            let batch = RecordBatch::try_new(
+                schema,
+                vec![
+                    Arc::new(name_arr.finish()),
+                    Arc::new(start_arr.finish()),
+                    Arc::new(end_arr.finish()),
+                ],
+            )
+            .unwrap();
+
+            Ok(batch)
         });
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(self.schema(), out)))
