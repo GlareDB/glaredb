@@ -231,14 +231,24 @@ pub static GLARE_DEPLOYMENT_METADATA: Lazy<BuiltinTable> = Lazy::new(|| BuiltinT
 
 /// Cached table metadata for external databases.
 ///
+/// This stores information for all tables, and all columns for each table.
+///
 /// The cached data lives in an on-disk (delta) table alongside user table data.
+///
+// TODO: Do we want to store columns in a separate table?
 pub static GLARE_CACHED_EXTERNAL_DATABASE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
     name: "cached_external_database_tables",
     columns: InternalColumnDefinition::from_tuples([
-        ("database_oid", DataType::UInt32, false), // External database this entry is for.
-        ("schema_name", DataType::Utf8, false),    // Schema name (in external database).
-        ("table_name", DataType::Utf8, false),     // Table name (in external database).
+        // External database this entry is for.
+        ("database_oid", DataType::UInt32, false),
+        // Schema name (in external database).
+        ("schema_name", DataType::Utf8, false),
+        // Table name (in external database).
+        ("table_name", DataType::Utf8, false),
+        // Column name (in external database).
+        ("column_name", DataType::Utf8, false),
+        ("data_type", DataType::Utf8, false),
     ]),
     oid: 16411,
 });

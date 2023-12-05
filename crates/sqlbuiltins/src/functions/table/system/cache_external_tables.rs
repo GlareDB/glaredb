@@ -212,6 +212,8 @@ impl ExecutionPlan for StreamingListerExec {
             let mut oid_arr = UInt32Builder::new();
             let mut schema_name_arr = StringBuilder::new();
             let mut table_name_arr = StringBuilder::new();
+            let mut column_name_arr = StringBuilder::new();
+            let mut data_type_arr = StringBuilder::new();
 
             let schemas = lister
                 .lister
@@ -227,15 +229,36 @@ impl ExecutionPlan for StreamingListerExec {
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
                 for table in tables {
-                    oid_arr.append_value(lister.oid);
-                    schema_name_arr.append_value(&schema);
-                    table_name_arr.append_value(table);
+                    let cols = match lister.lister.list_columns(&schema, &table).await {
+                        Ok(cols) => cols,
+                        Err(e) => {
+                            // This gets us past potentially unsupported
+                            // types. We don't want to fail everything if
+                            // one table has something we don't expect.
+                            //
+                            // Eventually we'll want to store this error
+                            // somewhere so the user knows that we weren't able
+                            // to get the cols for table and why.
+                            warn!(%schema, %table, %e, "failed to get columns for external database table");
+                            continue;
+                        }
+                    };
+
+                    for col in cols.into_iter() {
+                        oid_arr.append_value(lister.oid);
+                        schema_name_arr.append_value(&schema);
+                        table_name_arr.append_value(&table);
+                        column_name_arr.append_value(col.name());
+                        data_type_arr.append_value(col.data_type().to_string());
+                    }
                 }
             }
 
             let oid_arr = oid_arr.finish();
             let schema_name_arr = schema_name_arr.finish();
             let table_name_arr = table_name_arr.finish();
+            let column_name_arr = column_name_arr.finish();
+            let data_type_arr = data_type_arr.finish();
 
             Ok(RecordBatch::try_new(
                 arrow_schema,
@@ -243,6 +266,8 @@ impl ExecutionPlan for StreamingListerExec {
                     Arc::new(oid_arr),
                     Arc::new(schema_name_arr),
                     Arc::new(table_name_arr),
+                    Arc::new(column_name_arr),
+                    Arc::new(data_type_arr),
                 ],
             )
             .unwrap())
