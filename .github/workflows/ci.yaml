@@ -100,16 +100,12 @@ jobs:
 
       - name: Python Bindings Tests
         run: just python test
-  node-bindings-tests: 
-    name:  Node Binding Tests
+  node-bindings-tests:
+    name: Node Binding Tests
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
       - uses: actions/checkout@v4
-
-      # https://github.com/actions/setup-node/issues/899
-      - name: Enable Corepack before setting up Node
-        run: corepack enable
 
       - uses: actions/setup-node@v4
         with:
@@ -170,7 +166,6 @@ jobs:
       - name: Public SQL Logic Tests
         if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
         run: just slt 'sqllogictests/*'
-        
 
   integration-tests:
     if: github.repository_owner == 'glaredb'
@@ -275,7 +270,7 @@ jobs:
 
           # Prepare SLT (MinIO)
           ./scripts/create-test-minio-store.sh
-          
+
           # Prepare SLT (fake GCS server)
           ./scripts/create-test-gcs-store.sh
 
@@ -311,13 +306,13 @@ jobs:
               --option bucket=$TEST_BUCKET \
               'sqllogictests/*' \
               'sqllogictests_native/*'
-          
+
           # MinIO (S3) but with a sub-directory path
           just slt -l http://localhost:9000/$TEST_BUCKET/path/to/folder \
               -o access_key_id=$MINIO_ACCESS_KEY \
               -o secret_access_key=$MINIO_SECRET_KEY \
               'sqllogictests/*'
-          
+
           # Fake GCS server with a sub-directory path; run with two different folder paths to assert no conflicts arise
           just slt -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
           just slt -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
