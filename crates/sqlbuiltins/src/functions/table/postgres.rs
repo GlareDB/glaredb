@@ -6,27 +6,35 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
+
+use super::TableFunc;
+use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadPostgres;
 
-#[async_trait]
-impl TableFunc for ReadPostgres {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Remote
-    }
-    fn name(&self) -> &str {
-        "read_postgres"
-    }
+impl ConstBuiltinFunction for ReadPostgres {
+    const NAME: &'static str = "read_postgres";
+    const DESCRIPTION: &'static str = "Reads a Postgres table";
+    const EXAMPLE: &'static str =
+        "SELECT * FROM read_postgres('postgres://localhost:5432', 'database', 'table')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             3,
             vec![DataType::Utf8],
             Volatility::Stable,
         ))
+    }
+}
+
+#[async_trait]
+impl TableFunc for ReadPostgres {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
     }
     async fn create_provider(
         &self,

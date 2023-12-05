@@ -17,13 +17,13 @@ pub fn ensure_dir(path: impl AsRef<Path>) -> std::io::Result<()> {
     let path = path.as_ref();
     std::fs::create_dir_all(path).and_then(|()| {
         if path.exists() && !path.is_dir() {
-            return Err(std::io::Error::new(
+            Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 format!(
                     "Error, path {} is not a valid directory",
                     path.to_string_lossy()
                 ),
-            ))?;
+            ))?
         }
         Ok(())
     })

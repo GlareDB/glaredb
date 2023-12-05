@@ -42,9 +42,6 @@ package rpcsrv.service;
 import "metastore/catalog.proto";
 import "rpcsrv/common.proto";
 
-// Storage config for the session.
-message SessionStorageConfig { optional string gcs_bucket = 1; }
-
 // Request for initializing a remote session from the client.
 message InitializeSessionRequestFromClient {
   // Where's the auth? Auth params are always set in the request metadata. This
@@ -61,7 +58,7 @@ message InitializeSessionRequestFromClient {
 // Cloud.
 message InitializeSessionRequestFromProxy {
   // Session storage config.
-  SessionStorageConfig storage_conf = 2;
+  common.SessionStorageConfig storage_conf = 2;
 
   // ID of database we're initializing a session for.
   bytes db_id = 3;

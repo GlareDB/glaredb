@@ -15,7 +15,7 @@ use datafusion::logical_expr::{Signature, Volatility};
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
-    FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
+    FromFuncParamValue, FuncParamValue, IdentValue, TableFuncContextProvider,
 };
 
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
@@ -27,8 +27,11 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess};
 use futures::TryStreamExt;
 use object_store::azure::AzureConfigKey;
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
+
+use super::TableFunc;
+use crate::functions::BuiltinFunction;
 
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
 pub const READ_PARQUET: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "read_parquet");
@@ -42,10 +45,27 @@ pub const READ_JSON: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "read_n
 #[derive(Debug, Clone)]
 pub struct ObjScanTableFunc(FileType, &'static str);
 
-#[async_trait]
-impl TableFunc for ObjScanTableFunc {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Unspecified
+impl BuiltinFunction for ObjScanTableFunc {
+    fn name(&self) -> &'static str {
+        self.1
+    }
+    fn function_type(&self) -> FunctionType {
+        FunctionType::TableReturning
+    }
+    fn sql_example(&self) -> Option<String> {
+        fn build_example(extension: &str) -> String {
+            format!(
+                "SELECT * FROM {ext}_scan('./my_data.{ext}')",
+                ext = extension
+            )
+        }
+        Some(build_example(self.0.to_string().as_str()))
+    }
+    fn description(&self) -> Option<String> {
+        Some(format!(
+            "Returns a table by scanning the given {ext} file(s).",
+            ext = self.0.to_string().to_lowercase()
+        ))
     }
 
     fn signature(&self) -> Option<Signature> {
@@ -58,6 +78,14 @@ impl TableFunc for ObjScanTableFunc {
             Volatility::Stable,
         ))
     }
+}
+
+#[async_trait]
+impl TableFunc for ObjScanTableFunc {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Unspecified
+    }
+
     fn detect_runtime(
         &self,
         args: &[FuncParamValue],
@@ -86,11 +114,6 @@ impl TableFunc for ObjScanTableFunc {
                 "cannot mix different types of urls".to_owned(),
             ))
         }
-    }
-
-    fn name(&self) -> &str {
-        let Self(_, name) = self;
-        name
     }
 
     async fn create_provider(
