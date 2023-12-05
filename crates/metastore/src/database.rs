@@ -1299,6 +1299,7 @@ impl BuiltinCatalog {
 
             oid += 1;
         }
+
         for func in BUILTIN_FUNCS.iter_funcs() {
             // Put them all in the default schema.
             let schema_id = schema_names

@@ -3,7 +3,7 @@
 // `Abs` would otherwise be `Abs` instead of `abs`. and so on.
 #![allow(non_camel_case_types)]
 
-use crate::{builtins::BuiltinFunction, document};
+use crate::{document, functions::BuiltinFunction};
 use datafusion::logical_expr::AggregateFunction;
 use protogen::metastore::types::catalog::FunctionType;
 

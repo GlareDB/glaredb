@@ -4,8 +4,8 @@
 #![allow(non_camel_case_types)]
 
 use crate::{
-    builtins::{BuiltinFunction, ConstBuiltinFunction},
     document,
+    functions::{BuiltinFunction, ConstBuiltinFunction},
 };
 use datafusion::logical_expr::BuiltinScalarFunction;
 use protogen::metastore::types::catalog::FunctionType;
