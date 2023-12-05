@@ -46,14 +46,14 @@ impl TableFunc for ReadSnowflake {
         match args.len() {
             8 => {
                 let mut args = args.into_iter();
-                let account: String = args.next().unwrap().param_into()?;
-                let username: String = args.next().unwrap().param_into()?;
-                let password: String = args.next().unwrap().param_into()?;
-                let database: String = args.next().unwrap().param_into()?;
-                let warehouse: String = args.next().unwrap().param_into()?;
-                let role: String = args.next().unwrap().param_into()?;
-                let schema: String = args.next().unwrap().param_into()?;
-                let table: String = args.next().unwrap().param_into()?;
+                let account: String = args.next().unwrap().try_into()?;
+                let username: String = args.next().unwrap().try_into()?;
+                let password: String = args.next().unwrap().try_into()?;
+                let database: String = args.next().unwrap().try_into()?;
+                let warehouse: String = args.next().unwrap().try_into()?;
+                let role: String = args.next().unwrap().try_into()?;
+                let schema: String = args.next().unwrap().try_into()?;
+                let table: String = args.next().unwrap().try_into()?;
 
                 let conn_params = SnowflakeDbConnection {
                     account_name: account,
