@@ -50,7 +50,7 @@ impl TableFunc for ListSchemas {
         match args.len() {
             1 => {
                 let mut args = args.into_iter();
-                let database: IdentValue = args.next().unwrap().param_into()?;
+                let database: IdentValue = args.next().unwrap().try_into()?;
 
                 let fields = vec![Field::new("schema_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
@@ -107,8 +107,8 @@ impl TableFunc for ListTables {
         match args.len() {
             2 => {
                 let mut args = args.into_iter();
-                let database: IdentValue = args.next().unwrap().param_into()?;
-                let schema_name: IdentValue = args.next().unwrap().param_into()?;
+                let database: IdentValue = args.next().unwrap().try_into()?;
+                let schema_name: IdentValue = args.next().unwrap().try_into()?;
 
                 let fields = vec![Field::new("table_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
@@ -165,9 +165,9 @@ impl TableFunc for ListColumns {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
-                let database: IdentValue = args.next().unwrap().param_into()?;
-                let schema_name: IdentValue = args.next().unwrap().param_into()?;
-                let table_name: IdentValue = args.next().unwrap().param_into()?;
+                let database: IdentValue = args.next().unwrap().try_into()?;
+                let schema_name: IdentValue = args.next().unwrap().try_into()?;
+                let table_name: IdentValue = args.next().unwrap().try_into()?;
 
                 let fields = vec![
                     Field::new("column_name", DataType::Utf8, false),

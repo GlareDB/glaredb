@@ -46,9 +46,9 @@ impl TableFunc for ReadMysql {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
-                let conn_str: String = args.next().unwrap().param_into()?;
-                let schema: String = args.next().unwrap().param_into()?;
-                let table: String = args.next().unwrap().param_into()?;
+                let conn_str: String = args.next().unwrap().try_into()?;
+                let schema: String = args.next().unwrap().try_into()?;
+                let table: String = args.next().unwrap().try_into()?;
 
                 let access = MysqlAccessor::connect(&conn_str, None)
                     .await

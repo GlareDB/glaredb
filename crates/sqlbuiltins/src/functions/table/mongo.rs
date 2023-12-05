@@ -47,9 +47,9 @@ impl TableFunc for ReadMongoDb {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
-                let conn_str: String = args.next().unwrap().param_into()?;
-                let database: String = args.next().unwrap().param_into()?;
-                let collection: String = args.next().unwrap().param_into()?;
+                let conn_str: String = args.next().unwrap().try_into()?;
+                let database: String = args.next().unwrap().try_into()?;
+                let collection: String = args.next().unwrap().try_into()?;
 
                 let access = MongoAccessor::connect(&conn_str)
                     .await
