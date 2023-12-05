@@ -1,6 +1,6 @@
-use crate::builtins::ConstBuiltinFunction;
-
 use super::*;
+
+use crate::functions::ConstBuiltinFunction;
 
 /// Scan snapshot information for an iceberg tables. Will not attempt to read
 /// data files.

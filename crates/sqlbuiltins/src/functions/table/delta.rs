@@ -2,13 +2,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::table_location_and_opts;
-use crate::builtins::{ConstBuiltinFunction, TableFunc};
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::lake::delta::access::load_table_direct;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
+
+use super::TableFunc;
+use crate::functions::ConstBuiltinFunction;
 
 /// Function for scanning delta tables.
 ///

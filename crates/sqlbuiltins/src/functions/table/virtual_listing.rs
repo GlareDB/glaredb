@@ -23,7 +23,8 @@ use protogen::metastore::types::options::{
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
 };
 
-use crate::builtins::{ConstBuiltinFunction, TableFunc};
+use super::TableFunc;
+use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ListSchemas;

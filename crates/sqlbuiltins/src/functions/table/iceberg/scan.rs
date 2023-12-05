@@ -1,6 +1,6 @@
-use crate::builtins::ConstBuiltinFunction;
-
 use super::*;
+
+use crate::functions::ConstBuiltinFunction;
 
 /// Scan an iceberg table.
 #[derive(Debug, Clone, Copy)]
