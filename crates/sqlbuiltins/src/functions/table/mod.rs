@@ -53,7 +53,7 @@ pub trait TableFunc: BuiltinFunction {
         &self,
         _args: &[FuncParamValue],
         _parent: RuntimePreference,
-    ) -> datafusion_ext::errors::Result<RuntimePreference> {
+    ) -> Result<RuntimePreference> {
         Ok(self.runtime_preference())
     }
 
@@ -63,7 +63,7 @@ pub trait TableFunc: BuiltinFunction {
         ctx: &dyn TableFuncContextProvider,
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
-    ) -> datafusion_ext::errors::Result<Arc<dyn TableProvider>>;
+    ) -> Result<Arc<dyn TableProvider>>;
 }
 
 /// All builtin table functions.
