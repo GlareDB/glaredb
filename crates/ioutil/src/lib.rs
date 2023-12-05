@@ -13,6 +13,22 @@ pub fn resolve_path(path: &Path) -> std::io::Result<PathBuf> {
     path.canonicalize().map(|p| p.to_path_buf())
 }
 
+pub fn ensure_dir(path: impl AsRef<Path>) -> std::io::Result<()> {
+    let path = path.as_ref();
+    std::fs::create_dir_all(path).and_then(|()| {
+        if path.exists() && !path.is_dir() {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!(
+                    "Error, path {} is not a valid directory",
+                    path.to_string_lossy()
+                ),
+            ))?
+        }
+        Ok(())
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

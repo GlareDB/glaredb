@@ -103,6 +103,9 @@ pub enum MetastoreError {
 
     #[error("Cannot specify both 'IF NOT EXISTS' and 'OR REPLACE'")]
     InvalidCreatePolicy,
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
 pub type Result<T, E = MetastoreError> = std::result::Result<T, E>;
