@@ -55,7 +55,7 @@ impl TableFunc for ListSchemas {
                 let fields = vec![Field::new("schema_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
 
-                let lister = get_db_lister(ctx, database.into()).await?;
+                let lister = get_virtual_lister_from_context(ctx, database.into()).await?;
                 let schema_list = lister
                     .list_schemas()
                     .await
@@ -113,7 +113,7 @@ impl TableFunc for ListTables {
                 let fields = vec![Field::new("table_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
 
-                let lister = get_db_lister(ctx, database.into()).await?;
+                let lister = get_virtual_lister_from_context(ctx, database.into()).await?;
                 let tables_list = lister
                     .list_tables(schema_name.as_str())
                     .await
@@ -176,7 +176,7 @@ impl TableFunc for ListColumns {
                 ];
                 let schema = Arc::new(Schema::new(fields));
 
-                let lister = get_db_lister(ctx, database.into()).await?;
+                let lister = get_virtual_lister_from_context(ctx, database.into()).await?;
                 let columns_list = lister
                     .list_columns(schema_name.as_str(), table_name.as_str())
                     .await
@@ -218,7 +218,9 @@ impl TableFunc for ListColumns {
     }
 }
 
-async fn get_db_lister(
+/// Get a virtual lister by looking up the database entry from the session
+/// catalog.
+async fn get_virtual_lister_from_context(
     ctx: &dyn TableFuncContextProvider,
     dbname: String,
 ) -> Result<Box<dyn VirtualLister + '_>> {
@@ -229,8 +231,34 @@ async fn get_db_lister(
         },
     )?;
 
-    let lister: Box<dyn VirtualLister> = match &db.options {
-        DatabaseOptions::Internal(_) => ctx.get_catalog_lister(),
+    let lister = get_virtual_lister_for_db(ctx, &db.options).await?;
+    Ok(lister)
+}
+
+/// Get a lister for a database (including internal).
+///
+/// Lifetime annotations just indicate that the returned lister has a shorter
+/// lifetime bound than everything else. This is needed since lister may be for
+/// the session catalog (bounded to the lifetime of the context) _or_ we create
+/// a client for an external database (unbounded lifetime).
+pub(crate) async fn get_virtual_lister_for_db<'a, 'b: 'a, 'c: 'b>(
+    ctx: &'c dyn TableFuncContextProvider,
+    opts: &'b DatabaseOptions,
+) -> Result<Box<dyn VirtualLister + 'a>> {
+    match opts {
+        DatabaseOptions::Internal(_) => Ok(ctx.get_catalog_lister()),
+        other => get_virtual_lister_for_external_db(other).await,
+    }
+}
+
+/// Gets a lister for an external database using the provided options.
+///
+/// Will panic if attempting to get a lister for an internal database.
+pub(crate) async fn get_virtual_lister_for_external_db(
+    opts: &DatabaseOptions,
+) -> Result<Box<dyn VirtualLister>> {
+    let lister: Box<dyn VirtualLister> = match opts {
+        DatabaseOptions::Internal(_) => panic!("attempted to get lister for internal db"),
         DatabaseOptions::Debug(_) => Box::new(DebugVirtualLister),
         DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
             // TODO: We're not using the configured tunnel?

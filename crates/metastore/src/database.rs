@@ -14,7 +14,7 @@ use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOper
 use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
     BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
-    FIRST_NON_SCHEMA_ID,
+    FIRST_NON_STATIC_OID,
 };
 use sqlbuiltins::functions::{BUILTIN_FUNCS, BUILTIN_TABLE_FUNCS};
 use sqlbuiltins::validation::{
@@ -1168,13 +1168,30 @@ impl BuiltinCatalog {
     /// It is a programmer error if this fails to build.
     fn new() -> Result<BuiltinCatalog> {
         let mut entries = HashMap::new();
+
+        // Ensures no duplicate OIDs.
+        let mut insert_entry = |oid: u32, ent: CatalogEntry| {
+            if entries.contains_key(&oid) {
+                let old = entries.remove(&oid).unwrap();
+                return Err(MetastoreError::BuiltinRepeatedOid {
+                    oid,
+                    ent1: old,
+                    ent2: ent,
+                });
+            }
+
+            entries.insert(oid, ent);
+
+            Ok(())
+        };
+
         let mut database_names = HashMap::new();
         let mut schema_names = HashMap::new();
         let mut schema_objects = HashMap::new();
 
         for database in BuiltinDatabase::builtins() {
             database_names.insert(database.name.to_string(), database.oid);
-            entries.insert(
+            insert_entry(
                 database.oid,
                 CatalogEntry::Database(DatabaseEntry {
                     meta: EntryMeta {
@@ -1192,13 +1209,13 @@ impl BuiltinCatalog {
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadWrite,
                 }),
-            );
+            )?
         }
 
         for schema in BuiltinSchema::builtins() {
             schema_names.insert(schema.name.to_string(), schema.oid);
             schema_objects.insert(schema.oid, SchemaObjects::default());
-            entries.insert(
+            insert_entry(
                 schema.oid,
                 CatalogEntry::Schema(SchemaEntry {
                     meta: EntryMeta {
@@ -1213,22 +1230,19 @@ impl BuiltinCatalog {
                         description: None,
                     },
                 }),
-            );
+            )?;
         }
-
-        // All the below items don't have stable ids.
-        let mut oid = FIRST_NON_SCHEMA_ID;
 
         for table in BuiltinTable::builtins() {
             let schema_id = schema_names
                 .get(table.schema)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(table.schema.to_string()))?;
-            entries.insert(
-                oid,
+            insert_entry(
+                table.oid,
                 CatalogEntry::Table(TableEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Table,
-                        id: oid,
+                        id: table.oid,
                         parent: *schema_id,
                         name: table.name.to_string(),
                         builtin: true,
@@ -1241,21 +1255,22 @@ impl BuiltinCatalog {
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadOnly,
                 }),
-            );
+            )?;
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
                 .tables
-                .insert(table.name.to_string(), oid);
-
-            oid += 1;
+                .insert(table.name.to_string(), table.oid);
         }
+
+        // All the below items don't have stable ids.
+        let mut oid = FIRST_NON_STATIC_OID;
 
         for view in BuiltinView::builtins() {
             let schema_id = schema_names
                 .get(view.schema)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(view.schema.to_string()))?;
-            entries.insert(
+            insert_entry(
                 oid,
                 CatalogEntry::View(ViewEntry {
                     meta: EntryMeta {
@@ -1272,7 +1287,7 @@ impl BuiltinCatalog {
                     sql: view.sql.to_string(),
                     columns: Vec::new(),
                 }),
-            );
+            )?;
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
@@ -1290,7 +1305,7 @@ impl BuiltinCatalog {
             let mut entry = func.as_function_entry(oid, *schema_id);
             entry.runtime_preference = func.runtime_preference();
 
-            entries.insert(oid, CatalogEntry::Function(entry));
+            insert_entry(oid, CatalogEntry::Function(entry))?;
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
@@ -1306,10 +1321,10 @@ impl BuiltinCatalog {
                 .get(DEFAULT_SCHEMA)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
 
-            entries.insert(
+            insert_entry(
                 oid,
                 CatalogEntry::Function(func.as_function_entry(oid, *schema_id)),
-            );
+            )?;
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()

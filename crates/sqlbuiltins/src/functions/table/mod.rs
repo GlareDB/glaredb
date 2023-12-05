@@ -10,6 +10,7 @@ mod mysql;
 mod object_store;
 mod postgres;
 mod snowflake;
+mod system;
 mod virtual_listing;
 
 use ::object_store::aws::AmazonS3ConfigKey;
@@ -36,6 +37,7 @@ use self::mysql::ReadMysql;
 use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
+use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
 
 use super::BuiltinFunction;
@@ -100,6 +102,8 @@ impl BuiltinTableFuncs {
             Arc::new(ListColumns),
             // Series generating
             Arc::new(GenerateSeries),
+            // System operations
+            Arc::new(CacheExternalDatabaseTables),
         ];
         let funcs: HashMap<String, Arc<dyn TableFunc>> = funcs
             .into_iter()
