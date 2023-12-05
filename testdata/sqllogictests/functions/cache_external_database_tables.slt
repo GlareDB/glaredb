@@ -1,0 +1,93 @@
+# Tests for the caching external database tables operation.
+
+# Should not error if we haven't cached yet.
+statement ok
+select * from glare_catalog.cached_external_database_tables;
+
+# Cache nothing
+
+query T
+select system_operation_name from cache_external_database_tables();
+----
+cache_external_database_tables
+
+query RTTTT
+select * from glare_catalog.cached_external_database_tables;
+----
+
+# Cache one database
+
+statement ok
+CREATE EXTERNAL DATABASE external_1 FROM debug;
+
+query T
+select system_operation_name from cache_external_database_tables();
+----
+cache_external_database_tables
+
+query TTTT rowsort
+select * exclude database_oid from glare_catalog.cached_external_database_tables;
+----
+schema_0 schema_0_table_0 schema_0_schema_0_table_0_col_0 Utf8
+schema_0 schema_0_table_0 schema_0_schema_0_table_0_col_1 Int64
+schema_0 schema_0_table_1 schema_0_schema_0_table_1_col_0 Utf8
+schema_0 schema_0_table_1 schema_0_schema_0_table_1_col_1 Int64
+schema_1 schema_1_table_0 schema_1_schema_1_table_0_col_0 Utf8
+schema_1 schema_1_table_0 schema_1_schema_1_table_0_col_1 Int64
+schema_1 schema_1_table_1 schema_1_schema_1_table_1_col_0 Utf8
+schema_1 schema_1_table_1 schema_1_schema_1_table_1_col_1 Int64
+
+# Rerun cache, this should result in the same number of rows as before.
+
+query T
+select system_operation_name from cache_external_database_tables();
+----
+cache_external_database_tables
+
+query TTTT rowsort
+select * exclude database_oid from glare_catalog.cached_external_database_tables;
+----
+schema_0 schema_0_table_0 schema_0_schema_0_table_0_col_0 Utf8
+schema_0 schema_0_table_0 schema_0_schema_0_table_0_col_1 Int64
+schema_0 schema_0_table_1 schema_0_schema_0_table_1_col_0 Utf8
+schema_0 schema_0_table_1 schema_0_schema_0_table_1_col_1 Int64
+schema_1 schema_1_table_0 schema_1_schema_1_table_0_col_0 Utf8
+schema_1 schema_1_table_0 schema_1_schema_1_table_0_col_1 Int64
+schema_1 schema_1_table_1 schema_1_schema_1_table_1_col_0 Utf8
+schema_1 schema_1_table_1 schema_1_schema_1_table_1_col_1 Int64
+
+# Add a second database.
+
+statement ok
+CREATE EXTERNAL DATABASE external_2 FROM debug;
+
+query T
+select system_operation_name from cache_external_database_tables();
+----
+cache_external_database_tables
+
+query R
+select count(*) from glare_catalog.cached_external_database_tables group by database_oid;
+----
+8
+8
+
+query TTTT rowsort
+select * exclude database_oid from glare_catalog.cached_external_database_tables;
+----
+schema_0 schema_0_table_0 schema_0_schema_0_table_0_col_0 Utf8
+schema_0 schema_0_table_0 schema_0_schema_0_table_0_col_0 Utf8
+schema_0 schema_0_table_0 schema_0_schema_0_table_0_col_1 Int64
+schema_0 schema_0_table_0 schema_0_schema_0_table_0_col_1 Int64
+schema_0 schema_0_table_1 schema_0_schema_0_table_1_col_0 Utf8
+schema_0 schema_0_table_1 schema_0_schema_0_table_1_col_0 Utf8
+schema_0 schema_0_table_1 schema_0_schema_0_table_1_col_1 Int64
+schema_0 schema_0_table_1 schema_0_schema_0_table_1_col_1 Int64
+schema_1 schema_1_table_0 schema_1_schema_1_table_0_col_0 Utf8
+schema_1 schema_1_table_0 schema_1_schema_1_table_0_col_0 Utf8
+schema_1 schema_1_table_0 schema_1_schema_1_table_0_col_1 Int64
+schema_1 schema_1_table_0 schema_1_schema_1_table_0_col_1 Int64
+schema_1 schema_1_table_1 schema_1_schema_1_table_1_col_0 Utf8
+schema_1 schema_1_table_1 schema_1_schema_1_table_1_col_0 Utf8
+schema_1 schema_1_table_1 schema_1_schema_1_table_1_col_1 Int64
+schema_1 schema_1_table_1 schema_1_schema_1_table_1_col_1 Int64

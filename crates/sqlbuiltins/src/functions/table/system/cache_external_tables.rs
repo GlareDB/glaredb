@@ -140,7 +140,8 @@ impl SystemOperation for CacheExternalDatabaseTablesOperation {
         let listers = self.listers.clone();
         let fut = async move {
             // Note we may want to reconsider this in the future if we want to
-            // selectively update data sources.
+            // selectively update data sources. Currently this overwrites the
+            // entire table everytime.
 
             let table = storage
                 .create_table(&table, SaveMode::Overwrite)

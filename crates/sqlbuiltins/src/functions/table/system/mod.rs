@@ -3,9 +3,7 @@
 pub mod cache_external_tables;
 
 use async_trait::async_trait;
-use datafusion::arrow::array::{
-    BooleanBuilder, Date64Builder, ListBuilder, StringBuilder, UInt32Builder,
-};
+use datafusion::arrow::array::{Date64Builder, StringBuilder};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
@@ -20,16 +18,15 @@ use datafusion::physical_plan::{
 };
 use datafusion::prelude::Expr;
 use datafusion_ext::system::SystemOperation;
-use futures::{stream, Future};
+use futures::stream;
 use once_cell::sync::Lazy;
 use std::any::Any;
 use std::fmt;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Schema of the output batch once the operation completes.
-pub static SYSTEM_OPERATION_PHYSICAL_SCHME: Lazy<Arc<Schema>> = Lazy::new(|| {
+pub static SYSTEM_OPERATION_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
     Arc::new(Schema::new(vec![
         Field::new("system_operation_name", DataType::Utf8, false),
         Field::new("started_at", DataType::Date64, false),
@@ -49,7 +46,7 @@ impl TableProvider for SystemOperationTableProvider {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        SYSTEM_OPERATION_PHYSICAL_SCHME.clone()
+        SYSTEM_OPERATION_PHYSICAL_SCHEMA.clone()
     }
 
     fn table_type(&self) -> TableType {
@@ -59,12 +56,13 @@ impl TableProvider for SystemOperationTableProvider {
     async fn scan(
         &self,
         _state: &SessionState,
-        _projection: Option<&Vec<usize>>,
+        projection: Option<&Vec<usize>>,
         _filters: &[Expr],
         _limit: Option<usize>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         Ok(Arc::new(SystemOperationExec {
             operation: self.operation.clone(),
+            projection: projection.cloned(),
         }))
     }
 }
@@ -78,7 +76,8 @@ impl TableProvider for SystemOperationTableProvider {
 /// We may want to look at making this serializable in the future (and callable
 /// outside of a table func).
 pub struct SystemOperationExec {
-    pub operation: Arc<dyn SystemOperation>,
+    operation: Arc<dyn SystemOperation>,
+    projection: Option<Vec<usize>>,
 }
 
 impl ExecutionPlan for SystemOperationExec {
@@ -87,7 +86,10 @@ impl ExecutionPlan for SystemOperationExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        SYSTEM_OPERATION_PHYSICAL_SCHME.clone()
+        match &self.projection {
+            Some(proj) => Arc::new(SYSTEM_OPERATION_PHYSICAL_SCHEMA.project(proj).unwrap()),
+            None => SYSTEM_OPERATION_PHYSICAL_SCHEMA.clone(),
+        }
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -122,13 +124,13 @@ impl ExecutionPlan for SystemOperationExec {
             ));
         }
 
-        let schema = self.schema();
         let name = self.operation.name();
+        let projection = self.projection.clone();
         let fut = self.operation.create_future(context);
 
         let out = stream::once(async move {
             let start = SystemTime::now();
-            let _ = fut.await?;
+            fut.await?;
             let end = SystemTime::now();
 
             let mut name_arr = StringBuilder::new();
@@ -140,7 +142,7 @@ impl ExecutionPlan for SystemOperationExec {
             end_arr.append_value(end.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64);
 
             let batch = RecordBatch::try_new(
-                schema,
+                SYSTEM_OPERATION_PHYSICAL_SCHEMA.clone(),
                 vec![
                     Arc::new(name_arr.finish()),
                     Arc::new(start_arr.finish()),
@@ -149,7 +151,10 @@ impl ExecutionPlan for SystemOperationExec {
             )
             .unwrap();
 
-            Ok(batch)
+            match &projection {
+                Some(proj) => Ok(batch.project(proj).unwrap()),
+                None => Ok(batch),
+            }
         });
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(self.schema(), out)))
