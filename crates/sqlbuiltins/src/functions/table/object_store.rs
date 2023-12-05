@@ -30,7 +30,8 @@ use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
-use crate::builtins::{BuiltinFunction, TableFunc};
+use super::TableFunc;
+use crate::functions::BuiltinFunction;
 
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
 pub const READ_PARQUET: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "read_parquet");

@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
@@ -9,10 +6,11 @@ use datasources::common::url::DatasourceUrl;
 use datasources::excel::read_excel_impl;
 use ioutil::resolve_path;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
+use std::collections::HashMap;
+use std::sync::Arc;
 
-use crate::builtins::{ConstBuiltinFunction, TableFunc};
-
-use super::table_location_and_opts;
+use super::{table_location_and_opts, TableFunc};
+use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ExcelScan;
