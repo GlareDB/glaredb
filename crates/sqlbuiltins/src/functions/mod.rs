@@ -24,6 +24,8 @@ pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistr
 
 /// A builtin function.
 /// This trait is implemented by all builtin functions.
+/// This is used to derive catalog entries for all supported functions.
+/// Any new function MUST implement this trait.
 pub trait BuiltinFunction: Sync + Send {
     /// The name for this function. This name will be used when looking up
     /// function implementations.
@@ -51,7 +53,7 @@ pub trait BuiltinFunction: Sync + Send {
     // Returns the function type. 'aggregate', 'scalar', or 'table'
     fn function_type(&self) -> FunctionType;
 
-    /// Convert to a builtin `FunctionEntry`
+    /// Convert to a builtin [`FunctionEntry`] for catalogging.
     ///
     /// The default implementation is suitable for aggregates and scalars. Table
     /// functions need to set runtime preference manually.
@@ -77,7 +79,7 @@ pub trait BuiltinFunction: Sync + Send {
     }
 }
 
-/// The same as `BuiltinFunction` , but with const values.
+/// The same as [`BuiltinFunction`] , but with const values.
 pub trait ConstBuiltinFunction: Sync + Send {
     const NAME: &'static str;
     const DESCRIPTION: &'static str;
@@ -87,10 +89,38 @@ pub trait ConstBuiltinFunction: Sync + Send {
         None
     }
 }
-/// A builtin function provided by GlareDB.
+/// The namespace of a function.
+///
+/// Optional -> "namespace.function" || "function"
+///
+/// Required -> "namespace.function"
+///
+/// None -> "function"
+pub enum FunctionNamespace {
+    /// The function can either be called under the namespace, or under global
+    /// e.g. "pg_catalog.current_user" or "current_user"
+    Optional(&'static str),
+    /// The function must be called under the namespace
+    /// e.g. "foo.my_function"
+    Required(&'static str),
+    /// The function can only be called under the global namespace
+    /// e.g. "avg"
+    None,
+}
+
+/// A custom builtin function provided by GlareDB.
+///
+/// These are functions that are implemented directly in GlareDB.
+/// Unlike [`BuiltinFunction`], this contains an implementation of a UDF, and is not just a catalog entry for a DataFusion function.
+///
 /// Note: upcoming release of DataFusion will have a similar trait that'll likely be used instead.
 pub trait BuiltinScalarUDF: BuiltinFunction {
     fn as_expr(&self, args: Vec<Expr>) -> Expr;
+    /// The namespace of the function.
+    /// Defaults to global (None)
+    fn namespace(&self) -> FunctionNamespace {
+        FunctionNamespace::None
+    }
 }
 
 impl<T> BuiltinFunction for T
@@ -165,7 +195,28 @@ impl FunctionRegistry {
         ];
         let udfs = udfs
             .into_iter()
-            .map(|f| (f.name().to_string(), f))
+            .flat_map(|f| {
+                let entry = (f.name().to_string(), f.clone());
+                match f.namespace() {
+                    // we register the function under both the namespaced entry and the normal entry
+                    // e.g. select foo.my_function() or select my_function()
+                    FunctionNamespace::Optional(namespace) => {
+                        let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
+                        vec![entry, namespaced_entry]
+                    }
+                    // we only register the function under the namespaced entry
+                    // e.g. select foo.my_function()
+                    FunctionNamespace::Required(namespace) => {
+                        let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
+                        vec![namespaced_entry]
+                    }
+                    // we only register the function under the normal entry
+                    // e.g. select my_function()
+                    FunctionNamespace::None => {
+                        vec![entry]
+                    }
+                }
+            })
             .collect::<HashMap<_, _>>();
 
         let funcs: HashMap<String, Arc<dyn BuiltinFunction>> =

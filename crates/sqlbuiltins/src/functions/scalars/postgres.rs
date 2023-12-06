@@ -1,5 +1,7 @@
-use super::*;
+use crate::functions::FunctionNamespace;
 
+use super::*;
+const PG_CATALOG_NAMESPACE: FunctionNamespace = FunctionNamespace::Optional("pg_catalog");
 #[derive(Clone)]
 pub struct PgGetUserById;
 impl ConstBuiltinFunction for PgGetUserById {
@@ -31,6 +33,9 @@ impl BuiltinScalarUDF for PgGetUserById {
             Arc::new(udf),
             args,
         ))
+    }
+    fn namespace(&self) -> FunctionNamespace {
+        PG_CATALOG_NAMESPACE
     }
 }
 #[derive(Clone)]
@@ -67,6 +72,9 @@ impl BuiltinScalarUDF for PgTableIsVisible {
             Arc::new(udf),
             args,
         ))
+    }
+    fn namespace(&self) -> FunctionNamespace {
+        PG_CATALOG_NAMESPACE
     }
 }
 
@@ -106,6 +114,9 @@ impl BuiltinScalarUDF for PgEncodingToChar {
             args,
         ))
     }
+    fn namespace(&self) -> FunctionNamespace {
+        PG_CATALOG_NAMESPACE
+    }
 }
 #[derive(Clone)]
 pub struct HasSchemaPrivilege;
@@ -138,6 +149,9 @@ impl BuiltinScalarUDF for HasSchemaPrivilege {
             Arc::new(udf),
             args,
         ))
+    }
+    fn namespace(&self) -> FunctionNamespace {
+        PG_CATALOG_NAMESPACE
     }
 }
 #[derive(Clone)]
@@ -172,6 +186,9 @@ impl BuiltinScalarUDF for HasDatabasePrivilege {
             args,
         ))
     }
+    fn namespace(&self) -> FunctionNamespace {
+        PG_CATALOG_NAMESPACE
+    }
 }
 
 #[derive(Clone)]
@@ -205,6 +222,9 @@ impl BuiltinScalarUDF for HasTablePrivilege {
             Arc::new(udf),
             args,
         ))
+    }
+    fn namespace(&self) -> FunctionNamespace {
+        PG_CATALOG_NAMESPACE
     }
 }
 
@@ -241,6 +261,9 @@ impl BuiltinScalarUDF for CurrentSchemas {
             vec![var_name],
         )
         .alias("current_schemas")
+    }
+    fn namespace(&self) -> FunctionNamespace {
+        PG_CATALOG_NAMESPACE
     }
 }
 #[derive(Clone)]
@@ -281,6 +304,9 @@ impl BuiltinScalarUDF for CurrentRole {
     fn as_expr(&self, _: Vec<Expr>) -> Expr {
         session_var("current_role")
     }
+    fn namespace(&self) -> FunctionNamespace {
+        PG_CATALOG_NAMESPACE
+    }
 }
 
 #[derive(Clone)]
@@ -300,6 +326,9 @@ impl ConstBuiltinFunction for CurrentSchema {
 impl BuiltinScalarUDF for CurrentSchema {
     fn as_expr(&self, _: Vec<Expr>) -> Expr {
         session_var("current_schema")
+    }
+    fn namespace(&self) -> FunctionNamespace {
+        PG_CATALOG_NAMESPACE
     }
 }
 #[derive(Clone)]
@@ -339,6 +368,9 @@ impl BuiltinScalarUDF for CurrentCatalog {
     fn as_expr(&self, _: Vec<Expr>) -> Expr {
         session_var("current_catalog")
     }
+    fn namespace(&self) -> FunctionNamespace {
+        PG_CATALOG_NAMESPACE
+    }
 }
 
 #[derive(Clone)]
@@ -357,6 +389,9 @@ impl ConstBuiltinFunction for User {
 }
 impl BuiltinScalarUDF for User {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        CurrentUser {}.as_expr(args).alias("user")
+        CurrentUser.as_expr(args).alias("user")
+    }
+    fn namespace(&self) -> FunctionNamespace {
+        CurrentUser.namespace()
     }
 }
