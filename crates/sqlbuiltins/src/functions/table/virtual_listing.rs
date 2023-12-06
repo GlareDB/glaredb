@@ -9,7 +9,7 @@ use datafusion::datasource::{MemTable, TableProvider};
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
-    FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider, VirtualLister,
+    FuncParamValue, IdentValue, TableFuncContextProvider, VirtualLister,
 };
 use datasources::bigquery::BigQueryAccessor;
 use datasources::debug::DebugVirtualLister;
@@ -17,26 +17,30 @@ use datasources::mongodb::MongoAccessor;
 use datasources::mysql::MysqlAccessor;
 use datasources::postgres::PostgresAccess;
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection};
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
 };
 
+use super::TableFunc;
+use crate::functions::ConstBuiltinFunction;
+
 #[derive(Debug, Clone, Copy)]
 pub struct ListSchemas;
+impl ConstBuiltinFunction for ListSchemas {
+    const NAME: &'static str = "list_schemas";
+    const DESCRIPTION: &'static str = "Lists schemas in a database";
+    const EXAMPLE: &'static str = "SELECT * FROM list_schemas('database')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+}
 
 #[async_trait]
 impl TableFunc for ListSchemas {
     fn runtime_preference(&self) -> RuntimePreference {
-        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
+        // Currently all of our db's are "external"  it'd never be preferred to run this locally.
         RuntimePreference::Remote
     }
-
-    fn name(&self) -> &str {
-        "list_schemas"
-    }
-
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
@@ -46,12 +50,12 @@ impl TableFunc for ListSchemas {
         match args.len() {
             1 => {
                 let mut args = args.into_iter();
-                let database: IdentValue = args.next().unwrap().param_into()?;
+                let database: IdentValue = args.next().unwrap().try_into()?;
 
                 let fields = vec![Field::new("schema_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
 
-                let lister = get_db_lister(ctx, database.into()).await?;
+                let lister = get_virtual_lister_from_context(ctx, database.into()).await?;
                 let schema_list = lister
                     .list_schemas()
                     .await
@@ -73,15 +77,25 @@ impl TableFunc for ListSchemas {
 #[derive(Debug, Clone, Copy)]
 pub struct ListTables;
 
+impl ConstBuiltinFunction for ListTables {
+    const NAME: &'static str = "list_tables";
+    const DESCRIPTION: &'static str = "Lists tables in a schema";
+    const EXAMPLE: &'static str = "SELECT * FROM list_tables('database', 'schema')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::uniform(
+            3,
+            vec![DataType::Utf8],
+            Volatility::Stable,
+        ))
+    }
+}
+
 #[async_trait]
 impl TableFunc for ListTables {
     fn runtime_preference(&self) -> RuntimePreference {
         // Currently all of our db's are "external" so it'd never be preferred to run this locally.
         RuntimePreference::Remote
-    }
-
-    fn name(&self) -> &str {
-        "list_tables"
     }
 
     async fn create_provider(
@@ -93,13 +107,13 @@ impl TableFunc for ListTables {
         match args.len() {
             2 => {
                 let mut args = args.into_iter();
-                let database: IdentValue = args.next().unwrap().param_into()?;
-                let schema_name: IdentValue = args.next().unwrap().param_into()?;
+                let database: IdentValue = args.next().unwrap().try_into()?;
+                let schema_name: IdentValue = args.next().unwrap().try_into()?;
 
                 let fields = vec![Field::new("table_name", DataType::Utf8, false)];
                 let schema = Arc::new(Schema::new(fields));
 
-                let lister = get_db_lister(ctx, database.into()).await?;
+                let lister = get_virtual_lister_from_context(ctx, database.into()).await?;
                 let tables_list = lister
                     .list_tables(schema_name.as_str())
                     .await
@@ -121,22 +135,26 @@ impl TableFunc for ListTables {
 #[derive(Debug, Clone, Copy)]
 pub struct ListColumns;
 
-#[async_trait]
-impl TableFunc for ListColumns {
-    fn runtime_preference(&self) -> RuntimePreference {
-        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
-        RuntimePreference::Remote
-    }
+impl ConstBuiltinFunction for ListColumns {
+    const NAME: &'static str = "list_columns";
+    const DESCRIPTION: &'static str = "Lists columns in a table";
+    const EXAMPLE: &'static str = "SELECT * FROM list_columns('database', 'schema', 'table')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 
-    fn name(&self) -> &str {
-        "list_columns"
-    }
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             3,
             vec![DataType::Utf8],
             Volatility::Stable,
         ))
+    }
+}
+
+#[async_trait]
+impl TableFunc for ListColumns {
+    fn runtime_preference(&self) -> RuntimePreference {
+        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
+        RuntimePreference::Remote
     }
     async fn create_provider(
         &self,
@@ -147,9 +165,9 @@ impl TableFunc for ListColumns {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
-                let database: IdentValue = args.next().unwrap().param_into()?;
-                let schema_name: IdentValue = args.next().unwrap().param_into()?;
-                let table_name: IdentValue = args.next().unwrap().param_into()?;
+                let database: IdentValue = args.next().unwrap().try_into()?;
+                let schema_name: IdentValue = args.next().unwrap().try_into()?;
+                let table_name: IdentValue = args.next().unwrap().try_into()?;
 
                 let fields = vec![
                     Field::new("column_name", DataType::Utf8, false),
@@ -158,7 +176,7 @@ impl TableFunc for ListColumns {
                 ];
                 let schema = Arc::new(Schema::new(fields));
 
-                let lister = get_db_lister(ctx, database.into()).await?;
+                let lister = get_virtual_lister_from_context(ctx, database.into()).await?;
                 let columns_list = lister
                     .list_columns(schema_name.as_str(), table_name.as_str())
                     .await
@@ -200,7 +218,9 @@ impl TableFunc for ListColumns {
     }
 }
 
-async fn get_db_lister(
+/// Get a virtual lister by looking up the database entry from the session
+/// catalog.
+async fn get_virtual_lister_from_context(
     ctx: &dyn TableFuncContextProvider,
     dbname: String,
 ) -> Result<Box<dyn VirtualLister + '_>> {
@@ -211,8 +231,34 @@ async fn get_db_lister(
         },
     )?;
 
-    let lister: Box<dyn VirtualLister> = match &db.options {
-        DatabaseOptions::Internal(_) => ctx.get_catalog_lister(),
+    let lister = get_virtual_lister_for_db(ctx, &db.options).await?;
+    Ok(lister)
+}
+
+/// Get a lister for a database (including internal).
+///
+/// Lifetime annotations just indicate that the returned lister has a shorter
+/// lifetime bound than everything else. This is needed since lister may be for
+/// the session catalog (bounded to the lifetime of the context) _or_ we create
+/// a client for an external database (unbounded lifetime).
+pub(crate) async fn get_virtual_lister_for_db<'a, 'b: 'a, 'c: 'b>(
+    ctx: &'c dyn TableFuncContextProvider,
+    opts: &'b DatabaseOptions,
+) -> Result<Box<dyn VirtualLister + 'a>> {
+    match opts {
+        DatabaseOptions::Internal(_) => Ok(ctx.get_catalog_lister()),
+        other => get_virtual_lister_for_external_db(other).await,
+    }
+}
+
+/// Gets a lister for an external database using the provided options.
+///
+/// Will panic if attempting to get a lister for an internal database.
+pub(crate) async fn get_virtual_lister_for_external_db(
+    opts: &DatabaseOptions,
+) -> Result<Box<dyn VirtualLister>> {
+    let lister: Box<dyn VirtualLister> = match opts {
+        DatabaseOptions::Internal(_) => panic!("attempted to get lister for internal db"),
         DatabaseOptions::Debug(_) => Box::new(DebugVirtualLister),
         DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
             // TODO: We're not using the configured tunnel?

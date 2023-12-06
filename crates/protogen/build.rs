@@ -18,6 +18,7 @@ fn main() {
                 // rpcsrv
                 "proto/rpcsrv/service.proto",
                 "proto/rpcsrv/common.proto",
+                "proto/rpcsrv/simple.proto",
             ],
             &["proto"],
         )

@@ -7,27 +7,35 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
+
+use super::TableFunc;
+use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadBigQuery;
 
-#[async_trait]
-impl TableFunc for ReadBigQuery {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Remote
-    }
-    fn name(&self) -> &str {
-        "read_bigquery"
-    }
+impl ConstBuiltinFunction for ReadBigQuery {
+    const NAME: &'static str = "read_bigquery";
+    const DESCRIPTION: &'static str = "Reads a BigQuery table";
+    const EXAMPLE: &'static str =
+        "SELECT * FROM read_bigquery('service_account', 'project_id', 'dataset_id', 'table_id')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             4,
             vec![DataType::Utf8],
             Volatility::Stable,
         ))
+    }
+}
+
+#[async_trait]
+impl TableFunc for ReadBigQuery {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
     }
     async fn create_provider(
         &self,
@@ -38,10 +46,10 @@ impl TableFunc for ReadBigQuery {
         match args.len() {
             4 => {
                 let mut args = args.into_iter();
-                let service_account: String = args.next().unwrap().param_into()?;
-                let project_id: String = args.next().unwrap().param_into()?;
-                let dataset_id: String = args.next().unwrap().param_into()?;
-                let table_id: String = args.next().unwrap().param_into()?;
+                let service_account: String = args.next().unwrap().try_into()?;
+                let project_id: String = args.next().unwrap().try_into()?;
+                let dataset_id: String = args.next().unwrap().try_into()?;
+                let table_id: String = args.next().unwrap().try_into()?;
 
                 let access = BigQueryAccessor::connect(service_account, project_id)
                     .await

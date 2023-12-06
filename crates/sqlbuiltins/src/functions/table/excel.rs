@@ -1,28 +1,32 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::common::url::DatasourceUrl;
 use datasources::excel::read_excel_impl;
 use ioutil::resolve_path;
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
+use std::collections::HashMap;
+use std::sync::Arc;
 
-use super::table_location_and_opts;
+use super::{table_location_and_opts, TableFunc};
+use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ExcelScan;
+
+impl ConstBuiltinFunction for ExcelScan {
+    const NAME: &'static str = "read_excel";
+    const DESCRIPTION: &'static str = "Reads an Excel file from the local filesystem";
+    const EXAMPLE: &'static str =
+        "SELECT * FROM read_excel('file:///path/to/file.xlsx', sheet_name => 'Sheet1')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+}
 
 #[async_trait]
 impl TableFunc for ExcelScan {
     fn runtime_preference(&self) -> RuntimePreference {
         RuntimePreference::Local
-    }
-
-    fn name(&self) -> &str {
-        "read_excel"
     }
 
     async fn create_provider(

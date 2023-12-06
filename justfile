@@ -107,7 +107,7 @@ rpc-tests: protoc
 
 #  Check formatting.
 fmt-check: protoc
-  cargo fmt -- --check
+  cargo fmt --check
 
 # Apply formatting.
 fmt *args: protoc
@@ -117,11 +117,14 @@ fmt *args: protoc
 clippy: protoc
   cargo clippy --all --all-features -- --deny warnings
 
+# combined target for all lint
+lint: clippy fmt-check
+
 # apply linting & clippy fixes.
 fix: protoc
   cargo clippy --fix --all --all-features --allow-staged --allow-dirty
   cargo fix --all --allow-staged  --allow-dirty
-  just fmt --all
+  cargo fmt --all
 
 # Displays help message.
 help:

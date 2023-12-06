@@ -208,7 +208,9 @@ impl<'a> Dispatcher<'a> {
             }
             // Dispatch to builtin tables.
             CatalogEntry::Table(tbl) if tbl.meta.builtin => {
-                SystemTableDispatcher::new(self.catalog).dispatch(&tbl)
+                SystemTableDispatcher::new(self.catalog, self.tables)
+                    .dispatch(&tbl)
+                    .await
             }
             // Dispatch to external tables.
             CatalogEntry::Table(tbl) if tbl.meta.external => {

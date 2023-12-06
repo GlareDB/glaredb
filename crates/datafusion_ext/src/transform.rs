@@ -15,6 +15,16 @@ pub trait TreeNodeExt: TreeNode {
         let new_node = op(after_op_children)?.into();
         Ok(new_node)
     }
+
+    /// Like `transform_down`, but allows providing a closure with mutable access
+    /// to the environment.
+    fn transform_down_mut<F>(self, op: &mut F) -> Result<Self>
+    where
+        F: FnMut(Self) -> Result<Transformed<Self>>,
+    {
+        let after_op = op(self)?.into();
+        after_op.map_children(|node| node.transform_down_mut(op))
+    }
 }
 
 impl<T: DynTreeNode + ?Sized> TreeNodeExt for Arc<T> {}

@@ -363,6 +363,8 @@ mod tests {
                 builtin: false,
                 external: false,
                 is_temp: false,
+                description: None,
+                sql_example: None,
             },
             options: TableOptions::Internal(TableOptionsInternal {
                 columns: vec![InternalColumnDefinition {

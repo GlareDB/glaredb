@@ -3,11 +3,12 @@ use crate::logical_plan::JsLogicalPlan;
 use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
 use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
+use ioutil::ensure_dir;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::{LogicalPlan, OperationInfo};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use url::Url;
 
@@ -281,24 +282,6 @@ impl Connection {
     #[napi(catch_unwind)]
     pub async fn close(&self) -> napi::Result<()> {
         // TODO: Remove this method. No longer required.
-        Ok(())
-    }
-}
-
-/// Ensure that a directory at the given path exists. Errors if the path exists
-/// and isn't a directory.
-fn ensure_dir(path: impl AsRef<Path>) -> napi::Result<()> {
-    let path = path.as_ref();
-    if !path.exists() {
-        std::fs::create_dir_all(path)?;
-    }
-
-    if path.exists() && !path.is_dir() {
-        Err(napi::Error::from_reason(format!(
-            "Path is not a valid directory {:?}",
-            &path
-        )))
-    } else {
         Ok(())
     }
 }

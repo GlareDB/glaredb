@@ -17,16 +17,33 @@ use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{
-    FromFuncParamValue, FuncParamValue, TableFunc, TableFuncContextProvider,
-};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use decimal::Decimal128;
 use futures::Stream;
 use num_traits::Zero;
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
+
+use super::TableFunc;
+use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
 pub struct GenerateSeries;
+
+impl ConstBuiltinFunction for GenerateSeries {
+    const NAME: &'static str = "generate_series";
+    const DESCRIPTION: &'static str = "Generate a series of values";
+    const EXAMPLE: &'static str = "SELECT * FROM generate_series(1, 10, 2)";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::new(
+            TypeSignature::OneOf(vec![
+                TypeSignature::Uniform(2, vec![DataType::Int64, DataType::Decimal128(38, 0)]),
+                TypeSignature::Uniform(3, vec![DataType::Int64, DataType::Decimal128(38, 0)]),
+            ]),
+            Volatility::Immutable,
+        ))
+    }
+}
 
 #[async_trait]
 impl TableFunc for GenerateSeries {
@@ -43,9 +60,6 @@ impl TableFunc for GenerateSeries {
             other => Ok(other),
         }
     }
-    fn name(&self) -> &str {
-        "generate_series"
-    }
 
     async fn create_provider(
         &self,
@@ -59,16 +73,16 @@ impl TableFunc for GenerateSeries {
                 let start = args.next().unwrap();
                 let stop = args.next().unwrap();
 
-                if i64::is_param_valid(&start) && i64::is_param_valid(&stop) {
+                if start.is_valid::<i64>() || stop.is_valid::<i64>() {
                     create_straming_table::<GenerateSeriesTypeInt>(
                         GenerateSeriesTypeInt,
-                        start.param_into()?,
-                        stop.param_into()?,
+                        start.try_into()?,
+                        stop.try_into()?,
                         1,
                     )
-                } else if Decimal128::is_param_valid(&start) && Decimal128::is_param_valid(&stop) {
-                    let start: Decimal128 = start.param_into()?;
-                    let stop: Decimal128 = stop.param_into()?;
+                } else if start.is_valid::<Decimal128>() && stop.is_valid::<Decimal128>() {
+                    let start: Decimal128 = start.try_into()?;
+                    let stop: Decimal128 = stop.try_into()?;
                     let step = Decimal128::new(1, 0)?;
                     let scale = [start, stop, step].iter().map(|s| s.scale()).max().unwrap();
                     create_straming_table::<GenerateSeriesTypeDecimal128>(
@@ -90,23 +104,20 @@ impl TableFunc for GenerateSeries {
                 let stop = args.next().unwrap();
                 let step = args.next().unwrap();
 
-                if i64::is_param_valid(&start)
-                    && i64::is_param_valid(&stop)
-                    && i64::is_param_valid(&step)
-                {
+                if start.is_valid::<i64>() && stop.is_valid::<i64>() && step.is_valid::<i64>() {
                     create_straming_table::<GenerateSeriesTypeInt>(
                         GenerateSeriesTypeInt,
-                        start.param_into()?,
-                        stop.param_into()?,
-                        step.param_into()?,
+                        start.try_into()?,
+                        stop.try_into()?,
+                        step.try_into()?,
                     )
-                } else if Decimal128::is_param_valid(&start)
-                    && Decimal128::is_param_valid(&stop)
-                    && Decimal128::is_param_valid(&step)
+                } else if start.is_valid::<Decimal128>()
+                    && stop.is_valid::<Decimal128>()
+                    && step.is_valid::<Decimal128>()
                 {
-                    let start: Decimal128 = start.param_into()?;
-                    let stop: Decimal128 = stop.param_into()?;
-                    let step: Decimal128 = step.param_into()?;
+                    let start: Decimal128 = start.try_into()?;
+                    let stop: Decimal128 = stop.try_into()?;
+                    let step: Decimal128 = step.try_into()?;
                     let scale = [start, stop, step].iter().map(|s| s.scale()).max().unwrap();
                     create_straming_table::<GenerateSeriesTypeDecimal128>(
                         GenerateSeriesTypeDecimal128 { scale },
@@ -123,16 +134,6 @@ impl TableFunc for GenerateSeries {
             }
             _ => return Err(ExtensionError::InvalidNumArgs),
         }
-    }
-
-    fn signature(&self) -> Option<Signature> {
-        Some(Signature::new(
-            TypeSignature::OneOf(vec![
-                TypeSignature::Uniform(2, vec![DataType::Int64, DataType::Decimal128(38, 0)]),
-                TypeSignature::Uniform(3, vec![DataType::Int64, DataType::Decimal128(38, 0)]),
-            ]),
-            Volatility::Immutable,
-        ))
     }
 }
 

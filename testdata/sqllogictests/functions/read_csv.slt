@@ -1,0 +1,64 @@
+# Tests `read_csv`
+
+# Absolute path
+query I
+select count(*) from read_csv('file://${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
+----
+102
+
+# Absolute path (compressed)
+
+query I
+select count(*) from read_csv('file://${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz')
+----
+102
+
+# Compressed (with function argument)
+
+query I
+select count(*) from read_csv(
+  'file://${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz',
+  compression => 'gzip'
+);
+----
+102
+
+# To prove this actually picks up the compression from the argument, giving a
+# wrong compression type should fail.
+statement error stream/file format not recognized
+select count(*) from read_csv(
+  'file://${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz',
+  compression => 'xz'
+);
+
+# Relative path
+query I
+select count(*) from read_csv('../../testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
+----
+102
+
+# Remote path
+query I
+select count(*) from read_csv('https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv');
+----
+102
+
+# Multiple URLs
+
+query I
+select count(*) from read_csv([
+  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv',
+  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'
+]);
+----
+204
+
+statement error at least one url expected
+select * from read_csv([]);
+
+# Glob patterns not supported on HTTP
+
+statement error Note that globbing is not supported for HTTP.
+select * from read_csv(
+  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/*.csv'
+);

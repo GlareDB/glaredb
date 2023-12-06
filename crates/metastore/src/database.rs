@@ -5,8 +5,7 @@ use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use protogen::metastore::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
-    EntryType, FunctionEntry, FunctionType, RuntimePreference, SchemaEntry, SourceAccessMode,
-    TableEntry, TunnelEntry, ViewEntry,
+    EntryType, SchemaEntry, SourceAccessMode, TableEntry, TunnelEntry, ViewEntry,
 };
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
@@ -15,9 +14,9 @@ use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOper
 use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
     BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
-    FIRST_NON_SCHEMA_ID,
+    FIRST_NON_STATIC_OID,
 };
-use sqlbuiltins::functions::{BUILTIN_AGGREGATE_FUNCS, BUILTIN_SCALAR_FUNCS, BUILTIN_TABLE_FUNCS};
+use sqlbuiltins::functions::{BUILTIN_FUNCS, BUILTIN_TABLE_FUNCS};
 use sqlbuiltins::validation::{
     validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
 };
@@ -670,6 +669,8 @@ impl State {
                         builtin: false,
                         external: true,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: create_database.options,
                     tunnel_id,
@@ -700,6 +701,8 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: create_tunnel.options,
                 };
@@ -735,6 +738,8 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: create_credentials.options,
                     comment: create_credentials.comment,
@@ -766,6 +771,8 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: create_credential.options,
                     comment: create_credential.comment,
@@ -798,6 +805,8 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                 };
                 self.entries.insert(oid, CatalogEntry::Schema(ent))?;
@@ -821,6 +830,8 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     sql: create_view.sql,
                     columns: create_view.columns,
@@ -851,6 +862,8 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: TableOptions::Internal(create_table.options),
                     tunnel_id: None,
@@ -892,6 +905,8 @@ impl State {
                         builtin: false,
                         external: true,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: create_ext.options,
                     tunnel_id,
@@ -1153,13 +1168,30 @@ impl BuiltinCatalog {
     /// It is a programmer error if this fails to build.
     fn new() -> Result<BuiltinCatalog> {
         let mut entries = HashMap::new();
+
+        // Ensures no duplicate OIDs.
+        let mut insert_entry = |oid: u32, ent: CatalogEntry| {
+            if entries.contains_key(&oid) {
+                let old = entries.remove(&oid).unwrap();
+                return Err(MetastoreError::BuiltinRepeatedOid {
+                    oid,
+                    ent1: old,
+                    ent2: ent,
+                });
+            }
+
+            entries.insert(oid, ent);
+
+            Ok(())
+        };
+
         let mut database_names = HashMap::new();
         let mut schema_names = HashMap::new();
         let mut schema_objects = HashMap::new();
 
         for database in BuiltinDatabase::builtins() {
             database_names.insert(database.name.to_string(), database.oid);
-            entries.insert(
+            insert_entry(
                 database.oid,
                 CatalogEntry::Database(DatabaseEntry {
                     meta: EntryMeta {
@@ -1170,18 +1202,20 @@ impl BuiltinCatalog {
                         builtin: true,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: DatabaseOptions::Internal(DatabaseOptionsInternal {}),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadWrite,
                 }),
-            );
+            )?
         }
 
         for schema in BuiltinSchema::builtins() {
             schema_names.insert(schema.name.to_string(), schema.oid);
             schema_objects.insert(schema.oid, SchemaObjects::default());
-            entries.insert(
+            insert_entry(
                 schema.oid,
                 CatalogEntry::Schema(SchemaEntry {
                     meta: EntryMeta {
@@ -1192,49 +1226,51 @@ impl BuiltinCatalog {
                         builtin: true,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                 }),
-            );
+            )?;
         }
-
-        // All the below items don't have stable ids.
-        let mut oid = FIRST_NON_SCHEMA_ID;
 
         for table in BuiltinTable::builtins() {
             let schema_id = schema_names
                 .get(table.schema)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(table.schema.to_string()))?;
-            entries.insert(
-                oid,
+            insert_entry(
+                table.oid,
                 CatalogEntry::Table(TableEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Table,
-                        id: oid,
+                        id: table.oid,
                         parent: *schema_id,
                         name: table.name.to_string(),
                         builtin: true,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: TableOptions::new_internal(table.columns.clone()),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadOnly,
                 }),
-            );
+            )?;
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
                 .tables
-                .insert(table.name.to_string(), oid);
-
-            oid += 1;
+                .insert(table.name.to_string(), table.oid);
         }
+
+        // All the below items don't have stable ids.
+        let mut oid = FIRST_NON_STATIC_OID;
 
         for view in BuiltinView::builtins() {
             let schema_id = schema_names
                 .get(view.schema)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(view.schema.to_string()))?;
-            entries.insert(
+            insert_entry(
                 oid,
                 CatalogEntry::View(ViewEntry {
                     meta: EntryMeta {
@@ -1245,11 +1281,13 @@ impl BuiltinCatalog {
                         builtin: true,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     sql: view.sql.to_string(),
                     columns: Vec::new(),
                 }),
-            );
+            )?;
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
@@ -1264,24 +1302,10 @@ impl BuiltinCatalog {
             let schema_id = schema_names
                 .get(DEFAULT_SCHEMA)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
+            let mut entry = func.as_function_entry(oid, *schema_id);
+            entry.runtime_preference = func.runtime_preference();
 
-            entries.insert(
-                oid,
-                CatalogEntry::Function(FunctionEntry {
-                    meta: EntryMeta {
-                        entry_type: EntryType::Function,
-                        id: oid,
-                        parent: *schema_id,
-                        name: func.name().to_string(),
-                        builtin: true,
-                        external: false,
-                        is_temp: false,
-                    },
-                    func_type: FunctionType::TableReturning,
-                    runtime_preference: func.runtime_preference(),
-                    signature: func.signature(),
-                }),
-            );
+            insert_entry(oid, CatalogEntry::Function(entry))?;
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
@@ -1291,65 +1315,21 @@ impl BuiltinCatalog {
             oid += 1;
         }
 
-        for func in BUILTIN_SCALAR_FUNCS.iter_funcs() {
+        for func in BUILTIN_FUNCS.iter_funcs() {
             // Put them all in the default schema.
             let schema_id = schema_names
                 .get(DEFAULT_SCHEMA)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
 
-            entries.insert(
+            insert_entry(
                 oid,
-                CatalogEntry::Function(FunctionEntry {
-                    meta: EntryMeta {
-                        entry_type: EntryType::Function,
-                        id: oid,
-                        parent: *schema_id,
-                        name: func.to_string(),
-                        builtin: true,
-                        external: false,
-                        is_temp: false,
-                    },
-                    func_type: FunctionType::Scalar,
-                    runtime_preference: RuntimePreference::Unspecified,
-                    signature: Some(func.signature()),
-                }),
-            );
+                CatalogEntry::Function(func.as_function_entry(oid, *schema_id)),
+            )?;
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
                 .functions
-                .insert(func.to_string(), oid);
-
-            oid += 1;
-        }
-        for func in BUILTIN_AGGREGATE_FUNCS.iter_funcs() {
-            // Put them all in the default schema.
-            let schema_id = schema_names
-                .get(DEFAULT_SCHEMA)
-                .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
-
-            entries.insert(
-                oid,
-                CatalogEntry::Function(FunctionEntry {
-                    meta: EntryMeta {
-                        entry_type: EntryType::Function,
-                        id: oid,
-                        parent: *schema_id,
-                        name: func.to_string(),
-                        builtin: true,
-                        external: false,
-                        is_temp: false,
-                    },
-                    func_type: FunctionType::Aggregate,
-                    runtime_preference: RuntimePreference::Unspecified,
-                    signature: Some(func.signature()),
-                }),
-            );
-            schema_objects
-                .get_mut(schema_id)
-                .unwrap()
-                .functions
-                .insert(func.to_string().to_ascii_uppercase(), oid);
+                .insert(func.name().to_string(), oid);
 
             oid += 1;
         }

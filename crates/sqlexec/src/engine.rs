@@ -7,6 +7,7 @@ use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG
 use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
 use std::collections::HashMap;
 
+use ioutil::ensure_dir;
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::{path::Path as ObjectPath, prefix::PrefixStore};
 use object_store::{Error as ObjectStoreError, ObjectStore};
@@ -27,6 +28,7 @@ use metastore::util::MetastoreClientMode;
 use object_store_util::conf::StorageConfig;
 use object_store_util::shared::SharedObjectStore;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
+use protogen::rpcsrv::types::common;
 use telemetry::Tracker;
 use tonic::transport::Channel;
 use tracing::{debug, info};
@@ -42,6 +44,14 @@ pub struct SessionStorageConfig {
     pub gcs_bucket: Option<String>,
 }
 
+impl From<common::SessionStorageConfig> for SessionStorageConfig {
+    fn from(value: common::SessionStorageConfig) -> Self {
+        SessionStorageConfig {
+            gcs_bucket: value.gcs_bucket,
+        }
+    }
+}
+
 /// Storage configuration for the compute node.
 ///
 /// The configuration defined here alongside the configuration passed in through
@@ -54,9 +64,7 @@ pub struct EngineStorageConfig {
 
 impl EngineStorageConfig {
     pub fn try_from_path_buf(path: &PathBuf) -> Result<Self> {
-        if !path.exists() {
-            std::fs::create_dir_all(path)?;
-        }
+        ensure_dir(path)?;
         let path = fs::canonicalize(path)?;
         Ok(Self {
             location: Url::from_directory_path(&path).map_err(|_| {
@@ -364,6 +372,9 @@ impl Engine {
 
     /// Create a new local session, initializing it with the provided session
     /// variables.
+    // TODO: This is _very_ easy to mess up with the vars since we implement
+    // default (which defaults to the nil uuid), but using default would is
+    // incorrect in any case we're running Cloud.
     pub async fn new_local_session_context(
         &self,
         vars: SessionVars,
@@ -434,6 +445,11 @@ impl Engine {
 }
 
 /// A thin wrapper around a session.
+///
+/// This is used to allow the engine to track the number of active sessions.
+/// When this session is no longer used (dropped), the resulting counter will
+/// decrement. This is useful to allow the engine to wait for active sessions to
+/// complete on shutdown.
 pub struct TrackedSession {
     inner: Session,
     session_counter: Arc<AtomicU64>,

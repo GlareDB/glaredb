@@ -6,21 +6,22 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
+
+use super::TableFunc;
+use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadMysql;
 
-#[async_trait]
-impl TableFunc for ReadMysql {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Remote
-    }
-    fn name(&self) -> &str {
-        "read_mysql"
-    }
+impl ConstBuiltinFunction for ReadMysql {
+    const NAME: &'static str = "read_mysql";
+    const DESCRIPTION: &'static str = "Reads a MySQL table";
+    const EXAMPLE: &'static str =
+        "SELECT * FROM read_mysql('mysql://localhost:3306', 'database', 'table')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             3,
@@ -28,6 +29,14 @@ impl TableFunc for ReadMysql {
             Volatility::Stable,
         ))
     }
+}
+
+#[async_trait]
+impl TableFunc for ReadMysql {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Remote
+    }
+
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
@@ -37,9 +46,9 @@ impl TableFunc for ReadMysql {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
-                let conn_str: String = args.next().unwrap().param_into()?;
-                let schema: String = args.next().unwrap().param_into()?;
-                let table: String = args.next().unwrap().param_into()?;
+                let conn_str: String = args.next().unwrap().try_into()?;
+                let schema: String = args.next().unwrap().try_into()?;
+                let table: String = args.next().unwrap().try_into()?;
 
                 let access = MysqlAccessor::connect(&conn_str, None)
                     .await

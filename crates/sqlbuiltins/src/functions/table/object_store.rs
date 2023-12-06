@@ -12,11 +12,8 @@ use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::{Signature, Volatility};
-use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{
-    FromFuncParamValue, FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider,
-};
+use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
 
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::object_store::gcs::GcsStoreAccess;
@@ -27,22 +24,45 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess};
 use futures::TryStreamExt;
 use object_store::azure::AzureConfigKey;
-use protogen::metastore::types::catalog::RuntimePreference;
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
+use super::TableFunc;
+use crate::functions::BuiltinFunction;
+
 pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
+pub const READ_PARQUET: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "read_parquet");
 
 pub const CSV_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "csv_scan");
+pub const READ_CSV: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "read_csv");
 
 pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson_scan");
+pub const READ_JSON: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "read_ndjson");
 
 #[derive(Debug, Clone)]
 pub struct ObjScanTableFunc(FileType, &'static str);
 
-#[async_trait]
-impl TableFunc for ObjScanTableFunc {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Unspecified
+impl BuiltinFunction for ObjScanTableFunc {
+    fn name(&self) -> &'static str {
+        self.1
+    }
+    fn function_type(&self) -> FunctionType {
+        FunctionType::TableReturning
+    }
+    fn sql_example(&self) -> Option<String> {
+        fn build_example(extension: &str) -> String {
+            format!(
+                "SELECT * FROM {ext}_scan('./my_data.{ext}')",
+                ext = extension
+            )
+        }
+        Some(build_example(self.0.to_string().as_str()))
+    }
+    fn description(&self) -> Option<String> {
+        Some(format!(
+            "Returns a table by scanning the given {ext} file(s).",
+            ext = self.0.to_string().to_lowercase()
+        ))
     }
 
     fn signature(&self) -> Option<Signature> {
@@ -55,18 +75,28 @@ impl TableFunc for ObjScanTableFunc {
             Volatility::Stable,
         ))
     }
+}
+
+#[async_trait]
+impl TableFunc for ObjScanTableFunc {
+    fn runtime_preference(&self) -> RuntimePreference {
+        RuntimePreference::Unspecified
+    }
+
     fn detect_runtime(
         &self,
         args: &[FuncParamValue],
         _: RuntimePreference,
     ) -> Result<RuntimePreference> {
         let mut args = args.iter();
-        let url_arg = args.next().unwrap();
-        let urls = if DatasourceUrl::is_param_valid(url_arg) {
-            vec![url_arg.param_ref_into()?]
+        let url_arg = args.next().unwrap().to_owned();
+
+        let urls: Vec<DatasourceUrl> = if url_arg.is_valid::<DatasourceUrl>() {
+            vec![url_arg.try_into()?]
         } else {
-            url_arg.param_ref_into::<Vec<DatasourceUrl>>()?
+            url_arg.try_into()?
         };
+
         let mut urls = urls.iter().map(|url| match url.datasource_url_type() {
             DatasourceUrlType::File => RuntimePreference::Local,
             DatasourceUrlType::Http => RuntimePreference::Remote,
@@ -85,11 +115,6 @@ impl TableFunc for ObjScanTableFunc {
         }
     }
 
-    fn name(&self) -> &str {
-        let Self(_, name) = self;
-        name
-    }
-
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
@@ -101,19 +126,12 @@ impl TableFunc for ObjScanTableFunc {
         }
 
         let mut args = args.into_iter();
-        let url_arg = args.next().unwrap();
-        let urls = match url_arg {
-            FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => {
-                let url = DatasourceUrl::try_new(&s)
-                    .map_err(|e| ExtensionError::String(format!("Unable to parse '{s}': {}", e)))?;
-                vec![url]
-            }
-            FuncParamValue::Array(_) => url_arg.param_into::<Vec<DatasourceUrl>>()?,
-            _ => {
-                return Err(ExtensionError::String(
-                    "Invalid input. Received 'ident' expected string or list of strings".to_owned(),
-                ));
-            }
+        let url_arg = args.next().unwrap().to_owned();
+
+        let urls: Vec<DatasourceUrl> = if url_arg.is_valid::<DatasourceUrl>() {
+            vec![url_arg.try_into()?]
+        } else {
+            url_arg.try_into()?
         };
 
         if urls.is_empty() {
@@ -124,8 +142,8 @@ impl TableFunc for ObjScanTableFunc {
 
         let file_compression = match opts.remove("compression") {
             Some(cmp) => {
-                let cmp: String = cmp.param_into()?;
-                cmp.parse()?
+                let cmp: String = cmp.try_into()?;
+                cmp.parse::<FileCompressionType>()?
             }
             None => {
                 let path = urls
@@ -228,7 +246,7 @@ fn get_store_access(
                 DatasourceUrlType::Gcs => {
                     let service_account_key = opts
                         .remove("service_account_key")
-                        .map(FuncParamValue::param_into)
+                        .map(FuncParamValue::try_into)
                         .transpose()?;
 
                     create_gcs_table_provider(source_url, service_account_key)?
@@ -236,12 +254,12 @@ fn get_store_access(
                 DatasourceUrlType::S3 => {
                     let access_key_id = opts
                         .remove("access_key_id")
-                        .map(FuncParamValue::param_into)
+                        .map(FuncParamValue::try_into)
                         .transpose()?;
 
                     let secret_access_key = opts
                         .remove("secret_access_key")
-                        .map(FuncParamValue::param_into)
+                        .map(FuncParamValue::try_into)
                         .transpose()?;
 
                     create_s3_store_access(source_url, &mut opts, access_key_id, secret_access_key)?
@@ -249,11 +267,11 @@ fn get_store_access(
                 DatasourceUrlType::Azure => {
                     let access_key = opts
                         .remove("access_key")
-                        .map(FuncParamValue::param_into)
+                        .map(FuncParamValue::try_into)
                         .transpose()?;
                     let account = opts
                         .remove("account_name")
-                        .map(FuncParamValue::param_into)
+                        .map(FuncParamValue::try_into)
                         .transpose()?;
 
                     create_azure_store_access(source_url, account, access_key)?
@@ -262,7 +280,7 @@ fn get_store_access(
         }
         1 => {
             // Credentials object
-            let creds: IdentValue = args.next().unwrap().param_into()?;
+            let creds: IdentValue = args.next().unwrap().try_into()?;
             let creds = ctx
                 .get_session_catalog()
                 .resolve_credentials(creds.as_str())
@@ -387,7 +405,7 @@ fn create_s3_store_access(
     let region = opts
         .remove(REGION_KEY)
         .ok_or(ExtensionError::MissingNamedArgument(REGION_KEY))?
-        .param_into()?;
+        .try_into()?;
 
     Ok(Arc::new(S3StoreAccess {
         region,

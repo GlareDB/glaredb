@@ -8,6 +8,7 @@ name = "glaredb"
 path = "src/bin/main.rs"
 
 [dependencies]
+ioutil = { path = "../ioutil" }
 arrow_util = { path = "../arrow_util" }
 logutil = { path = "../logutil" }
 sqlexec = { path = "../sqlexec" }
@@ -24,7 +25,7 @@ object_store_util = { path = "../object_store_util" }
 metastore = { path = "../metastore" }
 anyhow = "1.0"
 tokio = { workspace = true }
-clap = { version = "4.4.8", features = ["derive"] }
+clap = { version = "4.4.10", features = ["derive"] }
 tracing = "0.1"
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tonic = { workspace = true }
