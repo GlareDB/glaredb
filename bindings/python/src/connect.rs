@@ -9,19 +9,17 @@ use crate::error::PyGlareDbError;
 use crate::runtime::wait_for_future;
 use futures::lock::Mutex;
 use std::collections::HashMap;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{path::PathBuf, sync::Arc};
 use url::Url;
 
 use datafusion_ext::vars::SessionVars;
-use pyo3::{exceptions::PyRuntimeError, prelude::*};
+use pyo3::prelude::*;
 use sqlexec::{
     engine::{Engine, SessionStorageConfig},
     remote::client::{RemoteClient, RemoteClientType},
 };
+
+use ioutil::ensure_dir;
 
 #[derive(Debug, Clone)]
 struct PythonSessionConf {
@@ -157,22 +155,4 @@ pub fn connect(
             _engine: Arc::new(engine),
         })
     })
-}
-
-/// Ensure that a directory at the given path exists. Errors if the path exists
-/// and isn't a directory.
-fn ensure_dir(path: impl AsRef<Path>) -> PyResult<()> {
-    let path = path.as_ref();
-    if !path.exists() {
-        fs::create_dir_all(path)?;
-    }
-
-    if path.exists() && !path.is_dir() {
-        Err(PyRuntimeError::new_err(format!(
-            "Path is not a valid directory {:?}",
-            &path
-        )))
-    } else {
-        Ok(())
-    }
 }

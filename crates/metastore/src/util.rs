@@ -1,8 +1,9 @@
-use crate::errors::{MetastoreError, Result};
+use crate::errors::Result;
 use crate::local::{start_inprocess_inmemory, start_inprocess_local};
+use ioutil::ensure_dir;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
 use std::path::PathBuf;
-use std::{fs, time::Duration};
+use std::time::Duration;
 use tonic::transport::{Channel, Endpoint};
 use tracing::info;
 
@@ -39,20 +40,7 @@ impl MetastoreClientMode {
                 Ok(MetastoreServiceClient::new(channel))
             }
             Self::LocalDisk { path } => {
-                if !path.exists() {
-                    fs::create_dir_all(&path).map_err(|e| {
-                        MetastoreError::FailedInProcessStartup(format!(
-                            "Failed creating directory at path {}: {e}",
-                            path.to_string_lossy()
-                        ))
-                    })?;
-                }
-                if path.exists() && !path.is_dir() {
-                    return Err(MetastoreError::FailedInProcessStartup(format!(
-                        "Error creating metastore client, path {} is not a valid directory",
-                        path.to_string_lossy()
-                    )));
-                }
+                ensure_dir(&path)?;
                 start_inprocess_local(path).await
             }
             Self::LocalInMemory => start_inprocess_inmemory().await,

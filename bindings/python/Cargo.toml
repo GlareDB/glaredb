@@ -10,6 +10,7 @@ name = "glaredb"
 crate-type = ["cdylib"]
 
 [dependencies]
+ioutil = { path = "../../crates/ioutil" }
 tokio.workspace = true
 datafusion = { workspace = true, features = ["pyarrow"] }
 thiserror.workspace = true

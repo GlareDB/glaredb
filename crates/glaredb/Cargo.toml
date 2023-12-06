@@ -8,6 +8,7 @@ name = "glaredb"
 path = "src/bin/main.rs"
 
 [dependencies]
+ioutil = { path = "../ioutil" }
 arrow_util = { path = "../arrow_util" }
 logutil = { path = "../logutil" }
 sqlexec = { path = "../sqlexec" }
