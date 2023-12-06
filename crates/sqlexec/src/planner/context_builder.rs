@@ -397,7 +397,7 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
     fn get_scalar_udf(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr> {
         FUNCTION_REGISTRY
             .get_scalar_udf(name)
-            .map(|f| f.into_expr(args))
+            .map(|f| f.as_expr(args))
     }
 
     async fn get_variable_type(&mut self, _variable_names: &[String]) -> Option<DataType> {

@@ -125,7 +125,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 return Ok(expr);
             }
         }
-        
+
         // next, aggregate built-ins
         if let Ok(fun) = AggregateFunction::from_str(&name) {
             let distinct = function.distinct;

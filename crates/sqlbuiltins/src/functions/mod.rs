@@ -4,7 +4,7 @@ mod scalars;
 mod table;
 
 use crate::functions::scalars::kdl::{KDLMatches, KDLSelect};
-use crate::functions::scalars::postgres::*;
+use crate::functions::scalars::{postgres::*, ConnectionId, Version};
 
 use self::scalars::ArrowCastFunction;
 use self::table::{BuiltinTableFuncs, TableFunc};
@@ -90,7 +90,7 @@ pub trait ConstBuiltinFunction: Sync + Send {
 /// A builtin function provided by GlareDB.
 /// Note: upcoming release of DataFusion will have a similar trait that'll likely be used instead.
 pub trait BuiltinScalarUDF: BuiltinFunction {
-    fn into_expr(&self, args: Vec<Expr>) -> Expr;
+    fn as_expr(&self, args: Vec<Expr>) -> Expr;
 }
 
 impl<T> BuiltinFunction for T
@@ -159,6 +159,9 @@ impl FunctionRegistry {
             // KDL functions
             Arc::new(KDLMatches),
             Arc::new(KDLSelect),
+            // Other functions
+            Arc::new(ConnectionId),
+            Arc::new(Version),
         ];
         let udfs = udfs
             .into_iter()

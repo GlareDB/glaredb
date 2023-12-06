@@ -22,7 +22,7 @@ impl ConstBuiltinFunction for KDLSelect {
 }
 
 impl BuiltinScalarUDF for KDLSelect {
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+    fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
@@ -79,7 +79,7 @@ impl ConstBuiltinFunction for KDLMatches {
     }
 }
 impl BuiltinScalarUDF for KDLMatches {
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+    fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
             name: "kdl_matches".to_string(),
             signature: Signature::new(

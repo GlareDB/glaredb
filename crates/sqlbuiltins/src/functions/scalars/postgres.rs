@@ -16,7 +16,7 @@ impl ConstBuiltinFunction for PgGetUserById {
 }
 
 impl BuiltinScalarUDF for PgGetUserById {
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+    fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
@@ -48,7 +48,7 @@ impl ConstBuiltinFunction for PgTableIsVisible {
     }
 }
 impl BuiltinScalarUDF for PgTableIsVisible {
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+    fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
@@ -86,7 +86,7 @@ impl ConstBuiltinFunction for PgEncodingToChar {
 }
 
 impl BuiltinScalarUDF for PgEncodingToChar {
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+    fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
@@ -125,7 +125,7 @@ impl ConstBuiltinFunction for HasSchemaPrivilege {
     }
 }
 impl BuiltinScalarUDF for HasSchemaPrivilege {
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+    fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
@@ -158,7 +158,7 @@ impl ConstBuiltinFunction for HasDatabasePrivilege {
     }
 }
 impl BuiltinScalarUDF for HasDatabasePrivilege {
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+    fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
@@ -192,7 +192,7 @@ impl ConstBuiltinFunction for HasTablePrivilege {
     }
 }
 impl BuiltinScalarUDF for HasTablePrivilege {
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+    fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
@@ -226,7 +226,7 @@ impl ConstBuiltinFunction for CurrentSchemas {
     }
 }
 impl BuiltinScalarUDF for CurrentSchemas {
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+    fn as_expr(&self, args: Vec<Expr>) -> Expr {
         // There's no good way to handle the `include_implicit` argument,
         // but since its a binary value (true/false),
         // we can just assign it to a different variable
@@ -258,8 +258,8 @@ impl ConstBuiltinFunction for CurrentUser {
     }
 }
 impl BuiltinScalarUDF for CurrentUser {
-    fn into_expr(&self, _: Vec<Expr>) -> Expr {
-        string_var("current_user")
+    fn as_expr(&self, _: Vec<Expr>) -> Expr {
+        session_var("current_user")
     }
 }
 
@@ -278,8 +278,8 @@ impl ConstBuiltinFunction for CurrentRole {
     }
 }
 impl BuiltinScalarUDF for CurrentRole {
-    fn into_expr(&self, _: Vec<Expr>) -> Expr {
-        string_var("current_role")
+    fn as_expr(&self, _: Vec<Expr>) -> Expr {
+        session_var("current_role")
     }
 }
 
@@ -298,8 +298,8 @@ impl ConstBuiltinFunction for CurrentSchema {
     }
 }
 impl BuiltinScalarUDF for CurrentSchema {
-    fn into_expr(&self, _: Vec<Expr>) -> Expr {
-        string_var("current_schema")
+    fn as_expr(&self, _: Vec<Expr>) -> Expr {
+        session_var("current_schema")
     }
 }
 #[derive(Clone)]
@@ -317,8 +317,8 @@ impl ConstBuiltinFunction for CurrentDatabase {
     }
 }
 impl BuiltinScalarUDF for CurrentDatabase {
-    fn into_expr(&self, _: Vec<Expr>) -> Expr {
-        string_var("current_database")
+    fn as_expr(&self, _: Vec<Expr>) -> Expr {
+        session_var("current_database")
     }
 }
 #[derive(Clone)]
@@ -336,8 +336,8 @@ impl ConstBuiltinFunction for CurrentCatalog {
     }
 }
 impl BuiltinScalarUDF for CurrentCatalog {
-    fn into_expr(&self, _: Vec<Expr>) -> Expr {
-        string_var("current_catalog")
+    fn as_expr(&self, _: Vec<Expr>) -> Expr {
+        session_var("current_catalog")
     }
 }
 
@@ -356,11 +356,7 @@ impl ConstBuiltinFunction for User {
     }
 }
 impl BuiltinScalarUDF for User {
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
-        CurrentUser {}.into_expr(args).alias("user")
+    fn as_expr(&self, args: Vec<Expr>) -> Expr {
+        CurrentUser {}.as_expr(args).alias("user")
     }
-}
-
-fn string_var(s: &str) -> Expr {
-    Expr::ScalarVariable(DataType::Utf8, vec![s.to_string()])
 }
