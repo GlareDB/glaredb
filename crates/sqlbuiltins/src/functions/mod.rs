@@ -3,22 +3,24 @@ mod aggregates;
 mod scalars;
 mod table;
 
-use crate::functions::scalars::postgres::BUILTIN_POSTGRES_FUNCTIONS;
+use crate::functions::scalars::kdl::{KDLMatches, KDLSelect};
+use crate::functions::scalars::postgres::*;
 
 use self::scalars::ArrowCastFunction;
-use self::table::BuiltinTableFuncs;
-use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature, ScalarUDF};
+use self::table::{BuiltinTableFuncs, TableFunc};
+use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
 use once_cell::sync::Lazy;
 use protogen::metastore::types::catalog::{
     EntryMeta, EntryType, FunctionEntry, FunctionType, RuntimePreference,
 };
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Builtin table returning functions available for all sessions.
-pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
+static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
 pub static ARROW_CAST_FUNC: Lazy<ArrowCastFunction> = Lazy::new(|| ArrowCastFunction {});
-pub static BUILTIN_FUNCS: Lazy<BuiltinFuncs> = Lazy::new(BuiltinFuncs::new);
+pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
 
 /// A builtin function.
 /// This trait is implemented by all builtin functions.
@@ -88,11 +90,7 @@ pub trait ConstBuiltinFunction: Sync + Send {
 /// A builtin function provided by GlareDB.
 /// Note: upcoming release of DataFusion will have a similar trait that'll likely be used instead.
 pub trait BuiltinScalarUDF: BuiltinFunction {
-    fn udf(&self) -> ScalarUDF;
     fn into_expr(&self, args: Vec<Expr>) -> Expr;
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction>
-    where
-        Self: Sized;
 }
 
 impl<T> BuiltinFunction for T
@@ -116,12 +114,16 @@ where
     }
 }
 
-pub struct BuiltinFuncs {
+/// Builtin Functions available for all sessions.
+/// This is functionally equivalent to the datafusion `SessionState::scalar_functions`
+/// We use our own implementation to allow us to have finer grained control over them.
+/// We also don't have any session specific functions (for now), so it makes more sense to have a const global.
+pub struct FunctionRegistry {
     funcs: HashMap<String, Arc<dyn BuiltinFunction>>,
     udfs: HashMap<String, Arc<dyn BuiltinScalarUDF>>,
 }
 
-impl BuiltinFuncs {
+impl FunctionRegistry {
     pub fn new() -> Self {
         use strum::IntoEnumIterator;
         let scalars = BuiltinScalarFunction::iter().map(|f| {
@@ -138,34 +140,66 @@ impl BuiltinFuncs {
         let arrow_cast = (arrow_cast.name().to_string(), arrow_cast);
         let arrow_cast = std::iter::once(arrow_cast);
 
-        let postgres_funcs = BUILTIN_POSTGRES_FUNCTIONS.clone();
-        let postgres_funcs = postgres_funcs.iter().map(|f| {
-            let key = f.name().to_string();
-            let value: Arc<dyn BuiltinScalarUDF> = f.clone();
-            (key, value)
-        });
+        // GlareDB specific functions
+        let udfs: Vec<Arc<dyn BuiltinScalarUDF>> = vec![
+            // Postgres functions
+            Arc::new(HasSchemaPrivilege),
+            Arc::new(HasDatabasePrivilege),
+            Arc::new(HasTablePrivilege),
+            Arc::new(CurrentSchemas),
+            Arc::new(CurrentUser),
+            Arc::new(CurrentRole),
+            Arc::new(CurrentSchema),
+            Arc::new(CurrentDatabase),
+            Arc::new(CurrentCatalog),
+            Arc::new(User),
+            Arc::new(PgGetUserById),
+            Arc::new(PgTableIsVisible),
+            Arc::new(PgEncodingToChar),
+            // KDL functions
+            Arc::new(KDLMatches),
+            Arc::new(KDLSelect),
+        ];
+        let udfs = udfs
+            .into_iter()
+            .map(|f| (f.name().to_string(), f))
+            .collect::<HashMap<_, _>>();
 
         let funcs: HashMap<String, Arc<dyn BuiltinFunction>> =
             scalars.chain(aggregates).chain(arrow_cast).collect();
-        let udfs = postgres_funcs.collect();
 
-        BuiltinFuncs { funcs, udfs }
+        FunctionRegistry { funcs, udfs }
     }
-    pub fn iter_funcs(&self) -> impl Iterator<Item = &Arc<dyn BuiltinFunction>> {
-        self.funcs.values()
-    }
+
     pub fn find_function(&self, name: &str) -> Option<Arc<dyn BuiltinFunction>> {
         self.funcs.get(name).cloned()
     }
-    pub fn iter_udfs(&self) -> impl Iterator<Item = &Arc<dyn BuiltinScalarUDF>> {
+
+    /// Find a scalar UDF by name
+    /// This is separate from `find_function` because we want to avoid downcasting
+    /// We already match on BuiltinScalarFunction and AggregateFunction when parsing the AST, so we just need to match on the UDF here.
+    pub fn get_scalar_udf(&self, name: &str) -> Option<Arc<dyn BuiltinScalarUDF>> {
+        self.udfs.get(name).cloned()
+    }
+
+    pub fn scalar_functions(&self) -> impl Iterator<Item = &Arc<dyn BuiltinFunction>> {
+        self.funcs.values()
+    }
+
+    pub fn scalar_udfs(&self) -> impl Iterator<Item = &Arc<dyn BuiltinScalarUDF>> {
         self.udfs.values()
     }
-    pub fn find_udf(&self, name: &str) -> Option<Arc<dyn BuiltinScalarUDF>> {
-        self.udfs.get(name).cloned()
+    /// Return an iterator over all builtin table functions.
+    pub fn table_funcs(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
+        BUILTIN_TABLE_FUNCS.iter_funcs()
+    }
+
+    pub fn get_table_func(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
+        BUILTIN_TABLE_FUNCS.find_function(name)
     }
 }
 
-impl Default for BuiltinFuncs {
+impl Default for FunctionRegistry {
     fn default() -> Self {
         Self::new()
     }

@@ -39,7 +39,7 @@ use protogen::metastore::types::options::{
     TableOptionsSqlServer, TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
 
 use catalog::session_catalog::SessionCatalog;
 
@@ -510,7 +510,7 @@ impl<'a> ExternalDispatcher<'a> {
         let args = args.unwrap_or_default();
         let opts = opts.unwrap_or_default();
         let resolve_func = if func.meta.builtin {
-            BUILTIN_TABLE_FUNCS.find_function(&func.meta.name)
+            FUNCTION_REGISTRY.get_table_func(&func.meta.name)
         } else {
             // We only have builtin functions right now.
             None

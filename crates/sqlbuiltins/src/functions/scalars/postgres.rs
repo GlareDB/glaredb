@@ -1,35 +1,7 @@
-use std::sync::Arc;
-
-use crate::functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction};
-use datafusion::{
-    arrow::datatypes::{DataType, Field},
-    logical_expr::{Expr, ScalarUDF, Signature, TypeSignature, Volatility},
-    physical_plan::ColumnarValue,
-    scalar::ScalarValue,
-};
-use once_cell::sync::Lazy;
-use protogen::metastore::types::catalog::FunctionType;
-
-pub const BUILTIN_POSTGRES_FUNCTIONS: Lazy<Vec<Arc<dyn BuiltinScalarUDF>>> = Lazy::new(|| {
-    vec![
-        Arc::new(HasSchemaPrivilege {}),
-        Arc::new(HasDatabasePrivilege {}),
-        Arc::new(HasTablePrivilege {}),
-        Arc::new(CurrentSchemas {}),
-        Arc::new(CurrentUser {}),
-        Arc::new(CurrentRole {}),
-        Arc::new(CurrentSchema {}),
-        Arc::new(CurrentDatabase {}),
-        Arc::new(CurrentCatalog {}),
-        Arc::new(User {}),
-        Arc::new(PgGetUserById {}),
-        Arc::new(PgTableIsVisible {}),
-        Arc::new(PgEncodingToChar {}),
-    ]
-});
+use super::*;
 
 #[derive(Clone)]
-pub struct PgGetUserById {}
+pub struct PgGetUserById;
 impl ConstBuiltinFunction for PgGetUserById {
     const NAME: &'static str = "pg_get_userbyid";
     const DESCRIPTION: &'static str = "Postgres `pg_get_userbyid` function";
@@ -44,11 +16,8 @@ impl ConstBuiltinFunction for PgGetUserById {
 }
 
 impl BuiltinScalarUDF for PgGetUserById {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        ScalarUDF {
+    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+        let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
@@ -57,17 +26,15 @@ impl BuiltinScalarUDF for PgGetUserById {
                     "unknown".to_string(),
                 ))))
             }),
-        }
-    }
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+        };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(self.udf()),
+            Arc::new(udf),
             args,
         ))
     }
 }
 #[derive(Clone)]
-pub struct PgTableIsVisible {}
+pub struct PgTableIsVisible;
 impl ConstBuiltinFunction for PgTableIsVisible {
     const NAME: &'static str = "pg_table_is_visible";
     const DESCRIPTION: &'static str = "Postgres `pg_table_is_visible` function";
@@ -81,11 +48,8 @@ impl ConstBuiltinFunction for PgTableIsVisible {
     }
 }
 impl BuiltinScalarUDF for PgTableIsVisible {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        ScalarUDF {
+    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+        let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
@@ -97,18 +61,17 @@ impl BuiltinScalarUDF for PgTableIsVisible {
 
                 Ok(ColumnarValue::Scalar(ScalarValue::Boolean(is_visible)))
             }),
-        }
-    }
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+        };
+
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(self.udf()),
+            Arc::new(udf),
             args,
         ))
     }
 }
 
 #[derive(Clone)]
-pub struct PgEncodingToChar {}
+pub struct PgEncodingToChar;
 impl ConstBuiltinFunction for PgEncodingToChar {
     const NAME: &'static str = "pg_encoding_to_char";
     const DESCRIPTION: &'static str = "Postgres `pg_encoding_to_char` function";
@@ -123,11 +86,8 @@ impl ConstBuiltinFunction for PgEncodingToChar {
 }
 
 impl BuiltinScalarUDF for PgEncodingToChar {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        ScalarUDF {
+    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+        let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
@@ -140,17 +100,15 @@ impl BuiltinScalarUDF for PgEncodingToChar {
 
                 Ok(ColumnarValue::Scalar(ScalarValue::Utf8(enc)))
             }),
-        }
-    }
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+        };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(self.udf()),
+            Arc::new(udf),
             args,
         ))
     }
 }
 #[derive(Clone)]
-pub struct HasSchemaPrivilege {}
+pub struct HasSchemaPrivilege;
 impl ConstBuiltinFunction for HasSchemaPrivilege {
     const NAME: &'static str = "has_schema_privilege";
     const DESCRIPTION: &'static str = "Returns true if user have privilege for schema";
@@ -167,28 +125,23 @@ impl ConstBuiltinFunction for HasSchemaPrivilege {
     }
 }
 impl BuiltinScalarUDF for HasSchemaPrivilege {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        ScalarUDF {
+    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+        let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
             fun: Arc::new(move |_input| {
                 Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))
             }),
-        }
-    }
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+        };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(self.udf()),
+            Arc::new(udf),
             args,
         ))
     }
 }
 #[derive(Clone)]
-pub struct HasDatabasePrivilege {}
+pub struct HasDatabasePrivilege;
 impl ConstBuiltinFunction for HasDatabasePrivilege {
     const NAME: &'static str = "has_database_privilege";
     const DESCRIPTION: &'static str = "Returns true if user have privilege for database";
@@ -205,29 +158,24 @@ impl ConstBuiltinFunction for HasDatabasePrivilege {
     }
 }
 impl BuiltinScalarUDF for HasDatabasePrivilege {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        ScalarUDF {
+    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+        let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
             fun: Arc::new(move |_input| {
                 Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))
             }),
-        }
-    }
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+        };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(self.udf()),
+            Arc::new(udf),
             args,
         ))
     }
 }
 
 #[derive(Clone)]
-pub struct HasTablePrivilege {}
+pub struct HasTablePrivilege;
 impl ConstBuiltinFunction for HasTablePrivilege {
     const NAME: &'static str = "has_table_privilege";
     const DESCRIPTION: &'static str = "Returns true if user have privilege for table";
@@ -244,29 +192,24 @@ impl ConstBuiltinFunction for HasTablePrivilege {
     }
 }
 impl BuiltinScalarUDF for HasTablePrivilege {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        ScalarUDF {
+    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+        let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
             fun: Arc::new(move |_input| {
                 Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))
             }),
-        }
-    }
-    fn into_expr(&self, args: Vec<Expr>) -> Expr {
+        };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(self.udf()),
+            Arc::new(udf),
             args,
         ))
     }
 }
 
 #[derive(Clone)]
-pub struct CurrentSchemas {}
+pub struct CurrentSchemas;
 impl ConstBuiltinFunction for CurrentSchemas {
     const NAME: &'static str = "current_schemas";
     const DESCRIPTION: &'static str = "Returns current schemas";
@@ -283,23 +226,25 @@ impl ConstBuiltinFunction for CurrentSchemas {
     }
 }
 impl BuiltinScalarUDF for CurrentSchemas {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |input| todo!()),
-        }
-    }
     fn into_expr(&self, args: Vec<Expr>) -> Expr {
-        string_var("current_schemas")
+        // There's no good way to handle the `include_implicit` argument,
+        // but since its a binary value (true/false),
+        // we can just assign it to a different variable
+        let var_name = if let Some(Expr::Literal(ScalarValue::Boolean(Some(true)))) = args.get(0) {
+            "current_schemas_include_implicit".to_string()
+        } else {
+            "current_schemas".to_string()
+        };
+
+        Expr::ScalarVariable(
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+            vec![var_name],
+        )
+        .alias("current_schemas")
     }
 }
 #[derive(Clone)]
-pub struct CurrentUser {}
+pub struct CurrentUser;
 impl ConstBuiltinFunction for CurrentUser {
     const NAME: &'static str = "current_user";
     const DESCRIPTION: &'static str = "Returns current user";
@@ -313,24 +258,13 @@ impl ConstBuiltinFunction for CurrentUser {
     }
 }
 impl BuiltinScalarUDF for CurrentUser {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |input| todo!()),
-        }
-    }
     fn into_expr(&self, _: Vec<Expr>) -> Expr {
         string_var("current_user")
     }
 }
 
 #[derive(Clone)]
-pub struct CurrentRole {}
+pub struct CurrentRole;
 impl ConstBuiltinFunction for CurrentRole {
     const NAME: &'static str = "current_role";
     const DESCRIPTION: &'static str = "Returns current role";
@@ -344,24 +278,13 @@ impl ConstBuiltinFunction for CurrentRole {
     }
 }
 impl BuiltinScalarUDF for CurrentRole {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |input| todo!()),
-        }
-    }
     fn into_expr(&self, _: Vec<Expr>) -> Expr {
         string_var("current_role")
     }
 }
 
 #[derive(Clone)]
-pub struct CurrentSchema {}
+pub struct CurrentSchema;
 impl ConstBuiltinFunction for CurrentSchema {
     const NAME: &'static str = "current_schema";
     const DESCRIPTION: &'static str = "Returns current schema";
@@ -375,23 +298,12 @@ impl ConstBuiltinFunction for CurrentSchema {
     }
 }
 impl BuiltinScalarUDF for CurrentSchema {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |input| todo!()),
-        }
-    }
     fn into_expr(&self, _: Vec<Expr>) -> Expr {
         string_var("current_schema")
     }
 }
 #[derive(Clone)]
-pub struct CurrentDatabase {}
+pub struct CurrentDatabase;
 impl ConstBuiltinFunction for CurrentDatabase {
     const NAME: &'static str = "current_database";
     const DESCRIPTION: &'static str = "Returns current database";
@@ -405,23 +317,12 @@ impl ConstBuiltinFunction for CurrentDatabase {
     }
 }
 impl BuiltinScalarUDF for CurrentDatabase {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |input| todo!()),
-        }
-    }
     fn into_expr(&self, _: Vec<Expr>) -> Expr {
         string_var("current_database")
     }
 }
 #[derive(Clone)]
-pub struct CurrentCatalog {}
+pub struct CurrentCatalog;
 impl ConstBuiltinFunction for CurrentCatalog {
     const NAME: &'static str = "current_catalog";
     const DESCRIPTION: &'static str = "Returns current catalog";
@@ -435,24 +336,13 @@ impl ConstBuiltinFunction for CurrentCatalog {
     }
 }
 impl BuiltinScalarUDF for CurrentCatalog {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |input| todo!()),
-        }
-    }
     fn into_expr(&self, _: Vec<Expr>) -> Expr {
         string_var("current_catalog")
     }
 }
 
 #[derive(Clone)]
-pub struct User {}
+pub struct User;
 impl ConstBuiltinFunction for User {
     const NAME: &'static str = "user";
     const DESCRIPTION: &'static str = "equivalent to `current_user`";
@@ -466,24 +356,8 @@ impl ConstBuiltinFunction for User {
     }
 }
 impl BuiltinScalarUDF for User {
-    fn as_builtin_function(&self) -> Arc<dyn BuiltinFunction> {
-        Arc::new(self.clone())
-    }
-    fn udf(&self) -> ScalarUDF {
-        CurrentUser {}.udf()
-    }
     fn into_expr(&self, args: Vec<Expr>) -> Expr {
-        CurrentUser {}.into_expr(args)
-    }
-}
-
-fn get_nth_scalar_value(input: &[ColumnarValue], n: usize) -> Option<ScalarValue> {
-    match input.get(n) {
-        Some(input) => match input {
-            ColumnarValue::Scalar(scalar) => Some(scalar.clone()),
-            ColumnarValue::Array(arr) => ScalarValue::try_from_array(arr, 0).ok(),
-        },
-        None => None,
+        CurrentUser {}.into_expr(args).alias("user")
     }
 }
 

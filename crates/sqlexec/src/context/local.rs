@@ -25,7 +25,6 @@ use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromClient,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use sqlbuiltins::functions::BUILTIN_FUNCS;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::slice;
@@ -94,9 +93,6 @@ impl LocalSessionContext {
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
         let df_ctx = DfSessionContext::new_with_state(state);
-        for udf in BUILTIN_FUNCS.iter_udfs() {
-            df_ctx.register_udf(udf.udf());
-        }
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(LocalSessionContext {

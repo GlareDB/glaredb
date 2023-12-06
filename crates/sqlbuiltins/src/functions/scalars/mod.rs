@@ -3,14 +3,24 @@
 // `Abs` would otherwise be `Abs` instead of `abs`. and so on.
 #![allow(non_camel_case_types)]
 
+pub mod kdl;
 pub mod postgres;
 
 use crate::{
     document,
-    functions::{BuiltinFunction, ConstBuiltinFunction},
+    functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction},
 };
 use datafusion::logical_expr::BuiltinScalarFunction;
 use protogen::metastore::types::catalog::FunctionType;
+
+use std::sync::Arc;
+
+use datafusion::{
+    arrow::datatypes::{DataType, Field},
+    logical_expr::{Expr, ScalarUDF, Signature, TypeSignature, Volatility},
+    physical_plan::ColumnarValue,
+    scalar::ScalarValue,
+};
 
 pub struct ArrowCastFunction {}
 
@@ -992,5 +1002,15 @@ impl BuiltinFunction for BuiltinScalarFunction {
             }
             .to_string(),
         )
+    }
+}
+
+pub(self) fn get_nth_scalar_value(input: &[ColumnarValue], n: usize) -> Option<ScalarValue> {
+    match input.get(n) {
+        Some(input) => match input {
+            ColumnarValue::Scalar(scalar) => Some(scalar.clone()),
+            ColumnarValue::Array(arr) => ScalarValue::try_from_array(arr, 0).ok(),
+        },
+        None => None,
     }
 }
