@@ -1,3 +1,4 @@
+//trial
 //! Module for handling the catalog for a single database.
 use crate::errors::{MetastoreError, Result};
 use crate::storage::persist::Storage;
