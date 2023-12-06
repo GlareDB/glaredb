@@ -1,12 +1,15 @@
 use super::*;
 use ::kdl::{KdlDocument, KdlNode, KdlQuery};
+
 #[derive(Clone)]
 pub struct KDLSelect;
+
 impl ConstBuiltinFunction for KDLSelect {
     const NAME: &'static str = "kdl_select";
     const DESCRIPTION: &'static str = "Select nodes from a KDL document";
     const EXAMPLE: &'static str = "kdl_select(docs, '[age=120]')";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             // args: <FIELD>, <QUERY>
@@ -57,6 +60,7 @@ impl BuiltinScalarUDF for KDLSelect {
         ))
     }
 }
+
 #[derive(Clone)]
 pub struct KDLMatches;
 impl ConstBuiltinFunction for KDLMatches {
@@ -65,6 +69,7 @@ impl ConstBuiltinFunction for KDLMatches {
         "Returns a predicate indicating if a KDL document matches a KDL query";
     const EXAMPLE: &'static str = "kdl_matches(docs, '[b=100]')";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             // args: <FIELD>, <QUERY>

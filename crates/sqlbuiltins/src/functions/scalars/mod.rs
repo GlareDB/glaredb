@@ -6,7 +6,7 @@ use crate::{
     functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction},
 };
 use datafusion::logical_expr::BuiltinScalarFunction;
-pub use df_scalars::*;
+
 use protogen::metastore::types::catalog::FunctionType;
 
 use std::sync::Arc;

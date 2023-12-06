@@ -3,11 +3,11 @@ mod aggregates;
 mod scalars;
 mod table;
 
-use crate::functions::scalars::kdl::{KDLMatches, KDLSelect};
-use crate::functions::scalars::{postgres::*, ConnectionId, Version};
-
-use self::scalars::ArrowCastFunction;
+use self::scalars::df_scalars::ArrowCastFunction;
+use self::scalars::kdl::{KDLMatches, KDLSelect};
+use self::scalars::{postgres::*, ConnectionId, Version};
 use self::table::{BuiltinTableFuncs, TableFunc};
+
 use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
 use once_cell::sync::Lazy;
 use protogen::metastore::types::catalog::{
@@ -186,6 +186,7 @@ impl FunctionRegistry {
             Arc::new(PgGetUserById),
             Arc::new(PgTableIsVisible),
             Arc::new(PgEncodingToChar),
+            Arc::new(PgArrayToString),
             // KDL functions
             Arc::new(KDLMatches),
             Arc::new(KDLSelect),
@@ -268,9 +269,9 @@ macro_rules! document {
         pub struct $item;
 
         impl $item {
-            const DESCRIPTION: &'static str = $doc;
-            const EXAMPLE: &'static str = $example;
-            const NAME: &'static str = stringify!($item);
+            pub const DESCRIPTION: &'static str = $doc;
+            pub const EXAMPLE: &'static str = $example;
+            pub const NAME: &'static str = stringify!($item);
         }
     };
     (doc => $doc:expr, example => $example:expr, $name:expr => $item:ident) => {
@@ -278,17 +279,17 @@ macro_rules! document {
         pub struct $item;
 
         impl $item {
-            const DESCRIPTION: &'static str = $doc;
-            const EXAMPLE: &'static str = $example;
-            const NAME: &'static str = $name;
+            pub const DESCRIPTION: &'static str = $doc;
+            pub const EXAMPLE: &'static str = $example;
+            pub const NAME: &'static str = $name;
         }
     };
     // uses an existing struct
     ($doc:expr, $example:expr, name => $name:expr, implementation => $item:ident) => {
         impl $item {
-            const DESCRIPTION: &'static str = $doc;
-            const EXAMPLE: &'static str = $example;
-            const NAME: &'static str = $name;
+            pub const DESCRIPTION: &'static str = $doc;
+            pub const EXAMPLE: &'static str = $example;
+            pub const NAME: &'static str = $name;
         }
     };
 }

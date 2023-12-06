@@ -1,6 +1,8 @@
+use datafusion::logical_expr::expr::ScalarFunction;
+
 use crate::functions::FunctionNamespace;
 
-use super::*;
+use super::{df_scalars::array_to_string, *};
 const PG_CATALOG_NAMESPACE: FunctionNamespace = FunctionNamespace::Optional("pg_catalog");
 #[derive(Clone)]
 pub struct PgGetUserById;
@@ -375,6 +377,7 @@ impl BuiltinScalarUDF for CurrentCatalog {
 
 #[derive(Clone)]
 pub struct User;
+
 impl ConstBuiltinFunction for User {
     const NAME: &'static str = "user";
     const DESCRIPTION: &'static str = "equivalent to `current_user`";
@@ -393,5 +396,32 @@ impl BuiltinScalarUDF for User {
     }
     fn namespace(&self) -> FunctionNamespace {
         CurrentUser.namespace()
+    }
+}
+
+#[derive(Clone)]
+// this one is a bit different from the others as it's also handled via datafusion
+// So all we need to do is add it to the pg_catalog namespace and map it to the df implementation
+pub struct PgArrayToString;
+
+impl ConstBuiltinFunction for PgArrayToString {
+    const NAME: &'static str = array_to_string::NAME;
+    const DESCRIPTION: &'static str = array_to_string::DESCRIPTION;
+    const EXAMPLE: &'static str = array_to_string::EXAMPLE;
+    const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+    fn signature(&self) -> Option<Signature> {
+        Some(BuiltinScalarFunction::ArrayToString.signature())
+    }
+}
+
+impl BuiltinScalarUDF for PgArrayToString {
+    fn as_expr(&self, args: Vec<Expr>) -> Expr {
+        Expr::ScalarFunction(ScalarFunction::new(
+            BuiltinScalarFunction::ArrayToString,
+            args,
+        ))
+    }
+    fn namespace(&self) -> FunctionNamespace {
+        FunctionNamespace::Required("pg_catalog")
     }
 }
