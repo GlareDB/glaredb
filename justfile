@@ -13,11 +13,11 @@ os_arch := os() + '-' + arch()
 bench cmd *args:
   just benchmarks/{{cmd}} {{args}}
 
-# Run py-glaredb subcommands. see `py-glaredb/justfile` for more details.
+# Run py-glaredb subcommands. see `bindings/python/justfile` for more details.
 python cmd *args: protoc
   just bindings/python/{{cmd}} {{args}}
 
-# Run js-glaredb subcommands. see `js-glaredb/justfile` for more details.
+# Run js-glaredb subcommands. see `bindings/nodejs/justfile` for more details.
 javascript cmd *args: protoc
   just bindings/nodejs/{{cmd}} {{args}}
 
