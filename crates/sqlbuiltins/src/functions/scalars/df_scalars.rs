@@ -1,3 +1,9 @@
+// we make use of the document! macro to generate the documentation for the builtin functions.
+// specifically the `stringify!` macro is used to get the name of the function.
+// `Abs` would otherwise be `Abs` instead of `abs`. and so on.
+
+#![allow(non_camel_case_types)]
+
 use super::*;
 pub struct ArrowCastFunction {}
 
