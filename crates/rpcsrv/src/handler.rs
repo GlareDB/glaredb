@@ -39,6 +39,7 @@ use tonic::{Request, Response, Status, Streaming};
 use tracing::info;
 use uuid::Uuid;
 
+#[derive(Clone)]
 pub struct RpcHandler {
     /// Core db engine for creating sessions.
     engine: Arc<Engine>,
@@ -327,7 +328,7 @@ impl Stream for ExecutionResponseBatchStream {
 /// lifetime of a query.
 pub struct SimpleHandler {
     /// Core db engine for creating sessions.
-    engine: Arc<Engine>,
+    pub engine: Arc<Engine>,
 }
 
 impl SimpleHandler {

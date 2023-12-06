@@ -4,6 +4,7 @@ use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use protogen::gen::rpcsrv::simple::simple_service_server::SimpleServiceServer;
+use rpcsrv::flight_handler::{FlightServiceServer, FlightSessionHandler};
 use rpcsrv::handler::{RpcHandler, SimpleHandler};
 use sqlexec::engine::{Engine, EngineStorageConfig};
 use std::collections::HashMap;
@@ -200,10 +201,13 @@ impl ComputeServer {
                 self.disable_rpc_auth,
                 self.integration_testing,
             );
+            let flight_handler = FlightSessionHandler::try_new(&self.engine).await?;
+
             tokio::spawn(async move {
                 let mut server = Server::builder()
                     .trace_fn(|_| debug_span!("rpc_service_request"))
-                    .add_service(ExecutionServiceServer::new(handler));
+                    .add_service(ExecutionServiceServer::new(handler))
+                    .add_service(FlightServiceServer::new(flight_handler));
 
                 // Add in the simple interface if requested.
                 if self.enable_simple_query_rpc {
