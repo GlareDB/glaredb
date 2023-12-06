@@ -52,6 +52,11 @@ pub enum PlanError {
     #[error("Invalid alter statement: {msg}")]
     InvalidAlterStatement { msg: &'static str },
 
+    #[error("Invalid copy to statement: {source}")]
+    InvalidCopyToStatement {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
     #[error("Invalid number of column aliases for view body; sql: {sql}, aliases: {aliases:?}")]
     InvalidNumberOfAliasesForView { sql: String, aliases: Vec<String> },
 
@@ -94,6 +99,7 @@ pub enum PlanError {
     #[error("{0}")]
     String(String),
 }
+
 impl From<PlanError> for datafusion::error::DataFusionError {
     fn from(value: PlanError) -> Self {
         datafusion::error::DataFusionError::Plan(value.to_string())
