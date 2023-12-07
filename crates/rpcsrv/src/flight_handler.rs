@@ -103,7 +103,7 @@ impl FlightSqlService for FlightSessionHandler {
         Response<Pin<Box<dyn Stream<Item = Result<HandshakeResponse, Status>> + Send>>>,
         Status,
     > {
-        todo!()
+        todo!("support TLS")
     }
 
     async fn do_get_fallback(
