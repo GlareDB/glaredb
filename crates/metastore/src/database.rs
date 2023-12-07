@@ -16,7 +16,7 @@ use sqlbuiltins::builtins::{
     BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
     FIRST_NON_STATIC_OID,
 };
-use sqlbuiltins::functions::{BUILTIN_FUNCS, BUILTIN_TABLE_FUNCS};
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
 use sqlbuiltins::validation::{
     validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
 };
@@ -1297,7 +1297,7 @@ impl BuiltinCatalog {
             oid += 1;
         }
 
-        for func in BUILTIN_TABLE_FUNCS.iter_funcs() {
+        for func in FUNCTION_REGISTRY.table_funcs() {
             // Put them all in the default schema.
             let schema_id = schema_names
                 .get(DEFAULT_SCHEMA)
@@ -1315,7 +1315,25 @@ impl BuiltinCatalog {
             oid += 1;
         }
 
-        for func in BUILTIN_FUNCS.iter_funcs() {
+        for func in FUNCTION_REGISTRY.scalar_functions() {
+            // Put them all in the default schema.
+            let schema_id = schema_names
+                .get(DEFAULT_SCHEMA)
+                .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
+
+            insert_entry(
+                oid,
+                CatalogEntry::Function(func.as_function_entry(oid, *schema_id)),
+            )?;
+            schema_objects
+                .get_mut(schema_id)
+                .unwrap()
+                .functions
+                .insert(func.name().to_string(), oid);
+
+            oid += 1;
+        }
+        for func in FUNCTION_REGISTRY.scalar_udfs() {
             // Put them all in the default schema.
             let schema_id = schema_names
                 .get(DEFAULT_SCHEMA)
