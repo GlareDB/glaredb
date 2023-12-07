@@ -10,7 +10,6 @@ pub mod remote;
 pub mod session;
 
 mod dispatch;
-mod functions;
 mod planner;
 mod resolve;
 
