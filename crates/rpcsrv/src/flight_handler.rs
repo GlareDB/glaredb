@@ -60,13 +60,6 @@ impl FlightSessionHandler {
             let sess = self.sessions.get(handle).unwrap().clone();
             return Ok(sess);
         }
-        let uuid = Uuid::parse_str(handle)
-            .map_err(|e| RpcsrvError::ParseError(format!("Error parsing uuid: {e}")))?;
-        let _ = self
-            .engine
-            .new_remote_session_context(uuid, SessionStorageConfig::default())
-            .await
-            .map_err(RpcsrvError::from)?;
 
         let sess = self
             .engine
@@ -76,6 +69,7 @@ impl FlightSessionHandler {
 
         let sess = Arc::new(Mutex::new(sess));
         self.sessions.insert(handle.to_string(), sess.clone());
+
         Ok(sess)
     }
 
@@ -83,6 +77,7 @@ impl FlightSessionHandler {
         let exec_ctx = engine
             .new_remote_session_context(Uuid::new_v4(), SessionStorageConfig::default())
             .await?;
+
         Ok(Self {
             engine: engine.clone(),
             remote_ctx: Arc::new(exec_ctx),
