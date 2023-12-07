@@ -18,7 +18,7 @@ jobs:
             target: x86_64-pc-windows-msvc
           - os: ubuntu-2004-8-cores
             target: x86_64-unknown-linux-gnu
-          - os: ubuntu-2004-8-cores
+          - os: ubuntu-2204-8-cores
             target: aarch64-unknown-linux-gnu
           - os: macos-12-xl
             target: x86_64-apple-darwin
@@ -42,6 +42,10 @@ jobs:
           targets: ${{ matrix.target }}
 
       - uses: extractions/setup-just@v1
+
+      - name: install aarch64 dependencies
+        if: ${{ matrix.target == aarch64-unknown-linux-gnu }}
+        run: sudo apt-get install gcc-aarch64-linux-gnu libc6-dev-arm64-cros
 
       - name: Build
         run: just dist
