@@ -1,3 +1,5 @@
+use datafusion::arrow::error::ArrowError;
+
 #[derive(Debug, thiserror::Error)]
 pub enum RpcsrvError {
     #[error("Invalid {0} id: {1}")]
@@ -53,6 +55,11 @@ pub enum RpcsrvError {
 
     #[error("{0}")]
     Internal(String),
+
+    #[error("{0}")]
+    ParseError(String),
+    #[error("{0}")]
+    ArrowError(ArrowError),
 }
 
 pub type Result<T, E = RpcsrvError> = std::result::Result<T, E>;
