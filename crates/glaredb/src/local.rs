@@ -207,7 +207,7 @@ impl LocalSession {
         let statements = self.sess.parse_query(text)?;
         for stmt in statements {
             self.sess
-                .prepare_statement(UNNAMED, Some(stmt), Vec::new())
+                .prepare_statement(UNNAMED, stmt, Vec::new())
                 .await?;
             let prepared = self.sess.get_prepared_statement(&UNNAMED)?;
             let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);

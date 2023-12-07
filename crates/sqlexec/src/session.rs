@@ -10,7 +10,6 @@ use crate::distexec::scheduler::{OutputSink, Scheduler};
 use crate::distexec::stream::create_coalescing_adapter;
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
-use crate::extension_codec::GlareDBExtensionCodec;
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::planner::physical_plan::{
@@ -19,7 +18,6 @@ use crate::planner::physical_plan::{
 };
 use crate::remote::client::RemoteClient;
 use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
-use crate::remote::provider_cache::ProviderCache;
 use catalog::mutator::CatalogMutator;
 use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::Schema;
@@ -111,16 +109,18 @@ pub enum ExecutionResult {
     /// Credentials are dropped.
     DropCredentials,
 }
-pub struct PreparedStmt {
+// this just makes the `prepare_statement` method a bit more ergonomic.
+pub struct PrepareStatementArg {
     stmt: Option<StatementWithExtensions>,
 }
-impl<'a> TryFrom<&'a str> for PreparedStmt {
+
+impl<'a> TryFrom<&'a str> for PrepareStatementArg {
     type Error = ExecError;
     fn try_from(query: &'a str) -> Result<Self> {
         let mut statements = crate::parser::parse_sql(query)?;
         match statements.len() {
             0 => Err(ExecError::String("No statements in query".to_string())),
-            1 => Ok(PreparedStmt {
+            1 => Ok(PrepareStatementArg {
                 stmt: statements.pop_front(),
             }),
             _ => Err(ExecError::String(
@@ -130,7 +130,7 @@ impl<'a> TryFrom<&'a str> for PreparedStmt {
     }
 }
 
-impl<'a> TryFrom<&'a String> for PreparedStmt {
+impl<'a> TryFrom<&'a String> for PrepareStatementArg {
     type Error = ExecError;
     fn try_from(query: &'a String) -> Result<Self> {
         let s: &str = query;
@@ -138,18 +138,19 @@ impl<'a> TryFrom<&'a String> for PreparedStmt {
     }
 }
 
-impl TryFrom<Option<StatementWithExtensions>> for PreparedStmt {
+impl TryFrom<Option<StatementWithExtensions>> for PrepareStatementArg {
     type Error = ExecError;
     fn try_from(stmt: Option<StatementWithExtensions>) -> Result<Self> {
-        Ok(PreparedStmt { stmt })
+        Ok(PrepareStatementArg { stmt })
     }
 }
-impl TryFrom<StatementWithExtensions> for PreparedStmt {
+impl TryFrom<StatementWithExtensions> for PrepareStatementArg {
     type Error = ExecError;
     fn try_from(stmt: StatementWithExtensions) -> Result<Self> {
-        Ok(PreparedStmt { stmt: Some(stmt) })
+        Ok(PrepareStatementArg { stmt: Some(stmt) })
     }
 }
+
 impl ExecutionResult {
     /// Create a result from a stream and a physical plan.
     ///
@@ -497,13 +498,13 @@ impl Session {
     }
 
     /// Prepare a parsed statement for future execution.
-    pub async fn prepare_statement<T: TryInto<PreparedStmt, Error = ExecError>>(
+    pub async fn prepare_statement<T: TryInto<PrepareStatementArg, Error = ExecError>>(
         &mut self,
         name: String,
         stmt: T,
         params: Vec<i32>, // OIDs
     ) -> Result<()> {
-        let stmt: PreparedStmt = stmt.try_into()?;
+        let stmt: PrepareStatementArg = stmt.try_into()?;
 
         self.ctx.prepare_statement(name, stmt.stmt, params).await
     }
@@ -745,6 +746,7 @@ impl Session {
             datafusion_ext::vars::Dialect::Prql => crate::parser::parse_prql(query),
         }
     }
+
     pub async fn prepare_portal(&mut self, handle: &str, query: &str) -> Result<()> {
         self.prepare_statement(handle.to_string(), query, Vec::new())
             .await?;
@@ -758,10 +760,5 @@ impl Session {
             vec![Format::Binary; num_fields],
         )?;
         Ok(())
-    }
-    /// Returns the extension codec used for serializing and deserializing data
-    /// over RPCs.
-    pub fn extension_codec<'a>(&self, cache: &'a ProviderCache) -> GlareDBExtensionCodec<'a> {
-        GlareDBExtensionCodec::new_decoder(cache, self.ctx.df_ctx().runtime_env())
     }
 }

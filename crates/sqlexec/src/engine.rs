@@ -370,34 +370,16 @@ impl Engine {
         self.session_counter.load(Ordering::Relaxed)
     }
 
-    /// Create a new tracked local session.
-    ///
+    /// Create a new local session, initializing it with the provided session
+    /// variables.
+    // TODO: This is _very_ easy to mess up with the vars since we implement
+    // default (which defaults to the nil uuid), but using default would is
+    // incorrect in any case we're running Cloud.
     pub async fn new_local_session_context(
         &self,
         vars: SessionVars,
         storage: SessionStorageConfig,
     ) -> Result<TrackedSession> {
-        let session = self.new_untracked_session_context(vars, storage).await?;
-        let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
-        debug!(session_count = prev + 1, "new session opened");
-
-        Ok(TrackedSession {
-            inner: session,
-            session_counter: self.session_counter.clone(),
-        })
-    }
-
-    /// Create a new local session, initializing it with the provided session
-    /// variables.
-    /// Unlike [`new_local_session_context`] this doesn't track the session.
-    // TODO: This is _very_ easy to mess up with the vars since we implement
-    // default (which defaults to the nil uuid), but using default would is
-    // incorrect in any case we're running Cloud.
-    pub async fn new_untracked_session_context(
-        &self,
-        vars: SessionVars,
-        storage: SessionStorageConfig,
-    ) -> Result<Session> {
         let database_id = vars.database_id();
         let metastore = self.supervisor.init_client(database_id).await?;
         let native = self
@@ -413,7 +395,7 @@ impl Engine {
             },
         );
 
-        Session::new(
+        let session = Session::new(
             vars,
             catalog,
             metastore.into(),
@@ -421,7 +403,15 @@ impl Engine {
             self.tracker.clone(),
             self.spill_path.clone(),
             self.task_scheduler.clone(),
-        )
+        )?;
+
+        let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
+        debug!(session_count = prev + 1, "new session opened");
+
+        Ok(TrackedSession {
+            inner: session,
+            session_counter: self.session_counter.clone(),
+        })
     }
 
     /// Create a new remote session for plan execution.

@@ -289,9 +289,7 @@ impl AsyncDB for TestClient {
                 let statements = session.parse_query(sql)?;
 
                 for stmt in statements {
-                    session
-                        .prepare_statement(UNNAMED, Some(stmt), Vec::new())
-                        .await?;
+                    session.prepare_statement(UNNAMED, stmt, Vec::new()).await?;
                     let prepared = session.get_prepared_statement(&UNNAMED)?;
                     let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
                     session.bind_statement(

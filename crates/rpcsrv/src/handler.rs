@@ -328,7 +328,7 @@ impl Stream for ExecutionResponseBatchStream {
 /// lifetime of a query.
 pub struct SimpleHandler {
     /// Core db engine for creating sessions.
-    pub engine: Arc<Engine>,
+    engine: Arc<Engine>,
 }
 
 impl SimpleHandler {
