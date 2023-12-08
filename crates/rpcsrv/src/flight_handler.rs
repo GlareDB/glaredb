@@ -1,14 +1,11 @@
 use crate::errors::{Result, RpcsrvError};
 
 use dashmap::DashMap;
-use datafusion::{arrow::ipc::writer::IpcWriteOptions, physical_plan::ExecutionPlan};
+use datafusion::{arrow::ipc::writer::IpcWriteOptions, logical_expr::LogicalPlan};
 use datafusion_ext::vars::SessionVars;
-use datafusion_proto::protobuf::PhysicalPlanNode;
 use once_cell::sync::Lazy;
 use sqlexec::{
-    context::remote::RemoteSessionContext,
     engine::{Engine, SessionStorageConfig},
-    extension_codec::GlareDBExtensionCodec,
     session::Session,
     OperationInfo,
 };
@@ -27,7 +24,6 @@ use arrow_flight::{
     },
     HandshakeRequest, HandshakeResponse,
 };
-use datafusion_proto::physical_plan::AsExecutionPlan;
 use futures::TryStreamExt;
 use futures::{lock::Mutex, Stream};
 use prost::Message;
@@ -48,10 +44,11 @@ const DATABASE_HEADER: &str = "x-database";
 
 pub struct FlightSessionHandler {
     engine: Arc<Engine>,
-    /// TODO: currently, we aren't removing these sessions, so this will grow forever.
-    /// there's no close/shutdown hook, so the sessions can at most only be tied to a single transaction, not a connection.
-    /// We'll want to implement a time based eviction policy, or a max size.
-    remote_sessions: DashMap<String, Arc<RemoteSessionContext>>,
+    // since plans can be tied to any session, we can't use a single session to store them.
+    logical_plans: DashMap<String, LogicalPlan>,
+    // TODO: currently, we aren't removing these sessions, so this will grow forever.
+    // there's no close/shutdown hook, so the sessions can at most only be tied to a single transaction, not a connection.
+    // We'll want to implement a time based eviction policy, or a max size.
     // We use [`Session`] instead of [`TrackedSession`] because tracked sessions need to be
     // explicitly closed, and we don't have a way to do that yet.
     sessions: DashMap<String, Arc<Mutex<Session>>>,
@@ -61,7 +58,7 @@ impl FlightSessionHandler {
     pub fn new(engine: &Arc<Engine>) -> Self {
         Self {
             engine: engine.clone(),
-            remote_sessions: DashMap::new(),
+            logical_plans: DashMap::new(),
             sessions: DashMap::new(),
         }
     }
@@ -74,7 +71,8 @@ impl FlightSessionHandler {
             .metadata()
             .get(DATABASE_HEADER)
             .map(|s| s.to_str().unwrap().to_string())
-            .unwrap_or_else(|| Uuid::default().to_string());
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+
         if self.sessions.contains_key(&db_handle) {
             let sess = self.sessions.get(&db_handle).unwrap().clone();
             return Ok((db_handle, sess));
@@ -90,84 +88,41 @@ impl FlightSessionHandler {
             .new_untracked_session(session_vars, SessionStorageConfig::default())
             .await
             .map_err(RpcsrvError::from)?;
-
-        let remote_sess = self
-            .engine
-            .new_remote_session_context(db_id, SessionStorageConfig::default())
-            .await
-            .map_err(RpcsrvError::from)?;
         let sess = Arc::new(Mutex::new(sess));
         self.sessions.insert(db_handle.clone(), sess.clone());
-        self.remote_sessions
-            .insert(db_handle.clone(), Arc::new(remote_sess));
 
         Ok((db_handle, sess))
-    }
-
-    async fn get_exec_ctx<T>(
-        &self,
-        request: &Request<T>,
-    ) -> Result<Arc<RemoteSessionContext>, Status> {
-        let db_handle = request
-            .metadata()
-            .get(DATABASE_HEADER)
-            .map(|s| s.to_str().unwrap().to_string())
-            .unwrap_or_else(|| Uuid::default().to_string());
-
-        if let Some(sess) = self.remote_sessions.get(&db_handle) {
-            Ok(sess.clone())
-        } else {
-            Err(Status::internal(format!(
-                "Unable to find session with handle {}",
-                db_handle
-            )))
-        }
-    }
-
-    async fn get_ctx<T>(&self, request: &Request<T>) -> Result<Arc<Mutex<Session>>, Status> {
-        let db_handle = request
-            .metadata()
-            .get(DATABASE_HEADER)
-            .map(|s| s.to_str().unwrap().to_string())
-            .unwrap_or_else(|| Uuid::default().to_string());
-
-        self.sessions
-            .get(&db_handle)
-            .map(|s| s.clone())
-            .ok_or_else(|| {
-                Status::internal(format!("Unable to find session with handle {}", db_handle))
-            })
     }
 
     async fn do_action_execute_physical_plan(
         &self,
         req: &Request<Ticket>,
-        query: ActionExecutePhysicalPlan,
+        query: ActionExecuteLogicalPlan,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
-        let ctx = self.get_exec_ctx(req).await?;
-
-        let plan = PhysicalPlanNode::try_decode(&query.plan).map_err(RpcsrvError::from)?;
-        let codec = ctx.extension_codec();
-
-        let plan = plan
-            .try_into_physical_plan(
-                ctx.get_datafusion_context(),
-                ctx.get_datafusion_context().runtime_env().as_ref(),
-                &codec,
-            )
-            .map_err(RpcsrvError::from)?;
-
-        self.execute_physical_plan(req, plan).await
+        let ActionExecuteLogicalPlan { handle } = query;
+        let lp = self
+            .logical_plans
+            .get(&handle)
+            .ok_or_else(|| Status::internal(format!("Unable to find logical plan {}", handle)))?
+            .clone();
+        self.execute_lp(req, lp).await
     }
 
-    async fn execute_physical_plan<T>(
+    async fn execute_lp<T>(
         &self,
         request: &Request<T>,
-        physical_plan: Arc<dyn ExecutionPlan>,
+        lp: LogicalPlan,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
-        let ctx = self.get_exec_ctx(request).await?;
+        let (_, ctx) = self.get_or_create_ctx(request).await?;
+        let ctx = ctx.lock().await;
+        let plan = ctx
+            .create_physical_plan(lp, &OperationInfo::default())
+            .await
+            .map_err(RpcsrvError::from)?;
+
         let stream = ctx
-            .execute_physical(physical_plan)
+            .execute_physical(plan)
+            .await
             .map_err(RpcsrvError::from)?;
 
         let schema = stream.schema();
@@ -203,8 +158,8 @@ impl FlightSqlService for FlightSessionHandler {
         message: Any,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
         match message.type_url.as_str() {
-            ActionExecutePhysicalPlan::TYPE_URL => {
-                let action: ActionExecutePhysicalPlan = message
+            ActionExecuteLogicalPlan::TYPE_URL => {
+                let action: ActionExecuteLogicalPlan = message
                     .unpack()
                     .map_err(RpcsrvError::from)?
                     .ok_or_else(|| {
@@ -228,15 +183,11 @@ impl FlightSqlService for FlightSessionHandler {
                         let lp = ctx
                             .parsed_to_lp(statements)
                             .await
+                            .map_err(RpcsrvError::from)?
+                            .try_into_datafusion_plan()
                             .map_err(RpcsrvError::from)?;
-                        let physical = ctx
-                            .create_physical_plan(
-                                lp.try_into_datafusion_plan().map_err(RpcsrvError::from)?,
-                                &OperationInfo::default(),
-                            )
-                            .await
-                            .map_err(RpcsrvError::from)?;
-                        self.execute_physical_plan(&req, physical).await
+
+                        self.execute_lp(&req, lp).await
                     }
                     Err(e) => Err(Status::internal(format!(
                         "Expected a SQL query, instead received: {e}"
@@ -288,26 +239,9 @@ impl FlightSqlService for FlightSessionHandler {
             .try_into_datafusion_plan()
             .map_err(RpcsrvError::from)?;
 
-        let physical = ctx
-            .create_physical_plan(plan, &OperationInfo::default())
-            .await
-            .map_err(RpcsrvError::from)?;
+        self.logical_plans.insert(handle.clone(), plan);
 
-        // Encode the physical plan into a protobuf message.
-        let physical_plan = {
-            let node = PhysicalPlanNode::try_from_physical_plan(
-                physical,
-                &GlareDBExtensionCodec::new_encoder(),
-            )
-            .map_err(RpcsrvError::from)?;
-
-            let mut buf = Vec::new();
-            node.try_encode(&mut buf).map_err(RpcsrvError::from)?;
-            buf
-        };
-
-        let action = ActionExecutePhysicalPlan {
-            plan: physical_plan,
+        let action = ActionExecuteLogicalPlan {
             handle: handle.to_string(),
         };
 
@@ -380,8 +314,9 @@ impl FlightSqlService for FlightSessionHandler {
     ) -> Result<(), Status> {
         let handle = std::str::from_utf8(&query.prepared_statement_handle)
             .map_err(|e| RpcsrvError::ParseError(e.to_string()))?;
-        let ctx = self.get_ctx(&req).await?;
+        let (_, ctx) = self.get_or_create_ctx(&req).await?;
         ctx.lock().await.remove_portal(handle);
+        self.logical_plans.remove(handle);
 
         Ok(())
     }
@@ -390,26 +325,24 @@ impl FlightSqlService for FlightSessionHandler {
 }
 
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ActionExecutePhysicalPlan {
-    #[prost(bytes, tag = "1")]
-    pub plan: Vec<u8>,
+pub struct ActionExecuteLogicalPlan {
     #[prost(string, tag = "2")]
     pub handle: String,
 }
 
-impl ActionExecutePhysicalPlan {
+impl ActionExecuteLogicalPlan {
     pub const TYPE_URL: &'static str =
-        "type.googleapis.com/glaredb.rpcsrv.ActionExecutePhysicalPlan";
+        "type.googleapis.com/glaredb.rpcsrv.ActionExecuteLogicalPlan";
 }
 
-impl ProstMessageExt for ActionExecutePhysicalPlan {
+impl ProstMessageExt for ActionExecuteLogicalPlan {
     fn type_url() -> &'static str {
         Self::TYPE_URL
     }
 
     fn as_any(&self) -> Any {
         Any {
-            type_url: ActionExecutePhysicalPlan::type_url().to_string(),
+            type_url: ActionExecuteLogicalPlan::type_url().to_string(),
             value: ::prost::Message::encode_to_vec(self).into(),
         }
     }
