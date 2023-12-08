@@ -58,12 +58,12 @@ pub struct FlightSessionHandler {
 }
 
 impl FlightSessionHandler {
-    pub async fn try_new(engine: &Arc<Engine>) -> Result<Self> {
-        Ok(Self {
+    pub fn new(engine: &Arc<Engine>) -> Self {
+        Self {
             engine: engine.clone(),
             remote_sessions: DashMap::new(),
             sessions: DashMap::new(),
-        })
+        }
     }
 
     async fn get_or_create_ctx<T>(

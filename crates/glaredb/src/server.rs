@@ -201,7 +201,8 @@ impl ComputeServer {
                 self.disable_rpc_auth,
                 self.integration_testing,
             );
-            let flight_handler = FlightSessionHandler::try_new(&self.engine).await?;
+
+            let flight_handler = FlightSessionHandler::new(&self.engine);
 
             tokio::spawn(async move {
                 let mut server = Server::builder()
