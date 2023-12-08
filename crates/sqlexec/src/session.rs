@@ -757,7 +757,7 @@ impl Session {
             handle.to_string(),
             handle,
             Vec::new(),
-            vec![Format::Binary; num_fields],
+            vec![Format::Text; num_fields],
         )?;
         Ok(())
     }

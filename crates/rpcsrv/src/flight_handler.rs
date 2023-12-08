@@ -1,14 +1,15 @@
 use crate::errors::{Result, RpcsrvError};
 
 use dashmap::DashMap;
-use datafusion::arrow::ipc::writer::IpcWriteOptions;
+use datafusion::{arrow::ipc::writer::IpcWriteOptions, physical_plan::ExecutionPlan};
 use datafusion_ext::vars::SessionVars;
 use datafusion_proto::protobuf::PhysicalPlanNode;
 use once_cell::sync::Lazy;
 use sqlexec::{
     context::remote::RemoteSessionContext,
-    engine::{Engine, SessionStorageConfig, TrackedSession},
+    engine::{Engine, SessionStorageConfig},
     extension_codec::GlareDBExtensionCodec,
+    session::Session,
     OperationInfo,
 };
 use std::{pin::Pin, sync::Arc};
@@ -41,54 +42,148 @@ static INSTANCE_SQL_DATA: Lazy<SqlInfoData> = Lazy::new(|| {
     builder.build().unwrap()
 });
 
-macro_rules! status {
-    ($desc:expr, $err:expr) => {
-        Status::internal(format!("{}: {} at {}:{}", $desc, $err, file!(), line!()))
-    };
-}
+/// Custom header clients can use to specify the database they want to connect to.
+/// the ADBC driver requires it to be passed in as `adbc.flight.sql.rpc.call_header.x-database`
+const DATABASE_HEADER: &str = "x-database";
 
 pub struct FlightSessionHandler {
     engine: Arc<Engine>,
-    /// The remote context is used to execute the queries in a stateless manner.
-    remote_ctx: Arc<RemoteSessionContext>,
-    sessions: DashMap<String, Arc<Mutex<TrackedSession>>>,
+    /// TODO: currently, we aren't removing these sessions, so this will grow forever.
+    /// there's no close/shutdown hook, so the sessions can at most only be tied to a single transaction, not a connection.
+    /// We'll want to implement a time based eviction policy, or a max size.
+    remote_sessions: DashMap<String, Arc<RemoteSessionContext>>,
+    // We use [`Session`] instead of [`TrackedSession`] because tracked sessions need to be
+    // explicitly closed, and we don't have a way to do that yet.
+    sessions: DashMap<String, Arc<Mutex<Session>>>,
 }
 
 impl FlightSessionHandler {
-    async fn create_ctx(&self, handle: &str) -> Result<Arc<Mutex<TrackedSession>>, Status> {
-        if self.sessions.contains_key(handle) {
-            let sess = self.sessions.get(handle).unwrap().clone();
-            return Ok(sess);
-        }
-
-        let sess = self
-            .engine
-            .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
-            .await
-            .map_err(RpcsrvError::from)?;
-
-        let sess = Arc::new(Mutex::new(sess));
-        self.sessions.insert(handle.to_string(), sess.clone());
-
-        Ok(sess)
-    }
-
     pub async fn try_new(engine: &Arc<Engine>) -> Result<Self> {
-        let exec_ctx = engine
-            .new_remote_session_context(Uuid::new_v4(), SessionStorageConfig::default())
-            .await?;
-
         Ok(Self {
             engine: engine.clone(),
-            remote_ctx: Arc::new(exec_ctx),
+            remote_sessions: DashMap::new(),
             sessions: DashMap::new(),
         })
     }
 
-    async fn get_ctx(&self, handle: &str) -> Result<Arc<Mutex<TrackedSession>>, Status> {
-        self.sessions.get(handle).map(|s| s.clone()).ok_or_else(|| {
-            Status::internal(format!("Unable to find session with handle {}", handle))
-        })
+    async fn get_or_create_ctx<T>(
+        &self,
+        request: &Request<T>,
+    ) -> Result<(String, Arc<Mutex<Session>>), Status> {
+        let db_handle = request
+            .metadata()
+            .get(DATABASE_HEADER)
+            .map(|s| s.to_str().unwrap().to_string())
+            .unwrap_or_else(|| Uuid::default().to_string());
+        if self.sessions.contains_key(&db_handle) {
+            let sess = self.sessions.get(&db_handle).unwrap().clone();
+            return Ok((db_handle, sess));
+        }
+
+        let db_id = Uuid::parse_str(&db_handle).map_err(|e| {
+            Status::internal(format!(
+                "Unable to parse database handle: {}",
+                e.to_string()
+            ))
+        })?;
+
+        let session_vars =
+            SessionVars::default().with_database_id(db_id, datafusion::variable::VarType::System);
+        let sess = self
+            .engine
+            .new_untracked_session(session_vars, SessionStorageConfig::default())
+            .await
+            .map_err(RpcsrvError::from)?;
+
+        let remote_sess = self
+            .engine
+            .new_remote_session_context(db_id, SessionStorageConfig::default())
+            .await
+            .map_err(RpcsrvError::from)?;
+        let sess = Arc::new(Mutex::new(sess));
+        self.sessions.insert(db_handle.clone(), sess.clone());
+        self.remote_sessions
+            .insert(db_handle.clone(), Arc::new(remote_sess));
+
+        Ok((db_handle, sess))
+    }
+
+    async fn get_exec_ctx<T>(
+        &self,
+        request: &Request<T>,
+    ) -> Result<Arc<RemoteSessionContext>, Status> {
+        let db_handle = request
+            .metadata()
+            .get(DATABASE_HEADER)
+            .map(|s| s.to_str().unwrap().to_string())
+            .unwrap_or_else(|| Uuid::default().to_string());
+
+        if let Some(sess) = self.remote_sessions.get(&db_handle) {
+            Ok(sess.clone())
+        } else {
+            Err(Status::internal(format!(
+                "Unable to find session with handle {}",
+                db_handle
+            )))
+        }
+    }
+
+    async fn get_ctx<T>(&self, request: &Request<T>) -> Result<Arc<Mutex<Session>>, Status> {
+        let db_handle = request
+            .metadata()
+            .get(DATABASE_HEADER)
+            .map(|s| s.to_str().unwrap().to_string())
+            .unwrap_or_else(|| Uuid::default().to_string());
+
+        self.sessions
+            .get(&db_handle)
+            .map(|s| s.clone())
+            .ok_or_else(|| {
+                Status::internal(format!("Unable to find session with handle {}", db_handle))
+            })
+    }
+
+    async fn do_action_execute_physical_plan(
+        &self,
+        req: &Request<Ticket>,
+        query: ActionExecutePhysicalPlan,
+    ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
+        let ctx = self.get_exec_ctx(&req).await?;
+
+        let plan = PhysicalPlanNode::try_decode(&query.plan).map_err(RpcsrvError::from)?;
+        let codec = ctx.extension_codec();
+
+        let plan = plan
+            .try_into_physical_plan(
+                ctx.get_datafusion_context(),
+                ctx.get_datafusion_context().runtime_env().as_ref(),
+                &codec,
+            )
+            .map_err(RpcsrvError::from)?;
+
+        self.execute_physical_plan(req, plan).await
+    }
+
+    async fn execute_physical_plan<T>(
+        &self,
+        request: &Request<T>,
+        physical_plan: Arc<dyn ExecutionPlan>,
+    ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
+        let ctx = self.get_exec_ctx(&request).await?;
+        let stream = ctx
+            .execute_physical(physical_plan)
+            .map_err(RpcsrvError::from)?;
+
+        let schema = stream.schema();
+        let stream =
+            stream.map_err(|e| arrow_flight::error::FlightError::ExternalError(Box::new(e)));
+
+        let stream = FlightDataEncoderBuilder::new()
+            .with_schema(schema)
+            .build(stream)
+            .map_err(Status::from);
+
+        Ok(Response::new(Box::pin(stream)))
     }
 }
 
@@ -108,47 +203,52 @@ impl FlightSqlService for FlightSessionHandler {
 
     async fn do_get_fallback(
         &self,
-        _: Request<Ticket>,
+        req: Request<Ticket>,
         message: Any,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
-        if !message.is::<ActionExecutePhysicalPlan>() {
-            Err(Status::unimplemented(format!(
-                "do_get: The defined request is invalid: {}",
-                message.type_url
-            )))?
+        match message.type_url.as_str() {
+            ActionExecutePhysicalPlan::TYPE_URL => {
+                let action: ActionExecutePhysicalPlan = message
+                    .unpack()
+                    .map_err(RpcsrvError::from)?
+                    .ok_or_else(|| {
+                        Status::internal("Expected ActionExecutePhysicalPlan but got None!")
+                    })?;
+
+                return self.do_action_execute_physical_plan(&req, action).await;
+            }
+            // All non specified types should be handled as a sql query
+            other => {
+                let mut ctx = self
+                    .engine
+                    .new_local_session_context(
+                        SessionVars::default(),
+                        SessionStorageConfig::default(),
+                    )
+                    .await
+                    .map_err(RpcsrvError::from)?;
+                match sqlexec::parser::parse_sql(&other) {
+                    Ok(statements) => {
+                        let lp = ctx
+                            .parsed_to_lp(statements)
+                            .await
+                            .map_err(RpcsrvError::from)?;
+                        let physical = ctx
+                            .create_physical_plan(
+                                lp.try_into_datafusion_plan().map_err(RpcsrvError::from)?,
+                                &OperationInfo::default(),
+                            )
+                            .await
+                            .map_err(RpcsrvError::from)?;
+                        self.execute_physical_plan(&req, physical).await
+                    }
+                    Err(e) => Err(Status::internal(format!(
+                        "Expected a SQL query, instead received: {}",
+                        e.to_string()
+                    ))),
+                }
+            }
         }
-        let plan: ActionExecutePhysicalPlan = message
-            .unpack()
-            .map_err(RpcsrvError::from)?
-            .ok_or_else(|| Status::internal("Expected FetchResults but got None!"))?;
-        let ActionExecutePhysicalPlan { plan, handle } = plan;
-
-        let ctx = self.get_ctx(&handle).await?;
-
-        let ctx = ctx.lock().await;
-
-        let plan = PhysicalPlanNode::try_decode(&plan).map_err(RpcsrvError::from)?;
-        let codec = self.remote_ctx.extension_codec();
-
-        let plan = plan
-            .try_into_physical_plan(ctx.df_ctx(), ctx.df_ctx().runtime_env().as_ref(), &codec)
-            .map_err(RpcsrvError::from)?;
-
-        let stream = self
-            .remote_ctx
-            .execute_physical(plan)
-            .map_err(RpcsrvError::from)?;
-
-        let schema = stream.schema();
-        let stream =
-            stream.map_err(|e| arrow_flight::error::FlightError::ExternalError(Box::new(e)));
-
-        let stream = FlightDataEncoderBuilder::new()
-            .with_schema(schema)
-            .build(stream)
-            .map_err(Status::from);
-
-        Ok(Response::new(Box::pin(stream)))
     }
 
     async fn get_flight_info_statement(
@@ -179,15 +279,12 @@ impl FlightSqlService for FlightSessionHandler {
 
     async fn get_flight_info_prepared_statement(
         &self,
-        cmd: CommandPreparedStatementQuery,
-        _: Request<FlightDescriptor>,
+        _: CommandPreparedStatementQuery,
+        req: Request<FlightDescriptor>,
     ) -> Result<Response<FlightInfo>, Status> {
-        let handle = std::str::from_utf8(&cmd.prepared_statement_handle)
-            .map_err(|e| status!("Unable to parse handle", e))?;
-
-        let ctx = self.get_ctx(handle).await?;
+        let (handle, ctx) = self.get_or_create_ctx(&req).await?;
         let ctx = ctx.lock().await;
-        let portal = ctx.get_portal(handle).map_err(RpcsrvError::from)?;
+        let portal = ctx.get_portal(&handle).map_err(RpcsrvError::from)?;
 
         let plan = portal.logical_plan().unwrap();
 
@@ -250,10 +347,9 @@ impl FlightSqlService for FlightSessionHandler {
     async fn do_action_create_prepared_statement(
         &self,
         query: ActionCreatePreparedStatementRequest,
-        _: Request<Action>,
+        req: Request<Action>,
     ) -> Result<ActionCreatePreparedStatementResult, Status> {
-        let handle = uuid::Uuid::new_v4().to_string();
-        let ctx = self.create_ctx(&handle).await?;
+        let (handle, ctx) = self.get_or_create_ctx(&req).await?;
         let mut ctx = ctx.lock().await;
 
         ctx.prepare_portal(&handle, &query.query)
@@ -284,12 +380,12 @@ impl FlightSqlService for FlightSessionHandler {
     async fn do_action_close_prepared_statement(
         &self,
         query: ActionClosePreparedStatementRequest,
-        _: Request<Action>,
+        req: Request<Action>,
     ) -> Result<(), Status> {
         let handle = std::str::from_utf8(&query.prepared_statement_handle)
             .map_err(|e| RpcsrvError::ParseError(e.to_string()))?;
-
-        self.sessions.remove(handle);
+        let ctx = self.get_ctx(&req).await?;
+        ctx.lock().await.remove_portal(handle);
 
         Ok(())
     }
@@ -305,9 +401,14 @@ pub struct ActionExecutePhysicalPlan {
     pub handle: String,
 }
 
+impl ActionExecutePhysicalPlan {
+    pub const TYPE_URL: &'static str =
+        "type.googleapis.com/glaredb.rpcsrv.ActionExecutePhysicalPlan";
+}
+
 impl ProstMessageExt for ActionExecutePhysicalPlan {
     fn type_url() -> &'static str {
-        "type.googleapis.com/glaredb.rpcsrv.ActionExecutePhysicalPlan"
+        Self::TYPE_URL
     }
 
     fn as_any(&self) -> Any {

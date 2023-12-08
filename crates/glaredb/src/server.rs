@@ -215,7 +215,6 @@ impl ComputeServer {
                     let handler = SimpleHandler::new(self.engine.clone());
                     server = server.add_service(SimpleServiceServer::new(handler));
                 }
-
                 if let Err(e) = server.serve(addr).await {
                     // TODO: Maybe panic instead? Revisit once we have
                     // everything working.
