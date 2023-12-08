@@ -28,3 +28,6 @@ node_modules
 
 # Benchmark data
 bench_data/
+
+# Logs
+*.log
