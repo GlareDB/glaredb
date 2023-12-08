@@ -168,16 +168,11 @@ impl FlightSqlService for FlightSessionHandler {
 
                 return self.do_action_execute_physical_plan(&req, action).await;
             }
+
             // All non specified types should be handled as a sql query
             other => {
-                let mut ctx = self
-                    .engine
-                    .new_local_session_context(
-                        SessionVars::default(),
-                        SessionStorageConfig::default(),
-                    )
-                    .await
-                    .map_err(RpcsrvError::from)?;
+                let (_, ctx) = self.get_or_create_ctx(&req).await?;
+                let mut ctx = ctx.lock().await;
                 match sqlexec::parser::parse_sql(other) {
                     Ok(statements) => {
                         let lp = ctx
