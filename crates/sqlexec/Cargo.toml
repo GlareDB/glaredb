@@ -34,7 +34,7 @@ uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 regex = "1.8"
 tonic = { workspace = true }
 tokio-postgres = "0.7.8"
-once_cell = "1.18.0"
+once_cell = "1.19.0"
 url.workspace = true
 parking_lot = "0.12.1"
 serde = { workspace = true }
