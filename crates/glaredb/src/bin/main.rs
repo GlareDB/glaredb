@@ -51,11 +51,17 @@ fn main() -> Result<()> {
         None => Commands::Local(cli.local_args),
     };
 
-    // Disable logging when running locally since it'll clobber the repl
-    // _unless_ the user specified a logging related option.
-    match (&command, cli.log_mode, cli.verbose) {
-        (Commands::Local { .. }, None, 0) => (),
-        _ => logutil::init(cli.verbose, cli.log_mode.unwrap_or_default().into()),
+    match &command {
+        Commands::Local(args) => {
+            if let Some(file) = &args.log_file {
+                logutil::init(
+                    cli.verbose,
+                    cli.log_mode.unwrap_or_default().into(),
+                    Some(file),
+                )
+            }
+        }
+        _ => logutil::init(cli.verbose, cli.log_mode.unwrap_or_default().into(), None),
     }
 
     command.run()

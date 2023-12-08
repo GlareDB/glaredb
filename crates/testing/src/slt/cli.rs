@@ -107,7 +107,7 @@ impl Cli {
             Verbosity::Debug => LoggingMode::Full,
             Verbosity::Trace => LoggingMode::Full,
         };
-        logutil::init(cli.verbose, log_mode);
+        logutil::init(cli.verbose, log_mode, None);
 
         // Abort the program on panic. This will ensure that slt tests will
         // never pass if there's a panic somewhere.
