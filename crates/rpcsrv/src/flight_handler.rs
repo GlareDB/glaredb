@@ -321,6 +321,8 @@ impl FlightSqlService for FlightSessionHandler {
         let endpoint = FlightEndpoint::new().with_ticket(ticket);
 
         // Ideally, we'd start the execution here, but instead we defer it all to the "do_get" call.
+        // Eventually, we should asynchronously start the execution here,
+        // and return a `Ticket` that contains information on how to retrieve the results.
         let flight_info = FlightInfo::new()
             .with_descriptor(FlightDescriptor::new_cmd(vec![]))
             .with_endpoint(endpoint);
@@ -343,7 +345,6 @@ impl FlightSqlService for FlightSessionHandler {
         Ok(tonic::Response::new(flight_info))
     }
 
-    // I think it's safe to create a session for the duration of the prepared statement?
     async fn do_action_create_prepared_statement(
         &self,
         query: ActionCreatePreparedStatementRequest,
