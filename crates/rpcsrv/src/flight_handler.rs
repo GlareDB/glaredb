@@ -80,12 +80,8 @@ impl FlightSessionHandler {
             return Ok((db_handle, sess));
         }
 
-        let db_id = Uuid::parse_str(&db_handle).map_err(|e| {
-            Status::internal(format!(
-                "Unable to parse database handle: {}",
-                e.to_string()
-            ))
-        })?;
+        let db_id = Uuid::parse_str(&db_handle)
+            .map_err(|e| Status::internal(format!("Unable to parse database handle: {e}")))?;
 
         let session_vars =
             SessionVars::default().with_database_id(db_id, datafusion::variable::VarType::System);
@@ -148,7 +144,7 @@ impl FlightSessionHandler {
         req: &Request<Ticket>,
         query: ActionExecutePhysicalPlan,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
-        let ctx = self.get_exec_ctx(&req).await?;
+        let ctx = self.get_exec_ctx(req).await?;
 
         let plan = PhysicalPlanNode::try_decode(&query.plan).map_err(RpcsrvError::from)?;
         let codec = ctx.extension_codec();
@@ -169,7 +165,7 @@ impl FlightSessionHandler {
         request: &Request<T>,
         physical_plan: Arc<dyn ExecutionPlan>,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
-        let ctx = self.get_exec_ctx(&request).await?;
+        let ctx = self.get_exec_ctx(request).await?;
         let stream = ctx
             .execute_physical(physical_plan)
             .map_err(RpcsrvError::from)?;
@@ -227,7 +223,7 @@ impl FlightSqlService for FlightSessionHandler {
                     )
                     .await
                     .map_err(RpcsrvError::from)?;
-                match sqlexec::parser::parse_sql(&other) {
+                match sqlexec::parser::parse_sql(other) {
                     Ok(statements) => {
                         let lp = ctx
                             .parsed_to_lp(statements)
@@ -243,8 +239,7 @@ impl FlightSqlService for FlightSessionHandler {
                         self.execute_physical_plan(&req, physical).await
                     }
                     Err(e) => Err(Status::internal(format!(
-                        "Expected a SQL query, instead received: {}",
-                        e.to_string()
+                        "Expected a SQL query, instead received: {e}"
                     ))),
                 }
             }
