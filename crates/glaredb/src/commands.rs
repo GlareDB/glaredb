@@ -155,20 +155,19 @@ impl RunCommand for ServerArgs {
                 pg_listener,
                 rpc_addr: rpc_bind.map(|s| s.parse()).transpose()?,
             };
-            let server = ComputeServer::connect(
-                metastore_addr,
-                segment_key,
-                auth,
-                data_dir,
-                service_account_path,
-                storage_config.location,
-                HashMap::from_iter(storage_config.storage_options.clone()),
-                spill_path,
-                /* integration_testing = */ false,
-                disable_rpc_auth,
-                enable_simple_query_rpc,
-            )
-            .await?;
+            let server = ComputeServer::with_authenticator(auth)
+                .with_metastore_addr_opt(metastore_addr)
+                .with_segment_key_opt(segment_key)
+                .with_data_dir_opt(data_dir)
+                .with_service_account_path_opt(service_account_path)
+                .with_location_opt(storage_config.location)
+                .with_storage_options(HashMap::from_iter(storage_config.storage_options.clone()))
+                .with_spill_path_opt(spill_path)
+                .disable_rpc_auth(disable_rpc_auth)
+                .enable_simple_query_rpc(enable_simple_query_rpc)
+                .connect()
+                .await?;
+
             server.serve(conf).await
         })
     }
