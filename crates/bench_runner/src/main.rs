@@ -59,23 +59,13 @@ fn main() -> Result<()> {
             rpc_addr: None,
         };
 
-        let server = ComputeServer::connect(
-            None,
-            None,
-            Box::new(SingleUserAuthenticator {
-                user: "glaredb".to_string(),
-                password: "glaredb".to_string(),
-            }),
-            None,
-            None,
-            None,
-            Default::default(),
-            None,
-            false,
-            false,
-            /* enable_simple_query_rpc = */ false,
-        )
+        let server = ComputeServer::with_authenticator(SingleUserAuthenticator {
+            user: "glaredb".to_string(),
+            password: "glaredb".to_string(),
+        })
+        .connect()
         .await?;
+
         tokio::spawn(server.serve(server_conf));
 
         let mut runner = BenchRunner::connect(pg_addr).await?;

@@ -197,24 +197,21 @@ impl Cli {
                         None
                     },
                 };
-
-                let server = ComputeServer::connect(
-                    self.metastore_addr.clone(),
-                    None,
-                    Box::new(SingleUserAuthenticator {
-                        user: "glaredb".to_string(),
-                        password: "glaredb".to_string(),
-                    }),
-                    Some(temp_dir.path().to_path_buf()),
-                    None,
-                    self.storage_config.location.clone(),
-                    HashMap::from_iter(self.storage_config.storage_options.clone()),
-                    None,
-                    /* integration_testing = */ true,
-                    /* disable_rpc_auth = */ self.rpc_test,
-                    /* enable_simple_query_rpc = */ false,
-                )
+                let server = ComputeServer::with_authenticator(SingleUserAuthenticator {
+                    user: "glaredb".to_string(),
+                    password: "glaredb".to_string(),
+                })
+                .with_metastore_addr_opt(self.metastore_addr.clone())
+                .with_data_dir(temp_dir.path().to_path_buf())
+                .with_location_opt(self.storage_config.location.clone())
+                .with_storage_options(HashMap::from_iter(
+                    self.storage_config.storage_options.clone(),
+                ))
+                .integration_testing_mode(true)
+                .disable_rpc_auth(self.rpc_test)
+                .connect()
                 .await?;
+
                 tokio::spawn(server.serve(server_conf));
 
                 let host = pg_addr.ip().to_string();
