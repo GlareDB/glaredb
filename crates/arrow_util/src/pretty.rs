@@ -285,8 +285,12 @@ pub fn fmt_dtype(dtype: &DataType) -> String {
         DataType::List(fld) | DataType::LargeList(fld) => {
             format!("List<{}>", fmt_dtype(fld.data_type()))
         }
-        DataType::FixedSizeList(fld,length) => {
-            format!("FixedSizeList<{}, Fixed_Length:{}>", fmt_dtype(fld.data_type()), length)
+        DataType::FixedSizeList(fld, length) => {
+            format!(
+                "FixedSizeList<{}, Fixed_Length:{}>",
+                fmt_dtype(fld.data_type()),
+                length
+            )
         }
         DataType::Struct(flds) => flds
             .iter()
