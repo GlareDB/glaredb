@@ -10,6 +10,7 @@ use sqlexec::{
     OperationInfo,
 };
 use std::{pin::Pin, sync::Arc};
+use tokio::sync::{RwLock, RwLockReadGuard};
 use uuid::Uuid;
 
 pub use arrow_flight::flight_service_server::FlightServiceServer;
@@ -24,8 +25,8 @@ use arrow_flight::{
     },
     HandshakeRequest, HandshakeResponse,
 };
+use futures::Stream;
 use futures::TryStreamExt;
-use futures::{lock::Mutex, Stream};
 use prost::Message;
 use tonic::{Request, Response, Status, Streaming};
 
@@ -51,7 +52,7 @@ pub struct FlightSessionHandler {
     // We'll want to implement a time based eviction policy, or a max size.
     // We use [`Session`] instead of [`TrackedSession`] because tracked sessions need to be
     // explicitly closed, and we don't have a way to do that yet.
-    sessions: DashMap<String, Arc<Mutex<Session>>>,
+    sessions: DashMap<String, Arc<RwLock<Session>>>,
 }
 
 impl FlightSessionHandler {
@@ -66,7 +67,7 @@ impl FlightSessionHandler {
     async fn get_or_create_ctx<T>(
         &self,
         request: &Request<T>,
-    ) -> Result<(String, Arc<Mutex<Session>>), Status> {
+    ) -> Result<(String, Arc<RwLock<Session>>), Status> {
         let db_handle = request
             .metadata()
             .get(DATABASE_HEADER)
@@ -88,7 +89,7 @@ impl FlightSessionHandler {
             .new_untracked_session(session_vars, SessionStorageConfig::default())
             .await
             .map_err(RpcsrvError::from)?;
-        let sess = Arc::new(Mutex::new(sess));
+        let sess = Arc::new(RwLock::new(sess));
         self.sessions.insert(db_handle.clone(), sess.clone());
 
         Ok((db_handle, sess))
@@ -99,22 +100,22 @@ impl FlightSessionHandler {
         req: &Request<Ticket>,
         query: ActionExecuteLogicalPlan,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
+        let (_, ctx) = self.get_or_create_ctx(&req).await?;
+        let ctx = ctx.read().await;
         let ActionExecuteLogicalPlan { handle } = query;
         let lp = self
             .logical_plans
             .get(&handle)
             .ok_or_else(|| Status::internal(format!("Unable to find logical plan {}", handle)))?
             .clone();
-        self.execute_lp(req, lp).await
+        self.execute_lp(ctx, lp).await
     }
 
-    async fn execute_lp<T>(
+    async fn execute_lp(
         &self,
-        request: &Request<T>,
+        ctx: RwLockReadGuard<'_, Session>,
         lp: LogicalPlan,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
-        let (_, ctx) = self.get_or_create_ctx(request).await?;
-        let ctx = ctx.lock().await;
         let plan = ctx
             .create_physical_plan(lp, &OperationInfo::default())
             .await
@@ -126,6 +127,7 @@ impl FlightSessionHandler {
             .map_err(RpcsrvError::from)?;
 
         let schema = stream.schema();
+
         let stream =
             stream.map_err(|e| arrow_flight::error::FlightError::ExternalError(Box::new(e)));
 
@@ -172,17 +174,11 @@ impl FlightSqlService for FlightSessionHandler {
             // All non specified types should be handled as a sql query
             other => {
                 let (_, ctx) = self.get_or_create_ctx(&req).await?;
-                let mut ctx = ctx.lock().await;
-                match sqlexec::parser::parse_sql(other) {
-                    Ok(statements) => {
-                        let lp = ctx
-                            .parsed_to_lp(statements)
-                            .await
-                            .map_err(RpcsrvError::from)?
-                            .try_into_datafusion_plan()
-                            .map_err(RpcsrvError::from)?;
-
-                        self.execute_lp(&req, lp).await
+                let ctx = ctx.read().await;
+                match ctx.create_logical_plan(other).await {
+                    Ok(lp) => {
+                        let lp = lp.try_into_datafusion_plan().map_err(RpcsrvError::from)?;
+                        return self.execute_lp(ctx, lp).await;
                     }
                     Err(e) => Err(Status::internal(format!(
                         "Expected a SQL query, instead received: {e}"
@@ -224,7 +220,7 @@ impl FlightSqlService for FlightSessionHandler {
         req: Request<FlightDescriptor>,
     ) -> Result<Response<FlightInfo>, Status> {
         let (handle, ctx) = self.get_or_create_ctx(&req).await?;
-        let ctx = ctx.lock().await;
+        let ctx = ctx.write().await;
         let portal = ctx.get_portal(&handle).map_err(RpcsrvError::from)?;
 
         let plan = portal.logical_plan().unwrap();
@@ -275,7 +271,7 @@ impl FlightSqlService for FlightSessionHandler {
         req: Request<Action>,
     ) -> Result<ActionCreatePreparedStatementResult, Status> {
         let (handle, ctx) = self.get_or_create_ctx(&req).await?;
-        let mut ctx = ctx.lock().await;
+        let mut ctx = ctx.write().await;
 
         ctx.prepare_portal(&handle, &query.query)
             .await
@@ -310,7 +306,7 @@ impl FlightSqlService for FlightSessionHandler {
         let handle = std::str::from_utf8(&query.prepared_statement_handle)
             .map_err(|e| RpcsrvError::ParseError(e.to_string()))?;
         let (_, ctx) = self.get_or_create_ctx(&req).await?;
-        ctx.lock().await.remove_portal(handle);
+        ctx.write().await.remove_portal(handle);
         self.logical_plans.remove(handle);
 
         Ok(())

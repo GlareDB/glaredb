@@ -16,7 +16,9 @@ use tokio::{net::TcpListener, runtime::Builder, sync::mpsc, time::Instant};
 use tokio_postgres::config::Config as ClientConfig;
 use uuid::Uuid;
 
-use crate::slt::test::{PgTestClient, RpcTestClient, Test, TestClient, TestHooks};
+use crate::slt::test::{PgTestClient, RpcTestClient, Test, TestClient, TestHooks, FlightSqlTestClient};
+
+use super::test::TestMode;
 
 #[derive(Parser)]
 #[clap(name = "slt-runner")]
@@ -73,6 +75,10 @@ pub struct Cli {
     /// Run the tests in RPC mode.
     #[clap(long, value_parser)]
     rpc_test: bool,
+
+    /// Run the tests in RPC mode.
+    #[clap(long, value_parser)]
+    flight: bool,
 
     #[clap(flatten)]
     storage_config: StorageConfigArgs,
@@ -191,7 +197,7 @@ impl Cli {
                 let pg_addr = pg_listener.local_addr()?;
                 let server_conf = ServerConfig {
                     pg_listener,
-                    rpc_addr: if self.rpc_test {
+                    rpc_addr: if self.rpc_test | self.flight {
                         Some("0.0.0.0:6789".parse().unwrap())
                     } else {
                         None
@@ -305,10 +311,17 @@ impl Cli {
             let cfg = configs.get(&test_name).unwrap().clone();
             let tx = jobs_tx.clone();
             let hooks = Arc::clone(&hooks);
-            let rpc_test = self.rpc_test;
+            let mode = if self.rpc_test {
+                TestMode::Rpc
+            } else if self.flight {
+                TestMode::FlightSql
+            } else {
+                TestMode::Pg
+            };
+
             let data_dir = data_dir.to_path_buf();
             tokio::spawn(async move {
-                let res = Self::run_test(rpc_test, data_dir, &test_name, test, cfg, hooks).await;
+                let res = Self::run_test(mode, data_dir, &test_name, test, cfg, hooks).await;
                 tx.send((test_name.clone(), res)).unwrap();
             });
         }
@@ -364,7 +377,7 @@ impl Cli {
     }
 
     async fn run_test(
-        rpc_test: bool,
+        mode: TestMode,
         data_dir: PathBuf,
         test_name: &str,
         test: Test,
@@ -372,10 +385,10 @@ impl Cli {
         hooks: Arc<TestHooks>,
     ) -> Result<()> {
         info!("Running test: `{}`", test_name);
-        let client = if rpc_test {
-            TestClient::Rpc(RpcTestClient::new(data_dir, "0.0.0.0:6789").await?)
-        } else {
-            TestClient::Pg(PgTestClient::new(&client_config).await?)
+        let client = match mode {
+            TestMode::Pg => TestClient::Pg(PgTestClient::new(&client_config).await?),
+            TestMode::Rpc => TestClient::Rpc(RpcTestClient::new(data_dir, "0.0.0.0:6789").await?),
+            TestMode::FlightSql => TestClient::FlightSql(FlightSqlTestClient::new("0.0.0.0:6789").await?),
         };
 
         async fn run_test_inner(

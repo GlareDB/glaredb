@@ -147,6 +147,7 @@ impl ComputeServer {
 
     /// Serve using the provided config.
     pub async fn serve(self, conf: ServerConfig) -> Result<()> {
+        println!("Starting GlareDB");
         let rpc_msg = if let Some(addr) = conf.rpc_addr {
             format!("\nConnect via RPC: {}\n", addr)
         } else {

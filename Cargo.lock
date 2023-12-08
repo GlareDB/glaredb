@@ -7235,6 +7235,7 @@ dependencies = [
  "pgrepr",
  "pgsrv",
  "regex",
+ "rpcsrv",
  "sqlexec",
  "sqllogictest",
  "telemetry",

@@ -25,7 +25,7 @@ impl FnTest for SshKeysTest {
     ) -> Result<()> {
         let client = match client {
             TestClient::Pg(client) => client,
-            TestClient::Rpc(_) => {
+            TestClient::Rpc(_) | TestClient::FlightSql(_) => {
                 return Err(anyhow!("cannot run ssh key test on rpc"));
             }
         };
@@ -123,7 +123,7 @@ impl FnTest for PgBinaryEncoding {
     ) -> Result<()> {
         let client = match client {
             TestClient::Pg(client) => client,
-            TestClient::Rpc(_) => {
+            TestClient::Rpc(_) | TestClient::FlightSql(_) => {
                 return Err(anyhow!("cannot run pg binary encoding test on rpc"));
             }
         };

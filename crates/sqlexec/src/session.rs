@@ -16,6 +16,7 @@ use crate::planner::physical_plan::{
     get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
     GENERIC_OPERATION_PHYSICAL_SCHEMA,
 };
+use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::RemoteClient;
 use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 use catalog::mutator::CatalogMutator;
@@ -690,7 +691,7 @@ impl Session {
     pub async fn query_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
         let statements = self.parse_query(query)?;
 
-        self.parsed_to_lp(statements).await
+        self.prepare_statements(statements).await
     }
 
     /// Helper for converting SQL statement to a logical plan.
@@ -700,7 +701,7 @@ impl Session {
     pub async fn prql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
         let stmt = crate::parser::parse_prql(query)?;
 
-        self.parsed_to_lp(stmt).await
+        self.prepare_statements(stmt).await
     }
 
     /// Helper for converting PRQL statement to a logical plan.
@@ -710,10 +711,10 @@ impl Session {
     pub async fn sql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
         let statements = crate::parser::parse_sql(query)?;
 
-        self.parsed_to_lp(statements).await
+        self.prepare_statements(statements).await
     }
 
-    pub async fn parsed_to_lp(
+    pub async fn prepare_statements(
         &mut self,
         mut statements: VecDeque<StatementWithExtensions>,
     ) -> Result<LogicalPlan> {
@@ -740,7 +741,23 @@ impl Session {
         }
     }
 
-    pub fn parse_query(&mut self, query: &str) -> Result<VecDeque<StatementWithExtensions>> {
+    pub async fn create_logical_plan(&self, query: &str) -> Result<LogicalPlan> {
+        let mut statements = self.parse_query(query)?;
+        match statements.len() {
+            0 => Err(ExecError::String("No statements in query".to_string())),
+            1 => {
+                let stmt = statements.pop_front().unwrap();
+                let planner = SessionPlanner::new(&self.ctx);
+                let plan = planner.plan_ast(stmt).await?;
+                Ok(plan)
+            }
+            _ => Err(ExecError::String(
+                "More than one statement in query".to_string(),
+            )),
+        }
+    }
+
+    pub fn parse_query(&self, query: &str) -> Result<VecDeque<StatementWithExtensions>> {
         match self.get_session_vars().dialect() {
             datafusion_ext::vars::Dialect::Sql => crate::parser::parse_sql(query),
             datafusion_ext::vars::Dialect::Prql => crate::parser::parse_prql(query),

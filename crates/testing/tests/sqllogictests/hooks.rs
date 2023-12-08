@@ -196,6 +196,9 @@ impl Hook for SshTunnelHook {
         let client = match client {
             TestClient::Pg(client) => client,
             TestClient::Rpc(_) => return Err(anyhow!("cannot run SSH tunnel test on rpc")),
+            TestClient::FlightSql(_) => {
+                return Err(anyhow!("cannot run SSH tunnel test on flight"))
+            }
         };
 
         let mut err = None;
