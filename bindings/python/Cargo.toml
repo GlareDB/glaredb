@@ -28,4 +28,4 @@ glaredb = { path = "../../crates/glaredb" }
 futures = "0.3.29"
 uuid = "1.6.1"
 async-trait = "0.1.74"
-once_cell = "1.18.0"
+once_cell = "1.19.0"
