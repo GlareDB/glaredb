@@ -393,7 +393,7 @@ impl Engine {
     }
 
     /// Create a new untracked session.
-    /// 
+    ///
     /// This does not increment the session counter.
     /// So any session created with this method will not prevent the engine from shutting down.
     pub async fn new_untracked_session(
