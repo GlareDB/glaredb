@@ -14,6 +14,10 @@ pub struct LocalArgs {
 
     /// Execute an SQL file.
     pub file: Option<String>,
+
+    /// File for logs to be written to
+    #[clap(long, value_parser)]
+    pub log_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Parser)]
