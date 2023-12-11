@@ -31,7 +31,6 @@ pub mod show_var;
 pub mod update;
 pub mod values;
 
-use crate::planner::extension::PhysicalExtensionNode;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};

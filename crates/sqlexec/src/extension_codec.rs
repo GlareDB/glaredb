@@ -28,7 +28,7 @@ use protogen::metastore::types::catalog::RuntimePreference;
 use uuid::Uuid;
 
 use crate::errors::ExecError;
-use crate::planner::extension::{ExtensionNode, ExtensionType, PhysicalExtensionNode};
+use crate::planner::extension::{ExtensionNode, ExtensionType};
 use crate::planner::logical_plan as plan;
 use crate::planner::physical_plan::alter_database::AlterDatabaseExec;
 use crate::planner::physical_plan::alter_table::AlterTableExec;
@@ -199,40 +199,36 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 if_not_exists: ext.if_not_exists,
             }),
             proto::ExecutionPlanExtensionType::CreateCredentialsExec(create_credentials) => {
-                let exec = CreateCredentialsExec::try_decode(
-                    create_credentials,
-                    &EmptyFunctionRegistry,
-                    self.runtime
-                        .as_ref()
-                        .expect("runtime should be set on decoder"),
-                    self,
-                )
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-                Arc::new(exec)
+                let options = create_credentials
+                    .options
+                    .ok_or(DataFusionError::Plan("options is required".to_string()))?;
+                Arc::new(CreateCredentialsExec {
+                    name: create_credentials.name,
+                    catalog_version: create_credentials.catalog_version,
+                    options: options.try_into()?,
+                    comment: create_credentials.comment,
+                    or_replace: create_credentials.or_replace,
+                })
             }
             proto::ExecutionPlanExtensionType::CreateCredentialExec(create_credential) => {
-                let exec = CreateCredentialExec::try_decode(
-                    create_credential,
-                    &EmptyFunctionRegistry,
-                    self.runtime
-                        .as_ref()
-                        .expect("runtime should be set on decoder"),
-                    self,
-                )
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-                Arc::new(exec)
+                let options = create_credential
+                    .options
+                    .ok_or(DataFusionError::Plan("options is required".to_string()))?;
+                Arc::new(CreateCredentialExec {
+                    name: create_credential.name,
+                    catalog_version: create_credential.catalog_version,
+                    options: options.try_into()?,
+                    comment: create_credential.comment,
+                    or_replace: create_credential.or_replace,
+                })
             }
             proto::ExecutionPlanExtensionType::DescribeTable(describe_table) => {
-                let exec = DescribeTableExec::try_decode(
-                    describe_table,
-                    &EmptyFunctionRegistry,
-                    self.runtime
-                        .as_ref()
-                        .expect("runtime should be set on decoder"),
-                    self,
-                )
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-                Arc::new(exec)
+                let entry = describe_table
+                    .entry
+                    .ok_or(DataFusionError::Plan("entry is required".to_string()))?;
+                Arc::new(DescribeTableExec {
+                    entry: entry.try_into()?,
+                })
             }
             proto::ExecutionPlanExtensionType::AlterDatabaseExec(ext) => {
                 Arc::new(AlterDatabaseExec {
@@ -585,9 +581,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 if_not_exists: exec.if_not_exists,
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateCredentialsExec>() {
-            return exec
-                .try_encode(buf, self)
-                .map_err(|e| DataFusionError::External(Box::new(e)));
+            proto::ExecutionPlanExtensionType::CreateCredentialsExec(proto::CreateCredentialsExec {
+                name: exec.name.clone(),
+                catalog_version: exec.catalog_version,
+                options: Some(exec.options.clone().into()),
+                comment: exec.comment.clone(),
+                or_replace: exec.or_replace,
+            })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateTableExec>() {
             proto::ExecutionPlanExtensionType::CreateTableExec(proto::CreateTableExec {
                 catalog_version: exec.catalog_version,

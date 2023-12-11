@@ -104,16 +104,3 @@ pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
         ))
     }
 }
-
-pub trait PhysicalExtensionNode: Sized + ExecutionPlan {
-    type ProtoRepr;
-
-    fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn PhysicalExtensionCodec) -> Result<()>;
-
-    fn try_decode(
-        proto: Self::ProtoRepr,
-        _registry: &dyn FunctionRegistry,
-        _runtime: &RuntimeEnv,
-        _extension_codec: &dyn PhysicalExtensionCodec,
-    ) -> Result<Self, ProtoConvError>;
-}

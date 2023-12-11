@@ -36,38 +36,6 @@ impl DisplayAs for DescribeTableExec {
     }
 }
 
-impl PhysicalExtensionNode for DescribeTableExec {
-    type ProtoRepr = protogen::sqlexec::physical_plan::DescribeTableExec;
-
-    fn try_encode(
-        &self,
-        buf: &mut Vec<u8>,
-        _codec: &dyn datafusion_proto::physical_plan::PhysicalExtensionCodec,
-    ) -> crate::errors::Result<()> {
-        let proto = protogen::sqlexec::physical_plan::DescribeTableExec {
-            entry: Some(self.entry.clone().try_into()?),
-        };
-        let ty = ExecutionPlanExtensionType::DescribeTable(proto);
-        let extension =
-            protogen::sqlexec::physical_plan::ExecutionPlanExtension { inner: Some(ty) };
-        extension
-            .encode(buf)
-            .map_err(|e| internal!("{}", e.to_string()))?;
-        Ok(())
-    }
-
-    fn try_decode(
-        proto: Self::ProtoRepr,
-        _registry: &dyn FunctionRegistry,
-        _runtime: &RuntimeEnv,
-        _extension_codec: &dyn PhysicalExtensionCodec,
-    ) -> crate::errors::Result<Self, protogen::ProtoConvError> {
-        Ok(Self {
-            entry: proto.entry.unwrap().try_into()?,
-        })
-    }
-}
-
 impl ExecutionPlan for DescribeTableExec {
     fn as_any(&self) -> &dyn Any {
         self
