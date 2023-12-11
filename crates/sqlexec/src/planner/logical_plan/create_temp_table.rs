@@ -30,7 +30,17 @@ impl UserDefinedLogicalNodeCore for CreateTempTable {
     }
 
     fn fmt_for_explain(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", Self::EXTENSION_NAME)
+        write!(
+            f,
+            "CREATE{or_replace} TEMP TABLE{if_not_exists} {tbl_reference} (...)",
+            if_not_exists = if self.if_not_exists {
+                " IF NOT EXISTS"
+            } else {
+                ""
+            },
+            or_replace = if self.or_replace { " OR REPLACE" } else { "" },
+            tbl_reference = self.tbl_reference
+        )
     }
 
     fn from_template(

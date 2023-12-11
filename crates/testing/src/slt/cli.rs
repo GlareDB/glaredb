@@ -416,7 +416,6 @@ impl Cli {
 
             // Run the pre-test hooks
             for (pattern, hook) in hooks.clone() {
-                println!("Running pre hook for test `{}`", pattern);
                 tracing::debug!(%pattern, %test_name, "Running pre hook for test");
                 hook.pre(&client_config, client.clone(), &mut local_vars)
                     .await?;

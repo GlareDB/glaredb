@@ -31,7 +31,6 @@ use std::{
 };
 use telemetry::Tracker;
 use tokio::sync::{oneshot, Mutex};
-use tokio_postgres::config::Host;
 use tokio_postgres::types::private::BytesMut;
 use tokio_postgres::{Client, Config, NoTls, SimpleQueryMessage};
 use uuid::Uuid;
@@ -102,7 +101,7 @@ impl Test {
             Self::File(path) => {
                 let regx = Regex::new(ENV_REGEX).unwrap();
                 let records = parse_file(&regx, &path, vars)?;
-
+                
                 let mut runner = Runner::new(|| {
                     let client = client.clone();
                     async { Ok(client) }
@@ -278,6 +277,7 @@ impl FlightSqlTestClient {
         let dbid: Uuid = config.get_dbname().unwrap().parse().unwrap();
 
         let mut client = FlightSqlServiceClient::new(conn);
+
         client.set_header("x-database", dbid);
         Ok(FlightSqlTestClient { client })
     }

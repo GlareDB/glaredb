@@ -31,8 +31,7 @@ pub async fn start_inprocess_local(
 pub async fn start_inprocess(
     store: Arc<dyn ObjectStore>,
 ) -> Result<MetastoreServiceClient<Channel>> {
-    println!("start_inprocess");
-    let (client, server) = tokio::io::duplex(1024 * 5); //5 mb
+    let (client, server) = tokio::io::duplex(1024);
 
     tokio::spawn(async move {
         if let Err(e) = Server::builder()

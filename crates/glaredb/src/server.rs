@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use futures::channel::mpsc::Sender;
 use metastore::util::MetastoreClientMode;
 use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
@@ -135,7 +134,6 @@ impl ComputeServerBuilder {
         self
     }
     pub async fn connect(self) -> Result<ComputeServer> {
-        println!("Connecting to compute server...");
         let ComputeServerBuilder {
             metastore_addr,
             segment_key,
@@ -186,8 +184,6 @@ impl ComputeServerBuilder {
                 (Some(addr), None) => MetastoreClientMode::Remote { addr },
                 _ => MetastoreClientMode::new_local(data_dir.clone()),
             };
-            println!("Connecting to metastore...");
-            println!("Metastore builder: {mode:?}");
             let metastore_client = mode.into_client().await?;
 
             // TODO: There's going to need to more validation needed to ensure we're
@@ -299,7 +295,6 @@ impl ComputeServer {
         if let Some(listener) = conf.rpc_listener {
             let server = self.build_rpc_service();
             tokio::spawn(async move {
-                println!("Starting RPC service on {}", listener.local_addr().unwrap());
                 let incoming = TcpIncoming::from_listener(listener, true, None).unwrap();
 
                 if let Err(e) = server.serve_with_incoming(incoming).await {

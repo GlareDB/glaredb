@@ -13,9 +13,9 @@ fn main() -> Result<()> {
         // Rust tests
         .test("sqllogictests/ssh_keys", Box::new(SshKeysTest))?
         .test("pgproto/binary_encoding", Box::new(PgBinaryEncoding))?
-        // Add hooks
+        // // Add hooks
         .hook("*", Arc::new(AllTestsHook))?
-        // SSH Tunnels hook
+        // // SSH Tunnels hook
         .hook("*/tunnels/ssh", Arc::new(SshTunnelHook))?
         .run()
 }

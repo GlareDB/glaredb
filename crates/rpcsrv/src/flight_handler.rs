@@ -9,7 +9,7 @@ use sqlexec::{
     session::Session,
     OperationInfo,
 };
-use std::{path::PathBuf, pin::Pin, sync::Arc};
+use std::{pin::Pin, sync::Arc};
 use tokio::sync::{RwLock, RwLockReadGuard};
 use uuid::Uuid;
 
@@ -86,13 +86,16 @@ impl FlightSessionHandler {
         let db_id = Uuid::parse_str(&db_handle)
             .map_err(|e| Status::internal(format!("Unable to parse database handle: {e}")))?;
 
-        let session_vars =
-            SessionVars::default();
+        let session_vars = SessionVars::default()
+            .with_database_id(db_id, datafusion::variable::VarType::System)
+            .with_force_catalog_refresh(true, datafusion::variable::VarType::System);
+
         let sess = self
             .engine
             .new_untracked_session(session_vars, SessionStorageConfig::default())
             .await
             .map_err(RpcsrvError::from)?;
+        // let metastore = self.engine.
 
         let sess = Arc::new(RwLock::new(sess));
         self.sessions.insert(db_handle.clone(), sess.clone());
@@ -113,7 +116,6 @@ impl FlightSessionHandler {
             .get(&handle)
             .ok_or_else(|| Status::internal(format!("Unable to find logical plan {}", handle)))?
             .clone();
-        println!("executing plan:\n{}\n", lp.display());
         self.execute_lp(ctx, lp).await
     }
 
@@ -126,9 +128,11 @@ impl FlightSessionHandler {
             .create_physical_plan(lp, &OperationInfo::default())
             .await
             .map_err(RpcsrvError::from)?;
-
+        // let display_plan = plan.clone();
+        // let display_plan = DisplayableExecutionPlan::new(display_plan.as_ref());
+        // println!("physical plan = {}", display_plan.indent(false));
         let stream = ctx
-            .execute_physical(plan)
+            .execute_physical_plan(plan)
             .await
             .map_err(RpcsrvError::from)?;
 
@@ -141,7 +145,6 @@ impl FlightSessionHandler {
             .with_schema(schema)
             .build(stream)
             .map_err(Status::from);
-
         Ok(Response::new(Box::pin(stream)))
     }
 }
@@ -165,7 +168,6 @@ impl FlightSqlService for FlightSessionHandler {
         req: Request<Ticket>,
         message: Any,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
-        // println!("do_get_fallback");
         match message.type_url.as_str() {
             ActionExecuteLogicalPlan::TYPE_URL => {
                 let action: ActionExecuteLogicalPlan = message
@@ -174,19 +176,27 @@ impl FlightSqlService for FlightSessionHandler {
                     .ok_or_else(|| {
                         Status::internal("Expected ActionExecutePhysicalPlan but got None!")
                     })?;
-
                 return self.do_action_execute_logical_plan(&req, action).await;
             }
 
             // All non specified types should be handled as a sql query
-            other => {
-                println!("executing statement:\n{}\n", other);
+            sql => {
                 let (_, ctx) = self.get_or_create_ctx(&req).await?;
-                let ctx = ctx.read().await;
-                match ctx.create_logical_plan(other).await {
-                    Ok(lp) => {
-                        let lp = lp.try_into_datafusion_plan().map_err(RpcsrvError::from)?;
-                        return self.execute_lp(ctx, lp).await;
+                let mut ctx = ctx.write().await;
+
+                match ctx.execute_sql(sql, None).await {
+                    Ok(stream) => {
+                        let schema = stream.schema();
+
+                        let stream = stream.map_err(|e| {
+                            arrow_flight::error::FlightError::ExternalError(Box::new(e))
+                        });
+
+                        let stream = FlightDataEncoderBuilder::new()
+                            .with_schema(schema)
+                            .build(stream)
+                            .map_err(Status::from);
+                        Ok(Response::new(Box::pin(stream)))
                     }
                     Err(e) => Err(Status::internal(format!(
                         "Expected a SQL query, instead received: {e}"
@@ -286,7 +296,7 @@ impl FlightSqlService for FlightSessionHandler {
             .map_err(RpcsrvError::from)?;
 
         let lp = ctx
-            .query_to_lp(&query.query)
+            .create_logical_plan(&query.query)
             .await
             .map_err(RpcsrvError::from)?;
 

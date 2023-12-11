@@ -100,7 +100,7 @@ async fn create_temp_table(
         && !plan.or_replace
     {
         if plan.if_not_exists {
-            return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
+            return Ok(new_operation_batch("create table if not exists")); 
         }
         return Err(DataFusionError::Execution(format!(
             "Duplicate object name: '{}' already exists",

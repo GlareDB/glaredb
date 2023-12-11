@@ -173,7 +173,6 @@ impl EngineStorageConfig {
     ///
     /// Errors if the engine config is incompatible with the session config.
     fn with_session_config(&self, session_conf: &SessionStorageConfig) -> Result<Self> {
-        println!(" with_session_config");
         Ok(match (self.conf.clone(), session_conf.gcs_bucket.clone()) {
             (
                 StorageConfig::Gcs {
@@ -182,7 +181,6 @@ impl EngineStorageConfig {
                 },
                 Some(bucket),
             ) => {
-                println!(" using gcs storage");
                 // A session-level bucket overrides the inherent configuration.
                 // Setup the storage config and the location accordingly.
                 EngineStorageConfig {
@@ -200,17 +198,11 @@ impl EngineStorageConfig {
                     "Missing bucket on session configuration",
                 ))
             }
-            (_, Some(_)) => {
-                println!(" using memory storage");
-                EngineStorageConfig {
-                    location: Url::parse("memory://").map_err(DatasourceCommonError::from)?,
-                    conf: StorageConfig::Memory,
-                }
-            }
-            _ => {
-                println!(" using default storage: {:?}", self);
-                self.clone()
-            }
+            (_, Some(_)) => EngineStorageConfig {
+                location: Url::parse("memory://").map_err(DatasourceCommonError::from)?,
+                conf: StorageConfig::Memory,
+            },
+            _ => self.clone(),
         })
     }
 
@@ -414,7 +406,6 @@ impl Engine {
         let native = self
             .storage
             .new_native_tables_storage(database_id, &storage)?;
-
         let state = metastore.get_cached_state().await?;
         let catalog = SessionCatalog::new(
             state,

@@ -143,8 +143,8 @@ impl MetastoreClientHandle {
             },
             rx,
         )
-        .await
-        .and_then(std::convert::identity) // Flatten
+        .await.expect("try_mutate")
+        // .and_then(std::convert::identity) // Flatten
     }
 
     async fn send<R>(&self, req: ClientRequest, rx: oneshot::Receiver<R>) -> Result<R> {
@@ -263,6 +263,7 @@ impl MetastoreClientSupervisor {
                         send: worker.send.clone(),
                     });
                 }
+
                 _ => (), // Continue on.
             }
         }
@@ -462,12 +463,10 @@ impl StatefulWorker {
                 response,
                 ..
             } => {
-                response.
                 let result = mutations
                     .into_iter()
                     .map(|m| m.try_into())
                     .collect::<Result<_, _>>();
-                println!("result: {:?}", result);
                 let result = match result {
                     Ok(mutations) => self
                         .client
