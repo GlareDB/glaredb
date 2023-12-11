@@ -16,6 +16,7 @@ use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::sync::oneshot;
+use tonic::transport::server::Router;
 use tonic::transport::Server;
 use tracing::{debug, debug_span, error, info, Instrument};
 use uuid::Uuid;
@@ -37,25 +38,116 @@ pub struct ComputeServer {
     pg_handler: Arc<ProtocolHandler>,
     engine: Arc<Engine>,
 }
+pub struct ComputeServerBuilder {
+    metastore_addr: Option<String>,
+    segment_key: Option<String>,
+    authenticator: Box<dyn LocalAuthenticator>,
+    data_dir: Option<PathBuf>,
+    service_account_path: Option<String>,
+    location: Option<String>,
+    storage_options: HashMap<String, String>,
+    spill_path: Option<PathBuf>,
+    integration_testing: bool,
+    disable_rpc_auth: bool,
+    enable_simple_query_rpc: bool,
+}
 
-impl ComputeServer {
-    /// Connect to the given source, performing any bootstrap steps as
-    /// necessary.
-    // TODO: Pull out args into a struct.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn connect(
-        metastore_addr: Option<String>,
-        segment_key: Option<String>,
-        authenticator: Box<dyn LocalAuthenticator>,
-        data_dir: Option<PathBuf>,
-        service_account_path: Option<String>,
-        location: Option<String>,
-        storage_options: HashMap<String, String>,
-        spill_path: Option<PathBuf>,
-        integration_testing: bool,
-        disable_rpc_auth: bool,
-        enable_simple_query_rpc: bool,
-    ) -> Result<Self> {
+impl ComputeServerBuilder {
+    fn new_with_authenticator(authenticator: Box<dyn LocalAuthenticator>) -> Self {
+        ComputeServerBuilder {
+            metastore_addr: None,
+            segment_key: None,
+            authenticator,
+            data_dir: None,
+            service_account_path: None,
+            location: None,
+            storage_options: HashMap::new(),
+            spill_path: None,
+            integration_testing: false,
+            disable_rpc_auth: false,
+            enable_simple_query_rpc: false,
+        }
+    }
+    pub fn with_metastore_addr(mut self, metastore_addr: String) -> Self {
+        self.metastore_addr = Some(metastore_addr);
+        self
+    }
+    pub fn with_metastore_addr_opt(mut self, metastore_addr: Option<String>) -> Self {
+        self.metastore_addr = metastore_addr;
+        self
+    }
+    pub fn with_segment_key(mut self, segment_key: String) -> Self {
+        self.segment_key = Some(segment_key);
+        self
+    }
+    pub fn with_segment_key_opt(mut self, segment_key: Option<String>) -> Self {
+        self.segment_key = segment_key;
+        self
+    }
+    pub fn with_data_dir(mut self, data_dir: PathBuf) -> Self {
+        self.data_dir = Some(data_dir);
+        self
+    }
+    pub fn with_data_dir_opt(mut self, data_dir: Option<PathBuf>) -> Self {
+        self.data_dir = data_dir;
+        self
+    }
+    pub fn with_service_account_path(mut self, service_account_path: String) -> Self {
+        self.service_account_path = Some(service_account_path);
+        self
+    }
+    pub fn with_service_account_path_opt(mut self, service_account_path: Option<String>) -> Self {
+        self.service_account_path = service_account_path;
+        self
+    }
+    pub fn with_location(mut self, location: String) -> Self {
+        self.location = Some(location);
+        self
+    }
+
+    pub fn with_location_opt(mut self, location: Option<String>) -> Self {
+        self.location = location;
+        self
+    }
+
+    pub fn with_storage_options(mut self, storage_options: HashMap<String, String>) -> Self {
+        self.storage_options = storage_options;
+        self
+    }
+    pub fn with_spill_path(mut self, spill_path: PathBuf) -> Self {
+        self.spill_path = Some(spill_path);
+        self
+    }
+    pub fn with_spill_path_opt(mut self, spill_path: Option<PathBuf>) -> Self {
+        self.spill_path = spill_path;
+        self
+    }
+    pub fn integration_testing_mode(mut self, integration_testing: bool) -> Self {
+        self.integration_testing = integration_testing;
+        self
+    }
+    pub fn disable_rpc_auth(mut self, disable_rpc_auth: bool) -> Self {
+        self.disable_rpc_auth = disable_rpc_auth;
+        self
+    }
+    pub fn enable_simple_query_rpc(mut self, enable_simple_query_rpc: bool) -> Self {
+        self.enable_simple_query_rpc = enable_simple_query_rpc;
+        self
+    }
+    pub async fn connect(self) -> Result<ComputeServer> {
+        let ComputeServerBuilder {
+            metastore_addr,
+            segment_key,
+            authenticator,
+            data_dir,
+            service_account_path,
+            location,
+            storage_options,
+            spill_path,
+            integration_testing,
+            disable_rpc_auth,
+            enable_simple_query_rpc,
+        } = self;
         // Our bare container image doesn't have a '/tmp' dir on startup (nor
         // does it specify an alternate dir to use via `TMPDIR`).
         let env_tmp = env::temp_dir();
@@ -144,7 +236,32 @@ impl ComputeServer {
             engine,
         })
     }
+}
 
+impl ComputeServer {
+    pub fn with_authenticator<T: LocalAuthenticator + 'static>(
+        authenticator: T,
+    ) -> ComputeServerBuilder {
+        ComputeServerBuilder::new_with_authenticator(Box::new(authenticator))
+    }
+    fn build_rpc_service(&self) -> Router {
+        // Start rpc service.
+        let handler = RpcHandler::new(
+            self.engine.clone(),
+            self.disable_rpc_auth,
+            self.integration_testing,
+        );
+        let mut server = Server::builder()
+            .trace_fn(|_| debug_span!("rpc_service_request"))
+            .add_service(ExecutionServiceServer::new(handler));
+        // Add in the simple interface if requested.
+        if self.enable_simple_query_rpc {
+            info!("enabling simple query rpc service");
+            let handler = SimpleHandler::new(self.engine.clone());
+            server = server.add_service(SimpleServiceServer::new(handler));
+        }
+        server
+    }
     /// Serve using the provided config.
     pub async fn serve(self, conf: ServerConfig) -> Result<()> {
         println!("Starting GlareDB");
@@ -197,26 +314,8 @@ impl ComputeServer {
 
         // Start rpc service.
         if let Some(addr) = conf.rpc_addr {
-            let handler = RpcHandler::new(
-                self.engine.clone(),
-                self.disable_rpc_auth,
-                self.integration_testing,
-            );
-
-            let flight_handler = FlightSessionHandler::new(&self.engine);
-
+            let server = self.build_rpc_service();
             tokio::spawn(async move {
-                let mut server = Server::builder()
-                    .trace_fn(|_| debug_span!("rpc_service_request"))
-                    .add_service(ExecutionServiceServer::new(handler))
-                    .add_service(FlightServiceServer::new(flight_handler));
-
-                // Add in the simple interface if requested.
-                if self.enable_simple_query_rpc {
-                    info!("enabling simple query rpc service");
-                    let handler = SimpleHandler::new(self.engine.clone());
-                    server = server.add_service(SimpleServiceServer::new(handler));
-                }
                 if let Err(e) = server.serve(addr).await {
                     // TODO: Maybe panic instead? Revisit once we have
                     // everything working.
@@ -284,24 +383,14 @@ mod tests {
             rpc_addr: Some("0.0.0.0:0".parse().unwrap()),
         };
 
-        let server = ComputeServer::connect(
-            None,
-            None,
-            Box::new(SingleUserAuthenticator {
-                user: "glaredb".to_string(),
-                password: "glaredb".to_string(),
-            }),
-            None,
-            None,
-            None,
-            Default::default(),
-            None,
-            false,
-            false,
-            /* enable_simple_query_rpc = */ false,
-        )
+        let server = ComputeServer::with_authenticator(SingleUserAuthenticator {
+            user: "glaredb".to_string(),
+            password: "glaredb".to_string(),
+        })
+        .connect()
         .await
         .unwrap();
+
         tokio::spawn(server.serve(server_conf));
 
         let (client, conn) = tokio::time::timeout(

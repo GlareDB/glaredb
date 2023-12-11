@@ -23,6 +23,8 @@ import "rpcsrv/common.proto";
 
 package rpcsrv.simple;
 
+option go_package = "github.com/glaredb/cloud/pkg/protogen/rpcsrv";
+
 message ExecuteQueryRequest {
   // Info needed to create the session.
   common.SessionStorageConfig config = 1;
