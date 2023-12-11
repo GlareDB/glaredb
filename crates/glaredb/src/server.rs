@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use futures::channel::mpsc::Sender;
 use metastore::util::MetastoreClientMode;
 use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
@@ -8,7 +9,6 @@ use rpcsrv::flight_handler::{FlightServiceServer, FlightSessionHandler};
 use rpcsrv::handler::{RpcHandler, SimpleHandler};
 use sqlexec::engine::{Engine, EngineStorageConfig};
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::{env, fs};
@@ -16,7 +16,7 @@ use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::sync::oneshot;
-use tonic::transport::server::Router;
+use tonic::transport::server::{Router, TcpIncoming};
 use tonic::transport::Server;
 use tracing::{debug, debug_span, error, info, Instrument};
 use uuid::Uuid;
@@ -24,11 +24,11 @@ use uuid::Uuid;
 #[derive(Debug)]
 pub struct ServerConfig {
     /// Listener to use for pg handler.
-    pub pg_listener: TcpListener,
+    pub pg_listener: Option<TcpListener>,
 
     /// Address to use for the rpc handler. If not provided, an rpc handler will
     /// not be started.
-    pub rpc_addr: Option<SocketAddr>,
+    pub rpc_listener: Option<TcpListener>,
 }
 
 pub struct ComputeServer {
@@ -135,6 +135,7 @@ impl ComputeServerBuilder {
         self
     }
     pub async fn connect(self) -> Result<ComputeServer> {
+        println!("Connecting to compute server...");
         let ComputeServerBuilder {
             metastore_addr,
             segment_key,
@@ -185,6 +186,8 @@ impl ComputeServerBuilder {
                 (Some(addr), None) => MetastoreClientMode::Remote { addr },
                 _ => MetastoreClientMode::new_local(data_dir.clone()),
             };
+            println!("Connecting to metastore...");
+            println!("Metastore builder: {mode:?}");
             let metastore_client = mode.into_client().await?;
 
             // TODO: There's going to need to more validation needed to ensure we're
@@ -251,9 +254,11 @@ impl ComputeServer {
             self.disable_rpc_auth,
             self.integration_testing,
         );
+        let flight_handler = FlightSessionHandler::new(&self.engine);
         let mut server = Server::builder()
             .trace_fn(|_| debug_span!("rpc_service_request"))
-            .add_service(ExecutionServiceServer::new(handler));
+            .add_service(ExecutionServiceServer::new(handler))
+            .add_service(FlightServiceServer::new(flight_handler));
         // Add in the simple interface if requested.
         if self.enable_simple_query_rpc {
             info!("enabling simple query rpc service");
@@ -264,59 +269,40 @@ impl ComputeServer {
     }
     /// Serve using the provided config.
     pub async fn serve(self, conf: ServerConfig) -> Result<()> {
-        println!("Starting GlareDB");
-        let rpc_msg = if let Some(addr) = conf.rpc_addr {
-            format!("\nConnect via RPC: {}\n", addr)
+        let rpc_msg = if let Some(listener) = &conf.rpc_listener {
+            format!("Connect via RPC: grpc://{}\n", listener.local_addr()?)
+        } else {
+            "".to_string()
+        };
+        let pg_msg = if let Some(listener) = &conf.pg_listener {
+            format!(
+                "Connect via Postgres: postgresql://{}",
+                listener.local_addr()?,
+            )
         } else {
             "".to_string()
         };
 
         info!(
-            "Starting GlareDB {}\nConnect via Postgres: postgresql://{}{}",
+            "Starting GlareDB {}\n{}\n{}\n",
             env!("CARGO_PKG_VERSION"),
-            conf.pg_listener.local_addr()?,
+            pg_msg,
             rpc_msg
         );
 
         // Shutdown handler.
         let (tx, mut rx) = oneshot::channel();
         let engine = self.engine.clone();
-        tokio::spawn(async move {
-            match signal::ctrl_c().await {
-                Ok(()) => {
-                    info!("shutdown triggered");
-
-                    // Don't wait for active-sessions if integration testing is
-                    // not set. This helps when doing "CTRL-C" during testing.
-                    if !self.integration_testing {
-                        loop {
-                            let sess_count = engine.session_count();
-                            if sess_count == 0 {
-                                break;
-                            }
-
-                            info!(%sess_count, "shutdown prevented, active sessions");
-
-                            // Still have sessions. Keep looping with some sleep in
-                            // between.
-                            tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
-                        }
-                    }
-
-                    // Shutdown!
-                    let _ = tx.send(());
-                }
-                Err(err) => {
-                    error!(%err, "unable to listen for shutdown signal");
-                }
-            }
-        });
+        spawn_shutdown_handler(engine, self.integration_testing, tx);
 
         // Start rpc service.
-        if let Some(addr) = conf.rpc_addr {
+        if let Some(listener) = conf.rpc_listener {
             let server = self.build_rpc_service();
             tokio::spawn(async move {
-                if let Err(e) = server.serve(addr).await {
+                println!("Starting RPC service on {}", listener.local_addr().unwrap());
+                let incoming = TcpIncoming::from_listener(listener, true, None).unwrap();
+
+                if let Err(e) = server.serve_with_incoming(incoming).await {
                     // TODO: Maybe panic instead? Revisit once we have
                     // everything working.
                     error!(%e, "rpc service died");
@@ -324,35 +310,77 @@ impl ComputeServer {
             });
         }
 
-        // Postgres handler loop.
-        loop {
-            tokio::select! {
-                _ = &mut rx => {
-                    info!("shutting down");
-                    return Ok(())
-                }
+        if let Some(pg_listener) = conf.pg_listener {
+            // Postgres handler loop.
+            loop {
+                tokio::select! {
+                    _ = &mut rx => {
+                        info!("shutting down");
+                        return Ok(())
+                    }
 
-                result = conf.pg_listener.accept() => {
-                    let (conn, client_addr) = result?;
+                    result = pg_listener.accept() => {
+                        let (conn, client_addr) = result?;
 
-                    let pg_handler = self.pg_handler.clone();
-                    let conn_id = Uuid::new_v4();
-                    let span = debug_span!("glaredb_connection", %conn_id);
+                        let pg_handler = self.pg_handler.clone();
+                        let conn_id = Uuid::new_v4();
+                        let span = debug_span!("glaredb_connection", %conn_id);
 
-                    tokio::spawn(
-                        async move {
-                            debug!(%client_addr, "client connected (pg)");
-                            match pg_handler.handle_connection(conn_id, conn).await {
-                                Ok(_) => debug!(%client_addr, "client disconnected"),
-                                Err(e) => debug!(%e, %client_addr, "client disconnected with error"),
+                        tokio::spawn(
+                            async move {
+                                debug!(%client_addr, "client connected (pg)");
+                                match pg_handler.handle_connection(conn_id, conn).await {
+                                    Ok(_) => debug!(%client_addr, "client disconnected"),
+                                    Err(e) => debug!(%e, %client_addr, "client disconnected with error"),
+                                }
                             }
-                        }
-                        .instrument(span),
-                    );
+                            .instrument(span),
+                        );
+                    }
                 }
             }
+        } else {
+            // No pg listener. Just wait for shutdown.
+            rx.await.map_err(|_| anyhow!("shutdown error"))
         }
     }
+}
+
+fn spawn_shutdown_handler(
+    engine: Arc<Engine>,
+    is_integration_testing: bool,
+    tx: oneshot::Sender<()>,
+) {
+    tokio::spawn(async move {
+        match signal::ctrl_c().await {
+            Ok(()) => {
+                info!("shutdown triggered");
+
+                // Don't wait for active-sessions if integration testing is
+                // not set. This helps when doing "CTRL-C" during testing.
+                if !is_integration_testing {
+                    loop {
+                        let sess_count = engine.session_count();
+                        if sess_count == 0 {
+                            break;
+                        }
+
+                        info!(%sess_count, "shutdown prevented, active sessions");
+
+                        // Still have sessions. Keep looping with some sleep in
+                        // between.
+                        tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
+                    }
+                }
+
+                // Shutdown!
+                let _ = tx.send(());
+            }
+            Err(err) => {
+                error!(%err, "unable to listen for shutdown signal");
+            }
+        }
+    });
 }
 
 #[cfg(test)]
@@ -377,10 +405,12 @@ mod tests {
     #[tokio::test]
     async fn no_hang_on_rpc_service_start() {
         let pg_listener = TcpListener::bind("localhost:0").await.unwrap();
+        let rpc_listener = TcpListener::bind("localhost:0").await.unwrap();
+
         let pg_addr = pg_listener.local_addr().unwrap();
         let server_conf = ServerConfig {
-            pg_listener,
-            rpc_addr: Some("0.0.0.0:0".parse().unwrap()),
+            pg_listener: Some(pg_listener),
+            rpc_listener: Some(rpc_listener),
         };
 
         let server = ComputeServer::with_authenticator(SingleUserAuthenticator {

@@ -9,7 +9,7 @@ use sqlexec::{
     session::Session,
     OperationInfo,
 };
-use std::{pin::Pin, sync::Arc};
+use std::{path::PathBuf, pin::Pin, sync::Arc};
 use tokio::sync::{RwLock, RwLockReadGuard};
 use uuid::Uuid;
 
@@ -72,9 +72,13 @@ impl FlightSessionHandler {
             .metadata()
             .get(DATABASE_HEADER)
             .map(|s| s.to_str().unwrap().to_string())
-            .unwrap_or_else(|| Uuid::new_v4().to_string());
+            .unwrap_or_else(|| {
+                println!("no database header found, creating new handle");
+                Uuid::new_v4().to_string()
+            });
 
         if self.sessions.contains_key(&db_handle) {
+            // println!("found session for {}", db_handle);
             let sess = self.sessions.get(&db_handle).unwrap().clone();
             return Ok((db_handle, sess));
         }
@@ -83,19 +87,20 @@ impl FlightSessionHandler {
             .map_err(|e| Status::internal(format!("Unable to parse database handle: {e}")))?;
 
         let session_vars =
-            SessionVars::default().with_database_id(db_id, datafusion::variable::VarType::System);
+            SessionVars::default();
         let sess = self
             .engine
             .new_untracked_session(session_vars, SessionStorageConfig::default())
             .await
             .map_err(RpcsrvError::from)?;
+
         let sess = Arc::new(RwLock::new(sess));
         self.sessions.insert(db_handle.clone(), sess.clone());
 
         Ok((db_handle, sess))
     }
 
-    async fn do_action_execute_physical_plan(
+    async fn do_action_execute_logical_plan(
         &self,
         req: &Request<Ticket>,
         query: ActionExecuteLogicalPlan,
@@ -108,6 +113,7 @@ impl FlightSessionHandler {
             .get(&handle)
             .ok_or_else(|| Status::internal(format!("Unable to find logical plan {}", handle)))?
             .clone();
+        println!("executing plan:\n{}\n", lp.display());
         self.execute_lp(ctx, lp).await
     }
 
@@ -159,6 +165,7 @@ impl FlightSqlService for FlightSessionHandler {
         req: Request<Ticket>,
         message: Any,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
+        // println!("do_get_fallback");
         match message.type_url.as_str() {
             ActionExecuteLogicalPlan::TYPE_URL => {
                 let action: ActionExecuteLogicalPlan = message
@@ -168,11 +175,12 @@ impl FlightSqlService for FlightSessionHandler {
                         Status::internal("Expected ActionExecutePhysicalPlan but got None!")
                     })?;
 
-                return self.do_action_execute_physical_plan(&req, action).await;
+                return self.do_action_execute_logical_plan(&req, action).await;
             }
 
             // All non specified types should be handled as a sql query
             other => {
+                println!("executing statement:\n{}\n", other);
                 let (_, ctx) = self.get_or_create_ctx(&req).await?;
                 let ctx = ctx.read().await;
                 match ctx.create_logical_plan(other).await {
@@ -204,22 +212,16 @@ impl FlightSqlService for FlightSessionHandler {
         Ok(tonic::Response::new(flight_info))
     }
 
-    async fn get_flight_info_substrait_plan(
-        &self,
-        _query: CommandStatementSubstraitPlan,
-        _request: Request<FlightDescriptor>,
-    ) -> Result<Response<FlightInfo>, Status> {
-        Err(Status::unimplemented(
-            "get_flight_info_substrait_plan not implemented",
-        ))
-    }
-
     async fn get_flight_info_prepared_statement(
         &self,
-        _: CommandPreparedStatementQuery,
+        cmd: CommandPreparedStatementQuery,
         req: Request<FlightDescriptor>,
     ) -> Result<Response<FlightInfo>, Status> {
-        let (handle, ctx) = self.get_or_create_ctx(&req).await?;
+        // println!("get_flight_info_prepared_statement");
+        let handle = String::from_utf8(cmd.prepared_statement_handle.to_vec()).ok();
+        let handle = handle.unwrap_or_else(|| Uuid::new_v4().to_string());
+
+        let (_, ctx) = self.get_or_create_ctx(&req).await?;
         let ctx = ctx.write().await;
         let portal = ctx.get_portal(&handle).map_err(RpcsrvError::from)?;
 
@@ -270,7 +272,13 @@ impl FlightSqlService for FlightSessionHandler {
         query: ActionCreatePreparedStatementRequest,
         req: Request<Action>,
     ) -> Result<ActionCreatePreparedStatementResult, Status> {
-        let (handle, ctx) = self.get_or_create_ctx(&req).await?;
+        // println!("do_action_create_prepared_statement");
+        let handle = query
+            .transaction_id
+            .map(|id| String::from_utf8(id.to_vec()).unwrap())
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+        let (_, ctx) = self.get_or_create_ctx(&req).await?;
         let mut ctx = ctx.write().await;
 
         ctx.prepare_portal(&handle, &query.query)
@@ -305,6 +313,7 @@ impl FlightSqlService for FlightSessionHandler {
     ) -> Result<(), Status> {
         let handle = std::str::from_utf8(&query.prepared_statement_handle)
             .map_err(|e| RpcsrvError::ParseError(e.to_string()))?;
+
         let (_, ctx) = self.get_or_create_ctx(&req).await?;
         ctx.write().await.remove_portal(handle);
         self.logical_plans.remove(handle);

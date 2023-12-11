@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use clap::builder::PossibleValue;
+use clap::ValueEnum;
 use datafusion_ext::vars::SessionVars;
 use futures::StreamExt;
 use glob::Pattern;
@@ -8,15 +10,10 @@ use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use pgrepr::types::arrow_to_pg_type;
 use regex::{Captures, Regex};
-use rpcsrv::export::arrow_flight::flight_service_client::FlightServiceClient;
 use rpcsrv::export::arrow_flight::sql::client::FlightSqlServiceClient;
-use rpcsrv::export::arrow_flight::sql::{self, Command};
 use rpcsrv::export::arrow_flight::utils::flight_data_to_arrow_batch;
-use rpcsrv::export::arrow_flight::{FlightDescriptor, Ticket};
-use rpcsrv::export::tonic::transport::{Channel, Endpoint, Server};
-use rpcsrv::export::tonic::Request;
+use rpcsrv::export::tonic::transport::{Channel, Endpoint};
 use rpcsrv::export::Schema;
-use rpcsrv::flight_handler::{FlightServiceServer, FlightSessionHandler};
 use sqlexec::engine::{Engine, EngineStorageConfig, SessionStorageConfig, TrackedSession};
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClient;
@@ -24,10 +21,8 @@ use sqlexec::session::ExecutionResult;
 use sqllogictest::{
     parse_with_name, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,
 };
-use std::net::SocketAddr;
 use std::ops::Deref;
 use std::sync::Arc;
-use std::thread::sleep;
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -35,8 +30,8 @@ use std::{
     time::Duration,
 };
 use telemetry::Tracker;
-use tokio::net::TcpListener;
 use tokio::sync::{oneshot, Mutex};
+use tokio_postgres::config::Host;
 use tokio_postgres::types::private::BytesMut;
 use tokio_postgres::{Client, Config, NoTls, SimpleQueryMessage};
 use uuid::Uuid;
@@ -250,12 +245,14 @@ pub struct RpcTestClient {
 }
 
 impl RpcTestClient {
-    pub async fn new(data_dir: PathBuf, rpc_bind: &str) -> Result<Self> {
+    pub async fn new(data_dir: PathBuf, config: &Config) -> Result<Self> {
         let metastore = MetastoreClientMode::LocalInMemory.into_client().await?;
         let storage = EngineStorageConfig::try_from_path_buf(&data_dir)?;
         let engine = Engine::new(metastore, storage, Arc::new(Tracker::Nop), None).await?;
-        let remote_client =
-            RemoteClient::connect(format!("http://{rpc_bind}").parse().unwrap()).await?;
+        let port = config.get_ports().first().unwrap();
+
+        let addr = format!("http://0.0.0.0:{port}");
+        let remote_client = RemoteClient::connect(addr.parse().unwrap()).await?;
         let mut session = engine
             .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
             .await?;
@@ -274,20 +271,41 @@ pub struct FlightSqlTestClient {
     client: FlightSqlServiceClient<Channel>,
 }
 impl FlightSqlTestClient {
-    pub async fn new(addr: &str) -> Result<Self> {
-        let addr = format!("grpc://{addr}");
+    pub async fn new(config: &Config) -> Result<Self> {
+        let port = config.get_ports().first().unwrap();
+        let addr = format!("http://0.0.0.0:{port}");
         let conn = Endpoint::new(addr)?.connect().await?;
-        let mut client = FlightSqlServiceClient::new(conn);
-        client.set_header("x-database", Uuid::new_v4().to_string());
+        let dbid: Uuid = config.get_dbname().unwrap().parse().unwrap();
 
+        let mut client = FlightSqlServiceClient::new(conn);
+        client.set_header("x-database", dbid);
         Ok(FlightSqlTestClient { client })
     }
 }
 
-pub enum TestMode {
-    Pg,
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum ClientProtocol {
+    // Connect over a local postgres instance
+    #[default]
+    Postgres,
+    // Connect over a local RPC instance
     Rpc,
+    // Connect over a local FlightSql instance
     FlightSql,
+}
+
+impl ValueEnum for ClientProtocol {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::Postgres, Self::Rpc, Self::FlightSql]
+    }
+
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+        Some(match self {
+            ClientProtocol::Postgres => PossibleValue::new("postgres"),
+            ClientProtocol::Rpc => PossibleValue::new("rpc"),
+            ClientProtocol::FlightSql => PossibleValue::new("flightsql").alias("flight-sql"),
+        })
+    }
 }
 
 #[derive(Clone)]

@@ -55,8 +55,8 @@ fn main() -> Result<()> {
             TcpListener::bind(cli.bind.unwrap_or_else(|| "localhost:0".to_string())).await?;
         let pg_addr = pg_listener.local_addr()?;
         let server_conf = ServerConfig {
-            pg_listener,
-            rpc_addr: None,
+            pg_listener: Some(pg_listener),
+            rpc_listener: None,
         };
 
         let server = ComputeServer::with_authenticator(SingleUserAuthenticator {

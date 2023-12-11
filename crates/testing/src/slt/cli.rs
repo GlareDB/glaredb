@@ -16,9 +16,11 @@ use tokio::{net::TcpListener, runtime::Builder, sync::mpsc, time::Instant};
 use tokio_postgres::config::Config as ClientConfig;
 use uuid::Uuid;
 
-use crate::slt::test::{PgTestClient, RpcTestClient, Test, TestClient, TestHooks, FlightSqlTestClient};
+use crate::slt::test::{
+    FlightSqlTestClient, PgTestClient, RpcTestClient, Test, TestClient, TestHooks,
+};
 
-use super::test::TestMode;
+use super::test::ClientProtocol;
 
 #[derive(Parser)]
 #[clap(name = "slt-runner")]
@@ -72,13 +74,8 @@ pub struct Cli {
     #[clap(short, long, value_parser)]
     exclude: Vec<String>,
 
-    /// Run the tests in RPC mode.
-    #[clap(long, value_parser)]
-    rpc_test: bool,
-
-    /// Run the tests in RPC mode.
-    #[clap(long, value_parser)]
-    flight: bool,
+    #[arg(long, short, value_enum, default_value_t=ClientProtocol::Postgres)]
+    protocol: ClientProtocol,
 
     #[clap(flatten)]
     storage_config: StorageConfigArgs,
@@ -188,22 +185,30 @@ impl Cli {
                 });
                 configs
             } else {
-                let pg_listener = TcpListener::bind(
-                    self.bind_embedded
-                        .clone()
-                        .unwrap_or_else(|| "localhost:0".to_string()),
-                )
-                .await?;
-                let pg_addr = pg_listener.local_addr()?;
+                let bind_addr = self
+                    .bind_embedded
+                    .clone()
+                    .unwrap_or_else(|| "0.0.0.0:0".to_string());
+
+                let (pg_listener, rpc_listener, socket_addr) = match self.protocol {
+                    ClientProtocol::Postgres => {
+                        let listener = TcpListener::bind(bind_addr.clone()).await?;
+                        let addr = listener.local_addr().unwrap();
+                        (Some(listener), None, addr)
+                    }
+                    ClientProtocol::Rpc | ClientProtocol::FlightSql => {
+                        let listener = TcpListener::bind(bind_addr.clone()).await?;
+                        let addr = listener.local_addr().unwrap();
+                        (None, Some(listener), addr)
+                    }
+                };
+
                 let server_conf = ServerConfig {
                     pg_listener,
-                    rpc_addr: if self.rpc_test | self.flight {
-                        Some("0.0.0.0:6789".parse().unwrap())
-                    } else {
-                        None
-                    },
+                    rpc_listener,
                 };
-                let server = ComputeServer::with_authenticator(SingleUserAuthenticator {
+
+                let mut builder = ComputeServer::with_authenticator(SingleUserAuthenticator {
                     user: "glaredb".to_string(),
                     password: "glaredb".to_string(),
                 })
@@ -213,16 +218,22 @@ impl Cli {
                 .with_storage_options(HashMap::from_iter(
                     self.storage_config.storage_options.clone(),
                 ))
-                .integration_testing_mode(true)
-                .disable_rpc_auth(self.rpc_test)
-                .connect()
-                .await?;
+                .integration_testing_mode(true);
+
+                if matches!(self.protocol, ClientProtocol::Rpc) {
+                    builder = builder.disable_rpc_auth(true);
+                }
+
+                let server = builder
+                    // .disable_rpc_auth(self.rpc_test)
+                    .connect()
+                    .await?;
 
                 tokio::spawn(server.serve(server_conf));
 
-                let host = pg_addr.ip().to_string();
-                let port = pg_addr.port();
-
+                let mut configs = HashMap::new();
+                let host = socket_addr.ip().to_string();
+                let port = socket_addr.port();
                 let mut config = ClientConfig::new();
                 config
                     .user("glaredb")
@@ -231,13 +242,13 @@ impl Cli {
                     .host(&host)
                     .port(port);
 
-                let mut configs = HashMap::new();
                 tests.iter().for_each(|(name, _)| {
                     let mut cfg = config.clone();
                     let db_id = Uuid::new_v4().to_string();
                     cfg.dbname(&db_id);
                     configs.insert(name.clone(), cfg);
                 });
+
                 configs
             };
 
@@ -308,17 +319,12 @@ impl Cli {
             let cfg = configs.get(&test_name).unwrap().clone();
             let tx = jobs_tx.clone();
             let hooks = Arc::clone(&hooks);
-            let mode = if self.rpc_test {
-                TestMode::Rpc
-            } else if self.flight {
-                TestMode::FlightSql
-            } else {
-                TestMode::Pg
-            };
 
+            let protocol = self.protocol.clone();
             let data_dir = data_dir.to_path_buf();
+
             tokio::spawn(async move {
-                let res = Self::run_test(mode, data_dir, &test_name, test, cfg, hooks).await;
+                let res = Self::run_test(protocol, data_dir, &test_name, test, cfg, hooks).await;
                 tx.send((test_name.clone(), res)).unwrap();
             });
         }
@@ -374,7 +380,7 @@ impl Cli {
     }
 
     async fn run_test(
-        mode: TestMode,
+        mode: ClientProtocol,
         data_dir: PathBuf,
         test_name: &str,
         test: Test,
@@ -383,9 +389,13 @@ impl Cli {
     ) -> Result<()> {
         info!("Running test: `{}`", test_name);
         let client = match mode {
-            TestMode::Pg => TestClient::Pg(PgTestClient::new(&client_config).await?),
-            TestMode::Rpc => TestClient::Rpc(RpcTestClient::new(data_dir, "0.0.0.0:6789").await?),
-            TestMode::FlightSql => TestClient::FlightSql(FlightSqlTestClient::new("0.0.0.0:6789").await?),
+            ClientProtocol::Postgres => TestClient::Pg(PgTestClient::new(&client_config).await?),
+            ClientProtocol::Rpc => {
+                TestClient::Rpc(RpcTestClient::new(data_dir, &client_config).await?)
+            }
+            ClientProtocol::FlightSql => {
+                TestClient::FlightSql(FlightSqlTestClient::new(&client_config).await?)
+            }
         };
 
         async fn run_test_inner(
@@ -406,6 +416,7 @@ impl Cli {
 
             // Run the pre-test hooks
             for (pattern, hook) in hooks.clone() {
+                println!("Running pre hook for test `{}`", pattern);
                 tracing::debug!(%pattern, %test_name, "Running pre hook for test");
                 hook.pre(&client_config, client.clone(), &mut local_vars)
                     .await?;

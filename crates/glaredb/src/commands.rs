@@ -150,10 +150,15 @@ impl RunCommand for ServerArgs {
 
         let runtime = build_runtime("server")?;
         runtime.block_on(async move {
-            let pg_listener = TcpListener::bind(bind).await?;
+            let pg_listener = Some(TcpListener::bind(bind).await?); // TODO pg_opt
+            let rpc_listener = match rpc_bind {
+                Some(bind) => Some(TcpListener::bind(bind).await?),
+                None => None,
+            };
+
             let conf = ServerConfig {
                 pg_listener,
-                rpc_addr: rpc_bind.map(|s| s.parse()).transpose()?,
+                rpc_listener: rpc_listener,
             };
             let server = ComputeServer::with_authenticator(auth)
                 .with_metastore_addr_opt(metastore_addr)

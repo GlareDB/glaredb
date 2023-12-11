@@ -462,11 +462,12 @@ impl StatefulWorker {
                 response,
                 ..
             } => {
+                response.
                 let result = mutations
                     .into_iter()
                     .map(|m| m.try_into())
                     .collect::<Result<_, _>>();
-
+                println!("result: {:?}", result);
                 let result = match result {
                     Ok(mutations) => self
                         .client
@@ -496,10 +497,15 @@ impl StatefulWorker {
                     }
                     Err(e) => Err(e),
                 };
+                if response.is_closed() {
+                    error!("failed to send ok result of mutate. response channel closed");
+                }
 
                 if let Err(result) = response.send(result) {
                     match result {
-                        Ok(_) => error!("failed to send ok result of mutate"),
+                        Ok(_) => {
+                            error!("failed to send ok result of mutate")
+                        }
                         Err(e) => error!(%e, "failed to send error result of mutate"),
                     }
                 }

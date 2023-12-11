@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -24,7 +26,16 @@ impl UserDefinedLogicalNodeCore for CreateSchema {
     }
 
     fn fmt_for_explain(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "CreateSchema")
+        write!(
+            f,
+            "CREATE SCHEMA{if_not_exists} {schema_reference}",
+            if_not_exists = if self.if_not_exists {
+                " IF NOT EXISTS"
+            } else {
+                ""
+            },
+            schema_reference = self.schema_reference
+        )
     }
 
     fn from_template(
