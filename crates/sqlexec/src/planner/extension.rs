@@ -104,26 +104,6 @@ pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
             self.into_extension(),
         ))
     }
-
-    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self>;
-
-    fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()>;
-
-    fn try_decode(
-        proto: Self::ProtoRepr,
-        _ctx: &SessionContext,
-        _codec: &dyn LogicalExtensionCodec,
-    ) -> Result<Self, ProtoConvError>;
-
-    fn try_encode_extension(
-        extension: &LogicalPlanExtension,
-        buf: &mut Vec<u8>,
-        codec: &dyn LogicalExtensionCodec,
-    ) -> Result<()> {
-        // TODO: ?
-        let extension = Self::try_downcast_extension(extension)?;
-        extension.try_encode(buf, codec)
-    }
 }
 
 pub trait PhysicalExtensionNode: Sized + ExecutionPlan {

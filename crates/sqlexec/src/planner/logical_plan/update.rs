@@ -43,20 +43,4 @@ impl UserDefinedLogicalNodeCore for Update {
 impl ExtensionNode for Update {
     type ProtoRepr = protogen::sqlexec::logical_plan::Update;
     const EXTENSION_NAME: &'static str = "Update";
-
-    fn try_decode(
-        _proto: Self::ProtoRepr,
-        _ctx: &SessionContext,
-        _codec: &dyn LogicalExtensionCodec,
-    ) -> std::result::Result<Self, ProtoConvError> {
-        unimplemented!()
-    }
-
-    fn try_downcast_extension(_extension: &LogicalPlanExtension) -> Result<Self> {
-        unimplemented!()
-    }
-
-    fn try_encode(&self, _buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()> {
-        unimplemented!()
-    }
 }
