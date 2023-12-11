@@ -63,42 +63,5 @@ impl UserDefinedLogicalNodeCore for SetVariable {
 }
 
 impl ExtensionNode for SetVariable {
-    type ProtoRepr = protogen::sqlexec::logical_plan::SetVariable;
     const EXTENSION_NAME: &'static str = "SetVariable";
-    fn try_decode(
-        proto: Self::ProtoRepr,
-        _ctx: &SessionContext,
-        _codec: &dyn LogicalExtensionCodec,
-    ) -> std::result::Result<Self, ProtoConvError> {
-        Ok(Self {
-            variable: proto.variable,
-            values: proto.values,
-        })
-    }
-    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
-        match extension.node.as_any().downcast_ref::<Self>() {
-            Some(s) => Ok(s.clone()),
-            None => Err(internal!("SetVariable::try_decode_extension failed",)),
-        }
-    }
-
-    fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()> {
-        use protogen::sqlexec::logical_plan as protogen;
-
-        let proto = protogen::SetVariable {
-            variable: self.variable.clone(),
-            values: self.values.clone(),
-        };
-        let plan_type = protogen::LogicalPlanExtensionType::SetVariable(proto);
-
-        let lp_extension = protogen::LogicalPlanExtension {
-            inner: Some(plan_type),
-        };
-
-        lp_extension
-            .encode(buf)
-            .map_err(|e| internal!("{}", e.to_string()))?;
-
-        Ok(())
-    }
 }

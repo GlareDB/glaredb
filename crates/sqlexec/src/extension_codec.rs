@@ -1,35 +1,28 @@
 use core::fmt;
-use std::collections::HashSet;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use datafusion::arrow::datatypes::{Schema, SchemaRef};
+use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::ipc::reader::FileReader as IpcFileReader;
 use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
-use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result};
-use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::{FunctionRegistry, TaskContext};
-use datafusion::logical_expr::{AggregateUDF, Extension, LogicalPlan, ScalarUDF, WindowUDF};
 use datafusion::physical_plan::analyze::AnalyzeExec;
 use datafusion::physical_plan::union::InterleaveExec;
 use datafusion::physical_plan::values::ValuesExec;
 use datafusion::physical_plan::{displayable, ExecutionPlan};
-use datafusion::prelude::{Expr, SessionContext};
+use datafusion::prelude::Expr;
 use datafusion_ext::metrics::{
     ReadOnlyDataSourceMetricsExecAdapter, WriteOnlyDataSourceMetricsExecAdapter,
 };
 use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use datafusion_proto::logical_plan::from_proto::parse_expr;
-use datafusion_proto::logical_plan::LogicalExtensionCodec;
 use datafusion_proto::physical_plan::PhysicalExtensionCodec;
+use protogen::export::prost::Message;
 use protogen::metastore::types::catalog::RuntimePreference;
 use uuid::Uuid;
 
-use crate::errors::ExecError;
-use crate::planner::extension::{ExtensionNode, ExtensionType, PhysicalExtensionNode};
-use crate::planner::logical_plan as plan;
 use crate::planner::physical_plan::alter_database::AlterDatabaseExec;
 use crate::planner::physical_plan::alter_table::AlterTableExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
@@ -61,52 +54,21 @@ use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
 };
 use crate::remote::provider_cache::ProviderCache;
-use crate::remote::table::StubRemoteTableProvider;
-
-use protogen::export::prost::Message;
 
 pub struct GlareDBExtensionCodec<'a> {
     table_providers: Option<&'a ProviderCache>,
-    runtime: Option<Arc<RuntimeEnv>>,
-}
-struct EmptyFunctionRegistry;
-
-impl FunctionRegistry for EmptyFunctionRegistry {
-    fn udfs(&self) -> HashSet<String> {
-        HashSet::new()
-    }
-
-    fn udf(&self, name: &str) -> Result<Arc<ScalarUDF>> {
-        Err(DataFusionError::Plan(
-            format!("No function registry provided to deserialize, so can not deserialize User Defined Function '{name}'"))
-        )
-    }
-
-    fn udaf(&self, name: &str) -> Result<Arc<AggregateUDF>> {
-        Err(DataFusionError::Plan(
-            format!("No function registry provided to deserialize, so can not deserialize User Defined Aggregate Function '{name}'"))
-        )
-    }
-
-    fn udwf(&self, name: &str) -> Result<Arc<WindowUDF>> {
-        Err(DataFusionError::Plan(
-            format!("No function registry provided to deserialize, so can not deserialize User Defined Window Function '{name}'"))
-        )
-    }
 }
 
 impl<'a> GlareDBExtensionCodec<'a> {
-    pub fn new_decoder(table_providers: &'a ProviderCache, runtime: Arc<RuntimeEnv>) -> Self {
+    pub fn new_decoder(table_providers: &'a ProviderCache) -> Self {
         Self {
             table_providers: Some(table_providers),
-            runtime: Some(runtime),
         }
     }
 
     pub fn new_encoder() -> Self {
         Self {
             table_providers: None,
-            runtime: None,
         }
     }
 }
@@ -114,257 +76,6 @@ impl<'a> GlareDBExtensionCodec<'a> {
 impl<'a> fmt::Debug for GlareDBExtensionCodec<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("GlareDBExtensionCodec").finish()
-    }
-}
-
-impl<'a> LogicalExtensionCodec for GlareDBExtensionCodec<'a> {
-    fn try_decode(
-        &self,
-        buf: &[u8],
-        _inputs: &[LogicalPlan],
-        ctx: &SessionContext,
-    ) -> Result<Extension> {
-        use protogen::sqlexec::logical_plan::{
-            self as proto_plan, LogicalPlanExtensionType as PlanType,
-        };
-        let lp_extension = proto_plan::LogicalPlanExtension::decode(buf)
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-        if lp_extension.inner.is_none() {
-            return Err(DataFusionError::External(Box::new(ExecError::Internal(
-                "missing extension type".to_string(),
-            ))));
-        }
-
-        Ok(match lp_extension.inner.unwrap() {
-            PlanType::CreateTable(create_table) => {
-                let create_table = plan::CreateTable::try_decode(create_table, ctx, self)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                create_table.into_extension()
-            }
-            PlanType::CreateSchema(create_schema) => {
-                let create_schema = plan::CreateSchema::try_decode(create_schema, ctx, self)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                create_schema.into_extension()
-            }
-            PlanType::DropTables(drop_tables) => {
-                let drop_tables = plan::DropTables::try_decode(drop_tables, ctx, self)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                drop_tables.into_extension()
-            }
-            PlanType::CreateExternalTable(create_external_table) => {
-                let create_external_table =
-                    plan::CreateExternalTable::try_decode(create_external_table, ctx, self)
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                create_external_table.into_extension()
-            }
-            PlanType::AlterTable(alter_table) => {
-                let alter_table = plan::AlterTable::try_decode(alter_table, ctx, self)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                alter_table.into_extension()
-            }
-            PlanType::AlterDatabase(alter_database_rename) => {
-                let alter_database_rename =
-                    plan::AlterDatabase::try_decode(alter_database_rename, ctx, self)
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                alter_database_rename.into_extension()
-            }
-            PlanType::AlterTunnelRotateKeys(alter_tunnel_rotate_keys) => {
-                let alter_tunnel_rotate_keys =
-                    plan::AlterTunnelRotateKeys::try_decode(alter_tunnel_rotate_keys, ctx, self)
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                alter_tunnel_rotate_keys.into_extension()
-            }
-            PlanType::CreateCredentials(create_credentials) => {
-                let create_credentials =
-                    plan::CreateCredentials::try_decode(create_credentials, ctx, self)
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                create_credentials.into_extension()
-            }
-            PlanType::CreateCredential(create_credential) => {
-                let create_credential =
-                    plan::CreateCredential::try_decode(create_credential, ctx, self)
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                create_credential.into_extension()
-            }
-            PlanType::CreateExternalDatabase(create_external_db) => {
-                let create_external_db =
-                    plan::CreateExternalDatabase::try_decode(create_external_db, ctx, self)
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                create_external_db.into_extension()
-            }
-            PlanType::CreateTunnel(create_tunnel) => {
-                let create_tunnel = plan::CreateTunnel::try_decode(create_tunnel, ctx, self)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                create_tunnel.into_extension()
-            }
-            PlanType::CreateTempTable(create_temp_table) => {
-                let create_temp_table =
-                    plan::CreateTempTable::try_decode(create_temp_table, ctx, self)
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                create_temp_table.into_extension()
-            }
-            PlanType::CreateView(create_view) => {
-                let create_view = plan::CreateView::try_decode(create_view, ctx, self)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                create_view.into_extension()
-            }
-            PlanType::DropCredentials(drop_credentials) => {
-                let drop_credentials =
-                    plan::DropCredentials::try_decode(drop_credentials, ctx, self)
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                drop_credentials.into_extension()
-            }
-            PlanType::DropDatabase(drop_database) => {
-                let drop_database = plan::DropDatabase::try_decode(drop_database, ctx, self)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                drop_database.into_extension()
-            }
-            PlanType::DropSchemas(drop_schemas) => {
-                let drop_schemas = plan::DropSchemas::try_decode(drop_schemas, ctx, self)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                drop_schemas.into_extension()
-            }
-            PlanType::DropTunnel(drop_tunnel) => {
-                let drop_tunnel = plan::DropTunnel::try_decode(drop_tunnel, ctx, self)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                drop_tunnel.into_extension()
-            }
-            PlanType::DropViews(drop_views) => {
-                let drop_views = plan::DropViews::try_decode(drop_views, ctx, self)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                drop_views.into_extension()
-            }
-            PlanType::SetVariable(set_variable) => {
-                let set_variable = plan::SetVariable::try_decode(set_variable, ctx, self)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-                set_variable.into_extension()
-            }
-            PlanType::CopyTo(copy_to) => plan::CopyTo::try_decode(copy_to, ctx, self)
-                .map_err(|e| DataFusionError::External(Box::new(e)))?
-                .into_extension(),
-        })
-    }
-
-    fn try_encode(&self, node: &Extension, buf: &mut Vec<u8>) -> Result<()> {
-        let extension = node
-            .node
-            .name()
-            .parse::<ExtensionType>()
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-        match extension {
-            ExtensionType::CreateTable => plan::CreateTable::try_encode_extension(node, buf, self),
-            ExtensionType::CreateExternalTable => {
-                plan::CreateExternalTable::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::CreateSchema => {
-                plan::CreateSchema::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::DropTables => plan::DropTables::try_encode_extension(node, buf, self),
-            ExtensionType::AlterTable => plan::AlterTable::try_encode_extension(node, buf, self),
-            ExtensionType::AlterDatabase => {
-                plan::AlterDatabase::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::AlterTunnelRotateKeys => {
-                plan::AlterTunnelRotateKeys::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::CreateCredential => {
-                plan::CreateCredential::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::CreateCredentials => {
-                plan::CreateCredentials::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::CreateExternalDatabase => {
-                plan::CreateExternalDatabase::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::CreateTunnel => {
-                plan::CreateTunnel::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::CreateTempTable => {
-                plan::CreateTempTable::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::CreateView => plan::CreateView::try_encode_extension(node, buf, self),
-            ExtensionType::DescribeTable => {
-                plan::DescribeTable::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::DropCredentials => {
-                plan::DropCredentials::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::DropDatabase => {
-                plan::DropDatabase::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::DropSchemas => plan::DropSchemas::try_encode_extension(node, buf, self),
-            ExtensionType::DropTunnel => plan::DropTunnel::try_encode_extension(node, buf, self),
-            ExtensionType::DropViews => plan::DropViews::try_encode_extension(node, buf, self),
-            ExtensionType::SetVariable => plan::SetVariable::try_encode_extension(node, buf, self),
-            ExtensionType::ShowVariable => {
-                plan::ShowVariable::try_encode_extension(node, buf, self)
-            }
-            ExtensionType::CopyTo => plan::CopyTo::try_encode_extension(node, buf, self),
-            ExtensionType::Update => plan::Update::try_encode_extension(node, buf, self),
-            ExtensionType::Delete => plan::Update::try_encode_extension(node, buf, self),
-            ExtensionType::Insert => plan::Insert::try_encode_extension(node, buf, self),
-        }
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        Ok(())
-    }
-
-    fn try_decode_table_provider(
-        &self,
-        buf: &[u8],
-        _schema: SchemaRef,
-        _ctx: &SessionContext,
-    ) -> Result<Arc<dyn TableProvider>> {
-        let provider_id = Uuid::from_slice(buf).map_err(|e| {
-            DataFusionError::External(Box::new(ExecError::InvalidRemoteId("provider", e)))
-        })?;
-
-        let provider = self
-            .table_providers
-            .and_then(|table_providers| table_providers.get(&provider_id))
-            .ok_or_else(|| {
-                DataFusionError::External(Box::new(ExecError::Internal(format!(
-                    "cannot decode the table provider for id: {provider_id}"
-                ))))
-            })?;
-
-        Ok(provider)
-    }
-
-    fn try_encode_table_provider(
-        &self,
-        node: Arc<dyn TableProvider>,
-        buf: &mut Vec<u8>,
-    ) -> Result<()> {
-        if let Some(remote_provider) = node.as_any().downcast_ref::<StubRemoteTableProvider>() {
-            remote_provider
-                .encode(buf)
-                .map_err(|e| DataFusionError::External(Box::new(e)))
-        } else {
-            Err(DataFusionError::External(Box::new(ExecError::Internal(
-                "can only encode `RemoteTableProvider`".to_string(),
-            ))))
-        }
     }
 }
 
@@ -450,40 +161,36 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 if_not_exists: ext.if_not_exists,
             }),
             proto::ExecutionPlanExtensionType::CreateCredentialsExec(create_credentials) => {
-                let exec = CreateCredentialsExec::try_decode(
-                    create_credentials,
-                    &EmptyFunctionRegistry,
-                    self.runtime
-                        .as_ref()
-                        .expect("runtime should be set on decoder"),
-                    self,
-                )
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-                Arc::new(exec)
+                let options = create_credentials
+                    .options
+                    .ok_or(DataFusionError::Plan("options is required".to_string()))?;
+                Arc::new(CreateCredentialsExec {
+                    name: create_credentials.name,
+                    catalog_version: create_credentials.catalog_version,
+                    options: options.try_into()?,
+                    comment: create_credentials.comment,
+                    or_replace: create_credentials.or_replace,
+                })
             }
             proto::ExecutionPlanExtensionType::CreateCredentialExec(create_credential) => {
-                let exec = CreateCredentialExec::try_decode(
-                    create_credential,
-                    &EmptyFunctionRegistry,
-                    self.runtime
-                        .as_ref()
-                        .expect("runtime should be set on decoder"),
-                    self,
-                )
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-                Arc::new(exec)
+                let options = create_credential
+                    .options
+                    .ok_or(DataFusionError::Plan("options is required".to_string()))?;
+                Arc::new(CreateCredentialExec {
+                    name: create_credential.name,
+                    catalog_version: create_credential.catalog_version,
+                    options: options.try_into()?,
+                    comment: create_credential.comment,
+                    or_replace: create_credential.or_replace,
+                })
             }
             proto::ExecutionPlanExtensionType::DescribeTable(describe_table) => {
-                let exec = DescribeTableExec::try_decode(
-                    describe_table,
-                    &EmptyFunctionRegistry,
-                    self.runtime
-                        .as_ref()
-                        .expect("runtime should be set on decoder"),
-                    self,
-                )
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-                Arc::new(exec)
+                let entry = describe_table
+                    .entry
+                    .ok_or(DataFusionError::Plan("entry is required".to_string()))?;
+                Arc::new(DescribeTableExec {
+                    entry: entry.try_into()?,
+                })
             }
             proto::ExecutionPlanExtensionType::AlterDatabaseExec(ext) => {
                 Arc::new(AlterDatabaseExec {
@@ -836,9 +543,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 if_not_exists: exec.if_not_exists,
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateCredentialsExec>() {
-            return exec
-                .try_encode(buf, self)
-                .map_err(|e| DataFusionError::External(Box::new(e)));
+            proto::ExecutionPlanExtensionType::CreateCredentialsExec(proto::CreateCredentialsExec {
+                name: exec.name.clone(),
+                catalog_version: exec.catalog_version,
+                options: Some(exec.options.clone().into()),
+                comment: exec.comment.clone(),
+                or_replace: exec.or_replace,
+            })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateTableExec>() {
             proto::ExecutionPlanExtensionType::CreateTableExec(proto::CreateTableExec {
                 catalog_version: exec.catalog_version,
