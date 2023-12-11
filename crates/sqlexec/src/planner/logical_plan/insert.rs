@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use datafusion::prelude::SessionContext;
 use protogen::metastore::types::catalog::RuntimePreference;
 
 use crate::planner::physical_plan::remote_scan::ProviderReference;

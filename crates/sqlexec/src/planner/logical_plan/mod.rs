@@ -29,21 +29,16 @@ use crate::planner::extension::ExtensionNode;
 
 use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema};
 use datafusion::common::{DFField, DFSchema, DFSchemaRef};
+use datafusion::logical_expr::UserDefinedLogicalNodeCore;
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
-use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
-use datafusion::prelude::SessionContext;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::sqlparser::ast;
 use datafusion::sql::TableReference;
-use datafusion_proto::logical_plan::{AsLogicalPlan, LogicalExtensionCodec};
-use datafusion_proto::protobuf::LogicalPlanNode;
 use once_cell::sync::Lazy;
-use protogen::export::prost::Message;
 use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
 use protogen::metastore::types::options::{
     CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
 };
-use protogen::ProtoConvError;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;

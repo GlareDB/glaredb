@@ -1,4 +1,3 @@
-use datafusion::prelude::SessionContext;
 use protogen::metastore::types::service::AlterDatabaseOperation;
 
 use super::*;

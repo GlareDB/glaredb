@@ -1,4 +1,3 @@
-use datafusion::prelude::SessionContext;
 use protogen::metastore::types::catalog::TableEntry;
 
 use super::*;

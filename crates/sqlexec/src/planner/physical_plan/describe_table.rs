@@ -17,13 +17,9 @@ use datafusion::{
     },
 };
 use futures::stream;
-use protogen::{
-    metastore::types::catalog::TableEntry, sqlexec::physical_plan::ExecutionPlanExtensionType,
-};
+use protogen::metastore::types::catalog::TableEntry;
 
-use crate::planner::errors::internal;
 use crate::planner::{errors::PlanError, logical_plan::DESCRIBE_TABLE_SCHEMA};
-use protogen::export::prost::Message;
 
 #[derive(Debug, Clone)]
 pub struct DescribeTableExec {

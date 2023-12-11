@@ -1,5 +1,3 @@
-use protogen::FromOptionalField;
-
 use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

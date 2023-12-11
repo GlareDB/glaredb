@@ -31,24 +31,20 @@ pub mod show_var;
 pub mod update;
 pub mod values;
 
+use datafusion::arrow::array::{StringArray, UInt64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::execution::runtime_env::RuntimeEnv;
-use datafusion::execution::FunctionRegistry;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::scalar::ScalarValue;
 use datafusion::{
     physical_expr::PhysicalSortExpr,
     physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, Statistics},
 };
-use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 use futures::stream;
 use futures::StreamExt;
-use std::sync::Arc;
-
-use datafusion::arrow::array::{StringArray, UInt64Array};
 use once_cell::sync::Lazy;
+use std::sync::Arc;
 
 pub static GENERIC_OPERATION_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
     Arc::new(Schema::new(vec![Field::new(

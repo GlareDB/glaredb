@@ -1,11 +1,8 @@
 use super::*;
 
 use protogen::metastore::types::{options::CredentialsOptions, service, service::Mutation};
-use protogen::sqlexec::physical_plan::ExecutionPlanExtensionType;
 
-use crate::planner::errors::internal;
 use catalog::mutator::CatalogMutator;
-use protogen::export::prost::Message;
 
 #[derive(Clone, Debug)]
 pub struct CreateCredentialExec {

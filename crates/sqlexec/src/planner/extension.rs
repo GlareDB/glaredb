@@ -1,20 +1,10 @@
-/// extension implementations for converting our logical plan into datafusion logical plan
-use datafusion_proto::{
-    logical_plan::LogicalExtensionCodec, physical_plan::PhysicalExtensionCodec,
-};
-use protogen::ProtoConvError;
 use std::{str::FromStr, sync::Arc};
 
 use crate::{
     errors::{internal, ExecError, Result},
     LogicalPlan,
 };
-use datafusion::{
-    execution::{runtime_env::RuntimeEnv, FunctionRegistry},
-    logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore},
-    physical_plan::ExecutionPlan,
-    prelude::SessionContext,
-};
+use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 
 use super::logical_plan::{
     AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredential, CreateCredentials,

@@ -1,35 +1,28 @@
 use core::fmt;
-use std::collections::HashSet;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use datafusion::arrow::datatypes::{Schema, SchemaRef};
+use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::ipc::reader::FileReader as IpcFileReader;
 use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
-use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result};
-use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::{FunctionRegistry, TaskContext};
-use datafusion::logical_expr::{AggregateUDF, Extension, LogicalPlan, ScalarUDF, WindowUDF};
 use datafusion::physical_plan::analyze::AnalyzeExec;
 use datafusion::physical_plan::union::InterleaveExec;
 use datafusion::physical_plan::values::ValuesExec;
 use datafusion::physical_plan::{displayable, ExecutionPlan};
-use datafusion::prelude::{Expr, SessionContext};
+use datafusion::prelude::Expr;
 use datafusion_ext::metrics::{
     ReadOnlyDataSourceMetricsExecAdapter, WriteOnlyDataSourceMetricsExecAdapter,
 };
 use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use datafusion_proto::logical_plan::from_proto::parse_expr;
-use datafusion_proto::logical_plan::LogicalExtensionCodec;
 use datafusion_proto::physical_plan::PhysicalExtensionCodec;
+use protogen::export::prost::Message;
 use protogen::metastore::types::catalog::RuntimePreference;
 use uuid::Uuid;
 
-use crate::errors::ExecError;
-use crate::planner::extension::{ExtensionNode, ExtensionType};
-use crate::planner::logical_plan as plan;
 use crate::planner::physical_plan::alter_database::AlterDatabaseExec;
 use crate::planner::physical_plan::alter_table::AlterTableExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
@@ -61,52 +54,21 @@ use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
 };
 use crate::remote::provider_cache::ProviderCache;
-use crate::remote::table::StubRemoteTableProvider;
-
-use protogen::export::prost::Message;
 
 pub struct GlareDBExtensionCodec<'a> {
     table_providers: Option<&'a ProviderCache>,
-    runtime: Option<Arc<RuntimeEnv>>,
-}
-struct EmptyFunctionRegistry;
-
-impl FunctionRegistry for EmptyFunctionRegistry {
-    fn udfs(&self) -> HashSet<String> {
-        HashSet::new()
-    }
-
-    fn udf(&self, name: &str) -> Result<Arc<ScalarUDF>> {
-        Err(DataFusionError::Plan(
-            format!("No function registry provided to deserialize, so can not deserialize User Defined Function '{name}'"))
-        )
-    }
-
-    fn udaf(&self, name: &str) -> Result<Arc<AggregateUDF>> {
-        Err(DataFusionError::Plan(
-            format!("No function registry provided to deserialize, so can not deserialize User Defined Aggregate Function '{name}'"))
-        )
-    }
-
-    fn udwf(&self, name: &str) -> Result<Arc<WindowUDF>> {
-        Err(DataFusionError::Plan(
-            format!("No function registry provided to deserialize, so can not deserialize User Defined Window Function '{name}'"))
-        )
-    }
 }
 
 impl<'a> GlareDBExtensionCodec<'a> {
-    pub fn new_decoder(table_providers: &'a ProviderCache, runtime: Arc<RuntimeEnv>) -> Self {
+    pub fn new_decoder(table_providers: &'a ProviderCache) -> Self {
         Self {
             table_providers: Some(table_providers),
-            runtime: Some(runtime),
         }
     }
 
     pub fn new_encoder() -> Self {
         Self {
             table_providers: None,
-            runtime: None,
         }
     }
 }
