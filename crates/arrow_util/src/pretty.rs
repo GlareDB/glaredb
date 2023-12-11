@@ -237,6 +237,8 @@ fn truncate_or_wrap_string(s: &mut String, width: usize) {
         return;
     }
 
+    fmt_float(s); //Truncating long floats to have 4 digits after decimal point.
+
     if display_width(s) <= width {
         return;
     }
@@ -251,6 +253,51 @@ fn truncate_or_wrap_string(s: &mut String, width: usize) {
     }
 
     // I don't believe it's possible for us to actually get here...
+}
+
+fn fmt_float(s: &mut String) {
+    const DIGITS_AFTER_DECIMAL: usize = 4;
+    let x = s.as_mut_str();
+    let mut is_float: bool = false;
+    let p = x.parse::<f64>();
+
+    match p {
+        Ok(_) => {
+            let mut index_of_decimal: usize;
+            let m = x.chars().enumerate();
+            let mut length: usize = 0;
+
+            for a in m {
+                //Checking if its a floating number else its an integer
+                if a.1 == '.' {
+                    index_of_decimal = a.0; //Noting index of decimalpoint
+                    length = index_of_decimal + DIGITS_AFTER_DECIMAL;
+                    is_float = true;
+                }
+            }
+            if is_float {
+                if x.len() > length + 1 {
+                    let mut u = x.len() - (length + 1);
+                    while u > 0 {
+                        s.pop();
+                        u -= 1;
+                    }
+                } else {
+                    let mut add_zeros: usize = (length + 1) - x.len();
+                    while add_zeros > 0 {
+                        s.push('0');
+                        add_zeros -= 1;
+                    }
+                }
+            } else {
+                //Ignoring values which are integers without decimal point.
+                //We can add code if needed.
+            }
+        }
+        Err(_) => {
+            //ignoring values which are not both (float or integer)
+        }
+    }
 }
 
 fn fmt_timeunit(tu: &TimeUnit) -> String {
