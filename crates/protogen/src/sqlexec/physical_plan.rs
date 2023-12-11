@@ -7,7 +7,7 @@ use prost::{Message, Oneof};
 
 use super::{
     common::{FullObjectReference, FullSchemaReference},
-    logical_plan::{CopyToDestinationOptions, CopyToFormatOptions},
+    copy_to::{CopyToDestinationOptions, CopyToFormatOptions},
 };
 
 #[derive(Clone, PartialEq, Message)]

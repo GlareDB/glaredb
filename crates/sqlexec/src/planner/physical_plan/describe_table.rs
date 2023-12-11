@@ -17,13 +17,9 @@ use datafusion::{
     },
 };
 use futures::stream;
-use protogen::{
-    metastore::types::catalog::TableEntry, sqlexec::physical_plan::ExecutionPlanExtensionType,
-};
+use protogen::metastore::types::catalog::TableEntry;
 
-use crate::planner::errors::internal;
 use crate::planner::{errors::PlanError, logical_plan::DESCRIBE_TABLE_SCHEMA};
-use protogen::export::prost::Message;
 
 #[derive(Debug, Clone)]
 pub struct DescribeTableExec {
@@ -33,38 +29,6 @@ pub struct DescribeTableExec {
 impl DisplayAs for DescribeTableExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "DescribeTableExec")
-    }
-}
-
-impl PhysicalExtensionNode for DescribeTableExec {
-    type ProtoRepr = protogen::sqlexec::physical_plan::DescribeTableExec;
-
-    fn try_encode(
-        &self,
-        buf: &mut Vec<u8>,
-        _codec: &dyn datafusion_proto::physical_plan::PhysicalExtensionCodec,
-    ) -> crate::errors::Result<()> {
-        let proto = protogen::sqlexec::physical_plan::DescribeTableExec {
-            entry: Some(self.entry.clone().try_into()?),
-        };
-        let ty = ExecutionPlanExtensionType::DescribeTable(proto);
-        let extension =
-            protogen::sqlexec::physical_plan::ExecutionPlanExtension { inner: Some(ty) };
-        extension
-            .encode(buf)
-            .map_err(|e| internal!("{}", e.to_string()))?;
-        Ok(())
-    }
-
-    fn try_decode(
-        proto: Self::ProtoRepr,
-        _registry: &dyn FunctionRegistry,
-        _runtime: &RuntimeEnv,
-        _extension_codec: &dyn PhysicalExtensionCodec,
-    ) -> crate::errors::Result<Self, protogen::ProtoConvError> {
-        Ok(Self {
-            entry: proto.entry.unwrap().try_into()?,
-        })
     }
 }
 
