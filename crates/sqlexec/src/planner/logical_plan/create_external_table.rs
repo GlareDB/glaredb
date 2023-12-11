@@ -40,6 +40,5 @@ impl UserDefinedLogicalNodeCore for CreateExternalTable {
 }
 
 impl ExtensionNode for CreateExternalTable {
-    type ProtoRepr = protogen::sqlexec::logical_plan::CreateExternalTable;
     const EXTENSION_NAME: &'static str = "CreateExternalTable";
 }

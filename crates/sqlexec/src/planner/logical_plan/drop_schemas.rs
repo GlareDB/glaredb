@@ -38,6 +38,5 @@ impl UserDefinedLogicalNodeCore for DropSchemas {
 }
 
 impl ExtensionNode for DropSchemas {
-    type ProtoRepr = protogen::sqlexec::logical_plan::DropSchemas;
     const EXTENSION_NAME: &'static str = "DropSchemas";
 }

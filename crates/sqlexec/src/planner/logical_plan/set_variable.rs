@@ -63,6 +63,5 @@ impl UserDefinedLogicalNodeCore for SetVariable {
 }
 
 impl ExtensionNode for SetVariable {
-    type ProtoRepr = protogen::sqlexec::logical_plan::SetVariable;
     const EXTENSION_NAME: &'static str = "SetVariable";
 }

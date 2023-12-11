@@ -37,6 +37,5 @@ impl UserDefinedLogicalNodeCore for DropDatabase {
 }
 
 impl ExtensionNode for DropDatabase {
-    type ProtoRepr = protogen::sqlexec::logical_plan::DropDatabase;
     const EXTENSION_NAME: &'static str = "DropDatabase";
 }

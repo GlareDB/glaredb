@@ -37,6 +37,5 @@ impl UserDefinedLogicalNodeCore for CreateSchema {
 }
 
 impl ExtensionNode for CreateSchema {
-    type ProtoRepr = protogen::sqlexec::logical_plan::CreateSchema;
     const EXTENSION_NAME: &'static str = "CreateSchema";
 }

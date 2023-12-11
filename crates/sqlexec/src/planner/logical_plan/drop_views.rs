@@ -37,6 +37,5 @@ impl UserDefinedLogicalNodeCore for DropViews {
 }
 
 impl ExtensionNode for DropViews {
-    type ProtoRepr = protogen::sqlexec::logical_plan::DropViews;
     const EXTENSION_NAME: &'static str = "DropViews";
 }

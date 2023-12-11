@@ -38,6 +38,5 @@ impl UserDefinedLogicalNodeCore for CreateView {
 }
 
 impl ExtensionNode for CreateView {
-    type ProtoRepr = protogen::sqlexec::logical_plan::CreateView;
     const EXTENSION_NAME: &'static str = "CreateView";
 }

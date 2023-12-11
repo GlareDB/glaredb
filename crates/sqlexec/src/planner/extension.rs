@@ -90,7 +90,6 @@ impl FromStr for ExtensionType {
 }
 
 pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
-    type ProtoRepr;
     const EXTENSION_NAME: &'static str;
 
     fn into_extension(self) -> LogicalPlanExtension {

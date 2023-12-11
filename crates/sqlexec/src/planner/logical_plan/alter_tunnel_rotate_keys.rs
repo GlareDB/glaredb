@@ -38,6 +38,5 @@ impl UserDefinedLogicalNodeCore for AlterTunnelRotateKeys {
 }
 
 impl ExtensionNode for AlterTunnelRotateKeys {
-    type ProtoRepr = protogen::gen::metastore::service::AlterTunnelRotateKeys;
     const EXTENSION_NAME: &'static str = "AlterTunnelRotateKeys";
 }

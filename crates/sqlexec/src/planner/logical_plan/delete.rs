@@ -40,6 +40,5 @@ impl UserDefinedLogicalNodeCore for Delete {
 }
 
 impl ExtensionNode for Delete {
-    type ProtoRepr = protogen::sqlexec::logical_plan::Delete;
     const EXTENSION_NAME: &'static str = "Delete";
 }

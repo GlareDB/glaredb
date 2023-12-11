@@ -41,6 +41,5 @@ impl UserDefinedLogicalNodeCore for Update {
 }
 
 impl ExtensionNode for Update {
-    type ProtoRepr = protogen::sqlexec::logical_plan::Update;
     const EXTENSION_NAME: &'static str = "Update";
 }

@@ -55,6 +55,5 @@ impl UserDefinedLogicalNodeCore for ShowVariable {
 }
 
 impl ExtensionNode for ShowVariable {
-    type ProtoRepr = protogen::sqlexec::logical_plan::ShowVariable;
     const EXTENSION_NAME: &'static str = "ShowVariable";
 }

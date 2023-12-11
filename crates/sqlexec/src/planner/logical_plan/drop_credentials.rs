@@ -36,6 +36,5 @@ impl UserDefinedLogicalNodeCore for DropCredentials {
 }
 
 impl ExtensionNode for DropCredentials {
-    type ProtoRepr = protogen::sqlexec::logical_plan::DropCredentials;
     const EXTENSION_NAME: &'static str = "DropCredentials";
 }

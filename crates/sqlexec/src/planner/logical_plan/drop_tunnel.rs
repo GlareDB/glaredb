@@ -36,6 +36,5 @@ impl UserDefinedLogicalNodeCore for DropTunnel {
 }
 
 impl ExtensionNode for DropTunnel {
-    type ProtoRepr = protogen::sqlexec::logical_plan::DropTunnel;
     const EXTENSION_NAME: &'static str = "DropTunnel";
 }

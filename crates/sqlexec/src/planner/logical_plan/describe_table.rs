@@ -52,6 +52,5 @@ impl UserDefinedLogicalNodeCore for DescribeTable {
 }
 
 impl ExtensionNode for DescribeTable {
-    type ProtoRepr = ();
     const EXTENSION_NAME: &'static str = "DescribeTable";
 }

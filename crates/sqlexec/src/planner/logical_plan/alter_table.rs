@@ -40,6 +40,5 @@ impl UserDefinedLogicalNodeCore for AlterTable {
 }
 
 impl ExtensionNode for AlterTable {
-    type ProtoRepr = protogen::gen::metastore::service::AlterTable;
     const EXTENSION_NAME: &'static str = "AlterTable";
 }

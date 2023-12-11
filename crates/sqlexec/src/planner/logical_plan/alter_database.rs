@@ -40,6 +40,5 @@ impl UserDefinedLogicalNodeCore for AlterDatabase {
 }
 
 impl ExtensionNode for AlterDatabase {
-    type ProtoRepr = protogen::gen::metastore::service::AlterDatabase;
     const EXTENSION_NAME: &'static str = "AlterDatabase";
 }

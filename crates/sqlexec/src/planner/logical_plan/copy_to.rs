@@ -48,6 +48,5 @@ impl UserDefinedLogicalNodeCore for CopyTo {
 }
 
 impl ExtensionNode for CopyTo {
-    type ProtoRepr = protogen::sqlexec::logical_plan::CopyTo;
     const EXTENSION_NAME: &'static str = "CopyTo";
 }

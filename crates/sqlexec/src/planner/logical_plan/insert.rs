@@ -46,6 +46,5 @@ impl UserDefinedLogicalNodeCore for Insert {
 }
 
 impl ExtensionNode for Insert {
-    type ProtoRepr = protogen::sqlexec::logical_plan::Insert;
     const EXTENSION_NAME: &'static str = "Insert";
 }

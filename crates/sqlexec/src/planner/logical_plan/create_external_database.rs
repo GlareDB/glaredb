@@ -41,6 +41,5 @@ impl UserDefinedLogicalNodeCore for CreateExternalDatabase {
 }
 
 impl ExtensionNode for CreateExternalDatabase {
-    type ProtoRepr = protogen::gen::metastore::service::CreateExternalDatabase;
     const EXTENSION_NAME: &'static str = "CreateExternalDatabase";
 }

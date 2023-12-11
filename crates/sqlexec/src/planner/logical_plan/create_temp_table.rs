@@ -43,6 +43,5 @@ impl UserDefinedLogicalNodeCore for CreateTempTable {
 }
 
 impl ExtensionNode for CreateTempTable {
-    type ProtoRepr = protogen::sqlexec::logical_plan::CreateTempTable;
     const EXTENSION_NAME: &'static str = "CreateTempTable";
 }

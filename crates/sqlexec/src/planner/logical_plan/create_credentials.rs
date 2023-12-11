@@ -38,6 +38,5 @@ impl UserDefinedLogicalNodeCore for CreateCredentials {
 }
 
 impl ExtensionNode for CreateCredentials {
-    type ProtoRepr = protogen::gen::metastore::service::CreateCredentials;
     const EXTENSION_NAME: &'static str = "CreateCredentials";
 }

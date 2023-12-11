@@ -45,6 +45,5 @@ impl UserDefinedLogicalNodeCore for CreateTable {
 }
 
 impl ExtensionNode for CreateTable {
-    type ProtoRepr = protogen::sqlexec::logical_plan::CreateTable;
     const EXTENSION_NAME: &'static str = "CreateTable";
 }

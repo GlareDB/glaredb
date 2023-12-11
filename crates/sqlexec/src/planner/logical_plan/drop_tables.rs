@@ -36,6 +36,5 @@ impl UserDefinedLogicalNodeCore for DropTables {
 }
 
 impl ExtensionNode for DropTables {
-    type ProtoRepr = protogen::sqlexec::logical_plan::DropTables;
     const EXTENSION_NAME: &'static str = "DropTables";
 }

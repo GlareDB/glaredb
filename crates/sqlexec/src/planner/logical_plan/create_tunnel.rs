@@ -38,6 +38,5 @@ impl UserDefinedLogicalNodeCore for CreateTunnel {
 }
 
 impl ExtensionNode for CreateTunnel {
-    type ProtoRepr = protogen::gen::metastore::service::CreateTunnel;
     const EXTENSION_NAME: &'static str = "CreateTunnel";
 }
