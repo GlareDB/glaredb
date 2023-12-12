@@ -139,14 +139,11 @@ impl RunCommand for ServerArgs {
 
         // If we don't enable the rpc service, then trying to enable the simple
         // interface doesn't make sense.
+        // Clap isn't intelligent enough to handle negative conditions, so we
+        // have to manually check.
         if rpc_bind.is_none() && enable_simple_query_rpc {
             return Err(anyhow!(
                 "An rpc bind address needs to be provided to enable the simple query interface"
-            ));
-        }
-        if bind.is_some() && disable_postgres_api {
-            return Err(anyhow!(
-                "Cannot disable the postgres api when a bind address is provided"
             ));
         }
 
