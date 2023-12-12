@@ -144,8 +144,7 @@ impl MetastoreClientHandle {
             rx,
         )
         .await
-        .expect("try_mutate")
-        // .and_then(std::convert::identity) // Flatten
+        .and_then(std::convert::identity) // Flatten
     }
 
     async fn send<R>(&self, req: ClientRequest, rx: oneshot::Receiver<R>) -> Result<R> {
@@ -497,15 +496,10 @@ impl StatefulWorker {
                     }
                     Err(e) => Err(e),
                 };
-                if response.is_closed() {
-                    error!("failed to send ok result of mutate. response channel closed");
-                }
 
                 if let Err(result) = response.send(result) {
                     match result {
-                        Ok(_) => {
-                            error!("failed to send ok result of mutate")
-                        }
+                        Ok(_) => error!("failed to send ok result of mutate"),
                         Err(e) => error!(%e, "failed to send error result of mutate"),
                     }
                 }
