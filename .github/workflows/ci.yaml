@@ -284,15 +284,15 @@ jobs:
 
           echo "-------------------------------- RPC TESTS --------------------------------"
           just rpc-tests
-          just sql-logic-tests --rpc-test 'sqllogictests_bigquery/*'
-          just sql-logic-tests --rpc-test 'sqllogictests_iceberg/*'
-          just sql-logic-tests --rpc-test 'sqllogictests_native/*'
-          just sql-logic-tests --rpc-test 'sqllogictests_object_store/*'
-          just sql-logic-tests --rpc-test 'sqllogictests_snowflake/*'
-          just sql-logic-tests --rpc-test 'sqllogictests_sqlserver/*'
-          just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
-          just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
-          just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_bigquery/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_iceberg/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_native/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_object_store/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_snowflake/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_sqlserver/*'
+          just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
+          just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
+          just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
 
           echo "-------------------------- REMOTE DATA STORAGE TESTS --------------------------------"
           # Test using a remote object store for storing databases and catalog
