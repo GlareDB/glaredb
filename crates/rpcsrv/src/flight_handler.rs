@@ -106,7 +106,7 @@ impl FlightSessionHandler {
         req: &Request<Ticket>,
         query: ActionExecuteLogicalPlan,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
-        let ctx = self.get_or_create_ctx(&req).await?;
+        let ctx = self.get_or_create_ctx(req).await?;
         let ctx = ctx.read().await;
         let ActionExecuteLogicalPlan { handle } = query;
         let lp = self
@@ -287,12 +287,10 @@ impl FlightSqlService for FlightSessionHandler {
         let portal = ctx.get_portal(&handle).map_err(RpcsrvError::from)?;
 
         let output_schema = portal.output_schema().ok_or_else(|| {
-            Status::internal(format!(
-                "Expected a valid output schema, instead received: None"
-            ))
+            Status::internal("Expected a valid output schema, instead received: None".to_string())
         })?;
 
-        let message = SchemaAsIpc::new(&output_schema, &IpcWriteOptions::default())
+        let message = SchemaAsIpc::new(output_schema, &IpcWriteOptions::default())
             .try_into()
             .map_err(RpcsrvError::from)?;
 

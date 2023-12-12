@@ -11,7 +11,7 @@ use tracing::info;
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use glaredb::args::StorageConfigArgs;
-use glaredb::server::{ComputeServer, ServerConfig};
+use glaredb::server::ComputeServer;
 use tokio::{net::TcpListener, runtime::Builder, sync::mpsc, time::Instant};
 use tokio_postgres::config::Config as ClientConfig;
 use uuid::Uuid;
@@ -74,6 +74,7 @@ pub struct Cli {
     #[clap(short, long, value_parser)]
     exclude: Vec<String>,
 
+    /// Client protocol to use. (rpc, postgres, flightsql)
     #[arg(long, short, value_enum, default_value_t=ClientProtocol::Postgres)]
     protocol: ClientProtocol,
 
@@ -82,7 +83,7 @@ pub struct Cli {
 
     /// Tests to run.
     ///
-    /// Provide glob like regexes for test names. If ommitted, runs all the
+    /// Provide glob like regexes for test names. If omitted, runs all the
     /// tests. This is similar to providing parameter as `*`.
     tests_pattern: Option<Vec<String>>,
 }
@@ -203,33 +204,28 @@ impl Cli {
                     }
                 };
 
-                let server_conf = ServerConfig {
-                    pg_listener,
-                    rpc_listener,
-                };
-
-                let mut builder = ComputeServer::with_authenticator(SingleUserAuthenticator {
-                    user: "glaredb".to_string(),
-                    password: "glaredb".to_string(),
-                })
-                .with_metastore_addr_opt(self.metastore_addr.clone())
-                .with_data_dir(temp_dir.path().to_path_buf())
-                .with_location_opt(self.storage_config.location.clone())
-                .with_storage_options(HashMap::from_iter(
-                    self.storage_config.storage_options.clone(),
-                ))
-                .integration_testing_mode(true);
+                let mut builder = ComputeServer::builder()
+                    .with_authenticator(SingleUserAuthenticator {
+                        user: "glaredb".to_string(),
+                        password: "glaredb".to_string(),
+                    })
+                    .with_pg_listener_opt(pg_listener)
+                    .with_rpc_listener_opt(rpc_listener)
+                    .with_metastore_addr_opt(self.metastore_addr.clone())
+                    .with_data_dir(temp_dir.path().to_path_buf())
+                    .with_location_opt(self.storage_config.location.clone())
+                    .with_storage_options(HashMap::from_iter(
+                        self.storage_config.storage_options.clone(),
+                    ))
+                    .integration_testing_mode(true);
 
                 if matches!(self.protocol, ClientProtocol::Rpc) {
                     builder = builder.disable_rpc_auth(true);
                 }
 
-                let server = builder
-                    // .disable_rpc_auth(self.rpc_test)
-                    .connect()
-                    .await?;
+                let server = builder.connect().await?;
 
-                tokio::spawn(server.serve(server_conf));
+                tokio::spawn(server.serve());
 
                 let mut configs = HashMap::new();
                 let host = socket_addr.ip().to_string();
@@ -320,7 +316,7 @@ impl Cli {
             let tx = jobs_tx.clone();
             let hooks = Arc::clone(&hooks);
 
-            let protocol = self.protocol.clone();
+            let protocol = self.protocol;
             let data_dir = data_dir.to_path_buf();
 
             tokio::spawn(async move {

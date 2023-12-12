@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use glaredb::server::{ComputeServer, ServerConfig};
+use glaredb::server::ComputeServer;
 use glob::glob;
 use pgsrv::auth::SingleUserAuthenticator;
 use std::net::SocketAddr;
@@ -54,19 +54,17 @@ fn main() -> Result<()> {
         let pg_listener =
             TcpListener::bind(cli.bind.unwrap_or_else(|| "localhost:0".to_string())).await?;
         let pg_addr = pg_listener.local_addr()?;
-        let server_conf = ServerConfig {
-            pg_listener: Some(pg_listener),
-            rpc_listener: None,
-        };
 
-        let server = ComputeServer::with_authenticator(SingleUserAuthenticator {
-            user: "glaredb".to_string(),
-            password: "glaredb".to_string(),
-        })
-        .connect()
-        .await?;
+        let server = ComputeServer::builder()
+            .with_authenticator(SingleUserAuthenticator {
+                user: "glaredb".to_string(),
+                password: "glaredb".to_string(),
+            })
+            .with_pg_listener(pg_listener)
+            .connect()
+            .await?;
 
-        tokio::spawn(server.serve(server_conf));
+        tokio::spawn(server.serve());
 
         let mut runner = BenchRunner::connect(pg_addr).await?;
         let load_path = tokio::fs::read_to_string(PathBuf::from(cli.load)).await?;

@@ -4,7 +4,7 @@ use crate::local::LocalSession;
 use crate::metastore::Metastore;
 use crate::pg_proxy::PgProxy;
 use crate::rpc_proxy::RpcProxy;
-use crate::server::{ComputeServer, ServerConfig};
+use crate::server::ComputeServer;
 use anyhow::{anyhow, Result};
 use atty::Stream;
 use clap::Subcommand;
@@ -156,11 +156,10 @@ impl RunCommand for ServerArgs {
                 None => None,
             };
 
-            let conf = ServerConfig {
-                pg_listener,
-                rpc_listener: rpc_listener,
-            };
-            let server = ComputeServer::with_authenticator(auth)
+            let server = ComputeServer::builder()
+                .with_authenticator(auth)
+                .with_pg_listener_opt(pg_listener)
+                .with_rpc_listener_opt(rpc_listener)
                 .with_metastore_addr_opt(metastore_addr)
                 .with_segment_key_opt(segment_key)
                 .with_data_dir_opt(data_dir)
@@ -173,7 +172,7 @@ impl RunCommand for ServerArgs {
                 .connect()
                 .await?;
 
-            server.serve(conf).await
+            server.serve().await
         })
     }
 }
