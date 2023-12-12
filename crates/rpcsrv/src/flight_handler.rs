@@ -15,8 +15,9 @@ use uuid::Uuid;
 
 pub use arrow_flight::flight_service_server::FlightServiceServer;
 use arrow_flight::{
-    encode::FlightDataEncoderBuilder, flight_service_server::FlightService, sql::*, Action,
-    FlightDescriptor, FlightEndpoint, FlightInfo, IpcMessage, SchemaAsIpc, Ticket,
+    encode::FlightDataEncoderBuilder, error::FlightError::ExternalError,
+    flight_service_server::FlightService, sql::*, Action, FlightDescriptor, FlightEndpoint,
+    FlightInfo, IpcMessage, SchemaAsIpc, Ticket,
 };
 use arrow_flight::{
     sql::{
@@ -67,20 +68,18 @@ impl FlightSessionHandler {
     async fn get_or_create_ctx<T>(
         &self,
         request: &Request<T>,
-    ) -> Result<(String, Arc<RwLock<Session>>), Status> {
+    ) -> Result<Arc<RwLock<Session>>, Status> {
+        // If the client specified a database id, use it, otherwise create a new one.
         let db_handle = request
             .metadata()
             .get(DATABASE_HEADER)
             .map(|s| s.to_str().unwrap().to_string())
-            .unwrap_or_else(|| {
-                println!("no database header found, creating new handle");
-                Uuid::new_v4().to_string()
-            });
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
 
         if self.sessions.contains_key(&db_handle) {
             // println!("found session for {}", db_handle);
             let sess = self.sessions.get(&db_handle).unwrap().clone();
-            return Ok((db_handle, sess));
+            return Ok(sess);
         }
 
         let db_id = Uuid::parse_str(&db_handle)
@@ -95,12 +94,11 @@ impl FlightSessionHandler {
             .new_untracked_session(session_vars, SessionStorageConfig::default())
             .await
             .map_err(RpcsrvError::from)?;
-        // let metastore = self.engine.
 
         let sess = Arc::new(RwLock::new(sess));
         self.sessions.insert(db_handle.clone(), sess.clone());
 
-        Ok((db_handle, sess))
+        Ok(sess)
     }
 
     async fn do_action_execute_logical_plan(
@@ -108,7 +106,7 @@ impl FlightSessionHandler {
         req: &Request<Ticket>,
         query: ActionExecuteLogicalPlan,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
-        let (_, ctx) = self.get_or_create_ctx(&req).await?;
+        let ctx = self.get_or_create_ctx(&req).await?;
         let ctx = ctx.read().await;
         let ActionExecuteLogicalPlan { handle } = query;
         let lp = self
@@ -128,9 +126,6 @@ impl FlightSessionHandler {
             .create_physical_plan(lp, &OperationInfo::default())
             .await
             .map_err(RpcsrvError::from)?;
-        // let display_plan = plan.clone();
-        // let display_plan = DisplayableExecutionPlan::new(display_plan.as_ref());
-        // println!("physical plan = {}", display_plan.indent(false));
         let stream = ctx
             .execute_physical_plan(plan)
             .await
@@ -138,8 +133,7 @@ impl FlightSessionHandler {
 
         let schema = stream.schema();
 
-        let stream =
-            stream.map_err(|e| arrow_flight::error::FlightError::ExternalError(Box::new(e)));
+        let stream = stream.map_err(|e| ExternalError(Box::new(e)));
 
         let stream = FlightDataEncoderBuilder::new()
             .with_schema(schema)
@@ -181,16 +175,14 @@ impl FlightSqlService for FlightSessionHandler {
 
             // All non specified types should be handled as a sql query
             sql => {
-                let (_, ctx) = self.get_or_create_ctx(&req).await?;
+                let ctx = self.get_or_create_ctx(&req).await?;
                 let mut ctx = ctx.write().await;
 
                 match ctx.execute_sql(sql, None).await {
                     Ok(stream) => {
                         let schema = stream.schema();
 
-                        let stream = stream.map_err(|e| {
-                            arrow_flight::error::FlightError::ExternalError(Box::new(e))
-                        });
+                        let stream = stream.map_err(|e| ExternalError(Box::new(e)));
 
                         let stream = FlightDataEncoderBuilder::new()
                             .with_schema(schema)
@@ -227,11 +219,10 @@ impl FlightSqlService for FlightSessionHandler {
         cmd: CommandPreparedStatementQuery,
         req: Request<FlightDescriptor>,
     ) -> Result<Response<FlightInfo>, Status> {
-        // println!("get_flight_info_prepared_statement");
         let handle = String::from_utf8(cmd.prepared_statement_handle.to_vec()).ok();
         let handle = handle.unwrap_or_else(|| Uuid::new_v4().to_string());
 
-        let (_, ctx) = self.get_or_create_ctx(&req).await?;
+        let ctx = self.get_or_create_ctx(&req).await?;
         let ctx = ctx.write().await;
         let portal = ctx.get_portal(&handle).map_err(RpcsrvError::from)?;
 
@@ -252,7 +243,6 @@ impl FlightSqlService for FlightSessionHandler {
 
         let endpoint = FlightEndpoint::new().with_ticket(ticket);
 
-        // Ideally, we'd start the execution here, but instead we defer it all to the "do_get" call.
         // Eventually, we should asynchronously start the execution here,
         // and return a `Ticket` that contains information on how to retrieve the results.
         let flight_info = FlightInfo::new()
@@ -282,25 +272,25 @@ impl FlightSqlService for FlightSessionHandler {
         query: ActionCreatePreparedStatementRequest,
         req: Request<Action>,
     ) -> Result<ActionCreatePreparedStatementResult, Status> {
-        // println!("do_action_create_prepared_statement");
         let handle = query
             .transaction_id
             .map(|id| String::from_utf8(id.to_vec()).unwrap())
             .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-        let (_, ctx) = self.get_or_create_ctx(&req).await?;
+        let ctx = self.get_or_create_ctx(&req).await?;
         let mut ctx = ctx.write().await;
 
         ctx.prepare_portal(&handle, &query.query)
             .await
             .map_err(RpcsrvError::from)?;
 
-        let lp = ctx
-            .create_logical_plan(&query.query)
-            .await
-            .map_err(RpcsrvError::from)?;
+        let portal = ctx.get_portal(&handle).map_err(RpcsrvError::from)?;
 
-        let output_schema = lp.output_schema().expect("no output schema");
+        let output_schema = portal.output_schema().ok_or_else(|| {
+            Status::internal(format!(
+                "Expected a valid output schema, instead received: None"
+            ))
+        })?;
 
         let message = SchemaAsIpc::new(&output_schema, &IpcWriteOptions::default())
             .try_into()
@@ -324,7 +314,7 @@ impl FlightSqlService for FlightSessionHandler {
         let handle = std::str::from_utf8(&query.prepared_statement_handle)
             .map_err(|e| RpcsrvError::ParseError(e.to_string()))?;
 
-        let (_, ctx) = self.get_or_create_ctx(&req).await?;
+        let ctx = self.get_or_create_ctx(&req).await?;
         ctx.write().await.remove_portal(handle);
         self.logical_plans.remove(handle);
 
