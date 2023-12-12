@@ -18,10 +18,10 @@ fn test_log_file() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = file_path.as_os_str().to_str().unwrap();
 
     cmd.timeout(DEFAULT_TIMEOUT)
-        .arg("-q")
-        .arg("select 1;")
         .arg("--log-file")
         .arg(file_path)
+        .arg("-q")
+        .arg("select 1;")
         .assert()
         .success();
 
@@ -51,10 +51,10 @@ fn test_log_file_verbosity_level() -> Result<(), Box<dyn std::error::Error>> {
 
     cmd.timeout(DEFAULT_TIMEOUT)
         .arg("-v")
-        .arg("-q")
-        .arg("select 1;")
         .arg("--log-file")
         .arg(file_path)
+        .arg("-q")
+        .arg("select 1;")
         .assert()
         .success();
 
