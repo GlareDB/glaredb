@@ -7,4 +7,4 @@ pub fn make_cli() -> Command {
 }
 
 #[allow(dead_code)] // Used in the tests. IDK why clippy is complaining about it.
-pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
+pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(3);
