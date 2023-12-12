@@ -48,7 +48,7 @@ test *args: protoc
 
 # Run unit tests.
 unit-tests *args: protoc
-  just test --lib --bins {{args}}
+  just test --workspace --exclude testing {{args}}
 
 # Run doc tests.
 doc-tests: protoc
