@@ -3143,6 +3143,7 @@ dependencies = [
  "rpcsrv",
  "sqlexec",
  "telemetry",
+ "tempfile",
  "tokio",
  "tokio-postgres",
  "tonic",
