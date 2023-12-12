@@ -314,24 +314,24 @@ impl ComputeServer {
                         return Ok(())
                     }
 
-                    result = pg_listener.accept() => {
-                        let (conn, client_addr) = result?;
+                result = pg_listener.accept() => {
+                    let (conn, client_addr) = result?;
 
-                        let pg_handler = self.pg_handler.clone();
-                        let conn_id = Uuid::new_v4();
-                        let span = debug_span!("glaredb_connection", %conn_id);
+                    let pg_handler = self.pg_handler.clone();
+                    let conn_id = Uuid::new_v4();
+                    let span = debug_span!("glaredb_connection", %conn_id);
 
-                        tokio::spawn(
-                            async move {
-                                debug!(%client_addr, "client connected (pg)");
-                                match pg_handler.handle_connection(conn_id, conn).await {
-                                    Ok(_) => debug!(%client_addr, "client disconnected"),
-                                    Err(e) => debug!(%e, %client_addr, "client disconnected with error"),
-                                }
+                    tokio::spawn(
+                        async move {
+                            debug!(%client_addr, "client connected (pg)");
+                            match pg_handler.handle_connection(conn_id, conn).await {
+                                Ok(_) => debug!(%client_addr, "client disconnected"),
+                                Err(e) => debug!(%e, %client_addr, "client disconnected with error"),
                             }
-                            .instrument(span),
-                        );
-                    }
+                        }
+                        .instrument(span),
+                    );
+                }
                 }
             }
         } else {
