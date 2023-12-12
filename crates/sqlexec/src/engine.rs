@@ -266,6 +266,7 @@ impl EngineStorageConfig {
 }
 
 /// Hold configuration and clients needed to create database sessions.
+/// An engine is able to support multiple [`Session`]'s across multiple db instances
 pub struct Engine {
     /// Metastore client supervisor.
     supervisor: MetastoreClientSupervisor,
@@ -380,6 +381,26 @@ impl Engine {
         vars: SessionVars,
         storage: SessionStorageConfig,
     ) -> Result<TrackedSession> {
+        let session = self.new_untracked_session(vars, storage).await?;
+
+        let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
+        debug!(session_count = prev + 1, "new session opened");
+
+        Ok(TrackedSession {
+            inner: session,
+            session_counter: self.session_counter.clone(),
+        })
+    }
+
+    /// Create a new untracked session.
+    ///
+    /// This does not increment the session counter.
+    /// So any session created with this method will not prevent the engine from shutting down.
+    pub async fn new_untracked_session(
+        &self,
+        vars: SessionVars,
+        storage: SessionStorageConfig,
+    ) -> Result<Session> {
         let database_id = vars.database_id();
         let metastore = self.supervisor.init_client(database_id).await?;
         let native = self
@@ -395,7 +416,7 @@ impl Engine {
             },
         );
 
-        let session = Session::new(
+        Session::new(
             vars,
             catalog,
             metastore.into(),
@@ -403,15 +424,7 @@ impl Engine {
             self.tracker.clone(),
             self.spill_path.clone(),
             self.task_scheduler.clone(),
-        )?;
-
-        let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
-        debug!(session_count = prev + 1, "new session opened");
-
-        Ok(TrackedSession {
-            inner: session,
-            session_counter: self.session_counter.clone(),
-        })
+        )
     }
 
     /// Create a new remote session for plan execution.
