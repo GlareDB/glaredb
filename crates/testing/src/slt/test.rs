@@ -101,7 +101,7 @@ impl Test {
             Self::File(path) => {
                 let regx = Regex::new(ENV_REGEX).unwrap();
                 let records = parse_file(&regx, &path, vars)?;
-                
+
                 let mut runner = Runner::new(|| {
                     let client = client.clone();
                     async { Ok(client) }

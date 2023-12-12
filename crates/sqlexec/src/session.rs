@@ -759,7 +759,7 @@ impl Session {
             datafusion_ext::vars::Dialect::Prql => crate::parser::parse_prql(query),
         }
     }
-    
+
     /// Execute a SQL query.
     /// if the query doesn't contain exactly one statement, an error is returned.
     pub async fn execute_sql(

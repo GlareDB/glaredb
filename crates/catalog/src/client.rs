@@ -143,7 +143,8 @@ impl MetastoreClientHandle {
             },
             rx,
         )
-        .await.expect("try_mutate")
+        .await
+        .expect("try_mutate")
         // .and_then(std::convert::identity) // Flatten
     }
 

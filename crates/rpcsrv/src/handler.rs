@@ -4,30 +4,23 @@ use crate::{
 };
 use async_trait::async_trait;
 use dashmap::DashMap;
-use datafusion::{arrow::ipc::writer::FileWriter as IpcFileWriter, variable::VarType};
-use datafusion::{arrow::record_batch::RecordBatch, physical_plan::SendableRecordBatchStream};
-use datafusion_ext::{
-    session_metrics::{BatchStreamWithMetricSender, QueryMetrics, SessionMetricsHandler},
-    vars::SessionVars,
+use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion_ext::session_metrics::{
+    BatchStreamWithMetricSender, QueryMetrics, SessionMetricsHandler,
 };
 use futures::{Stream, StreamExt};
 use protogen::{
     gen::rpcsrv::common,
     gen::rpcsrv::service,
-    gen::rpcsrv::simple,
-    rpcsrv::types::{
-        service::{
-            DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse,
-            InitializeSessionRequest, InitializeSessionResponse, PhysicalPlanExecuteRequest,
-            TableProviderResponse,
-        },
-        simple::{ExecuteQueryRequest, ExecuteQueryResponse, QueryResultError, QueryResultSuccess},
+    rpcsrv::types::service::{
+        DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse, InitializeSessionRequest,
+        InitializeSessionResponse, PhysicalPlanExecuteRequest, TableProviderResponse,
     },
 };
 use sqlexec::{
     engine::{Engine, SessionStorageConfig},
     remote::batch_stream::ExecutionBatchStream,
-    OperationInfo,
 };
 use std::{
     collections::HashMap,
@@ -317,100 +310,6 @@ impl Stream for ExecutionResponseBatchStream {
             Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(RpcsrvError::from(e).into()))),
             Poll::Ready(None) => Poll::Ready(None),
             Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
-/// The "simple query" rpc handler.
-///
-/// Note that this doesn't keep state about sessions, and session only last the
-/// lifetime of a query.
-pub struct SimpleHandler {
-    /// Core db engine for creating sessions.
-    engine: Arc<Engine>,
-}
-
-impl SimpleHandler {
-    pub fn new(engine: Arc<Engine>) -> SimpleHandler {
-        SimpleHandler { engine }
-    }
-}
-
-#[async_trait]
-impl simple::simple_service_server::SimpleService for SimpleHandler {
-    type ExecuteQueryStream = SimpleExecuteQueryStream;
-
-    async fn execute_query(
-        &self,
-        request: Request<simple::ExecuteQueryRequest>,
-    ) -> Result<Response<Self::ExecuteQueryStream>, Status> {
-        // Note that this creates a local session independent of any "remote"
-        // sessions. This provides full session capabilities (e.g. parsing sql,
-        // use the dist exec scheduler).
-        //
-        // This may be something we change (into what?)
-        let request = ExecuteQueryRequest::try_from(request.into_inner())?;
-        let vars = SessionVars::default().with_database_id(request.database_id, VarType::System);
-        let mut session = self
-            .engine
-            .new_local_session_context(vars, request.config.into())
-            .await
-            .map_err(RpcsrvError::from)?;
-
-        let plan = session
-            .create_logical_plan(&request.query_text)
-            .await
-            .map_err(RpcsrvError::from)?;
-        let plan = plan.try_into_datafusion_plan().map_err(RpcsrvError::from)?;
-        let physical = session
-            .create_physical_plan(plan, &OperationInfo::default())
-            .await
-            .map_err(RpcsrvError::from)?;
-        let stream = session
-            .execute_physical_plan(physical)
-            .await
-            .map_err(RpcsrvError::from)?;
-
-        Ok(Response::new(SimpleExecuteQueryStream { inner: stream }))
-    }
-}
-
-/// Stream implementation for sending the results of a simple query request.
-// TODO: Only supports a single response stream (we can do many).
-// TODO: Only provides "success" or "error" info to the client. Doesn't return
-// the actual results.
-pub struct SimpleExecuteQueryStream {
-    inner: SendableRecordBatchStream,
-}
-
-impl Stream for SimpleExecuteQueryStream {
-    type Item = Result<simple::ExecuteQueryResponse, Status>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        loop {
-            match self.inner.poll_next_unpin(cx) {
-                // Drop the result, we're not sending it back to the client.
-                // And continue to the next loop iteration.
-                Poll::Ready(Some(Ok(_))) => (),
-
-                // Stream completed without error, return success to the client.
-                Poll::Ready(None) => {
-                    return Poll::Ready(Some(Ok(ExecuteQueryResponse::SuccessResult(
-                        QueryResultSuccess {},
-                    )
-                    .into())))
-                }
-
-                // We got an error, send it back to the client.
-                Poll::Ready(Some(Err(e))) => {
-                    return Poll::Ready(Some(Ok(ExecuteQueryResponse::ErrorResult(
-                        QueryResultError { msg: e.to_string() },
-                    )
-                    .into())))
-                }
-
-                Poll::Pending => return Poll::Pending,
-            }
         }
     }
 }

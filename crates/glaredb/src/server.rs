@@ -5,7 +5,7 @@ use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use protogen::gen::rpcsrv::simple::simple_service_server::SimpleServiceServer;
 use rpcsrv::flight_handler::{FlightServiceServer, FlightSessionHandler};
-use rpcsrv::handler::{RpcHandler, SimpleHandler};
+use rpcsrv::{handler::RpcHandler, simple::SimpleHandler};
 use sqlexec::engine::{Engine, EngineStorageConfig};
 use std::collections::HashMap;
 use std::path::PathBuf;
