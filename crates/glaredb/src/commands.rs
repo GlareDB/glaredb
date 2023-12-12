@@ -46,6 +46,8 @@ impl Commands {
         }
     }
 }
+const DEFAULT_PG_BIND_ADDR: &str = "0.0.0.0:6543";
+const DEFAULT_RPC_BIND_ADDR: &str = "0.0.0.0:6789";
 
 trait RunCommand {
     fn run(self) -> Result<()>;
@@ -128,6 +130,8 @@ impl RunCommand for ServerArgs {
             disable_rpc_auth,
             segment_key,
             enable_simple_query_rpc,
+            enable_flight_api,
+            disable_postgres_api,
         } = self;
 
         // Map an empty string to None. Makes writing the terraform easier.
@@ -140,6 +144,11 @@ impl RunCommand for ServerArgs {
                 "An rpc bind address needs to be provided to enable the simple query interface"
             ));
         }
+        if bind.is_some() && disable_postgres_api {
+            return Err(anyhow!(
+                "Cannot disable the postgres api when a bind address is provided"
+            ));
+        }
 
         let auth: Box<dyn LocalAuthenticator> = match password {
             Some(password) => Box::new(SingleUserAuthenticator { user, password }),
@@ -149,10 +158,16 @@ impl RunCommand for ServerArgs {
         };
 
         let runtime = build_runtime("server")?;
+
         runtime.block_on(async move {
-            let pg_listener = Some(TcpListener::bind(bind).await?); // TODO pg_opt
+            let pg_listener = match bind {
+                Some(bind) => Some(TcpListener::bind(bind).await?),
+                None if disable_postgres_api => None,
+                None => Some(TcpListener::bind(DEFAULT_PG_BIND_ADDR).await?),
+            };
             let rpc_listener = match rpc_bind {
                 Some(bind) => Some(TcpListener::bind(bind).await?),
+                None if enable_flight_api => Some(TcpListener::bind(DEFAULT_RPC_BIND_ADDR).await?),
                 None => None,
             };
 
@@ -169,6 +184,7 @@ impl RunCommand for ServerArgs {
                 .with_spill_path_opt(spill_path)
                 .disable_rpc_auth(disable_rpc_auth)
                 .enable_simple_query_rpc(enable_simple_query_rpc)
+                .enable_flight_api(enable_flight_api)
                 .connect()
                 .await?;
 

@@ -30,6 +30,7 @@ pub struct ComputeServer {
     integration_testing: bool,
     disable_rpc_auth: bool,
     enable_simple_query_rpc: bool,
+    enable_flight_api: bool,
     engine: Arc<Engine>,
     pg_config: Option<PostgresProtocolConfig>,
     rpc_listener: Option<TcpListener>,
@@ -51,6 +52,7 @@ pub struct ComputeServerBuilder {
     integration_testing: bool,
     disable_rpc_auth: bool,
     enable_simple_query_rpc: bool,
+    enable_flight_api: bool,
 }
 
 impl ComputeServerBuilder {
@@ -69,6 +71,7 @@ impl ComputeServerBuilder {
             integration_testing: false,
             disable_rpc_auth: false,
             enable_simple_query_rpc: false,
+            enable_flight_api: false,
         }
     }
     /// Set the authenticator to use for the pg handler.
@@ -164,6 +167,11 @@ impl ComputeServerBuilder {
         self.enable_simple_query_rpc = enable_simple_query_rpc;
         self
     }
+    pub fn enable_flight_api(mut self, enable_flight_api: bool) -> Self {
+        self.enable_flight_api = enable_flight_api;
+        self
+    }
+
     pub async fn connect(self) -> Result<ComputeServer> {
         let ComputeServerBuilder {
             metastore_addr,
@@ -179,6 +187,7 @@ impl ComputeServerBuilder {
             enable_simple_query_rpc,
             pg_listener,
             rpc_listener,
+            enable_flight_api,
         } = self;
 
         // Invalid state if we have a pg_listener but no authenticator.
@@ -230,6 +239,7 @@ impl ComputeServerBuilder {
                 handler: pg_handler,
             })
         } else {
+            println!("pg_listener not provided");
             None
         };
 
@@ -237,6 +247,7 @@ impl ComputeServerBuilder {
             integration_testing,
             disable_rpc_auth,
             enable_simple_query_rpc,
+            enable_flight_api,
             pg_config,
             engine,
             rpc_listener,
@@ -317,11 +328,15 @@ impl ComputeServer {
             self.disable_rpc_auth,
             self.integration_testing,
         );
-        let flight_handler = FlightSessionHandler::new(&self.engine);
         let mut server = Server::builder()
             .trace_fn(|_| debug_span!("rpc_service_request"))
-            .add_service(ExecutionServiceServer::new(handler))
-            .add_service(FlightServiceServer::new(flight_handler));
+            .add_service(ExecutionServiceServer::new(handler));
+
+        if self.enable_flight_api {
+            info!("enabling flight sql service");
+            let flight_handler = FlightSessionHandler::new(&self.engine);
+            server = server.add_service(FlightServiceServer::new(flight_handler));
+        }
         // Add in the simple interface if requested.
         if self.enable_simple_query_rpc {
             info!("enabling simple query rpc service");
@@ -334,13 +349,14 @@ impl ComputeServer {
     /// Serve using the provided config.
     pub async fn serve(self) -> Result<()> {
         let rpc_msg = if let Some(listener) = &self.rpc_listener {
-            format!("Connect via RPC: grpc://{}\n", listener.local_addr()?)
+            format!("\nConnect via RPC: grpc://{}\n", listener.local_addr()?)
         } else {
             "".to_string()
         };
+
         let pg_msg = if let Some(PostgresProtocolConfig { ref listener, .. }) = &self.pg_config {
             format!(
-                "Connect via Postgres: postgresql://{}",
+                "\nConnect via Postgres: postgresql://{}",
                 listener.local_addr()?,
             )
         } else {
@@ -348,7 +364,7 @@ impl ComputeServer {
         };
 
         info!(
-            "Starting GlareDB {}\n{}\n{}\n",
+            "Starting GlareDB {}{}{}\n",
             env!("CARGO_PKG_VERSION"),
             pg_msg,
             rpc_msg
