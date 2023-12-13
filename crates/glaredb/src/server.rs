@@ -20,10 +20,12 @@ use tonic::transport::Server;
 use tracing::{debug, debug_span, error, info, Instrument};
 use uuid::Uuid;
 
+/// Configuration for initializing the postgres api
 pub struct PostgresProtocolConfig {
     /// Listener to use for pg handler.
-    pub listener: TcpListener,
-    pub handler: Arc<ProtocolHandler>,
+    listener: TcpListener,
+    /// Handler to use for pg connections.
+    handler: Arc<ProtocolHandler>,
 }
 
 pub struct ComputeServer {
@@ -239,7 +241,7 @@ impl ComputeServerBuilder {
                 handler: pg_handler,
             })
         } else {
-            println!("pg_listener not provided");
+            debug!("pg_listener not provided. Skipping pg protocol.");
             None
         };
 
@@ -371,9 +373,9 @@ impl ComputeServer {
         );
 
         // Shutdown handler.
-        let (tx, mut rx) = oneshot::channel();
+
         let engine = self.engine.clone();
-        spawn_shutdown_handler(engine, self.integration_testing, tx);
+        let mut rx = spawn_shutdown_handler(engine, self.integration_testing);
 
         // Start rpc service.
         if self.rpc_listener.is_some() {
@@ -429,8 +431,8 @@ impl ComputeServer {
 fn spawn_shutdown_handler(
     engine: Arc<Engine>,
     is_integration_testing: bool,
-    tx: oneshot::Sender<()>,
-) {
+) -> oneshot::Receiver<()> {
+    let (tx, rx) = oneshot::channel();
     tokio::spawn(async move {
         match signal::ctrl_c().await {
             Ok(()) => {
@@ -461,6 +463,7 @@ fn spawn_shutdown_handler(
             }
         }
     });
+    rx
 }
 
 #[cfg(test)]

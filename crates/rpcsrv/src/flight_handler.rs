@@ -10,7 +10,7 @@ use sqlexec::{
     OperationInfo,
 };
 use std::{pin::Pin, sync::Arc};
-use tokio::sync::{RwLock, RwLockReadGuard};
+use tokio::sync::{Mutex, MutexGuard};
 use uuid::Uuid;
 
 pub use arrow_flight::flight_service_server::FlightServiceServer;
@@ -53,7 +53,7 @@ pub struct FlightSessionHandler {
     // We'll want to implement a time based eviction policy, or a max size.
     // We use [`Session`] instead of [`TrackedSession`] because tracked sessions need to be
     // explicitly closed, and we don't have a way to do that yet.
-    sessions: DashMap<String, Arc<RwLock<Session>>>,
+    sessions: DashMap<String, Arc<Mutex<Session>>>,
 }
 
 impl FlightSessionHandler {
@@ -68,7 +68,7 @@ impl FlightSessionHandler {
     async fn get_or_create_ctx<T>(
         &self,
         request: &Request<T>,
-    ) -> Result<Arc<RwLock<Session>>, Status> {
+    ) -> Result<Arc<Mutex<Session>>, Status> {
         // If the client specified a database id, use it, otherwise create a new one.
         let db_handle = request
             .metadata()
@@ -77,7 +77,6 @@ impl FlightSessionHandler {
             .unwrap_or_else(|| Uuid::new_v4().to_string());
 
         if self.sessions.contains_key(&db_handle) {
-            // println!("found session for {}", db_handle);
             let sess = self.sessions.get(&db_handle).unwrap().clone();
             return Ok(sess);
         }
@@ -95,7 +94,7 @@ impl FlightSessionHandler {
             .await
             .map_err(RpcsrvError::from)?;
 
-        let sess = Arc::new(RwLock::new(sess));
+        let sess = Arc::new(Mutex::new(sess));
         self.sessions.insert(db_handle.clone(), sess.clone());
 
         Ok(sess)
@@ -107,7 +106,7 @@ impl FlightSessionHandler {
         query: ActionExecuteLogicalPlan,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
         let ctx = self.get_or_create_ctx(req).await?;
-        let ctx = ctx.read().await;
+        let ctx = ctx.lock().await;
         let ActionExecuteLogicalPlan { handle } = query;
         let lp = self
             .logical_plans
@@ -119,7 +118,7 @@ impl FlightSessionHandler {
 
     async fn execute_lp(
         &self,
-        ctx: RwLockReadGuard<'_, Session>,
+        ctx: MutexGuard<'_, Session>,
         lp: LogicalPlan,
     ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
         let plan = ctx
@@ -176,7 +175,7 @@ impl FlightSqlService for FlightSessionHandler {
             // All non specified types should be handled as a sql query
             sql => {
                 let ctx = self.get_or_create_ctx(&req).await?;
-                let mut ctx = ctx.write().await;
+                let mut ctx = ctx.lock().await;
 
                 match ctx.execute_sql(sql, None).await {
                     Ok(stream) => {
@@ -223,7 +222,7 @@ impl FlightSqlService for FlightSessionHandler {
         let handle = handle.unwrap_or_else(|| Uuid::new_v4().to_string());
 
         let ctx = self.get_or_create_ctx(&req).await?;
-        let ctx = ctx.write().await;
+        let ctx = ctx.lock().await;
         let portal = ctx.get_portal(&handle).map_err(RpcsrvError::from)?;
 
         let plan = portal.logical_plan().unwrap();
@@ -278,7 +277,7 @@ impl FlightSqlService for FlightSessionHandler {
             .unwrap_or_else(|| Uuid::new_v4().to_string());
 
         let ctx = self.get_or_create_ctx(&req).await?;
-        let mut ctx = ctx.write().await;
+        let mut ctx = ctx.lock().await;
 
         ctx.prepare_portal(&handle, &query.query)
             .await
@@ -313,7 +312,7 @@ impl FlightSqlService for FlightSessionHandler {
             .map_err(|e| RpcsrvError::ParseError(e.to_string()))?;
 
         let ctx = self.get_or_create_ctx(&req).await?;
-        ctx.write().await.remove_portal(handle);
+        ctx.lock().await.remove_portal(handle);
         self.logical_plans.remove(handle);
 
         Ok(())

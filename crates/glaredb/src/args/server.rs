@@ -92,6 +92,7 @@ pub struct ServerArgs {
     /// (Internal)
     #[arg(long, hide = true, value_parser)]
     pub segment_key: Option<String>,
+
     /// Enable the experimental Flight SQL API.
     ///
     /// This starts up a Flight SQL compatible API that can be used in place of

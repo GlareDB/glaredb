@@ -37,12 +37,12 @@ select count(*) from cows where kdl_matches(cows.docs, '[status]');
 ----
 2
 
-query I
+query T
 select cows.docs from cows where kdl_matches(cows.docs, '[b=100]');
 ----
 name "betsy" status="amazing" age=89; details "classic" a=1 b=100;
 
-query I
+query T
 select kdl_select(cows.docs, '[age=120]') from cows where kdl_matches(cows.docs, '[b=100]');
 ----
 (empty)
