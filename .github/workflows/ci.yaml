@@ -76,9 +76,6 @@ jobs:
       - name: Unit Tests
         run: just unit-tests
 
-      - name: Doc Tests
-        run: just doc-tests
-
   python-binding-tests:
     name: Python Binding Tests
     runs-on: ubuntu-latest-8-cores

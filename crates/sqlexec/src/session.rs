@@ -109,6 +109,47 @@ pub enum ExecutionResult {
     /// Credentials are dropped.
     DropCredentials,
 }
+// this just makes the `prepare_statement` method a bit more ergonomic.
+pub struct PrepareStatementArg {
+    stmt: Option<StatementWithExtensions>,
+}
+
+impl<'a> TryFrom<&'a str> for PrepareStatementArg {
+    type Error = ExecError;
+    fn try_from(query: &'a str) -> Result<Self> {
+        let mut statements = crate::parser::parse_sql(query)?;
+        match statements.len() {
+            0 => Err(ExecError::String("No statements in query".to_string())),
+            1 => Ok(PrepareStatementArg {
+                stmt: statements.pop_front(),
+            }),
+            _ => Err(ExecError::String(
+                "More than one statement in query".to_string(),
+            )),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a String> for PrepareStatementArg {
+    type Error = ExecError;
+    fn try_from(query: &'a String) -> Result<Self> {
+        let s: &str = query;
+        s.try_into()
+    }
+}
+
+impl TryFrom<Option<StatementWithExtensions>> for PrepareStatementArg {
+    type Error = ExecError;
+    fn try_from(stmt: Option<StatementWithExtensions>) -> Result<Self> {
+        Ok(PrepareStatementArg { stmt })
+    }
+}
+impl TryFrom<StatementWithExtensions> for PrepareStatementArg {
+    type Error = ExecError;
+    fn try_from(stmt: StatementWithExtensions) -> Result<Self> {
+        Ok(PrepareStatementArg { stmt: Some(stmt) })
+    }
+}
 
 impl ExecutionResult {
     /// Create a result from a stream and a physical plan.
@@ -457,13 +498,15 @@ impl Session {
     }
 
     /// Prepare a parsed statement for future execution.
-    pub async fn prepare_statement(
+    pub async fn prepare_statement<T: TryInto<PrepareStatementArg, Error = ExecError>>(
         &mut self,
         name: String,
-        stmt: Option<StatementWithExtensions>,
+        stmt: T,
         params: Vec<i32>, // OIDs
     ) -> Result<()> {
-        self.ctx.prepare_statement(name, stmt, params).await
+        let stmt: PrepareStatementArg = stmt.try_into()?;
+
+        self.ctx.prepare_statement(name, stmt.stmt, params).await
     }
 
     pub fn get_prepared_statement(&self, name: &str) -> Result<&PreparedStatement> {
@@ -679,8 +722,7 @@ impl Session {
             0 => Err(ExecError::String("No statements in query".to_string())),
             1 => {
                 let stmt = statements.pop_front().unwrap();
-                self.prepare_statement(UNNAMED, Some(stmt), Vec::new())
-                    .await?;
+                self.prepare_statement(UNNAMED, stmt, Vec::new()).await?;
                 let prepared = self.get_prepared_statement(&UNNAMED)?;
                 let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
                 self.bind_statement(
@@ -703,5 +745,20 @@ impl Session {
             datafusion_ext::vars::Dialect::Sql => crate::parser::parse_sql(query),
             datafusion_ext::vars::Dialect::Prql => crate::parser::parse_prql(query),
         }
+    }
+
+    pub async fn prepare_portal(&mut self, handle: &str, query: &str) -> Result<()> {
+        self.prepare_statement(handle.to_string(), query, Vec::new())
+            .await?;
+        let prepared = self.get_prepared_statement(handle)?;
+
+        let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
+        self.bind_statement(
+            handle.to_string(),
+            handle,
+            Vec::new(),
+            vec![Format::Text; num_fields],
+        )?;
+        Ok(())
     }
 }

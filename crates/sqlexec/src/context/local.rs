@@ -481,6 +481,15 @@ impl Portal {
             output_fields
         })
     }
+    pub fn logical_plan(&self) -> Option<&LogicalPlan> {
+        self.stmt.plan.as_ref()
+    }
+    pub fn input_paramaters(&self) -> Option<&HashMap<String, Option<(PgType, DataType)>>> {
+        self.stmt.input_paramaters()
+    }
+    pub fn output_schema(&self) -> Option<&ArrowSchema> {
+        self.stmt.output_schema.as_ref()
+    }
 }
 
 /// Iterator over the various fields of output schema.
