@@ -30,7 +30,7 @@ impl UserDefinedLogicalNodeCore for CreateTable {
     }
 
     fn fmt_for_explain(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", Self::EXTENSION_NAME)
+        write!(f, "CreateTable")
     }
 
     fn from_template(

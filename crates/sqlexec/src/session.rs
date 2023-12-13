@@ -16,6 +16,7 @@ use crate::planner::physical_plan::{
     get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
     GENERIC_OPERATION_PHYSICAL_SCHEMA,
 };
+use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::RemoteClient;
 use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 use catalog::mutator::CatalogMutator;
@@ -468,7 +469,7 @@ impl Session {
     }
 
     /// Execute a datafusion physical plan.
-    pub async fn execute_physical(
+    pub async fn execute_physical_plan(
         &self,
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
@@ -509,6 +510,22 @@ impl Session {
         self.ctx.prepare_statement(name, stmt.stmt, params).await
     }
 
+    /// Like 'prepare_statement', but for a portal.
+    pub async fn prepare_portal(&mut self, portal_id: &str, query: &str) -> Result<()> {
+        self.prepare_statement(portal_id.to_string(), query, Vec::new())
+            .await?;
+        let prepared = self.get_prepared_statement(portal_id)?;
+
+        let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
+        self.bind_statement(
+            portal_id.to_string(),
+            portal_id,
+            Vec::new(),
+            vec![Format::Text; num_fields],
+        )?;
+        Ok(())
+    }
+
     pub fn get_prepared_statement(&self, name: &str) -> Result<&PreparedStatement> {
         self.ctx.get_prepared_statement(name)
     }
@@ -540,7 +557,8 @@ impl Session {
             .bind_statement(portal_name, stmt_name, params, result_formats)
     }
 
-    pub async fn execute_inner(
+    /// Execute a logical plan.
+    pub async fn execute_logical_plan(
         &mut self,
         plan: LogicalPlan,
         op: &OperationInfo,
@@ -557,7 +575,7 @@ impl Session {
             }
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan, op).await?;
-                let stream = self.execute_physical(physical.clone()).await?;
+                let stream = self.execute_physical_plan(physical.clone()).await?;
 
                 let stream = ExecutionResult::from_stream(stream).await;
 
@@ -624,7 +642,7 @@ impl Session {
             ..Default::default()
         };
 
-        let stream = match self.execute_inner(plan, &op).await {
+        let stream = match self.execute_logical_plan(plan, &op).await {
             Ok((plan, result)) => match result {
                 ExecutionResult::Error(e) => {
                     metrics.execution_status = ExecutionStatus::Fail;
@@ -679,20 +697,6 @@ impl Session {
         Ok(stream)
     }
 
-    /// Helper for converting a query (SQL or PRQL) statement to a
-    /// logical plan.
-    ///
-    /// Useful for our "local" clients, including the CLI, Python, and
-    /// JS bindings.
-    ///
-    /// Errors if no statements or more than one statement is provided
-    /// in the query.
-    pub async fn query_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
-        let statements = self.parse_query(query)?;
-
-        self.parsed_to_lp(statements).await
-    }
-
     /// Helper for converting SQL statement to a logical plan.
     ///
     /// Errors if no statements or more than one statement is provided
@@ -700,20 +704,10 @@ impl Session {
     pub async fn prql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
         let stmt = crate::parser::parse_prql(query)?;
 
-        self.parsed_to_lp(stmt).await
+        self.prepare_statements(stmt).await
     }
 
-    /// Helper for converting PRQL statement to a logical plan.
-    ///
-    /// Errors if no statements or more than one statement is provided
-    /// in the query.
-    pub async fn sql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
-        let statements = crate::parser::parse_sql(query)?;
-
-        self.parsed_to_lp(statements).await
-    }
-
-    pub async fn parsed_to_lp(
+    pub async fn prepare_statements(
         &mut self,
         mut statements: VecDeque<StatementWithExtensions>,
     ) -> Result<LogicalPlan> {
@@ -740,25 +734,46 @@ impl Session {
         }
     }
 
-    pub fn parse_query(&mut self, query: &str) -> Result<VecDeque<StatementWithExtensions>> {
+    /// Create a logical plan from a SQL query.
+    /// if the query doesn't contain exactly one statement, an error is returned.
+    pub async fn create_logical_plan(&mut self, query: &str) -> Result<LogicalPlan> {
+        self.ctx.maybe_refresh_state().await?;
+        let mut statements = self.parse_query(query)?;
+        match statements.len() {
+            0 => Err(ExecError::String("No statements in query".to_string())),
+            1 => {
+                let stmt = statements.pop_front().unwrap();
+                let planner = SessionPlanner::new(&self.ctx);
+                let plan = planner.plan_ast(stmt).await?;
+                Ok(plan)
+            }
+            _ => Err(ExecError::String(
+                "More than one statement in query".to_string(),
+            )),
+        }
+    }
+
+    pub fn parse_query(&self, query: &str) -> Result<VecDeque<StatementWithExtensions>> {
         match self.get_session_vars().dialect() {
             datafusion_ext::vars::Dialect::Sql => crate::parser::parse_sql(query),
             datafusion_ext::vars::Dialect::Prql => crate::parser::parse_prql(query),
         }
     }
 
-    pub async fn prepare_portal(&mut self, handle: &str, query: &str) -> Result<()> {
-        self.prepare_statement(handle.to_string(), query, Vec::new())
+    /// Execute a SQL query.
+    /// if the query doesn't contain exactly one statement, an error is returned.
+    pub async fn execute_sql(
+        &mut self,
+        query: &str,
+        op_info: Option<OperationInfo>,
+    ) -> Result<SendableRecordBatchStream> {
+        let plan = self.create_logical_plan(query).await?;
+        let plan = plan.try_into_datafusion_plan()?;
+        let plan = self
+            .create_physical_plan(plan, &op_info.unwrap_or_default())
             .await?;
-        let prepared = self.get_prepared_statement(handle)?;
+        let stream = self.execute_physical_plan(plan).await?;
 
-        let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
-        self.bind_statement(
-            handle.to_string(),
-            handle,
-            Vec::new(),
-            vec![Format::Text; num_fields],
-        )?;
-        Ok(())
+        Ok(stream)
     }
 }

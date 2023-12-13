@@ -110,7 +110,7 @@ impl Connection {
             let mut sess = self.sess.lock().await;
 
             let plan = sess
-                .query_to_lp(query)
+                .create_logical_plan(query)
                 .await
                 .map_err(PyGlareDbError::from)?;
 
@@ -125,7 +125,7 @@ impl Connection {
                 | DFLogicalPlan::Dml(_)
                 | DFLogicalPlan::Ddl(_)
                 | DFLogicalPlan::Copy(_) => {
-                    sess.execute_inner(plan, &op)
+                    sess.execute_logical_plan(plan, &op)
                         .await
                         .map_err(PyGlareDbError::from)?;
 
@@ -181,13 +181,13 @@ impl Connection {
         let (_, exec_result) = wait_for_future(py, async move {
             let mut sess = sess.lock().await;
             let plan = sess
-                .query_to_lp(query)
+                .create_logical_plan(query)
                 .await
                 .map_err(PyGlareDbError::from)?;
 
             let op = OperationInfo::new().with_query_text(query);
 
-            sess.execute_inner(plan, &op)
+            sess.execute_logical_plan(plan, &op)
                 .await
                 .map_err(PyGlareDbError::from)
         })?;

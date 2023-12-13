@@ -50,7 +50,7 @@ impl UserDefinedLogicalNodeCore for SetVariable {
     }
 
     fn fmt_for_explain(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "SetVariable")
+        write!(f, "SET {:} = {:}", self.variable, self.values)
     }
 
     fn from_template(
