@@ -576,7 +576,7 @@ fn fmt_floats(flt: Option<&f64>) -> String {
     match flt {
         Some(float) => {
             //Change here to configure digits after decimalpoint for long floats
-            let str = format!("{:.4}", float); 
+            let str = format!("{:.5}", float); 
             str
         }
         None => String::from(""),
