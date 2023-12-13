@@ -12,8 +12,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  dummy:
+    if: |
+      contains('[
+        "scsmithr",
+        "greyscaled",
+        "tychoish",
+        "universalmind303",
+      ]', github.actor)
+
+    name: Dummy (vaibhav testing)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print context
+        run: |
+          echo "${{ github.repository }}"
+          echo "${{ github.repository_id }}"
+          echo "${{ github.repository_owner }}"
+          echo "${{ github.repository_owner_id }}"
+          echo "${{ github.repositoryUrl }}"
+          echo "${{ github.ref }}"
+          echo "${{ github.ref_name }}"
+          echo "${{ github.actor }}"
+          echo "'${{ secrets.TRIGGER_WORKFLOW }}'"
+  
   build:
     name: Build
+    needs: ["dummy"]
     runs-on: ubuntu-latest-8-cores
     steps:
       - name: Checkout
