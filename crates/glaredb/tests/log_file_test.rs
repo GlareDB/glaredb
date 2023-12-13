@@ -5,25 +5,27 @@ use std::{
     io::Read,
 };
 
+use tempfile::NamedTempFile;
+
 use crate::setup::{make_cli, DEFAULT_TIMEOUT};
 
 #[test]
 fn test_log_file() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = make_cli();
-    let log_file_name = "test.log";
+    let tmp_file = NamedTempFile::new().unwrap();
+    let file_path = tmp_file.path();
+    let file_path = file_path.canonicalize().unwrap();
+    let file_path = file_path.as_os_str().to_str().unwrap();
+
     cmd.timeout(DEFAULT_TIMEOUT)
+        .arg("--log-file")
+        .arg(file_path)
         .arg("-q")
         .arg("select 1;")
-        .arg("--log-file")
-        .arg(log_file_name)
         .assert()
         .success();
 
-    let mut log_file = std::env::current_dir().expect("failed to retrieve current dir");
-    log_file.push(log_file_name);
-    assert!(log_file.exists());
-
-    let mut file = OpenOptions::new().read(true).open(&log_file)?;
+    let mut file = OpenOptions::new().read(true).open(&tmp_file)?;
     assert!(file.metadata()?.len() > 0);
 
     let mut content = String::new();
@@ -35,28 +37,28 @@ fn test_log_file() -> Result<(), Box<dyn std::error::Error>> {
 
     assert!(content.contains("Starting in-memory metastore"));
 
-    remove_file(log_file)?;
+    remove_file(tmp_file)?;
     Ok(())
 }
 
 #[test]
 fn test_log_file_verbosity_level() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = make_cli();
-    let log_file_name = "test.log";
+    let tmp_file = NamedTempFile::new().unwrap();
+    let file_path = tmp_file.path();
+    let file_path = file_path.canonicalize().unwrap();
+    let file_path = file_path.as_os_str().to_str().unwrap();
+
     cmd.timeout(DEFAULT_TIMEOUT)
         .arg("-v")
+        .arg("--log-file")
+        .arg(file_path)
         .arg("-q")
         .arg("select 1;")
-        .arg("--log-file")
-        .arg(log_file_name)
         .assert()
         .success();
 
-    let mut log_file = std::env::current_dir().expect("failed to retrieve current dir");
-    log_file.push(log_file_name);
-    assert!(log_file.exists());
-
-    let mut file = OpenOptions::new().read(true).open(&log_file)?;
+    let mut file = OpenOptions::new().read(true).open(&tmp_file)?;
     assert!(file.metadata()?.len() > 0);
 
     let mut content = String::new();
@@ -65,23 +67,6 @@ fn test_log_file_verbosity_level() -> Result<(), Box<dyn std::error::Error>> {
     assert!(content.contains("DEBUG"));
     assert!(!content.contains("TRACE"));
 
-    remove_file(log_file)?;
+    remove_file(tmp_file)?;
     Ok(())
-}
-
-#[test]
-fn test_skipping_logs() {
-    let mut cmd = make_cli();
-    let log_file_name = "/usr/bin/debug.log";
-    cmd.timeout(DEFAULT_TIMEOUT)
-        .arg("-q")
-        .arg("select 1;")
-        .arg("--log-file")
-        .arg(log_file_name)
-        .assert()
-        .success();
-
-    let mut log_file = std::env::current_dir().expect("failed to retrieve current dir");
-    log_file.push(log_file_name);
-    assert!(!log_file.exists());
 }

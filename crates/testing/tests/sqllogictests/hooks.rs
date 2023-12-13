@@ -36,7 +36,6 @@ impl Hook for AllTestsHook {
             Self::TMP_DIR.to_owned(),
             tmp_dir.to_string_lossy().into_owned(),
         );
-
         // Set the current database to test database
         vars.insert(
             Self::VAR_CURRENT_DATABASE.to_owned(),
@@ -196,6 +195,10 @@ impl Hook for SshTunnelHook {
         let client = match client {
             TestClient::Pg(client) => client,
             TestClient::Rpc(_) => return Err(anyhow!("cannot run SSH tunnel test on rpc")),
+            TestClient::FlightSql(_) => {
+                warn!("cannot run SSH tunnel test on flight protocol. Skipping...");
+                return Ok(());
+            }
         };
 
         let mut err = None;

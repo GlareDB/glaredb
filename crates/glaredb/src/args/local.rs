@@ -1,12 +1,15 @@
+use clap::Args;
+
 use super::*;
 
-#[derive(Parser, Debug)]
+#[derive(Args, Debug)]
+#[group(id="query_input", args = ["query", "file"], multiple = false)]
 pub struct LocalArgs {
     /// Execute a query, exiting upon completion.
     ///
     /// Multiple statements may be provided, and results will be printed out
     /// one after another.
-    #[clap(short, long, value_parser)]
+    #[arg(short, long, value_parser)]
     pub query: Option<String>,
 
     #[clap(flatten)]
@@ -16,14 +19,14 @@ pub struct LocalArgs {
     pub file: Option<String>,
 
     /// File for logs to be written to
-    #[clap(long, value_parser)]
+    #[arg(long, value_parser)]
     pub log_file: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, Parser)]
+#[derive(Debug, Clone, Args)]
 pub struct LocalClientOpts {
     /// Path to spill temporary files to.
-    #[clap(long, value_parser)]
+    #[arg(long, value_parser)]
     pub spill_path: Option<PathBuf>,
 
     /// Optional file path for persisting data.
@@ -31,7 +34,7 @@ pub struct LocalClientOpts {
     /// Catalog data and user data will be stored in this directory.
     ///
     /// If the `--cloud-url` option is provided, nothing will be persisted in this directory.
-    #[clap(short = 'f', long, value_parser)]
+    #[arg(short = 'f', long, value_parser)]
     pub data_dir: Option<PathBuf>,
 
     /// URL for Hybrid Execution with a GlareDB Cloud deployment.
@@ -39,13 +42,13 @@ pub struct LocalClientOpts {
     /// Sign up at <https://console.glaredb.com> to get a free deployment.
     ///
     /// Has the form of <glaredb://user:pass@host:port/deployment>.
-    #[clap(short = 'c', long, value_parser)]
+    #[arg(short = 'c', long, value_parser)]
     pub cloud_url: Option<Url>,
 
     #[clap(flatten)]
     pub storage_config: StorageConfigArgs,
 
-    #[clap(long, default_value = "false", hide = true)]
+    #[arg(long, default_value = "false", hide = true)]
     pub timing: bool,
 
     /// Ignores the proxy and directly goes to the server for remote execution.
@@ -56,19 +59,19 @@ pub struct LocalClientOpts {
     /// * `url` in this case should be a valid HTTP RPC URL (`--rpc-bind`
     ///   for the server).
     /// * Server should be started with `---disable-rpc-auth` arg as well.
-    #[clap(long, hide = true)]
+    #[arg(long, hide = true)]
     pub ignore_rpc_auth: bool,
 
     /// Display output mode.
-    #[clap(long, value_enum, default_value_t=OutputMode::Table)]
+    #[arg(long, value_enum, default_value_t=OutputMode::Table)]
     pub mode: OutputMode,
 
     /// Max width for tables to display.
-    #[clap(long)]
+    #[arg(long)]
     pub max_width: Option<usize>,
 
     /// Max number of rows to display.
-    #[clap(long)]
+    #[arg(long)]
     pub max_rows: Option<usize>,
 
     /// Disable RPC TLS
@@ -78,7 +81,7 @@ pub struct LocalClientOpts {
     /// Note: in the future, this will be 'on' by default
     ///
     /// Note: Keep in sync with py-glaredb connect
-    #[clap(long, default_value="false", action = clap::ArgAction::Set, hide = true)]
+    #[arg(long, default_value="false", action = clap::ArgAction::Set, hide = true)]
     pub disable_tls: bool,
 
     /// Address of the GlareDB cloud server.
@@ -86,7 +89,7 @@ pub struct LocalClientOpts {
     /// (Internal)
     ///
     /// Note: Keep in sync with py-glaredb connect
-    #[clap(long, default_value = "https://console.glaredb.com", hide = true)]
+    #[arg(long, default_value = "https://console.glaredb.com", hide = true)]
     pub cloud_addr: String,
 }
 
