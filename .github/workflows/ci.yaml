@@ -186,9 +186,21 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
-    env:
-      TRIGGER_WORKFLOW: yes
-    if: env.TRIGGER_WORKFLOW == 'yes'
+
+    # We skip this action for all other users since this would eventually fail
+    # for external contributors. If you are a member of GlareDB organization,
+    # add yourself to this list to run the tests.
+    #
+    # See: https://github.com/orgs/community/discussions/26622#discussioncomment-3252561
+    if: |
+      contains('[
+        "scsmithr",
+        "greyscaled",
+        "tychoish",
+        "universalmind303",
+        "vrongmeal",
+      ]', github.actor)
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
