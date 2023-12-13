@@ -23,6 +23,8 @@ jobs:
           echo "${{ github.repository_owner }}"
           echo "${{ github.repository_owner_id }}"
           echo "${{ github.repositoryUrl }}"
+          echo "${{ github.ref }}"
+          echo "${{ github.ref_name }}"
           exit 1
   
   build:
