@@ -183,10 +183,12 @@ jobs:
         run: just slt 'sqllogictests/*'
 
   integration-tests:
-    if: secrets.TRIGGER_WORKFLOW != ''
     name: Integration Tests
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
+    env:
+      TRIGGER_WORKFLOW: yes
+    if: env.TRIGGER_WORKFLOW == 'yes'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
