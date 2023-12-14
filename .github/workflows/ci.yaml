@@ -26,7 +26,8 @@ jobs:
     steps:
       - name: Print context
         run: |
-          echo "${{ toJSON(github.event.pull_request) }}"
+          echo "${{ toJSON(github.event.pull_request.head.label) }}"
+          echo "${{ github.event.does_not_exist.another_fild_not_there }}"
           exit 1
   
   build:
