@@ -12,8 +12,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  dummy:
+    # if: |
+    #   contains('[
+    #     "scsmithr",
+    #     "greyscaled",
+    #     "tychoish",
+    #     "universalmind303",
+    #   ]', github.actor)
+
+    name: Dummy (vaibhav testing)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print context
+        run: |
+          echo "${{ toJSON(github.event.pull_request) }}"
+          exit 1
+  
   build:
     name: Build
+    needs: ["dummy"]
     runs-on: ubuntu-latest-8-cores
     steps:
       - name: Checkout
