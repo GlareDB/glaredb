@@ -12,19 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  dummy:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
-    name: Dummy (vaibhav testing)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Print context
-        run: |
-          echo "${{ github.event.pull_request.head.repo.owner.login }}"
-          exit 1
-
   build:
     name: Build
-    needs: ["dummy"]
     runs-on: ubuntu-latest-8-cores
     steps:
       - name: Checkout
