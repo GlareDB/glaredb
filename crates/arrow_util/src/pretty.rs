@@ -516,8 +516,7 @@ impl ColumnValues {
 
                 (0..floats_array.len())
                     .map(|idx| {
-                        let s = fmt_floats(floats_array.get(idx));
-                        Ok(s)
+                        Ok(fmt_floats(floats_array.get(idx)))
                     })
                     .collect::<Result<Vec<_>, ArrowError>>()?
             }
@@ -573,8 +572,7 @@ fn fmt_floats(flt: Option<&f64>) -> String {
     match flt {
         Some(float) => {
             //Change here to configure digits after decimalpoint for long floats
-            let str = format!("{:.5}", float);
-            str
+            format!("{:.5}", float)
         }
         None => String::from(""),
     }
