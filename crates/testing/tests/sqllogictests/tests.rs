@@ -4,6 +4,7 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use testing::slt::runner::{FnTest, TestClient};
 use tokio_postgres::Config;
+use tracing::warn;
 
 macro_rules! test_assert {
     ($e:expr, $err:expr) => {
@@ -25,8 +26,9 @@ impl FnTest for SshKeysTest {
     ) -> Result<()> {
         let client = match client {
             TestClient::Pg(client) => client,
-            TestClient::Rpc(_) => {
-                return Err(anyhow!("cannot run ssh key test on rpc"));
+            TestClient::Rpc(_) | TestClient::FlightSql(_) => {
+                warn!("skipping ssh keys test on rpc");
+                return Ok(());
             }
         };
 
@@ -123,8 +125,9 @@ impl FnTest for PgBinaryEncoding {
     ) -> Result<()> {
         let client = match client {
             TestClient::Pg(client) => client,
-            TestClient::Rpc(_) => {
-                return Err(anyhow!("cannot run pg binary encoding test on rpc"));
+            TestClient::Rpc(_) | TestClient::FlightSql(_) => {
+                warn!("cannot run pg binary encoding test on rpc. Skipping...");
+                return Ok(());
             }
         };
 

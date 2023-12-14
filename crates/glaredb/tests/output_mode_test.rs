@@ -17,6 +17,8 @@ fn test_output_mode(mode: &str, expected: &str) {
 }
 
 #[test]
+/// Default output mode is table.
+/// ./glaredb -q <QUERY>
 fn test_output_mode_default() {
     let mut cmd = make_cli();
 
@@ -37,6 +39,7 @@ fn test_output_mode_default() {
 }
 
 #[test]
+/// ./glaredb -q <QUERY> --mode json
 fn test_output_mode_json() {
     let expected = r#"
 [{"Int64(1)":1}]
@@ -46,6 +49,7 @@ fn test_output_mode_json() {
 }
 
 #[test]
+/// ./glaredb -q <QUERY> --mode csv
 fn test_output_mode_csv() {
     let expected = r#"
 Int64(1)
@@ -56,6 +60,7 @@ Int64(1)
 }
 
 #[test]
+/// ./glaredb -q <QUERY> --mode ndjson
 fn test_output_mode_ndjson() {
     let expected = r#"
 {"Int64(1)":1}

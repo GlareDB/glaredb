@@ -263,6 +263,7 @@ impl MetastoreClientSupervisor {
                         send: worker.send.clone(),
                     });
                 }
+
                 _ => (), // Continue on.
             }
         }
@@ -466,7 +467,6 @@ impl StatefulWorker {
                     .into_iter()
                     .map(|m| m.try_into())
                     .collect::<Result<_, _>>();
-
                 let result = match result {
                     Ok(mutations) => self
                         .client

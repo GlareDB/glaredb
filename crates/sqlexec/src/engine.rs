@@ -406,7 +406,6 @@ impl Engine {
         let native = self
             .storage
             .new_native_tables_storage(database_id, &storage)?;
-
         let state = metastore.get_cached_state().await?;
         let catalog = SessionCatalog::new(
             state,

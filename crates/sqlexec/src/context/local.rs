@@ -214,6 +214,15 @@ impl LocalSessionContext {
         &mut self.catalog
     }
 
+    pub async fn maybe_refresh_state(&mut self) -> Result<()> {
+        let mutator = self.catalog_mutator();
+        let client = mutator.get_metastore_client();
+        self.catalog
+            .maybe_refresh_state(client, self.get_session_vars().force_catalog_refresh())
+            .await
+            .map_err(ExecError::from)
+    }
+
     /// Create a prepared statement.
     pub async fn prepare_statement(
         &mut self,
@@ -222,12 +231,7 @@ impl LocalSessionContext {
         _params: Vec<i32>, // TODO: We can use these for providing types for parameters.
     ) -> Result<()> {
         // Refresh the cached catalog state if necessary
-        let mutator = self.catalog_mutator();
-        let client = mutator.get_metastore_client();
-
-        self.catalog
-            .maybe_refresh_state(client, self.get_session_vars().force_catalog_refresh())
-            .await?;
+        self.maybe_refresh_state().await?;
 
         // Unnamed (empty string) prepared statements can be overwritten
         // whenever. Named prepared statements must be explicitly removed before

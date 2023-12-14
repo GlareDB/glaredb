@@ -11,12 +11,16 @@ use tracing::info;
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use glaredb::args::StorageConfigArgs;
-use glaredb::server::{ComputeServer, ServerConfig};
+use glaredb::server::ComputeServer;
 use tokio::{net::TcpListener, runtime::Builder, sync::mpsc, time::Instant};
 use tokio_postgres::config::Config as ClientConfig;
 use uuid::Uuid;
 
-use crate::slt::test::{PgTestClient, RpcTestClient, Test, TestClient, TestHooks};
+use crate::slt::test::{
+    FlightSqlTestClient, PgTestClient, RpcTestClient, Test, TestClient, TestHooks,
+};
+
+use super::test::ClientProtocol;
 
 #[derive(Parser)]
 #[clap(name = "slt-runner")]
@@ -70,16 +74,16 @@ pub struct Cli {
     #[clap(short, long, value_parser)]
     exclude: Vec<String>,
 
-    /// Run the tests in RPC mode.
-    #[clap(long, value_parser)]
-    rpc_test: bool,
+    /// Client protocol to use. (rpc, postgres, flightsql)
+    #[arg(long, short, value_enum, default_value_t=ClientProtocol::Postgres)]
+    protocol: ClientProtocol,
 
     #[clap(flatten)]
     storage_config: StorageConfigArgs,
 
     /// Tests to run.
     ///
-    /// Provide glob like regexes for test names. If ommitted, runs all the
+    /// Provide glob like regexes for test names. If omitted, runs all the
     /// tests. This is similar to providing parameter as `*`.
     tests_pattern: Option<Vec<String>>,
 }
@@ -182,41 +186,50 @@ impl Cli {
                 });
                 configs
             } else {
-                let pg_listener = TcpListener::bind(
-                    self.bind_embedded
-                        .clone()
-                        .unwrap_or_else(|| "localhost:0".to_string()),
-                )
-                .await?;
-                let pg_addr = pg_listener.local_addr()?;
-                let server_conf = ServerConfig {
-                    pg_listener,
-                    rpc_addr: if self.rpc_test {
-                        Some("0.0.0.0:6789".parse().unwrap())
-                    } else {
-                        None
-                    },
+                let bind_addr = self
+                    .bind_embedded
+                    .clone()
+                    .unwrap_or_else(|| "0.0.0.0:0".to_string());
+
+                let (pg_listener, rpc_listener, socket_addr) = match self.protocol {
+                    ClientProtocol::Postgres => {
+                        let listener = TcpListener::bind(bind_addr.clone()).await?;
+                        let addr = listener.local_addr().unwrap();
+                        (Some(listener), None, addr)
+                    }
+                    ClientProtocol::Rpc | ClientProtocol::FlightSql => {
+                        let listener = TcpListener::bind(bind_addr.clone()).await?;
+                        let addr = listener.local_addr().unwrap();
+                        (None, Some(listener), addr)
+                    }
                 };
-                let server = ComputeServer::with_authenticator(SingleUserAuthenticator {
-                    user: "glaredb".to_string(),
-                    password: "glaredb".to_string(),
-                })
-                .with_metastore_addr_opt(self.metastore_addr.clone())
-                .with_data_dir(temp_dir.path().to_path_buf())
-                .with_location_opt(self.storage_config.location.clone())
-                .with_storage_options(HashMap::from_iter(
-                    self.storage_config.storage_options.clone(),
-                ))
-                .integration_testing_mode(true)
-                .disable_rpc_auth(self.rpc_test)
-                .connect()
-                .await?;
 
-                tokio::spawn(server.serve(server_conf));
+                let mut builder = ComputeServer::builder()
+                    .with_authenticator(SingleUserAuthenticator {
+                        user: "glaredb".to_string(),
+                        password: "glaredb".to_string(),
+                    })
+                    .with_pg_listener_opt(pg_listener)
+                    .with_rpc_listener_opt(rpc_listener)
+                    .with_metastore_addr_opt(self.metastore_addr.clone())
+                    .with_data_dir(temp_dir.path().to_path_buf())
+                    .with_location_opt(self.storage_config.location.clone())
+                    .with_storage_options(HashMap::from_iter(
+                        self.storage_config.storage_options.clone(),
+                    ))
+                    .integration_testing_mode(true);
 
-                let host = pg_addr.ip().to_string();
-                let port = pg_addr.port();
+                if matches!(self.protocol, ClientProtocol::Rpc) {
+                    builder = builder.disable_rpc_auth(true);
+                }
 
+                let server = builder.connect().await?;
+
+                tokio::spawn(server.serve());
+
+                let mut configs = HashMap::new();
+                let host = socket_addr.ip().to_string();
+                let port = socket_addr.port();
                 let mut config = ClientConfig::new();
                 config
                     .user("glaredb")
@@ -225,13 +238,13 @@ impl Cli {
                     .host(&host)
                     .port(port);
 
-                let mut configs = HashMap::new();
                 tests.iter().for_each(|(name, _)| {
                     let mut cfg = config.clone();
                     let db_id = Uuid::new_v4().to_string();
                     cfg.dbname(&db_id);
                     configs.insert(name.clone(), cfg);
                 });
+
                 configs
             };
 
@@ -302,10 +315,12 @@ impl Cli {
             let cfg = configs.get(&test_name).unwrap().clone();
             let tx = jobs_tx.clone();
             let hooks = Arc::clone(&hooks);
-            let rpc_test = self.rpc_test;
+
+            let protocol = self.protocol;
             let data_dir = data_dir.to_path_buf();
+
             tokio::spawn(async move {
-                let res = Self::run_test(rpc_test, data_dir, &test_name, test, cfg, hooks).await;
+                let res = Self::run_test(protocol, data_dir, &test_name, test, cfg, hooks).await;
                 tx.send((test_name.clone(), res)).unwrap();
             });
         }
@@ -361,7 +376,7 @@ impl Cli {
     }
 
     async fn run_test(
-        rpc_test: bool,
+        mode: ClientProtocol,
         data_dir: PathBuf,
         test_name: &str,
         test: Test,
@@ -369,10 +384,14 @@ impl Cli {
         hooks: Arc<TestHooks>,
     ) -> Result<()> {
         info!("Running test: `{}`", test_name);
-        let client = if rpc_test {
-            TestClient::Rpc(RpcTestClient::new(data_dir, "0.0.0.0:6789").await?)
-        } else {
-            TestClient::Pg(PgTestClient::new(&client_config).await?)
+        let client = match mode {
+            ClientProtocol::Postgres => TestClient::Pg(PgTestClient::new(&client_config).await?),
+            ClientProtocol::Rpc => {
+                TestClient::Rpc(RpcTestClient::new(data_dir, &client_config).await?)
+            }
+            ClientProtocol::FlightSql => {
+                TestClient::FlightSql(FlightSqlTestClient::new(&client_config).await?)
+            }
         };
 
         async fn run_test_inner(

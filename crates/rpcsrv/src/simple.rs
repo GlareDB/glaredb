@@ -55,7 +55,7 @@ impl simple::simple_service_server::SimpleService for SimpleHandler {
             .map_err(RpcsrvError::from)?;
 
         let plan = session
-            .sql_to_lp(&request.query_text)
+            .create_logical_plan(&request.query_text)
             .await
             .map_err(RpcsrvError::from)?;
         let plan = plan.try_into_datafusion_plan().map_err(RpcsrvError::from)?;
@@ -64,7 +64,7 @@ impl simple::simple_service_server::SimpleService for SimpleHandler {
             .await
             .map_err(RpcsrvError::from)?;
         let stream = session
-            .execute_physical(physical)
+            .execute_physical_plan(physical)
             .await
             .map_err(RpcsrvError::from)?;
 
