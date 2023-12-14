@@ -13,28 +13,21 @@ concurrency:
 
 jobs:
   dummy:
-    if: |
-      contains('[
-        "scsmithr",
-        "greyscaled",
-        "tychoish",
-        "universalmind303",
-      ]', github.actor)
+    # if: |
+    #   contains('[
+    #     "scsmithr",
+    #     "greyscaled",
+    #     "tychoish",
+    #     "universalmind303",
+    #   ]', github.actor)
 
     name: Dummy (vaibhav testing)
     runs-on: ubuntu-latest
     steps:
       - name: Print context
         run: |
-          echo "${{ github.repository }}"
-          echo "${{ github.repository_id }}"
-          echo "${{ github.repository_owner }}"
-          echo "${{ github.repository_owner_id }}"
-          echo "${{ github.repositoryUrl }}"
-          echo "${{ github.ref }}"
-          echo "${{ github.ref_name }}"
-          echo "${{ github.actor }}"
-          echo "'${{ secrets.TRIGGER_WORKFLOW }}'"
+          echo "${{ toJSON(github.event.pull_request) }}"
+          exit 1
   
   build:
     name: Build
