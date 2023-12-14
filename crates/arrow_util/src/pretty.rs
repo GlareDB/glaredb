@@ -1,7 +1,6 @@
 use comfy_table::{Cell, CellAlignment, ColumnConstraint, ContentArrangement, Table};
 use datafusion::arrow::array::{Array, Float64Array};
-use datafusion::arrow::datatypes::DataType::{self,Float64};
-use datafusion::arrow::datatypes::{Field, Schema, TimeUnit};
+use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow::util::display::{ArrayFormatter, FormatOptions};
@@ -491,7 +490,7 @@ impl TableFormat {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 struct ColumnValues {
     vals: Vec<String>,
 }
@@ -515,17 +514,16 @@ impl ColumnValues {
                     .unwrap()
                     .values();
 
-                let formatted_floats = (0..floats_array.len())
+                (0..floats_array.len())
                     .map(|idx| {
                         let s = fmt_floats(floats_array.get(idx));
                         Ok(s)
                     })
                     .collect::<Result<Vec<_>, ArrowError>>()?;
-                formatted_floats
             }
             _ => {
                 // formatting rest of data types using ArrayFormatter
-                let formatted_strings = (0..col.len())
+                (0..col.len())
                     .map(|idx| {
                         let mut s = formatter.value(idx).try_to_string()?;
                         if let Some(trunc) = trunc {
@@ -534,7 +532,6 @@ impl ColumnValues {
                         Ok(s)
                     })
                     .collect::<Result<Vec<_>, ArrowError>>()?;
-                formatted_strings
             }
         };
 
@@ -576,7 +573,7 @@ fn fmt_floats(flt: Option<&f64>) -> String {
     match flt {
         Some(float) => {
             //Change here to configure digits after decimalpoint for long floats
-            let str = format!("{:.5}", float); 
+            let str = format!("{:.5}", float);
             str
         }
         None => String::from(""),
@@ -681,8 +678,8 @@ mod tests {
             assert_eq!(tc.expected, &s, "test case: {tc:?}");
         }
     }
-    
-     #[test]
+
+    #[test]
     fn test_truncate_floats() {
         #[derive(Debug)]
         struct TestCase<'a> {
@@ -730,7 +727,7 @@ mod tests {
         }
 
         for tc in test_cases {
-            let tc_result = try_new_from_array(tc.input, tc.truncate);
+            let tc_result = ColumnValues::try_new_from_array(tc.input, tc.truncate);
 
             let result: ColumnValues = match tc_result {
                 Ok(x) => x,
