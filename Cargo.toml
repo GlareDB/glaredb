@@ -28,6 +28,7 @@ prost = "0.12"
 prost-types = "0.12"
 prost-build = "0.12"
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
+tempfile = "3.8.1"
 
 [workspace.dependencies.deltalake]
 git = "https://github.com/delta-io/delta-rs.git"

@@ -48,7 +48,7 @@ test *args: protoc
 
 # Run unit tests.
 unit-tests *args: protoc
-  just test --lib --bins {{args}}
+  just test --workspace --exclude testing {{args}}
 
 # Run doc tests.
 doc-tests: protoc
@@ -60,7 +60,7 @@ sql-logic-tests *args: protoc
 
 # Run SQL Logic Tests over RPC
 rpc-tests: protoc
-  just sql-logic-tests --rpc-test \
+  just sql-logic-tests --protocol=rpc \
     'sqllogictests/cast/*' \
     'sqllogictests/cte/*' \
     'sqllogictests/functions/delta_scan' \

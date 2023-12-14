@@ -15,7 +15,7 @@ datafusion-proto = { workspace = true }
 serde = { workspace = true }
 logutil = { path = "../logutil" }
 protogen = { path = "../protogen" }
-once_cell = "1.18.0"
+once_cell = "1.19.0"
 tokio = { workspace = true }
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 async-trait = "0.1.74"
@@ -27,3 +27,4 @@ tonic = { workspace = true }
 bytes = "1.4"
 futures = "0.3.29"
 dashmap = "5.5.0"
+arrow-flight = { version = "47.0.0", features = ["flight-sql-experimental"] }

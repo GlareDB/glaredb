@@ -4,7 +4,7 @@ use crate::local::LocalSession;
 use crate::metastore::Metastore;
 use crate::pg_proxy::PgProxy;
 use crate::rpc_proxy::RpcProxy;
-use crate::server::{ComputeServer, ServerConfig};
+use crate::server::ComputeServer;
 use anyhow::{anyhow, Result};
 use atty::Stream;
 use clap::Subcommand;
@@ -46,6 +46,8 @@ impl Commands {
         }
     }
 }
+const DEFAULT_PG_BIND_ADDR: &str = "0.0.0.0:6543";
+const DEFAULT_RPC_BIND_ADDR: &str = "0.0.0.0:6789";
 
 trait RunCommand {
     fn run(self) -> Result<()>;
@@ -128,6 +130,8 @@ impl RunCommand for ServerArgs {
             disable_rpc_auth,
             segment_key,
             enable_simple_query_rpc,
+            enable_flight_api,
+            disable_postgres_api,
         } = self;
 
         // Map an empty string to None. Makes writing the terraform easier.
@@ -135,6 +139,8 @@ impl RunCommand for ServerArgs {
 
         // If we don't enable the rpc service, then trying to enable the simple
         // interface doesn't make sense.
+        // Clap isn't intelligent enough to handle negative conditions, so we
+        // have to manually check.
         if rpc_bind.is_none() && enable_simple_query_rpc {
             return Err(anyhow!(
                 "An rpc bind address needs to be provided to enable the simple query interface"
@@ -149,27 +155,37 @@ impl RunCommand for ServerArgs {
         };
 
         let runtime = build_runtime("server")?;
+
         runtime.block_on(async move {
-            let pg_listener = TcpListener::bind(bind).await?;
-            let conf = ServerConfig {
-                pg_listener,
-                rpc_addr: rpc_bind.map(|s| s.parse()).transpose()?,
+            let pg_listener = match bind {
+                Some(bind) => Some(TcpListener::bind(bind).await?),
+                None if disable_postgres_api => None,
+                None => Some(TcpListener::bind(DEFAULT_PG_BIND_ADDR).await?),
             };
-            let server = ComputeServer::connect(
-                metastore_addr,
-                segment_key,
-                auth,
-                data_dir,
-                service_account_path,
-                storage_config.location,
-                HashMap::from_iter(storage_config.storage_options.clone()),
-                spill_path,
-                /* integration_testing = */ false,
-                disable_rpc_auth,
-                enable_simple_query_rpc,
-            )
-            .await?;
-            server.serve(conf).await
+            let rpc_listener = match rpc_bind {
+                Some(bind) => Some(TcpListener::bind(bind).await?),
+                None if enable_flight_api => Some(TcpListener::bind(DEFAULT_RPC_BIND_ADDR).await?),
+                None => None,
+            };
+
+            let server = ComputeServer::builder()
+                .with_authenticator(auth)
+                .with_pg_listener_opt(pg_listener)
+                .with_rpc_listener_opt(rpc_listener)
+                .with_metastore_addr_opt(metastore_addr)
+                .with_segment_key_opt(segment_key)
+                .with_data_dir_opt(data_dir)
+                .with_service_account_path_opt(service_account_path)
+                .with_location_opt(storage_config.location)
+                .with_storage_options(HashMap::from_iter(storage_config.storage_options.clone()))
+                .with_spill_path_opt(spill_path)
+                .disable_rpc_auth(disable_rpc_auth)
+                .enable_simple_query_rpc(enable_simple_query_rpc)
+                .enable_flight_api(enable_flight_api)
+                .connect()
+                .await?;
+
+            server.serve().await
         })
     }
 }
