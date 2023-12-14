@@ -515,9 +515,7 @@ impl ColumnValues {
                     .values();
 
                 (0..floats_array.len())
-                    .map(|idx| {
-                        Ok(fmt_floats(floats_array.get(idx)))
-                    })
+                    .map(|idx| Ok(fmt_floats(floats_array.get(idx))))
                     .collect::<Result<Vec<_>, ArrowError>>()?
             }
             _ => {
