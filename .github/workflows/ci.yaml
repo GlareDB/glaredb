@@ -13,21 +13,13 @@ concurrency:
 
 jobs:
   dummy:
-    # if: |
-    #   contains('[
-    #     "scsmithr",
-    #     "greyscaled",
-    #     "tychoish",
-    #     "universalmind303",
-    #   ]', github.actor)
-
+    # if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
     name: Dummy (vaibhav testing)
     runs-on: ubuntu-latest
     steps:
       - name: Print context
         run: |
-          echo "${{ toJSON(github.event.pull_request.head.label) }}"
-          echo "${{ github.event.does_not_exist.another_fild_not_there }}"
+          echo "${{ github.event.pull_request.head.repo.owner.login }}"
           exit 1
   
   build:
@@ -186,24 +178,10 @@ jobs:
         run: just slt 'sqllogictests/*'
 
   integration-tests:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
     name: Integration Tests
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
-
-    # We skip this action for all other users since this would eventually fail
-    # for external contributors. If you are a member of GlareDB organization,
-    # add yourself to this list to run the tests.
-    #
-    # See: https://github.com/orgs/community/discussions/26622#discussioncomment-3252561
-    if: |
-      contains('[
-        "scsmithr",
-        "greyscaled",
-        "tychoish",
-        "universalmind303",
-        "vrongmeal",
-      ]', github.actor)
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
