@@ -1,13 +1,15 @@
 use anyhow::{anyhow, Result};
+use pgsrv::errors::PgSrvError;
 use pgsrv::proxy::ProxyHandler;
 use pgsrv::ssl::SslConfig;
 use proxyutil::cloudauth::CloudAuthenticator;
+use std::io;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::sync::oneshot;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace};
 
 pub struct PgProxy {
     handler: Arc<ProxyHandler<CloudAuthenticator>>,
@@ -85,7 +87,9 @@ impl PgProxy {
                         debug!("client connected (proxy)");
                         match handler.proxy_connection(inbound).await {
                             Ok(_) => debug!("client disconnected"),
-                            Err(e) => debug!(%e, "client disconnected with error."),
+                            Err(PgSrvError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof =>
+                                trace!("client disconnected"),
+                            Err(e) => error!(%e, "client disconnected with error."),
                         }
                         conn_count.fetch_sub(1, Ordering::Relaxed);
                     });
