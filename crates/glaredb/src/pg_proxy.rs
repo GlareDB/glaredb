@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::sync::oneshot;
-use tracing::{debug, error, info, trace};
+use tracing::{error, info, trace};
 
 pub struct PgProxy {
     handler: Arc<ProxyHandler<CloudAuthenticator>>,
@@ -84,12 +84,18 @@ impl PgProxy {
                     let handler = self.handler.clone();
                     let conn_count = conn_count.clone();
                     tokio::spawn(async move {
-                        debug!("client connected (proxy)");
+                        trace!("client connected (proxy)");
                         match handler.proxy_connection(inbound).await {
-                            Ok(_) => debug!("client disconnected"),
+                            Ok(_) => trace!("client disconnected from normal closure"),
+                            // When we attempt to read the startup message from
+                            // a closed connection, we will get an unexpected
+                            // eof error.
+                            //
+                            // k8s tcp liveness checks will open and immediately
+                            // close a connection which will trigger this case.
                             Err(PgSrvError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof =>
-                                trace!("client disconnected"),
-                            Err(e) => error!(%e, "client disconnected with error."),
+                                trace!("client disconnected from client-side close"),
+                            Err(e) => error!(%e, "client disconnected with error"),
                         }
                         conn_count.fetch_sub(1, Ordering::Relaxed);
                     });
