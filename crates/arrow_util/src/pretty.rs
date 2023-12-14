@@ -1,5 +1,5 @@
 use comfy_table::{Cell, CellAlignment, ColumnConstraint, ContentArrangement, Table};
-use datafusion::arrow::array::Array;
+use datafusion::arrow::array::{Array, Float64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -490,7 +490,7 @@ impl TableFormat {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 struct ColumnValues {
     vals: Vec<String>,
 }
@@ -505,15 +505,33 @@ struct ColumnWidthSizeStats {
 impl ColumnValues {
     fn try_new_from_array(col: &dyn Array, trunc: Option<usize>) -> Result<Self, ArrowError> {
         let formatter = ArrayFormatter::try_new(col, &TABLE_FORMAT_OPTS)?;
-        let vals = (0..col.len())
-            .map(|idx| {
-                let mut s = formatter.value(idx).try_to_string()?;
-                if let Some(trunc) = trunc {
-                    truncate_or_wrap_string(&mut s, trunc);
-                }
-                Ok(s)
-            })
-            .collect::<Result<Vec<_>, ArrowError>>()?;
+        let vals = match col.data_type() {
+            DataType::Float64 => {
+                // formatting float arrays
+                let floats_array = col
+                    .as_any()
+                    .downcast_ref::<Float64Array>()
+                    .unwrap()
+                    .values();
+
+                (0..floats_array.len())
+                    .map(|idx| Ok(fmt_floats(floats_array.get(idx))))
+                    .collect::<Result<Vec<_>, ArrowError>>()?
+            }
+            _ => {
+                // formatting rest of data types using ArrayFormatter
+                (0..col.len())
+                    .map(|idx| {
+                        let mut s = formatter.value(idx).try_to_string()?;
+                        if let Some(trunc) = trunc {
+                            truncate_or_wrap_string(&mut s, trunc);
+                        }
+                        Ok(s)
+                    })
+                    .collect::<Result<Vec<_>, ArrowError>>()?
+            }
+        };
+
         Ok(ColumnValues { vals })
     }
 
@@ -545,6 +563,16 @@ impl ColumnValues {
             _min: min,
             max,
         }
+    }
+}
+
+fn fmt_floats(flt: Option<&f64>) -> String {
+    match flt {
+        Some(float) => {
+            //Change here to configure digits after decimalpoint for long floats
+            format!("{:.5}", float)
+        }
+        None => String::from(""),
     }
 }
 
@@ -644,6 +672,67 @@ mod tests {
             let mut s = tc.input.to_string();
             truncate_or_wrap_string(&mut s, tc.truncate);
             assert_eq!(tc.expected, &s, "test case: {tc:?}");
+        }
+    }
+
+    #[test]
+    fn test_truncate_floats() {
+        #[derive(Debug)]
+        struct TestCase<'a> {
+            input: &'a dyn Array,
+            truncate: Option<usize>,
+            expected: ColumnValues,
+        }
+        let vec_flts = vec![123.4, 123.45, 123.456, 123.456789, 123.456789123];
+
+        let vec_expected = vec![
+            "123.40000",
+            "123.45000",
+            "123.45600",
+            "123.45679",
+            "123.45679",
+        ];
+
+        let test_floats = Float64Array::from(vec_flts.clone());
+        let mut vec_str: Vec<String> = Vec::new();
+
+        for i in vec_expected {
+            vec_str.push(i.to_string());
+        }
+
+        let test_batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![Field::new(
+                "id",
+                DataType::Float64,
+                false,
+            )])),
+            vec![Arc::new(test_floats)],
+        )
+        .unwrap();
+
+        let mut test_cases: Vec<TestCase> = Vec::new();
+        for (_idx, xcol) in test_batch.columns().iter().enumerate() {
+            let tc = TestCase {
+                input: xcol,
+                truncate: Some(10), // doesn't matter for floats.
+                expected: ColumnValues {
+                    vals: vec_str.clone(),
+                },
+            };
+            test_cases.push(tc);
+        }
+
+        for tc in test_cases {
+            let tc_result = ColumnValues::try_new_from_array(tc.input, tc.truncate);
+
+            let result: ColumnValues = match tc_result {
+                Ok(x) => x,
+                Err(e) => {
+                    panic!("Panics in the test formatting float, Error: {:?}", e);
+                }
+            };
+
+            assert_eq!(result, tc.expected, "test case: {:?}", tc);
         }
     }
 
