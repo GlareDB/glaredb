@@ -21,7 +21,7 @@ jobs:
         run: |
           echo "${{ github.event.pull_request.head.repo.owner.login }}"
           exit 1
-  
+
   build:
     name: Build
     needs: ["dummy"]
