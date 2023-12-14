@@ -519,7 +519,7 @@ impl ColumnValues {
                         let s = fmt_floats(floats_array.get(idx));
                         Ok(s)
                     })
-                    .collect::<Result<Vec<_>, ArrowError>>()?;
+                    .collect::<Result<Vec<_>, ArrowError>>()?
             }
             _ => {
                 // formatting rest of data types using ArrayFormatter
@@ -531,7 +531,7 @@ impl ColumnValues {
                         }
                         Ok(s)
                     })
-                    .collect::<Result<Vec<_>, ArrowError>>()?;
+                    .collect::<Result<Vec<_>, ArrowError>>()?
             }
         };
 
