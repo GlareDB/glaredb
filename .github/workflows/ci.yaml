@@ -97,6 +97,7 @@ jobs:
 
       - name: Python Bindings Tests
         run: just python test
+
   node-bindings-tests:
     name: Node Binding Tests
     runs-on: ubuntu-latest-8-cores
@@ -119,6 +120,7 @@ jobs:
         run: just js build-debug
       - name: Node Bindings Tests
         run: just js test
+
   pg-protocol:
     name: PG Protocol Tests
     runs-on: ubuntu-latest-8-cores
@@ -164,9 +166,26 @@ jobs:
         if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
         run: just slt 'sqllogictests/*'
 
-  integration-tests:
+  process-integration-tests:
+    name: Process Integration Tests (pytest)
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: Cache
+        with:
+          path: |
+            ~/.cargo/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - run: just build --release
+
+  service-integration-tests:
     if: github.repository_owner == 'glaredb'
-    name: Integration Tests
+    name: Service Integration Tests (SLT)
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
