@@ -164,7 +164,7 @@ pub async fn read_excel_impl(
         Cow::Owned(first.clone())
     });
 
-    if let Some(Ok(r)) = workbook.worksheet_range(&sheet) {
+    if let Ok(r) = workbook.worksheet_range(&sheet) {
         let batch = xlsx_sheet_value_to_record_batch(r, has_header, infer_schema_length)?;
         let schema_ref = batch.schema();
         let partitions = vec![vec![batch]];
