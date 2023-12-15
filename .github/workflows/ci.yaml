@@ -178,6 +178,12 @@ jobs:
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache@v3
+        name: cache
+        with:
+          path: |
+            tests/.venv/
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/Cargo.lock') }}
       - name: run pytest
         run: just pytest
 
