@@ -169,6 +169,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
       - uses: actions/cache@v3
         name: cache
         with:
@@ -176,9 +178,6 @@ jobs:
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: release build
-        run: just build --release
-
       - name: run pytest
         run: just pytest
 
