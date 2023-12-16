@@ -25,19 +25,16 @@ def run_debug(debug: pathlib.Path) -> str:
         with subprocess.Popen(
             [
                 debug.absolute(),
+                "--verbose",
                 "server",
                 "--data-dir",
                 os.path.join(tmpdir, "data"),
                 "--spill-path",
                 os.path.join(tmpdir, "spill"),
-                # "--mode",
-                # "json",
                 "--bind",
                 ":".join(addr),
             ],
             cwd=tmpdir,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
             close_fds="posix" in sys.builtin_module_names,
         ) as p:
             time.sleep(0.5)

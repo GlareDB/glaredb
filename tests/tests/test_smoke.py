@@ -22,9 +22,10 @@ def test_start(run_debug: tuple[str, str]):
     assert run_debug[0] == "127.0.0.1"
     assert run_debug[1] == "5432"
 
-    conn = psycopg2.connect(host=run_debug[0], port=run_debug[1], database="glaredb")
-
+    conn = psycopg2.connect(host=run_debug[0], port=run_debug[1], dbname="glaredb")
+    conn.autocommit = True
     with conn.cursor() as cur:
-        cur.execute("SELECT 1")
+        assert not cur.closed
+        cur.execute("SELECT 1;")
 
     conn.close()
