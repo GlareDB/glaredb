@@ -141,6 +141,13 @@ protoc:
     rm protoc.zip
   fi
 
+# Installs python dependencies for testing
+pytest-setup:
+	poetry -C tests install
+
+# Runs pytest in the tests directory.
+pytest *args:
+	poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
 
 # private helpers below
 # ---------------------

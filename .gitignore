@@ -25,6 +25,7 @@ node_modules
 
 # Python virtual environment
 .venv/
+__pycache__
 
 # Benchmark data
 bench_data/
