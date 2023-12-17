@@ -1,8 +1,9 @@
 import pathlib
 import subprocess
+
 import psycopg2
 
-from fixtures.glaredb import run_debug, release, debug
+from fixtures.glaredb import glaredb_connection, release, debug
 
 
 def test_release_exists(release):
@@ -18,14 +19,6 @@ def test_debug_executes(debug: pathlib.Path):
     assert subprocess.check_call([debug.absolute(), "-q", "SELECT 1;"]) == 0
 
 
-def test_start(run_debug: tuple[str, str]):
-    assert run_debug[0] == "127.0.0.1"
-    assert run_debug[1] == "5432"
-
-    conn = psycopg2.connect(host=run_debug[0], port=run_debug[1], dbname="glaredb")
-    conn.autocommit = True
-    with conn.cursor() as cur:
-        assert not cur.closed
+def test_start(glaredb_connection: psycopg2.extensions.connection):
+    with glaredb_connection.cursor() as cur:
         cur.execute("SELECT 1;")
-
-    conn.close()
