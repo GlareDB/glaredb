@@ -20,15 +20,15 @@ pub struct BsonBatchConverter {
 impl BsonBatchConverter {
     pub fn new(batch: StructArray, fields: Fields) -> Self {
         let mut field_names = Vec::<String>::with_capacity(fields.len());
-        for name in &fields {
-            field_names.push(name.to_string())
+        for field in &fields {
+            field_names.push(field.name().to_owned())
         }
 
         Self {
             batch: batch.clone(),
             schema: field_names,
             row: 0,
-            started: true,
+            started: false,
             columns: Vec::<Vec<bson::Bson>>::with_capacity(batch.num_columns()),
         }
     }
@@ -38,6 +38,7 @@ impl BsonBatchConverter {
             self.columns
                 .push(array_to_bson(col).map_err(|e| ArrowError::from_external_error(Box::new(e)))?)
         }
+        self.started = true;
         Ok(())
     }
 }
@@ -49,7 +50,7 @@ impl Iterator for BsonBatchConverter {
         if !self.started {
             self.setup().ok()?;
         }
-        if self.row > self.batch.len() {
+        if self.row >= self.batch.len() {
             return None;
         }
 

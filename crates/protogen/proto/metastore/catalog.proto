@@ -31,6 +31,8 @@ syntax = "proto3";
 
 package metastore.catalog;
 
+option go_package = "github.com/glaredb/cloud/pkg/protogen/metastore";
+
 import "metastore/options.proto";
 import "common/arrow.proto";
 
@@ -125,7 +127,11 @@ message EntryMeta {
   // Temp objects should never be persisted.
   bool is_temp = 7;
 
-  // next: 8
+  // Optional sql example string.
+  optional string sql_example = 8;
+  // Optional description string
+  optional string description = 9;
+  // next: 10
 }
 
 // Defines what kind of access is allowed on the data source.

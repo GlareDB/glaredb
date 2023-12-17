@@ -45,6 +45,7 @@ impl<'a> ResolvedEntry<'a> {
 /// account the search path.
 // TODO: Remove Arc and Vec. (rethink how we handle storing things on
 // datafusion's context).
+#[derive(Debug)]
 pub struct EntryResolver<'a> {
     /// Catalog to lookup entries in.
     pub catalog: &'a SessionCatalog,

@@ -13,11 +13,11 @@ os_arch := os() + '-' + arch()
 bench cmd *args:
   just benchmarks/{{cmd}} {{args}}
 
-# Run py-glaredb subcommands. see `py-glaredb/justfile` for more details.
+# Run py-glaredb subcommands. see `bindings/python/justfile` for more details.
 python cmd *args: protoc
   just bindings/python/{{cmd}} {{args}}
 
-# Run js-glaredb subcommands. see `js-glaredb/justfile` for more details.
+# Run js-glaredb subcommands. see `bindings/nodejs/justfile` for more details.
 javascript cmd *args: protoc
   just bindings/nodejs/{{cmd}} {{args}}
 
@@ -48,7 +48,7 @@ test *args: protoc
 
 # Run unit tests.
 unit-tests *args: protoc
-  just test --lib --bins {{args}}
+  just test --workspace --exclude testing {{args}}
 
 # Run doc tests.
 doc-tests: protoc
@@ -60,7 +60,7 @@ sql-logic-tests *args: protoc
 
 # Run SQL Logic Tests over RPC
 rpc-tests: protoc
-  just sql-logic-tests --rpc-test \
+  just sql-logic-tests --protocol=rpc \
     'sqllogictests/cast/*' \
     'sqllogictests/cte/*' \
     'sqllogictests/functions/delta_scan' \
@@ -107,7 +107,7 @@ rpc-tests: protoc
 
 #  Check formatting.
 fmt-check: protoc
-  cargo fmt -- --check
+  cargo fmt --check
 
 # Apply formatting.
 fmt *args: protoc
@@ -117,11 +117,14 @@ fmt *args: protoc
 clippy: protoc
   cargo clippy --all --all-features -- --deny warnings
 
+# combined target for all lint
+lint: clippy fmt-check
+
 # apply linting & clippy fixes.
 fix: protoc
   cargo clippy --fix --all --all-features --allow-staged --allow-dirty
   cargo fix --all --allow-staged  --allow-dirty
-  just fmt --all
+  cargo fmt --all
 
 # Displays help message.
 help:
@@ -138,6 +141,13 @@ protoc:
     rm protoc.zip
   fi
 
+# Installs python dependencies for testing
+pytest-setup:
+	poetry -C tests install
+
+# Runs pytest in the tests directory.
+pytest *args:
+	poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
 
 # private helpers below
 # ---------------------

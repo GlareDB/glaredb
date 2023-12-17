@@ -1,243 +1,297 @@
 //! Builtin table returning functions.
+mod aggregates;
+mod scalars;
+mod table;
 
-mod bigquery;
 mod bson;
-mod delta;
-mod excel;
-mod generate_series;
-mod iceberg;
-mod lance;
-mod mongo;
-mod mysql;
-mod object_store;
-mod postgres;
-mod snowflake;
-mod virtual_listing;
 
-use ::object_store::aws::AmazonS3ConfigKey;
-use ::object_store::azure::AzureConfigKey;
-use ::object_store::gcp::GoogleConfigKey;
-use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction};
+use self::scalars::df_scalars::ArrowCastFunction;
+use self::scalars::kdl::{KDLMatches, KDLSelect};
+use self::scalars::{postgres::*, ConnectionId, Version};
+use self::table::{BuiltinTableFuncs, TableFunc};
+
+use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
+use once_cell::sync::Lazy;
+use protogen::metastore::types::catalog::{
+    EntryMeta, EntryType, FunctionEntry, FunctionType, RuntimePreference,
+};
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFunc, TableFuncContextProvider};
-use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
-use once_cell::sync::Lazy;
-use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
-
-use self::bigquery::ReadBigQuery;
-use self::delta::DeltaScan;
-use self::excel::ExcelScan;
-use self::generate_series::GenerateSeries;
-use self::iceberg::{IcebergDataFiles, IcebergScan, IcebergSnapshots};
-use self::lance::LanceScan;
-use self::mongo::ReadMongoDb;
-use self::mysql::ReadMysql;
-use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON, READ_PARQUET};
-use self::postgres::ReadPostgres;
-use self::snowflake::ReadSnowflake;
-use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
-
 /// Builtin table returning functions available for all sessions.
-pub static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
-pub static BUILTIN_SCALAR_FUNCS: Lazy<BuiltinScalarFuncs> = Lazy::new(BuiltinScalarFuncs::new);
-pub static BUILTIN_AGGREGATE_FUNCS: Lazy<BuiltinAggregateFuncs> =
-    Lazy::new(BuiltinAggregateFuncs::new);
-/// All builtin aggregate functions.
-pub struct BuiltinAggregateFuncs {
-    funcs: HashMap<String, AggregateFunction>,
+static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
+pub static ARROW_CAST_FUNC: Lazy<ArrowCastFunction> = Lazy::new(|| ArrowCastFunction {});
+pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
+
+/// A builtin function.
+/// This trait is implemented by all builtin functions.
+/// This is used to derive catalog entries for all supported functions.
+/// Any new function MUST implement this trait.
+pub trait BuiltinFunction: Sync + Send {
+    /// The name for this function. This name will be used when looking up
+    /// function implementations.
+    fn name(&self) -> &str;
+
+    /// Return the signature for this function.
+    /// Defaults to None.
+    // TODO: Remove the default impl once we have `signature` implemented for all functions
+    fn signature(&self) -> Option<Signature> {
+        None
+    }
+
+    /// Return a sql example for this function.
+    /// Defaults to None.
+    fn sql_example(&self) -> Option<String> {
+        None
+    }
+
+    /// Return a description for this function.
+    /// Defaults to None.
+    fn description(&self) -> Option<String> {
+        None
+    }
+
+    // Returns the function type. 'aggregate', 'scalar', or 'table'
+    fn function_type(&self) -> FunctionType;
+
+    /// Convert to a builtin [`FunctionEntry`] for catalogging.
+    ///
+    /// The default implementation is suitable for aggregates and scalars. Table
+    /// functions need to set runtime preference manually.
+    fn as_function_entry(&self, id: u32, parent: u32) -> FunctionEntry {
+        let meta = EntryMeta {
+            entry_type: EntryType::Function,
+            id,
+            parent,
+            name: self.name().to_string(),
+            builtin: true,
+            external: false,
+            is_temp: false,
+            sql_example: self.sql_example(),
+            description: self.description(),
+        };
+
+        FunctionEntry {
+            meta,
+            func_type: self.function_type(),
+            runtime_preference: RuntimePreference::Unspecified,
+            signature: self.signature(),
+        }
+    }
 }
 
-impl BuiltinAggregateFuncs {
+/// The same as [`BuiltinFunction`] , but with const values.
+pub trait ConstBuiltinFunction: Sync + Send {
+    const NAME: &'static str;
+    const DESCRIPTION: &'static str;
+    const EXAMPLE: &'static str;
+    const FUNCTION_TYPE: FunctionType;
+    fn signature(&self) -> Option<Signature> {
+        None
+    }
+}
+/// The namespace of a function.
+///
+/// Optional -> "namespace.function" || "function"
+///
+/// Required -> "namespace.function"
+///
+/// None -> "function"
+pub enum FunctionNamespace {
+    /// The function can either be called under the namespace, or under global
+    /// e.g. "pg_catalog.current_user" or "current_user"
+    Optional(&'static str),
+    /// The function must be called under the namespace
+    /// e.g. "foo.my_function"
+    Required(&'static str),
+    /// The function can only be called under the global namespace
+    /// e.g. "avg"
+    None,
+}
+
+/// A custom builtin function provided by GlareDB.
+///
+/// These are functions that are implemented directly in GlareDB.
+/// Unlike [`BuiltinFunction`], this contains an implementation of a UDF, and is not just a catalog entry for a DataFusion function.
+///
+/// Note: upcoming release of DataFusion will have a similar trait that'll likely be used instead.
+pub trait BuiltinScalarUDF: BuiltinFunction {
+    fn as_expr(&self, args: Vec<Expr>) -> Expr;
+    /// The namespace of the function.
+    /// Defaults to global (None)
+    fn namespace(&self) -> FunctionNamespace {
+        FunctionNamespace::None
+    }
+}
+
+impl<T> BuiltinFunction for T
+where
+    T: ConstBuiltinFunction + Sized,
+{
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+    fn sql_example(&self) -> Option<String> {
+        Some(Self::EXAMPLE.to_string())
+    }
+    fn description(&self) -> Option<String> {
+        Some(Self::DESCRIPTION.to_string())
+    }
+    fn function_type(&self) -> FunctionType {
+        Self::FUNCTION_TYPE
+    }
+    fn signature(&self) -> Option<Signature> {
+        self.signature()
+    }
+}
+
+/// Builtin Functions available for all sessions.
+/// This is functionally equivalent to the datafusion `SessionState::scalar_functions`
+/// We use our own implementation to allow us to have finer grained control over them.
+/// We also don't have any session specific functions (for now), so it makes more sense to have a const global.
+pub struct FunctionRegistry {
+    funcs: HashMap<String, Arc<dyn BuiltinFunction>>,
+    udfs: HashMap<String, Arc<dyn BuiltinScalarUDF>>,
+}
+
+impl FunctionRegistry {
     pub fn new() -> Self {
         use strum::IntoEnumIterator;
-        let funcs = AggregateFunction::iter()
-            .map(|f| (f.to_string(), f))
-            .collect::<HashMap<String, AggregateFunction>>();
+        let scalars = BuiltinScalarFunction::iter().map(|f| {
+            let key = f.to_string();
+            let value: Arc<dyn BuiltinFunction> = Arc::new(f);
+            (key, value)
+        });
+        let aggregates = AggregateFunction::iter().map(|f| {
+            let key = f.to_string();
+            let value: Arc<dyn BuiltinFunction> = Arc::new(f);
+            (key, value)
+        });
+        let arrow_cast: Arc<dyn BuiltinFunction> = Arc::new(ArrowCastFunction {});
+        let arrow_cast = (arrow_cast.name().to_string(), arrow_cast);
+        let arrow_cast = std::iter::once(arrow_cast);
 
-        BuiltinAggregateFuncs { funcs }
-    }
-    pub fn iter_funcs(&self) -> impl Iterator<Item = &AggregateFunction> {
-        self.funcs.values()
-    }
-}
-
-impl Default for BuiltinAggregateFuncs {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// All builtin scalar functions.
-pub struct BuiltinScalarFuncs {
-    funcs: HashMap<String, BuiltinScalarFunction>,
-}
-
-impl BuiltinScalarFuncs {
-    pub fn new() -> Self {
-        use strum::IntoEnumIterator;
-        let funcs = BuiltinScalarFunction::iter()
-            .map(|f| (f.to_string(), f))
-            .collect::<HashMap<String, BuiltinScalarFunction>>();
-
-        BuiltinScalarFuncs { funcs }
-    }
-    pub fn iter_funcs(&self) -> impl Iterator<Item = &BuiltinScalarFunction> {
-        self.funcs.values()
-    }
-}
-impl Default for BuiltinScalarFuncs {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// All builtin table functions.
-pub struct BuiltinTableFuncs {
-    funcs: HashMap<String, Arc<dyn TableFunc>>,
-}
-
-impl BuiltinTableFuncs {
-    pub fn new() -> BuiltinTableFuncs {
-        let funcs: Vec<Arc<dyn TableFunc>> = vec![
-            // Databases/warehouses
-            Arc::new(ReadPostgres),
-            Arc::new(ReadBigQuery),
-            Arc::new(ReadMongoDb),
-            Arc::new(ReadMysql),
-            Arc::new(ReadSnowflake),
-            // Object store
-            Arc::new(PARQUET_SCAN),
-            Arc::new(READ_PARQUET),
-            Arc::new(CSV_SCAN),
-            Arc::new(READ_CSV),
-            Arc::new(JSON_SCAN),
-            Arc::new(READ_JSON),
-            // Data lakes
-            Arc::new(DeltaScan),
-            Arc::new(IcebergScan),
-            Arc::new(IcebergSnapshots),
-            Arc::new(IcebergDataFiles),
-            Arc::new(ExcelScan),
-            Arc::new(LanceScan),
-            // Listing
-            Arc::new(ListSchemas),
-            Arc::new(ListTables),
-            Arc::new(ListColumns),
-            // Series generating
-            Arc::new(GenerateSeries),
+        // GlareDB specific functions
+        let udfs: Vec<Arc<dyn BuiltinScalarUDF>> = vec![
+            // Postgres functions
+            Arc::new(HasSchemaPrivilege),
+            Arc::new(HasDatabasePrivilege),
+            Arc::new(HasTablePrivilege),
+            Arc::new(CurrentSchemas),
+            Arc::new(CurrentUser),
+            Arc::new(CurrentRole),
+            Arc::new(CurrentSchema),
+            Arc::new(CurrentDatabase),
+            Arc::new(CurrentCatalog),
+            Arc::new(User),
+            Arc::new(PgGetUserById),
+            Arc::new(PgTableIsVisible),
+            Arc::new(PgEncodingToChar),
+            Arc::new(PgArrayToString),
+            // KDL functions
+            Arc::new(KDLMatches),
+            Arc::new(KDLSelect),
+            // Other functions
+            Arc::new(ConnectionId),
+            Arc::new(Version),
         ];
-        let funcs: HashMap<String, Arc<dyn TableFunc>> = funcs
+        let udfs = udfs
             .into_iter()
-            .map(|f| (f.name().to_string(), f))
-            .collect();
+            .flat_map(|f| {
+                let entry = (f.name().to_string(), f.clone());
+                match f.namespace() {
+                    // we register the function under both the namespaced entry and the normal entry
+                    // e.g. select foo.my_function() or select my_function()
+                    FunctionNamespace::Optional(namespace) => {
+                        let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
+                        vec![entry, namespaced_entry]
+                    }
+                    // we only register the function under the namespaced entry
+                    // e.g. select foo.my_function()
+                    FunctionNamespace::Required(namespace) => {
+                        let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
+                        vec![namespaced_entry]
+                    }
+                    // we only register the function under the normal entry
+                    // e.g. select my_function()
+                    FunctionNamespace::None => {
+                        vec![entry]
+                    }
+                }
+            })
+            .collect::<HashMap<_, _>>();
 
-        BuiltinTableFuncs { funcs }
+        let funcs: HashMap<String, Arc<dyn BuiltinFunction>> =
+            scalars.chain(aggregates).chain(arrow_cast).collect();
+
+        FunctionRegistry { funcs, udfs }
     }
 
-    pub fn find_function(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
+    pub fn find_function(&self, name: &str) -> Option<Arc<dyn BuiltinFunction>> {
         self.funcs.get(name).cloned()
     }
 
-    pub fn iter_funcs(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
+    /// Find a scalar UDF by name
+    /// This is separate from `find_function` because we want to avoid downcasting
+    /// We already match on BuiltinScalarFunction and AggregateFunction when parsing the AST, so we just need to match on the UDF here.
+    pub fn get_scalar_udf(&self, name: &str) -> Option<Arc<dyn BuiltinScalarUDF>> {
+        self.udfs.get(name).cloned()
+    }
+
+    pub fn scalar_functions(&self) -> impl Iterator<Item = &Arc<dyn BuiltinFunction>> {
         self.funcs.values()
+    }
+
+    pub fn scalar_udfs(&self) -> impl Iterator<Item = &Arc<dyn BuiltinScalarUDF>> {
+        self.udfs.values()
+    }
+    /// Return an iterator over all builtin table functions.
+    pub fn table_funcs(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
+        BUILTIN_TABLE_FUNCS.iter_funcs()
+    }
+
+    pub fn get_table_func(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
+        BUILTIN_TABLE_FUNCS.find_function(name)
     }
 }
 
-impl Default for BuiltinTableFuncs {
+impl Default for FunctionRegistry {
     fn default() -> Self {
         Self::new()
     }
 }
 
-// Parse the data lake table location and object store options from the provided function arguments
-fn table_location_and_opts(
-    ctx: &dyn TableFuncContextProvider,
-    args: Vec<FuncParamValue>,
-    opts: &mut HashMap<String, FuncParamValue>,
-) -> Result<(DatasourceUrl, StorageOptions)> {
-    let mut args = args.into_iter();
-    let first = args.next().unwrap();
-    let url: String = first.param_into()?;
-    let source_url =
-        DatasourceUrl::try_new(url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
+// Define a macro to associate doc strings and examples with items
+// The macro helps preserve the line wrapping. rustfmt will otherwise collapse the lines.
+#[macro_export]
+macro_rules! document {
+    (doc => $doc:expr, example => $example:expr, name => $item:ident) => {
+        #[doc = $doc]
+        pub struct $item;
 
-    let mut maybe_cred_opts = None;
-    // Check if a credentials object has been supplied
-    if let Some(func_param) = args.next() {
-        let creds: IdentValue = func_param.param_into()?;
-        maybe_cred_opts = Some(
-            ctx.get_session_catalog()
-                .resolve_credentials(creds.as_str())
-                .cloned()
-                .ok_or(ExtensionError::String(format!(
-                    "missing credentials object: {creds}"
-                )))?
-                .options,
-        );
-    }
-
-    let mut storage_options = StorageOptions::default();
-    match (source_url.datasource_url_type(), maybe_cred_opts) {
-        (DatasourceUrlType::File, None) => {} // no options fine in this case
-        (DatasourceUrlType::File, _) => {
-            return Err(ExtensionError::String(
-                "Credentials incorrectly provided when accessing local delta table".to_string(),
-            ))
-        }
-        (DatasourceUrlType::Gcs, Some(CredentialsOptions::Gcp(creds))) => {
-            storage_options.inner.insert(
-                GoogleConfigKey::ServiceAccountKey.as_ref().to_string(),
-                creds.service_account_key,
-            );
-        }
-        (DatasourceUrlType::S3, Some(CredentialsOptions::Aws(creds))) => {
-            const REGION_KEY: &str = "region";
-            let region = opts
-                .remove(REGION_KEY)
-                .ok_or(ExtensionError::MissingNamedArgument(REGION_KEY))?
-                .param_into()?;
-
-            storage_options.inner.insert(
-                AmazonS3ConfigKey::AccessKeyId.as_ref().to_string(),
-                creds.access_key_id,
-            );
-            storage_options.inner.insert(
-                AmazonS3ConfigKey::SecretAccessKey.as_ref().to_string(),
-                creds.secret_access_key,
-            );
-            storage_options
-                .inner
-                .insert(AmazonS3ConfigKey::Region.as_ref().to_string(), region);
-        }
-        (DatasourceUrlType::Azure, Some(CredentialsOptions::Azure(creds))) => {
-            storage_options.inner.insert(
-                AzureConfigKey::AccountName.as_ref().to_string(),
-                creds.account_name,
-            );
-            storage_options.inner.insert(
-                AzureConfigKey::AccessKey.as_ref().to_string(),
-                creds.access_key,
-            );
-        }
-        (DatasourceUrlType::Http, _) => {
-            return Err(ExtensionError::String(
-                "Accessing delta tables over http not supported".to_string(),
-            ))
-        }
-        (datasource, creds) => {
-            return Err(ExtensionError::String(format!(
-                "Invalid credentials for {datasource}, got {} creds",
-                if let Some(o) = creds {
-                    o.as_str()
-                } else {
-                    "no"
-                }
-            )))
+        impl $item {
+            pub const DESCRIPTION: &'static str = $doc;
+            pub const EXAMPLE: &'static str = $example;
+            pub const NAME: &'static str = stringify!($item);
         }
     };
+    (doc => $doc:expr, example => $example:expr, $name:expr => $item:ident) => {
+        #[doc = $doc]
+        pub struct $item;
 
-    Ok((source_url, storage_options))
+        impl $item {
+            pub const DESCRIPTION: &'static str = $doc;
+            pub const EXAMPLE: &'static str = $example;
+            pub const NAME: &'static str = $name;
+        }
+    };
+    // uses an existing struct
+    ($doc:expr, $example:expr, name => $name:expr, implementation => $item:ident) => {
+        impl $item {
+            pub const DESCRIPTION: &'static str = $doc;
+            pub const EXAMPLE: &'static str = $example;
+            pub const NAME: &'static str = $name;
+        }
+    };
 }

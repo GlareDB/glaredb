@@ -1,53 +1,62 @@
+use clap::Args;
+
 use super::*;
 
-#[derive(Parser)]
+#[derive(Args)]
+
 pub struct ServerArgs {
     /// TCP address to bind to for the Postgres interface.
-    #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6543"))]
-    pub bind: String,
+    #[arg(
+        id = "PORT",
+        short = 'b',
+        long = "bind",
+        value_parser,
+        conflicts_with = "disable_postgres_api"
+    )]
+    pub bind: Option<String>,
 
-    /// TCP address to bind to for the RPC interface.
-    #[clap(long, hide = true, value_parser)]
+    /// TCP address to bind to for the RPC/Flight SQL interface.
+    #[arg(id= "RPC_PORT", long="rpc-bind", value_parser, aliases=&["flight-bind"])]
     pub rpc_bind: Option<String>,
 
     /// Address to the Metastore.
     ///
     /// If not provided and `local` is set to a true, an in-process
     /// metastore will be started.
-    #[clap(short, long, hide = true, value_parser)]
+    #[arg(short, long, hide = true, value_parser)]
     pub metastore_addr: Option<String>,
 
     /// Set the user used for authentication.
     ///
     /// Only has an affect if a password is also provided. If a password is
     /// not provided, the GlareDB server will not prompt for a password.
-    #[clap(short, long, value_parser, default_value_t = String::from("glaredb"))]
+    #[arg(short, long, value_parser, default_value_t = String::from("glaredb"), requires = "password")]
     pub user: String,
 
     /// Set the password used for authentication.
     ///
     /// If unset, the GlareDB server will not prompt for a password.
-    #[clap(short, long, value_parser)]
+    #[arg(short, long, value_parser)]
     pub password: Option<String>,
 
     /// Optional file path for persisting data.
     ///
     /// Catalog data and user data will be stored in this directory.
-    #[clap(short = 'f', long, value_parser)]
+    #[arg(short = 'f', long, value_parser)]
     pub data_dir: Option<PathBuf>,
 
     /// Path to GCP service account to use when connecting to GCS.
     ///
     /// Sessions must be proxied through pgsrv, otherwise attempting to
     /// create a session will fail.
-    #[clap(short, long, hide = true, value_parser)]
+    #[arg(short, long, hide = true, value_parser)]
     pub service_account_path: Option<String>,
 
-    #[clap(flatten)]
+    #[command(flatten)]
     pub storage_config: StorageConfigArgs,
 
     /// Path to spill temporary files to.
-    #[clap(long, value_parser)]
+    #[arg(long, value_parser)]
     pub spill_path: Option<PathBuf>,
 
     /// Ignore authentication messages.
@@ -56,7 +65,7 @@ pub struct ServerArgs {
     ///
     /// This is only relevant for internal development. The postgres
     /// protocol proxy will drop all authentication related messages.
-    #[clap(long, hide = true, value_parser)]
+    #[arg(long, hide = true, value_parser)]
     pub ignore_pg_auth: bool,
 
     /// Allow rpc messages directly from the client without proxy.
@@ -66,12 +75,38 @@ pub struct ServerArgs {
     /// This is only relevant for internal development. The RPC proxy will
     /// allow `Client` messages directly. Need to use `--ignore-rpc-auth`
     /// with the `local` command to access this.
-    #[clap(long, hide = true, value_parser)]
+    #[arg(long, hide = true, value_parser)]
     pub disable_rpc_auth: bool,
+
+    /// Enable the simple query RPC service.
+    ///
+    /// (Internal)
+    ///
+    /// Enables Cloud to query glaredb without the overhead of managing system
+    /// credentials or using a proxy.
+    #[arg(long, hide = true, value_parser)]
+    pub enable_simple_query_rpc: bool,
 
     /// API key for segment.
     ///
     /// (Internal)
-    #[clap(long, hide = true, value_parser)]
+    #[arg(long, hide = true, value_parser)]
     pub segment_key: Option<String>,
+
+    /// Enable the experimental Flight SQL API.
+    ///
+    /// This starts up a Flight SQL compatible API that can be used in place of
+    /// the postgres interface. This is an experimental feature and is subject to
+    /// change.
+    ///
+    /// By default, the Flight SQL API will be enabled on port 6789.
+    /// Use the `--flight-bind` option to change the port.
+    #[arg(long, default_value="false", action = clap::ArgAction::SetTrue)]
+    pub enable_flight_api: bool,
+
+    /// Disable the default postgres api.
+    ///
+    /// This will fully disable the postgres server on port 6543.
+    #[arg(long, default_value="false", action = clap::ArgAction::SetTrue)]
+    pub disable_postgres_api: bool,
 }

@@ -1551,7 +1551,7 @@ impl<'a> SessionPlanner<'a> {
         let creds_options = self.get_credentials_opts(&creds)?;
         if let Some(creds_options) = &creds_options {
             validate_copyto_dest_creds_support(dest, creds_options.as_str()).map_err(|e| {
-                PlanError::InvalidExternalTable {
+                PlanError::InvalidCopyToStatement {
                     source: Box::new(e),
                 }
             })?;
@@ -1707,6 +1707,7 @@ impl<'a> SessionPlanner<'a> {
                 let array = m.remove_optional::<bool>("array")?.unwrap_or(false);
                 CopyToFormatOptions::Json(CopyToFormatOptionsJson { array })
             }
+            Some(CopyToFormatOptions::BSON) => CopyToFormatOptions::Bson {},
             Some(other) => return Err(internal!("unsupported output format: {other}")),
         };
 

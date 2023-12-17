@@ -461,10 +461,7 @@ where
             const UNNAMED: String = String::new();
 
             // Parse...
-            if let Err(e) = session
-                .prepare_statement(UNNAMED, Some(stmt), Vec::new())
-                .await
-            {
+            if let Err(e) = session.prepare_statement(UNNAMED, stmt, Vec::new()).await {
                 self.send_error(e.into()).await?;
                 return self.ready_for_query().await;
             };

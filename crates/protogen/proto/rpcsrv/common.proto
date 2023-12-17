@@ -7,6 +7,11 @@ syntax = "proto3";
 
 package rpcsrv.common;
 
+option go_package = "github.com/glaredb/cloud/pkg/protogen/rpcsrv";
+
+// Storage config for the session.
+message SessionStorageConfig { optional string gcs_bucket = 1; }
+
 /// A single batch as the result of query execution.
 message ExecutionResultBatch {
   // Database id.

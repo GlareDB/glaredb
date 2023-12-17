@@ -10,25 +10,29 @@ use futures::StreamExt;
 use tokio_util::codec::LengthDelimitedCodec;
 
 use datafusion_ext::errors::ExtensionError;
-use datafusion_ext::functions::{FuncParamValue, TableFunc, TableFuncContextProvider};
+use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::bson::schema::{merge_schemas, schema_from_document};
 use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::ObjStoreAccess;
 use protogen::metastore::types::catalog::RuntimePreference;
 
-use crate::functions::table_location_and_opts;
+use crate::functions::table::{table_location_and_opts, TableFunc};
+use crate::functions::{ConstBuiltinFunction, FunctionType};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BsonScan {}
+
+impl ConstBuiltinFunction for BsonScan {
+    const NAME: &'static str = "read_bson";
+    const DESCRIPTION: &'static str = "Reads one or more bson files. Supports globbing.";
+    const EXAMPLE: &'static str = "SELECT * FROM bson_scan('file:///path/to/table*.bson')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+}
 
 #[async_trait]
 impl TableFunc for BsonScan {
     fn runtime_preference(&self) -> RuntimePreference {
         RuntimePreference::Unspecified
-    }
-
-    fn name(&self) -> &str {
-        "read_bson"
     }
 
     // TODO: in addition to a much needed refactor, most of this should be implemented as a
@@ -73,7 +77,7 @@ impl TableFunc for BsonScan {
         let sample_size = match opts.get("schema_sample_size") {
             // TODO: set a maximum (1024?) or have an adaptive mode
             // (at least n but stop after n the same) or skip documents
-            Some(v) => v.to_owned().param_into()?,
+            Some(v) => v.to_owned().try_into()?,
             None => 100,
         };
 

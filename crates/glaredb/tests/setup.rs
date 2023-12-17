@@ -1,8 +1,10 @@
-use assert_cmd::cmd::Command;
+use std::time::Duration;
 
-#[allow(dead_code)]
-pub const DEFAULT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+use assert_cmd::cmd::Command;
 
 pub fn make_cli() -> Command {
     Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Failed to find binary")
 }
+
+#[allow(dead_code)] // Used in the tests. IDK why clippy is complaining about it.
+pub const DEFAULT_TIMEOUT: Duration = Duration::from_millis(2500);
