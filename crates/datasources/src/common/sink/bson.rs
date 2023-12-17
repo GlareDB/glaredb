@@ -112,12 +112,12 @@ where
     /// Convert the `RecordBatch` into BSON rows, and write them to
     /// the output
     pub fn write(&mut self, batch: &RecordBatch) -> Result<(), ArrowError> {
-        let coverter = bson::BsonBatchConverter::new(
+        let converter = bson::BsonBatchConverter::new(
             StructArray::from(batch.to_owned()),
             batch.schema().fields().to_owned(),
         );
 
-        for doc in coverter {
+        for doc in converter {
             doc.to_writer(&mut self.writer)
                 .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
         }
