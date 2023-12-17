@@ -14,7 +14,9 @@ use datafusion::physical_plan::{
 };
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::AggregateMetricsStreamAdapter;
+use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use futures::{stream, TryStreamExt};
+use protogen::metastore::types::catalog::RuntimePreference;
 use std::any::Any;
 use std::fmt;
 use std::hash::Hash;
@@ -78,21 +80,27 @@ pub struct RemoteScanExec {
 }
 
 impl RemoteScanExec {
+    /// Returns a remote scan exec wrapped inside a [`RuntimeGroupExec`]
+    /// asserting that this can only be run on the remote side.
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(
         provider: ProviderReference,
         projected_schema: Arc<Schema>,
         projection: Option<Vec<usize>>,
         filters: Vec<Expr>,
         limit: Option<usize>,
-    ) -> Self {
-        Self {
-            provider,
-            projected_schema,
-            projection,
-            filters,
-            limit,
-            metrics: ExecutionPlanMetricsSet::new(),
-        }
+    ) -> RuntimeGroupExec {
+        RuntimeGroupExec::new(
+            RuntimePreference::Remote,
+            Arc::new(Self {
+                provider,
+                projected_schema,
+                projection,
+                filters,
+                limit,
+                metrics: ExecutionPlanMetricsSet::new(),
+            }),
+        )
     }
 }
 

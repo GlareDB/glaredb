@@ -38,56 +38,5 @@ impl UserDefinedLogicalNodeCore for DropSchemas {
 }
 
 impl ExtensionNode for DropSchemas {
-    type ProtoRepr = protogen::sqlexec::logical_plan::DropSchemas;
     const EXTENSION_NAME: &'static str = "DropSchemas";
-    fn try_decode(
-        proto: Self::ProtoRepr,
-        _ctx: &SessionContext,
-        _codec: &dyn LogicalExtensionCodec,
-    ) -> std::result::Result<Self, ProtoConvError> {
-        let references = proto
-            .references
-            .into_iter()
-            .map(|r| r.into())
-            .collect::<Vec<_>>();
-
-        Ok(Self {
-            schema_references: references,
-            if_exists: proto.if_exists,
-            cascade: proto.cascade,
-        })
-    }
-    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self> {
-        match extension.node.as_any().downcast_ref::<Self>() {
-            Some(s) => Ok(s.clone()),
-            None => Err(internal!("DropSchemas::try_decode_extension failed",)),
-        }
-    }
-
-    fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()> {
-        use protogen::sqlexec::logical_plan as protogen;
-        let references = self
-            .schema_references
-            .clone()
-            .into_iter()
-            .map(|r| r.into())
-            .collect::<Vec<_>>();
-
-        let create_schema = protogen::DropSchemas {
-            references,
-            if_exists: self.if_exists,
-            cascade: self.cascade,
-        };
-        let plan_type = protogen::LogicalPlanExtensionType::DropSchemas(create_schema);
-
-        let lp_extension = protogen::LogicalPlanExtension {
-            inner: Some(plan_type),
-        };
-
-        lp_extension
-            .encode(buf)
-            .map_err(|e| internal!("{}", e.to_string()))?;
-
-        Ok(())
-    }
 }

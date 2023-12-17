@@ -2,7 +2,6 @@ use crate::context::local::LocalSessionContext;
 use crate::dispatch::DispatchError;
 use crate::dispatch::Dispatcher;
 use crate::errors::ExecError;
-use crate::functions::BuiltinScalarFunction;
 use crate::planner::errors::PlanError;
 use crate::remote::client::RemoteSessionClient;
 use crate::resolve::EntryResolver;
@@ -27,7 +26,8 @@ use protogen::metastore::types::catalog::{
 };
 use protogen::metastore::types::options::TableOptions;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
-use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
+
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -312,8 +312,8 @@ impl<'a> PartialContextProvider<'a> {
 
             RuntimePreference::Unspecified => {
                 let resolve_func = if func.meta.builtin {
-                    BUILTIN_TABLE_FUNCS
-                        .find_function(&func.meta.name)
+                    FUNCTION_REGISTRY
+                        .get_table_func(&func.meta.name)
                         .expect("function should always exist for builtins")
                 } else {
                     return Err(PlanError::Internal(
@@ -394,8 +394,10 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         Ok(Arc::new(DefaultTableSource::new(Arc::new(provider))))
     }
 
-    fn get_builtin(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr> {
-        BuiltinScalarFunction::find_function(name).map(|f| f.into_expr(args))
+    fn get_scalar_udf(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr> {
+        FUNCTION_REGISTRY
+            .get_scalar_udf(name)
+            .map(|f| f.as_expr(args))
     }
 
     async fn get_variable_type(&mut self, _variable_names: &[String]) -> Option<DataType> {

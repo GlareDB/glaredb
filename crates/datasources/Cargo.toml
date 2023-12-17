@@ -8,7 +8,7 @@ edition = {workspace = true}
 [dependencies]
 ioutil = { path = "../ioutil" }
 apache-avro = "0.16"
-async-channel = "2.1.0"
+async-channel = "2.1.1"
 async-stream = "0.3.5"
 async-trait = "0.1.74"
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "deps/2023-10-27-update" }
@@ -24,18 +24,18 @@ gcp-bigquery-client = "0.18.0"
 logutil = {path = "../logutil"}
 protogen = {path = "../protogen"}
 datafusion_ext = { path = "../datafusion_ext" }
-mongodb = "2.7.1"
+mongodb = "2.8.0"
 mysql_async = { version = "0.33.0", default-features = false, features = ["default-rustls"] }
 mysql_common = { version = "0.31", default-features = false, features = ["chrono"] }
 object_store = { workspace = true, features = ["gcp", "aws", "http"] }
 object_store_util = { path = "../object_store_util" }
 glob = "0.3.1"
-once_cell = "1.18.0"
+once_cell = "1.19.0"
 rand = "0.8.5"
 regex = "1.9.1"
 repr = { path = "../repr" }
-ring = "0.17.5"
-rustls = "0.21.9"
+ring = "0.17.7"
+rustls = "0.21.10"
 reqwest = { version = "0.11.22", default-features = false, features = ["json", "rustls-tls"] }
 rust_decimal = { version = "1.33.1", features = ["db-tokio-postgres"] }
 serde = { workspace = true }
@@ -43,7 +43,7 @@ serde_bytes = "0.11.12"
 serde_with = "3.1.0"
 serde_json = { workspace = true }
 snowflake_connector = { path = "../snowflake_connector" }
-tempfile = "3.8.1"
+tempfile = { workspace = true }
 ssh-key = { version = "0.6.3", features = ["ed25519", "alloc"] }
 thiserror.workspace = true
 tokio-util = { version = "*" }
@@ -56,7 +56,7 @@ uuid = "1.6.1"
 url.workspace = true
 webpki-roots = "0.25.3"
 dashmap = "5.5.0"
-calamine = { version = "0.22.1", features = ["dates"] }
+calamine = { version = "0.23.0", features = ["dates"] }
 tiberius = { version = "0.12.2", default-features = false, features = ["tds73", "rustls", "chrono"] }
 lance = { git = "https://github.com/universalmind303/lance", rev = "81158eb540ff88ab5b4fce3a1170447760137412" }
 bson = "2.7.0"

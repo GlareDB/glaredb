@@ -1,11 +1,8 @@
 use super::*;
 
 use protogen::metastore::types::{options::CredentialsOptions, service, service::Mutation};
-use protogen::sqlexec::physical_plan::ExecutionPlanExtensionType;
 
-use crate::planner::errors::internal;
 use catalog::mutator::CatalogMutator;
-use protogen::export::prost::Message;
 
 #[derive(Clone, Debug)]
 pub struct CreateCredentialExec {
@@ -14,52 +11,6 @@ pub struct CreateCredentialExec {
     pub options: CredentialsOptions,
     pub comment: String,
     pub or_replace: bool,
-}
-
-impl PhysicalExtensionNode for CreateCredentialExec {
-    type ProtoRepr = protogen::sqlexec::physical_plan::CreateCredentialExec;
-
-    fn try_encode(
-        &self,
-        buf: &mut Vec<u8>,
-        _codec: &dyn datafusion_proto::physical_plan::PhysicalExtensionCodec,
-    ) -> crate::errors::Result<()> {
-        let proto = protogen::sqlexec::physical_plan::CreateCredentialExec {
-            name: self.name.clone(),
-            catalog_version: self.catalog_version,
-            options: Some(self.options.clone().into()),
-            comment: self.comment.clone(),
-            or_replace: self.or_replace,
-        };
-        let ty = ExecutionPlanExtensionType::CreateCredentialExec(proto);
-        let extension =
-            protogen::sqlexec::physical_plan::ExecutionPlanExtension { inner: Some(ty) };
-        extension
-            .encode(buf)
-            .map_err(|e| internal!("{}", e.to_string()))?;
-        Ok(())
-    }
-
-    fn try_decode(
-        proto: Self::ProtoRepr,
-        _registry: &dyn FunctionRegistry,
-        _runtime: &RuntimeEnv,
-        _extension_codec: &dyn PhysicalExtensionCodec,
-    ) -> crate::errors::Result<Self, protogen::ProtoConvError> {
-        let options = proto
-            .options
-            .ok_or(protogen::ProtoConvError::RequiredField(
-                "options".to_string(),
-            ))?;
-
-        Ok(Self {
-            name: proto.name,
-            catalog_version: proto.catalog_version,
-            options: options.try_into()?,
-            comment: proto.comment,
-            or_replace: proto.or_replace,
-        })
-    }
 }
 
 impl DisplayAs for CreateCredentialExec {

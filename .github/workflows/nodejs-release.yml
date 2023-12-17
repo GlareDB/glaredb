@@ -63,18 +63,12 @@ jobs:
       - uses: extractions/setup-just@v1
       - run: just protoc
 
-      # https://github.com/actions/setup-node/issues/899
-      - name: Enable Corepack before setting up Node
-        run: corepack enable
-
       - name: Setup node
         uses: actions/setup-node@v4
         if: ${{ !matrix.settings.docker }}
         with:
-          node-version: 18
+          node-version: 20
           check-latest: true
-          cache: yarn
-          cache-dependency-path: bindings/nodejs/yarn.lock
 
       - name: Install
         uses: dtolnay/rust-toolchain@stable
@@ -105,15 +99,13 @@ jobs:
         run: yarn config set supportedArchitectures.cpu "ia32"
         shell: bash
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --frozen-lockfile
       - name: Setup node x86
         uses: actions/setup-node@v4
         if: matrix.settings.target == 'i686-pc-windows-msvc'
         with:
-          node-version: 18
+          node-version: 20
           check-latest: true
-          cache: yarn
-          cache-dependency-path: bindings/nodejs/yarn.lock
           architecture: x86
       - name: Build in docker
         uses: addnab/docker-run-action@v3
@@ -143,20 +135,14 @@ jobs:
       - uses: extractions/setup-just@v1
       - run: just protoc
 
-      # https://github.com/actions/setup-node/issues/899
-      - name: Enable Corepack before setting up Node
-        run: corepack enable
-
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           check-latest: true
-          cache: yarn
-          cache-dependency-path: bindings/nodejs/yarn.lock
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: "https://registry.npmjs.org"
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --frozen-lockfile
       - name: Download all artifacts
         uses: actions/download-artifact@v3
         with:

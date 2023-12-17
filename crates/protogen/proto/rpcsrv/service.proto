@@ -39,11 +39,10 @@ syntax = "proto3";
 
 package rpcsrv.service;
 
+option go_package = "github.com/glaredb/cloud/pkg/protogen/rpcsrv";
+
 import "metastore/catalog.proto";
 import "rpcsrv/common.proto";
-
-// Storage config for the session.
-message SessionStorageConfig { optional string gcs_bucket = 1; }
 
 // Request for initializing a remote session from the client.
 message InitializeSessionRequestFromClient {
@@ -61,7 +60,7 @@ message InitializeSessionRequestFromClient {
 // Cloud.
 message InitializeSessionRequestFromProxy {
   // Session storage config.
-  SessionStorageConfig storage_conf = 2;
+  common.SessionStorageConfig storage_conf = 2;
 
   // ID of database we're initializing a session for.
   bytes db_id = 3;

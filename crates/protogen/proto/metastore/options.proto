@@ -12,6 +12,8 @@ syntax = "proto3";
 
 package metastore.options;
 
+option go_package = "github.com/glaredb/cloud/pkg/protogen/metastore";
+
 import "common/arrow.proto";
 
 // Some options allow us to know the columns in tables upfront (particularly the

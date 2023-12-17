@@ -8,6 +8,7 @@ name = "glaredb"
 path = "src/bin/main.rs"
 
 [dependencies]
+ioutil = { path = "../ioutil" }
 arrow_util = { path = "../arrow_util" }
 logutil = { path = "../logutil" }
 sqlexec = { path = "../sqlexec" }
@@ -24,14 +25,14 @@ object_store_util = { path = "../object_store_util" }
 metastore = { path = "../metastore" }
 anyhow = "1.0"
 tokio = { workspace = true }
-clap = { version = "4.4.8", features = ["derive"] }
+clap = { version = "4.4.11", features = ["derive"] }
 tracing = "0.1"
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tonic = { workspace = true }
-once_cell = "1.18.0"
+once_cell = "1.19.0"
 futures = "0.3.29"
-colored = "2.0.4"
-reedline = "0.26.0"
+colored = "2.1.0"
+reedline = "0.27.1"
 nu-ansi-term = "0.49.0"
 url.workspace = true
 atty = "0.2.14"
@@ -40,3 +41,4 @@ atty = "0.2.14"
 predicates = "3.0.4"
 assert_cmd = "2.0.12"
 tokio-postgres = "0.7.8"
+tempfile = { workspace = true }

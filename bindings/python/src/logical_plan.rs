@@ -34,7 +34,7 @@ impl PyLogicalPlan {
         wait_for_future(py, async move {
             let mut sess = self.session.lock().await;
             let (_, stream) = sess
-                .execute_inner(self.lp.clone(), &self.op)
+                .execute_logical_plan(self.lp.clone(), &self.op)
                 .await
                 .map_err(PyGlareDbError::from)?;
 
