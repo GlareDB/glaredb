@@ -1419,7 +1419,6 @@ impl CopyToFormatOptions {
     pub const PARQUET: &'static str = "parquet";
     pub const JSON: &'static str = "json";
     pub const BSON: &'static str = "bson";
-in
 
     pub fn as_str(&self) -> &'static str {
         match self {
