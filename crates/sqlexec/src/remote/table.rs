@@ -39,6 +39,11 @@ impl StubRemoteTableProvider {
         }
     }
 
+    /// Returns the provider ID.
+    pub fn id(&self) -> Uuid {
+        self.provider_id
+    }
+
     pub fn encode(&self, buf: &mut Vec<u8>) -> Result<()> {
         buf.extend_from_slice(self.provider_id.as_bytes());
         Ok(())
@@ -72,13 +77,13 @@ impl TableProvider for StubRemoteTableProvider {
             None => self.schema.clone(),
         };
 
-        let exec = RemoteScanExec {
+        let exec = RemoteScanExec::new(
             provider,
             projected_schema,
-            projection: projection.cloned(),
-            filters: filters.to_vec(),
+            projection.cloned(),
+            filters.to_vec(),
             limit,
-        };
+        );
 
         Ok(Arc::new(exec))
     }

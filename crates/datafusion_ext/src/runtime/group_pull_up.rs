@@ -3,6 +3,7 @@ use datafusion::config::ConfigOptions;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::physical_optimizer::PhysicalOptimizerRule;
 use datafusion::physical_plan::aggregates::AggregateExec;
+use datafusion::physical_plan::coalesce_batches::CoalesceBatchesExec;
 use datafusion::physical_plan::filter::FilterExec;
 use datafusion::physical_plan::joins::{HashJoinExec, NestedLoopJoinExec, SortMergeJoinExec};
 use datafusion::physical_plan::limit::{GlobalLimitExec, LocalLimitExec};
@@ -152,13 +153,13 @@ impl PhysicalOptimizerRule for RuntimeGroupPullUp {
 fn can_pull_through_node(plan: &dyn ExecutionPlan) -> bool {
     let plan_any = plan.as_any();
     plan_any.is::<FilterExec>()
+        || plan_any.is::<CoalesceBatchesExec>()
         || plan_any.is::<ProjectionExec>()
         || plan_any.is::<HashJoinExec>()
         || plan_any.is::<SortMergeJoinExec>()
         || plan_any.is::<NestedLoopJoinExec>()
         || plan_any.is::<GlobalLimitExec>()
         || plan_any.is::<LocalLimitExec>()
-        || plan_any.is::<AggregateExec>()
         || plan_any.is::<AggregateExec>()
         || plan_any.is::<SortExec>()
         || plan_any.is::<SortPreservingMergeExec>()

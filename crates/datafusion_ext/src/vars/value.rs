@@ -94,3 +94,20 @@ impl Value for [String] {
         self.join(",")
     }
 }
+
+impl Value for Dialect {
+    fn try_parse(s: &str) -> Option<Self::Owned> {
+        match s {
+            "sql" => Some(Dialect::Sql),
+            "prql" => Some(Dialect::Prql),
+            _ => None,
+        }
+    }
+
+    fn format(&self) -> String {
+        match self {
+            Dialect::Sql => "sql".to_string(),
+            Dialect::Prql => "prql".to_string(),
+        }
+    }
+}

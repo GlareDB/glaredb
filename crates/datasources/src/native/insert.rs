@@ -10,10 +10,10 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, Distribution, ExecutionPlan, Partitioning,
     SendableRecordBatchStream, Statistics,
 };
-use deltalake::action::SaveMode;
 use deltalake::operations::write::WriteBuilder;
+use deltalake::protocol::SaveMode;
 use deltalake::storage::DeltaObjectStore;
-use deltalake::table_state::DeltaTableState;
+use deltalake::table::state::DeltaTableState;
 use futures::StreamExt;
 use std::any::Any;
 use std::sync::Arc;
@@ -24,6 +24,7 @@ pub struct NativeTableInsertExec {
     input: Arc<dyn ExecutionPlan>,
     store: Arc<DeltaObjectStore>,
     snapshot: DeltaTableState,
+    save_mode: SaveMode,
 }
 
 impl NativeTableInsertExec {
@@ -31,11 +32,13 @@ impl NativeTableInsertExec {
         input: Arc<dyn ExecutionPlan>,
         store: Arc<DeltaObjectStore>,
         snapshot: DeltaTableState,
+        save_mode: SaveMode,
     ) -> Self {
         NativeTableInsertExec {
             input,
             store,
             snapshot,
+            save_mode,
         }
     }
 }
@@ -85,6 +88,7 @@ impl ExecutionPlan for NativeTableInsertExec {
             input: children[0].clone(),
             store: self.store.clone(),
             snapshot: self.snapshot.clone(),
+            save_mode: self.save_mode.clone(),
         }))
     }
 
@@ -101,15 +105,17 @@ impl ExecutionPlan for NativeTableInsertExec {
         // This is needed since we might be inserting from a plan that includes
         // a client recv exec. That exec requires that we have an appropriate
         // set of extensions.
-        let state =
-            SessionState::with_config_rt(context.session_config().clone(), context.runtime_env());
+        let state = SessionState::new_with_config_rt(
+            context.session_config().clone(),
+            context.runtime_env(),
+        );
         // Allows writing multiple output partitions from the input execution
         // plan.
         //
         // TODO: Possibly try avoiding cloning the snapshot.
         let builder = WriteBuilder::new(self.store.clone(), self.snapshot.clone())
             .with_input_session_state(state)
-            .with_save_mode(SaveMode::Append)
+            .with_save_mode(self.save_mode.clone())
             .with_input_execution_plan(self.input.clone());
 
         let input = self.input.clone();

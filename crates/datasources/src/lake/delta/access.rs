@@ -1,30 +1,25 @@
 use crate::lake::delta::catalog::{DataCatalog, UnityCatalog};
 use crate::lake::delta::errors::Result;
-use crate::lake::LakeStorageOptions;
 use deltalake::DeltaTable;
 use protogen::metastore::types::options::{
-    CredentialsOptionsAws, DeltaLakeCatalog, DeltaLakeUnityCatalog,
+    DeltaLakeCatalog, DeltaLakeUnityCatalog, StorageOptions,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 
 /// Access a delta lake using a catalog.
 pub struct DeltaLakeAccessor {
     catalog: Arc<dyn DataCatalog>,
-    region: String,
-    access_key_id: String,
-    secret_access_key: String,
+    storage_options: StorageOptions,
 }
 
 impl DeltaLakeAccessor {
     /// Connect to a deltalake using the provided catalog information.
     // TODO: Allow accessing delta tables without a catalog?
-    // TODO: Don't be S3 specific.
     pub async fn connect(
         catalog: &DeltaLakeCatalog,
-        access_key_id: &str,
-        secret_access_key: &str,
-        region: &str,
+        storage_options: StorageOptions,
     ) -> Result<DeltaLakeAccessor> {
         let catalog: Arc<dyn DataCatalog> = match catalog {
             DeltaLakeCatalog::Unity(DeltaLakeUnityCatalog {
@@ -41,9 +36,7 @@ impl DeltaLakeAccessor {
 
         Ok(DeltaLakeAccessor {
             catalog,
-            region: region.to_string(),
-            access_key_id: access_key_id.to_string(),
-            secret_access_key: secret_access_key.to_string(),
+            storage_options,
         })
     }
 
@@ -55,24 +48,15 @@ impl DeltaLakeAccessor {
 
         debug!(%loc, %database, %table, "deltalake location");
 
-        // Currently we only support delta lake on S3.
-        let opts = LakeStorageOptions::S3 {
-            creds: CredentialsOptionsAws {
-                access_key_id: self.access_key_id,
-                secret_access_key: self.secret_access_key,
-            },
-            region: self.region,
-        };
-
-        let table = load_table_direct(&loc, opts).await?;
-
+        let table = load_table_direct(&loc, self.storage_options).await?;
         Ok(table)
     }
 }
 
 /// Loads the table at the given location.
-pub async fn load_table_direct(location: &str, opts: LakeStorageOptions) -> Result<DeltaTable> {
-    let opts = opts.into_opts_hashmap();
+pub async fn load_table_direct(location: &str, opts: StorageOptions) -> Result<DeltaTable> {
+    // Convert to delta-rs compatible options
+    let opts = HashMap::from_iter(opts.inner.into_iter());
     let table = deltalake::open_table_with_storage_options(location, opts).await?;
 
     // Note that the deltalake crate does the appropriate jank for

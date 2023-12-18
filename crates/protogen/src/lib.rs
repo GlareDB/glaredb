@@ -34,6 +34,9 @@ pub mod errors {
         #[error("Invalid table reference: {0:?}.{1:?}.{2:?}")]
         InvalidTableReference(String, String, String),
 
+        #[error("Parse Error: {0}")]
+        ParseError(String),
+
         #[error(transparent)]
         TimestampError(#[from] prost_types::TimestampError),
 
@@ -67,6 +70,12 @@ pub mod errors {
             Self::External(Box::new(value))
         }
     }
+
+    impl From<std::convert::Infallible> for ProtoConvError {
+        fn from(_value: std::convert::Infallible) -> Self {
+            unreachable!()
+        }
+    }
 }
 
 /// Generated code.
@@ -74,6 +83,7 @@ pub mod gen {
     pub mod datafusion {
         pub use datafusion_proto::generated::datafusion::*;
     }
+
     pub mod common {
         pub mod arrow {
             tonic::include_proto!("common.arrow");
@@ -83,6 +93,14 @@ pub mod gen {
     pub mod rpcsrv {
         pub mod service {
             tonic::include_proto!("rpcsrv.service");
+        }
+
+        pub mod common {
+            tonic::include_proto!("rpcsrv.common");
+        }
+
+        pub mod simple {
+            tonic::include_proto!("rpcsrv.simple");
         }
     }
 
@@ -116,18 +134,19 @@ pub trait FromOptionalField<T> {
     fn required(self, field: impl Into<String>) -> Result<T, ProtoConvError>;
 }
 
-impl<T, U> FromOptionalField<U> for Option<T>
+impl<T, U, E> FromOptionalField<U> for Option<T>
 where
-    T: TryInto<U, Error = ProtoConvError>,
+    E: Into<ProtoConvError>,
+    T: TryInto<U, Error = E>,
 {
     fn optional(self) -> Result<Option<U>, ProtoConvError> {
-        self.map(|t| t.try_into()).transpose()
+        self.map(|t| t.try_into().map_err(|e| e.into())).transpose()
     }
 
     fn required(self, field: impl Into<String>) -> Result<U, ProtoConvError> {
         match self {
             None => Err(ProtoConvError::RequiredField(field.into())),
-            Some(t) => t.try_into(),
+            Some(t) => t.try_into().map_err(|e| e.into()),
         }
     }
 }

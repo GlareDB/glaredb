@@ -6,6 +6,8 @@ syntax = "proto3";
 
 package common.arrow;
 
+option go_package = "github.com/glaredb/cloud/pkg/protogen/common";
+
 message Schema { repeated Field columns = 1; }
 
 message Field {

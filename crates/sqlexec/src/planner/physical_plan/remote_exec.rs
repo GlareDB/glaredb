@@ -28,11 +28,21 @@ pub struct RemoteExecutionExec {
     client: RemoteSessionClient,
     /// The plan to send to the remote service.
     plan: Arc<dyn ExecutionPlan>,
+    /// The query text to send for collecting metrics.
+    query_text: String,
 }
 
 impl RemoteExecutionExec {
-    pub fn new(client: RemoteSessionClient, plan: Arc<dyn ExecutionPlan>) -> Self {
-        RemoteExecutionExec { client, plan }
+    pub fn new(
+        client: RemoteSessionClient,
+        plan: Arc<dyn ExecutionPlan>,
+        query_text: String,
+    ) -> Self {
+        RemoteExecutionExec {
+            client,
+            plan,
+            query_text,
+        }
     }
 }
 
@@ -64,6 +74,7 @@ impl ExecutionPlan for RemoteExecutionExec {
         Ok(Arc::new(RemoteExecutionExec {
             client: self.client.clone(),
             plan: children[0].clone(),
+            query_text: self.query_text.clone(),
         }))
     }
 
@@ -78,8 +89,12 @@ impl ExecutionPlan for RemoteExecutionExec {
             return Err(DataFusionError::Execution(format!("RemoteExecutionExec only supports 1 partition, got request for partition {partition}")));
         }
 
-        let stream =
-            stream::once(execute_remote(self.client.clone(), self.plan.clone())).try_flatten();
+        let stream = stream::once(execute_remote(
+            self.client.clone(),
+            self.plan.clone(),
+            self.query_text.clone(),
+        ))
+        .try_flatten();
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
             stream,
@@ -105,12 +120,16 @@ impl DisplayAs for RemoteExecutionExec {
 async fn execute_remote(
     mut client: RemoteSessionClient,
     plan: Arc<dyn ExecutionPlan>,
+    query_text: String,
 ) -> DataFusionResult<ExecutionResponseBatchStream> {
-    let stream = client.physical_plan_execute(plan).await.map_err(|e| {
-        DataFusionError::Execution(format!(
-            "failed to execute physical plan on remote service: {e}"
-        ))
-    })?;
+    let stream = client
+        .physical_plan_execute(plan, query_text)
+        .await
+        .map_err(|e| {
+            DataFusionError::Execution(format!(
+                "failed to execute physical plan on remote service: {e}"
+            ))
+        })?;
 
     Ok(ExecutionResponseBatchStream {
         stream,

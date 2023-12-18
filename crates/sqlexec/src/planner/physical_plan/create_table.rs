@@ -1,37 +1,40 @@
 use std::sync::Arc;
 
+use catalog::{
+    mutator::CatalogMutator,
+    session_catalog::{ResolveConfig, SessionCatalog},
+};
 use datafusion::{
     arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
+    datasource::TableProvider,
     error::{DataFusionError, Result as DataFusionResult},
     execution::TaskContext,
     physical_expr::PhysicalSortExpr,
     physical_plan::{
+        coalesce_partitions::CoalescePartitionsExec, empty::EmptyExec,
         stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan,
         Partitioning, SendableRecordBatchStream, Statistics,
     },
 };
-use datasources::native::access::NativeTableStorage;
+use datasources::native::access::{NativeTable, NativeTableStorage, SaveMode};
 use futures::stream;
 use protogen::metastore::types::{service, service::Mutation};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use tracing::info;
-
-use crate::{
-    errors::ExecError,
-    metastore::catalog::{CatalogMutator, SessionCatalog},
-    planner::{
-        logical_plan::OwnedFullObjectReference,
-        physical_plan::{insert::InsertExec, new_operation_batch},
-    },
-};
+use tracing::debug;
 
 use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
+use crate::{
+    errors::ExecError,
+    planner::{logical_plan::OwnedFullObjectReference, physical_plan::new_operation_batch},
+};
+use futures::StreamExt;
 
 #[derive(Debug, Clone)]
 pub struct CreateTableExec {
     pub catalog_version: u64,
     pub tbl_reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
+    pub or_replace: bool,
     pub arrow_schema: SchemaRef,
     pub source: Option<Arc<dyn ExecutionPlan>>,
 }
@@ -68,6 +71,7 @@ impl ExecutionPlan for CreateTableExec {
             catalog_version: self.catalog_version,
             tbl_reference: self.tbl_reference.clone(),
             if_not_exists: self.if_not_exists,
+            or_replace: self.or_replace,
             arrow_schema: self.arrow_schema.clone(),
             source: children.get(0).cloned(),
         }))
@@ -120,6 +124,9 @@ impl CreateTableExec {
         storage: Arc<NativeTableStorage>,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<RecordBatch> {
+        let or_replace = self.or_replace;
+        let if_not_exists = self.if_not_exists;
+
         let state = mutator
             .mutate(
                 self.catalog_version,
@@ -127,7 +134,8 @@ impl CreateTableExec {
                     schema: self.tbl_reference.schema.clone().into_owned(),
                     name: self.tbl_reference.name.clone().into_owned(),
                     options: self.arrow_schema.into(),
-                    if_not_exists: self.if_not_exists,
+                    if_not_exists,
+                    or_replace,
                 })],
             )
             .await
@@ -135,9 +143,28 @@ impl CreateTableExec {
                 DataFusionError::Execution(format!("failed to create table in catalog: {e}"))
             })?;
 
-        // Note that we're not changing out the catalog stored on the context,
-        // we're just using it here to get the new table entry easily.
-        let new_catalog = SessionCatalog::new(state);
+        let source = self.source.map(|source| {
+            if source.output_partitioning().partition_count() != 1 {
+                Arc::new(CoalescePartitionsExec::new(source))
+            } else {
+                source
+            }
+        });
+
+        // Note that we're not changing out the catalog stored on the context
+        // here. The session's catalog will get swapped out at the beginning of
+        // the next query execution.
+        //
+        // TODO: We should be returning _what_ was updated from metastore
+        // instead of needing to do this. Sean has a stash working on this.
+        let new_catalog = SessionCatalog::new(
+            state,
+            ResolveConfig {
+                default_schema_oid: 0,
+                session_schema_oid: 0,
+            },
+        );
+
         let ent = new_catalog
             .resolve_table(
                 DEFAULT_CATALOG,
@@ -147,17 +174,51 @@ impl CreateTableExec {
             .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))
             .unwrap();
 
-        let table = storage.create_table(ent).await.map_err(|e| {
+        let save_mode = match (if_not_exists, or_replace) {
+            (true, false) => SaveMode::Ignore,
+            (false, true) => SaveMode::Overwrite,
+            (false, false) => SaveMode::ErrorIfExists,
+            (true, true) => {
+                return Err(DataFusionError::Internal(
+                    "cannot create table with both `if_not_exists` and `or_replace` policies"
+                        .to_string(),
+                ))
+            }
+        };
+
+        let table = storage.create_table(ent, save_mode).await.map_err(|e| {
             DataFusionError::Execution(format!("failed to create table in storage: {e}"))
         })?;
-        info!(loc = %table.storage_location(), "native table created");
 
-        if let Some(source) = self.source {
-            InsertExec::do_insert(table.into_table_provider(), source, context).await?;
-        }
+        match (source, or_replace) {
+            (Some(input), overwrite) => insert(&table, input, overwrite, context).await?,
+
+            // if it's a 'replace' and there is no insert, we overwrite with an empty table
+            (None, true) => {
+                let input = Arc::new(EmptyExec::new(false, TableProvider::schema(&table)));
+                insert(&table, input, true, context).await?
+            }
+            (None, false) => {}
+        };
+        debug!(loc = %table.storage_location(), "native table created");
 
         // TODO: Add storage tracking job.
 
         Ok(new_operation_batch("create_table"))
     }
+}
+
+async fn insert(
+    tbl: &NativeTable,
+    input: Arc<dyn ExecutionPlan>,
+    overwrite: bool,
+    context: Arc<TaskContext>,
+) -> DataFusionResult<()> {
+    let mut stream = tbl.insert_exec(input, overwrite).execute(0, context)?;
+
+    while let Some(res) = stream.next().await {
+        // Drain stream to write everything.
+        let _ = res?;
+    }
+    Ok(())
 }

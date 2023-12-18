@@ -148,3 +148,15 @@ SELECT * FROM parquet_scan([
 2
 3
 4
+
+# We don't work well with different schemas (column names).
+
+statement ok
+COPY ( SELECT 1 AS a ) TO '${TMP}/diff-schema-a.parquet';
+
+statement ok
+COPY ( SELECT 2 AS b ) TO '${TMP}/diff-schema-b.parquet';
+
+# TODO: We need a better error message here.
+statement error is declared as non-nullable but contains null values
+SELECT * FROM parquet_scan('${TMP}/diff-schema-*.parquet')

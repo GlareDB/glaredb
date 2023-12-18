@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{
@@ -8,7 +9,6 @@ use datafusion::common::parsers::CompressionTypeVariant;
 use datafusion::common::{FileType, OwnedSchemaReference, OwnedTableReference, ToDFSchema};
 use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
-use datafusion::sql::sqlparser::ast::AlterTableOperation;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
 use datafusion::sql::TableReference;
 use datafusion_ext::planner::SqlQueryPlanner;
@@ -17,28 +17,39 @@ use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
-use datasources::lake::delta::access::DeltaLakeAccessor;
+use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
+use datasources::lake::iceberg::table::IcebergTable;
+use datasources::lance::scan_lance_table;
 use datasources::mongodb::{MongoAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
+use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use protogen::metastore::types::catalog::RuntimePreference;
-use protogen::metastore::types::options::{
-    CopyToDestinationOptions, CopyToDestinationOptionsGcs, CopyToDestinationOptionsLocal,
-    CopyToDestinationOptionsS3, CopyToFormatOptions, CopyToFormatOptionsCsv,
-    CopyToFormatOptionsJson, CopyToFormatOptionsParquet, CredentialsOptions, CredentialsOptionsAws,
-    CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery,
-    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DeltaLakeCatalog, DeltaLakeUnityCatalog,
-    TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
-    TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
-    TunnelOptionsSsh,
+use datasources::sqlserver::SqlServerAccess;
+use object_store::aws::AmazonS3ConfigKey;
+use object_store::azure::AzureConfigKey;
+use object_store::gcp::GoogleConfigKey;
+use protogen::metastore::types::catalog::{
+    CatalogEntry, DatabaseEntry, RuntimePreference, SourceAccessMode, TableEntry,
 };
+use protogen::metastore::types::options::{
+    CopyToDestinationOptions, CopyToDestinationOptionsAzure, CopyToDestinationOptionsGcs,
+    CopyToDestinationOptionsLocal, CopyToDestinationOptionsS3, CopyToFormatOptions,
+    CopyToFormatOptionsCsv, CopyToFormatOptionsJson, CopyToFormatOptionsParquet,
+    CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsAzure, CredentialsOptionsDebug,
+    CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug,
+    DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog, DeltaLakeUnityCatalog,
+    StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs,
+    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer,
+    TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
+};
+use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use sqlbuiltins::validation::{
     validate_copyto_dest_creds_support, validate_copyto_dest_format_support,
@@ -50,22 +61,60 @@ use tracing::debug;
 use crate::context::local::LocalSessionContext;
 use crate::parser::options::StmtOptions;
 use crate::parser::{
-    self, validate_ident, validate_object_name, AlterDatabaseRenameStmt, AlterTunnelAction,
-    AlterTunnelStmt, CopyToSource, CopyToStmt, CreateCredentialsStmt, CreateExternalDatabaseStmt,
-    CreateExternalTableStmt, CreateTunnelStmt, DropCredentialsStmt, DropDatabaseStmt,
-    DropTunnelStmt, StatementWithExtensions,
+    self, validate_ident, validate_object_name, AlterDatabaseStmt, AlterTableStmtExtension,
+    AlterTunnelAction, AlterTunnelStmt, CopyToSource, CopyToStmt, CreateCredentialStmt,
+    CreateCredentialsStmt, CreateExternalDatabaseStmt, CreateExternalTableStmt, CreateTunnelStmt,
+    DropCredentialsStmt, DropDatabaseStmt, DropTunnelStmt, StatementWithExtensions,
 };
 use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
-use crate::resolve::EntryResolver;
+use crate::remote::table::StubRemoteTableProvider;
+use crate::resolve::{EntryResolver, ResolvedEntry};
 
 use super::context_builder::PartialContextProvider;
 use super::extension::ExtensionNode;
+use super::physical_plan::remote_scan::ProviderReference;
 
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {
     ctx: &'a LocalSessionContext,
+}
+
+struct PlanCredentialArgs {
+    /// Name of the credentials as it exists in GlareDB.
+    name: Ident,
+    /// The credentials provider.
+    provider: Ident,
+    /// Credentials specific options.
+    options: StmtOptions,
+    /// Optional comment (what the credentials are for).
+    comment: String,
+    or_replace: bool,
+}
+
+impl From<CreateCredentialsStmt> for PlanCredentialArgs {
+    fn from(value: CreateCredentialsStmt) -> Self {
+        PlanCredentialArgs {
+            name: value.name,
+            provider: value.provider,
+            options: value.options,
+            comment: value.comment,
+            or_replace: value.or_replace,
+        }
+    }
+}
+
+impl From<CreateCredentialStmt> for PlanCredentialArgs {
+    fn from(value: CreateCredentialStmt) -> Self {
+        PlanCredentialArgs {
+            name: value.name,
+            provider: value.provider,
+            options: value.options,
+            comment: value.comment,
+            or_replace: value.or_replace,
+        }
+    }
 }
 
 impl<'a> SessionPlanner<'a> {
@@ -91,13 +140,19 @@ impl<'a> SessionPlanner<'a> {
                 self.plan_create_external_database(stmt).await
             }
             StatementWithExtensions::DropDatabase(stmt) => self.plan_drop_database(stmt),
-            StatementWithExtensions::AlterDatabaseRename(stmt) => {
-                self.plan_alter_database_rename(stmt)
+            StatementWithExtensions::AlterDatabase(stmt) => self.plan_alter_database(stmt),
+            StatementWithExtensions::AlterTableExtension(stmt) => {
+                self.plan_alter_table_extension(stmt)
             }
             StatementWithExtensions::CreateTunnel(stmt) => self.plan_create_tunnel(stmt),
             StatementWithExtensions::DropTunnel(stmt) => self.plan_drop_tunnel(stmt),
             StatementWithExtensions::AlterTunnel(stmt) => self.plan_alter_tunnel(stmt),
-            StatementWithExtensions::CreateCredentials(stmt) => self.plan_create_credentials(stmt),
+            StatementWithExtensions::CreateCredential(stmt) => {
+                self.plan_create_credentials(stmt.into(), false)
+            }
+            StatementWithExtensions::CreateCredentials(stmt) => {
+                self.plan_create_credentials(stmt.into(), true)
+            }
             StatementWithExtensions::DropCredentials(stmt) => self.plan_drop_credentials(stmt),
             StatementWithExtensions::CopyTo(stmt) => self.plan_copy_to(stmt).await,
         }
@@ -215,10 +270,6 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             DatabaseOptions::DELTA => {
-                let access_key_id: String = m.remove_required("access_key_id")?;
-                let secret_access_key: String = m.remove_required("secret_access_key")?;
-                let region: String = m.remove_required("region")?;
-
                 let catalog = match m.remove_required::<String>("catalog_type")?.as_str() {
                     "unity" => DeltaLakeCatalog::Unity(DeltaLakeUnityCatalog {
                         catalog_id: m.remove_required("catalog_id")?,
@@ -228,8 +279,13 @@ impl<'a> SessionPlanner<'a> {
                     other => return Err(internal!("Unknown catalog type: {}", other)),
                 };
 
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+
                 // Try connecting to validate.
-                DeltaLakeAccessor::connect(&catalog, &access_key_id, &secret_access_key, &region)
+                DeltaLakeAccessor::connect(&catalog, storage_options.clone())
                     .await
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
@@ -237,10 +293,17 @@ impl<'a> SessionPlanner<'a> {
 
                 DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
                     catalog,
-                    access_key_id,
-                    secret_access_key,
-                    region,
+                    storage_options,
                 })
+            }
+            DatabaseOptions::SQL_SERVER => {
+                let connection_string: String = m.remove_required("connection_string")?;
+
+                // Validate
+                let access = SqlServerAccess::try_new_from_ado_string(&connection_string)?;
+                access.validate_access().await?;
+
+                DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string })
             }
             DatabaseOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
@@ -369,6 +432,8 @@ impl<'a> SessionPlanner<'a> {
                 let database = m.remove_required("database")?;
                 let collection = m.remove_required("collection")?;
 
+                // TODO: Validate
+
                 TableOptions::Mongo(TableOptionsMongo {
                     connection_string,
                     database,
@@ -416,6 +481,24 @@ impl<'a> SessionPlanner<'a> {
                     table_name: access_info.table_name,
                 })
             }
+            TableOptions::SQL_SERVER => {
+                let connection_string: String = m.remove_required("connection_string")?;
+                let schema_name: String = m.remove_required("schema")?;
+                let table_name: String = m.remove_required("table")?;
+
+                // Validate
+                let access = SqlServerAccess::try_new_from_ado_string(&connection_string)?;
+                access
+                    .validate_table_access(&schema_name, &table_name)
+                    .await?;
+
+                TableOptions::SqlServer(TableOptionsSqlServer {
+                    connection_string,
+                    schema: schema_name,
+                    table: table_name,
+                })
+            }
+
             TableOptions::LOCAL => {
                 let location: String = m.remove_required("location")?;
 
@@ -452,7 +535,7 @@ impl<'a> SessionPlanner<'a> {
                     bucket,
                     service_account_key,
                     location,
-                    file_type: format!("{file_type:?}").to_lowercase(),
+                    file_type: file_type.to_string(),
                     compression: compression.map(|c| c.to_string()),
                 })
             }
@@ -493,9 +576,91 @@ impl<'a> SessionPlanner<'a> {
                     access_key_id,
                     secret_access_key,
                     location,
-                    file_type: format!("{file_type:?}").to_lowercase(),
+                    file_type: file_type.to_string(),
                     compression: compression.map(|c| c.to_string()),
                 })
+            }
+            TableOptions::AZURE => {
+                let (account, access_key) = match creds_options {
+                    Some(CredentialsOptions::Azure(c)) => {
+                        (Some(c.account_name.clone()), Some(c.access_key.clone()))
+                    }
+                    Some(other) => {
+                        return Err(PlanError::String(format!(
+                            "invalid credentials {other} for azure"
+                        )))
+                    }
+                    None => (None, None),
+                };
+
+                let account = m.remove_required_or("account_name", account)?;
+                let access_key = m.remove_required_or("access_key", access_key)?;
+
+                let location: String = m.remove_required("location")?;
+
+                let mut opts = StorageOptions::default();
+                opts.inner
+                    .insert(AzureConfigKey::AccountName.as_ref().to_string(), account);
+                opts.inner
+                    .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
+
+                let access = Arc::new(GenericStoreAccess::new_from_location_and_opts(
+                    &location,
+                    opts.clone(),
+                )?);
+
+                // TODO: Creating a data source url here is a workaround for
+                // getting the path to the file. Since we're using the generic
+                // object store access, it requires that "location" is the full
+                // url of the object, but that goes against our other
+                // assumptions that "location" is just the path.
+                let (file_type, compression) = validate_and_get_file_type_and_compression(
+                    access,
+                    DatasourceUrl::try_new(location.clone())?.path(),
+                    m,
+                )
+                .await?;
+
+                TableOptions::Azure(TableOptionsObjectStore {
+                    location,
+                    storage_options: opts,
+                    file_type: Some(file_type.to_string()),
+                    compression: compression.map(|c| c.to_string()),
+                })
+            }
+            TableOptions::DELTA | TableOptions::ICEBERG => {
+                let location: String = m.remove_required("location")?;
+
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+
+                if datasource.as_str() == TableOptions::DELTA {
+                    let _table = load_table_direct(&location, storage_options.clone()).await?;
+
+                    TableOptions::Delta(TableOptionsObjectStore {
+                        location,
+                        storage_options,
+                        file_type: None,
+                        compression: None,
+                    })
+                } else {
+                    let url = DatasourceUrl::try_new(&location)?;
+                    let store = GenericStoreAccess::new_from_location_and_opts(
+                        &location,
+                        storage_options.clone(),
+                    )?
+                    .create_store()?;
+                    let _table = IcebergTable::open(url, store).await?;
+
+                    TableOptions::Iceberg(TableOptionsObjectStore {
+                        location,
+                        storage_options,
+                        file_type: None,
+                        compression: None,
+                    })
+                }
             }
             TableOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
@@ -511,6 +676,21 @@ impl<'a> SessionPlanner<'a> {
                     table_type: typ.to_string(),
                 })
             }
+            TableOptions::LANCE => {
+                let location: String = m.remove_required("location")?;
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+                // Validate that the table exists.
+                let _table = scan_lance_table(&location, storage_options.clone()).await?;
+                TableOptions::Lance(TableOptionsObjectStore {
+                    location,
+                    storage_options,
+                    file_type: None,
+                    compression: None,
+                })
+            }
             other => return Err(internal!("unsupported datasource: {}", other)),
         };
 
@@ -518,6 +698,7 @@ impl<'a> SessionPlanner<'a> {
 
         let plan = CreateExternalTable {
             tbl_reference: self.ctx.resolve_table_ref(table_name)?,
+            or_replace: stmt.or_replace,
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
             tunnel,
@@ -557,7 +738,11 @@ impl<'a> SessionPlanner<'a> {
         Ok(plan.into_logical_plan())
     }
 
-    fn plan_create_credentials(&self, mut stmt: CreateCredentialsStmt) -> Result<LogicalPlan> {
+    fn plan_create_credentials(
+        &self,
+        mut stmt: PlanCredentialArgs,
+        deprecated: bool,
+    ) -> Result<LogicalPlan> {
         let m = &mut stmt.options;
 
         let provider = normalize_ident(stmt.provider);
@@ -583,18 +768,38 @@ impl<'a> SessionPlanner<'a> {
                     secret_access_key,
                 })
             }
+            CredentialsOptions::AZURE => {
+                let account_name = m.remove_required("account_name")?;
+                let access_key = m.remove_required("access_key")?;
+                CredentialsOptions::Azure(CredentialsOptionsAzure {
+                    account_name,
+                    access_key,
+                })
+            }
             other => return Err(internal!("unsupported credentials provider: {other}")),
         };
 
         let name = normalize_ident(stmt.name);
 
-        let plan = CreateCredentials {
-            name,
-            options,
-            comment: stmt.comment,
+        let plan = if deprecated {
+            CreateCredentials {
+                name,
+                options,
+                comment: stmt.comment,
+                or_replace: stmt.or_replace,
+            }
+            .into_logical_plan()
+        } else {
+            CreateCredential {
+                name,
+                options,
+                comment: stmt.comment,
+                or_replace: stmt.or_replace,
+            }
+            .into_logical_plan()
         };
 
-        Ok(plan.into_logical_plan())
+        Ok(plan)
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
@@ -612,6 +817,7 @@ impl<'a> SessionPlanner<'a> {
             }
 
             ast::Statement::Explain {
+                describe_alias: false,
                 verbose,
                 statement,
                 analyze,
@@ -622,6 +828,22 @@ impl<'a> SessionPlanner<'a> {
                     .explain_statement_to_plan(verbose, analyze, *statement)
                     .await?;
                 Ok(LogicalPlan::Datafusion(plan))
+            }
+            // DESCRIBE <table_name>
+            ast::Statement::ExplainTable {
+                describe_alias: true,
+                table_name,
+            } => {
+                validate_object_name(&table_name)?;
+                let table_name = object_name_to_table_ref(table_name)?;
+                let resolver = EntryResolver::from_context(self.ctx);
+                let entry = resolver
+                    .resolve_entry_from_reference(table_name.clone())?
+                    .try_into_table_entry()?;
+
+                let plan = DescribeTable { entry };
+
+                Ok(plan.into_logical_plan())
             }
 
             ast::Statement::CreateSchema {
@@ -660,6 +882,7 @@ impl<'a> SessionPlanner<'a> {
             ast::Statement::CreateTable {
                 external: false,
                 if_not_exists,
+                or_replace,
                 engine: None,
                 name,
                 columns,
@@ -671,8 +894,7 @@ impl<'a> SessionPlanner<'a> {
                 let table_name = object_name_to_table_ref(name)?;
 
                 let (source, arrow_cols) = if let Some(q) = query {
-                    let mut ctx =
-                        context_provider.with_runtime_preference(RuntimePreference::Remote);
+                    let mut ctx = context_provider;
 
                     let mut planner = SqlQueryPlanner::new(&mut ctx);
 
@@ -700,8 +922,11 @@ impl<'a> SessionPlanner<'a> {
                         .iter()
                         .zip(df_fields.iter())
                         .map(|(field, df_field)| {
-                            cast(col(df_field.name()), field.data_type().clone())
-                                .alias(field.name())
+                            cast(
+                                col(df_field.unqualified_column()),
+                                field.data_type().clone(),
+                            )
+                            .alias(field.name())
                         })
                         .collect();
 
@@ -738,6 +963,7 @@ impl<'a> SessionPlanner<'a> {
                         },
                         schema: df_schema,
                         if_not_exists,
+                        or_replace,
                         source,
                     };
 
@@ -749,6 +975,7 @@ impl<'a> SessionPlanner<'a> {
                         tbl_reference: self.ctx.resolve_table_ref(table_name)?,
                         schema: df_schema,
                         if_not_exists,
+                        or_replace,
                         source,
                     };
                     Ok(create_table.into_logical_plan())
@@ -839,28 +1066,87 @@ impl<'a> SessionPlanner<'a> {
                     .insert_to_source_plan(&table_name, &columns, source)
                     .await?;
 
-                let resolver = EntryResolver::from_context(self.ctx);
-                let ent = resolver
-                    .resolve_entry_from_reference(table_name)?
-                    .try_into_table_entry()?;
+                let access_mode = self
+                    .get_access_mode(table_name.clone())?
+                    .unwrap_or(SourceAccessMode::ReadOnly);
 
-                Ok(Insert { table: ent, source }.into_logical_plan())
+                if !access_mode.has_write_access() {
+                    return Err(PlanError::ObjectNotAllowedToWriteInto(
+                        table_name.to_owned_reference(),
+                    ));
+                }
+
+                let state = self.ctx.df_ctx().state();
+                let mut ctx_provider = PartialContextProvider::new(self.ctx, &state)?;
+
+                let provider = ctx_provider.table_provider(table_name).await?;
+
+                let (runtime_preference, provider) = match (
+                    provider.preference,
+                    provider
+                        .provider
+                        .as_any()
+                        .downcast_ref::<StubRemoteTableProvider>(),
+                ) {
+                    (RuntimePreference::Remote, Some(stub)) => (
+                        RuntimePreference::Remote,
+                        ProviderReference::RemoteReference(stub.id()),
+                    ),
+                    _ => (
+                        RuntimePreference::Local,
+                        ProviderReference::Provider(provider.provider),
+                    ),
+                };
+
+                Ok(Insert {
+                    source,
+                    provider,
+                    runtime_preference,
+                }
+                .into_logical_plan())
             }
 
             ast::Statement::AlterTable {
                 name,
-                operation: AlterTableOperation::RenameTable { table_name },
+                mut operations,
+                ..
             } => {
-                validate_object_name(&name)?;
-                let name = object_name_to_table_ref(name)?;
-
-                validate_object_name(&table_name)?;
-                let new_name = object_name_to_table_ref(table_name)?;
-                Ok(AlterTableRename {
-                    tbl_reference: self.ctx.resolve_table_ref(name)?,
-                    new_tbl_reference: self.ctx.resolve_table_ref(new_name)?,
+                if operations.len() != 1 {
+                    return Err(PlanError::UnsupportedFeature(
+                        "ALTER TABLE with multiple operations",
+                    ));
                 }
-                .into_logical_plan())
+                let operation = operations.pop().unwrap();
+
+                match operation {
+                    ast::AlterTableOperation::RenameTable { table_name } => {
+                        validate_object_name(&name)?;
+                        let name = object_name_to_table_ref(name)?;
+                        let name = self.ctx.resolve_table_ref(name)?;
+
+                        let schema = name.schema.into_owned();
+                        let name = name.name.into_owned();
+
+                        let new_name = match table_name {
+                            ObjectName(mut objs) if objs.len() == 1 => objs.pop().unwrap(),
+                            _ => {
+                                return Err(PlanError::InvalidAlterStatement {
+                                    msg: "new table name should be a valid table identifier",
+                                })
+                            }
+                        };
+                        validate_ident(&new_name)?;
+                        let new_name = normalize_ident(new_name);
+
+                        Ok(AlterTable {
+                            schema,
+                            name,
+                            operation: AlterTableOperation::RenameTable { new_name },
+                        }
+                        .into_logical_plan())
+                    }
+                    other => Err(PlanError::UnsupportedSQLStatement(other.to_string())),
+                }
             }
 
             // Drop tables
@@ -932,7 +1218,6 @@ impl<'a> SessionPlanner<'a> {
             // local variables behave the same as session local (they're not
             // reset on transaction abort/commit).
             ast::Statement::SetVariable {
-                local: false,
                 hivevar: false,
                 variable,
                 value,
@@ -941,14 +1226,6 @@ impl<'a> SessionPlanner<'a> {
                 let plan = SetVariable::try_new(variable.to_string(), value)?;
                 Ok(plan.into_logical_plan())
             }
-            ast::Statement::SetVariable {
-                local: true,
-                hivevar: false,
-                variable,
-                value,
-                ..
-            } => Ok(SetVariable::try_new(variable.to_string(), value)?.into_logical_plan()),
-
             // "SHOW ..."
             //
             // Show the value of a variable.
@@ -1173,14 +1450,47 @@ impl<'a> SessionPlanner<'a> {
         Ok(plan.into_logical_plan())
     }
 
-    fn plan_alter_database_rename(&self, stmt: AlterDatabaseRenameStmt) -> Result<LogicalPlan> {
+    fn plan_alter_database(&self, stmt: AlterDatabaseStmt) -> Result<LogicalPlan> {
         validate_ident(&stmt.name)?;
         let name = normalize_ident(stmt.name);
 
-        validate_ident(&stmt.new_name)?;
-        let new_name = normalize_ident(stmt.new_name);
+        let operation = match stmt.operation {
+            parser::AlterDatabaseOperation::RenameDatabase { new_name } => {
+                validate_ident(&new_name)?;
+                let new_name = normalize_ident(new_name);
+                AlterDatabaseOperation::RenameDatabase { new_name }
+            }
+            parser::AlterDatabaseOperation::SetAccessMode { access_mode } => {
+                let access_mode = SourceAccessMode::from_str(&access_mode.value)
+                    .map_err(|e| PlanError::String(format!("{e}")))?;
+                AlterDatabaseOperation::SetAccessMode { access_mode }
+            }
+        };
 
-        Ok(AlterDatabaseRename { name, new_name }.into_logical_plan())
+        Ok(AlterDatabase { name, operation }.into_logical_plan())
+    }
+
+    fn plan_alter_table_extension(&self, stmt: AlterTableStmtExtension) -> Result<LogicalPlan> {
+        validate_object_name(&stmt.name)?;
+        let name = object_name_to_table_ref(stmt.name)?;
+        let name = self.ctx.resolve_table_ref(name)?;
+        let schema = name.schema.into_owned();
+        let name = name.name.into_owned();
+
+        let operation = match stmt.operation {
+            parser::AlterTableOperationExtension::SetAccessMode { access_mode } => {
+                let access_mode = SourceAccessMode::from_str(&access_mode.value)
+                    .map_err(|e| PlanError::String(format!("{e}")))?;
+                AlterTableOperation::SetAccessMode { access_mode }
+            }
+        };
+
+        Ok(AlterTable {
+            schema,
+            name,
+            operation,
+        }
+        .into_logical_plan())
     }
 
     async fn plan_copy_to(&self, stmt: CopyToStmt) -> Result<LogicalPlan> {
@@ -1207,11 +1517,22 @@ impl<'a> SessionPlanner<'a> {
 
         let dest = normalize_ident(stmt.dest);
 
+        // We currently support two versions of COPY TO:
+        //
+        // 1: COPY <source> TO <s3|gcs|azure> OPTIONS (...)
+        // 2: COPY <source> TO <dest> OPTIONS (...)
+        //
+        // Where the first matches on fixed keywords, and the second matches on
+        // the full object path (e.g. 'gs://bucket/object.csv'). This statement
+        // is what lets us differentiate between those, and if `url` is `None`,
+        // we'll resolve the actual object destination from the OPTIONS down
+        // below.
         let (dest, uri) = if matches!(
             dest.as_str(),
             CopyToDestinationOptions::LOCAL
                 | CopyToDestinationOptions::GCS
                 | CopyToDestinationOptions::S3_STORAGE
+                | CopyToDestinationOptions::AZURE
         ) {
             (dest.as_str(), None)
         } else {
@@ -1220,6 +1541,7 @@ impl<'a> SessionPlanner<'a> {
                 DatasourceUrlType::File => CopyToDestinationOptions::LOCAL,
                 DatasourceUrlType::Gcs => CopyToDestinationOptions::GCS,
                 DatasourceUrlType::S3 => CopyToDestinationOptions::S3_STORAGE,
+                DatasourceUrlType::Azure => CopyToDestinationOptions::AZURE,
                 DatasourceUrlType::Http => return Err(internal!("invalid URL scheme")),
             };
             (d, Some(u))
@@ -1229,7 +1551,7 @@ impl<'a> SessionPlanner<'a> {
         let creds_options = self.get_credentials_opts(&creds)?;
         if let Some(creds_options) = &creds_options {
             validate_copyto_dest_creds_support(dest, creds_options.as_str()).map_err(|e| {
-                PlanError::InvalidExternalTable {
+                PlanError::InvalidCopyToStatement {
                     source: Box::new(e),
                 }
             })?;
@@ -1307,6 +1629,41 @@ impl<'a> SessionPlanner<'a> {
                     location,
                 })
             }
+            CopyToDestinationOptions::AZURE => {
+                let creds = match creds_options.as_ref() {
+                    Some(CredentialsOptions::Azure(c)) => Some(c),
+                    Some(other) => {
+                        return Err(PlanError::String(format!(
+                            "invalid credentials {other} for azure"
+                        )))
+                    }
+                    None => None,
+                };
+
+                // Get account and access key from credentials if provided. If
+                // not provided, require that they've been passed in through
+                // OPTIONS.
+                let (account, access_key) = match creds {
+                    Some(c) => (c.account_name.clone(), c.access_key.clone()),
+                    None => (
+                        m.remove_required("account_name")?,
+                        m.remove_required("access_key")?,
+                    ),
+                };
+
+                // Grab location from the 'TO <location>' if provided, or from
+                // OPTIONS.
+                let location = match uri {
+                    Some(uri) => uri.to_string(),
+                    None => m.remove_required("location")?,
+                };
+
+                CopyToDestinationOptions::Azure(CopyToDestinationOptionsAzure {
+                    account,
+                    access_key,
+                    location,
+                })
+            }
             other => {
                 return Err(internal!(
                     "unsupported destination for copying data: {other}"
@@ -1350,6 +1707,7 @@ impl<'a> SessionPlanner<'a> {
                 let array = m.remove_optional::<bool>("array")?.unwrap_or(false);
                 CopyToFormatOptions::Json(CopyToFormatOptionsJson { array })
             }
+            Some(CopyToFormatOptions::BSON) => CopyToFormatOptions::Bson {},
             Some(other) => return Err(internal!("unsupported output format: {other}")),
         };
 
@@ -1407,16 +1765,34 @@ impl<'a> SessionPlanner<'a> {
         };
         Ok(credentials_options)
     }
+
+    fn get_access_mode(&self, table_ref: TableReference<'a>) -> Result<Option<SourceAccessMode>> {
+        let resolver = EntryResolver::from_context(self.ctx);
+        let ent = resolver.resolve_entry_from_reference(table_ref)?;
+
+        Ok(match ent {
+            ResolvedEntry::NeedsExternalResolution {
+                db_ent: &DatabaseEntry { access_mode, .. },
+                ..
+            }
+            | ResolvedEntry::Entry(CatalogEntry::Database(DatabaseEntry { access_mode, .. }))
+            | ResolvedEntry::Entry(CatalogEntry::Table(TableEntry { access_mode, .. })) => {
+                Some(access_mode)
+            }
+            _ => None,
+        })
+    }
 }
 
 /// Creates an accessor from object store external table and validates if the
-/// location returns any objects. If objects are returned, tries to get the
-/// file type and compression of the object.
+/// location returns any objects. If objects are returned, tries to get the file
+/// type and compression of the object.
 async fn validate_and_get_file_type_and_compression(
     access: Arc<dyn ObjStoreAccess>,
-    location: &str,
+    path: impl AsRef<str>,
     m: &mut StmtOptions,
 ) -> Result<(FileType, Option<CompressionTypeVariant>)> {
+    let path = path.as_ref();
     let accessor =
         ObjStoreAccessor::new(access.clone()).map_err(|e| PlanError::InvalidExternalTable {
             source: Box::new(e),
@@ -1424,7 +1800,7 @@ async fn validate_and_get_file_type_and_compression(
 
     let objects =
         accessor
-            .list_globbed(location)
+            .list_globbed(path)
             .await
             .map_err(|e| PlanError::InvalidExternalTable {
                 source: Box::new(e),
@@ -1432,7 +1808,7 @@ async fn validate_and_get_file_type_and_compression(
 
     if objects.is_empty() {
         return Err(PlanError::InvalidExternalTable {
-            source: Box::new(internal!("object '{location}' not found")),
+            source: Box::new(internal!("object '{path}' not found")),
         });
     }
 
@@ -1441,7 +1817,7 @@ async fn validate_and_get_file_type_and_compression(
         None => objects
             .first()
             .ok_or_else(|| PlanError::InvalidExternalTable {
-                source: Box::new(internal!("object '{location} not found'")),
+                source: Box::new(internal!("object '{path} not found'")),
             })?
             .location
             .extension()
@@ -1526,22 +1902,24 @@ fn convert_data_type(sql_type: &ast::DataType) -> Result<DataType> {
     }
 }
 
+// TODO: We already copy this in by way of the `datafusion_ext` crate. Is there
+// a way to ensure we only have a single copy?
 fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
     match sql_type {
-            ast::DataType::Boolean => Ok(DataType::Boolean),
+            ast::DataType::Boolean | ast::DataType::Bool => Ok(DataType::Boolean),
             ast::DataType::TinyInt(_) => Ok(DataType::Int8),
-            ast::DataType::SmallInt(_) => Ok(DataType::Int16),
-            ast::DataType::Int(_) | ast::DataType::Integer(_) => Ok(DataType::Int32),
-            ast::DataType::BigInt(_) => Ok(DataType::Int64),
+            ast::DataType::SmallInt(_) | ast::DataType::Int2(_) => Ok(DataType::Int16),
+            ast::DataType::Int(_) | ast::DataType::Integer(_) | ast::DataType::Int4(_) => Ok(DataType::Int32),
+            ast::DataType::BigInt(_) | ast::DataType::Int8(_) => Ok(DataType::Int64),
             ast::DataType::UnsignedTinyInt(_) => Ok(DataType::UInt8),
-            ast::DataType::UnsignedSmallInt(_) => Ok(DataType::UInt16),
-            ast::DataType::UnsignedInt(_) | ast::DataType::UnsignedInteger(_) => {
+            ast::DataType::UnsignedSmallInt(_) | ast::DataType::UnsignedInt2(_) => Ok(DataType::UInt16),
+            ast::DataType::UnsignedInt(_) | ast::DataType::UnsignedInteger(_) | ast::DataType::UnsignedInt4(_) => {
                 Ok(DataType::UInt32)
             }
-            ast::DataType::UnsignedBigInt(_) => Ok(DataType::UInt64),
+            ast::DataType::UnsignedBigInt(_) | ast::DataType::UnsignedInt8(_) => Ok(DataType::UInt64),
             ast::DataType::Float(_) => Ok(DataType::Float32),
-            ast::DataType::Real => Ok(DataType::Float32),
-            ast::DataType::Double | ast::DataType::DoublePrecision => Ok(DataType::Float64),
+            ast::DataType::Real | ast::DataType::Float4 => Ok(DataType::Float32),
+            ast::DataType::Double | ast::DataType::DoublePrecision | ast::DataType::Float8 => Ok(DataType::Float64),
             ast::DataType::Char(_)
             | ast::DataType::Varchar(_)
             | ast::DataType::Text
@@ -1700,6 +2078,42 @@ fn get_ssh_conn_str(m: &mut StmtOptions) -> Result<String> {
         }
     };
     Ok(conn.connection_string())
+}
+
+/// Update storage options with the provided credentials object contents
+fn storage_options_with_credentials(
+    storage_options: &mut StorageOptions,
+    creds: CredentialsOptions,
+) {
+    match creds {
+        CredentialsOptions::Debug(_) => {} // Nothing to do here
+        CredentialsOptions::Gcp(creds) => {
+            storage_options.inner.insert(
+                GoogleConfigKey::ServiceAccountKey.as_ref().to_string(),
+                creds.service_account_key,
+            );
+        }
+        CredentialsOptions::Aws(creds) => {
+            storage_options.inner.insert(
+                AmazonS3ConfigKey::AccessKeyId.as_ref().to_string(),
+                creds.access_key_id,
+            );
+            storage_options.inner.insert(
+                AmazonS3ConfigKey::SecretAccessKey.as_ref().to_string(),
+                creds.secret_access_key,
+            );
+        }
+        CredentialsOptions::Azure(creds) => {
+            storage_options.inner.insert(
+                AzureConfigKey::AccountName.as_ref().to_string(),
+                creds.account_name,
+            );
+            storage_options.inner.insert(
+                AzureConfigKey::AccessKey.as_ref().to_string(),
+                creds.access_key,
+            );
+        }
+    }
 }
 
 /// Returns a validated `DataType` for the specified precision and

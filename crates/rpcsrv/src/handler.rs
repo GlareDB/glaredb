@@ -4,22 +4,23 @@ use crate::{
 };
 use async_trait::async_trait;
 use dashmap::DashMap;
+use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::physical_plan::SendableRecordBatchStream;
-use datafusion::{arrow::ipc::writer::FileWriter as IpcFileWriter, variable::VarType};
-use datafusion_ext::vars::SessionVars;
+use datafusion_ext::session_metrics::{
+    BatchStreamWithMetricSender, QueryMetrics, SessionMetricsHandler,
+};
 use futures::{Stream, StreamExt};
 use protogen::{
-    gen::rpcsrv::service::{self, BroadcastExchangeResponse},
+    gen::rpcsrv::common,
+    gen::rpcsrv::service,
     rpcsrv::types::service::{
-        CloseSessionRequest, CloseSessionResponse, DispatchAccessRequest, FetchCatalogRequest,
-        FetchCatalogResponse, InitializeSessionRequest, InitializeSessionResponse,
-        PhysicalPlanExecuteRequest, TableProviderResponse,
+        DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse, InitializeSessionRequest,
+        InitializeSessionResponse, PhysicalPlanExecuteRequest, TableProviderResponse,
     },
 };
 use sqlexec::{
     engine::{Engine, SessionStorageConfig},
-    remote::exchange_stream::ClientExchangeRecvStream,
+    remote::batch_stream::ExecutionBatchStream,
 };
 use std::{
     collections::HashMap,
@@ -36,6 +37,8 @@ pub struct RpcHandler {
     engine: Arc<Engine>,
 
     /// Open sessions.
+    ///
+    /// Keyed by database id.
     sessions: DashMap<Uuid, RemoteSession>,
 
     /// Allow initialize session messages from client.
@@ -57,6 +60,31 @@ impl RpcHandler {
         }
     }
 
+    /// Get an existing session for a database, or creates a new one using the
+    /// provided configuration.
+    async fn get_or_initialize_session(
+        &self,
+        db_id: Uuid,
+        storage_conf: SessionStorageConfig,
+    ) -> Result<RemoteSession> {
+        let sess = match self.sessions.get(&db_id) {
+            Some(sess) => sess.clone(),
+            None => {
+                info!(session_id=%db_id, "initializing remote session");
+                let context = self
+                    .engine
+                    .new_remote_session_context(db_id, storage_conf)
+                    .await?;
+
+                let sess = RemoteSession::new(context);
+                self.sessions.insert(db_id, sess.clone());
+                sess
+            }
+        };
+
+        Ok(sess)
+    }
+
     async fn initialize_session_inner(
         &self,
         req: InitializeSessionRequest,
@@ -65,12 +93,10 @@ impl RpcHandler {
         //
         // This will check that we actually received a proxy request, and not a
         // request from the client.
-        let (db_id, storage_conf) = match req {
+        let (db_id, user_id, storage_conf) = match req {
             InitializeSessionRequest::Proxy(req) => {
-                let storage_conf = SessionStorageConfig {
-                    gcs_bucket: req.storage_conf.gcs_bucket,
-                };
-                (req.db_id, storage_conf)
+                let storage_conf = SessionStorageConfig::from(req.storage_conf);
+                (req.db_id, Some(req.user_id), storage_conf)
             }
             InitializeSessionRequest::Client(req) if self.allow_client_init => {
                 let mut db_id = Uuid::nil();
@@ -79,7 +105,7 @@ impl RpcHandler {
                         db_id = test_db_id;
                     }
                 }
-                (db_id, SessionStorageConfig::default())
+                (db_id, None, SessionStorageConfig::default())
             }
             _ => {
                 return Err(RpcsrvError::SessionInitalizeError(
@@ -89,34 +115,21 @@ impl RpcHandler {
             }
         };
 
-        let conn_id = Uuid::new_v4();
-        info!(session_id=%conn_id, "initializing remote session");
-
-        let vars = SessionVars::default()
-            .with_database_id(db_id, VarType::System)
-            .with_connection_id(conn_id, VarType::System);
-
-        let context = self
-            .engine
-            .new_remote_session_context(vars, storage_conf)
-            .await?;
-
-        let sess = RemoteSession::new(context);
+        let sess = self.get_or_initialize_session(db_id, storage_conf).await?;
         let initial_state = sess.get_refreshed_catalog_state().await?;
 
-        self.sessions.insert(conn_id, sess);
-
         Ok(InitializeSessionResponse {
-            session_id: conn_id,
+            database_id: db_id,
             catalog: initial_state,
+            user_id,
         })
     }
 
     async fn fetch_catalog_inner(&self, req: FetchCatalogRequest) -> Result<FetchCatalogResponse> {
-        let session = self.get_session(req.session_id)?;
+        let session = self.get_session(req.database_id)?;
         let catalog = session.get_refreshed_catalog_state().await?;
 
-        info!(session_id=%req.session_id, version = %catalog.version, "fetching catalog");
+        info!(database_id=%req.database_id, version = %catalog.version, "fetching catalog");
 
         Ok(FetchCatalogResponse { catalog })
     }
@@ -125,7 +138,7 @@ impl RpcHandler {
         &self,
         req: DispatchAccessRequest,
     ) -> Result<TableProviderResponse> {
-        info!(session_id=%req.session_id, table_ref=%req.table_ref, "dispatching table access");
+        info!(database_id=%req.database_id, table_ref=%req.table_ref, "dispatching table access");
         let args = req
             .args
             .map(|args| {
@@ -144,7 +157,7 @@ impl RpcHandler {
             })
             .transpose()?;
 
-        let session = self.get_session(req.session_id)?;
+        let session = self.get_session(req.database_id)?;
         let (id, schema) = session.dispatch_access(req.table_ref, args, opts).await?;
         Ok(TableProviderResponse { id, schema })
     }
@@ -153,10 +166,26 @@ impl RpcHandler {
         &self,
         req: PhysicalPlanExecuteRequest,
     ) -> Result<ExecutionResponseBatchStream> {
-        info!(session_id=%req.session_id, "executing physical plan");
+        info!(database_id=%req.database_id, "executing physical plan");
 
-        let session = self.get_session(req.session_id)?;
-        let batches = session.physical_plan_execute(req.physical_plan).await?;
+        let session = self.get_session(req.database_id)?;
+        let (plan, batches) = session.physical_plan_execute(req.physical_plan).await?;
+
+        let session_metrics_handler = SessionMetricsHandler::new(
+            req.user_id.unwrap_or_default(),
+            req.database_id,
+            Uuid::nil(), // TODO: Connection ID?
+            self.engine.get_tracker(),
+        );
+
+        let query_metrics = QueryMetrics {
+            query_text: req.query_text,
+            ..Default::default()
+        };
+
+        let batches =
+            BatchStreamWithMetricSender::new(batches, plan, query_metrics, session_metrics_handler);
+
         Ok(ExecutionResponseBatchStream {
             batches,
             buf: Vec::new(),
@@ -165,32 +194,26 @@ impl RpcHandler {
 
     async fn broadcast_exchange_inner(
         &self,
-        req: Streaming<service::BroadcastExchangeRequest>,
-    ) -> Result<BroadcastExchangeResponse> {
-        let stream = ClientExchangeRecvStream::try_new(req).await?;
-        let session_id = stream.session_id();
+        req: Streaming<common::ExecutionResultBatch>,
+    ) -> Result<service::BroadcastExchangeResponse> {
+        let stream = ExecutionBatchStream::try_new(req).await?;
+        let database_id = stream.database_id();
 
-        info!(session_id=%session_id, broadcast_id=%stream.broadcast_id(), "beginning client exchange stream");
+        info!(database_id=%database_id, work_id=%stream.work_id(), "beginning client exchange stream");
 
-        let session = self.get_session(session_id)?;
+        let session = self.get_session(database_id)?;
 
         session.register_broadcast_stream(stream).await?;
 
         // TODO: We might need to await here for stream completion.
 
-        Ok(BroadcastExchangeResponse {})
+        Ok(service::BroadcastExchangeResponse {})
     }
 
-    fn close_session_inner(&self, req: CloseSessionRequest) -> Result<CloseSessionResponse> {
-        info!(session_id=%req.session_id, "Closing Session");
-        self.sessions.remove(&req.session_id);
-        Ok(CloseSessionResponse {})
-    }
-
-    fn get_session(&self, session_id: Uuid) -> Result<RemoteSession> {
+    fn get_session(&self, db_id: Uuid) -> Result<RemoteSession> {
         self.sessions
-            .get(&session_id)
-            .ok_or_else(|| RpcsrvError::MissingSession(session_id))
+            .get(&db_id)
+            .ok_or_else(|| RpcsrvError::MissingSession(db_id))
             .map(|s| s.value().clone())
     }
 }
@@ -242,18 +265,10 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
 
     async fn broadcast_exchange(
         &self,
-        request: Request<Streaming<service::BroadcastExchangeRequest>>,
+        request: Request<Streaming<common::ExecutionResultBatch>>,
     ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
         let resp = self.broadcast_exchange_inner(request.into_inner()).await?;
         Ok(Response::new(resp))
-    }
-
-    async fn close_session(
-        &self,
-        request: Request<service::CloseSessionRequest>,
-    ) -> Result<Response<service::CloseSessionResponse>, Status> {
-        let resp = self.close_session_inner(request.into_inner().try_into()?)?;
-        Ok(Response::new(resp.into()))
     }
 }
 
@@ -262,7 +277,7 @@ impl service::execution_service_server::ExecutionService for RpcHandler {
 // TODO: StreamWriter
 // TODO: Possibly buffer record batches.
 struct ExecutionResponseBatchStream {
-    batches: SendableRecordBatchStream,
+    batches: BatchStreamWithMetricSender,
     buf: Vec<u8>,
 }
 

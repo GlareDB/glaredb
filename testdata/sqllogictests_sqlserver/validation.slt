@@ -1,0 +1,77 @@
+# Validation tests for sql server external database and external tables
+
+# External database validation
+
+# Validation test error with the wrong password
+statement error
+CREATE EXTERNAL DATABASE wrong_password
+	FROM sql_server
+	OPTIONS (
+		connection_string = 'server=tcp:localhost,1433;user=SA;password=WrongPassword123;TrustServerCertificate=true',
+	);
+
+statement error
+CREATE EXTERNAL DATABASE non_existant_user
+	FROM sql_server
+	OPTIONS (
+		connection_string = 'server=tcp:localhost,1433;user=HI;password=Password123;TrustServerCertificate=true',
+	);
+
+# Validation test error with the wrong host
+statement error
+CREATE EXTERNAL DATABASE wrong_host
+	FROM sql_server
+	OPTIONS (
+		connection_string = 'server=tcp:wrong,1433;user=SA;password=Password123;TrustServerCertificate=true',
+	);
+
+# External table validation
+
+# Validation test error with the wrong password
+statement error
+CREATE EXTERNAL TABLE wrong_password
+	FROM sql_server
+	OPTIONS (
+		connection_string = 'server=tcp:localhost,1433;user=SA;password=WrongPassword123;TrustServerCertificate=true',
+		schema = 'dbo',
+		table = 'datatypes'
+	);
+
+statement error
+CREATE EXTERNAL TABLE non_existant_user
+	FROM sql_server
+	OPTIONS (
+		connection_string = 'server=tcp:localhost,1433;user=HI;password=Password123;TrustServerCertificate=true',
+		schema = 'dbo',
+		table = 'datatypes'
+	);
+
+# Validation test error with the wrong host
+statement error
+CREATE EXTERNAL TABLE wrong_host
+	FROM sql_server
+	OPTIONS (
+		connection_string = 'server=tcp:wrong,1433;user=SA;password=Password123;TrustServerCertificate=true',
+		schema = 'dbo',
+		table = 'datatypes'
+	);
+
+# Validation test error with the wrong table name
+statement error
+CREATE EXTERNAL TABLE missing_table
+	FROM sql_server
+	OPTIONS (
+		connection_string = '${SQL_SERVER_CONN_STRING}',
+		schema = 'dbo',
+		table = 'missing_table'
+	);
+
+# Validation test error with the wrong schema name
+statement error
+CREATE EXTERNAL TABLE missing_schema
+	FROM sql_server
+	OPTIONS (
+		connection_string = '${SQL_SERVER_CONN_STRING}',
+		schema = 'missing_schema',
+		table = 'datatypes'
+	);

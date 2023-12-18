@@ -2,41 +2,46 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use datafusion::common::{FileCompressionType, FileType};
+use datafusion::common::FileType;
 use datafusion::datasource::file_format::csv::CsvFormat;
+use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::TableProvider;
-use datafusion::execution::context::SessionState;
 use datafusion::prelude::SessionContext;
-use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datafusion_ext::vars::SessionVars;
+use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
-use datasources::lake::delta::access::DeltaLakeAccessor;
+use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
+use datasources::lake::iceberg::table::IcebergTable;
+use datasources::lance::scan_lance_table;
 use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
+use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use protogen::metastore::types::catalog::{
-    CatalogEntry, CredentialsEntry, DatabaseEntry, FunctionEntry, TableEntry,
+use datasources::sqlserver::{
+    SqlServerAccess, SqlServerTableProvider, SqlServerTableProviderConfig,
 };
+use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionEntry, TableEntry};
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
     DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
-    TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake, TunnelOptions,
+    DatabaseOptionsSqlServer, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
+    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
+    TableOptionsSqlServer, TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
 
-use crate::metastore::catalog::SessionCatalog;
+use catalog::session_catalog::SessionCatalog;
 
 use super::{DispatchError, Result};
 
@@ -47,26 +52,6 @@ pub struct ExternalDispatcher<'a> {
     df_ctx: &'a SessionContext,
     /// Whether or not local file system access should be disabled.
     disable_local_fs_access: bool,
-}
-
-impl<'a> TableFuncContextProvider for ExternalDispatcher<'a> {
-    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry> {
-        self.catalog.resolve_database(name)
-    }
-
-    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry> {
-        self.catalog.resolve_credentials(name)
-    }
-
-    fn get_session_vars(&self) -> SessionVars {
-        let cfg = self.df_ctx.copied_config();
-        let vars = cfg.options().extensions.get::<SessionVars>().unwrap();
-        vars.clone()
-    }
-
-    fn get_session_state(&self) -> SessionState {
-        self.df_ctx.state()
-    }
 }
 
 impl<'a> ExternalDispatcher<'a> {
@@ -216,14 +201,20 @@ impl<'a> ExternalDispatcher<'a> {
             }
             DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
                 catalog,
-                access_key_id,
-                secret_access_key,
-                region,
+                storage_options,
             }) => {
-                let accessor =
-                    DeltaLakeAccessor::connect(catalog, access_key_id, secret_access_key, region)
-                        .await?;
+                let accessor = DeltaLakeAccessor::connect(catalog, storage_options.clone()).await?;
                 let table = accessor.load_table(schema, name).await?;
+                Ok(Arc::new(table))
+            }
+            DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string }) => {
+                let access = SqlServerAccess::try_new_from_ado_string(connection_string)?;
+                let table = SqlServerTableProvider::try_new(SqlServerTableProviderConfig {
+                    access,
+                    schema: schema.to_string(),
+                    table: name.to_string(),
+                })
+                .await?;
                 Ok(Arc::new(table))
             }
         }
@@ -395,16 +386,93 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await
             }
+            TableOptions::Azure(TableOptionsObjectStore {
+                location,
+                storage_options,
+                file_type,
+                compression,
+            }) => {
+                // File type should be known at this point since creating the
+                // table requires that we've either inferred the file type, or
+                // the user provided it.
+                let file_type = match file_type {
+                    Some(ft) => ft,
+                    None => {
+                        return Err(DispatchError::InvalidDispatch(
+                            "File type missing from table options",
+                        ))
+                    }
+                };
+
+                let access = Arc::new(GenericStoreAccess::new_from_location_and_opts(
+                    location,
+                    storage_options.clone(),
+                )?);
+                self.create_obj_store_table_provider(
+                    access,
+                    DatasourceUrl::try_new(location)?.path(), // TODO: Workaround again
+                    file_type,
+                    compression.as_ref(),
+                )
+                .await
+            }
+            TableOptions::Delta(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            }) => {
+                let provider =
+                    Arc::new(load_table_direct(location, storage_options.clone()).await?);
+                Ok(provider)
+            }
+            TableOptions::Iceberg(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            }) => {
+                let url = DatasourceUrl::try_new(location)?;
+                let store = GenericStoreAccess::new_from_location_and_opts(
+                    location,
+                    storage_options.clone(),
+                )?
+                .create_store()?;
+                let table = IcebergTable::open(url, store).await?;
+                let reader = table.table_reader().await?;
+                Ok(reader)
+            }
+            TableOptions::SqlServer(TableOptionsSqlServer {
+                connection_string,
+                schema,
+                table,
+            }) => {
+                let access = SqlServerAccess::try_new_from_ado_string(connection_string)?;
+                let table = SqlServerTableProvider::try_new(SqlServerTableProviderConfig {
+                    access,
+                    schema: schema.to_string(),
+                    table: table.to_string(),
+                })
+                .await?;
+                Ok(Arc::new(table))
+            }
+            TableOptions::Lance(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            }) => {
+                let dataset = scan_lance_table(location, storage_options.clone()).await?;
+                Ok(Arc::new(dataset))
+            }
         }
     }
 
     async fn create_obj_store_table_provider(
         &self,
         access: Arc<dyn ObjStoreAccess>,
-        location: &str,
+        path: impl AsRef<str>,
         file_type: &str,
         compression: Option<&String>,
     ) -> Result<Arc<dyn TableProvider>> {
+        let path = path.as_ref();
         let compression = compression
             .map(|c| c.parse::<FileCompressionType>())
             .transpose()?
@@ -425,12 +493,10 @@ impl<'a> ExternalDispatcher<'a> {
         };
 
         let accessor = ObjStoreAccessor::new(access)?;
-        let objects = accessor.list_globbed(location).await?;
+        let objects = accessor.list_globbed(path).await?;
 
         let state = self.df_ctx.state();
-        let provider = accessor
-            .into_table_provider(&state, ft, objects, /* predicate_pushdown = */ true)
-            .await?;
+        let provider = accessor.into_table_provider(&state, ft, objects).await?;
 
         Ok(provider)
     }
@@ -444,14 +510,18 @@ impl<'a> ExternalDispatcher<'a> {
         let args = args.unwrap_or_default();
         let opts = opts.unwrap_or_default();
         let resolve_func = if func.meta.builtin {
-            BUILTIN_TABLE_FUNCS.find_function(&func.meta.name)
+            FUNCTION_REGISTRY.get_table_func(&func.meta.name)
         } else {
             // We only have builtin functions right now.
             None
         };
         let prov = resolve_func
             .unwrap()
-            .create_provider(self, args, opts)
+            .create_provider(
+                &DefaultTableContextProvider::new(self.catalog, self.df_ctx),
+                args,
+                opts,
+            )
             .await?;
         Ok(prov)
     }

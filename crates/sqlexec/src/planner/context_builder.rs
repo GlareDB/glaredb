@@ -2,7 +2,6 @@ use crate::context::local::LocalSessionContext;
 use crate::dispatch::DispatchError;
 use crate::dispatch::Dispatcher;
 use crate::errors::ExecError;
-use crate::functions::BuiltinScalarFunction;
 use crate::planner::errors::PlanError;
 use crate::remote::client::RemoteSessionClient;
 use crate::resolve::EntryResolver;
@@ -27,7 +26,8 @@ use protogen::metastore::types::catalog::{
 };
 use protogen::metastore::types::options::TableOptions;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
-use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
+
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -62,24 +62,10 @@ impl<'a> PartialContextProvider<'a> {
         })
     }
 
-    /// Hint to the planner that the query should be planned to run on the specified runtime.
-    /// This is useful for queries with subqueries such as:
-    /// `create table t1 as select * from generate_series(1, 15, 2);`
-    /// without the hint, the planner will mistakenly plan each node individually
-    /// {subquery: local} -> {create table {subquery: local}: remote}
-    /// when instead, we want to hint the subquery to respect the runtime preference of the parent
-    /// {subquery: remote} -> {create table {subquery: remote}: remote}
-    pub fn with_runtime_preference(mut self, runtime_preference: RuntimePreference) -> Self {
-        self.runtime_preference = runtime_preference;
-        self
-    }
-
     fn new_dispatcher(&self) -> Dispatcher {
         Dispatcher::new(
             self.ctx.get_session_catalog(),
             self.ctx.get_native_tables(),
-            self.ctx.get_metrics(),
-            &self.resolver.temp_objects,
             self.ctx,
             self.ctx.df_ctx(),
             self.ctx.get_session_vars().is_cloud_instance(),
@@ -180,7 +166,7 @@ impl<'a> PartialContextProvider<'a> {
             if let Some(reader) = self.ctx.get_env_reader() {
                 if let Some(table) = reader
                     .resolve_table(table)
-                    .map_err(|e| ExecError::EnvironmentTableRead(e))?
+                    .map_err(ExecError::EnvironmentTableRead)?
                 {
                     // Hint that the table being scanned from the environment
                     // should be scanned client-side.
@@ -195,7 +181,9 @@ impl<'a> PartialContextProvider<'a> {
         let ent = self
             .resolver
             .resolve_entry_from_reference(reference.clone())?;
+
         use ResolvedEntry::*;
+
         let provider = match (ent, self.ctx.exec_client()) {
             // (view, _)
             // Rely on further planning to determine how to handle views.
@@ -215,6 +203,7 @@ impl<'a> PartialContextProvider<'a> {
 
             // (native entry, no remote client)
             (Entry(ent), None) => self.dispatch_catalog_entry_local(&ent).await?,
+
             // (external entry, no remote client)
             (
                 NeedsExternalResolution {
@@ -244,6 +233,7 @@ impl<'a> PartialContextProvider<'a> {
                 self.handle_catalog_entry_dispatch(ent, client, args, opts)
                     .await?
             }
+
             // (external entry, remote client)
             (
                 NeedsExternalResolution {
@@ -322,8 +312,8 @@ impl<'a> PartialContextProvider<'a> {
 
             RuntimePreference::Unspecified => {
                 let resolve_func = if func.meta.builtin {
-                    BUILTIN_TABLE_FUNCS
-                        .find_function(&func.meta.name)
+                    FUNCTION_REGISTRY
+                        .get_table_func(&func.meta.name)
                         .expect("function should always exist for builtins")
                 } else {
                     return Err(PlanError::Internal(
@@ -404,8 +394,10 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         Ok(Arc::new(DefaultTableSource::new(Arc::new(provider))))
     }
 
-    fn get_builtin(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr> {
-        BuiltinScalarFunction::find_function(name).map(|f| f.into_expr(args))
+    fn get_scalar_udf(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr> {
+        FUNCTION_REGISTRY
+            .get_scalar_udf(name)
+            .map(|f| f.as_expr(args))
     }
 
     async fn get_variable_type(&mut self, _variable_names: &[String]) -> Option<DataType> {

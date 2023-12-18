@@ -14,6 +14,13 @@ select * from t1;
 ----
 
 statement ok
+create or replace table t1 (a int, b int);
+
+query II
+select * from t1;
+----
+
+statement ok
 insert into t1 values (1, 2);
 
 query II rowsort
@@ -48,3 +55,67 @@ query I
 select id from ctas2 order by id limit 1;
 ----
 1
+
+
+statement ok
+create or replace table t1 (a int, b int, c int);
+
+statement ok
+insert into t1 values (1, 2, 3);
+
+query III rowsort
+select * from t1
+----
+1  2  3
+
+
+# Ensure multiple catalog entries are not created
+
+statement ok
+create or replace table t1 (a int, b int, d int);
+
+query I
+select count(*) from glare_catalog.tables where builtin = false and table_name = 't1';
+----
+1
+
+
+#2034 case sensitive table names
+statement ok 
+create table case_sensitive as select * from '../../testdata/csv/case_sensitive_columns.csv';
+
+statement error Duplicate name: case_sensitive
+create table "case_sensitive" as select * from '../../testdata/csv/case_sensitive_columns.csv';
+
+statement ok
+create table "Case_Sensitive" as select * from '../../testdata/csv/case_sensitive_columns.csv';
+
+statement ok
+create table "Case Sensitive" as select * from '../../testdata/csv/case_sensitive_columns.csv';
+
+query I rowsort
+select name from case_sensitive
+----
+alice
+bob
+charlie
+
+query I rowsort
+select "Name" from case_sensitive
+----
+Alice
+Bob
+Charlie
+
+statement error
+select age from "case_sensitive"
+
+statement ok
+select "AGE" from "case_sensitive"
+
+statement ok
+select * from "Case_Sensitive"
+
+statement ok
+select * from "Case Sensitive"
+

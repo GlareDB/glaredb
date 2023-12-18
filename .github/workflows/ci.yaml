@@ -16,22 +16,19 @@ jobs:
     name: Build
     runs-on: ubuntu-latest-8-cores
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.72.0
-        with:
-          components: clippy,rustfmt
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build
+      - name: build
         run: just build
 
   static-analysis:
@@ -39,21 +36,22 @@ jobs:
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Clippy
+      - name: clippy
         run: just clippy
 
-      - name: Format
+      - name: format
         run: just fmt-check
 
   unit-tests:
@@ -61,135 +59,201 @@ jobs:
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
-          cache-all-crates: true
 
-      - name: Unit Tests
+      - name: run tests
         run: just unit-tests
-
-      - name: Doc Tests
-        run: just doc-tests
 
   python-binding-tests:
     name: Python Binding Tests
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Python Bindings Tests
-        run: |
-          just python build
-          just python test
+      - name: build glaredb binary
+        run: just build
+
+      - name: build python bindings
+        run: just python build
+
+      - name: run python binding tests
+        run: just python test
+
+  nodejs-bindings-tests:
+    name: Node.js Binding Tests
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: cache
+        with:
+          path: |
+            ~/.cargo/
+            target/
+            !target/**/glaredb
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: build node.js bindings
+        run: just js build-debug
+      - name: run node.js binding tests
+        run: just js test
 
   pg-protocol:
     name: PG Protocol Tests
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.72.0
-      - name: PG Protocol Tests
+      - name: pg protocol test (script)
         run: |
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
 
-  integration-tests:
-    name: Integration Tests
+      - name: pg protocol tests (slt runner)
+        run: just slt -v 'pgproto/*'
+
+  sql-logic-tests:
+    name: SQL Logic Tests
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
-        if: github.repository_owner == 'glaredb'
+      - name: public sql logic tests DEBUG
+        if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
+        run: just slt -v 'sqllogictests/*'
+
+      - name: public sql logic tests
+        if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
+        run: just slt 'sqllogictests/*'
+
+  process-integration-tests:
+    name: Process Integration Tests (pytest)
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - name: install poetry
+        uses: snok/install-poetry@v1
+      - name: install python
+        uses: actions/setup-python@v5
+        with:
+            python-version: '3.11'
+            cache: poetry
+            cache-dependency-paths: |
+              tests/poetry.lock
+      - uses: actions/cache@v3
+        name: cache
+        with:
+          path: |
+            ~/.cargo/
+            target/
+            !target/**/glaredb
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache@v3
+        name: cache
+        with:
+          path: |
+            tests/.venv/
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: setup pytest
+        run: just build
+
+      - name: setup pytest
+        run: just pytest-setup
+
+      - name: run pytest
+        run: just pytest
+
+  service-integration-tests:
+    name: Service Integration Tests (SLT)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: cache
+        with:
+          path: |
+            ~/.cargo/
+            target/
+            !target/**/glaredb
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: GCP authenticate
+        uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
-      - name: Setup SnowSQL
-        if: github.repository_owner == 'glaredb'
-        run: |
-          curl -o snowsql.bash \
-            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
-          mkdir -p ~/bin
-          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
+      - name: setup GCP
+        uses: google-github-actions/setup-gcloud@v1
 
-      - name: Download Testdata
+      - name: prepare testdata
         run: ./scripts/prepare-testdata.sh
 
-      - name: Setup GCP
-        uses: google-github-actions/setup-gcloud@v1
-        if: github.repository_owner == 'glaredb'
-
-      - name: SQL Logic Tests Public
-        if: github.repository_owner != 'glaredb'
-        run: just slt -v 'sqllogictests/*'
-
-      - name: SQL Logic Tests
-        if: github.repository_owner == 'glaredb'
-
+      - name: setup fixtures (slt)
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           GCP_PROJECT_ID: glaredb-artifacts
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
-          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          AZURE_ACCESS_KEY: ${{ secrets.AZURE_ACCESS_KEY }}
+          AZURE_ACCOUNT: ${{ secrets.AZURE_ACCOUNT }}
+          MINIO_ACCESS_KEY: glaredb
+          MINIO_SECRET_KEY: glaredb_test
+          TEST_BUCKET: glaredb-test-bucket
         run: |
-          # Prepare SLT (Snowflake)
-          export PATH="$HOME/bin:$PATH"
-          if ./scripts/files-changed-in-branch.sh \
-            "scripts/prepare-testdata.sh" \
-            "scripts/create-test-snowflake-db.sh" \
-            "testdata/sqllogictests_datasources_common/data" \
-            "testdata/sqllogictests_snowflake/data"
-          then
-            export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
-          else
-            export SNOWFLAKE_DATABASE=glaredb_test
-          fi
-
           # Prepare SLT (BigQuery)
           if ./scripts/files-changed-in-branch.sh \
             "scripts/prepare-testdata.sh" \
@@ -208,7 +272,7 @@ jobs:
           export AWS_S3_REGION=us-east-1
           export AWS_S3_BUCKET_NAME=glaredb-test
 
-          # Unset application default credentials. We don't want to unknowingle
+          # Unset application default credentials. We don't want to unknowingly
           # depend on this.
           unset GOOGLE_APPLICATION_CREDENTIALS
 
@@ -225,43 +289,102 @@ jobs:
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
-          just sql-logic-tests -v --exclude '*/tunnels/ssh'
-          just sql-logic-tests -v '*/tunnels/ssh'
+          # Prepare SLT (SQL Server)
+          export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
 
-      - name: SQL Logic Tests (RPC)
+          # Prepare SLT (MinIO)
+          ./scripts/create-test-minio-store.sh
+
+          # Prepare SLT (fake GCS server)
+          ./scripts/create-test-gcs-store.sh
+
+          echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
+          # Run all data source tests without running tunnel tests or the basic
+          # SLT tests.
+          just slt --exclude 'sqllogictests/*' --exclude '*/tunnels/ssh'  --exclude 'sqllogictests_snowflake/*'
+
+          echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
+          # SSH tests are prone to fail if we make a lot of connections at the
+          # same time. Hence, it makes sense to run all the SSH tests one-by-one
+          # in order to test the SSH tunnels (which is our aim).
+          just sql-logic-tests --jobs=1 '*/tunnels/ssh'
+
+          echo "-------------------------------- RPC TESTS --------------------------------"
+          just rpc-tests
+          just sql-logic-tests --protocol=rpc 'sqllogictests_bigquery/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_iceberg/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_native/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_object_store/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_sqlserver/*'
+          just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
+          just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
+          just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
+
+          echo "-------------------------- REMOTE DATA STORAGE TESTS --------------------------------"
+          # Test using a remote object store for storing databases and catalog
+          # MinIO (S3)
+          just sql-logic-tests --location http://localhost:9000 \
+              --option access_key_id=$MINIO_ACCESS_KEY \
+              --option secret_access_key=$MINIO_SECRET_KEY \
+              --option bucket=$TEST_BUCKET \
+              'sqllogictests/*' \
+              'sqllogictests_native/*'
+
+          # MinIO (S3) but with a sub-directory path
+          just slt -l http://localhost:9000/$TEST_BUCKET/path/to/folder \
+              -o access_key_id=$MINIO_ACCESS_KEY \
+              -o secret_access_key=$MINIO_SECRET_KEY \
+              'sqllogictests/*'
+
+          # Fake GCS server with a sub-directory path; run with two different folder paths to assert no conflicts arise
+          just slt -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
+          just slt -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
+
+  service-integration-tests-snowflake:
+    name: Snowflake Integration Tests (SLT)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
+    runs-on: ubuntu-latest-8-cores
+    needs: ["service-integration-tests"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: cache
+        with:
+          path: |
+            ~/.cargo/
+            target/
+            !target/**/glaredb
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: snowflake setup (SnowSQL)
         run: |
-          just sql-logic-tests -v --rpc-test 'sqllogictests/cast/*' \
-                                             'sqllogictests/cte/*' \
-                                             'sqllogictests/joins/*' \
-                                             'sqllogictests/topn/*' \
-                                             'sqllogictests/aggregates' \
-                                             'sqllogictests/alter' \
-                                             'sqllogictests/create_table' \
-                                             'sqllogictests/credentials' \
-                                             'sqllogictests/csv' \
-                                             'sqllogictests/debug' \
-                                             'sqllogictests/delete' \
-                                             'sqllogictests/demo_pg' \
-                                             'sqllogictests/drop' \
-                                             'sqllogictests/infer' \
-                                             'sqllogictests/information_schema' \
-                                             'sqllogictests/metabase' \
-                                             'sqllogictests/name' \
-                                             'sqllogictests/object_names' \
-                                             'sqllogictests/rpc' \
-                                             'sqllogictests/select' \
-                                             'sqllogictests/simple' \
-                                             'sqllogictests/table' \
-                                             'sqllogictests/time' \
-                                             'sqllogictests/tunnels' \
-                                             'sqllogictests/update' \
-                                             'sqllogictests/vars' \
-                                             'sqllogictests/views' \
-                                             'sqllogictests/virtual_catalog'
+          curl -o snowsql.bash \
+            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
+          mkdir -p ~/bin
+          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
 
-          # Run a single set of remote data source tests for now. The rest should be
-          # added when rpc is further along.
-          POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
-          export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
+      - name: prepare testdata
+        run: ./scripts/prepare-testdata.sh
 
-          just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
+      - name: setup fixtures (slt)
+        env:
+          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+        run: |
+          # Prepare SLT (Snowflake)
+          export PATH="$HOME/bin:$PATH"
+          if ./scripts/files-changed-in-branch.sh \
+            "scripts/prepare-testdata.sh" \
+            "scripts/create-test-snowflake-db.sh" \
+            "testdata/sqllogictests_datasources_common/data" \
+            "testdata/sqllogictests_snowflake/data"
+          then
+            export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
+          else
+            export SNOWFLAKE_DATABASE=glaredb_test
+          fi
+
+          just sql-logic-tests 'sqllogictests_snowflake/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_snowflake/*'

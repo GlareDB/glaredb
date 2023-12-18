@@ -1,26 +1,36 @@
 [workspace]
-members = ["crates/*", "xtask", "py-glaredb"]
+members = ["crates/*", "xtask", "bindings/*"]
 default-members = ["crates/*", "xtask"]
 resolver = "2"
 
 [workspace.package]
-version = "0.5.0"
+version = "0.7.1"
 edition = "2021"
 
 [profile.release]
 lto = "thin"
+opt-level = 3
+codegen-units = 1
+strip = true
 
 [workspace.dependencies]
-datafusion = { version = "30.0", features = ["avro"] }
-datafusion-proto = { version = "30.0" }
-object_store = { version = "0.6.1" }
+datafusion = { version = "32.0", features = ["avro"] }
+datafusion-proto = { version = "32.0" }
+object_store = { version = "0.7" }
 tokio = { version = "1", features = ["full"] }
-url = "2.4.0"
+url = "2.5.0"
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.104"
+serde_json = "1.0.108"
+chrono = "0.4.31"
+anyhow = "1.0.72"
+prost = "0.12"
+prost-types = "0.12"
+prost-build = "0.12"
+tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
+tempfile = "3.8.1"
 
 [workspace.dependencies.deltalake]
 git = "https://github.com/delta-io/delta-rs.git"
-branch = "main"
-features = ["s3", "gcs", "azure", "datafusion", "arrow", "parquet"]
+rev = "5c324ccd0a8738251a9aea9452d7323400e5e8c6"
+features = ["s3", "gcs", "azure", "datafusion", "arrow"]

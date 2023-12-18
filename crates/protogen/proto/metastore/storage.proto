@@ -61,6 +61,8 @@ syntax = "proto3";
 
 package metastore.storage;
 
+option go_package = "github.com/glaredb/cloud/pkg/protogen/metastore";
+
 import "google/protobuf/timestamp.proto";
 import "metastore/catalog.proto";
 

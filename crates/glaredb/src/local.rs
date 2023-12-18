@@ -1,9 +1,8 @@
-use crate::args::{LocalClientOpts, OutputMode};
+use crate::args::{LocalClientOpts, OutputMode, StorageConfigArgs};
 use crate::highlighter::{SQLHighlighter, SQLHinter, SQLValidator};
 use crate::prompt::SQLPrompt;
-use crate::util::MetastoreClientMode;
 use anyhow::{anyhow, Result};
-use arrow_util::pretty::pretty_format_batches;
+use arrow_util::pretty;
 use clap::ValueEnum;
 use colored::Colorize;
 use datafusion::arrow::csv::writer::WriterBuilder as CsvWriterBuilder;
@@ -16,19 +15,16 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
 use reedline::{FileBackedHistory, Reedline, Signal};
+use std::collections::HashMap;
 
 use datafusion_ext::vars::SessionVars;
-use sqlexec::engine::EngineStorageConfig;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
-use sqlexec::parser;
-use sqlexec::remote::client::{ProxyDestination, RemoteClient, TlsConfig};
+use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::session::ExecutionResult;
 use std::env;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Arc;
-use telemetry::Tracker;
-use tracing::error;
+use std::time::Instant;
 use url::Url;
 
 #[derive(Debug, Clone, Copy)]
@@ -41,29 +37,26 @@ enum ClientCommandResult {
 
 pub struct LocalSession {
     sess: TrackedSession,
-    engine: Engine,
+    _engine: Engine,
     opts: LocalClientOpts,
 }
 
 impl LocalSession {
     pub async fn connect(opts: LocalClientOpts) -> Result<Self> {
         // Connect to metastore.
-        let mode = MetastoreClientMode::new_local(opts.data_dir.clone())?;
-        let metastore_client = mode.into_client().await?;
-        let tracker = Arc::new(Tracker::Nop);
-
-        let storage_conf = match &opts.data_dir {
-            Some(path) => EngineStorageConfig::Local { path: path.clone() },
-            None => EngineStorageConfig::Memory,
+        let mut engine = if let StorageConfigArgs {
+            location: Some(location),
+            storage_options,
+        } = &opts.storage_config
+        {
+            // TODO: try to consolidate with --data-dir option
+            Engine::from_storage_options(location, &HashMap::from_iter(storage_options.clone()))
+                .await?
+        } else {
+            Engine::from_data_dir(opts.data_dir.as_ref()).await?
         };
 
-        let engine = Engine::new(
-            metastore_client,
-            storage_conf,
-            tracker,
-            opts.spill_path.clone(),
-        )
-        .await?;
+        engine = engine.with_spill_path(opts.spill_path.clone());
 
         let sess = if let Some(url) = opts.cloud_url.clone() {
             let (exec_client, info_msg) = if opts.ignore_rpc_auth {
@@ -73,28 +66,21 @@ impl LocalSession {
                     format!("Connected to remote GlareDB server: {}", u.cyan()),
                 )
             } else {
-                let tls_conf = if opts.disable_tls {
-                    None
-                } else {
-                    match (opts.ca_cert_path.clone(), opts.domain.clone()) {
-                        (Some(ca_cert_path), Some(domain)) => Some(TlsConfig {
-                            ca_cert_path,
-                            domain,
-                        }),
-                        _ => {
-                            return Err(anyhow!(
-                                "Specify ca-cert-path and domain in --args for TLS"
-                            ));
-                        }
-                    }
-                };
-
-                let mut url: ProxyDestination = url.try_into()?;
-                url = url.with_tls(tls_conf);
-                let client = RemoteClient::connect_with_proxy_destination(url).await?;
+                let client = RemoteClient::connect_with_proxy_destination(
+                    url.try_into()?,
+                    opts.cloud_addr.clone(),
+                    opts.disable_tls,
+                    RemoteClientType::Cli,
+                )
+                .await?;
 
                 let msg = format!(
-                    "Connected to Cloud deployment: {}",
+                    "Connected to Cloud deployment (TLS {}): {}",
+                    if opts.disable_tls {
+                        "disabled"
+                    } else {
+                        "enabled"
+                    },
                     client.get_deployment_name().cyan()
                 );
 
@@ -115,36 +101,33 @@ impl LocalSession {
                 .await?
         };
 
-        Ok(LocalSession { sess, engine, opts })
+        Ok(LocalSession {
+            sess,
+            _engine: engine,
+            opts,
+        })
     }
 
     pub async fn run(mut self, query: Option<String>) -> Result<()> {
-        let result = if let Some(query) = query {
+        if let Some(query) = query {
             self.execute_one(&query).await
         } else {
             self.run_interactive().await
-        };
-
-        // Wait for the session to close.
-        if let Err(err) = self.sess.close().await {
-            error!(%err, "unable to close the remote session");
         }
-
-        // Try to shutdown the engine gracefully.
-        if let Err(err) = self.engine.shutdown().await {
-            error!(%err, "unable to shutdown the engine gracefully");
-        }
-
-        result
     }
 
     async fn run_interactive(&mut self) -> Result<()> {
-        let info = match &self.opts.data_dir {
-            Some(path) => format!("Persisting database at path: {}", path.display()),
-            None => "Using in-memory catalog".to_string(),
+        match (&self.opts.storage_config, &self.opts.data_dir) {
+            (
+                StorageConfigArgs {
+                    location: Some(location),
+                    ..
+                },
+                _,
+            ) => println!("Persisting database at location: {location}"),
+            (_, Some(path)) => println!("Persisting database at path: {}", path.display()),
+            _ => (),
         };
-
-        println!("{info}");
 
         println!("Type {} for help.", "\\help".bold().italic());
 
@@ -213,12 +196,18 @@ impl LocalSession {
             return Ok(());
         }
 
+        let now = if self.opts.timing {
+            Some(Instant::now())
+        } else {
+            None
+        };
+
         const UNNAMED: String = String::new();
 
-        let statements = parser::parse_sql(text)?;
+        let statements = self.sess.parse_query(text)?;
         for stmt in statements {
             self.sess
-                .prepare_statement(UNNAMED, Some(stmt), Vec::new())
+                .prepare_statement(UNNAMED, stmt, Vec::new())
                 .await?;
             let prepared = self.sess.get_prepared_statement(&UNNAMED)?;
             let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
@@ -238,6 +227,7 @@ impl LocalSession {
                         self.opts.mode,
                         self.opts.max_width,
                         self.opts.max_rows,
+                        now,
                     )
                     .await?
                 }
@@ -281,6 +271,10 @@ impl LocalSession {
                     *self = new_sess;
                 }
             }
+            ("\\timing", None) => {
+                self.opts.timing = !self.opts.timing;
+                println!("Timing is {}", if self.opts.timing { "on" } else { "off" })
+            }
             ("\\quit", None) | ("\\q", None) | ("exit", None) => {
                 return Ok(ClientCommandResult::Exit)
             }
@@ -305,6 +299,7 @@ async fn print_stream(
     mode: OutputMode,
     max_width: Option<usize>,
     max_rows: Option<usize>,
+    maybe_now: Option<Instant>,
 ) -> Result<()> {
     let schema = stream.schema();
     let batches = process_stream(stream).await?;
@@ -326,8 +321,8 @@ async fn print_stream(
         OutputMode::Table => {
             // If width not explicitly set by the user, try to get the width of ther
             // terminal.
-            let width = max_width.unwrap_or(term_width());
-            let disp = pretty_format_batches(&schema, &batches, Some(width), max_rows)?;
+            let width = max_width.unwrap_or(pretty::term_width());
+            let disp = pretty::pretty_format_batches(&schema, &batches, Some(width), max_rows)?;
             println!("{disp}");
         }
         OutputMode::Csv => {
@@ -340,6 +335,10 @@ async fn print_stream(
         }
         OutputMode::Json => write_json::<JsonArrayNewLines>(&batches)?,
         OutputMode::Ndjson => write_json::<JsonLineDelimted>(&batches)?,
+    }
+
+    if let Some(now) = maybe_now {
+        println!("Time: {:.3}s", now.elapsed().as_secs_f64())
     }
 
     Ok(())
@@ -392,10 +391,4 @@ fn get_history_path() -> PathBuf {
     home_dir.push(".glaredb");
     home_dir.push("history.txt");
     home_dir
-}
-
-fn term_width() -> usize {
-    crossterm::terminal::size()
-        .map(|(width, _)| width as usize)
-        .unwrap_or(80)
 }

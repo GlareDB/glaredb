@@ -1,11 +1,8 @@
 use super::*;
 
 use protogen::metastore::types::{options::CredentialsOptions, service, service::Mutation};
-use protogen::sqlexec::physical_plan::ExecutionPlanExtensionType;
 
-use crate::metastore::catalog::CatalogMutator;
-use crate::planner::errors::internal;
-use protogen::export::prost::Message;
+use catalog::mutator::CatalogMutator;
 
 #[derive(Clone, Debug)]
 pub struct CreateCredentialsExec {
@@ -13,50 +10,7 @@ pub struct CreateCredentialsExec {
     pub catalog_version: u64,
     pub options: CredentialsOptions,
     pub comment: String,
-}
-
-impl PhysicalExtensionNode for CreateCredentialsExec {
-    type ProtoRepr = protogen::sqlexec::physical_plan::CreateCredentialsExec;
-
-    fn try_encode(
-        &self,
-        buf: &mut Vec<u8>,
-        _codec: &dyn datafusion_proto::physical_plan::PhysicalExtensionCodec,
-    ) -> crate::errors::Result<()> {
-        let proto = protogen::sqlexec::physical_plan::CreateCredentialsExec {
-            name: self.name.clone(),
-            catalog_version: self.catalog_version,
-            options: Some(self.options.clone().into()),
-            comment: self.comment.clone(),
-        };
-        let ty = ExecutionPlanExtensionType::CreateCredentialsExec(proto);
-        let extension =
-            protogen::sqlexec::physical_plan::ExecutionPlanExtension { inner: Some(ty) };
-        extension
-            .encode(buf)
-            .map_err(|e| internal!("{}", e.to_string()))?;
-        Ok(())
-    }
-
-    fn try_decode(
-        proto: Self::ProtoRepr,
-        _registry: &dyn FunctionRegistry,
-        _runtime: &RuntimeEnv,
-        _extension_codec: &dyn PhysicalExtensionCodec,
-    ) -> crate::errors::Result<Self, protogen::ProtoConvError> {
-        let options = proto
-            .options
-            .ok_or(protogen::ProtoConvError::RequiredField(
-                "options".to_string(),
-            ))?;
-
-        Ok(Self {
-            name: proto.name,
-            catalog_version: proto.catalog_version,
-            options: options.try_into()?,
-            comment: proto.comment,
-        })
-    }
+    pub or_replace: bool,
 }
 
 impl DisplayAs for CreateCredentialsExec {
@@ -127,6 +81,7 @@ async fn create_credentials(
                 name: plan.name,
                 options: plan.options,
                 comment: plan.comment,
+                or_replace: plan.or_replace,
             })],
         )
         .await

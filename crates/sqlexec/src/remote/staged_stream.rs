@@ -8,9 +8,9 @@ use parking_lot::Mutex;
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
-use super::exchange_stream::ClientExchangeRecvStream;
+use super::batch_stream::ExecutionBatchStream;
 
-pub type StagedClientStreams = StagedStreams<ClientExchangeRecvStream>;
+pub type StagedClientStreams = StagedStreams<ExecutionBatchStream>;
 
 /// Hold streams that pending for execution.
 pub struct StagedStreams<S> {
@@ -98,7 +98,7 @@ impl<S> Default for StagedStreams<S> {
     }
 }
 
-pub type ResolveClientStreamFut = ResolveStreamFut<ClientExchangeRecvStream>;
+pub type ResolveClientStreamFut = ResolveStreamFut<ExecutionBatchStream>;
 
 /// Future for resolving a pending stream.
 pub enum ResolveStreamFut<S> {

@@ -1,0 +1,3 @@
+[submodule "benchmarks/tpch/tpch-dbgen"]
+	path = benchmarks/tpch/tpch-dbgen
+	url = https://github.com/electrum/tpch-dbgen.git

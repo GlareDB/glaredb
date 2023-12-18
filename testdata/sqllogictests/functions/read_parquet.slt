@@ -1,0 +1,58 @@
+# Tests `read_parquet`
+
+# Absolute path
+query I
+select count(*) from read_parquet('file://${PWD}/testdata/parquet/userdata1.parquet')
+----
+1000
+
+# Relative path
+query I
+select count(*) from read_parquet('../../testdata/parquet/userdata1.parquet')
+----
+1000
+
+# Remote path
+query I
+select count(*) from read_parquet('https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata1.parquet');
+----
+1000
+
+# Huggingface (percent encoded paths)
+#
+# Note that this is a pretty big file, but the limit will be pushed down to the
+# exec, ensuring we don't need to load the whole thing.
+query T
+select length(head) > 1 from read_parquet(
+  'https://huggingface.co/datasets/allenai/soda/resolve/refs%2Fconvert%2Fparquet/default/test/0000.parquet'
+) limit 1;
+----
+t
+
+# Multiple URLs
+
+query I
+select count(*) from read_parquet([
+  'https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata1.parquet',
+  'https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata1.parquet'
+]);
+----
+2000
+
+statement error No such file or directory
+select * from read_parquet('./testdata/parquet/userdata1.paruqet');
+
+# Ambiguous name.
+# query I
+# select count(*)
+#   from read_parquet('../../testdata/parquet/userdata1.parquet') p
+#   inner join (values ('Sweden')) as c(country) on p.country = c.country
+# ----
+# 1000
+
+# query I
+# select count(*)
+#   from read_parquet('../../testdata/parquet/userdata1.parquet') p
+#   inner join (select 'Sweden') as c(country) on p.country = c.country
+# ----
+# 1000

@@ -1,8 +1,6 @@
 //! A collection of debug datasources.
 pub mod errors;
 
-use crate::common::errors::DatasourceCommonError;
-use crate::common::listing::VirtualLister;
 use async_trait::async_trait;
 use datafusion::arrow::array::Int32Array;
 use datafusion::arrow::datatypes::{
@@ -21,6 +19,8 @@ use datafusion::physical_plan::{DisplayAs, DisplayFormatType};
 use datafusion::physical_plan::{
     ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
 use errors::DebugError;
 use futures::Stream;
 use protogen::metastore::types::options::TunnelOptions;
@@ -150,20 +150,16 @@ pub struct DebugVirtualLister;
 
 #[async_trait]
 impl VirtualLister for DebugVirtualLister {
-    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
         Ok((0..2).map(|i| format!("schema_{i}")).collect())
     }
 
-    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
         let tables = (0..2).map(|i| format!("{schema}_table_{i}")).collect();
         Ok(tables)
     }
 
-    async fn list_columns(
-        &self,
-        schema: &str,
-        table: &str,
-    ) -> Result<Fields, DatasourceCommonError> {
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
         Ok((0..2)
             .map(|i| {
                 let name = format!("{schema}_{table}_col_{i}");

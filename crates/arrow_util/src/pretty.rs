@@ -1,5 +1,5 @@
 use comfy_table::{Cell, CellAlignment, ColumnConstraint, ContentArrangement, Table};
-use datafusion::arrow::array::Array;
+use datafusion::arrow::array::{Array, Float64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -30,6 +30,19 @@ pub fn pretty_format_batches(
     max_rows: Option<usize>,
 ) -> Result<impl fmt::Display, ArrowError> {
     PrettyTable::try_new(schema, batches, max_width, max_rows)
+}
+
+/// Get the terminal's width in characters.
+///
+/// This can be used as the `max_width` argument when pretty formatting to
+/// ensure the formatted table doesn't exceed the width of the terminal.
+///
+/// If the width can't be determine or is unreasonable (0), then a default width
+/// of 80 is used.
+pub fn term_width() -> usize {
+    crossterm::terminal::size()
+        .map(|(width, _)| if width == 0 { 80 } else { width as usize })
+        .unwrap_or(80)
 }
 
 #[derive(Debug)]
@@ -88,7 +101,6 @@ impl PrettyTable {
             None => vec![ColumnValues::default(); col_headers.len()],
         };
 
-        let max_width = max_width.or(table.width().map(|v| v as usize));
         let format =
             TableFormat::from_headers_and_sample_vals(&col_headers, &first_vals, max_width);
 
@@ -265,6 +277,28 @@ struct ColumnHeader {
     alignment: CellAlignment,
 }
 
+pub fn fmt_dtype(dtype: &DataType) -> String {
+    match dtype {
+        DataType::Timestamp(tu, tz) => {
+            format!("Timestamp<{}, {}>", fmt_timeunit(tu), fmt_timezone(tz))
+        }
+        DataType::List(fld) | DataType::LargeList(fld) => {
+            format!("List<{}>", fmt_dtype(fld.data_type()))
+        }
+        DataType::FixedSizeList(fld, length) => {
+            format!("FixedSizeList<{}; {}>", fmt_dtype(fld.data_type()), length)
+        }
+        DataType::Struct(flds) => flds
+            .iter()
+            .map(|f| format!("{}: {}", f.name(), fmt_dtype(f.data_type())))
+            .collect::<Vec<_>>()
+            .join(", "),
+        DataType::Decimal128(_, _) => "Decimal128".to_string(),
+        DataType::Decimal256(_, _) => "Decimal256".to_string(),
+        dtype => format!("{}", dtype),
+    }
+}
+
 impl ColumnHeader {
     fn from_field(f: &Field) -> Self {
         let alignment = if f.data_type().is_numeric() {
@@ -275,12 +309,7 @@ impl ColumnHeader {
 
         ColumnHeader {
             name: f.name().clone(),
-            data_type: match f.data_type() {
-                DataType::Timestamp(tu, tz) => {
-                    format!("Timestamp[{}, {}]", fmt_timeunit(tu), fmt_timezone(tz))
-                }
-                dtype => format!("{}", dtype),
-            },
+            data_type: fmt_dtype(f.data_type()),
             alignment,
         }
     }
@@ -363,13 +392,10 @@ impl TableFormat {
                 break;
             }
 
-            let mid = header_widths.len() / 2;
-            header_widths.remove(mid);
-            has_ellided = true;
-
             if header_widths.len() <= MIN_COLS {
                 let usable =
                     Self::compute_usable_width(max_width, header_widths.len(), has_ellided);
+
                 let per_col_width = usable / header_widths.len();
 
                 header_widths
@@ -377,6 +403,10 @@ impl TableFormat {
                     .for_each(|h| h.width = per_col_width);
                 break;
             }
+
+            let mid = header_widths.len() / 2;
+            header_widths.remove(mid);
+            has_ellided = true;
         }
 
         let stats: Vec<_> = batch_vals.iter().map(|v| v.size_stats()).collect();
@@ -438,14 +468,19 @@ impl TableFormat {
     const fn compute_usable_width(max_width: usize, num_cols: usize, has_ellided: bool) -> usize {
         // For each column, subtract left and right padding, and the leading
         // border character. The extra '- 1' is for the last border.
-        let mut usable = max_width - (num_cols * 3) - 1;
+        //
+        // Note for small max widths and a large number of columns, there's a
+        // chance to underflow. So we should just clamp to '0' since there's no
+        // usable space.
+        let column_padding = num_cols * 3;
+        let mut usable = max_width.saturating_sub(column_padding).saturating_sub(1);
         if has_ellided {
             // Make sure we include the space taken up by the ... column.
             //
             // dots: 1 char
             // leading border: 1 char
             // padding: 2 chars
-            usable -= 4
+            usable = usable.saturating_sub(4);
         }
         usable
     }
@@ -455,7 +490,7 @@ impl TableFormat {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 struct ColumnValues {
     vals: Vec<String>,
 }
@@ -470,15 +505,33 @@ struct ColumnWidthSizeStats {
 impl ColumnValues {
     fn try_new_from_array(col: &dyn Array, trunc: Option<usize>) -> Result<Self, ArrowError> {
         let formatter = ArrayFormatter::try_new(col, &TABLE_FORMAT_OPTS)?;
-        let vals = (0..col.len())
-            .map(|idx| {
-                let mut s = formatter.value(idx).try_to_string()?;
-                if let Some(trunc) = trunc {
-                    truncate_or_wrap_string(&mut s, trunc);
-                }
-                Ok(s)
-            })
-            .collect::<Result<Vec<_>, ArrowError>>()?;
+        let vals = match col.data_type() {
+            DataType::Float64 => {
+                // formatting float arrays
+                let floats_array = col
+                    .as_any()
+                    .downcast_ref::<Float64Array>()
+                    .unwrap()
+                    .values();
+
+                (0..floats_array.len())
+                    .map(|idx| Ok(fmt_floats(floats_array.get(idx))))
+                    .collect::<Result<Vec<_>, ArrowError>>()?
+            }
+            _ => {
+                // formatting rest of data types using ArrayFormatter
+                (0..col.len())
+                    .map(|idx| {
+                        let mut s = formatter.value(idx).try_to_string()?;
+                        if let Some(trunc) = trunc {
+                            truncate_or_wrap_string(&mut s, trunc);
+                        }
+                        Ok(s)
+                    })
+                    .collect::<Result<Vec<_>, ArrowError>>()?
+            }
+        };
+
         Ok(ColumnValues { vals })
     }
 
@@ -513,12 +566,29 @@ impl ColumnValues {
     }
 }
 
+fn fmt_floats(flt: Option<&f64>) -> String {
+    match flt {
+        Some(float) => {
+            //Change here to configure digits after decimalpoint for long floats
+            format!("{:.5}", float)
+        }
+        None => String::from(""),
+    }
+}
+
 fn process_batch(
     table: &mut Table,
     format: &TableFormat,
     batch: &RecordBatch,
     rows: Range<usize>,
 ) -> Result<(), ArrowError> {
+    if rows.is_empty() {
+        return Ok(());
+    }
+
+    // Avoid trying to process the entire batch.
+    let batch = batch.slice(rows.start, rows.len());
+
     let mut col_vals = Vec::new();
     for (idx, col) in batch.columns().iter().enumerate() {
         if format.is_elided[idx] {
@@ -528,10 +598,11 @@ fn process_batch(
         col_vals.push(vals);
     }
 
-    for row in rows {
+    // Note this is starting from the beginning of the sliced batch.
+    for batch_idx in 0..batch.num_rows() {
         let mut cells = Vec::with_capacity(col_vals.len());
         for col in col_vals.iter_mut() {
-            cells.push(std::mem::take(col.vals.get_mut(row).unwrap()));
+            cells.push(std::mem::take(col.vals.get_mut(batch_idx).unwrap()));
         }
 
         if format.has_ellided() {
@@ -604,6 +675,67 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_truncate_floats() {
+        #[derive(Debug)]
+        struct TestCase<'a> {
+            input: &'a dyn Array,
+            truncate: Option<usize>,
+            expected: ColumnValues,
+        }
+        let vec_flts = vec![123.4, 123.45, 123.456, 123.456789, 123.456789123];
+
+        let vec_expected = vec![
+            "123.40000",
+            "123.45000",
+            "123.45600",
+            "123.45679",
+            "123.45679",
+        ];
+
+        let test_floats = Float64Array::from(vec_flts.clone());
+        let mut vec_str: Vec<String> = Vec::new();
+
+        for i in vec_expected {
+            vec_str.push(i.to_string());
+        }
+
+        let test_batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![Field::new(
+                "id",
+                DataType::Float64,
+                false,
+            )])),
+            vec![Arc::new(test_floats)],
+        )
+        .unwrap();
+
+        let mut test_cases: Vec<TestCase> = Vec::new();
+        for (_idx, xcol) in test_batch.columns().iter().enumerate() {
+            let tc = TestCase {
+                input: xcol,
+                truncate: Some(10), // doesn't matter for floats.
+                expected: ColumnValues {
+                    vals: vec_str.clone(),
+                },
+            };
+            test_cases.push(tc);
+        }
+
+        for tc in test_cases {
+            let tc_result = ColumnValues::try_new_from_array(tc.input, tc.truncate);
+
+            let result: ColumnValues = match tc_result {
+                Ok(x) => x,
+                Err(e) => {
+                    panic!("Panics in the test formatting float, Error: {:?}", e);
+                }
+            };
+
+            assert_eq!(result, tc.expected, "test case: {:?}", tc);
+        }
+    }
+
     /// Assert equality and place both values in the assert message for easier
     /// of test failures.
     fn assert_eq_print<S: AsRef<str>>(expected: S, got: S) {
@@ -620,7 +752,7 @@ mod tests {
         ]);
 
         let table = pretty_format_batches(&schema, &[], None, None).unwrap();
-        let expected = vec![
+        let expected = [
             "┌───────┬──────┐",
             "│     a │ b    │",
             "│    ── │ ──   │",
@@ -656,7 +788,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &[batch], None, None).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┐",
             "│ a    │     b │",
             "│ ──   │    ── │",
@@ -693,7 +825,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, None, None).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┐",
             "│ a    │     b │",
             "│ ──   │    ── │",
@@ -739,7 +871,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, None, Some(4)).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┐",
             "│ a    │     b │",
             "│ ──   │    ── │",
@@ -766,7 +898,7 @@ mod tests {
         ]));
 
         let a_vals: Vec<_> = (0..10).map(|v| Some(v.to_string())).collect();
-        let b_vals: Vec<_> = (0..10).map(|v| Some(v)).collect();
+        let b_vals: Vec<_> = (0..10).map(Some).collect();
 
         let batches = vec![RecordBatch::try_new(
             schema.clone(),
@@ -779,7 +911,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, None, Some(4)).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┐",
             "│ a    │     b │",
             "│ ──   │    ── │",
@@ -832,7 +964,7 @@ mod tests {
         // Note this doesn't grow great since we're only computing column stats
         // on the first batch. The next test shows the growth behavior better by
         // having the first batch have the longest value.
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┬──────┬──────┐",
             "│ a    │     b │ c    │ d    │",
             "│ ──   │    ── │ ──   │ ──   │",
@@ -883,7 +1015,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, Some(40), None).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬───────┬────────────────┬──────┐",
             "│ a    │     b │ c              │ d    │",
             "│ ──   │    ── │ ──             │ ──   │",
@@ -930,19 +1062,18 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, Some(40), None).unwrap();
 
-        let expected = vec![
-            "┌──────┬───┬────────────────┐",
-            "│ a    │ … │ c              │",
-            "│ ──   │   │ ──             │",
-            "│ Utf8 │   │ Utf8           │",
-            "╞══════╪═══╪════════════════╡",
-            "│ a    │ … │ ccccccccccccc… │",
-            "│ a    │ … │ cccccccccc     │",
-            "│ a    │ … │ ccccc          │",
-            "│ a    │ … │ c              │",
-            "└──────┴───┴────────────────┘",
+        let expected = [
+            "┌──────┬────────────┬────────────┐",
+            "│ a    │ thisisaso… │ c          │",
+            "│ ──   │         ── │ ──         │",
+            "│ Utf8 │      Int32 │ Utf8       │",
+            "╞══════╪════════════╪════════════╡",
+            "│ a    │          4 │ ccccccccc… │",
+            "│ a    │          3 │ cccccccccc │",
+            "│ a    │          2 │ ccccc      │",
+            "│ a    │          1 │ c          │",
+            "└──────┴────────────┴────────────┘",
         ];
-
         assert!(display_width(expected[0]) <= 40);
 
         assert_eq_print(expected.join("\n"), table.to_string())
@@ -979,7 +1110,7 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, Some(40), None).unwrap();
 
-        let expected = vec![
+        let expected = [
             "┌──────┬──────────┬───┬──────┐",
             "│ a    │ thisisa… │ … │ d    │",
             "│ ──   │       ── │   │ ──   │",
@@ -993,6 +1124,93 @@ mod tests {
         ];
 
         assert!(display_width(expected[0]) <= 40);
+
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn many_cols_small_max_width() {
+        // https://github.com/GlareDB/glaredb/issues/1790
+
+        let fields: Vec<_> = (0..30)
+            .map(|i| Field::new(i.to_string(), DataType::Int8, true))
+            .collect();
+
+        let schema = Arc::new(Schema::new(fields));
+
+        let table = pretty_format_batches(&schema, &[], Some(40), None).unwrap();
+
+        let expected = [
+            "┌──────┬──────┬───┬──────┬──────┐",
+            "│    0 │    1 │ … │   28 │   29 │",
+            "│   ── │   ── │   │   ── │   ── │",
+            "│ Int8 │ Int8 │   │ Int8 │ Int8 │",
+            "╞══════╪══════╪═══╪══════╪══════╡",
+            "└──────┴──────┴───┴──────┴──────┘",
+        ];
+
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn multiple_batches_with_slicing() {
+        // https://github.com/GlareDB/glaredb/pull/1788
+        //
+        // Make sure batch slicing is correct.
+        //
+        // - 3 batches, 2 records each
+        // - max rows is 2
+        // - first record of first batch and last record of last batch should be printed
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("b", DataType::Int32, true),
+        ]));
+
+        // First record should be printed.
+        let first = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec![Some("1"), Some("2")])),
+                Arc::new(Int32Array::from(vec![Some(1), Some(2)])),
+            ],
+        )
+        .unwrap();
+
+        // Nothing in this batch should be printed.
+        let middle = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec![Some("3"), Some("4")])),
+                Arc::new(Int32Array::from(vec![Some(3), Some(4)])),
+            ],
+        )
+        .unwrap();
+
+        // Last record should be printed.
+        let last = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(StringArray::from(vec![Some("5"), Some("6")])),
+                Arc::new(Int32Array::from(vec![Some(5), Some(6)])),
+            ],
+        )
+        .unwrap();
+
+        let table = pretty_format_batches(&schema, &[first, middle, last], None, Some(2)).unwrap();
+
+        let expected = [
+            "┌──────┬───────┐",
+            "│ a    │     b │",
+            "│ ──   │    ── │",
+            "│ Utf8 │ Int32 │",
+            "╞══════╪═══════╡",
+            "│ 1    │     1 │",
+            "│ …    │     … │",
+            "│ 6    │     6 │",
+            "└──────┴───────┘",
+            " 6 rows (2 shown)",
+        ];
 
         assert_eq_print(expected.join("\n"), table.to_string())
     }

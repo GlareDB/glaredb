@@ -24,6 +24,18 @@ pub trait LocalAuthenticator: Sync + Send {
     fn password_mode(&self) -> PasswordMode;
     fn authenticate(&self, user: &str, password: &str, db_name: &str) -> Result<()>;
 }
+impl<B> LocalAuthenticator for Box<B>
+where
+    B: LocalAuthenticator + ?Sized,
+{
+    fn password_mode(&self) -> PasswordMode {
+        (**self).password_mode()
+    }
+
+    fn authenticate(&self, user: &str, password: &str, db_name: &str) -> Result<()> {
+        (**self).authenticate(user, password, db_name)
+    }
+}
 
 /// A simple single user authenticator.
 #[derive(Clone)]

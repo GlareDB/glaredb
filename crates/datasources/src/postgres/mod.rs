@@ -1,12 +1,11 @@
 pub mod errors;
 
+mod query_exec;
 mod tls;
 
-use crate::common::errors::DatasourceCommonError;
-use crate::common::listing::VirtualLister;
 use crate::common::ssh::session::SshTunnelSession;
 use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
-use crate::common::util;
+use crate::common::util::{self, create_count_record_batch};
 use async_trait::async_trait;
 use chrono::naive::{NaiveDateTime, NaiveTime};
 use chrono::{DateTime, NaiveDate, Timelike, Utc};
@@ -21,10 +20,17 @@ use datafusion::execution::context::SessionState;
 use datafusion::execution::context::TaskContext;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::memory::MemoryExec;
+use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
+use datafusion::physical_plan::metrics::MetricsSet;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
+    execute_stream, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
+use datafusion::scalar::ScalarValue;
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{PostgresError, Result};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use protogen::metastore::types::options::TunnelOptions;
@@ -45,6 +51,8 @@ use tokio_postgres::tls::MakeTlsConnect;
 use tokio_postgres::types::{FromSql, Type as PostgresType};
 use tokio_postgres::{Client, Config, Connection, CopyOutStream, NoTls, Socket};
 use tracing::{debug, warn};
+
+use self::query_exec::PostgresQueryExec;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PostgresDbConnection {
@@ -415,8 +423,8 @@ ORDER BY attnum;
 
 #[async_trait]
 impl VirtualLister for PostgresAccessState {
-    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let rows = self
             .client
@@ -435,8 +443,8 @@ impl VirtualLister for PostgresAccessState {
         Ok(schema_names)
     }
 
-    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let rows = self
             .client
@@ -463,12 +471,8 @@ WHERE
         Ok(virtual_tables)
     }
 
-    async fn list_columns(
-        &self,
-        schema: &str,
-        table: &str,
-    ) -> Result<Fields, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let (schema, _) = self
             .get_table_schema(schema, table)
@@ -643,6 +647,54 @@ impl TableProvider for PostgresTableProvider {
 
         Ok(Arc::new(exec))
     }
+
+    async fn insert_into(
+        &self,
+        state: &SessionState,
+        input: Arc<dyn ExecutionPlan>,
+        _overwrite: bool,
+    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        let mut values = String::new();
+
+        let mut input = execute_stream(input, state.task_ctx())?;
+        while let Some(batch) = input.next().await {
+            let batch = batch?;
+
+            let mut row_sep = "";
+            for row_idx in 0..batch.num_rows() {
+                write!(&mut values, "{row_sep}(")?;
+                row_sep = ",";
+
+                let mut col_sep = "";
+                for col in batch.columns() {
+                    write!(&mut values, "{col_sep}")?;
+                    col_sep = ",";
+
+                    let val = ScalarValue::try_from_array(col.as_ref(), row_idx)?;
+                    util::encode_literal_to_text(util::Datasource::Postgres, &mut values, &val)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                }
+
+                write!(&mut values, ")")?;
+            }
+        }
+
+        if values.is_empty() {
+            let batch = create_count_record_batch(0);
+            let schema = batch.schema();
+            return Ok(Arc::new(MemoryExec::try_new(&[vec![batch]], schema, None)?));
+        }
+
+        let query = format!(
+            "INSERT INTO {}.{} VALUES {}",
+            self.schema, self.table, values
+        );
+
+        debug!(%query, "inserting into postgres datasource");
+
+        let exec = PostgresQueryExec::new(query, self.state.clone());
+        Ok(Arc::new(exec))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -704,6 +756,7 @@ pub struct PostgresBinaryCopyExec {
     pg_types: Arc<Vec<PostgresType>>,
     arrow_schema: ArrowSchemaRef,
     opener: StreamOpener,
+    metrics: ExecutionPlanMetricsSet,
 }
 
 impl PostgresBinaryCopyExec {
@@ -723,6 +776,7 @@ impl PostgresBinaryCopyExec {
                     pg_types: Arc::new(pg_types),
                     arrow_schema: Arc::new(arrow_schema),
                     opener,
+                    metrics: ExecutionPlanMetricsSet::new(),
                 })
             }
             BinaryCopyConfig::State {
@@ -736,6 +790,7 @@ impl PostgresBinaryCopyExec {
                     pg_types,
                     arrow_schema,
                     opener,
+                    metrics: ExecutionPlanMetricsSet::new(),
                 })
             }
         }
@@ -768,13 +823,13 @@ impl ExecutionPlan for PostgresBinaryCopyExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Execution(
-            "cannot replace children for BinaryCopyExec".to_string(),
+            "cannot replace children for PostgresBinaryCopyExec".to_string(),
         ))
     }
 
     fn execute(
         &self,
-        _partition: usize,
+        partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         let stream = ChunkStream {
@@ -783,23 +838,31 @@ impl ExecutionPlan for PostgresBinaryCopyExec {
             opener: self.opener.clone(),
             arrow_schema: self.arrow_schema.clone(),
         };
-        Ok(Box::pin(stream))
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            stream,
+            partition,
+            &self.metrics,
+        )))
     }
 
     fn statistics(&self) -> Statistics {
         Statistics::default()
     }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
+    }
 }
 
 impl DisplayAs for PostgresBinaryCopyExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "BinaryCopyExec",)
+        write!(f, "PostgresBinaryCopyExec",)
     }
 }
 
 impl fmt::Debug for PostgresBinaryCopyExec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BinaryCopyExec")
+        f.debug_struct("PostgresBinaryCopyExec")
             .field("pg_types", &self.pg_types)
             .field("arrow_schema", &self.arrow_schema)
             .finish()
@@ -819,10 +882,7 @@ impl StreamOpener {
     fn open(&self) -> BoxFuture<'static, Result<CopyOutStream, tokio_postgres::Error>> {
         let query = self.copy_query.clone();
         let accessor = self.state.clone();
-        Box::pin(async move {
-            let query = query;
-            accessor.client.copy_out(&query).await
-        })
+        Box::pin(async move { accessor.client.copy_out(&query).await })
     }
 }
 
@@ -1063,7 +1123,7 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> = row.try_get(col_idx)?;
-                    let val = val.map(|v| v.timestamp_nanos());
+                    let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
@@ -1073,7 +1133,7 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                     .with_data_type(dt.clone());
                 for row in rows.iter() {
                     let val: Option<DateTime<Utc>> = row.try_get(col_idx)?;
-                    let val = val.map(|v| v.timestamp_nanos());
+                    let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())

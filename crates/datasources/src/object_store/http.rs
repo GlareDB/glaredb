@@ -2,13 +2,21 @@ use std::{fmt::Display, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::Utc;
-use datafusion::execution::object_store::ObjectStoreUrl;
+use datafusion::{
+    arrow::datatypes::Schema,
+    datasource::{file_format::FileFormat, TableProvider},
+    error::DataFusionError,
+    execution::{context::SessionState, object_store::ObjectStoreUrl},
+};
 use object_store::{http::HttpBuilder, path::Path as ObjectStorePath, ObjectMeta, ObjectStore};
 use url::Url;
 
-use crate::object_store::{errors::ObjectStoreSourceError, Result};
+use crate::{
+    common::url::DatasourceUrl,
+    object_store::{errors::ObjectStoreSourceError, Result},
+};
 
-use super::ObjStoreAccess;
+use super::{MultiSourceTableProvider, ObjStoreAccess, ObjStoreTableProvider};
 
 #[derive(Debug, Clone)]
 pub struct HttpStoreAccess {
@@ -52,13 +60,11 @@ impl ObjStoreAccess for HttpStoreAccess {
     }
 
     /// Not supported for HTTP. Simply return the meta assuming no-glob.
-    async fn list_globbed(
-        &self,
-        store: Arc<dyn ObjectStore>,
-        pattern: &str,
-    ) -> Result<Vec<ObjectMeta>> {
-        let location = self.path(pattern)?;
-        Ok(vec![self.object_meta(store, &location).await?])
+    async fn list_globbed(&self, store: &Arc<dyn ObjectStore>, _: &str) -> Result<Vec<ObjectMeta>> {
+        let location = ObjectStorePath::default();
+
+        let meta = self.object_meta(store, &location).await?;
+        Ok(vec![meta])
     }
 
     /// Get the object meta from a HEAD request to the url.
@@ -67,10 +73,24 @@ impl ObjStoreAccess for HttpStoreAccess {
     /// request.
     async fn object_meta(
         &self,
-        _store: Arc<dyn ObjectStore>,
+        _store: &Arc<dyn ObjectStore>,
         location: &ObjectStorePath,
     ) -> Result<ObjectMeta> {
         let res = reqwest::Client::new().head(self.url.clone()).send().await?;
+        let status = res.status();
+        if !status.is_success() {
+            if self.url.as_str().contains('*') {
+                return Err(ObjectStoreSourceError::InvalidHttpStatus(format!(
+                    "Unexpected status code '{}' for url: '{}'. Note that globbing is not supported for HTTP.",
+                    status, self.url
+                )));
+            }
+            return Err(ObjectStoreSourceError::InvalidHttpStatus(format!(
+                "Unexpected status code '{}' for url: '{}'",
+                status, self.url
+            )));
+        }
+
         let len = res.content_length().ok_or(ObjectStoreSourceError::Static(
             "Missing content-length header",
         ))?;
@@ -80,6 +100,80 @@ impl ObjStoreAccess for HttpStoreAccess {
             last_modified: Utc::now(),
             size: len as usize,
             e_tag: None,
+        })
+    }
+
+    async fn create_table_provider(
+        &self,
+        state: &SessionState,
+        file_format: Arc<dyn FileFormat>,
+        locations: Vec<DatasourceUrl>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let store = self.create_store()?;
+        let mut providers: Vec<Arc<dyn TableProvider>> = Vec::new();
+
+        let mut locations = locations.into_iter();
+
+        let next = locations
+            .next()
+            .ok_or(ObjectStoreSourceError::Static("No locations provided"))?;
+
+        let objects = self
+            .list_globbed(&store, &next.path())
+            .await
+            .map_err(|e| DataFusionError::Plan(e.to_string()))?;
+
+        // this assumes that all locations have the same schema.
+        let arrow_schema = file_format
+            .clone()
+            .infer_schema(state, &store, &objects)
+            .await?;
+
+        let base_url = self.base_url()?;
+
+        let prov = Arc::new(ObjStoreTableProvider {
+            store: store.clone(),
+            arrow_schema: arrow_schema.clone(),
+            file_format: file_format.clone(),
+            base_url,
+            objects,
+        });
+        providers.push(prov);
+
+        for loc in locations {
+            let store = store.clone();
+            let arrow_schema = arrow_schema.clone();
+            let file_format = file_format.clone();
+            let prov = self
+                .create_table_provider_single(loc, store, arrow_schema, file_format)
+                .await?;
+
+            providers.push(Arc::new(prov));
+        }
+        Ok(Arc::new(MultiSourceTableProvider::new(providers)))
+    }
+}
+
+impl HttpStoreAccess {
+    async fn create_table_provider_single(
+        &self,
+        url: DatasourceUrl,
+        store: Arc<dyn ObjectStore>,
+        arrow_schema: Arc<Schema>,
+        file_format: Arc<dyn FileFormat>,
+    ) -> Result<ObjStoreTableProvider> {
+        let base_url = self.base_url()?;
+        let objects = self
+            .list_globbed(&store, &url.path())
+            .await
+            .map_err(|_| DataFusionError::Plan("unable to list globbed".to_string()))?;
+
+        Ok(ObjStoreTableProvider {
+            store,
+            arrow_schema,
+            base_url,
+            objects,
+            file_format,
         })
     }
 }

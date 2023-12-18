@@ -3,7 +3,7 @@ use std::{fmt::Write, sync::Arc};
 use chrono::{Duration, TimeZone, Utc};
 use datafusion::{
     arrow::{
-        array::{Array, ArrayRef},
+        array::{Array, ArrayRef, UInt64Array},
         compute::{cast_with_options, CastOptions},
         datatypes::{DataType, Field, Schema, TimeUnit},
         error::ArrowError,
@@ -49,15 +49,22 @@ pub fn encode_literal_to_text(
     buf: &mut String,
     lit: &ScalarValue,
 ) -> Result<()> {
-    // Should be handled by "IS [NOT] NULL" ...
-    debug_assert!(!lit.is_null());
-    // Should be handled by "IS (TRUE/FALSE)" ...
-    debug_assert!(!matches!(lit, ScalarValue::Boolean(_)));
+    if lit.is_null() {
+        buf.write_str("NULL")?;
+        return Ok(());
+    }
 
     if is_literal_quotable(datasource, lit) {
         buf.write_str("'")?;
     }
     match lit {
+        ScalarValue::Boolean(Some(v)) => {
+            if *v {
+                buf.write_str("TRUE")?;
+            } else {
+                buf.write_str("FALSE")?;
+            }
+        }
         ScalarValue::Int8(Some(v)) => encode_int(buf, *v)?,
         ScalarValue::Int16(Some(v)) => encode_int(buf, *v)?,
         ScalarValue::Int32(Some(v)) => encode_int(buf, *v)?,
@@ -101,7 +108,7 @@ pub fn encode_literal_to_text(
         }
         s => {
             return Err(DatasourceCommonError::UnsupportedDatafusionScalar(
-                s.get_datatype(),
+                s.data_type(),
             ))
         }
     };
@@ -153,6 +160,24 @@ pub fn normalize_batch(batch: &RecordBatch) -> Result<RecordBatch, ArrowError> {
     let schema = Arc::new(Schema::new(fields));
     let batch = RecordBatch::try_new(schema, columns)?;
     Ok(batch)
+}
+
+pub static COUNT_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![Field::new(
+        "count",
+        DataType::UInt64,
+        false,
+    )]))
+});
+
+pub fn create_count_record_batch(count: u64) -> RecordBatch {
+    RecordBatch::try_new(
+        COUNT_SCHEMA.clone(),
+        vec![Arc::new(UInt64Array::from_value(
+            count, /* rows = */ 1,
+        ))],
+    )
+    .unwrap()
 }
 
 #[cfg(test)]
@@ -281,12 +306,12 @@ mod tests {
             let res = encode_literal_to_text(case.datasource, &mut buf, &case.literal);
             match (res, case.expected) {
                 (Ok(_), Some(s)) => assert_eq!(&buf, s),
-                (Ok(_), None) => assert!(false, "expected error, got result: {}", buf),
+                (Ok(_), None) => panic!("expected error, got result: {}", buf),
                 (Err(e1), None) => {
-                    let dt = case.literal.get_datatype();
+                    let dt = case.literal.data_type();
                     assert!(matches!(e1, DatasourceCommonError::UnsupportedDatafusionScalar(ty) if ty == dt));
                 }
-                (Err(e), Some(s)) => assert!(false, "expected result: {}, got error: {}", s, e),
+                (Err(e), Some(s)) => panic!("expected result: {}, got error: {}", s, e),
             };
         });
     }

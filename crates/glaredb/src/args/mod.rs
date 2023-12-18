@@ -1,8 +1,11 @@
+use anyhow::anyhow;
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
 use std::fmt::Write as _;
 use std::path::PathBuf;
 use url::Url;
+
+use crate::rpc_proxy::TLSMode;
 pub mod local;
 pub mod server;
 
@@ -50,17 +53,11 @@ pub struct RpcProxyArgs {
     #[clap(long)]
     pub cloud_auth_code: String,
 
-    /// Custom path for server certificate for TLS
-    #[clap(long, value_parser, default_value = "/etc/certs/tls.pem", hide = true)]
-    pub server_cert_path: Option<PathBuf>,
-
-    /// Custom path for server certificate key for TLS
-    #[clap(long, value_parser, default_value = "/etc/certs/tls.key", hide = true)]
-    pub server_key_path: Option<PathBuf>,
-
-    /// Disable TLS.
-    #[clap(long, default_value = "true", hide = true)]
-    pub disable_tls: bool,
+    /// Mode for TLS Validation (required, optional, disabled)
+    ///
+    /// (Internal)
+    #[clap(long, value_enum, hide = true)]
+    pub tls_mode: TLSMode,
 }
 
 #[derive(Parser)]
@@ -84,4 +81,24 @@ pub struct PgProxyArgs {
     /// Authorization code for communicating with Cloud.
     #[clap(long)]
     pub cloud_auth_code: String,
+}
+
+#[derive(Debug, Clone, Parser)]
+pub struct StorageConfigArgs {
+    /// URL of the object store in which to keep the data in.
+    #[clap(short, long)]
+    pub location: Option<String>,
+
+    /// Storage options for building the object store.
+    #[clap(short = 'o', long = "option", requires = "location", value_parser=parse_key_value_pair)]
+    pub storage_options: Vec<(String, String)>,
+}
+
+fn parse_key_value_pair(key_value_pair: &str) -> Result<(String, String)> {
+    key_value_pair
+        .split_once('=')
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .ok_or(anyhow!(
+            "Expected key-value pair delimited by an equals sign, got '{key_value_pair}'"
+        ))
 }

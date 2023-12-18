@@ -5,18 +5,18 @@ use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use protogen::metastore::types::catalog::{
     CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
-    EntryType, FunctionEntry, FunctionType, SchemaEntry, TableEntry, TunnelEntry, ViewEntry,
+    EntryType, SchemaEntry, SourceAccessMode, TableEntry, TunnelEntry, ViewEntry,
 };
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
 };
-use protogen::metastore::types::service::Mutation;
+use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
 use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
     BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
-    FIRST_NON_SCHEMA_ID,
+    FIRST_NON_STATIC_OID,
 };
-use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
 use sqlbuiltins::validation::{
     validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
 };
@@ -238,7 +238,6 @@ impl DatabaseEntries {
 
         Ok(self.0.remove(oid))
     }
-
     /// Insert an entry.
     fn insert(&mut self, oid: u32, ent: CatalogEntry) -> Result<Option<CatalogEntry>> {
         if self.0.len() > MAX_DATABASE_OBJECTS {
@@ -288,6 +287,17 @@ enum CreatePolicy {
     Create,
 }
 
+impl CreatePolicy {
+    pub fn new(if_not_exists: bool, or_replace: bool) -> Result<Self> {
+        match (if_not_exists, or_replace) {
+            (true, true) => Err(MetastoreError::InvalidCreatePolicy),
+            (true, false) => Ok(CreatePolicy::CreateIfNotExists),
+            (false, true) => Ok(CreatePolicy::CreateOrReplace),
+            (false, false) => Ok(CreatePolicy::Create),
+        }
+    }
+}
+
 /// Inner state of the catalog.
 #[derive(Debug)]
 struct State {
@@ -335,7 +345,6 @@ impl State {
                 ));
             }
         }
-
         // Extend with builtin objects.
         let builtin = BUILTIN_CATALOG.clone();
         state.entries.extend(builtin.entries);
@@ -501,6 +510,15 @@ impl State {
         oid
     }
 
+    /// get existing entry's id, or create a new one
+    fn get_or_next_oid(&mut self, schema_id: u32, name: &str) -> u32 {
+        self.schema_objects
+            .get(&schema_id)
+            .and_then(|objs| objs.tables.get(name))
+            .copied()
+            .unwrap_or_else(|| self.next_oid())
+    }
+
     /// Execute mutations against the state.
     fn mutate(&mut self, mutations: Vec<Mutation>) -> Result<()> {
         // We don't care if this overflows. When comparing versions, we just
@@ -651,9 +669,12 @@ impl State {
                         builtin: false,
                         external: true,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: create_database.options,
                     tunnel_id,
+                    access_mode: SourceAccessMode::ReadOnly,
                 };
                 self.entries.insert(oid, CatalogEntry::Database(ent))?;
 
@@ -680,6 +701,8 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: create_tunnel.options,
                 };
@@ -690,16 +713,21 @@ impl State {
             }
             Mutation::CreateCredentials(create_credentials) => {
                 validate_object_name(&create_credentials.name)?;
-                if self
-                    .credentials_names
-                    .get(&create_credentials.name)
-                    .is_some()
-                {
-                    return Err(MetastoreError::DuplicateName(create_credentials.name));
-                }
 
-                // Create new entry
-                let oid = self.next_oid();
+                let oid = match (
+                    self.credentials_names.get(&create_credentials.name),
+                    create_credentials.or_replace,
+                ) {
+                    // If the credential already exists and we're not replacing it,
+                    (Some(_), false) => {
+                        return Err(MetastoreError::DuplicateName(create_credentials.name));
+                    }
+                    // If the credential already exists and we're replacing it,
+                    (Some(oid), true) => *oid,
+                    // If the credential doesn't exist, create a new one.
+                    (None, _) => self.next_oid(),
+                };
+
                 let ent = CredentialsEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Credentials,
@@ -710,6 +738,8 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: create_credentials.options,
                     comment: create_credentials.comment,
@@ -718,6 +748,39 @@ impl State {
 
                 // Add to creadentials map
                 self.credentials_names.insert(create_credentials.name, oid);
+            }
+            Mutation::CreateCredential(create_credential) => {
+                validate_object_name(&create_credential.name)?;
+                if self
+                    .credentials_names
+                    .get(&create_credential.name)
+                    .is_some()
+                {
+                    return Err(MetastoreError::DuplicateName(create_credential.name));
+                }
+
+                // Create new entry
+                let oid = self.next_oid();
+                let ent = CredentialsEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Credentials,
+                        id: oid,
+                        // The credentials, just like databases doesn't have any parent.
+                        parent: DATABASE_PARENT_ID,
+                        name: create_credential.name.clone(),
+                        builtin: false,
+                        external: false,
+                        is_temp: false,
+                        sql_example: None,
+                        description: None,
+                    },
+                    options: create_credential.options,
+                    comment: create_credential.comment,
+                };
+                self.entries.insert(oid, CatalogEntry::Credentials(ent))?;
+
+                // Add to creadentials map
+                self.credentials_names.insert(create_credential.name, oid);
             }
             Mutation::CreateSchema(create_schema) => {
                 validate_object_name(&create_schema.name)?;
@@ -742,6 +805,8 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                 };
                 self.entries.insert(oid, CatalogEntry::Schema(ent))?;
@@ -754,7 +819,8 @@ impl State {
                 let schema_id = self.get_schema_id(&create_view.schema)?;
 
                 // Create new entry
-                let oid = self.next_oid();
+                let oid = self.get_or_next_oid(schema_id, &create_view.name);
+
                 let ent = ViewEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::View,
@@ -764,6 +830,8 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     sql: create_view.sql,
                     columns: create_view.columns,
@@ -782,8 +850,9 @@ impl State {
 
                 let schema_id = self.get_schema_id(&create_table.schema)?;
 
+                let oid = self.get_or_next_oid(schema_id, &create_table.name);
+
                 // Create new entry
-                let oid = self.next_oid();
                 let ent = TableEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Table,
@@ -793,16 +862,16 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: TableOptions::Internal(create_table.options),
                     tunnel_id: None,
+                    access_mode: SourceAccessMode::ReadWrite,
                 };
 
-                let policy = if create_table.if_not_exists {
-                    CreatePolicy::CreateIfNotExists
-                } else {
-                    CreatePolicy::Create
-                };
+                let policy =
+                    CreatePolicy::new(create_table.if_not_exists, create_table.or_replace)?;
 
                 self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
             }
@@ -825,7 +894,8 @@ impl State {
                 };
 
                 // Create new entry.
-                let oid = self.next_oid();
+                let oid = self.get_or_next_oid(schema_id, &create_ext.name);
+
                 let ent = TableEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Table,
@@ -835,92 +905,122 @@ impl State {
                         builtin: false,
                         external: true,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: create_ext.options,
                     tunnel_id,
+                    access_mode: SourceAccessMode::ReadOnly,
                 };
 
-                let policy = if create_ext.if_not_exists {
-                    CreatePolicy::CreateIfNotExists
-                } else {
-                    CreatePolicy::Create
-                };
+                let policy = CreatePolicy::new(create_ext.if_not_exists, create_ext.or_replace)?;
 
                 self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
             }
-            Mutation::AlterTableRename(alter_table_rename) => {
-                validate_object_name(&alter_table_rename.new_name)?;
-                if self.schema_names.contains_key(&alter_table_rename.new_name) {
-                    return Err(MetastoreError::DuplicateName(alter_table_rename.new_name));
-                }
-
-                let schema_id = match self.schema_names.get(&alter_table_rename.schema) {
-                    None => {
-                        return Err(MetastoreError::MissingNamedSchema(
-                            alter_table_rename.schema,
-                        ))
-                    }
+            Mutation::AlterTable(alter_table) => {
+                let schema_id = match self.schema_names.get(&alter_table.schema) {
+                    None => return Err(MetastoreError::MissingNamedSchema(alter_table.schema)),
                     Some(id) => *id,
                 };
 
                 let objs = match self.schema_objects.get_mut(&schema_id) {
                     None => {
                         return Err(MetastoreError::MissingNamedObject {
-                            schema: alter_table_rename.schema,
-                            name: alter_table_rename.name,
+                            schema: alter_table.schema,
+                            name: alter_table.name,
                         })
                     }
                     Some(objs) => objs,
                 };
 
-                let oid = match objs.tables.remove(&alter_table_rename.name) {
-                    None => {
-                        return Err(MetastoreError::MissingNamedObject {
-                            schema: alter_table_rename.schema,
-                            name: alter_table_rename.name,
-                        })
+                match alter_table.operation {
+                    AlterTableOperation::RenameTable { new_name } => {
+                        validate_object_name(&new_name)?;
+                        if self.schema_names.contains_key(&new_name) {
+                            return Err(MetastoreError::DuplicateName(new_name));
+                        }
+
+                        let oid = match objs.tables.remove(&alter_table.name) {
+                            None => {
+                                return Err(MetastoreError::MissingNamedObject {
+                                    schema: alter_table.schema,
+                                    name: alter_table.name,
+                                })
+                            }
+                            Some(id) => id,
+                        };
+
+                        let mut table = match self.entries.remove(&oid)?.unwrap() {
+                            CatalogEntry::Table(ent) => ent,
+                            other => unreachable!("unexpected entry type: {:?}", other),
+                        };
+
+                        table.meta.name = new_name;
+
+                        self.try_insert_table_namespace(
+                            CatalogEntry::Table(table.clone()),
+                            schema_id,
+                            table.meta.id,
+                            CreatePolicy::Create,
+                        )?;
                     }
-                    Some(id) => id,
+                    AlterTableOperation::SetAccessMode { access_mode } => {
+                        let oid = match objs.tables.get(&alter_table.name) {
+                            None => {
+                                return Err(MetastoreError::MissingNamedObject {
+                                    schema: alter_table.schema,
+                                    name: alter_table.name,
+                                })
+                            }
+                            Some(id) => id,
+                        };
+
+                        match self.entries.get_mut(oid)?.unwrap() {
+                            CatalogEntry::Table(ent) => {
+                                ent.access_mode = access_mode;
+                            }
+                            other => unreachable!("unexpected entry type: {:?}", other),
+                        };
+                    }
                 };
-
-                let mut table = match self.entries.remove(&oid)?.unwrap() {
-                    CatalogEntry::Table(ent) => ent,
-                    other => unreachable!("unexpected entry type: {:?}", other),
-                };
-
-                table.meta.name = alter_table_rename.new_name;
-
-                self.try_insert_table_namespace(
-                    CatalogEntry::Table(table.clone()),
-                    schema_id,
-                    table.meta.id,
-                    CreatePolicy::Create,
-                )?;
             }
-            Mutation::AlterDatabaseRename(alter_database_rename) => {
-                validate_object_name(&alter_database_rename.new_name)?;
-                if self
-                    .database_names
-                    .contains_key(&alter_database_rename.new_name)
-                {
-                    return Err(MetastoreError::DuplicateName(
-                        alter_database_rename.new_name,
-                    ));
-                }
+            Mutation::AlterDatabase(alter_database) => {
+                match alter_database.operation {
+                    AlterDatabaseOperation::RenameDatabase { new_name } => {
+                        validate_object_name(&new_name)?;
+                        if self.database_names.contains_key(&new_name) {
+                            return Err(MetastoreError::DuplicateName(new_name));
+                        }
 
-                let oid = match self.database_names.remove(&alter_database_rename.name) {
-                    None => {
-                        return Err(MetastoreError::MissingDatabase(alter_database_rename.name));
+                        let oid = match self.database_names.remove(&alter_database.name) {
+                            None => {
+                                return Err(MetastoreError::MissingDatabase(alter_database.name));
+                            }
+                            Some(objs) => objs,
+                        };
+
+                        let ent = self.entries.get_mut(&oid)?.unwrap();
+                        ent.get_meta_mut().name = new_name.clone();
+
+                        // Add to database map
+                        self.database_names.insert(new_name, oid);
                     }
-                    Some(objs) => objs,
+                    AlterDatabaseOperation::SetAccessMode { access_mode } => {
+                        let oid = match self.database_names.get(&alter_database.name) {
+                            None => {
+                                return Err(MetastoreError::MissingDatabase(alter_database.name));
+                            }
+                            Some(oid) => oid,
+                        };
+
+                        match self.entries.get_mut(oid)?.unwrap() {
+                            CatalogEntry::Database(db_ent) => {
+                                db_ent.access_mode = access_mode;
+                            }
+                            other => unreachable!("unexpected entry type: {:?}", other),
+                        };
+                    }
                 };
-
-                let ent = self.entries.get_mut(&oid)?.unwrap();
-                ent.get_meta_mut().name = alter_database_rename.new_name.clone();
-
-                // Add to database map
-                self.database_names
-                    .insert(alter_database_rename.new_name, oid);
             }
             Mutation::AlterTunnelRotateKeys(alter_tunnel_rotate_keys) => {
                 let oid = match self.tunnel_names.get(&alter_tunnel_rotate_keys.name) {
@@ -978,10 +1078,12 @@ impl State {
                 self.entries.insert(oid, ent)?;
             }
             CreatePolicy::CreateOrReplace => {
-                if let Some(existing_oid) = objs.tables.insert(ent.get_meta().name.clone(), oid) {
-                    self.entries.remove(&existing_oid)?;
+                if objs.tables.contains_key(&ent.get_meta().name) {
+                    self.entries.insert(oid, ent)?;
+                } else {
+                    objs.tables.insert(ent.get_meta().name.clone(), oid);
+                    self.entries.insert(oid, ent)?;
                 }
-                self.entries.insert(oid, ent)?;
             }
             CreatePolicy::Create => {
                 if objs.tables.contains_key(&ent.get_meta().name) {
@@ -1066,13 +1168,30 @@ impl BuiltinCatalog {
     /// It is a programmer error if this fails to build.
     fn new() -> Result<BuiltinCatalog> {
         let mut entries = HashMap::new();
+
+        // Ensures no duplicate OIDs.
+        let mut insert_entry = |oid: u32, ent: CatalogEntry| {
+            if entries.contains_key(&oid) {
+                let old = entries.remove(&oid).unwrap();
+                return Err(MetastoreError::BuiltinRepeatedOid {
+                    oid,
+                    ent1: old,
+                    ent2: ent,
+                });
+            }
+
+            entries.insert(oid, ent);
+
+            Ok(())
+        };
+
         let mut database_names = HashMap::new();
         let mut schema_names = HashMap::new();
         let mut schema_objects = HashMap::new();
 
         for database in BuiltinDatabase::builtins() {
             database_names.insert(database.name.to_string(), database.oid);
-            entries.insert(
+            insert_entry(
                 database.oid,
                 CatalogEntry::Database(DatabaseEntry {
                     meta: EntryMeta {
@@ -1083,17 +1202,20 @@ impl BuiltinCatalog {
                         builtin: true,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: DatabaseOptions::Internal(DatabaseOptionsInternal {}),
                     tunnel_id: None,
+                    access_mode: SourceAccessMode::ReadWrite,
                 }),
-            );
+            )?
         }
 
         for schema in BuiltinSchema::builtins() {
             schema_names.insert(schema.name.to_string(), schema.oid);
             schema_objects.insert(schema.oid, SchemaObjects::default());
-            entries.insert(
+            insert_entry(
                 schema.oid,
                 CatalogEntry::Schema(SchemaEntry {
                     meta: EntryMeta {
@@ -1104,48 +1226,51 @@ impl BuiltinCatalog {
                         builtin: true,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                 }),
-            );
+            )?;
         }
-
-        // All the below items don't have stable ids.
-        let mut oid = FIRST_NON_SCHEMA_ID;
 
         for table in BuiltinTable::builtins() {
             let schema_id = schema_names
                 .get(table.schema)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(table.schema.to_string()))?;
-            entries.insert(
-                oid,
+            insert_entry(
+                table.oid,
                 CatalogEntry::Table(TableEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Table,
-                        id: oid,
+                        id: table.oid,
                         parent: *schema_id,
                         name: table.name.to_string(),
                         builtin: true,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     options: TableOptions::new_internal(table.columns.clone()),
                     tunnel_id: None,
+                    access_mode: SourceAccessMode::ReadOnly,
                 }),
-            );
+            )?;
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
                 .tables
-                .insert(table.name.to_string(), oid);
-
-            oid += 1;
+                .insert(table.name.to_string(), table.oid);
         }
+
+        // All the below items don't have stable ids.
+        let mut oid = FIRST_NON_STATIC_OID;
 
         for view in BuiltinView::builtins() {
             let schema_id = schema_names
                 .get(view.schema)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(view.schema.to_string()))?;
-            entries.insert(
+            insert_entry(
                 oid,
                 CatalogEntry::View(ViewEntry {
                     meta: EntryMeta {
@@ -1156,11 +1281,13 @@ impl BuiltinCatalog {
                         builtin: true,
                         external: false,
                         is_temp: false,
+                        sql_example: None,
+                        description: None,
                     },
                     sql: view.sql.to_string(),
                     columns: Vec::new(),
                 }),
-            );
+            )?;
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
@@ -1170,28 +1297,52 @@ impl BuiltinCatalog {
             oid += 1;
         }
 
-        for func in BUILTIN_TABLE_FUNCS.iter_funcs() {
+        for func in FUNCTION_REGISTRY.table_funcs() {
+            // Put them all in the default schema.
+            let schema_id = schema_names
+                .get(DEFAULT_SCHEMA)
+                .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
+            let mut entry = func.as_function_entry(oid, *schema_id);
+            entry.runtime_preference = func.runtime_preference();
+
+            insert_entry(oid, CatalogEntry::Function(entry))?;
+            schema_objects
+                .get_mut(schema_id)
+                .unwrap()
+                .functions
+                .insert(func.name().to_string(), oid);
+
+            oid += 1;
+        }
+
+        for func in FUNCTION_REGISTRY.scalar_functions() {
             // Put them all in the default schema.
             let schema_id = schema_names
                 .get(DEFAULT_SCHEMA)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
 
-            entries.insert(
+            insert_entry(
                 oid,
-                CatalogEntry::Function(FunctionEntry {
-                    meta: EntryMeta {
-                        entry_type: EntryType::Function,
-                        id: oid,
-                        parent: *schema_id,
-                        name: func.name().to_string(),
-                        builtin: true,
-                        external: false,
-                        is_temp: false,
-                    },
-                    func_type: FunctionType::TableReturning,
-                    runtime_preference: func.runtime_preference(),
-                }),
-            );
+                CatalogEntry::Function(func.as_function_entry(oid, *schema_id)),
+            )?;
+            schema_objects
+                .get_mut(schema_id)
+                .unwrap()
+                .functions
+                .insert(func.name().to_string(), oid);
+
+            oid += 1;
+        }
+        for func in FUNCTION_REGISTRY.scalar_udfs() {
+            // Put them all in the default schema.
+            let schema_id = schema_names
+                .get(DEFAULT_SCHEMA)
+                .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
+
+            insert_entry(
+                oid,
+                CatalogEntry::Function(func.as_function_entry(oid, *schema_id)),
+            )?;
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()
@@ -1217,7 +1368,7 @@ mod tests {
     use object_store::memory::InMemory;
     use protogen::metastore::types::options::DatabaseOptionsDebug;
     use protogen::metastore::types::options::TableOptionsDebug;
-    use protogen::metastore::types::service::AlterDatabaseRename;
+    use protogen::metastore::types::service::AlterDatabase;
     use protogen::metastore::types::service::DropDatabase;
     use protogen::metastore::types::service::{
         CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropSchema,
@@ -1601,6 +1752,7 @@ mod tests {
                 table_type: String::new(),
             }),
             if_not_exists: true,
+            or_replace: false,
             tunnel: None,
         });
         let _ = db
@@ -1722,9 +1874,11 @@ mod tests {
         let e = db
             .try_mutate(
                 initial,
-                vec![Mutation::AlterDatabaseRename(AlterDatabaseRename {
+                vec![Mutation::AlterDatabase(AlterDatabase {
                     name: DEFAULT_CATALOG.to_string(),
-                    new_name: "hello".to_string(),
+                    operation: AlterDatabaseOperation::RenameDatabase {
+                        new_name: "hello".to_string(),
+                    },
                 })],
             )
             .await
@@ -1755,6 +1909,7 @@ mod tests {
                         table_type: String::new(),
                     }),
                     if_not_exists: true,
+                    or_replace: false,
                     tunnel: None,
                 })],
             )

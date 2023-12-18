@@ -4,12 +4,14 @@ use crate::local::LocalSession;
 use crate::metastore::Metastore;
 use crate::pg_proxy::PgProxy;
 use crate::rpc_proxy::RpcProxy;
-use crate::server::{ComputeServer, ServerConfig};
+use crate::server::ComputeServer;
 use anyhow::{anyhow, Result};
+use atty::Stream;
 use clap::Subcommand;
+use ioutil::ensure_dir;
 use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
-use std::fs;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
@@ -44,6 +46,8 @@ impl Commands {
         }
     }
 }
+const DEFAULT_PG_BIND_ADDR: &str = "0.0.0.0:6543";
+const DEFAULT_RPC_BIND_ADDR: &str = "0.0.0.0:6789";
 
 trait RunCommand {
     fn run(self) -> Result<()>;
@@ -53,12 +57,59 @@ impl RunCommand for LocalArgs {
     fn run(self) -> Result<()> {
         let runtime = build_runtime("local")?;
         runtime.block_on(async move {
-            if self.query.is_none() {
-                println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
-            };
-            let local = LocalSession::connect(self.opts).await?;
+            let query = match (self.file, self.query) {
+                (Some(_), Some(_)) => {
+                    return Err(anyhow!(
+                        "only one of query or an SQL file can be passed at a time"
+                    ))
+                }
+                (Some(file), None) => {
+                    if file.to_ascii_lowercase() == "version" {
+                        return Err(anyhow!(
+                            "'version' is not a valid command, did you mean '--version'?"
+                        ));
+                    }
+                    let path = std::path::Path::new(file.as_str());
+                    if !path.exists() {
+                        return Err(anyhow!("file '{}' does not exist", file));
+                    }
 
-            local.run(self.query).await
+                    Some(tokio::fs::read_to_string(path).await?)
+                }
+                (None, Some(query)) => Some(query),
+                // If no query and it's not a tty, try to read from stdin.
+                // Should work with both a query string and a file.
+                // echo "select 1;" | ./glaredb
+                // ./glaredb < query.sql
+                (None, None) if atty::isnt(Stream::Stdin) => {
+                    let mut query = String::new();
+                    loop {
+                        let mut line = String::new();
+                        std::io::stdin().read_line(&mut line)?;
+                        if line.is_empty() {
+                            break;
+                        }
+                        let path = std::path::Path::new(line.as_str());
+                        if path.exists() {
+                            let contents = tokio::fs::read_to_string(path).await?;
+                            query.push_str(&contents);
+                            break;
+                        } else {
+                            query.push_str(&line);
+                        }
+                    }
+
+                    Some(query)
+                }
+                (None, None) => None,
+            };
+
+            if query.is_none() {
+                println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
+            }
+
+            let local = LocalSession::connect(self.opts).await?;
+            local.run(query).await
         })
     }
 }
@@ -73,14 +124,28 @@ impl RunCommand for ServerArgs {
             password,
             data_dir,
             service_account_path,
+            storage_config,
             spill_path,
             ignore_pg_auth,
             disable_rpc_auth,
             segment_key,
+            enable_simple_query_rpc,
+            enable_flight_api,
+            disable_postgres_api,
         } = self;
 
         // Map an empty string to None. Makes writing the terraform easier.
         let segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
+
+        // If we don't enable the rpc service, then trying to enable the simple
+        // interface doesn't make sense.
+        // Clap isn't intelligent enough to handle negative conditions, so we
+        // have to manually check.
+        if rpc_bind.is_none() && enable_simple_query_rpc {
+            return Err(anyhow!(
+                "An rpc bind address needs to be provided to enable the simple query interface"
+            ));
+        }
 
         let auth: Box<dyn LocalAuthenticator> = match password {
             Some(password) => Box::new(SingleUserAuthenticator { user, password }),
@@ -89,30 +154,38 @@ impl RunCommand for ServerArgs {
             }),
         };
 
-        let service_account_key = match service_account_path {
-            Some(path) => Some(std::fs::read_to_string(path)?),
-            None => None,
-        };
-
         let runtime = build_runtime("server")?;
+
         runtime.block_on(async move {
-            let pg_listener = TcpListener::bind(bind).await?;
-            let conf = ServerConfig {
-                pg_listener,
-                rpc_addr: rpc_bind.map(|s| s.parse()).transpose()?,
+            let pg_listener = match bind {
+                Some(bind) => Some(TcpListener::bind(bind).await?),
+                None if disable_postgres_api => None,
+                None => Some(TcpListener::bind(DEFAULT_PG_BIND_ADDR).await?),
             };
-            let server = ComputeServer::connect(
-                metastore_addr,
-                segment_key,
-                auth,
-                data_dir,
-                service_account_key,
-                spill_path,
-                /* integration_testing = */ false,
-                disable_rpc_auth,
-            )
-            .await?;
-            server.serve(conf).await
+            let rpc_listener = match rpc_bind {
+                Some(bind) => Some(TcpListener::bind(bind).await?),
+                None if enable_flight_api => Some(TcpListener::bind(DEFAULT_RPC_BIND_ADDR).await?),
+                None => None,
+            };
+
+            let server = ComputeServer::builder()
+                .with_authenticator(auth)
+                .with_pg_listener_opt(pg_listener)
+                .with_rpc_listener_opt(rpc_listener)
+                .with_metastore_addr_opt(metastore_addr)
+                .with_segment_key_opt(segment_key)
+                .with_data_dir_opt(data_dir)
+                .with_service_account_path_opt(service_account_path)
+                .with_location_opt(storage_config.location)
+                .with_storage_options(HashMap::from_iter(storage_config.storage_options.clone()))
+                .with_spill_path_opt(spill_path)
+                .disable_rpc_auth(disable_rpc_auth)
+                .enable_simple_query_rpc(enable_simple_query_rpc)
+                .enable_flight_api(enable_flight_api)
+                .connect()
+                .await?;
+
+            server.serve().await
         })
     }
 }
@@ -140,18 +213,14 @@ impl RunCommand for RpcProxyArgs {
             bind,
             cloud_api_addr,
             cloud_auth_code,
-            server_cert_path,
-            server_key_path,
-            disable_tls,
+            tls_mode,
         } = self;
 
         let runtime = build_runtime("rpcsrv")?;
         runtime.block_on(async move {
             let addr = bind.parse()?;
             let proxy = RpcProxy::new(cloud_api_addr, cloud_auth_code).await?;
-            proxy
-                .serve(addr, server_cert_path, server_key_path, disable_tls)
-                .await
+            proxy.serve(addr, tls_mode).await
         })
     }
 }
@@ -168,22 +237,12 @@ impl RunCommand for MetastoreArgs {
             (Some(bucket), Some(service_account_path), None) => {
                 let service_account_key = std::fs::read_to_string(service_account_path)?;
                 StorageConfig::Gcs {
-                    bucket,
+                    bucket: Some(bucket),
                     service_account_key,
                 }
             }
             (None, None, Some(p)) => {
-                // Error if the path exists and is not a directory else
-                // create the directory.
-                if p.exists() && !p.is_dir() {
-                    return Err(anyhow!(
-                        "Path '{}' is not a valid directory",
-                        p.to_string_lossy()
-                    ));
-                } else if !p.exists() {
-                    fs::create_dir_all(&p)?;
-                }
-
+                ensure_dir(&p)?;
                 StorageConfig::Local { path: p }
             }
             (None, None, None) => StorageConfig::Memory,

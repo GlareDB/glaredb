@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "tests"
+version = "0.1.0"
+description = "glaredb tests"
+authors = ["sam kleinman <sam@glaredb.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pytest = "^7.4.3"
+pymongo = "^4.6.1"
+psycopg2 = "^2.9.9"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

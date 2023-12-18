@@ -1,5 +1,5 @@
-use crate::metastore::catalog::CatalogMutator;
 use crate::planner::logical_plan::OwnedFullObjectReference;
+use catalog::mutator::CatalogMutator;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -93,47 +93,22 @@ async fn drop_tables(
     mutator: Arc<CatalogMutator>,
     plan: DropTablesExec,
 ) -> DataFusionResult<RecordBatch> {
-    let mut drops = Vec::with_capacity(plan.tbl_references.len());
-    // let mut jobs = Vec::with_capacity(plan.names.len());
-    // let mut temp_table_drops = Vec::with_capacity(plan.references.len());
-
-    for r in plan.tbl_references {
-        // if let Ok(table) = self.resolve_temp_table_ref(r.clone()) {
-        //     // This is a temp table.
-        //     temp_table_drops.push(table);
-        //     continue;
-        // }
-
-        // let (database, schema, name) = self.resolve_table_ref(r)?;
-
-        // if let Some(table_entry) = self.catalog.resolve_native_table(&database, &schema, &name)
-        // {
-        //     let job: Arc<dyn BgJob> =
-        //         BackgroundJobDeleteTable::new(self.tables.clone(), table_entry.clone());
-        //     jobs.push(job);
-        // }
-
-        drops.push(Mutation::DropObject(service::DropObject {
+    let drops = plan.tbl_references.into_iter().map(|r| {
+        Mutation::DropObject(service::DropObject {
             schema: r.schema.into_owned(),
             name: r.name.into_owned(),
             if_exists: plan.if_exists,
-        }));
-    }
+        })
+    });
+
     mutator
         .mutate(plan.catalog_version, drops)
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to drop tables: {e}")))?;
 
-    // // Drop the session (temp) tables after catalog has mutated successfully
-    // // since this step is not going to error. Ideally, we should have transactions
-    // // here, but this works beautifully for now.
-    // for temp_table in temp_table_drops {
-    //     self.temp_objects.drop_table(&temp_table);
-    // }
-
     // // Run background jobs _after_ tables get removed from the catalog.
     // //
-    // // Note: If/when we have transactions, background jobs should be stored
+    // // TODO: If/when we have transactions, background jobs should be stored
     // // on the session until transaction commit.
     // self.background_jobs.add_many(jobs)?;
 

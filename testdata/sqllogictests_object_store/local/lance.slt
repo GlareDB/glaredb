@@ -1,0 +1,21 @@
+# Tests external delta table in the local file system.
+statement ok
+create external table lance_tbl
+from lance
+options (
+	location 'file://${PWD}/testdata/lance/table1/'
+);
+
+query IT
+select * from lance_tbl order by point.lat;
+----
+0.2,1.8 {lat:42.1,long:-74.1}
+1.1,1.2 {lat:45.5,long:-122.7}
+
+
+statement error
+create external table lance_tbl
+from lance
+options (
+	location 'file://${PWD}/testdata/lance/not-a-real-table/'
+);

@@ -1,53 +1,41 @@
 use std::sync::Arc;
 
-use datafusion::arrow::array::{
-    BooleanBuilder, ListBuilder, StringBuilder, UInt32Builder, UInt64Builder,
-};
+use catalog::session_catalog::SessionCatalog;
+use datafusion::arrow::array::{BooleanBuilder, ListBuilder, StringBuilder, UInt32Builder};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
+use datafusion::logical_expr::TypeSignature;
 use datasources::common::ssh::key::SshKey;
 use datasources::common::ssh::SshConnectionParameters;
-use protogen::metastore::types::catalog::{CatalogEntry, EntryType, TableEntry};
+use datasources::native::access::NativeTableStorage;
+use protogen::metastore::types::catalog::{CatalogEntry, EntryType, SourceAccessMode, TableEntry};
 use protogen::metastore::types::options::TunnelOptions;
 use sqlbuiltins::builtins::{
-    DATABASE_DEFAULT, GLARE_COLUMNS, GLARE_CREDENTIALS, GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA,
-    GLARE_FUNCTIONS, GLARE_SCHEMAS, GLARE_SESSION_QUERY_METRICS, GLARE_SSH_KEYS, GLARE_TABLES,
-    GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
+    BuiltinTable, DATABASE_DEFAULT, GLARE_CACHED_EXTERNAL_DATABASE_TABLES, GLARE_COLUMNS,
+    GLARE_CREDENTIALS, GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA, GLARE_FUNCTIONS, GLARE_SCHEMAS,
+    GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
 };
-
-use crate::metastore::catalog::{SessionCatalog, TempCatalog};
-use crate::metrics::SessionMetrics;
 
 use super::{DispatchError, Result};
 
 /// Dispatch to builtin system tables.
 pub struct SystemTableDispatcher<'a> {
     catalog: &'a SessionCatalog,
-    metrics: &'a SessionMetrics,
-    temp_objects: &'a TempCatalog,
+    tables: &'a NativeTableStorage,
 }
 
 impl<'a> SystemTableDispatcher<'a> {
-    pub fn new(
-        catalog: &'a SessionCatalog,
-        metrics: &'a SessionMetrics,
-        temp_objects: &'a TempCatalog,
-    ) -> Self {
-        SystemTableDispatcher {
-            catalog,
-            metrics,
-            temp_objects,
-        }
+    pub fn new(catalog: &'a SessionCatalog, tables: &'a NativeTableStorage) -> Self {
+        SystemTableDispatcher { catalog, tables }
     }
 
-    pub fn dispatch(&self, ent: &TableEntry) -> Result<Arc<dyn TableProvider>> {
+    pub async fn dispatch(&self, ent: &TableEntry) -> Result<Arc<dyn TableProvider>> {
         let schema_ent = self
             .catalog
             .get_by_oid(ent.meta.parent)
             .ok_or_else(|| DispatchError::MissingObjectWithOid(ent.meta.parent))?;
         let name = &ent.meta.name;
         let schema = &schema_ent.get_meta().name;
-
         Ok(if GLARE_DATABASES.matches(schema, name) {
             Arc::new(self.build_glare_databases())
         } else if GLARE_TUNNELS.matches(schema, name) {
@@ -64,18 +52,47 @@ impl<'a> SystemTableDispatcher<'a> {
             Arc::new(self.build_glare_schemas())
         } else if GLARE_FUNCTIONS.matches(schema, name) {
             Arc::new(self.build_glare_functions())
-        } else if GLARE_SESSION_QUERY_METRICS.matches(schema, name) {
-            Arc::new(self.build_session_query_metrics())
         } else if GLARE_SSH_KEYS.matches(schema, name) {
             Arc::new(self.build_ssh_keys()?)
         } else if GLARE_DEPLOYMENT_METADATA.matches(schema, name) {
             Arc::new(self.build_glare_deployment_metadata()?)
+        } else if GLARE_CACHED_EXTERNAL_DATABASE_TABLES.matches(schema, name) {
+            self.load_persisted_table(&GLARE_CACHED_EXTERNAL_DATABASE_TABLES)
+                .await?
         } else {
             return Err(DispatchError::MissingBuiltinTable {
                 schema: schema.to_string(),
                 name: name.to_string(),
             });
         })
+    }
+
+    /// Load a persisted system table from storage.
+    ///
+    /// Currently we lazily create tables, so if we don't find one, this returns
+    /// an empty table.
+    async fn load_persisted_table(&self, table: &BuiltinTable) -> Result<Arc<dyn TableProvider>> {
+        let ent = self
+            .catalog
+            .get_by_oid(table.oid)
+            .expect("entry should be in catalog");
+        let ent = match ent {
+            CatalogEntry::Table(ent) => ent,
+            other => panic!("unexpected entry type: {other:?}"),
+        };
+
+        match self.tables.load_table(ent).await {
+            Ok(table) => Ok(Arc::new(table)),
+            Err(_e) => {
+                // TODO: I don't know if delta provides a guarantee about the
+                // error returned if the table doesn't exist. We might want to
+                // have a dedicated 'exists' method or something.
+                let empty = RecordBatch::new_empty(Arc::new(table.arrow_schema()));
+                Ok(Arc::new(
+                    MemTable::try_new(Arc::new(table.arrow_schema()), vec![vec![empty]]).unwrap(),
+                ))
+            }
+        }
     }
 
     fn build_glare_databases(&self) -> MemTable {
@@ -86,6 +103,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut builtin = BooleanBuilder::new();
         let mut external = BooleanBuilder::new();
         let mut datasource = StringBuilder::new();
+        let mut access_mode = StringBuilder::new();
 
         for db in self
             .catalog
@@ -103,6 +121,7 @@ impl<'a> SystemTableDispatcher<'a> {
             };
 
             datasource.append_value(db.options.as_str());
+            access_mode.append_value(db.access_mode.as_str());
         }
 
         let batch = RecordBatch::try_new(
@@ -113,6 +132,7 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(builtin.finish()),
                 Arc::new(external.finish()),
                 Arc::new(datasource.finish()),
+                Arc::new(access_mode.finish()),
             ],
         )
         .unwrap();
@@ -248,6 +268,7 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut builtin = BooleanBuilder::new();
         let mut external = BooleanBuilder::new();
         let mut datasource = StringBuilder::new();
+        let mut access_mode = StringBuilder::new();
 
         for table in self
             .catalog
@@ -278,10 +299,11 @@ impl<'a> SystemTableDispatcher<'a> {
             };
 
             datasource.append_value(table.options.as_str());
+            access_mode.append_value(table.access_mode.as_str());
         }
 
         // Append temporary tables.
-        for table in self.temp_objects.get_table_entries() {
+        for table in self.catalog.get_temp_catalog().get_table_entries() {
             // TODO: Assign OID to temporary tables
             oid.append_value(table.meta.id);
             schema_oid.append_value(table.meta.parent);
@@ -291,6 +313,7 @@ impl<'a> SystemTableDispatcher<'a> {
             builtin.append_value(table.meta.builtin);
             external.append_value(table.meta.external);
             datasource.append_value(table.options.as_str());
+            access_mode.append_value(SourceAccessMode::ReadWrite.as_str());
         }
 
         let batch = RecordBatch::try_new(
@@ -304,6 +327,7 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(builtin.finish()),
                 Arc::new(external.finish()),
                 Arc::new(datasource.finish()),
+                Arc::new(access_mode.finish()),
             ],
         )
         .unwrap();
@@ -433,8 +457,9 @@ impl<'a> SystemTableDispatcher<'a> {
         let mut function_name = StringBuilder::new();
         let mut function_type = StringBuilder::new();
         let mut parameters = ListBuilder::new(StringBuilder::new());
-        let mut parameter_types = ListBuilder::new(StringBuilder::new());
         let mut builtin = BooleanBuilder::new();
+        let mut sql_examples = StringBuilder::new();
+        let mut descriptions = StringBuilder::new();
 
         for func in self
             .catalog
@@ -450,11 +475,19 @@ impl<'a> SystemTableDispatcher<'a> {
             schema_oid.append_value(ent.meta.parent);
             function_name.append_value(&ent.meta.name);
             function_type.append_value(ent.func_type.as_str());
+            sql_examples.append_option(ent.meta.sql_example.as_ref());
+            descriptions.append_option(ent.meta.description.as_ref());
 
-            // TODO: Actually get parameter info.
             const EMPTY: [Option<&'static str>; 0] = [];
-            parameters.append_value(EMPTY);
-            parameter_types.append_value(EMPTY);
+            if let Some(sig) = &ent.signature {
+                let sigs = sig_to_string_repr(&sig.type_signature)
+                    .into_iter()
+                    .map(Some)
+                    .collect::<Vec<_>>();
+                parameters.append_value(sigs);
+            } else {
+                parameters.append_value(EMPTY);
+            }
 
             builtin.append_value(func.builtin);
         }
@@ -467,47 +500,13 @@ impl<'a> SystemTableDispatcher<'a> {
                 Arc::new(function_name.finish()),
                 Arc::new(function_type.finish()),
                 Arc::new(parameters.finish()),
-                Arc::new(parameter_types.finish()),
                 Arc::new(builtin.finish()),
+                Arc::new(sql_examples.finish()),
+                Arc::new(descriptions.finish()),
             ],
         )
         .unwrap();
 
-        MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
-    }
-
-    fn build_session_query_metrics(&self) -> MemTable {
-        let num_metrics = self.metrics.num_metrics();
-
-        let mut query_text = StringBuilder::with_capacity(num_metrics, 20);
-        let mut result_type = StringBuilder::with_capacity(num_metrics, 10);
-        let mut execution_status = StringBuilder::with_capacity(num_metrics, 10);
-        let mut error_message = StringBuilder::with_capacity(num_metrics, 20);
-        let mut elapsed_compute_ns = UInt64Builder::with_capacity(num_metrics);
-        let mut output_rows = UInt64Builder::with_capacity(num_metrics);
-
-        for m in self.metrics.iter() {
-            query_text.append_value(&m.query_text);
-            result_type.append_value(m.result_type);
-            execution_status.append_value(m.execution_status.as_str());
-            error_message.append_option(m.error_message.as_ref());
-            elapsed_compute_ns.append_option(m.elapsed_compute_ns);
-            output_rows.append_option(m.output_rows);
-        }
-
-        let arrow_schema = Arc::new(GLARE_SESSION_QUERY_METRICS.arrow_schema());
-        let batch = RecordBatch::try_new(
-            arrow_schema.clone(),
-            vec![
-                Arc::new(query_text.finish()),
-                Arc::new(result_type.finish()),
-                Arc::new(execution_status.finish()),
-                Arc::new(error_message.finish()),
-                Arc::new(elapsed_compute_ns.finish()),
-                Arc::new(output_rows.finish()),
-            ],
-        )
-        .unwrap();
         MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap()
     }
 
@@ -575,4 +574,41 @@ impl<'a> SystemTableDispatcher<'a> {
 
         Ok(MemTable::try_new(arrow_schema, vec![vec![batch]]).unwrap())
     }
+}
+fn sig_to_string_repr(sig: &TypeSignature) -> Vec<String> {
+    match sig {
+        TypeSignature::Variadic(types) => {
+            let types = types.iter().map(arrow_util::pretty::fmt_dtype);
+            vec![format!("{}, ..", join_types(types, "/"))]
+        }
+        TypeSignature::Uniform(arg_count, valid_types) => {
+            let types = valid_types.iter().map(arrow_util::pretty::fmt_dtype);
+            vec![std::iter::repeat(join_types(types, "/"))
+                .take(*arg_count)
+                .collect::<Vec<String>>()
+                .join(", ")]
+        }
+        TypeSignature::Exact(types) => {
+            let types = types.iter().map(arrow_util::pretty::fmt_dtype);
+            vec![join_types(types, ", ")]
+        }
+        TypeSignature::Any(arg_count) => {
+            let types = std::iter::repeat("Any").take(*arg_count);
+            vec![join_types(types, ",")]
+        }
+        TypeSignature::VariadicEqual => vec!["T, .., T".to_string()],
+        TypeSignature::VariadicAny => vec!["Any, .., Any".to_string()],
+        TypeSignature::OneOf(sigs) => sigs.iter().flat_map(sig_to_string_repr).collect(),
+    }
+}
+
+/// Helper function to join types with specified delimiter.
+pub(crate) fn join_types<T: Iterator<Item = U>, U: std::fmt::Display>(
+    types: T,
+    delimiter: &str,
+) -> String {
+    types
+        .map(|t| t.to_string())
+        .collect::<Vec<String>>()
+        .join(delimiter)
 }

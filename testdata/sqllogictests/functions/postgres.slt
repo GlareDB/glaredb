@@ -7,25 +7,28 @@
 # not.
 #
 # See <https://github.com/sqlparser-rs/sqlparser-rs/pull/561>
-
 statement ok
 set search_path = public;
+
 
 query T
 select current_schema();
 ----
 public
 
+skipif glaredb_flight
 query T
 select current_user;
 ----
 glaredb
 
+skipif glaredb_flight
 query T
 select current_database();
 ----
 ${SLT_CURRENT_DATABASE}
 
+skipif glaredb_flight
 query T
 select current_catalog;
 ----

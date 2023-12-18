@@ -1,0 +1,126 @@
+# Basic tests for copy to.
+
+# TODO: These don't seem to be isolated? What happens if there's two CI runs
+# happening?
+
+statement ok
+COPY ( SELECT 1 AS a, 2 AS b) TO azure
+	OPTIONS (
+		account_name = '${AZURE_ACCOUNT}',
+		access_key = '${AZURE_ACCESS_KEY}',
+		location = 'azure://glaredb-test/copy_to/with_opts.csv'
+	);
+
+query II
+SELECT * FROM csv_scan(
+	'azure://glaredb-test/copy_to/with_opts.csv',
+	account_name => '${AZURE_ACCOUNT}',
+	access_key => '${AZURE_ACCESS_KEY}'
+);
+----
+1   2
+
+statement ok
+COPY ( SELECT 3 AS a, 4 AS b)
+	TO 'azure://glaredb-test/copy_to/with_url.csv'
+	OPTIONS (
+		account_name = '${AZURE_ACCOUNT}',
+		access_key = '${AZURE_ACCESS_KEY}',
+	);
+
+query II
+SELECT b, a FROM csv_scan(
+	'azure://glaredb-test/copy_to/with_url.csv',
+	account_name => '${AZURE_ACCOUNT}',
+	access_key => '${AZURE_ACCESS_KEY}'
+);
+----
+4   3
+
+# Credentials
+statement ok
+CREATE CREDENTIALS azure_creds
+	PROVIDER azure
+	OPTIONS (
+		account_name = '${AZURE_ACCOUNT}',
+		access_key = '${AZURE_ACCESS_KEY}',
+	);
+
+statement ok
+COPY ( SELECT 5 AS a, 6 AS b )
+	TO 'azure://glaredb-test/copy_to/with_creds.csv'
+	CREDENTIALS azure_creds;
+
+query II
+SELECT a, b FROM csv_scan(
+	'azure://glaredb-test/copy_to/with_creds.csv',
+	azure_creds
+);
+----
+5	6
+
+# Multiple URLs
+
+query II rowsort
+SELECT a, b FROM csv_scan(
+	[
+		'azure://glaredb-test/copy_to/with_opts.csv',
+		'azure://glaredb-test/copy_to/with_url.csv',
+		'azure://glaredb-test/copy_to/with_creds.csv'
+	],
+	account_name => '${AZURE_ACCOUNT}',
+	access_key => '${AZURE_ACCESS_KEY}'
+);
+----
+1	2
+3	4
+5	6
+
+query II rowsort
+SELECT a, b FROM csv_scan(
+	[
+		'azure://glaredb-test/copy_to/with_opts.csv',
+		'azure://glaredb-test/copy_to/with_url.csv',
+		'azure://glaredb-test/copy_to/with_creds.csv'
+	],
+	azure_creds
+);
+----
+1	2
+3	4
+5	6
+
+query II rowsort
+SELECT a, b FROM csv_scan(
+	'azure://glaredb-test/copy_to/with_*.csv',
+	azure_creds
+);
+----
+1	2
+3	4
+5	6
+
+# Test multiple URLs with globs (and different kinds of globs).
+
+statement ok
+COPY ( SELECT 7 AS a, 8 AS b )
+	TO 'azure://glaredb-test/copy_to_with_creds.csv'
+	CREDENTIALS azure_creds;
+
+# Found a bug out of the blue, previous code took the prefix for search as
+# "abc" when querying glob pattern "abc*". Since object_store adds a "/",
+# prefix in this case should be None.
+
+query II rowsort
+SELECT a, b FROM csv_scan(
+	[
+		'azure://glaredb-test/copy_to*',
+		'azure://glaredb-test/**/with_*.csv'
+	],
+	azure_creds
+);
+----
+1	2
+3	4
+5	6
+7	8

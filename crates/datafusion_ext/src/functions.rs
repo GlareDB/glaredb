@@ -1,51 +1,150 @@
-use std::collections::HashMap;
-use std::fmt::Display;
-use std::sync::Arc;
+use std::fmt::{self, Display};
 
 use crate::errors::{ExtensionError, Result};
 use crate::vars::SessionVars;
 use async_trait::async_trait;
-use datafusion::datasource::TableProvider;
+use catalog::session_catalog::SessionCatalog;
+use datafusion::arrow::datatypes::{Field, Fields};
 use datafusion::execution::context::SessionState;
+use datafusion::prelude::SessionContext;
+use datafusion::scalar::ScalarValue;
 use decimal::Decimal128;
-use protogen::metastore::types::catalog::{CredentialsEntry, DatabaseEntry, RuntimePreference};
+use protogen::metastore::types::catalog::EntryType;
 use protogen::rpcsrv::types::func_param_value::{
     FuncParamValue as ProtoFuncParamValue, FuncParamValueArrayVariant,
     FuncParamValueEnum as ProtoFuncParamValueEnum,
 };
 
-#[async_trait]
-pub trait TableFunc: Sync + Send {
-    /// The name for this table function. This name will be used when looking up
-    /// function implementations.
-    fn name(&self) -> &str;
-    fn runtime_preference(&self) -> RuntimePreference;
-    fn detect_runtime(
-        &self,
-        _args: &[FuncParamValue],
-        _parent: RuntimePreference,
-    ) -> Result<RuntimePreference> {
-        Ok(self.runtime_preference())
+pub trait TableFuncContextProvider: Sync + Send {
+    /// Get a reference to the session catalog.
+    fn get_session_catalog(&self) -> &SessionCatalog;
+
+    // TODO: Remove this if `create_provider` runs remotely since we don't want
+    // remote session vars.
+    fn get_session_vars(&self) -> SessionVars;
+
+    /// Get the session state.
+    ///
+    /// Both local and remote contexts should have:
+    /// - NativeTableStorage
+    /// - CatalogMutator
+    fn get_session_state(&self) -> SessionState;
+
+    // TODO: Remove
+    fn get_catalog_lister(&self) -> Box<dyn VirtualLister + '_>;
+}
+
+pub struct DefaultTableContextProvider<'a> {
+    session_catalog: &'a SessionCatalog,
+    df_ctx: &'a SessionContext,
+}
+
+impl<'a> DefaultTableContextProvider<'a> {
+    pub fn new(catalog: &'a SessionCatalog, df_ctx: &'a SessionContext) -> Self {
+        Self {
+            session_catalog: catalog,
+            df_ctx,
+        }
+    }
+}
+
+impl<'a> TableFuncContextProvider for DefaultTableContextProvider<'a> {
+    fn get_session_catalog(&self) -> &SessionCatalog {
+        self.session_catalog
     }
 
-    /// Return a table provider using the provided args.
-    async fn create_provider(
-        &self,
-        ctx: &dyn TableFuncContextProvider,
-        args: Vec<FuncParamValue>,
-        opts: HashMap<String, FuncParamValue>,
-    ) -> Result<Arc<dyn TableProvider>>;
-}
-pub trait TableFuncContextProvider: Sync + Send {
-    fn get_database_entry(&self, name: &str) -> Option<&DatabaseEntry>;
-    fn get_credentials_entry(&self, name: &str) -> Option<&CredentialsEntry>;
-    fn get_session_vars(&self) -> SessionVars;
-    fn get_session_state(&self) -> SessionState;
+    fn get_session_vars(&self) -> SessionVars {
+        let cfg = self.df_ctx.copied_config();
+        let vars = cfg.options().extensions.get::<SessionVars>().unwrap();
+        vars.clone()
+    }
+
+    fn get_session_state(&self) -> SessionState {
+        self.df_ctx.state()
+    }
+
+    fn get_catalog_lister(&self) -> Box<dyn VirtualLister + '_> {
+        Box::new(SessionCatalogLister {
+            catalog: self.session_catalog,
+        })
+    }
 }
 
-use std::fmt;
+/// Get information about external data sources.
+#[async_trait]
+pub trait VirtualLister: Sync + Send {
+    /// List schemas for a data source.
+    async fn list_schemas(&self) -> Result<Vec<String>>;
 
-use datafusion::scalar::ScalarValue;
+    /// List tables for a data source.
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>>;
+
+    /// List columns for a specific table in the datasource.
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields>;
+}
+
+/// A virtual listing implementation for the session catalog.
+pub struct SessionCatalogLister<'a> {
+    pub catalog: &'a SessionCatalog,
+}
+
+#[async_trait]
+impl<'a> VirtualLister for SessionCatalogLister<'a> {
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        let schemas = self
+            .catalog
+            .iter_entries()
+            .filter_map(|ent| {
+                if ent.entry_type() == EntryType::Schema {
+                    Some(ent.entry.get_meta().name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        Ok(schemas)
+    }
+
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        let tables = self
+            .catalog
+            .iter_entries()
+            .filter_map(|ent| {
+                let is_in_schema = ent
+                    .parent_entry
+                    .map(|schema_ent| schema_ent.get_meta().name == schema)
+                    .unwrap_or(false);
+                if ent.entry_type() == EntryType::Table && is_in_schema {
+                    Some(ent.entry.get_meta().name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        Ok(tables)
+    }
+
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
+        // TODO: Database isn't actually used here. I want to avoid adding
+        // `sqlbuiltins` as dep to this crate to avoid possibilities of a cyle.
+        // But obviously hard coding this here isn't amazing.
+        let ent = self
+            .catalog
+            .resolve_table("default", schema, table)
+            .ok_or_else(|| ExtensionError::String(format!("Missing table: {schema}.{table}")))?;
+
+        let cols = ent.get_internal_columns().ok_or_else(|| {
+            ExtensionError::String(format!("Columns not tracked for table: {schema}.{table}"))
+        })?;
+
+        let cols: Vec<_> = cols
+            .iter()
+            .map(|col| Field::new(col.name.clone(), col.arrow_type.clone(), col.nullable))
+            .collect();
+
+        Ok(cols.into())
+    }
+}
 
 /// Value from a function parameter.
 #[derive(Debug, Clone)]
@@ -131,63 +230,44 @@ impl FuncParamValue {
         s
     }
 
-    /// Wrapper over `FromFuncParamValue::from_param`.
-    pub fn param_into<T>(self) -> Result<T>
-    where
-        T: FromFuncParamValue,
-    {
-        T::from_param(self)
-    }
-
-    /// Wrapper over `FromFuncParamValue::from_param`.
-    pub fn param_ref_into<T>(&self) -> Result<T>
-    where
-        T: FromFuncParamValue,
-    {
-        T::from_param_ref(self)
+    pub fn is_valid<T: TryFrom<FuncParamValue>>(&self) -> bool {
+        T::try_from(self.to_owned()).is_ok()
     }
 }
 
-pub trait FromFuncParamValue: Sized {
-    /// Get the value from parameter.
-    fn from_param(value: FuncParamValue) -> Result<Self>;
-    fn from_param_ref(value: &FuncParamValue) -> Result<Self> {
-        Self::from_param(value.clone())
-    }
+impl TryFrom<FuncParamValue> for String {
+    type Error = ExtensionError;
 
-    /// Check if the value is valid (able to convert).
-    ///
-    /// If `is_param_valid` returns true, `from_param` should be safely
-    /// `unwrap`able (i.e., not panic).
-    fn is_param_valid(value: &FuncParamValue) -> bool;
-}
-
-impl FromFuncParamValue for String {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
+    fn try_from(value: FuncParamValue) -> Result<Self> {
         match value {
-            FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => Ok(s),
+            FuncParamValue::Scalar(ScalarValue::Utf8(Some(s)))
+            | FuncParamValue::Scalar(ScalarValue::LargeUtf8(Some(s))) => Ok(s),
             other => Err(ExtensionError::InvalidParamValue {
                 param: other.to_string(),
                 expected: "string",
             }),
         }
     }
-
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(value, FuncParamValue::Scalar(ScalarValue::Utf8(Some(_))))
-    }
 }
 
-impl<T> FromFuncParamValue for Vec<T>
+impl<T> TryFrom<FuncParamValue> for Vec<T>
 where
-    T: FromFuncParamValue,
+    T: std::convert::TryFrom<FuncParamValue>,
 {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Array(arr) => {
                 let mut res = Vec::with_capacity(arr.len());
                 for val in arr {
-                    res.push(T::from_param(val)?);
+                    let item = val.to_owned();
+                    res.push(
+                        T::try_from(item).map_err(|_| ExtensionError::InvalidParamValue {
+                            param: val.to_string(),
+                            expected: "list value",
+                        })?,
+                    )
                 }
                 Ok(res)
             }
@@ -196,14 +276,6 @@ where
                 param: other.to_string(),
                 expected: "list",
             }),
-        }
-    }
-
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        if let FuncParamValue::Array(arr) = value {
-            arr.iter().all(|v| T::is_param_valid(v))
-        } else {
-            false
         }
     }
 }
@@ -234,24 +306,33 @@ impl From<IdentValue> for String {
     }
 }
 
-impl FromFuncParamValue for IdentValue {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
+impl TryFrom<FuncParamValue> for IdentValue {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
         match value {
-            FuncParamValue::Ident(s) => Ok(Self(s)),
+            FuncParamValue::Ident(v) => Ok(IdentValue(v)),
+            FuncParamValue::Scalar(sv) => match sv {
+                ScalarValue::Utf8(Some(v)) | ScalarValue::LargeUtf8(Some(v)) => {
+                    Ok(IdentValue(v.to_owned()))
+                }
+                other => Err(ExtensionError::InvalidParamValue {
+                    param: other.to_string(),
+                    expected: "identifer",
+                }),
+            },
             other => Err(ExtensionError::InvalidParamValue {
                 param: other.to_string(),
-                expected: "ident",
+                expected: "identifer",
             }),
         }
     }
-
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(value, FuncParamValue::Ident(_))
-    }
 }
 
-impl FromFuncParamValue for i64 {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
+impl TryFrom<FuncParamValue> for i64 {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Scalar(s) => match s {
                 ScalarValue::Int8(Some(v)) => Ok(v as i64),
@@ -261,37 +342,32 @@ impl FromFuncParamValue for i64 {
                 ScalarValue::UInt8(Some(v)) => Ok(v as i64),
                 ScalarValue::UInt16(Some(v)) => Ok(v as i64),
                 ScalarValue::UInt32(Some(v)) => Ok(v as i64),
-                ScalarValue::UInt64(Some(v)) => Ok(v as i64), // TODO: Handle overflow?
+                ScalarValue::UInt64(Some(v)) => {
+                    if v > i64::MAX as u64 {
+                        return Err(ExtensionError::InvalidParamValue {
+                            param: s.to_string(),
+                            expected: "int64",
+                        });
+                    }
+                    Ok(v as i64)
+                }
                 other => Err(ExtensionError::InvalidParamValue {
                     param: other.to_string(),
                     expected: "integer",
                 }),
             },
-
             other => Err(ExtensionError::InvalidParamValue {
                 param: other.to_string(),
                 expected: "integer",
             }),
         }
     }
-
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(
-            value,
-            FuncParamValue::Scalar(ScalarValue::Int8(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::Int16(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::Int32(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::Int64(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::UInt8(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::UInt16(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::UInt32(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::UInt64(Some(_)))
-        )
-    }
 }
 
-impl FromFuncParamValue for f64 {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
+impl TryFrom<FuncParamValue> for f64 {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Scalar(s) => match s {
                 ScalarValue::Int8(Some(v)) => Ok(v as f64),
@@ -315,18 +391,66 @@ impl FromFuncParamValue for f64 {
             }),
         }
     }
+}
 
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(
-            value,
-            FuncParamValue::Scalar(ScalarValue::Float32(Some(_)))
-                | FuncParamValue::Scalar(ScalarValue::Float64(Some(_)))
-        ) || i64::is_param_valid(value)
+impl TryFrom<FuncParamValue> for bool {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Scalar(s) => match s {
+                ScalarValue::Null => Ok(false),
+                ScalarValue::Boolean(Some(v)) => Ok(v),
+                ScalarValue::Utf8(Some(v)) | ScalarValue::LargeUtf8(Some(v)) => {
+                    match v.to_lowercase().as_str() {
+                        "true" => Ok(true),
+                        "false" => Ok(false),
+                        _ => Err(ExtensionError::InvalidParamValue {
+                            param: v.to_string(),
+                            expected: "boolean",
+                        }),
+                    }
+                }
+                ScalarValue::Int8(_)
+                | ScalarValue::Int16(_)
+                | ScalarValue::Int32(_)
+                | ScalarValue::Int64(_)
+                | ScalarValue::UInt16(_)
+                | ScalarValue::UInt32(_)
+                | ScalarValue::UInt64(_) => {
+                    let v: i64 =
+                        s.to_owned()
+                            .try_into()
+                            .map_err(|_| ExtensionError::InvalidParamValue {
+                                param: s.to_string(),
+                                expected: "boolean",
+                            })?;
+                    match v {
+                        0 => Ok(false),
+                        1 => Ok(true),
+                        _ => Err(ExtensionError::InvalidParamValue {
+                            param: s.to_string(),
+                            expected: "boolean",
+                        }),
+                    }
+                }
+                other => Err(ExtensionError::InvalidParamValue {
+                    param: other.to_string(),
+                    expected: "boolean",
+                }),
+            },
+            other => Err(ExtensionError::InvalidParamValue {
+                param: other.to_string(),
+                expected: "boolean",
+            }),
+        }
     }
 }
 
-impl FromFuncParamValue for Decimal128 {
-    fn from_param(value: FuncParamValue) -> Result<Self> {
+impl TryFrom<FuncParamValue> for Decimal128 {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
         match value {
             FuncParamValue::Scalar(s) => match s {
                 ScalarValue::Int8(Some(v)) => Ok(Decimal128::try_from_int(v)?),
@@ -350,13 +474,5 @@ impl FromFuncParamValue for Decimal128 {
                 expected: "decimal",
             }),
         }
-    }
-
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        matches!(
-            value,
-            FuncParamValue::Scalar(ScalarValue::Decimal128(Some(_), _, _))
-        ) || f64::is_param_valid(value)
-            || i64::is_param_valid(value)
     }
 }

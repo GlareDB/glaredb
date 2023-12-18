@@ -2,11 +2,15 @@ use super::options::{
     CredentialsOptions, InternalColumnDefinition, TableOptionsInternal, TunnelOptions,
 };
 use super::options::{DatabaseOptions, TableOptions};
-use crate::gen::metastore::catalog;
+use crate::gen::common::arrow::ArrowType;
+use crate::gen::metastore::catalog::{self, type_signature};
 use crate::{FromOptionalField, ProtoConvError};
+use datafusion::arrow::datatypes::DataType;
+use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
-use std::fmt;
+use std::fmt::{self, Display};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogState {
@@ -204,8 +208,8 @@ impl EntryType {
 impl TryFrom<i32> for EntryType {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        catalog::entry_meta::EntryType::from_i32(value)
-            .ok_or(ProtoConvError::UnknownEnumVariant("EntryType", value))
+        catalog::entry_meta::EntryType::try_from(value)
+            .map_err(|_| ProtoConvError::UnknownEnumVariant("EntryType", value))
             .and_then(|t| t.try_into())
     }
 }
@@ -262,6 +266,8 @@ pub struct EntryMeta {
     pub builtin: bool,
     pub external: bool,
     pub is_temp: bool,
+    pub sql_example: Option<String>,
+    pub description: Option<String>,
 }
 
 impl From<EntryMeta> for catalog::EntryMeta {
@@ -275,6 +281,8 @@ impl From<EntryMeta> for catalog::EntryMeta {
             builtin: value.builtin,
             external: value.external,
             is_temp: value.is_temp,
+            sql_example: value.sql_example,
+            description: value.description,
         }
     }
 }
@@ -290,7 +298,87 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
             builtin: value.builtin,
             external: value.external,
             is_temp: value.is_temp,
+            sql_example: value.sql_example,
+            description: value.description,
         })
+    }
+}
+
+#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+pub enum SourceAccessMode {
+    ReadOnly,
+    ReadWrite,
+}
+
+impl FromStr for SourceAccessMode {
+    type Err = ProtoConvError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_uppercase();
+        let access_mode = catalog::SourceAccessMode::from_str_name(&s).ok_or_else(|| {
+            ProtoConvError::ParseError(format!("invalid source access mode: {s}"))
+        })?;
+        Ok(access_mode.into())
+    }
+}
+
+impl Display for SourceAccessMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl SourceAccessMode {
+    pub const fn has_read_access(&self) -> bool {
+        matches!(self, Self::ReadOnly | Self::ReadWrite)
+    }
+
+    pub const fn has_write_access(&self) -> bool {
+        matches!(self, Self::ReadWrite)
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        // TODO: Maybe lowercase this.
+        catalog::SourceAccessMode::from(*self).as_str_name()
+    }
+}
+
+impl From<catalog::SourceAccessMode> for SourceAccessMode {
+    fn from(value: catalog::SourceAccessMode) -> Self {
+        match value {
+            catalog::SourceAccessMode::ReadOnly => Self::ReadOnly,
+            catalog::SourceAccessMode::ReadWrite => Self::ReadWrite,
+        }
+    }
+}
+
+impl TryFrom<i32> for SourceAccessMode {
+    type Error = ProtoConvError;
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Ok(match value {
+            x if x == catalog::SourceAccessMode::ReadOnly as i32 => Self::ReadOnly,
+            x if x == catalog::SourceAccessMode::ReadWrite as i32 => Self::ReadWrite,
+            x => {
+                return Err(ProtoConvError::ParseError(format!(
+                    "invalid source access mode: {x}"
+                )))
+            }
+        })
+    }
+}
+
+impl From<SourceAccessMode> for catalog::SourceAccessMode {
+    fn from(value: SourceAccessMode) -> Self {
+        match value {
+            SourceAccessMode::ReadOnly => Self::ReadOnly,
+            SourceAccessMode::ReadWrite => Self::ReadWrite,
+        }
+    }
+}
+
+impl From<SourceAccessMode> for i32 {
+    fn from(value: SourceAccessMode) -> Self {
+        let value: catalog::SourceAccessMode = value.into();
+        value as i32
     }
 }
 
@@ -299,6 +387,7 @@ pub struct DatabaseEntry {
     pub meta: EntryMeta,
     pub options: DatabaseOptions,
     pub tunnel_id: Option<u32>,
+    pub access_mode: SourceAccessMode,
 }
 
 impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
@@ -309,6 +398,7 @@ impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
             meta,
             options: value.options.required("options")?,
             tunnel_id: value.tunnel_id,
+            access_mode: value.access_mode.try_into()?,
         })
     }
 }
@@ -319,6 +409,7 @@ impl From<DatabaseEntry> for catalog::DatabaseEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.into()),
             tunnel_id: value.tunnel_id,
+            access_mode: value.access_mode.into(),
         }
     }
 }
@@ -349,6 +440,7 @@ pub struct TableEntry {
     pub meta: EntryMeta,
     pub options: TableOptions,
     pub tunnel_id: Option<u32>,
+    pub access_mode: SourceAccessMode,
 }
 
 impl TableEntry {
@@ -369,6 +461,7 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
             meta,
             options: value.options.required("options".to_string())?,
             tunnel_id: value.tunnel_id,
+            access_mode: value.access_mode.try_into()?,
         })
     }
 }
@@ -380,6 +473,7 @@ impl TryFrom<TableEntry> for catalog::TableEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.try_into()?),
             tunnel_id: value.tunnel_id,
+            access_mode: value.access_mode.into(),
         })
     }
 }
@@ -465,8 +559,8 @@ impl FunctionType {
 impl TryFrom<i32> for FunctionType {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        catalog::function_entry::FunctionType::from_i32(value)
-            .ok_or(ProtoConvError::UnknownEnumVariant("FunctionType", value))
+        catalog::function_entry::FunctionType::try_from(value)
+            .map_err(|_| ProtoConvError::UnknownEnumVariant("FunctionType", value))
             .and_then(|t| t.try_into())
     }
 }
@@ -496,7 +590,7 @@ impl From<FunctionType> for catalog::function_entry::FunctionType {
 }
 
 /// The runtime preference for a function.
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
 pub enum RuntimePreference {
     Unspecified,
     Local,
@@ -516,9 +610,8 @@ impl RuntimePreference {
 impl TryFrom<i32> for RuntimePreference {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        let pref = catalog::function_entry::RuntimePreference::from_i32(value).ok_or(
-            ProtoConvError::UnknownEnumVariant("RuntimePreference", value),
-        )?;
+        let pref = catalog::function_entry::RuntimePreference::try_from(value)
+            .map_err(|_| ProtoConvError::UnknownEnumVariant("RuntimePreference", value))?;
         Ok(pref.into())
     }
 }
@@ -547,11 +640,12 @@ impl From<RuntimePreference> for catalog::function_entry::RuntimePreference {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionEntry {
     pub meta: EntryMeta,
     pub func_type: FunctionType,
     pub runtime_preference: RuntimePreference,
+    pub signature: Option<Signature>,
 }
 
 impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
@@ -562,6 +656,146 @@ impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
             meta,
             func_type: value.func_type.try_into()?,
             runtime_preference: value.runtime_preference.try_into()?,
+            signature: value.signature.map(|s| s.try_into()).transpose()?,
+        })
+    }
+}
+
+impl From<Volatility> for catalog::Volatility {
+    fn from(value: Volatility) -> Self {
+        match value {
+            datafusion::logical_expr::Volatility::Immutable => catalog::Volatility::Immutable,
+            datafusion::logical_expr::Volatility::Stable => catalog::Volatility::Stable,
+            datafusion::logical_expr::Volatility::Volatile => catalog::Volatility::Volatile,
+        }
+    }
+}
+
+impl TryFrom<catalog::Volatility> for Volatility {
+    type Error = ProtoConvError;
+
+    fn try_from(value: catalog::Volatility) -> Result<Self, Self::Error> {
+        match value {
+            catalog::Volatility::Immutable => Ok(Volatility::Immutable),
+            catalog::Volatility::Stable => Ok(Volatility::Stable),
+            catalog::Volatility::Volatile => Ok(Volatility::Volatile),
+        }
+    }
+}
+
+impl From<TypeSignature> for catalog::TypeSignature {
+    fn from(value: TypeSignature) -> Self {
+        use catalog::type_signature::Signature as ProtoSignature;
+        let inner = match value {
+            TypeSignature::Variadic(args) => {
+                let args: Vec<ArrowType> = args.iter().map(|t| t.try_into().unwrap()).collect();
+                let var_sig = catalog::VariadicSignature { args };
+
+                ProtoSignature::Variadic(var_sig)
+            }
+            TypeSignature::VariadicEqual => {
+                ProtoSignature::VariadicEqual(catalog::VariadicEqualSignature {})
+            }
+            TypeSignature::VariadicAny => {
+                ProtoSignature::VariadicAny(catalog::VariadicAnySignature {})
+            }
+            TypeSignature::Uniform(n, args) => {
+                let args: Vec<ArrowType> = args.iter().map(|t| t.try_into().unwrap()).collect();
+                let uniform_sig = catalog::UniformSignature {
+                    num_args: n as u32,
+                    args,
+                };
+
+                ProtoSignature::Uniform(uniform_sig)
+            }
+            TypeSignature::Exact(args) => {
+                let args: Vec<ArrowType> = args.iter().map(|t| t.try_into().unwrap()).collect();
+                let exact_sig = catalog::ExactSignature { args };
+
+                ProtoSignature::Exact(exact_sig)
+            }
+            TypeSignature::Any(n) => {
+                ProtoSignature::Any(catalog::AnySignature { num_args: n as u32 })
+            }
+            TypeSignature::OneOf(sigs) => {
+                let sigs: Vec<catalog::TypeSignature> =
+                    sigs.into_iter().map(|s| s.into()).collect();
+                ProtoSignature::OneOf(catalog::OneOfSignature { args: sigs })
+            }
+        };
+
+        catalog::TypeSignature {
+            signature: Some(inner),
+        }
+    }
+}
+
+impl TryFrom<catalog::TypeSignature> for TypeSignature {
+    type Error = ProtoConvError;
+
+    fn try_from(value: catalog::TypeSignature) -> Result<Self, Self::Error> {
+        match value.signature.unwrap() {
+            type_signature::Signature::Variadic(args) => {
+                let args: Vec<DataType> = args
+                    .args
+                    .iter()
+                    .map(|t| t.try_into())
+                    .collect::<Result<_, _>>()?;
+
+                Ok(TypeSignature::Variadic(args))
+            }
+            type_signature::Signature::VariadicEqual(_) => Ok(TypeSignature::VariadicEqual),
+            type_signature::Signature::VariadicAny(_) => Ok(TypeSignature::VariadicAny),
+            type_signature::Signature::Uniform(catalog::UniformSignature { num_args, args }) => {
+                let args: Vec<DataType> = args
+                    .iter()
+                    .map(|t| t.try_into())
+                    .collect::<Result<_, _>>()?;
+
+                Ok(TypeSignature::Uniform(num_args as usize, args))
+            }
+            type_signature::Signature::Exact(catalog::ExactSignature { args }) => {
+                let args: Vec<DataType> = args
+                    .iter()
+                    .map(|t| t.try_into())
+                    .collect::<Result<_, _>>()?;
+
+                Ok(TypeSignature::Exact(args))
+            }
+            type_signature::Signature::Any(catalog::AnySignature { num_args: n }) => {
+                Ok(TypeSignature::Any(n as usize))
+            }
+            type_signature::Signature::OneOf(catalog::OneOfSignature { args }) => {
+                let args: Vec<TypeSignature> = args
+                    .into_iter()
+                    .map(|t| t.try_into())
+                    .collect::<Result<_, _>>()?;
+
+                Ok(TypeSignature::OneOf(args))
+            }
+        }
+    }
+}
+impl From<Signature> for catalog::Signature {
+    fn from(value: Signature) -> Self {
+        let volatility: catalog::Volatility = value.volatility.into();
+
+        catalog::Signature {
+            type_signature: Some(value.type_signature.into()),
+            volatility: volatility as i32,
+        }
+    }
+}
+
+impl TryFrom<catalog::Signature> for Signature {
+    type Error = ProtoConvError;
+    fn try_from(value: catalog::Signature) -> Result<Self, Self::Error> {
+        let volatility = catalog::Volatility::try_from(value.volatility)?;
+        let volatility: Volatility = volatility.try_into()?;
+        let type_signature: TypeSignature = value.type_signature.required("type_signature")?;
+        Ok(Signature {
+            type_signature,
+            volatility,
         })
     }
 }
@@ -575,6 +809,7 @@ impl From<FunctionEntry> for catalog::FunctionEntry {
             meta: Some(value.meta.into()),
             func_type: func_type as i32,
             runtime_preference: runtime_preference as i32,
+            signature: value.signature.map(|s| s.into()),
         }
     }
 }
@@ -651,5 +886,23 @@ mod tests {
         };
 
         assert_eq!(expected, converted);
+    }
+
+    #[test]
+    fn source_access_mode_as_str() {
+        let mode = SourceAccessMode::ReadOnly;
+        assert_eq!("READ_ONLY", mode.as_str());
+        let mode = SourceAccessMode::ReadWrite;
+        assert_eq!("READ_WRITE", mode.as_str());
+    }
+
+    #[test]
+    fn source_access_mode_from_str() {
+        let mode = SourceAccessMode::from_str("READ_ONLY").unwrap();
+        assert_eq!(SourceAccessMode::ReadOnly, mode);
+        let mode = SourceAccessMode::from_str("READ_WRITE").unwrap();
+        assert_eq!(SourceAccessMode::ReadWrite, mode);
+
+        let _ = SourceAccessMode::from_str("DELETE").unwrap_err();
     }
 }

@@ -11,7 +11,7 @@ use protogen::metastore::types::catalog::{CatalogState, DeploymentMetadata};
 use protogen::metastore::types::storage::{CatalogMetadata, ExtraState, PersistedCatalog};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 use uuid::Uuid;
 
 /// The metadata object for the catalog.
@@ -60,7 +60,7 @@ impl Storage {
             Err(e) => return Err(e.into()),               // Something else happened...
         }
 
-        info!(%db_id, "initializing new catalog for database");
+        debug!(%db_id, "initializing new catalog for database");
 
         // Create the new catalog. This is always safe to write directly to
         // visible since the content should always be the same.

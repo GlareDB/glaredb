@@ -46,6 +46,17 @@ pub enum PlanError {
     #[error("Invalid delete statement: {msg}")]
     InvalidDeleteStatement { msg: &'static str },
 
+    #[error("Invalid insert statement: {msg}")]
+    InvalidInsertStatement { msg: &'static str },
+
+    #[error("Invalid alter statement: {msg}")]
+    InvalidAlterStatement { msg: &'static str },
+
+    #[error("Invalid copy to statement: {source}")]
+    InvalidCopyToStatement {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
     #[error("Invalid number of column aliases for view body; sql: {sql}, aliases: {aliases:?}")]
     InvalidNumberOfAliasesForView { sql: String, aliases: Vec<String> },
 
@@ -54,6 +65,9 @@ pub enum PlanError {
 
     #[error("Expected exactly on SQL statement, got: {0:?}")]
     ExpectedExactlyOneStatement(Vec<crate::parser::StatementWithExtensions>),
+
+    #[error("Not allowed to write into the object: {0}")]
+    ObjectNotAllowedToWriteInto(OwnedTableReference),
 
     #[error("Exec error: {0}")]
     Exec(Box<crate::errors::ExecError>), // TODO: Try to remove.
@@ -86,6 +100,12 @@ pub enum PlanError {
     String(String),
 }
 
+impl From<PlanError> for datafusion::error::DataFusionError {
+    fn from(value: PlanError) -> Self {
+        datafusion::error::DataFusionError::Plan(value.to_string())
+    }
+}
+
 pub type Result<T, E = PlanError> = std::result::Result<T, E>;
 
 impl From<crate::errors::ExecError> for PlanError {
@@ -94,10 +114,26 @@ impl From<crate::errors::ExecError> for PlanError {
     }
 }
 
+macro_rules! impl_from_dispatch_variant {
+    ($FromType:ty) => {
+        impl From<$FromType> for PlanError {
+            #[inline]
+            fn from(err: $FromType) -> Self {
+                PlanError::Dispatch(crate::dispatch::DispatchError::from(err))
+            }
+        }
+    };
+}
+impl_from_dispatch_variant!(datasources::lake::delta::errors::DeltaError);
+impl_from_dispatch_variant!(datasources::lake::iceberg::errors::IcebergError);
+impl_from_dispatch_variant!(datasources::object_store::errors::ObjectStoreSourceError);
+impl_from_dispatch_variant!(datasources::sqlserver::errors::SqlServerError);
+
 #[allow(unused_macros)]
 macro_rules! internal {
     ($($arg:tt)*) => {
         crate::planner::errors::PlanError::Internal(std::format!($($arg)*))
     };
 }
+use datafusion::common::OwnedTableReference;
 pub(crate) use internal;

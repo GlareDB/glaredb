@@ -106,8 +106,8 @@ struct QueryResponse {
 }
 
 impl QueryResponse {
-    const QUERY_IN_PROGRESS_CODE: &str = "333333";
-    const ASYNC_QUERY_IN_PROGRESS_CODE: &str = "333334";
+    const QUERY_IN_PROGRESS_CODE: &'static str = "333333";
+    const ASYNC_QUERY_IN_PROGRESS_CODE: &'static str = "333334";
 
     fn is_query_in_progress(&self) -> bool {
         let code = match self.code.as_ref() {

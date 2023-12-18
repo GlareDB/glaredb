@@ -35,6 +35,9 @@ pub enum ExtensionError {
 
     #[error("Unimplemented: {0}")]
     Unimplemented(&'static str),
+
+    #[error(transparent)]
+    ListingErrBoxed(#[from] Box<dyn std::error::Error + Sync + Send>),
 }
 
 pub type Result<T, E = ExtensionError> = std::result::Result<T, E>;

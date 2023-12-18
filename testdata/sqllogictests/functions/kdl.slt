@@ -1,0 +1,48 @@
+statement ok
+create table cows (id int, docs string);
+
+statement ok
+insert into cows values (0, 'name "betsy" status="amazing" age=89; details "classic" a=1 b=100;');
+
+statement ok
+insert into cows values (1, 'name "zabby" status="electric" age=120; details "zesty" a=1 b=400;');
+
+statement error
+select * from cows where kdl_matches('name == betsy;', cows.docs);
+
+statement error
+select * from cows where kdl_matches(cows.docs, '+;');
+
+statement error
+select kdl_select('foo', cows.docs) from cows where kdl_matches(cows.docs, '[b=100]');
+
+statement error
+select kdl_select(cows.docs, '?$*;') from cows where kdl_matches(cows.docs, '[b=100]');
+
+statement error
+select count(*) from cows where kdl_matches(cows.docs, 'details[a] == 100;');
+
+query I
+select count(*) from cows where kdl_matches(cows.docs, '[a]');
+----
+2
+
+query I
+select count(*) from cows where kdl_matches(cows.docs, '[b=100]');
+----
+1
+
+query I
+select count(*) from cows where kdl_matches(cows.docs, '[status]');
+----
+2
+
+query T
+select cows.docs from cows where kdl_matches(cows.docs, '[b=100]');
+----
+name "betsy" status="amazing" age=89; details "classic" a=1 b=100;
+
+query T
+select kdl_select(cows.docs, '[age=120]') from cows where kdl_matches(cows.docs, '[b=100]');
+----
+(empty)

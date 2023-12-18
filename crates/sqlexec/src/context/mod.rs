@@ -11,6 +11,7 @@ pub mod remote;
 
 use std::{path::PathBuf, sync::Arc};
 
+use catalog::session_catalog::SessionCatalog;
 use datafusion::{
     config::{CatalogOptions, ConfigOptions, Extensions, OptimizerOptions},
     execution::{
@@ -23,7 +24,7 @@ use datafusion_ext::vars::SessionVars;
 use datasources::object_store::init_session_registry;
 use protogen::metastore::types::catalog::CatalogEntry;
 
-use crate::{errors::Result, metastore::catalog::SessionCatalog};
+use crate::errors::Result;
 
 /// Create a new datafusion runtime env common to both remote and local
 /// sessions.
@@ -34,6 +35,7 @@ use crate::{errors::Result, metastore::catalog::SessionCatalog};
 ///
 /// If `memory_limit_bytes` in session varables is non-zero, a new memory pool
 /// will be created with the max set to this value.
+// TODO: Remove `vars`.
 pub(crate) fn new_datafusion_runtime_env(
     vars: &SessionVars,
     catalog: &SessionCatalog,
@@ -76,6 +78,7 @@ pub(crate) fn new_datafusion_runtime_env(
 
 /// Create a new datafusion config opts common to both local and remote
 /// sessions.
+// TODO: Remove `vars`.
 pub(crate) fn new_datafusion_session_config_opts(vars: &SessionVars) -> ConfigOptions {
     // NOTE: We handle catalog/schema defaults and information schemas
     // ourselves.

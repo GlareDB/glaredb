@@ -1,29 +1,31 @@
 use crate::{
     errors::{ExecError, Result},
     extension_codec::GlareDBExtensionCodec,
-    metastore::catalog::SessionCatalog,
 };
+use catalog::session_catalog::{ResolveConfig, SessionCatalog};
 use datafusion::{datasource::TableProvider, physical_plan::ExecutionPlan};
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
 use protogen::{
+    gen::rpcsrv::common,
     gen::rpcsrv::service::{self, execution_service_client::ExecutionServiceClient},
     metastore::types::catalog::CatalogState,
     rpcsrv::types::service::{
-        CloseSessionRequest, DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse,
-        InitializeSessionRequest, InitializeSessionResponse, PhysicalPlanExecuteRequest,
-        ResolvedTableReference, TableProviderResponse,
+        DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse, InitializeSessionRequest,
+        InitializeSessionResponse, PhysicalPlanExecuteRequest, ResolvedTableReference,
+        TableProviderResponse,
     },
 };
-use proxyutil::metadata_constants::{
-    CA_CERT_PATH, COMPUTE_ENGINE_KEY, DB_NAME_KEY, DOMAIN, ORG_KEY, PASSWORD_KEY, USER_KEY,
-};
-use std::{collections::HashMap, sync::Arc};
+use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
+use serde::Deserialize;
+use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
+use std::{collections::HashMap, fmt, sync::Arc};
 use tonic::{
     metadata::MetadataMap,
     transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
     IntoRequest, Streaming,
 };
+use tracing::debug;
 use url::Url;
 use uuid::Uuid;
 
@@ -42,14 +44,6 @@ pub struct ProxyAuthParams {
     pub db_name: String,
     /// Org name.
     pub org: String,
-    /// Compute engine name.
-    pub compute_engine: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TlsConfig {
-    pub ca_cert_path: String,
-    pub domain: String,
 }
 
 /// Auth params and destination to use when connecting the client.
@@ -57,19 +51,6 @@ pub struct TlsConfig {
 pub struct ProxyDestination {
     pub params: ProxyAuthParams,
     pub dst: Url,
-    pub tls_conf: Option<TlsConfig>,
-}
-
-impl ProxyDestination {
-    pub fn with_tls(mut self, tls_conf: Option<TlsConfig>) -> Self {
-        if let Some(tls_conf) = tls_conf {
-            self.dst
-                .set_scheme("https")
-                .expect("not able to convert http to https");
-            self.tls_conf = Some(tls_conf);
-        }
-        self
-    }
 }
 
 impl TryFrom<Url> for ProxyDestination {
@@ -105,15 +86,6 @@ impl TryFrom<Url> for ProxyDestination {
             ));
         }
 
-        // Database name could be just the name itself, or may be in the form of
-        // "engine.dbname".
-        let (compute_engine, db_name) =
-            if let Some((compute_engine, db_name)) = db_name.split_once('.') {
-                (Some(compute_engine), db_name)
-            } else {
-                (None, db_name)
-            };
-
         // Rebuild url that we should actually connect to.
         let dst = Url::parse(&format!(
             "http://{host}:{}",
@@ -128,14 +100,36 @@ impl TryFrom<Url> for ProxyDestination {
             password: password.to_string(),
             db_name: db_name.to_string(),
             org: org.to_string(),
-            compute_engine: compute_engine.map(String::from),
         };
 
-        Ok(ProxyDestination {
-            params,
-            dst,
-            tls_conf: None,
-        })
+        Ok(ProxyDestination { params, dst })
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AuthenticateClientResponse {
+    pub ca_cert: String,
+    pub ca_domain: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AuthenticateClientError {
+    pub msg: String,
+}
+
+#[derive(Debug)]
+pub enum RemoteClientType {
+    Cli,
+    Node,
+    Python,
+}
+impl fmt::Display for RemoteClientType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RemoteClientType::Cli => write!(f, "cli"),
+            RemoteClientType::Node => write!(f, "node"),
+            RemoteClientType::Python => write!(f, "python"),
+        }
     }
 }
 
@@ -173,34 +167,84 @@ impl RemoteClient {
     }
 
     /// Connect to a proxy destination.
-    pub async fn connect_with_proxy_destination(dst: ProxyDestination) -> Result<Self> {
-        Self::connect_with_proxy_auth_params(dst.dst.to_string(), dst.params, dst.tls_conf).await
+    pub async fn connect_with_proxy_destination(
+        dst: ProxyDestination,
+        cloud_api_addr: String,
+        disable_tls: bool,
+        client_type: RemoteClientType,
+    ) -> Result<Self> {
+        let mut dst: ProxyDestination = dst;
+        if !disable_tls {
+            debug!("set rpc destination scheme to https");
+
+            dst.dst
+                .set_scheme("https")
+                .expect("failed to upgrade scheme from http to https");
+        }
+        Self::connect_with_proxy_auth_params(
+            dst.dst.to_string(),
+            dst.params,
+            cloud_api_addr,
+            disable_tls,
+            client_type,
+        )
+        .await
     }
 
     /// Connect to a destination with the provided authentication params.
     async fn connect_with_proxy_auth_params<'a>(
         dst: impl TryInto<Endpoint, Error = tonic::transport::Error>,
         params: ProxyAuthParams,
-        tls_conf: Option<TlsConfig>,
+        cloud_api_addr: String,
+        disable_tls: bool,
+        client_type: RemoteClientType,
     ) -> Result<Self> {
         let mut metadata = MetadataMap::new();
         metadata.insert(USER_KEY, params.user.parse()?);
         metadata.insert(PASSWORD_KEY, params.password.parse()?);
         metadata.insert(DB_NAME_KEY, params.db_name.parse()?);
         metadata.insert(ORG_KEY, params.org.parse()?);
-        if let Some(compute_engine) = params.compute_engine {
-            metadata.insert(COMPUTE_ENGINE_KEY, compute_engine.parse()?);
+
+        let mut body = HashMap::new();
+        body.insert("user", params.user);
+        body.insert("password", params.password);
+        body.insert("org_name", params.org);
+        body.insert("db_name", params.db_name);
+        body.insert("api_version", 2.to_string());
+        body.insert("client_type", client_type.to_string());
+
+        debug!("client authentication");
+        let http_client = reqwest::Client::new();
+        let res = http_client
+            .post(format!(
+                "{}/api/internal/authenticate/client",
+                cloud_api_addr
+            ))
+            .json(&body)
+            .send()
+            .await?;
+
+        if res.status() != reqwest::StatusCode::OK {
+            if res.status().is_client_error() {
+                let err = res.json::<AuthenticateClientError>().await?;
+                return Err(ExecError::String(err.msg));
+            } else {
+                return Err(ExecError::Internal(format!(
+                    "client authentication: status: {}",
+                    res.status().as_str()
+                )));
+            }
         }
 
         let mut dst: Endpoint = dst.try_into()?;
-        if let Some(tls_conf) = tls_conf {
-            metadata.insert(CA_CERT_PATH, tls_conf.ca_cert_path.parse()?);
-            metadata.insert(DOMAIN, tls_conf.domain.parse()?);
-            let ca = std::fs::read_to_string(tls_conf.ca_cert_path)?;
+
+        if !disable_tls {
+            debug!("apply TLS certificate");
+            let cert = res.json::<AuthenticateClientResponse>().await?;
             dst = dst.tls_config(
                 ClientTlsConfig::new()
-                    .ca_certificate(Certificate::from_pem(ca))
-                    .domain_name(tls_conf.domain),
+                    .ca_certificate(Certificate::from_pem(cert.ca_cert))
+                    .domain_name(cert.ca_domain),
             )?;
         }
 
@@ -225,13 +269,20 @@ impl RemoteClient {
         let resp: InitializeSessionResponse = resp.into_inner().try_into()?;
 
         let remote_sess_client = RemoteSessionClient {
-            session_id: resp.session_id,
             inner: self.clone(),
+            database_id: resp.database_id,
+            user_id: resp.user_id,
         };
 
         Ok((
             remote_sess_client,
-            SessionCatalog::new(Arc::new(resp.catalog)),
+            SessionCatalog::new(
+                Arc::new(resp.catalog),
+                ResolveConfig {
+                    default_schema_oid: SCHEMA_DEFAULT.oid,
+                    session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
+                },
+            ),
         ))
     }
 
@@ -253,13 +304,14 @@ impl RemoteClient {
 #[derive(Debug, Clone)]
 pub struct RemoteSessionClient {
     inner: RemoteClient,
-    session_id: Uuid,
+    database_id: Uuid,
+    user_id: Option<Uuid>,
 }
 
 impl RemoteSessionClient {
-    /// Returns the current session ID.
-    pub fn session_id(&self) -> Uuid {
-        self.session_id
+    /// Returns the database ID for which the session is open.
+    pub fn database_id(&self) -> Uuid {
+        self.database_id
     }
 
     pub fn get_deployment_name(&self) -> &str {
@@ -268,7 +320,7 @@ impl RemoteSessionClient {
 
     pub async fn fetch_catalog(&mut self) -> Result<CatalogState> {
         let mut request = service::FetchCatalogRequest::from(FetchCatalogRequest {
-            session_id: self.session_id(),
+            database_id: self.database_id(),
         })
         .into_request();
         self.inner.append_auth_metadata(request.metadata_mut());
@@ -307,7 +359,7 @@ impl RemoteSessionClient {
             })
             .transpose()?;
         let mut request = service::DispatchAccessRequest::from(DispatchAccessRequest {
-            session_id: self.session_id(),
+            database_id: self.database_id(),
             table_ref,
             args,
             opts,
@@ -330,6 +382,7 @@ impl RemoteSessionClient {
     pub async fn physical_plan_execute(
         &mut self,
         physical_plan: Arc<dyn ExecutionPlan>,
+        query_text: String,
     ) -> Result<Streaming<service::RecordBatchResponse>> {
         // Encode the physical plan into a protobuf message.
         let physical_plan = {
@@ -343,8 +396,10 @@ impl RemoteSessionClient {
         };
 
         let mut request = service::PhysicalPlanExecuteRequest::from(PhysicalPlanExecuteRequest {
-            session_id: self.session_id(),
+            database_id: self.database_id(),
             physical_plan,
+            user_id: self.user_id,
+            query_text,
         })
         .into_request();
         self.inner.append_auth_metadata(request.metadata_mut());
@@ -363,35 +418,11 @@ impl RemoteSessionClient {
 
     pub async fn broadcast_exchange(
         &mut self,
-        stream: impl tonic::IntoStreamingRequest<Message = service::BroadcastExchangeRequest>,
+        stream: impl tonic::IntoStreamingRequest<Message = common::ExecutionResultBatch>,
     ) -> Result<()> {
         let mut req = stream.into_streaming_request();
         self.inner.append_auth_metadata(req.metadata_mut());
         let _resp = self.inner.client.broadcast_exchange(req).await?;
-        Ok(())
-    }
-
-    pub async fn close_session(&mut self) -> Result<()> {
-        let mut request = service::CloseSessionRequest::from(CloseSessionRequest {
-            session_id: self.session_id(),
-        })
-        .into_request();
-        self.inner.append_auth_metadata(request.metadata_mut());
-
-        let _resp = self
-            .inner
-            .client
-            .close_session(request)
-            .await
-            .map_err(|e| {
-                ExecError::RemoteSession(format!(
-                    "unable to close session {}: {}",
-                    self.session_id(),
-                    e
-                ))
-            })?
-            .into_inner();
-
         Ok(())
     }
 }
@@ -413,10 +444,8 @@ mod tests {
                 password: "password".to_string(),
                 db_name: "db".to_string(),
                 org: "org".to_string(),
-                compute_engine: None,
             },
             dst: Url::parse("http://remote.glaredb.com:6443").unwrap(),
-            tls_conf: None,
         };
 
         assert_eq!(expected, out);
@@ -425,7 +454,7 @@ mod tests {
     #[test]
     fn params_from_url_valid_port_and_engine() {
         let out = ProxyDestination::try_from(
-            Url::parse("glaredb://user:password@org.remote.glaredb.com:4444/engine.db").unwrap(),
+            Url::parse("glaredb://user:password@org.remote.glaredb.com:4444/db").unwrap(),
         )
         .unwrap();
 
@@ -435,10 +464,8 @@ mod tests {
                 password: "password".to_string(),
                 db_name: "db".to_string(),
                 org: "org".to_string(),
-                compute_engine: Some("engine".to_string()),
             },
             dst: Url::parse("http://remote.glaredb.com:4444").unwrap(),
-            tls_conf: None,
         };
 
         assert_eq!(expected, out);
@@ -448,13 +475,13 @@ mod tests {
     fn params_from_url_invalid() {
         // Invalid scheme
         ProxyDestination::try_from(
-            Url::parse("http://user:password@org.remote.glaredb.com:4444/engine.db").unwrap(),
+            Url::parse("http://user:password@org.remote.glaredb.com:4444/db").unwrap(),
         )
         .unwrap_err();
 
         // Missing password
         ProxyDestination::try_from(
-            Url::parse("glaredb://user@org.remote.glaredb.com:4444/engine.db").unwrap(),
+            Url::parse("glaredb://user@org.remote.glaredb.com:4444/db").unwrap(),
         )
         .unwrap_err();
 

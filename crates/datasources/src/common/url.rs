@@ -1,13 +1,12 @@
 //! Utility for source "URLs".
-
 use std::{borrow::Cow, fmt::Display, path::PathBuf};
 
-use datafusion::scalar::ScalarValue;
-use datafusion_ext::{
-    errors::ExtensionError,
-    functions::{FromFuncParamValue, FuncParamValue},
-};
+use datafusion::common::DataFusionError;
+use datafusion::datasource::object_store::ObjectStoreUrl;
 use url::Url;
+
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::FuncParamValue;
 
 use super::errors::{DatasourceCommonError, Result};
 
@@ -18,6 +17,7 @@ pub enum DatasourceUrlType {
     Http,
     Gcs,
     S3,
+    Azure,
 }
 
 impl Display for DatasourceUrlType {
@@ -27,6 +27,7 @@ impl Display for DatasourceUrlType {
             Self::Http => write!(f, "http(s)"),
             Self::Gcs => write!(f, "gs"),
             Self::S3 => write!(f, "s3"),
+            Self::Azure => write!(f, "azure"),
         }
     }
 }
@@ -46,40 +47,24 @@ impl Display for DatasourceUrl {
     }
 }
 
-impl FromFuncParamValue for DatasourceUrl {
-    fn from_param(value: FuncParamValue) -> datafusion_ext::errors::Result<Self> {
-        let url_string: String = value.param_into()?;
-        Self::try_new(&url_string).map_err(|_e| ExtensionError::InvalidParamValue {
-            param: url_string,
-            expected: "datasource url",
-        })
-    }
-
-    fn is_param_valid(value: &FuncParamValue) -> bool {
-        match value {
-            FuncParamValue::Scalar(ScalarValue::Utf8(Some(s))) => Self::try_new(s).is_ok(),
-            _ => false,
-        }
-    }
-}
-
 impl DatasourceUrl {
-    const FILE_SCHEME: &str = "file";
-    const HTTP_SCHEME: &str = "http";
-    const HTTPS_SCHEME: &str = "https";
-    const GS_SCHEME: &str = "gs";
-    const S3_SCHEME: &str = "s3";
+    const FILE_SCHEME: &'static str = "file";
+    const HTTP_SCHEME: &'static str = "http";
+    const HTTPS_SCHEME: &'static str = "https";
+    const GS_SCHEME: &'static str = "gs";
+    const S3_SCHEME: &'static str = "s3";
+    const AZURE_SCHEME: &'static str = "azure";
 
     pub fn try_new(u: impl AsRef<str>) -> Result<Self> {
         let u = u.as_ref();
-
         let ds_url = match u.parse::<Url>() {
             Err(url::ParseError::RelativeUrlWithoutBase) => {
                 // It's probably a local file path.
                 //
                 // TODO: Check if it's actually a file path (maybe invalid but
                 // probably check).
-                return Ok(Self::File(PathBuf::from(u)));
+                let path = PathBuf::from(u);
+                return Ok(Self::File(path));
             }
             Err(e) => return Err(DatasourceCommonError::InvalidUrl(e.to_string())),
             Ok(u) => u,
@@ -94,9 +79,11 @@ impl DatasourceUrl {
                     )))
                 }
             },
-            Self::HTTP_SCHEME | Self::HTTPS_SCHEME | Self::GS_SCHEME | Self::S3_SCHEME => {
-                Self::Url(ds_url)
-            }
+            Self::HTTP_SCHEME
+            | Self::HTTPS_SCHEME
+            | Self::GS_SCHEME
+            | Self::S3_SCHEME
+            | Self::AZURE_SCHEME => Self::Url(ds_url),
             other => {
                 return Err(DatasourceCommonError::InvalidUrl(format!(
                     "unsupported scheme '{other}'"
@@ -111,9 +98,10 @@ impl DatasourceUrl {
         match self {
             Self::File(_) => DatasourceUrlType::File,
             Self::Url(u) => match u.scheme() {
-                Self::HTTP_SCHEME | Self::HTTPS_SCHEME => DatasourceUrlType::Http,
+                Self::HTTP_SCHEME | Self::HTTPS_SCHEME => DatasourceUrlType::Http, // TODO: Parse out azure specific hosts.
                 Self::GS_SCHEME => DatasourceUrlType::Gcs,
                 Self::S3_SCHEME => DatasourceUrlType::S3,
+                Self::AZURE_SCHEME => DatasourceUrlType::Azure,
                 _ => unreachable!(),
             },
         }
@@ -153,6 +141,47 @@ impl DatasourceUrl {
     }
 }
 
+impl TryFrom<&str> for DatasourceUrl {
+    type Error = DatasourceCommonError;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::try_new(value)
+    }
+}
+
+impl TryFrom<FuncParamValue> for DatasourceUrl {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> datafusion_ext::errors::Result<Self> {
+        let url_string: String = value.try_into()?;
+        Self::try_new(&url_string).map_err(|_e| ExtensionError::InvalidParamValue {
+            param: url_string,
+            expected: "datasource url",
+        })
+    }
+}
+
+impl TryFrom<DatasourceUrl> for ObjectStoreUrl {
+    type Error = DataFusionError;
+
+    fn try_from(value: DatasourceUrl) -> Result<Self, Self::Error> {
+        match value {
+            DatasourceUrl::File(_) => Ok(ObjectStoreUrl::local_filesystem()),
+            DatasourceUrl::Url(url) => ObjectStoreUrl::parse(&url[..url::Position::BeforePath]),
+        }
+    }
+}
+
+impl TryFrom<&DatasourceUrl> for ObjectStoreUrl {
+    type Error = DataFusionError;
+
+    fn try_from(value: &DatasourceUrl) -> Result<Self, Self::Error> {
+        match value {
+            DatasourceUrl::File(_) => Ok(ObjectStoreUrl::local_filesystem()),
+            DatasourceUrl::Url(url) => ObjectStoreUrl::parse(&url[..url::Position::BeforePath]),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,28 +192,52 @@ mod tests {
         assert_eq!(Some("my_bucket"), u.host());
         assert_eq!("my_obj", u.path());
         assert_eq!(DatasourceUrlType::Gcs, u.datasource_url_type());
+        assert_eq!(
+            ObjectStoreUrl::try_from(u).unwrap().as_str(),
+            "gs://my_bucket/"
+        );
 
         let u = DatasourceUrl::try_new("gs://my_bucket/my_obj.parquet").unwrap();
         assert_eq!(Some("my_bucket"), u.host());
         assert_eq!("my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlType::Gcs, u.datasource_url_type());
+        assert_eq!(
+            ObjectStoreUrl::try_from(u).unwrap().as_str(),
+            "gs://my_bucket/"
+        );
 
         let u = DatasourceUrl::try_new("./my_bucket/my_obj.parquet").unwrap();
         assert_eq!(None, u.host());
         assert_eq!("./my_bucket/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
+        assert_eq!(ObjectStoreUrl::try_from(u).unwrap().as_str(), "file:///");
 
         let u = DatasourceUrl::try_new("/Users/mario/my_bucket/my_obj").unwrap();
         assert_eq!(None, u.host());
         assert_eq!("/Users/mario/my_bucket/my_obj", u.path());
         assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
+        assert_eq!(ObjectStoreUrl::try_from(u).unwrap().as_str(), "file:///");
 
         let u = DatasourceUrl::try_new("file:/my_bucket/my_obj.parquet").unwrap();
         assert_eq!("/my_bucket/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
+        assert_eq!(ObjectStoreUrl::try_from(u).unwrap().as_str(), "file:///");
 
         let u = DatasourceUrl::try_new("file:my_bucket/my_obj.parquet").unwrap();
         assert_eq!("/my_bucket/my_obj.parquet", u.path());
         assert_eq!(DatasourceUrlType::File, u.datasource_url_type());
+        assert_eq!(ObjectStoreUrl::try_from(u).unwrap().as_str(), "file:///");
+    }
+
+    #[test]
+    fn test_azure() {
+        let u = DatasourceUrl::try_new("azure://bucket/obj").unwrap();
+        assert_eq!(Some("bucket"), u.host());
+        assert_eq!("obj", u.path());
+        assert_eq!(DatasourceUrlType::Azure, u.datasource_url_type());
+        assert_eq!(
+            ObjectStoreUrl::try_from(u).unwrap().as_str(),
+            "azure://bucket/"
+        );
     }
 }

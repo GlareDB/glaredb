@@ -1,9 +1,10 @@
-pub mod alter_database_rename;
-pub mod alter_table_rename;
+pub mod alter_database;
+pub mod alter_table;
 pub mod alter_tunnel_rotate_keys;
 pub mod client_recv;
 pub mod client_send;
 pub mod copy_to;
+pub mod create_credential;
 pub mod create_credentials;
 pub mod create_external_database;
 pub mod create_external_table;
@@ -13,10 +14,12 @@ pub mod create_temp_table;
 pub mod create_tunnel;
 pub mod create_view;
 pub mod delete;
+pub mod describe_table;
 pub mod drop_credentials;
 pub mod drop_database;
 pub mod drop_schemas;
 pub mod drop_tables;
+pub mod drop_temp_tables;
 pub mod drop_tunnel;
 pub mod drop_views;
 pub mod insert;
@@ -28,25 +31,20 @@ pub mod show_var;
 pub mod update;
 pub mod values;
 
-use crate::planner::extension::PhysicalExtensionNode;
+use datafusion::arrow::array::{StringArray, UInt64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::execution::runtime_env::RuntimeEnv;
-use datafusion::execution::FunctionRegistry;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::scalar::ScalarValue;
 use datafusion::{
     physical_expr::PhysicalSortExpr,
     physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, Statistics},
 };
-use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 use futures::stream;
 use futures::StreamExt;
-use std::sync::Arc;
-
-use datafusion::arrow::array::{StringArray, UInt64Array};
 use once_cell::sync::Lazy;
+use std::sync::Arc;
 
 pub static GENERIC_OPERATION_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
     Arc::new(Schema::new(vec![Field::new(

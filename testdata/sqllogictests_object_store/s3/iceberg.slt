@@ -1,0 +1,55 @@
+statement ok
+CREATE CREDENTIALS aws_creds PROVIDER aws
+	OPTIONS (
+        access_key_id = '${AWS_ACCESS_KEY_ID}',
+        secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
+	);
+
+# Tests external iceberg table in s3 with credentials object.
+statement ok
+create external table iceberg_s3_creds_and_opts
+from iceberg
+credentials aws_creds
+options (
+	location 's3://${AWS_S3_BUCKET_NAME}/iceberg/tables/lineitem_partitioned',
+	region '${AWS_S3_REGION}'
+);
+
+query TI
+select l_shipmode, count(*)
+from iceberg_s3_creds_and_opts
+group by l_shipmode
+order by l_shipmode;
+----
+AIR        143
+FOB        136
+MAIL       144
+RAIL       130
+REG AIR    157
+SHIP       158
+TRUCK      132
+
+# Tests external iceberg table in s3 with explicit config options.
+statement ok
+create external table iceberg_s3_opts
+from iceberg
+options (
+	location 's3://${AWS_S3_BUCKET_NAME}/iceberg/tables/lineitem_partitioned',
+	access_key_id = '${AWS_ACCESS_KEY_ID}',
+    secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
+    region '${AWS_S3_REGION}'
+);
+
+query TI
+select l_shipmode, count(*)
+from iceberg_s3_opts
+group by l_shipmode
+order by l_shipmode;
+----
+AIR        143
+FOB        136
+MAIL       144
+RAIL       130
+REG AIR    157
+SHIP       158
+TRUCK      132

@@ -206,12 +206,12 @@ impl Scalar {
             (Self::Text(v), ArrowType::Utf8) => DfScalar::Utf8(Some(v)),
             (Self::Bytea(v), ArrowType::Binary) => DfScalar::Binary(Some(v)),
             (Self::Timestamp(v), ArrowType::Timestamp(TimeUnit::Microsecond, None)) => {
-                let nanos = v.timestamp_nanos();
+                let nanos = v.timestamp_nanos_opt().unwrap();
                 let micros = nanos_to_micros(nanos);
                 DfScalar::TimestampMicrosecond(Some(micros), None)
             }
             (Self::Timestamp(v), ArrowType::Timestamp(TimeUnit::Nanosecond, None)) => {
-                let nanos = v.timestamp_nanos();
+                let nanos = v.timestamp_nanos_opt().unwrap();
                 DfScalar::TimestampNanosecond(Some(nanos), None)
             }
             (
@@ -224,7 +224,7 @@ impl Scalar {
                         v, arrow_type
                     )));
                 }
-                let nanos = v.timestamp_nanos();
+                let nanos = v.timestamp_nanos_opt().unwrap();
                 let micros = nanos_to_micros(nanos);
                 DfScalar::TimestampMicrosecond(Some(micros), Some(tz.clone()))
             }
@@ -238,7 +238,7 @@ impl Scalar {
                         v, arrow_type
                     )));
                 }
-                let nanos = v.timestamp_nanos();
+                let nanos = v.timestamp_nanos_opt().unwrap();
                 DfScalar::TimestampNanosecond(Some(nanos), Some(tz.clone()))
             }
             (Self::Time(v), ArrowType::Time64(TimeUnit::Microsecond)) => {

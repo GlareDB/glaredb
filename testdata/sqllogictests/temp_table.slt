@@ -3,6 +3,14 @@
 statement ok
 create temp table abc (a int, b int, c int);
 
+# Duplicate name and if not exists
+
+statement error Duplicate object name
+create temp table abc (c float);
+
+statement ok
+create temp table if not exists abc (c float);
+
 query III
 select * from abc;
 ----
@@ -69,7 +77,18 @@ select a, b, c from abc;
 9	8	7
 
 statement ok
+create or replace temp table abc (a int, b int, c int, d int);
+
+statement ok
 create temp table t1 as select * from generate_series(1, 5, 2);
+
+statement ok
+insert into abc values (9, 8, 7, 6);
+
+query IIII rowsort
+select a, b, c, d from abc limit 1;
+----
+9	8	7 6
 
 query I rowsort
 select * from t1;
@@ -80,7 +99,7 @@ select * from t1;
 
 # Dropping temp tables
 
-statement error Missing database object
+statement error 
 drop table t1, t2;
 
 # t1 shouldn't be dropped
@@ -95,12 +114,49 @@ select * from t1
 halt
 
 statement ok
-drop table t1, current_session.abc;
+drop table t1, abc;
 
-# Both t1 and abc shouldn't exist.
+# Both t1 and temp abc shouldn't exist.
 
 statement error Unable to fetch table provider
-select * from abc;
+select * from current_session.abc;
 
 statement error Unable to fetch table provider
 select * from t1;
+
+# external abc should still exist
+statement ok
+select * from current_session.abc limit 1;
+
+
+
+# Create -> Replace -> Drop
+
+statement ok
+create temp table tmp1 as select 1;
+
+query I
+select * from tmp1;
+----
+1
+
+statement ok
+create or replace temp table tmp1 as select 1, 2;
+
+query II
+select * from tmp1;
+----
+1  2
+
+statement ok
+drop table tmp1;
+
+statement error Unable to fetch table provider
+select * from tmp1;
+
+# make sure it's dropped from the catalog
+
+query I
+select count(*) from glare_catalog.tables where table_name = 'tmp1';
+----
+0

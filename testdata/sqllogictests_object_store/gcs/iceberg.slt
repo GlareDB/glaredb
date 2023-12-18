@@ -1,0 +1,49 @@
+statement ok
+CREATE CREDENTIALS gcp_creds PROVIDER gcp
+	( service_account_key '${GCP_SERVICE_ACCOUNT_KEY}' );
+
+# Tests external iceberg table in gcs with credentials object.
+statement ok
+create external table iceberg_gcs_creds_and_opts
+from iceberg
+credentials gcp_creds
+options (
+	location 'gs://${GCS_BUCKET_NAME}/iceberg/tables/lineitem_partitioned'
+);
+
+query TI
+select l_shipmode, count(*)
+from iceberg_gcs_creds_and_opts
+group by l_shipmode
+order by l_shipmode;
+----
+AIR        143
+FOB        136
+MAIL       144
+RAIL       130
+REG AIR    157
+SHIP       158
+TRUCK      132
+
+# Tests external iceberg table in gcs with explicit config options.
+statement ok
+create external table iceberg_gcs_opts
+from iceberg
+options (
+	location 'gs://${GCS_BUCKET_NAME}/iceberg/tables/lineitem_partitioned',
+	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}'
+);
+
+query TI
+select l_shipmode, count(*)
+from iceberg_gcs_opts
+group by l_shipmode
+order by l_shipmode;
+----
+AIR        143
+FOB        136
+MAIL       144
+RAIL       130
+REG AIR    157
+SHIP       158
+TRUCK      132

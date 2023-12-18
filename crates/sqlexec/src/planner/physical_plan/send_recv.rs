@@ -39,7 +39,7 @@ pub struct SendRecvJoinExec {
     /// IDs for the associated send execs.
     ///
     /// Informational only.
-    broadcast_ids: Vec<Uuid>,
+    work_ids: Vec<Uuid>,
 }
 
 impl SendRecvJoinExec {
@@ -55,11 +55,11 @@ impl SendRecvJoinExec {
         input: Arc<dyn ExecutionPlan>,
         send_execs: Vec<ClientExchangeSendExec>,
     ) -> SendRecvJoinExec {
-        let broadcast_ids = send_execs.iter().map(|exec| exec.broadcast_id).collect();
+        let work_ids = send_execs.iter().map(|exec| exec.work_id).collect();
         SendRecvJoinExec {
             input,
             send_execs: Arc::new(Mutex::new(send_execs)),
-            broadcast_ids,
+            work_ids,
         }
     }
 }
@@ -92,7 +92,7 @@ impl ExecutionPlan for SendRecvJoinExec {
         Ok(Arc::new(SendRecvJoinExec {
             input: children[0].clone(),
             send_execs: self.send_execs.clone(),
-            broadcast_ids: self.broadcast_ids.clone(),
+            work_ids: self.work_ids.clone(),
         }))
     }
 
@@ -150,8 +150,8 @@ impl DisplayAs for SendRecvJoinExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "SendRecvExec broadcast_ids=[{}]",
-            self.broadcast_ids
+            "SendRecvExec work_ids=[{}]",
+            self.work_ids
                 .iter()
                 .map(|id| id.to_string())
                 .collect::<Vec<_>>()

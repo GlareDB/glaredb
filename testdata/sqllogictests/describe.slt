@@ -1,0 +1,31 @@
+# works with builtin tables
+
+query III rowsort
+describe glare_catalog.ssh_keys;
+----
+public_key Utf8 f
+ssh_tunnel_name Utf8 f
+ssh_tunnel_oid UInt32 f
+
+
+# and native tables
+statement ok
+create table t1 (a int, b int);
+
+query III rowsort
+describe t1;
+----
+a Int32 t
+b Int32 t
+
+
+# and temp tables 
+
+statement ok
+create temp table temp1 (a int, b int);
+
+query III rowsort
+describe temp1;
+----
+a Int32 t
+b Int32 t

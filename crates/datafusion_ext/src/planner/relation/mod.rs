@@ -251,7 +251,7 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
             schema: "public".into(),
             table: "csv_scan".into(),
         },
-        "json" | "jsonl" => OwnedTableReference::Partial {
+        "json" | "jsonl" | "ndjson" => OwnedTableReference::Partial {
             schema: "public".into(),
             table: "ndjson_scan".into(),
         },

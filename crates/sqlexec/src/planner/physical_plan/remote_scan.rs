@@ -3,17 +3,23 @@ use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
+use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::display::ProjectSchemaDisplay;
 use datafusion::physical_plan::expressions::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
 use datafusion::prelude::Expr;
+use datafusion_ext::metrics::AggregateMetricsStreamAdapter;
+use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use futures::{stream, TryStreamExt};
+use protogen::metastore::types::catalog::RuntimePreference;
 use std::any::Any;
 use std::fmt;
+use std::hash::Hash;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -28,6 +34,25 @@ pub enum ProviderReference {
     RemoteReference(Uuid),
     /// We have the provider ready to go.
     Provider(Arc<dyn TableProvider>),
+}
+
+impl PartialEq for ProviderReference {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::RemoteReference(id), Self::RemoteReference(other_id)) => id.eq(other_id),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for ProviderReference {}
+
+impl Hash for ProviderReference {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        if let Self::RemoteReference(id) = self {
+            id.hash(state)
+        }
+    }
 }
 
 impl fmt::Debug for ProviderReference {
@@ -51,6 +76,32 @@ pub struct RemoteScanExec {
     pub projection: Option<Vec<usize>>,
     pub filters: Vec<Expr>,
     pub limit: Option<usize>,
+    metrics: ExecutionPlanMetricsSet,
+}
+
+impl RemoteScanExec {
+    /// Returns a remote scan exec wrapped inside a [`RuntimeGroupExec`]
+    /// asserting that this can only be run on the remote side.
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(
+        provider: ProviderReference,
+        projected_schema: Arc<Schema>,
+        projection: Option<Vec<usize>>,
+        filters: Vec<Expr>,
+        limit: Option<usize>,
+    ) -> RuntimeGroupExec {
+        RuntimeGroupExec::new(
+            RuntimePreference::Remote,
+            Arc::new(Self {
+                provider,
+                projected_schema,
+                projection,
+                filters,
+                limit,
+                metrics: ExecutionPlanMetricsSet::new(),
+            }),
+        )
+    }
 }
 
 impl ExecutionPlan for RemoteScanExec {
@@ -88,6 +139,12 @@ impl ExecutionPlan for RemoteScanExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
+        if partition != 0 {
+            return Err(DataFusionError::Execution(
+                "RemoteScanExec only supports 1 partition".to_string(),
+            ));
+        }
+
         let provider = match &self.provider {
             ProviderReference::Provider(p) => p.clone(),
             ProviderReference::RemoteReference(_) => {
@@ -100,11 +157,13 @@ impl ExecutionPlan for RemoteScanExec {
         let projection = self.projection.clone();
         let filters = self.filters.clone();
         let limit = self.limit;
+        let metrics = self.metrics.clone();
+
         let stream = stream::once(async move {
             // Recreate a session state from a task context. This is a bit hacky,
             // but all we really need to care about is the object stores in runtime
             // (I believe).
-            let state = SessionState::with_config_rt(
+            let state = SessionState::new_with_config_rt(
                 context.session_config().clone(),
                 context.runtime_env(),
             );
@@ -115,7 +174,16 @@ impl ExecutionPlan for RemoteScanExec {
                 .scan(&state, projection.as_ref(), &filters, limit)
                 .await?;
 
-            plan.execute(partition, context)
+            // NOTE: RemoteScanExec can only have 1 partition since we don't
+            // know about the paritions until we "execute" the remote table
+            // which happens, unfortunately, during execution here (see above).
+            // Hence, to execute the complete plan we need to coalesce the plan.
+            let plan = CoalescePartitionsExec::new(plan);
+
+            let stream = plan.execute(0, context)?;
+            let stream = RecordBatchStreamAdapter::new(plan.schema(), stream);
+            let stream = AggregateMetricsStreamAdapter::new(stream, Arc::new(plan), 0, &metrics);
+            Ok(stream) as DataFusionResult<_>
         })
         .try_flatten();
 
@@ -125,6 +193,10 @@ impl ExecutionPlan for RemoteScanExec {
 
     fn statistics(&self) -> Statistics {
         Statistics::default()
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
     }
 }
 

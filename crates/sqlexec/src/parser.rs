@@ -4,8 +4,10 @@ use crate::errors::Result;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName};
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
-use datafusion::sql::sqlparser::parser::{Parser, ParserError};
+use datafusion::sql::sqlparser::parser::{Parser, ParserError, ParserOptions};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer, Word};
+use datafusion_ext::vars::Dialect;
+use prql_compiler::{compile, sql::Dialect as PrqlDialect, Options, Target};
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::fmt;
@@ -18,11 +20,18 @@ pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
     Ok(stmts)
 }
 
+pub fn parse_prql(prql: &str) -> Result<VecDeque<StatementWithExtensions>> {
+    let stmts = CustomParser::parse_prql(prql)?;
+    Ok(stmts)
+}
+
 /// DDL extension for GlareDB's external tables.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateExternalTableStmt {
     /// Name of the table.
     pub name: ObjectName,
+    /// replace if it exists
+    pub or_replace: bool,
     /// Optionally don't error if table exists.
     pub if_not_exists: bool,
     /// Data source type.
@@ -37,23 +46,21 @@ pub struct CreateExternalTableStmt {
 
 impl fmt::Display for CreateExternalTableStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CREATE EXTERNAL TABLE")?;
-        if self.if_not_exists {
-            write!(f, " IF NOT EXISTS")?;
-        }
-        write!(f, " {} FROM {}", self.name, self.datasource)?;
-
-        if let Some(tunnel) = &self.tunnel {
-            write!(f, " TUNNEL {tunnel}")?;
-        }
-
-        if let Some(creds) = &self.credentials {
-            write!(f, " CREDENTIALS {creds}")?;
-        }
+        write!(
+            f,
+            "CREATE {or_replace}EXTERNAL TABLE {if_not_exists}{name} FROM {datasource}{tunnel}{creds}",
+            or_replace = if self.or_replace { "OR REPLACE " } else { "" },
+            if_not_exists = if self.if_not_exists { "IF NOT EXISTS " } else { "" },
+            name = self.name,
+            datasource = self.datasource,
+            tunnel = self.tunnel.as_ref().map(|t| format!(" TUNNEL {}", t)).unwrap_or_default(),
+            creds = self.credentials.as_ref().map(|c| format!(" CREDENTIALS {}", c)).unwrap_or_default(),
+        )?;
 
         if !self.options.is_empty() {
             write!(f, " {}", self.options)?;
         }
+
         Ok(())
     }
 }
@@ -63,6 +70,8 @@ impl fmt::Display for CreateExternalTableStmt {
 pub struct CreateExternalDatabaseStmt {
     /// Name of the database as it exists in GlareDB.
     pub name: Ident,
+    /// replace if it exists
+    pub or_replace: bool,
     /// Optionally don't error if database exists.
     pub if_not_exists: bool,
     /// The data source type the connection is for.
@@ -77,23 +86,21 @@ pub struct CreateExternalDatabaseStmt {
 
 impl fmt::Display for CreateExternalDatabaseStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CREATE EXTERNAL DATABASE")?;
-        if self.if_not_exists {
-            write!(f, " IF NOT EXISTS")?;
-        }
-        write!(f, " {} FROM {}", self.name, self.datasource)?;
-
-        if let Some(tunnel) = &self.tunnel {
-            write!(f, " TUNNEL {tunnel}")?;
-        }
-
-        if let Some(creds) = &self.credentials {
-            write!(f, " CREDENTIALS {creds}")?;
-        }
+        write!(
+            f,
+            "CREATE {or_replace}EXTERNAL DATABASE {if_not_exists}{name} FROM {datasource}{tunnel}{creds}",
+            or_replace = if self.or_replace { "OR REPLACE " } else { "" },
+            if_not_exists = if self.if_not_exists { "IF NOT EXISTS " } else { "" },
+            name = self.name,
+            datasource = self.datasource,
+            tunnel = self.tunnel.as_ref().map(|t| format!(" TUNNEL {}", t)).unwrap_or_default(),
+            creds = self.credentials.as_ref().map(|c| format!(" CREDENTIALS {}", c)).unwrap_or_default(),
+        )?;
 
         if !self.options.is_empty() {
             write!(f, " {}", self.options)?;
         }
+
         Ok(())
     }
 }
@@ -120,17 +127,60 @@ impl fmt::Display for DropDatabaseStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AlterDatabaseRenameStmt {
-    pub name: Ident,
-    pub new_name: Ident,
+pub enum AlterDatabaseOperation {
+    RenameDatabase { new_name: Ident },
+    SetAccessMode { access_mode: Ident },
 }
 
-impl fmt::Display for AlterDatabaseRenameStmt {
+impl fmt::Display for AlterDatabaseOperation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ALTER DATABASE ")?;
-        write!(f, "{}", self.name)?;
-        write!(f, " RENAME TO ")?;
-        write!(f, "{}", self.new_name)
+        match self {
+            Self::RenameDatabase { new_name } => {
+                write!(f, "RENAME TO {new_name}")
+            }
+            Self::SetAccessMode { access_mode } => {
+                write!(f, "SET ACCESS_MODE TO {access_mode}")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlterDatabaseStmt {
+    pub name: Ident,
+    pub operation: AlterDatabaseOperation,
+}
+
+impl fmt::Display for AlterDatabaseStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ALTER DATABASE {} {}", self.name, self.operation)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AlterTableOperationExtension {
+    SetAccessMode { access_mode: Ident },
+}
+
+impl fmt::Display for AlterTableOperationExtension {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SetAccessMode { access_mode } => {
+                write!(f, "SET ACCESS_MODE TO {access_mode}")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlterTableStmtExtension {
+    pub name: ObjectName,
+    pub operation: AlterTableOperationExtension,
+}
+
+impl fmt::Display for AlterTableStmtExtension {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ALTER TABLE {} {}", self.name, self.operation)
     }
 }
 
@@ -222,13 +272,49 @@ pub struct CreateCredentialsStmt {
     pub options: StmtOptions,
     /// Optional comment (what the credentials are for).
     pub comment: String,
+    /// replace if it exists
+    pub or_replace: bool,
 }
 
 impl fmt::Display for CreateCredentialsStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "CREATE CREDENTIALS {} PROVIDER {}",
+            "CREATE {or_replace}CREDENTIALS {name} PROVIDER {provider}",
+            or_replace = if self.or_replace { "OR REPLACE " } else { "" },
+            name = self.name,
+            provider = self.provider
+        )?;
+        if !self.options.is_empty() {
+            write!(f, " {}", self.options)?;
+        }
+
+        if !self.comment.is_empty() {
+            write!(f, " COMMENT '{}'", self.comment)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateCredentialStmt {
+    /// Name of the credentials as it exists in GlareDB.
+    pub name: Ident,
+    /// The credentials provider.
+    pub provider: Ident,
+    /// Credentials specific options.
+    pub options: StmtOptions,
+    /// Optional comment (what the credentials are for).
+    pub comment: String,
+    /// replace if it exists
+    pub or_replace: bool,
+}
+
+impl fmt::Display for CreateCredentialStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "CREATE CREDENTIAL {} PROVIDER {}",
             self.name, self.provider
         )?;
         if !self.options.is_empty() {
@@ -319,14 +405,18 @@ pub enum StatementWithExtensions {
     CreateExternalDatabase(CreateExternalDatabaseStmt),
     /// Drop database extension.
     DropDatabase(DropDatabaseStmt),
-    // Alter database extension (rename).
-    AlterDatabaseRename(AlterDatabaseRenameStmt),
+    // Alter database extension.
+    AlterDatabase(AlterDatabaseStmt),
+    // Alter table extension.
+    AlterTableExtension(AlterTableStmtExtension),
     /// Create tunnel extension.
     CreateTunnel(CreateTunnelStmt),
     /// Drop tunnel extension.
     DropTunnel(DropTunnelStmt),
     /// Alter tunnel extension.
     AlterTunnel(AlterTunnelStmt),
+    /// Create credentials extension.
+    CreateCredential(CreateCredentialStmt),
     /// Create credentials extension.
     CreateCredentials(CreateCredentialsStmt),
     /// Drop credentials extension.
@@ -342,10 +432,12 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateExternalTable(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateExternalDatabase(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropDatabase(stmt) => write!(f, "{}", stmt),
-            StatementWithExtensions::AlterDatabaseRename(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::AlterDatabase(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::AlterTableExtension(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::AlterTunnel(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::CreateCredential(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateCredentials(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropCredentials(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CopyTo(stmt) => write!(f, "{}", stmt),
@@ -357,14 +449,55 @@ impl fmt::Display for StatementWithExtensions {
 pub struct CustomParser<'a> {
     parser: Parser<'a>,
 }
+impl CustomParser<'_> {
+    const PRQL_OPTIONS: &'static Options = &Options {
+        format: false,
+        target: Target::Sql(Some(PrqlDialect::GlareDb)),
+        signature_comment: false,
+        color: false,
+    };
+    const SQL_DIALECT: &'static GenericDialect = &GenericDialect {};
+
+    pub fn new(mut sql: &str, dialect: Dialect) -> Result<CustomParser<'_>, ParserError> {
+        let tokens = Tokenizer::new(Self::SQL_DIALECT, sql).tokenize()?;
+        let mut parser = Parser::new(Self::SQL_DIALECT)
+            .with_options(ParserOptions {
+                trailing_commas: true,
+                ..Default::default()
+            })
+            .with_tokens(tokens);
+        if let Dialect::Prql = dialect {
+            sql = sql.trim_end_matches(';');
+            // Special case for SET statements, which are not supported by PRQL.
+            if parser.parse_keyword(Keyword::SET) {
+                parser.prev_token();
+            } else {
+                let opts = &Self::PRQL_OPTIONS;
+                let s = compile(sql, opts).map_err(|e| {
+                    ParserError::ParserError(format!("Error compiling PRQL: {}", e))
+                })?;
+                let tokens = Tokenizer::new(Self::SQL_DIALECT, &s).tokenize()?;
+                parser = parser.with_tokens(tokens);
+            }
+        }
+        Ok(CustomParser { parser })
+    }
+}
 
 impl<'a> CustomParser<'a> {
     pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>, ParserError> {
-        let dialect = GenericDialect {};
-        let tokens = Tokenizer::new(&dialect, sql).tokenize()?;
-        let mut parser = CustomParser {
-            parser: Parser::new(&dialect).with_tokens(tokens),
-        };
+        Self::parse(sql, Dialect::Sql)
+    }
+
+    pub fn parse_prql(sql: &str) -> Result<VecDeque<StatementWithExtensions>, ParserError> {
+        Self::parse(sql, Dialect::Prql)
+    }
+
+    pub fn parse(
+        sql: &str,
+        dialect: Dialect,
+    ) -> Result<VecDeque<StatementWithExtensions>, ParserError> {
+        let mut parser = CustomParser::new(sql, dialect)?;
 
         let mut stmts = VecDeque::new();
         let mut expecting_statement_delimiter = false;
@@ -420,12 +553,14 @@ impl<'a> CustomParser<'a> {
 
     /// Parse a SQL CREATE statement
     fn parse_create(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let or_replace = self.parser.parse_keywords(&[Keyword::OR, Keyword::REPLACE]);
+
         if self.parser.parse_keyword(Keyword::EXTERNAL) {
             // CREATE EXTERNAL ...
             if self.parser.parse_keyword(Keyword::TABLE) {
-                self.parse_create_external_table()
+                self.parse_create_external_table(or_replace)
             } else if self.parser.parse_keyword(Keyword::DATABASE) {
-                self.parse_create_external_database()
+                self.parse_create_external_database(or_replace)
             } else {
                 let next = self.parser.peek_token().token;
                 Err(ParserError::ParserError(format!(
@@ -436,11 +571,21 @@ impl<'a> CustomParser<'a> {
         } else if self.consume_token(&Token::make_keyword("TUNNEL")) {
             // CREATE TUNNEL ...
             self.parse_create_tunnel()
-        } else if self.consume_token(&Token::make_keyword("CREDENTIALS")) {
+        } else if self.consume_token(&Token::make_keyword("CREDENTIAL")) {
+            // CREATE CREDENTIAL ...
+            self.parse_create_credentials(false, or_replace)
+        } else if self.parser.parse_keyword(Keyword::CREDENTIALS) {
             // CREATE CREDENTIALS ...
-            self.parse_create_credentials()
+            self.parse_create_credentials(true, or_replace)
         } else {
             // Fall back to underlying parser.
+
+            if or_replace {
+                // backtrack to include OR REPLACE in the statement passed to the underlying parser
+                self.parser.prev_token();
+                self.parser.prev_token();
+            }
+
             Ok(StatementWithExtensions::Statement(
                 self.parser.parse_create()?,
             ))
@@ -452,6 +597,8 @@ impl<'a> CustomParser<'a> {
         if self.parser.parse_keyword(Keyword::DATABASE) {
             // ALTER DATABASE ...
             self.parse_alter_database()
+        } else if self.parser.parse_keyword(Keyword::TABLE) {
+            self.parse_alter_table()
         } else if self.consume_token(&Token::make_keyword("TUNNEL")) {
             // ALTER TUNNEL ...
             self.parse_alter_tunnel()
@@ -508,7 +655,10 @@ impl<'a> CustomParser<'a> {
         )))
     }
 
-    fn parse_create_external_table(&mut self) -> Result<StatementWithExtensions, ParserError> {
+    fn parse_create_external_table(
+        &mut self,
+        or_replace: bool,
+    ) -> Result<StatementWithExtensions, ParserError> {
         let if_not_exists =
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
@@ -531,6 +681,7 @@ impl<'a> CustomParser<'a> {
         Ok(StatementWithExtensions::CreateExternalTable(
             CreateExternalTableStmt {
                 name,
+                or_replace,
                 if_not_exists,
                 datasource,
                 tunnel,
@@ -540,7 +691,10 @@ impl<'a> CustomParser<'a> {
         ))
     }
 
-    fn parse_create_external_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
+    fn parse_create_external_database(
+        &mut self,
+        or_replace: bool,
+    ) -> Result<StatementWithExtensions, ParserError> {
         let if_not_exists =
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
@@ -565,6 +719,7 @@ impl<'a> CustomParser<'a> {
             CreateExternalDatabaseStmt {
                 name,
                 if_not_exists,
+                or_replace,
                 datasource,
                 tunnel,
                 credentials,
@@ -596,7 +751,11 @@ impl<'a> CustomParser<'a> {
         }))
     }
 
-    fn parse_create_credentials(&mut self) -> Result<StatementWithExtensions, ParserError> {
+    fn parse_create_credentials(
+        &mut self,
+        deprecated: bool,
+        or_replace: bool,
+    ) -> Result<StatementWithExtensions, ParserError> {
         let name = self.parser.parse_identifier()?;
         validate_ident(&name)?;
 
@@ -613,14 +772,25 @@ impl<'a> CustomParser<'a> {
             "".to_owned()
         };
 
-        Ok(StatementWithExtensions::CreateCredentials(
-            CreateCredentialsStmt {
+        let stmt = if deprecated {
+            StatementWithExtensions::CreateCredentials(CreateCredentialsStmt {
                 name,
                 provider,
                 options,
                 comment,
-            },
-        ))
+                or_replace,
+            })
+        } else {
+            StatementWithExtensions::CreateCredential(CreateCredentialStmt {
+                name,
+                provider,
+                options,
+                comment,
+                or_replace,
+            })
+        };
+
+        Ok(stmt)
     }
 
     fn parse_object_type(&mut self, object_type: &str) -> Result<Ident, ParserError> {
@@ -682,7 +852,7 @@ impl<'a> CustomParser<'a> {
 
             let value = self.parse_options_value()?;
 
-            options.insert(key, value);
+            options.insert(key.to_lowercase(), value);
             let comma = self.parser.consume_token(&Token::Comma);
 
             if self.parser.consume_token(&Token::RParen) {
@@ -821,15 +991,56 @@ impl<'a> CustomParser<'a> {
         let name = self.parser.parse_identifier()?;
         validate_ident(&name)?;
 
-        if !self.parser.parse_keywords(&[Keyword::RENAME, Keyword::TO]) {
-            return self.expected("RENAME TO", self.parser.peek_token().token);
-        }
+        let operation = if self.parser.parse_keywords(&[Keyword::RENAME, Keyword::TO]) {
+            let new_name = self.parser.parse_identifier()?;
+            validate_ident(&new_name)?;
+            AlterDatabaseOperation::RenameDatabase { new_name }
+        } else if self.parser.parse_keyword(Keyword::SET) {
+            self.expect_token(&Token::make_keyword("ACCESS_MODE"))?;
+            self.expect_token(&Token::make_keyword("TO"))?;
 
-        let new_name = self.parser.parse_identifier()?;
-        validate_ident(&new_name)?;
+            let access_mode = self.parser.parse_identifier()?;
+            AlterDatabaseOperation::SetAccessMode { access_mode }
+        } else {
+            return self.expected(
+                "an alter database operation",
+                self.parser.peek_token().token,
+            );
+        };
 
-        Ok(StatementWithExtensions::AlterDatabaseRename(
-            AlterDatabaseRenameStmt { name, new_name },
+        Ok(StatementWithExtensions::AlterDatabase(AlterDatabaseStmt {
+            name,
+            operation,
+        }))
+    }
+
+    fn parse_alter_table(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
+        let only = self.parser.parse_keyword(Keyword::ONLY);
+        let name = self.parser.parse_object_name()?;
+
+        let operation = if self.parser.parse_keyword(Keyword::SET) {
+            self.expect_token(&Token::make_keyword("ACCESS_MODE"))?;
+            self.expect_token(&Token::make_keyword("TO"))?;
+
+            let access_mode = self.parser.parse_identifier()?;
+            AlterTableOperationExtension::SetAccessMode { access_mode }
+        } else {
+            let operations = self
+                .parser
+                .parse_comma_separated(Parser::parse_alter_table_operation)?;
+            return Ok(StatementWithExtensions::Statement(
+                ast::Statement::AlterTable {
+                    name,
+                    if_exists,
+                    only,
+                    operations,
+                },
+            ));
+        };
+
+        Ok(StatementWithExtensions::AlterTableExtension(
+            AlterTableStmtExtension { name, operation },
         ))
     }
 
@@ -894,19 +1105,21 @@ mod tests {
         );
         let mut stmt = CreateExternalTableStmt {
             name: ObjectName(vec![Ident::new("test")]),
+            or_replace: true,
             if_not_exists: false,
             datasource: Ident::new("postgres"),
             tunnel: None,
             credentials: None,
             options: StmtOptions::new(options),
         };
+        println!("{:?}", stmt);
 
         let out = stmt.to_string();
-        assert_eq!("CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public', table = SECRET pg_table)", out);
+        assert_eq!("CREATE OR REPLACE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public', table = SECRET pg_table)", out);
 
         stmt.tunnel = Some(Ident::new("ssh_tunnel"));
         let out = stmt.to_string();
-        assert_eq!("CREATE EXTERNAL TABLE test FROM postgres TUNNEL ssh_tunnel OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public', table = SECRET pg_table)", out);
+        assert_eq!("CREATE OR REPLACE EXTERNAL TABLE test FROM postgres TUNNEL ssh_tunnel OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public', table = SECRET pg_table)", out);
     }
 
     #[test]
@@ -931,6 +1144,7 @@ mod tests {
 
         let mut parsed_stmt = CreateExternalTableStmt {
             name: ObjectName(vec![Ident::new("test")]),
+            or_replace: false,
             if_not_exists: false,
             datasource: Ident::new("postgres"),
             tunnel: None,
@@ -964,6 +1178,8 @@ mod tests {
             "CREATE EXTERNAL TABLE test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
             "CREATE EXTERNAL TABLE test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+            "CREATE OR REPLACE EXTERNAL TABLE test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
+            "CREATE EXTERNAL TABLE IF NOT EXISTS test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres', schema = 'public')",
         ];
 
         for test_case in test_cases {
@@ -981,10 +1197,12 @@ mod tests {
             "CREATE EXTERNAL DATABASE qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
             "CREATE EXTERNAL DATABASE IF NOT EXISTS qa FROM postgres OPTIONS (host = 'localhost', user = 'user')",
             "CREATE EXTERNAL DATABASE qa FROM postgres TUNNEL my_ssh OPTIONS (host = 'localhost', user = 'user')",
+            "CREATE OR REPLACE EXTERNAL DATABASE qa FROM postgres TUNNEL my_ssh OPTIONS (host = 'localhost', user = 'user')",
             "CREATE EXTERNAL DATABASE IF NOT EXISTS qa FROM postgres TUNNEL my_ssh OPTIONS (host = 'localhost', user = 'user')",
             "CREATE EXTERNAL DATABASE test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres')",
             "CREATE EXTERNAL DATABASE IF NOT EXISTS test FROM postgres CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres')",
             "CREATE EXTERNAL DATABASE test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres')",
+            "CREATE OR REPLACE EXTERNAL DATABASE test FROM postgres TUNNEL my_ssh CREDENTIALS my_pg OPTIONS (postgres_conn = 'host=localhost user=postgres')",
         ];
 
         for test_case in test_cases {
@@ -1088,7 +1306,23 @@ mod tests {
 
     #[test]
     fn alter_database_roundtrips() {
-        let test_cases = ["ALTER DATABASE my_db RENAME TO your_db"];
+        let test_cases = [
+            "ALTER DATABASE my_db RENAME TO your_db",
+            "ALTER DATABASE my_db SET ACCESS_MODE TO readwrite",
+        ];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
+    #[test]
+    fn alter_table_extension_roundtrips() {
+        let test_cases = ["ALTER TABLE my_db SET ACCESS_MODE TO readonly"];
 
         for test_case in test_cases {
             let stmt = CustomParser::parse_sql(test_case)

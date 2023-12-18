@@ -81,7 +81,9 @@ pub fn validate_database_creds_support(database: &str, creds: &str) -> Result<()
     if matches!(
         (database, creds),
         // Google cloud
-        (DatabaseOptions::BIGQUERY, CredentialsOptions::GCP)
+        (DatabaseOptions::BIGQUERY, CredentialsOptions::GCP) |
+        // Delta
+        (DatabaseOptions::DELTA, CredentialsOptions::GCP | CredentialsOptions::AWS | CredentialsOptions::AZURE)
     ) {
         Ok(())
     } else {
@@ -102,7 +104,11 @@ pub fn validate_table_creds_support(table: &str, creds: &str) -> Result<()> {
         (TableOptions::GCS, CredentialsOptions::GCP) |
         (TableOptions::BIGQUERY, CredentialsOptions::GCP) |
         // AWS
-        (TableOptions::S3_STORAGE, CredentialsOptions::AWS)
+        (TableOptions::S3_STORAGE, CredentialsOptions::AWS) |
+        // Azure
+        (TableOptions::AZURE, CredentialsOptions::AZURE) |
+        // Delta & Iceberg & Lance
+        (TableOptions::DELTA | TableOptions::ICEBERG | TableOptions::LANCE, CredentialsOptions::GCP | CredentialsOptions::AWS | CredentialsOptions::AZURE )
     ) {
         Ok(())
     } else {
@@ -121,7 +127,9 @@ pub fn validate_copyto_dest_creds_support(dest: &str, creds: &str) -> Result<()>
         // Google cloud
         (CopyToDestinationOptions::GCS, CredentialsOptions::GCP) |
         // Aws
-        (CopyToDestinationOptions::S3_STORAGE, CredentialsOptions::AWS)
+        (CopyToDestinationOptions::S3_STORAGE, CredentialsOptions::AWS) |
+        // Azure
+        (CopyToDestinationOptions::AZURE, CredentialsOptions::AZURE)
     ) {
         Ok(())
     } else {
@@ -141,7 +149,9 @@ pub fn validate_copyto_dest_format_support(dest: &str, format: &str) -> Result<(
         // Google cloud
         (CopyToDestinationOptions::GCS, _all) |
         // AWS
-        (CopyToDestinationOptions::S3_STORAGE, _all)
+        (CopyToDestinationOptions::S3_STORAGE, _all) |
+        // Azure
+        (CopyToDestinationOptions::AZURE, _all)
     ) {
         Ok(())
     } else {

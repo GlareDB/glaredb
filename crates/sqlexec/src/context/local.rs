@@ -1,12 +1,12 @@
-use crate::background_jobs::JobRunner;
+use crate::distexec::scheduler::Scheduler;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
-use crate::metastore::catalog::{CatalogMutator, SessionCatalog, TempCatalog};
-use crate::metrics::SessionMetrics;
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::common::SchemaReference;
 use datafusion::execution::context::{
@@ -14,12 +14,13 @@ use datafusion::execution::context::{
 };
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
-use datafusion::variable::VarType;
+use datafusion_ext::session_metrics::SessionMetricsHandler;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use pgrepr::format::Format;
 use pgrepr::types::arrow_to_pg_type;
 
+use datafusion::variable::VarType;
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromClient,
 };
@@ -30,6 +31,7 @@ use std::slice;
 use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
 
+use datafusion_ext::runtime::group_pull_up::RuntimeGroupPullUp;
 use uuid::Uuid;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
@@ -41,6 +43,8 @@ use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 /// switched out to one that's able to generate plans to send to remote
 /// contexts.
 pub struct LocalSessionContext {
+    /// The id of the database
+    database_id: Uuid,
     /// The execution client for remote sessions.
     exec_client: Option<RemoteSessionClient>,
     /// Database catalog.
@@ -51,14 +55,14 @@ pub struct LocalSessionContext {
     prepared: HashMap<String, PreparedStatement>,
     /// Bound portals.
     portals: HashMap<String, Portal>,
-    /// Track query metrics for this session.
-    metrics: SessionMetrics,
+    /// Handler to push metrics into tracker.
+    metrics_handler: SessionMetricsHandler,
     /// Datafusion session context used for planning and execution.
     df_ctx: DfSessionContext,
     /// Read tables from the environment.
     env_reader: Option<Box<dyn EnvironmentReader>>,
-    /// Job runner for background jobs.
-    _background_jobs: JobRunner,
+    /// Task scheduler.
+    task_scheduler: Scheduler,
 }
 
 impl LocalSessionContext {
@@ -69,33 +73,39 @@ impl LocalSessionContext {
         catalog: SessionCatalog,
         catalog_mutator: CatalogMutator,
         native_tables: NativeTableStorage,
-        metrics: SessionMetrics,
+        metrics_handler: SessionMetricsHandler,
         spill_path: Option<PathBuf>,
-        background_jobs: JobRunner,
+        task_scheduler: Scheduler,
     ) -> Result<LocalSessionContext> {
+        let database_id = vars.database_id();
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(&vars);
 
         let mut conf: SessionConfig = opts.into();
+        // TODO: Can we remove the temp catalog here? It's pretty disgusting,
+        // but it's needed for the create temp table execution plan.
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(TempCatalog::default()));
-        let state = SessionState::with_config_rt(conf, Arc::new(runtime));
+            .with_extension(Arc::new(catalog.get_temp_catalog().clone()));
 
-        let df_ctx = DfSessionContext::with_state(state);
+        let state = SessionState::new_with_config_rt(conf, Arc::new(runtime))
+            .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
+
+        let df_ctx = DfSessionContext::new_with_state(state);
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(LocalSessionContext {
+            database_id,
             exec_client: None,
             catalog,
             tables: native_tables,
             prepared: HashMap::new(),
             portals: HashMap::new(),
-            metrics,
+            metrics_handler,
             df_ctx,
             env_reader: None,
-            _background_jobs: background_jobs,
+            task_scheduler,
         })
     }
 
@@ -120,32 +130,26 @@ impl LocalSessionContext {
         // connected to (likely running in-memory).
         let vars = self
             .get_session_vars()
-            .with_remote_session_id(client.session_id(), VarType::System);
+            .with_database_id(client.database_id(), VarType::System);
         let runtime = self.df_ctx.runtime_env();
         let opts = new_datafusion_session_config_opts(&vars);
         let mut conf: SessionConfig = opts.into();
+        // TODO: Just like above, the temp catalog here is kinda gross.
         conf = conf
             .with_extension(Arc::new(CatalogMutator::empty()))
             .with_extension(Arc::new(self.get_native_tables().clone()))
-            .with_extension(Arc::new(TempCatalog::default()));
-        let state = SessionState::with_config_rt(conf, runtime);
+            .with_extension(Arc::new(catalog.get_temp_catalog().clone()));
 
-        let df_ctx = DfSessionContext::with_state(state);
+        let state = SessionState::new_with_config_rt(conf, runtime)
+            .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
+
+        let df_ctx = DfSessionContext::new_with_state(state);
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         self.exec_client = Some(client.clone());
         self.df_ctx = df_ctx;
         self.catalog = catalog;
 
-        Ok(())
-    }
-
-    /// Close this session. This is only relevant for sessions connecting to
-    /// remote clients.
-    pub async fn close(&mut self) -> Result<()> {
-        if let Some(mut client) = self.exec_client() {
-            client.close_session().await?;
-        }
         Ok(())
     }
 
@@ -157,24 +161,20 @@ impl LocalSessionContext {
         self.env_reader.as_deref()
     }
 
-    pub fn get_metrics(&self) -> &SessionMetrics {
-        &self.metrics
+    pub fn get_metrics_handler(&self) -> SessionMetricsHandler {
+        self.metrics_handler.clone()
     }
 
-    pub fn get_metrics_mut(&mut self) -> &mut SessionMetrics {
-        &mut self.metrics
+    pub fn get_database_id(&self) -> Uuid {
+        self.database_id
     }
 
     pub fn get_native_tables(&self) -> &NativeTableStorage {
         &self.tables
     }
 
-    pub fn get_temp_objects(&self) -> Arc<TempCatalog> {
-        self.df_ctx
-            .state()
-            .config()
-            .get_extension::<TempCatalog>()
-            .expect("local contexts should have temp objects")
+    pub fn get_task_scheduler(&self) -> Scheduler {
+        self.task_scheduler.clone()
     }
 
     /// Return the DF session context.
@@ -214,6 +214,15 @@ impl LocalSessionContext {
         &mut self.catalog
     }
 
+    pub async fn maybe_refresh_state(&mut self) -> Result<()> {
+        let mutator = self.catalog_mutator();
+        let client = mutator.get_metastore_client();
+        self.catalog
+            .maybe_refresh_state(client, self.get_session_vars().force_catalog_refresh())
+            .await
+            .map_err(ExecError::from)
+    }
+
     /// Create a prepared statement.
     pub async fn prepare_statement(
         &mut self,
@@ -222,12 +231,7 @@ impl LocalSessionContext {
         _params: Vec<i32>, // TODO: We can use these for providing types for parameters.
     ) -> Result<()> {
         // Refresh the cached catalog state if necessary
-        let mutator = self.catalog_mutator();
-        let client = mutator.get_metastore_client();
-
-        self.catalog
-            .maybe_refresh_state(client, self.get_session_vars().force_catalog_refresh())
-            .await?;
+        self.maybe_refresh_state().await?;
 
         // Unnamed (empty string) prepared statements can be overwritten
         // whenever. Named prepared statements must be explicitly removed before
@@ -476,7 +480,19 @@ pub struct Portal {
 impl Portal {
     /// Returns an iterator over the fields of output schema (if any).
     pub fn output_fields(&self) -> Option<OutputFields<'_>> {
-        self.stmt.output_fields()
+        self.stmt.output_fields().map(|mut output_fields| {
+            output_fields.result_formats = Some(self.result_formats.as_slice().iter());
+            output_fields
+        })
+    }
+    pub fn logical_plan(&self) -> Option<&LogicalPlan> {
+        self.stmt.plan.as_ref()
+    }
+    pub fn input_paramaters(&self) -> Option<&HashMap<String, Option<(PgType, DataType)>>> {
+        self.stmt.input_paramaters()
+    }
+    pub fn output_schema(&self) -> Option<&ArrowSchema> {
+        self.stmt.output_schema.as_ref()
     }
 }
 

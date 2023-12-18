@@ -12,6 +12,8 @@ syntax = "proto3";
 
 package metastore.options;
 
+option go_package = "github.com/glaredb/cloud/pkg/protogen/metastore";
+
 import "common/arrow.proto";
 
 // Some options allow us to know the columns in tables upfront (particularly the
@@ -43,8 +45,9 @@ message DatabaseOptions {
     DatabaseOptionsMongo mongo = 6;
     DatabaseOptionsSnowflake snowflake = 7;
     DatabaseOptionsDeltaLake delta = 8;
+    DatabaseOptionsSqlServer sql_server = 9;
   }
-  // next: 9
+  // next: 10
 }
 
 message DatabaseOptionsInternal {}
@@ -62,6 +65,8 @@ message DatabaseOptionsMysql { string connection_string = 1; }
 
 message DatabaseOptionsMongo { string connection_string = 1; }
 
+message DatabaseOptionsSqlServer { string connection_string = 1; }
+
 message DatabaseOptionsSnowflake {
   string account_name = 1;
   string login_name = 2;
@@ -73,12 +78,7 @@ message DatabaseOptionsSnowflake {
 
 message DatabaseOptionsDeltaLake {
   oneof catalog { DeltaLakeUnityCatalog unity = 1; }
-
-  // TODO: Move these out into a separate "bucket auth" type. That could be
-  // shared with the other object storage stuff.
-  string access_key_id = 2;
-  string secret_access_key = 3;
-  string region = 4;
+  StorageOptions storage_options = 2;
 }
 
 // Parameters specific to the unity catalog.
@@ -87,6 +87,8 @@ message DeltaLakeUnityCatalog {
   string databricks_access_token = 2;
   string workspace_url = 3;
 }
+
+message StorageOptions { map<string, string> inner = 1; }
 
 // Table options
 
@@ -102,8 +104,13 @@ message TableOptions {
     TableOptionsMysql mysql = 8;
     TableOptionsMongo mongo = 9;
     TableOptionsSnowflake snowflake = 10;
+    TableOptionsObjectStore delta = 11;
+    TableOptionsObjectStore iceberg = 12;
+    TableOptionsObjectStore azure = 13;
+    TableOptionsSqlServer sql_server = 14;
+    TableOptionsObjectStore lance = 15;
   }
-  // next: 11
+  // next: 16
 }
 
 message TableOptionsInternal {
@@ -173,6 +180,26 @@ message TableOptionsSnowflake {
   string table_name = 8;
 }
 
+message TableOptionsObjectStore {
+  string location = 1;
+
+  // Storage options for use when creating the object store client.
+  StorageOptions storage_options = 2;
+
+  // File type. For data lakes (delta and iceberg), this should be empty.
+  optional string file_type = 3;
+
+  // Optional compression used. For data lakes (delta and iceberg), this should
+  // be empty.
+  optional string compression = 4;
+}
+
+message TableOptionsSqlServer {
+  string connection_string = 1;
+  string schema = 2;
+  string table = 3;
+}
+
 // Tunnel options
 
 message TunnelOptions {
@@ -199,6 +226,7 @@ message CredentialsOptions {
     CredentialsOptionsDebug debug = 1;
     CredentialsOptionsGcp gcp = 2;
     CredentialsOptionsAws aws = 3;
+    CredentialsOptionsAzure azure = 4;
   }
 }
 
@@ -209,4 +237,11 @@ message CredentialsOptionsGcp { string service_account_key = 1; }
 message CredentialsOptionsAws {
   string access_key_id = 1;
   string secret_access_key = 2;
+}
+
+message CredentialsOptionsAzure {
+  string account_name = 1;
+  string access_key = 2;
+  // TODO: We may want to allow the user to give us just the "connection string"
+  // which contains the account and access key.
 }

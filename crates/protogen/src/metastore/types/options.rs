@@ -7,6 +7,7 @@ use datafusion::{
     common::DFSchemaRef,
 };
 use proptest_derive::Arbitrary;
+use std::collections::BTreeMap;
 use std::fmt;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
@@ -90,17 +91,19 @@ pub enum DatabaseOptions {
     Mongo(DatabaseOptionsMongo),
     Snowflake(DatabaseOptionsSnowflake),
     Delta(DatabaseOptionsDeltaLake),
+    SqlServer(DatabaseOptionsSqlServer),
 }
 
 impl DatabaseOptions {
-    pub const INTERNAL: &str = "internal";
-    pub const DEBUG: &str = "debug";
-    pub const POSTGRES: &str = "postgres";
-    pub const BIGQUERY: &str = "bigquery";
-    pub const MYSQL: &str = "mysql";
-    pub const MONGO: &str = "mongo";
-    pub const SNOWFLAKE: &str = "snowflake";
-    pub const DELTA: &str = "delta";
+    pub const INTERNAL: &'static str = "internal";
+    pub const DEBUG: &'static str = "debug";
+    pub const POSTGRES: &'static str = "postgres";
+    pub const BIGQUERY: &'static str = "bigquery";
+    pub const MYSQL: &'static str = "mysql";
+    pub const MONGO: &'static str = "mongo";
+    pub const SNOWFLAKE: &'static str = "snowflake";
+    pub const DELTA: &'static str = "delta";
+    pub const SQL_SERVER: &'static str = "sql_server";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -112,6 +115,7 @@ impl DatabaseOptions {
             DatabaseOptions::Mongo(_) => Self::MONGO,
             DatabaseOptions::Snowflake(_) => Self::SNOWFLAKE,
             DatabaseOptions::Delta(_) => Self::DELTA,
+            DatabaseOptions::SqlServer(_) => Self::SQL_SERVER,
         }
     }
 }
@@ -142,6 +146,9 @@ impl TryFrom<options::database_options::Options> for DatabaseOptions {
                 DatabaseOptions::Snowflake(v.try_into()?)
             }
             options::database_options::Options::Delta(v) => DatabaseOptions::Delta(v.try_into()?),
+            options::database_options::Options::SqlServer(v) => {
+                DatabaseOptions::SqlServer(v.try_into()?)
+            }
         })
     }
 }
@@ -166,6 +173,9 @@ impl From<DatabaseOptions> for options::database_options::Options {
                 options::database_options::Options::Snowflake(v.into())
             }
             DatabaseOptions::Delta(v) => options::database_options::Options::Delta(v.into()),
+            DatabaseOptions::SqlServer(v) => {
+                options::database_options::Options::SqlServer(v.into())
+            }
         }
     }
 }
@@ -302,6 +312,28 @@ impl From<DatabaseOptionsMongo> for options::DatabaseOptionsMongo {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct DatabaseOptionsSqlServer {
+    pub connection_string: String,
+}
+
+impl TryFrom<options::DatabaseOptionsSqlServer> for DatabaseOptionsSqlServer {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DatabaseOptionsSqlServer) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsSqlServer {
+            connection_string: value.connection_string,
+        })
+    }
+}
+
+impl From<DatabaseOptionsSqlServer> for options::DatabaseOptionsSqlServer {
+    fn from(value: DatabaseOptionsSqlServer) -> Self {
+        options::DatabaseOptionsSqlServer {
+            connection_string: value.connection_string,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsSnowflake {
     pub account_name: String,
     pub login_name: String,
@@ -341,20 +373,17 @@ impl From<DatabaseOptionsSnowflake> for options::DatabaseOptionsSnowflake {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsDeltaLake {
     pub catalog: DeltaLakeCatalog,
-    pub access_key_id: String,
-    pub secret_access_key: String,
-    pub region: String,
+    pub storage_options: StorageOptions,
 }
 
 impl TryFrom<options::DatabaseOptionsDeltaLake> for DatabaseOptionsDeltaLake {
     type Error = ProtoConvError;
     fn try_from(value: options::DatabaseOptionsDeltaLake) -> Result<Self, Self::Error> {
         let catalog: DeltaLakeCatalog = value.catalog.required("catalog")?;
+        let storage_options: StorageOptions = value.storage_options.required("storage_options")?;
         Ok(DatabaseOptionsDeltaLake {
             catalog,
-            access_key_id: value.access_key_id,
-            secret_access_key: value.secret_access_key,
-            region: value.region,
+            storage_options,
         })
     }
 }
@@ -363,9 +392,7 @@ impl From<DatabaseOptionsDeltaLake> for options::DatabaseOptionsDeltaLake {
     fn from(value: DatabaseOptionsDeltaLake) -> Self {
         options::DatabaseOptionsDeltaLake {
             catalog: Some(value.catalog.into()),
-            access_key_id: value.access_key_id,
-            secret_access_key: value.secret_access_key,
-            region: value.region,
+            storage_options: Some(value.storage_options.into()),
         }
     }
 }
@@ -424,6 +451,50 @@ impl From<DeltaLakeUnityCatalog> for options::DeltaLakeUnityCatalog {
     }
 }
 
+/// Options for a generic `ObjectStore`; to make them as versatile and compact
+/// as possible it's just a wrapper for a map, like in `delta-rs`, except here
+/// it's a `BTreeMap` instead of a `HashMap`, since the former is `Hash` unlike
+/// the latter. This enables us to capture a variety of different (potentially
+/// optional) parameters across different object stores and use-cases.
+///
+/// The following is a list of supported config options in `object_store` crate
+/// by object store type:
+///
+/// - [Azure options](https://docs.rs/object_store/latest/object_store/azure/enum.AzureConfigKey.html#variants)
+/// - [S3 options](https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html#variants)
+/// - [Google options](https://docs.rs/object_store/latest/object_store/gcp/enum.GoogleConfigKey.html#variants)
+#[derive(Debug, Default, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct StorageOptions {
+    pub inner: BTreeMap<String, String>,
+}
+
+impl StorageOptions {
+    /// Create a new set of storage options from some iterator of (k, v).
+    pub fn new_from_iter<K, V, I>(iter: I) -> Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+        I: IntoIterator<Item = (K, V)>,
+    {
+        let iter = iter.into_iter().map(|(k, v)| (k.into(), v.into()));
+        let inner = BTreeMap::from_iter(iter);
+        StorageOptions { inner }
+    }
+}
+
+impl TryFrom<options::StorageOptions> for StorageOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: options::StorageOptions) -> Result<Self, Self::Error> {
+        Ok(StorageOptions { inner: value.inner })
+    }
+}
+
+impl From<StorageOptions> for options::StorageOptions {
+    fn from(value: StorageOptions) -> Self {
+        options::StorageOptions { inner: value.inner }
+    }
+}
+
 // Table options
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
@@ -438,19 +509,29 @@ pub enum TableOptions {
     S3(TableOptionsS3),
     Mongo(TableOptionsMongo),
     Snowflake(TableOptionsSnowflake),
+    Delta(TableOptionsObjectStore),
+    Iceberg(TableOptionsObjectStore),
+    Azure(TableOptionsObjectStore),
+    SqlServer(TableOptionsSqlServer),
+    Lance(TableOptionsObjectStore),
 }
 
 impl TableOptions {
-    pub const INTERNAL: &str = "internal";
-    pub const DEBUG: &str = "debug";
-    pub const POSTGRES: &str = "postgres";
-    pub const BIGQUERY: &str = "bigquery";
-    pub const MYSQL: &str = "mysql";
-    pub const LOCAL: &str = "local";
-    pub const GCS: &str = "gcs";
-    pub const S3_STORAGE: &str = "s3";
-    pub const MONGO: &str = "mongo";
-    pub const SNOWFLAKE: &str = "snowflake";
+    pub const INTERNAL: &'static str = "internal";
+    pub const DEBUG: &'static str = "debug";
+    pub const POSTGRES: &'static str = "postgres";
+    pub const BIGQUERY: &'static str = "bigquery";
+    pub const MYSQL: &'static str = "mysql";
+    pub const LOCAL: &'static str = "local";
+    pub const GCS: &'static str = "gcs";
+    pub const S3_STORAGE: &'static str = "s3";
+    pub const MONGO: &'static str = "mongo";
+    pub const SNOWFLAKE: &'static str = "snowflake";
+    pub const DELTA: &'static str = "delta";
+    pub const ICEBERG: &'static str = "iceberg";
+    pub const AZURE: &'static str = "azure";
+    pub const SQL_SERVER: &'static str = "sql_server";
+    pub const LANCE: &'static str = "lance";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -468,6 +549,11 @@ impl TableOptions {
             TableOptions::S3(_) => Self::S3_STORAGE,
             TableOptions::Mongo(_) => Self::MONGO,
             TableOptions::Snowflake(_) => Self::SNOWFLAKE,
+            TableOptions::Delta(_) => Self::DELTA,
+            TableOptions::Iceberg(_) => Self::ICEBERG,
+            TableOptions::Azure(_) => Self::AZURE,
+            TableOptions::SqlServer(_) => Self::SQL_SERVER,
+            TableOptions::Lance(_) => Self::LANCE,
         }
     }
 }
@@ -492,6 +578,11 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::S3(v) => TableOptions::S3(v.try_into()?),
             options::table_options::Options::Mongo(v) => TableOptions::Mongo(v.try_into()?),
             options::table_options::Options::Snowflake(v) => TableOptions::Snowflake(v.try_into()?),
+            options::table_options::Options::Delta(v) => TableOptions::Delta(v.try_into()?),
+            options::table_options::Options::Iceberg(v) => TableOptions::Iceberg(v.try_into()?),
+            options::table_options::Options::Azure(v) => TableOptions::Azure(v.try_into()?),
+            options::table_options::Options::SqlServer(v) => TableOptions::SqlServer(v.try_into()?),
+            options::table_options::Options::Lance(v) => TableOptions::Lance(v.try_into()?),
         })
     }
 }
@@ -517,6 +608,11 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::S3(v) => options::table_options::Options::S3(v.into()),
             TableOptions::Mongo(v) => options::table_options::Options::Mongo(v.into()),
             TableOptions::Snowflake(v) => options::table_options::Options::Snowflake(v.into()),
+            TableOptions::Delta(v) => options::table_options::Options::Delta(v.into()),
+            TableOptions::Iceberg(v) => options::table_options::Options::Iceberg(v.into()),
+            TableOptions::Azure(v) => options::table_options::Options::Azure(v.into()),
+            TableOptions::SqlServer(v) => options::table_options::Options::SqlServer(v.into()),
+            TableOptions::Lance(v) => options::table_options::Options::Lance(v.into()),
         })
     }
 }
@@ -803,7 +899,6 @@ impl From<TableOptionsS3> for options::TableOptionsS3 {
         }
     }
 }
-
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct TableOptionsMongo {
     pub connection_string: String,
@@ -828,6 +923,34 @@ impl From<TableOptionsMongo> for options::TableOptionsMongo {
             connection_string: value.connection_string,
             database: value.database,
             collection: value.collection,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct TableOptionsSqlServer {
+    pub connection_string: String,
+    pub schema: String,
+    pub table: String,
+}
+
+impl TryFrom<options::TableOptionsSqlServer> for TableOptionsSqlServer {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsSqlServer) -> Result<Self, Self::Error> {
+        Ok(TableOptionsSqlServer {
+            connection_string: value.connection_string,
+            schema: value.schema,
+            table: value.table,
+        })
+    }
+}
+
+impl From<TableOptionsSqlServer> for options::TableOptionsSqlServer {
+    fn from(value: TableOptionsSqlServer) -> Self {
+        options::TableOptionsSqlServer {
+            connection_string: value.connection_string,
+            schema: value.schema,
+            table: value.table,
         }
     }
 }
@@ -876,6 +999,37 @@ impl From<TableOptionsSnowflake> for options::TableOptionsSnowflake {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct TableOptionsObjectStore {
+    pub location: String,
+    pub storage_options: StorageOptions,
+    pub file_type: Option<String>,
+    pub compression: Option<String>,
+}
+
+impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsObjectStore) -> Result<Self, Self::Error> {
+        Ok(TableOptionsObjectStore {
+            location: value.location,
+            storage_options: value.storage_options.required("storage_options")?,
+            file_type: value.file_type,
+            compression: value.compression,
+        })
+    }
+}
+
+impl From<TableOptionsObjectStore> for options::TableOptionsObjectStore {
+    fn from(value: TableOptionsObjectStore) -> Self {
+        options::TableOptionsObjectStore {
+            location: value.location,
+            storage_options: Some(value.storage_options.into()),
+            file_type: value.file_type,
+            compression: value.compression,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub enum TunnelOptions {
     Internal(TunnelOptionsInternal),
     Debug(TunnelOptionsDebug),
@@ -883,9 +1037,9 @@ pub enum TunnelOptions {
 }
 
 impl TunnelOptions {
-    pub const INTERNAL: &str = "internal";
-    pub const DEBUG: &str = "debug";
-    pub const SSH: &str = "ssh";
+    pub const INTERNAL: &'static str = "internal";
+    pub const DEBUG: &'static str = "debug";
+    pub const SSH: &'static str = "ssh";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -1025,18 +1179,21 @@ pub enum CredentialsOptions {
     Debug(CredentialsOptionsDebug),
     Gcp(CredentialsOptionsGcp),
     Aws(CredentialsOptionsAws),
+    Azure(CredentialsOptionsAzure),
 }
 
 impl CredentialsOptions {
-    pub const DEBUG: &str = "debug";
-    pub const GCP: &str = "gcp";
-    pub const AWS: &str = "aws";
+    pub const DEBUG: &'static str = "debug";
+    pub const GCP: &'static str = "gcp";
+    pub const AWS: &'static str = "aws";
+    pub const AZURE: &'static str = "azure";
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Debug(_) => Self::DEBUG,
             Self::Gcp(_) => Self::GCP,
             Self::Aws(_) => Self::AWS,
+            Self::Azure(_) => Self::AZURE,
         }
     }
 }
@@ -1054,6 +1211,7 @@ impl TryFrom<options::credentials_options::Options> for CredentialsOptions {
             options::credentials_options::Options::Debug(v) => Self::Debug(v.try_into()?),
             options::credentials_options::Options::Gcp(v) => Self::Gcp(v.try_into()?),
             options::credentials_options::Options::Aws(v) => Self::Aws(v.try_into()?),
+            options::credentials_options::Options::Azure(v) => Self::Azure(v.try_into()?),
         })
     }
 }
@@ -1071,6 +1229,7 @@ impl From<CredentialsOptions> for options::credentials_options::Options {
             CredentialsOptions::Debug(v) => options::credentials_options::Options::Debug(v.into()),
             CredentialsOptions::Gcp(v) => options::credentials_options::Options::Gcp(v.into()),
             CredentialsOptions::Aws(v) => options::credentials_options::Options::Aws(v.into()),
+            CredentialsOptions::Azure(v) => options::credentials_options::Options::Azure(v.into()),
         }
     }
 }
@@ -1152,23 +1311,51 @@ impl From<CredentialsOptionsAws> for options::CredentialsOptionsAws {
     }
 }
 
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct CredentialsOptionsAzure {
+    pub account_name: String,
+    pub access_key: String,
+}
+
+impl TryFrom<options::CredentialsOptionsAzure> for CredentialsOptionsAzure {
+    type Error = ProtoConvError;
+    fn try_from(value: options::CredentialsOptionsAzure) -> Result<Self, Self::Error> {
+        Ok(CredentialsOptionsAzure {
+            account_name: value.account_name,
+            access_key: value.access_key,
+        })
+    }
+}
+
+impl From<CredentialsOptionsAzure> for options::CredentialsOptionsAzure {
+    fn from(value: CredentialsOptionsAzure) -> Self {
+        options::CredentialsOptionsAzure {
+            account_name: value.account_name,
+            access_key: value.access_key,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum CopyToDestinationOptions {
     Local(CopyToDestinationOptionsLocal),
     Gcs(CopyToDestinationOptionsGcs),
     S3(CopyToDestinationOptionsS3),
+    Azure(CopyToDestinationOptionsAzure),
 }
 
 impl CopyToDestinationOptions {
-    pub const LOCAL: &str = "local";
-    pub const GCS: &str = "gcs";
-    pub const S3_STORAGE: &str = "s3";
+    pub const LOCAL: &'static str = "local";
+    pub const GCS: &'static str = "gcs";
+    pub const S3_STORAGE: &'static str = "s3";
+    pub const AZURE: &'static str = "azure";
 
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Local(_) => Self::LOCAL,
             Self::Gcs(_) => Self::GCS,
             Self::S3(_) => Self::S3_STORAGE,
+            Self::Azure(_) => Self::AZURE,
         }
     }
 
@@ -1177,6 +1364,7 @@ impl CopyToDestinationOptions {
             Self::Local(CopyToDestinationOptionsLocal { location }) => location,
             Self::Gcs(CopyToDestinationOptionsGcs { location, .. }) => location,
             Self::S3(CopyToDestinationOptionsS3 { location, .. }) => location,
+            Self::Azure(CopyToDestinationOptionsAzure { location, .. }) => location,
         }
     }
 }
@@ -1202,11 +1390,19 @@ pub struct CopyToDestinationOptionsS3 {
     pub location: String,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct CopyToDestinationOptionsAzure {
+    pub account: String,
+    pub access_key: String,
+    pub location: String,
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum CopyToFormatOptions {
     Csv(CopyToFormatOptionsCsv),
     Parquet(CopyToFormatOptionsParquet),
     Json(CopyToFormatOptionsJson),
+    Bson,
 }
 
 impl Default for CopyToFormatOptions {
@@ -1219,15 +1415,17 @@ impl Default for CopyToFormatOptions {
 }
 
 impl CopyToFormatOptions {
-    pub const CSV: &str = "csv";
-    pub const PARQUET: &str = "parquet";
-    pub const JSON: &str = "json";
+    pub const CSV: &'static str = "csv";
+    pub const PARQUET: &'static str = "parquet";
+    pub const JSON: &'static str = "json";
+    pub const BSON: &'static str = "bson";
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Csv(_) => Self::CSV,
             Self::Parquet(_) => Self::PARQUET,
             Self::Json(_) => Self::JSON,
+            Self::Bson => Self::BSON,
         }
     }
 }

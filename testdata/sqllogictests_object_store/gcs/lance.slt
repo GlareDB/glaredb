@@ -1,0 +1,52 @@
+statement ok
+CREATE CREDENTIALS gcp_creds PROVIDER gcp
+	( service_account_key '${GCP_SERVICE_ACCOUNT_KEY}' );
+
+# Tests `lance_scan` with lance table in gcs.
+
+query IT
+select * from lance_scan('gs://${GCS_BUCKET_NAME}/lance/table1', gcp_creds) order by point.lat;
+----
+0.2,1.8 {lat:42.1,long:-74.1}
+1.1,1.2 {lat:45.5,long:-122.7}
+
+
+# Tests external lance table in gcs with credentials object.
+statement ok
+create external table lance_gcs_creds_and_opts
+from lance
+credentials gcp_creds
+options (
+	location 'gs://${GCS_BUCKET_NAME}/lance/table1'
+);
+
+query IT
+select * from lance_gcs_creds_and_opts order by point.lat;
+----
+0.2,1.8 {lat:42.1,long:-74.1}
+1.1,1.2 {lat:45.5,long:-122.7}
+
+# Tests external lance table in gcs with explicit config options.
+statement ok
+create external table lance_gcs_opts
+from lance
+options (
+	location 'gs://${GCS_BUCKET_NAME}/lance/table1',
+	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}'
+);
+
+query IT
+select * from lance_gcs_opts order by point.lat;
+----
+0.2,1.8 {lat:42.1,long:-74.1}
+1.1,1.2 {lat:45.5,long:-122.7}
+
+
+# Tests connection options validation during initial setup
+statement error
+create external table lance_gcs_opts
+from lance
+options (
+	location 'gs://${GCS_BUCKET_NAME}/lance/table1',
+    service_account_key 'wrong_key'
+);

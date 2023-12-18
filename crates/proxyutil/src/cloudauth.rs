@@ -37,7 +37,7 @@ pub struct DatabaseDetails {
     pub nodes: Option<Vec<Node>>,
     /// ID of the database we're connecting to (UUID).
     pub database_id: String,
-    /// ID of the user initiating the connection (UUID).
+    /// ID of the user that owns the credentials (UUID).
     pub user_id: String,
     /// Bucket for session storage.
     pub gcs_storage_bucket: String,
@@ -69,8 +69,6 @@ pub struct AuthParams<'a> {
     /// May be either the org name or org id.
     // TODO: We should really do one or the other.
     pub org: &'a str,
-    /// If not provided, Cloud will return details for a default engine.
-    pub compute_engine: Option<&'a str>,
     /// Which service we're authenticating for.
     ///
     /// Cloud will use this parameter to direct us to the right port that's
@@ -120,7 +118,6 @@ impl ProxyAuthenticator for CloudAuthenticator {
                 ("password", params.password),
                 ("name", params.db_name),
                 ("org", params.org),
-                ("compute_engine", params.compute_engine.unwrap_or("")),
                 ("service", params.service.as_str()),
             ]
         } else {
@@ -129,7 +126,6 @@ impl ProxyAuthenticator for CloudAuthenticator {
                 ("password", params.password),
                 ("name", params.db_name),
                 ("orgname", params.org),
-                ("compute_engine", params.compute_engine.unwrap_or("")),
                 ("service", params.service.as_str()),
             ]
         };

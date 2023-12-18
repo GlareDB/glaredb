@@ -1,7 +1,7 @@
 //! BigQuery external table implementation.
 pub mod errors;
 
-use crate::common::{errors::DatasourceCommonError, listing::VirtualLister, util};
+use crate::common::util;
 use async_channel::Receiver;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -10,8 +10,6 @@ use bigquery_storage::yup_oauth2::{
     ServiceAccountAuthenticator,
 };
 use bigquery_storage::{BufferedArrowIpcReader, Client};
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::arrow::{datatypes::Fields, ipc::reader::StreamReader as ArrowStreamReader};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
@@ -28,6 +26,16 @@ use datafusion::{
         DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
     },
     physical_plan::memory::MemoryExec,
+};
+use datafusion::{
+    arrow::record_batch::RecordBatch, physical_plan::metrics::ExecutionPlanMetricsSet,
+};
+use datafusion::{
+    arrow::{datatypes::Fields, ipc::reader::StreamReader as ArrowStreamReader},
+    physical_plan::metrics::MetricsSet,
+};
+use datafusion_ext::{
+    errors::ExtensionError, functions::VirtualLister, metrics::DataSourceMetricsStreamAdapter,
 };
 use errors::{BigQueryError, Result};
 use futures::{Stream, StreamExt};
@@ -168,8 +176,8 @@ impl BigQueryAccessor {
 
 #[async_trait]
 impl VirtualLister for BigQueryAccessor {
-    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let datasets = self
             .metadata
@@ -187,8 +195,8 @@ impl VirtualLister for BigQueryAccessor {
         Ok(schemas)
     }
 
-    async fn list_tables(&self, dataset_id: &str) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_tables(&self, dataset_id: &str) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let tables = self
             .metadata
@@ -215,8 +223,8 @@ impl VirtualLister for BigQueryAccessor {
         &self,
         dataset_id: &str,
         table_id: &str,
-    ) -> Result<Fields, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    ) -> Result<Fields, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let table_meta = self
             .metadata
@@ -357,6 +365,7 @@ impl TableProvider for BigQueryTableProvider {
             arrow_schema: projected_schema,
             receiver: recv,
             num_partitions,
+            metrics: ExecutionPlanMetricsSet::new(),
         }))
     }
 }
@@ -366,6 +375,7 @@ struct BigQueryExec {
     arrow_schema: ArrowSchemaRef,
     receiver: Receiver<BufferedArrowIpcReader>,
     num_partitions: usize,
+    metrics: ExecutionPlanMetricsSet,
 }
 
 impl ExecutionPlan for BigQueryExec {
@@ -403,15 +413,20 @@ impl ExecutionPlan for BigQueryExec {
         partition: usize,
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
-        Ok(Box::pin(BufferedIpcStream::new(
-            self.schema(),
-            self.receiver.clone(),
+        let stream = BufferedIpcStream::new(self.schema(), self.receiver.clone(), partition);
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            stream,
             partition,
+            &self.metrics,
         )))
     }
 
     fn statistics(&self) -> Statistics {
         Statistics::default()
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
     }
 }
 

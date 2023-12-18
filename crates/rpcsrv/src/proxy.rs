@@ -2,20 +2,18 @@ use crate::errors::{Result, RpcsrvError};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use futures::{Stream, StreamExt};
+use protogen::gen::rpcsrv::common;
 use protogen::gen::rpcsrv::service;
 use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
+use protogen::rpcsrv::types::common::SessionStorageConfig;
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromProxy, InitializeSessionResponse,
-    SessionStorageConfig,
 };
 use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, ServiceProtocol};
-use proxyutil::metadata_constants::{
-    COMPUTE_ENGINE_KEY, DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY,
-};
+use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{hash::Hash, time::Duration};
-use tonic::transport::{Certificate, ClientTlsConfig};
 use tonic::{
     metadata::MetadataMap,
     transport::{Channel, Endpoint},
@@ -51,7 +49,7 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
     ///
     /// This will read authentication params from the metadata map, get
     /// deployment info from Cloud, then return a connection to the requested
-    /// deployment+compute engine.
+    /// deployment+compute node.
     ///
     /// Database details will be returned alongside the client.
     async fn connect(
@@ -77,26 +75,13 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
             return Ok((details, conn));
         }
 
-        let endpoint = if meta.contains_key("ca_cert_path") && meta.contains_key("domain") {
-            // setup tls
-            let url = format!("https://{}:{}", key.ip, key.port);
-            let ca = std::fs::read_to_string(
-                meta.get("ca_cert_path")
-                    .map(|s| s.to_str())
-                    .transpose()?
-                    .unwrap(),
-            )
-            .unwrap();
-            let tls_conf = ClientTlsConfig::new()
-                .ca_certificate(Certificate::from_pem(ca))
-                .domain_name(meta.get("domain").map(|s| s.to_str()).transpose()?.unwrap());
-            Endpoint::new(url)?.tls_config(tls_conf)?
-        } else {
-            let url = format!("http://{}:{}", key.ip, key.port);
-            Endpoint::new(url)?
-        };
-
-        let channel = endpoint
+        // TLS is terminated at rpcsrv
+        //
+        // | Local |-gRPC-client <-- TLS --> gRPC-server-| rpcsrv | --> compute
+        //
+        // TODO: establish mTLS
+        let url = format!("http://{}:{}", key.ip, key.port);
+        let channel = Endpoint::new(url)?
             .tcp_keepalive(Some(Duration::from_secs(600)))
             .tcp_nodelay(true)
             .keep_alive_while_idle(true)
@@ -126,11 +111,16 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
                 // got back from Cloud.
                 let db_id = Uuid::parse_str(&details.database_id)
                     .map_err(|e| RpcsrvError::InvalidId("database", e))?;
+
+                let user_id = Uuid::parse_str(&details.user_id)
+                    .map_err(|e| RpcsrvError::InvalidId("user", e))?;
+
                 let new_req = InitializeSessionRequest::Proxy(InitializeSessionRequestFromProxy {
                     storage_conf: SessionStorageConfig {
                         gcs_bucket: Some(details.gcs_storage_bucket),
                     },
                     db_id,
+                    user_id,
                 });
 
                 // And proxy it forward.
@@ -160,17 +150,11 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
         let db_name = get_val(DB_NAME_KEY, meta)?;
         let org = get_val(ORG_KEY, meta)?;
 
-        let compute_engine = meta
-            .get(COMPUTE_ENGINE_KEY)
-            .map(|s| s.to_str())
-            .transpose()?;
-
         Ok(AuthParams {
             user,
             password,
             db_name,
             org,
-            compute_engine,
             service: ServiceProtocol::RpcSrv,
         })
     }
@@ -223,7 +207,7 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
 
     async fn broadcast_exchange(
         &self,
-        request: Request<Streaming<service::BroadcastExchangeRequest>>,
+        request: Request<Streaming<common::ExecutionResultBatch>>,
     ) -> Result<Response<service::BroadcastExchangeResponse>, Status> {
         info!("broadcast exchange (proxy)");
         let metadata = request.metadata();
@@ -232,15 +216,6 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
         client
             .broadcast_exchange(ProxiedRequestStream::new(request))
             .await
-    }
-
-    async fn close_session(
-        &self,
-        request: Request<service::CloseSessionRequest>,
-    ) -> Result<Response<service::CloseSessionResponse>, Status> {
-        info!("close session (proxy)");
-        let (_, mut client) = self.connect(request.metadata()).await?;
-        client.close_session(request).await
     }
 }
 

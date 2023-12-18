@@ -1,39 +1,54 @@
+use std::collections::VecDeque;
 use std::fmt;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::metastore::catalog::{CatalogMutator, SessionCatalog};
+use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
+use crate::distexec::scheduler::{OutputSink, Scheduler};
+use crate::distexec::stream::create_coalescing_adapter;
+use crate::environment::EnvironmentReader;
+use crate::errors::{ExecError, Result};
+use crate::parser::StatementWithExtensions;
+use crate::planner::logical_plan::*;
 use crate::planner::physical_plan::{
     get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
     GENERIC_OPERATION_PHYSICAL_SCHEMA,
 };
+use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::RemoteClient;
 use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
+use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{
     execute_stream, ExecutionPlan, RecordBatchStream, SendableRecordBatchStream,
 };
 use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
+use datafusion_ext::metrics::AggregatedMetrics;
+use datafusion_ext::session_metrics::{
+    BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetricsHandler,
+};
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use futures::{Stream, StreamExt};
+use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use telemetry::Tracker;
 use uuid::Uuid;
 
-use crate::background_jobs::JobRunner;
-use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
-use crate::environment::EnvironmentReader;
-use crate::errors::Result;
-use crate::metrics::{BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetrics};
-use crate::parser::StatementWithExtensions;
-use crate::planner::logical_plan::*;
+static EMPTY_EXEC_PLAN: Lazy<Arc<dyn ExecutionPlan>> = Lazy::new(|| {
+    Arc::new(EmptyExec::new(
+        /* produce_one_row = */ false,
+        Arc::new(Schema::empty()),
+    ))
+});
 
 /// Results from a sql statement execution.
 pub enum ExecutionResult {
@@ -41,9 +56,6 @@ pub enum ExecutionResult {
     Query {
         /// Inner results stream from execution.
         stream: SendableRecordBatchStream,
-        /// Execution plan used to create the stream. Used for collecting metrics
-        /// for query execution.
-        plan: Arc<dyn ExecutionPlan>,
     },
     /// Execution errored.
     Error(DataFusionError),
@@ -70,15 +82,17 @@ pub enum ExecutionResult {
     /// Tunnel created.
     CreateTunnel,
     /// Credentials created.
+    CreateCredential,
+    /// Credentials created.
     CreateCredentials,
     /// Schema created.
     CreateSchema,
     /// A view was created.
     CreateView,
     /// A table was renamed.
-    AlterTableRename,
+    AlterTable,
     /// A database was renamed.
-    AlterDatabaseRename,
+    AlterDatabase,
     /// A tunnel was altered.
     AlterTunnelRotateKeys,
     /// A client local variable was set.
@@ -96,23 +110,61 @@ pub enum ExecutionResult {
     /// Credentials are dropped.
     DropCredentials,
 }
+// this just makes the `prepare_statement` method a bit more ergonomic.
+pub struct PrepareStatementArg {
+    stmt: Option<StatementWithExtensions>,
+}
+
+impl<'a> TryFrom<&'a str> for PrepareStatementArg {
+    type Error = ExecError;
+    fn try_from(query: &'a str) -> Result<Self> {
+        let mut statements = crate::parser::parse_sql(query)?;
+        match statements.len() {
+            0 => Err(ExecError::String("No statements in query".to_string())),
+            1 => Ok(PrepareStatementArg {
+                stmt: statements.pop_front(),
+            }),
+            _ => Err(ExecError::String(
+                "More than one statement in query".to_string(),
+            )),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a String> for PrepareStatementArg {
+    type Error = ExecError;
+    fn try_from(query: &'a String) -> Result<Self> {
+        let s: &str = query;
+        s.try_into()
+    }
+}
+
+impl TryFrom<Option<StatementWithExtensions>> for PrepareStatementArg {
+    type Error = ExecError;
+    fn try_from(stmt: Option<StatementWithExtensions>) -> Result<Self> {
+        Ok(PrepareStatementArg { stmt })
+    }
+}
+impl TryFrom<StatementWithExtensions> for PrepareStatementArg {
+    type Error = ExecError;
+    fn try_from(stmt: StatementWithExtensions) -> Result<Self> {
+        Ok(PrepareStatementArg { stmt: Some(stmt) })
+    }
+}
 
 impl ExecutionResult {
     /// Create a result from a stream and a physical plan.
     ///
     /// This will look at the first batch in the stream to determine which
     /// result it is.
-    pub async fn from_stream_and_plan(
-        mut stream: SendableRecordBatchStream,
-        plan: Arc<dyn ExecutionPlan>,
-    ) -> ExecutionResult {
+    pub async fn from_stream(mut stream: SendableRecordBatchStream) -> ExecutionResult {
         let schema = stream.schema();
         // If we don't match either of these schemas, just assume these results
         // are from a normal SELECT query.
         if !(schema.eq(&GENERIC_OPERATION_PHYSICAL_SCHEMA)
             || schema.eq(&GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA))
         {
-            return ExecutionResult::Query { stream, plan };
+            return ExecutionResult::Query { stream };
         }
 
         let (batch, stream) = match stream.next().await {
@@ -135,7 +187,6 @@ impl ExecutionResult {
         if batch.num_rows() != 1 {
             return ExecutionResult::Query {
                 stream: Box::pin(stream),
-                plan,
             };
         }
 
@@ -146,7 +197,6 @@ impl ExecutionResult {
 
         ExecutionResult::from_str_and_count(&op, count).unwrap_or(ExecutionResult::Query {
             stream: Box::pin(stream),
-            plan,
         })
     }
 
@@ -165,11 +215,12 @@ impl ExecutionResult {
             ExecutionResult::CreateTable => "create_table",
             ExecutionResult::CreateDatabase => "create_database",
             ExecutionResult::CreateTunnel => "create_tunnel",
+            ExecutionResult::CreateCredential => "create_credential",
             ExecutionResult::CreateCredentials => "create_credentials",
             ExecutionResult::CreateSchema => "create_schema",
             ExecutionResult::CreateView => "create_view",
-            ExecutionResult::AlterTableRename => "alter_table_rename",
-            ExecutionResult::AlterDatabaseRename => "alter_database_rename",
+            ExecutionResult::AlterTable => "alter_table",
+            ExecutionResult::AlterDatabase => "alter_database",
             ExecutionResult::AlterTunnelRotateKeys => "alter_tunnel_rotate_keys",
             ExecutionResult::Set => "set_local",
             ExecutionResult::DropTables => "drop_tables",
@@ -187,11 +238,12 @@ impl ExecutionResult {
             ExecutionResult::CreateTable
                 | ExecutionResult::CreateDatabase
                 | ExecutionResult::CreateTunnel
+                | ExecutionResult::CreateCredential
                 | ExecutionResult::CreateCredentials
                 | ExecutionResult::CreateSchema
                 | ExecutionResult::CreateView
-                | ExecutionResult::AlterTableRename
-                | ExecutionResult::AlterDatabaseRename
+                | ExecutionResult::AlterTable
+                | ExecutionResult::AlterDatabase
                 | ExecutionResult::AlterTunnelRotateKeys
                 | ExecutionResult::DropTables
                 | ExecutionResult::DropViews
@@ -224,11 +276,12 @@ impl ExecutionResult {
             "create_table" => ExecutionResult::CreateTable,
             "create_database" => ExecutionResult::CreateDatabase,
             "create_tunnel" => ExecutionResult::CreateTunnel,
+            "create_credential" => ExecutionResult::CreateCredential,
             "create_credentials" => ExecutionResult::CreateCredentials,
             "create_schema" => ExecutionResult::CreateSchema,
             "create_view" => ExecutionResult::CreateView,
-            "alter_table_rename" => ExecutionResult::AlterTableRename,
-            "alter_database_rename" => ExecutionResult::AlterDatabaseRename,
+            "alter_table" => ExecutionResult::AlterTable,
+            "alter_database" => ExecutionResult::AlterDatabase,
             "alter_tunnel_rotate_keys" => ExecutionResult::AlterTunnelRotateKeys,
             "set" => ExecutionResult::Set,
             "drop_tables" => ExecutionResult::DropTables,
@@ -255,7 +308,7 @@ impl fmt::Display for ExecutionResult {
             ExecutionResult::Begin => write!(f, "Begin"),
             ExecutionResult::Commit => write!(f, "Commit"),
             ExecutionResult::Rollback => write!(f, "Rollback"),
-            ExecutionResult::InsertSuccess { rows_inserted } => {
+            ExecutionResult::InsertSuccess { rows_inserted, .. } => {
                 if *rows_inserted == 1 {
                     write!(f, "Inserted 1 row")
                 } else {
@@ -280,11 +333,12 @@ impl fmt::Display for ExecutionResult {
             ExecutionResult::CreateTable => write!(f, "Table created"),
             ExecutionResult::CreateDatabase => write!(f, "Database created"),
             ExecutionResult::CreateTunnel => write!(f, "Tunnel created"),
-            ExecutionResult::CreateCredentials => write!(f, "Credentials created"),
+            ExecutionResult::CreateCredential => write!(f, "Credential created"),
+            ExecutionResult::CreateCredentials => write!(f, "Credentials created\nDEPRECATION WARNING. `CREATE CREDENTIALS` is deprecated and will be removed in a future release. Please use `CREATE CREDENTIAL` instead."),
             ExecutionResult::CreateSchema => write!(f, "Schema create"),
             ExecutionResult::CreateView => write!(f, "View created"),
-            ExecutionResult::AlterTableRename => write!(f, "Table renamed"),
-            ExecutionResult::AlterDatabaseRename => write!(f, "Database renamed"),
+            ExecutionResult::AlterTable => write!(f, "Table altered"),
+            ExecutionResult::AlterDatabase => write!(f, "Database altered"),
             ExecutionResult::AlterTunnelRotateKeys => write!(f, "Keys rotated"),
             ExecutionResult::Set => write!(f, "Local variable set"),
             ExecutionResult::DropTables => write!(f, "Table(s) dropped"),
@@ -343,9 +397,9 @@ impl Session {
         native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
-        background_jobs: JobRunner,
+        task_scheduler: Scheduler,
     ) -> Result<Session> {
-        let metrics = SessionMetrics::new(
+        let metrics_handler = SessionMetricsHandler::new(
             vars.user_id(),
             vars.database_id(),
             vars.connection_id(),
@@ -357,9 +411,9 @@ impl Session {
             catalog,
             catalog_mutator,
             native_tables,
-            metrics,
+            metrics_handler,
             spill_path,
-            background_jobs,
+            task_scheduler,
         )?;
 
         Ok(Session { ctx })
@@ -371,10 +425,6 @@ impl Session {
         test_db_id: Option<Uuid>,
     ) -> Result<()> {
         self.ctx.attach_remote_session(client, test_db_id).await
-    }
-
-    pub async fn close(&mut self) -> Result<()> {
-        self.ctx.close().await
     }
 
     pub fn get_session_catalog(&self) -> &SessionCatalog {
@@ -394,32 +444,53 @@ impl Session {
     pub async fn create_physical_plan(
         &self,
         plan: DfLogicalPlan,
+        op: &OperationInfo,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let state = self.ctx.df_ctx().state();
         let plan = state.optimize(&plan)?;
         if let Some(client) = self.ctx.exec_client() {
             let planner = RemotePhysicalPlanner {
+                database_id: self.ctx.get_database_id(),
+                query_text: op.query_text(),
                 remote_client: client,
                 catalog: self.ctx.get_session_catalog(),
             };
             let plan = planner.create_physical_plan(&plan, &state).await?;
             Ok(plan)
         } else {
-            let ddl_planner = DDLExtensionPlanner::new(self.ctx.get_session_catalog().version());
+            // TODO: Possible to not require a catalog clone here?
+            let ddl_planner = DDLExtensionPlanner::new(self.ctx.get_session_catalog().clone());
             let planner =
                 DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(ddl_planner)]);
             let plan = planner.create_physical_plan(&plan, &state).await?;
+
             Ok(plan)
         }
     }
 
     /// Execute a datafusion physical plan.
-    pub fn execute_physical(
+    pub async fn execute_physical_plan(
         &self,
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
         let context = self.ctx.task_context();
-        let stream = execute_stream(plan, context)?;
+        let stream = if self.ctx.get_session_vars().enable_experimental_scheduler() {
+            let scheduler = self.ctx.get_task_scheduler();
+            let (sink, stream) =
+                create_coalescing_adapter(plan.output_partitioning(), plan.schema());
+            let sink = Arc::new(sink);
+
+            let output = OutputSink {
+                batches: sink.clone(),
+                errors: sink,
+            };
+
+            scheduler.schedule(plan, context, output)?;
+            Box::pin(stream)
+        } else {
+            execute_stream(plan, context)?
+        };
+
         Ok(stream)
     }
 
@@ -428,22 +499,31 @@ impl Session {
     }
 
     /// Prepare a parsed statement for future execution.
-    pub async fn prepare_statement(
+    pub async fn prepare_statement<T: TryInto<PrepareStatementArg, Error = ExecError>>(
         &mut self,
         name: String,
-        stmt: Option<StatementWithExtensions>,
+        stmt: T,
         params: Vec<i32>, // OIDs
     ) -> Result<()> {
-        // Flush any completed metrics prior to planning. This is mostly
-        // beneficial when planning successive calls to the
-        // `session_query_history` table since the mem table is created during
-        // planning.
-        //
-        // In all other cases, it's correct to only need to flush immediately
-        // prior to execute (which we also do).
-        self.ctx.get_metrics_mut().flush_completed();
+        let stmt: PrepareStatementArg = stmt.try_into()?;
 
-        self.ctx.prepare_statement(name, stmt, params).await
+        self.ctx.prepare_statement(name, stmt.stmt, params).await
+    }
+
+    /// Like 'prepare_statement', but for a portal.
+    pub async fn prepare_portal(&mut self, portal_id: &str, query: &str) -> Result<()> {
+        self.prepare_statement(portal_id.to_string(), query, Vec::new())
+            .await?;
+        let prepared = self.get_prepared_statement(portal_id)?;
+
+        let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
+        self.bind_statement(
+            portal_id.to_string(),
+            portal_id,
+            Vec::new(),
+            vec![Format::Text; num_fields],
+        )?;
+        Ok(())
     }
 
     pub fn get_prepared_statement(&self, name: &str) -> Result<&PreparedStatement> {
@@ -477,19 +557,27 @@ impl Session {
             .bind_statement(portal_name, stmt_name, params, result_formats)
     }
 
-    pub async fn execute_inner(&mut self, plan: LogicalPlan) -> Result<ExecutionResult> {
+    /// Execute a logical plan.
+    pub async fn execute_logical_plan(
+        &mut self,
+        plan: LogicalPlan,
+        op: &OperationInfo,
+    ) -> Result<(Arc<dyn ExecutionPlan>, ExecutionResult)> {
         // Note that transaction support is fake, in that we don't currently do
         // anything and do not provide any transactional semantics.
         //
         // We stub out transaction commands since many tools (even BI ones) will
         // try to open a transaction for some queries.
         match plan {
-            LogicalPlan::Transaction(_plan) => Ok(ExecutionResult::EmptyQuery),
+            LogicalPlan::Noop => Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery)),
+            LogicalPlan::Transaction(_plan) => {
+                Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery))
+            }
             LogicalPlan::Datafusion(plan) => {
-                let physical = self.create_physical_plan(plan).await?;
-                let stream = self.execute_physical(physical.clone())?;
+                let physical = self.create_physical_plan(plan, op).await?;
+                let stream = self.execute_physical_plan(physical.clone()).await?;
 
-                let stream = ExecutionResult::from_stream_and_plan(stream, physical).await;
+                let stream = ExecutionResult::from_stream(stream).await;
 
                 // If we're attached to a remote node, and the result indicates
                 // the operation was a DDL operation, then fetch the newer
@@ -522,7 +610,7 @@ impl Session {
                     }
                 }
 
-                Ok(stream)
+                Ok((physical, stream))
             }
         }
     }
@@ -536,43 +624,59 @@ impl Session {
         portal_name: &str,
         _max_rows: i32,
     ) -> Result<ExecutionResult> {
-        // Flush any completed metrics.
-        self.ctx.get_metrics_mut().flush_completed();
-
         let portal = self.ctx.get_portal(portal_name)?;
+
         let plan = match &portal.stmt.plan {
             Some(plan) => plan.clone(),
             None => return Ok(ExecutionResult::EmptyQuery),
         };
 
-        // Create "base" metrics.
-        let mut metrics = QueryMetrics::new_for_portal(portal);
+        let mut op = OperationInfo::default();
+        if let Some(stmt) = &portal.stmt.stmt {
+            op = op.with_query_text(stmt.to_string());
+        }
 
-        let stream = match self.execute_inner(plan).await {
-            Ok(stream) => match stream {
+        // Create "base" metrics.
+        let mut metrics = QueryMetrics {
+            query_text: op.query_text().to_owned(),
+            ..Default::default()
+        };
+
+        let stream = match self.execute_logical_plan(plan, &op).await {
+            Ok((plan, result)) => match result {
                 ExecutionResult::Error(e) => {
                     metrics.execution_status = ExecutionStatus::Fail;
                     metrics.error_message = Some(e.to_string());
+                    self.ctx.get_metrics_handler().push_metric(metrics);
                     return Err(e.into());
                 }
-                stream => {
+                result => {
                     metrics.execution_status = ExecutionStatus::Success;
-                    metrics.result_type = stream.result_type_str();
+                    metrics.result_type = result.result_type_str();
 
-                    match stream {
-                        ExecutionResult::Query { stream, plan } => {
+                    match result {
+                        ExecutionResult::Query { stream } => {
                             // Swap out the batch stream with one that will send
                             // metrics at the completions of the stream.
-                            let sender = self.ctx.get_metrics().get_sender();
                             ExecutionResult::Query {
                                 stream: Box::pin(BatchStreamWithMetricSender::new(
                                     stream,
                                     plan.clone(),
                                     metrics,
-                                    sender,
+                                    self.ctx.get_metrics_handler(),
                                 )),
-                                plan,
                             }
+                        }
+                        write_result @ ExecutionResult::InsertSuccess { .. }
+                        | write_result @ ExecutionResult::CopySuccess => {
+                            // Push the metrics from the plan since the stream
+                            // is already processed.
+                            let agg_metrics = AggregatedMetrics::new_from_plan(plan.as_ref());
+                            metrics.elapsed_compute_ns = Some(agg_metrics.elapsed_compute_ns);
+                            metrics.bytes_read = Some(agg_metrics.bytes_read);
+                            metrics.bytes_written = agg_metrics.bytes_written;
+                            self.ctx.get_metrics_handler().push_metric(metrics);
+                            write_result
                         }
                         other => other,
                     }
@@ -585,7 +689,7 @@ impl Session {
                 // Ensure we push the metrics for this failed query even though
                 // we're returning an error. This allows for querying for and
                 // reporting failed executions.
-                self.ctx.get_metrics_mut().push_metric(metrics);
+                self.ctx.get_metrics_handler().push_metric(metrics);
                 return Err(e);
             }
         };
@@ -593,16 +697,26 @@ impl Session {
         Ok(stream)
     }
 
-    pub async fn sql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
-        const UNNAMED: String = String::new();
+    /// Helper for converting SQL statement to a logical plan.
+    ///
+    /// Errors if no statements or more than one statement is provided
+    /// in the query.
+    pub async fn prql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
+        let stmt = crate::parser::parse_prql(query)?;
 
-        let mut statements = crate::parser::parse_sql(query)?;
+        self.prepare_statements(stmt).await
+    }
+
+    pub async fn prepare_statements(
+        &mut self,
+        mut statements: VecDeque<StatementWithExtensions>,
+    ) -> Result<LogicalPlan> {
+        const UNNAMED: String = String::new();
         match statements.len() {
-            0 => todo!(),
+            0 => Err(ExecError::String("No statements in query".to_string())),
             1 => {
                 let stmt = statements.pop_front().unwrap();
-                self.prepare_statement(UNNAMED, Some(stmt), Vec::new())
-                    .await?;
+                self.prepare_statement(UNNAMED, stmt, Vec::new()).await?;
                 let prepared = self.get_prepared_statement(&UNNAMED)?;
                 let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
                 self.bind_statement(
@@ -614,7 +728,52 @@ impl Session {
                 let portal = self.ctx.get_portal(&UNNAMED)?.clone();
                 Ok(portal.stmt.plan.unwrap())
             }
-            _ => todo!(),
+            _ => Err(ExecError::String(
+                "More than one statement in query".to_string(),
+            )),
         }
+    }
+
+    /// Create a logical plan from a SQL query.
+    /// if the query doesn't contain exactly one statement, an error is returned.
+    pub async fn create_logical_plan(&mut self, query: &str) -> Result<LogicalPlan> {
+        self.ctx.maybe_refresh_state().await?;
+        let mut statements = self.parse_query(query)?;
+        match statements.len() {
+            0 => Err(ExecError::String("No statements in query".to_string())),
+            1 => {
+                let stmt = statements.pop_front().unwrap();
+                let planner = SessionPlanner::new(&self.ctx);
+                let plan = planner.plan_ast(stmt).await?;
+                Ok(plan)
+            }
+            _ => Err(ExecError::String(
+                "More than one statement in query".to_string(),
+            )),
+        }
+    }
+
+    pub fn parse_query(&self, query: &str) -> Result<VecDeque<StatementWithExtensions>> {
+        match self.get_session_vars().dialect() {
+            datafusion_ext::vars::Dialect::Sql => crate::parser::parse_sql(query),
+            datafusion_ext::vars::Dialect::Prql => crate::parser::parse_prql(query),
+        }
+    }
+
+    /// Execute a SQL query.
+    /// if the query doesn't contain exactly one statement, an error is returned.
+    pub async fn execute_sql(
+        &mut self,
+        query: &str,
+        op_info: Option<OperationInfo>,
+    ) -> Result<SendableRecordBatchStream> {
+        let plan = self.create_logical_plan(query).await?;
+        let plan = plan.try_into_datafusion_plan()?;
+        let plan = self
+            .create_physical_plan(plan, &op_info.unwrap_or_default())
+            .await?;
+        let stream = self.execute_physical_plan(plan).await?;
+
+        Ok(stream)
     }
 }

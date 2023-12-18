@@ -8,7 +8,7 @@
 // (cli/python)           |
 //                        | 3.
 //                        ▼
-//                 compute engine
+//                 compute node
 //
 // ```
 //
@@ -18,7 +18,7 @@
 //   - The proxy pulls auth related metadata off the request and makes a request
 //     to Cloud. Cloud returns back info on the database we're making a request
 //     for, and where we should route the request.
-// 3. Proxy sends authenticated request to compute engine.
+// 3. Proxy sends authenticated request to compute node.
 //
 // # Authentication
 //
@@ -29,21 +29,20 @@
 // - "password"
 // - "db_name"
 // - "org"
-// - "compute_engine" (optional)
 //
 // These parameters are then used by the proxy to make a request to Cloud for
 // connection authentication. The response from Cloud indicates if the
 // connection is authenticated. Cloud also returns additional data about how to
-// connect to the remote compute engine.
+// connect to the remote compute node.
 
 syntax = "proto3";
 
 package rpcsrv.service;
 
-import "metastore/catalog.proto";
+option go_package = "github.com/glaredb/cloud/pkg/protogen/rpcsrv";
 
-// Storage config for the session.
-message SessionStorageConfig { optional string gcs_bucket = 1; }
+import "metastore/catalog.proto";
+import "rpcsrv/common.proto";
 
 // Request for initializing a remote session from the client.
 message InitializeSessionRequestFromClient {
@@ -61,10 +60,13 @@ message InitializeSessionRequestFromClient {
 // Cloud.
 message InitializeSessionRequestFromProxy {
   // Session storage config.
-  SessionStorageConfig storage_conf = 2;
+  common.SessionStorageConfig storage_conf = 2;
 
   // ID of database we're initializing a session for.
   bytes db_id = 3;
+
+  // ID of the user that initialized the session.
+  bytes user_id = 4;
 }
 
 // Request for initializing a session.
@@ -78,33 +80,39 @@ message InitializeSessionRequest {
 }
 
 message InitializeSessionResponse {
-  // ID of session that was created. This ID needs to be provided on all future
-  // requests.
-  bytes session_id = 1;
-
+  // Database for which the session was initialized
+  bytes database_id = 1;
   // The initial catalog for the database.
   metastore.catalog.CatalogState catalog = 2;
+  // User ID for which the session was initialized
+  bytes user_id = 3;
 }
 
-message FetchCatalogRequest { bytes session_id = 1; }
+message FetchCatalogRequest { bytes database_id = 1; }
 
 message FetchCatalogResponse { metastore.catalog.CatalogState catalog = 1; }
 
 // Dispatch the table access on remote server.
 message DispatchAccessRequest {
-  bytes session_id = 1;
+  bytes database_id = 1;
   ResolvedTableReference table_ref = 2;
   repeated bytes args = 3;
   // gRPC doesn't really provide a way for Option<Vec<T>> or Option<Map<K,V>>
   // so we use a map and just check if it's empty or not in rust.
-  map < string, bytes > options = 4;
+  map<string, bytes> options = 4;
 }
 
 // Execute a physical plan and get the stream.
 message PhysicalPlanExecuteRequest {
-  bytes session_id = 1;
-  /// The protobuf serialized physical plan.
+  bytes database_id = 1;
+  // The protobuf serialized physical plan.
   bytes physical_plan = 2;
+  // User id (which is trying to execute the plan).
+  //
+  // Required for sending metrics.
+  bytes user_id = 3;
+  // Query text (for collecting metrics).
+  string query_text = 4;
 }
 
 message TableProviderResponse {
@@ -137,32 +145,7 @@ message ResolvedTableReference {
   }
 }
 
-message BroadcastExchangeRequest {
-  // Session id.
-  bytes session_id = 1;
-  // Input id;
-  bytes broadcast_input_id = 2;
-  // Input batches.
-  bytes arrow_ipc = 3;
-
-  // TODO: Error flag to indicate if the stream errored on the client side. We
-  // don't need the error itself, we just need to know that we did error.
-  //
-  // Note that an error *inside* the message would indicated we had trouble
-  // reading from the stream or encoding to IPC. The client will already have
-  // access to the error.
-  //
-  // This would be used to just drop the stream to release resources.
-}
-
 message BroadcastExchangeResponse {}
-
-message CloseSessionRequest {
-  // ID of session that we are closing.
-  bytes session_id = 1;
-}
-
-message CloseSessionResponse {}
 
 service ExecutionService {
   // Initializes a remote session.
@@ -178,9 +161,6 @@ service ExecutionService {
   rpc PhysicalPlanExecute(PhysicalPlanExecuteRequest)
       returns (stream RecordBatchResponse);
 
-  rpc BroadcastExchange(stream BroadcastExchangeRequest)
+  rpc BroadcastExchange(stream common.ExecutionResultBatch)
       returns (BroadcastExchangeResponse);
-
-  // Close the remote session.
-  rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
 }

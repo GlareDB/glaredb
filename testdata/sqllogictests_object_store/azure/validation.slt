@@ -1,0 +1,31 @@
+# # Validation tests for azure external tables
+
+# # Validation test for external table with empty key
+# statement error
+# CREATE EXTERNAL TABLE empty_key_table
+#     FROM azure
+#     OPTIONS (
+#         account_name = '${AZURE_ACCOUNT}',
+#         access_key = '',
+#         location = 'azure://glaredb-test/bikeshare_stations.csv'
+#     );
+
+# # Validation test with the wrong location
+# statement error
+# CREATE EXTERNAL TABLE missing_table
+#     FROM gcs
+#     OPTIONS (
+#         account_name = '${AZURE_ACCOUNT}',
+#         access_key = '${AZURE_ACCESS_KEY}',
+#         location = 'azure://glaredb-test/missing_table.parquet'
+#     );
+
+# # Validation test with the wrong bucket name
+# statement error
+# CREATE EXTERNAL TABLE wrong_bucket_name
+#     FROM gcs
+#     OPTIONS (
+#         account_name = '${AZURE_ACCOUNT}',
+#         access_key = '${AZURE_ACCESS_KEY}',
+#         location = 'azure://glaredb-test-wrong-bucket/missing_table.parquet'
+#     );

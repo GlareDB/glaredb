@@ -3,6 +3,14 @@
 statement ok
 create table basic (a int, b text);
 
+# Duplicate name and if not exists
+
+statement error Duplicate name
+create table basic (c float);
+
+statement ok
+create table if not exists basic (c float);
+
 statement ok
 insert into basic values (1, 'a'), (2, 'b');
 

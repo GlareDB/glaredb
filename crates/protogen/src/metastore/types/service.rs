@@ -1,3 +1,4 @@
+use super::catalog::SourceAccessMode;
 use super::options::{
     CredentialsOptions, DatabaseOptions, TableOptions, TableOptionsInternal, TunnelOptions,
 };
@@ -15,12 +16,13 @@ pub enum Mutation {
     CreateTable(CreateTable),
     CreateExternalTable(CreateExternalTable),
     CreateExternalDatabase(CreateExternalDatabase),
-    AlterTableRename(AlterTableRename),
-    AlterDatabaseRename(AlterDatabaseRename),
+    AlterTable(AlterTable),
+    AlterDatabase(AlterDatabase),
     CreateTunnel(CreateTunnel),
     DropTunnel(DropTunnel),
     AlterTunnelRotateKeys(AlterTunnelRotateKeys),
     CreateCredentials(CreateCredentials),
+    CreateCredential(CreateCredential),
     DropCredentials(DropCredentials),
     // Deployment metadata updates
     UpdateDeploymentStorage(UpdateDeploymentStorage),
@@ -49,12 +51,8 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             service::mutation::Mutation::CreateExternalDatabase(v) => {
                 Mutation::CreateExternalDatabase(v.try_into()?)
             }
-            service::mutation::Mutation::AlterTableRename(v) => {
-                Mutation::AlterTableRename(v.try_into()?)
-            }
-            service::mutation::Mutation::AlterDatabaseRename(v) => {
-                Mutation::AlterDatabaseRename(v.try_into()?)
-            }
+            service::mutation::Mutation::AlterTable(v) => Mutation::AlterTable(v.try_into()?),
+            service::mutation::Mutation::AlterDatabase(v) => Mutation::AlterDatabase(v.try_into()?),
             service::mutation::Mutation::CreateTunnel(v) => Mutation::CreateTunnel(v.try_into()?),
             service::mutation::Mutation::DropTunnel(v) => Mutation::DropTunnel(v.try_into()?),
             service::mutation::Mutation::AlterTunnelRotateKeys(v) => {
@@ -62,6 +60,9 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             }
             service::mutation::Mutation::CreateCredentials(v) => {
                 Mutation::CreateCredentials(v.try_into()?)
+            }
+            service::mutation::Mutation::CreateCredential(v) => {
+                Mutation::CreateCredential(v.try_into()?)
             }
             service::mutation::Mutation::DropCredentials(v) => {
                 Mutation::DropCredentials(v.try_into()?)
@@ -89,12 +90,8 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
             Mutation::CreateExternalDatabase(v) => {
                 service::mutation::Mutation::CreateExternalDatabase(v.into())
             }
-            Mutation::AlterTableRename(v) => {
-                service::mutation::Mutation::AlterTableRename(v.into())
-            }
-            Mutation::AlterDatabaseRename(v) => {
-                service::mutation::Mutation::AlterDatabaseRename(v.into())
-            }
+            Mutation::AlterTable(v) => service::mutation::Mutation::AlterTable(v.into()),
+            Mutation::AlterDatabase(v) => service::mutation::Mutation::AlterDatabase(v.into()),
             Mutation::CreateTunnel(v) => service::mutation::Mutation::CreateTunnel(v.into()),
             Mutation::DropTunnel(v) => service::mutation::Mutation::DropTunnel(v.into()),
             Mutation::AlterTunnelRotateKeys(v) => {
@@ -102,6 +99,9 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
             }
             Mutation::CreateCredentials(v) => {
                 service::mutation::Mutation::CreateCredentials(v.into())
+            }
+            Mutation::CreateCredential(v) => {
+                service::mutation::Mutation::CreateCredential(v.into())
             }
             Mutation::DropCredentials(v) => service::mutation::Mutation::DropCredentials(v.into()),
             Mutation::UpdateDeploymentStorage(v) => {
@@ -270,6 +270,7 @@ pub struct CreateTable {
     pub name: String,
     pub options: TableOptionsInternal,
     pub if_not_exists: bool,
+    pub or_replace: bool,
 }
 
 impl TryFrom<service::CreateTable> for CreateTable {
@@ -281,6 +282,7 @@ impl TryFrom<service::CreateTable> for CreateTable {
             name: value.name,
             options,
             if_not_exists: value.if_not_exists,
+            or_replace: value.or_replace,
         })
     }
 }
@@ -293,6 +295,7 @@ impl TryFrom<CreateTable> for service::CreateTable {
             name: value.name,
             options: Some(value.options.try_into()?),
             if_not_exists: value.if_not_exists,
+            or_replace: value.or_replace,
         })
     }
 }
@@ -302,6 +305,7 @@ pub struct CreateExternalTable {
     pub schema: String,
     pub name: String,
     pub options: TableOptions,
+    pub or_replace: bool,
     pub if_not_exists: bool,
     pub tunnel: Option<String>,
 }
@@ -314,6 +318,7 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
             schema: value.schema,
             name: value.name,
             options: value.options.required("options")?,
+            or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,
         })
@@ -327,6 +332,7 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
             schema: value.schema,
             name: value.name,
             options: Some(value.options.try_into()?),
+            or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,
         })
@@ -364,55 +370,167 @@ impl From<CreateExternalDatabase> for service::CreateExternalDatabase {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct AlterTableRename {
-    pub schema: String,
-    pub name: String,
-    pub new_name: String,
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub enum AlterTableOperation {
+    RenameTable { new_name: String },
+    SetAccessMode { access_mode: SourceAccessMode },
 }
 
-impl TryFrom<service::AlterTableRename> for AlterTableRename {
+impl TryFrom<service::alter_table_operation::Operation> for AlterTableOperation {
     type Error = ProtoConvError;
-    fn try_from(value: service::AlterTableRename) -> Result<Self, Self::Error> {
-        Ok(AlterTableRename {
-            schema: value.schema,
-            name: value.name,
-            new_name: value.new_name,
+    fn try_from(value: service::alter_table_operation::Operation) -> Result<Self, Self::Error> {
+        Ok(match value {
+            service::alter_table_operation::Operation::AlterTableOperationRename(
+                service::AlterTableOperationRename { new_name },
+            ) => Self::RenameTable { new_name },
+            service::alter_table_operation::Operation::AlterTableOperationSetAccessMode(
+                service::AlterTableOperationSetAccessMode { access_mode },
+            ) => Self::SetAccessMode {
+                access_mode: access_mode.try_into()?,
+            },
         })
     }
 }
 
-impl From<AlterTableRename> for service::AlterTableRename {
-    fn from(value: AlterTableRename) -> Self {
-        service::AlterTableRename {
-            schema: value.schema,
-            name: value.name,
-            new_name: value.new_name,
+impl From<AlterTableOperation> for service::alter_table_operation::Operation {
+    fn from(value: AlterTableOperation) -> Self {
+        match value {
+            AlterTableOperation::RenameTable { new_name } => {
+                service::alter_table_operation::Operation::AlterTableOperationRename(
+                    service::AlterTableOperationRename { new_name },
+                )
+            }
+            AlterTableOperation::SetAccessMode { access_mode } => {
+                service::alter_table_operation::Operation::AlterTableOperationSetAccessMode(
+                    service::AlterTableOperationSetAccessMode {
+                        access_mode: access_mode.into(),
+                    },
+                )
+            }
+        }
+    }
+}
+
+impl TryFrom<service::AlterTableOperation> for AlterTableOperation {
+    type Error = ProtoConvError;
+    fn try_from(value: service::AlterTableOperation) -> Result<Self, Self::Error> {
+        value.operation.required("alter table operation")
+    }
+}
+
+impl From<AlterTableOperation> for service::AlterTableOperation {
+    fn from(value: AlterTableOperation) -> Self {
+        Self {
+            operation: Some(value.into()),
         }
     }
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct AlterDatabaseRename {
+pub struct AlterTable {
+    pub schema: String,
     pub name: String,
-    pub new_name: String,
+    pub operation: AlterTableOperation,
 }
 
-impl TryFrom<service::AlterDatabaseRename> for AlterDatabaseRename {
+impl TryFrom<service::AlterTable> for AlterTable {
     type Error = ProtoConvError;
-    fn try_from(value: service::AlterDatabaseRename) -> Result<Self, Self::Error> {
-        Ok(AlterDatabaseRename {
+    fn try_from(value: service::AlterTable) -> Result<Self, Self::Error> {
+        Ok(AlterTable {
+            schema: value.schema,
             name: value.name,
-            new_name: value.new_name,
+            operation: value.operation.required("alter table operation")?,
         })
     }
 }
 
-impl From<AlterDatabaseRename> for service::AlterDatabaseRename {
-    fn from(value: AlterDatabaseRename) -> Self {
-        service::AlterDatabaseRename {
+impl From<AlterTable> for service::AlterTable {
+    fn from(value: AlterTable) -> Self {
+        service::AlterTable {
+            schema: value.schema,
             name: value.name,
-            new_name: value.new_name,
+            operation: Some(value.operation.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub enum AlterDatabaseOperation {
+    RenameDatabase { new_name: String },
+    SetAccessMode { access_mode: SourceAccessMode },
+}
+
+impl TryFrom<service::alter_database_operation::Operation> for AlterDatabaseOperation {
+    type Error = ProtoConvError;
+    fn try_from(value: service::alter_database_operation::Operation) -> Result<Self, Self::Error> {
+        Ok(match value {
+            service::alter_database_operation::Operation::AlterDatabaseOperationRename(
+                service::AlterDatabaseOperationRename { new_name },
+            ) => Self::RenameDatabase { new_name },
+            service::alter_database_operation::Operation::AlterDatabaseOperationSetAccessMode(
+                service::AlterDatabaseOperationSetAccessMode { access_mode },
+            ) => Self::SetAccessMode {
+                access_mode: access_mode.try_into()?,
+            },
+        })
+    }
+}
+
+impl From<AlterDatabaseOperation> for service::alter_database_operation::Operation {
+    fn from(value: AlterDatabaseOperation) -> Self {
+        match value {
+            AlterDatabaseOperation::RenameDatabase { new_name } => {
+                service::alter_database_operation::Operation::AlterDatabaseOperationRename(
+                    service::AlterDatabaseOperationRename { new_name },
+                )
+            }
+            AlterDatabaseOperation::SetAccessMode { access_mode } => {
+                service::alter_database_operation::Operation::AlterDatabaseOperationSetAccessMode(
+                    service::AlterDatabaseOperationSetAccessMode {
+                        access_mode: access_mode.into(),
+                    },
+                )
+            }
+        }
+    }
+}
+
+impl TryFrom<service::AlterDatabaseOperation> for AlterDatabaseOperation {
+    type Error = ProtoConvError;
+    fn try_from(value: service::AlterDatabaseOperation) -> Result<Self, Self::Error> {
+        value.operation.required("alter database operation")
+    }
+}
+
+impl From<AlterDatabaseOperation> for service::AlterDatabaseOperation {
+    fn from(value: AlterDatabaseOperation) -> Self {
+        Self {
+            operation: Some(value.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct AlterDatabase {
+    pub name: String,
+    pub operation: AlterDatabaseOperation,
+}
+
+impl TryFrom<service::AlterDatabase> for AlterDatabase {
+    type Error = ProtoConvError;
+    fn try_from(value: service::AlterDatabase) -> Result<Self, Self::Error> {
+        Ok(AlterDatabase {
+            name: value.name,
+            operation: value.operation.required("alter database operation")?,
+        })
+    }
+}
+
+impl From<AlterDatabase> for service::AlterDatabase {
+    fn from(value: AlterDatabase) -> Self {
+        service::AlterDatabase {
+            name: value.name,
+            operation: Some(value.operation.into()),
         }
     }
 }
@@ -503,6 +621,7 @@ pub struct CreateCredentials {
     pub name: String,
     pub options: CredentialsOptions,
     pub comment: String,
+    pub or_replace: bool,
 }
 
 impl TryFrom<service::CreateCredentials> for CreateCredentials {
@@ -512,6 +631,7 @@ impl TryFrom<service::CreateCredentials> for CreateCredentials {
             name: value.name,
             options: value.options.required("options")?,
             comment: value.comment,
+            or_replace: value.or_replace,
         })
     }
 }
@@ -522,6 +642,38 @@ impl From<CreateCredentials> for service::CreateCredentials {
             name: value.name,
             options: Some(value.options.into()),
             comment: value.comment,
+            or_replace: value.or_replace,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct CreateCredential {
+    pub name: String,
+    pub options: CredentialsOptions,
+    pub comment: String,
+    pub or_replace: bool,
+}
+
+impl TryFrom<service::CreateCredential> for CreateCredential {
+    type Error = ProtoConvError;
+    fn try_from(value: service::CreateCredential) -> Result<Self, Self::Error> {
+        Ok(CreateCredential {
+            name: value.name,
+            options: value.options.required("options")?,
+            comment: value.comment,
+            or_replace: value.or_replace,
+        })
+    }
+}
+
+impl From<CreateCredential> for service::CreateCredential {
+    fn from(value: CreateCredential) -> Self {
+        service::CreateCredential {
+            name: value.name,
+            options: Some(value.options.into()),
+            comment: value.comment,
+            or_replace: value.or_replace,
         }
     }
 }

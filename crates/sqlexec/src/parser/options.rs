@@ -1,10 +1,10 @@
 use std::{collections::BTreeMap, fmt};
 
-use datafusion::{
-    common::{parsers::CompressionTypeVariant, FileType},
-    sql::sqlparser::parser::ParserError,
-};
+use datafusion::common::parsers::CompressionTypeVariant;
+use datafusion::common::FileType;
+use datafusion::sql::sqlparser::parser::ParserError;
 use datasources::{debug::DebugTableType, mongodb::MongoProtocol};
+use protogen::metastore::types::options::StorageOptions;
 
 /// Contains the value parsed from Options(...).
 ///
@@ -199,6 +199,18 @@ impl fmt::Display for StmtOptions {
             sep = ", ";
         }
         write!(f, ")")
+    }
+}
+
+impl TryFrom<&mut StmtOptions> for StorageOptions {
+    type Error = ParserError;
+
+    fn try_from(value: &mut StmtOptions) -> Result<Self, Self::Error> {
+        let mut inner = BTreeMap::new();
+        for (key, value) in value.m.iter() {
+            inner.insert(key.clone(), value.clone().parse_opt()?);
+        }
+        Ok(StorageOptions { inner })
     }
 }
 

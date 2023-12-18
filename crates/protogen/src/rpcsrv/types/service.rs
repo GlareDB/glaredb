@@ -10,28 +10,8 @@ use crate::{
     metastore::types::{catalog::CatalogState, FromOptionalField},
 };
 
+use super::common::SessionStorageConfig;
 use super::func_param_value::FuncParamValue;
-
-pub struct SessionStorageConfig {
-    pub gcs_bucket: Option<String>,
-}
-
-impl TryFrom<service::SessionStorageConfig> for SessionStorageConfig {
-    type Error = ProtoConvError;
-    fn try_from(value: service::SessionStorageConfig) -> Result<Self, Self::Error> {
-        Ok(SessionStorageConfig {
-            gcs_bucket: value.gcs_bucket,
-        })
-    }
-}
-
-impl From<SessionStorageConfig> for service::SessionStorageConfig {
-    fn from(value: SessionStorageConfig) -> Self {
-        service::SessionStorageConfig {
-            gcs_bucket: value.gcs_bucket,
-        }
-    }
-}
 
 pub struct InitializeSessionRequestFromClient {
     pub test_db_id: Option<Uuid>,
@@ -60,6 +40,7 @@ impl From<InitializeSessionRequestFromClient> for service::InitializeSessionRequ
 pub struct InitializeSessionRequestFromProxy {
     pub storage_conf: SessionStorageConfig,
     pub db_id: Uuid,
+    pub user_id: Uuid,
 }
 
 impl TryFrom<service::InitializeSessionRequestFromProxy> for InitializeSessionRequestFromProxy {
@@ -68,6 +49,7 @@ impl TryFrom<service::InitializeSessionRequestFromProxy> for InitializeSessionRe
         Ok(Self {
             storage_conf: value.storage_conf.required("storage configuration")?,
             db_id: Uuid::from_slice(&value.db_id)?,
+            user_id: Uuid::from_slice(&value.user_id)?,
         })
     }
 }
@@ -77,6 +59,7 @@ impl From<InitializeSessionRequestFromProxy> for service::InitializeSessionReque
         Self {
             storage_conf: Some(value.storage_conf.into()),
             db_id: value.db_id.into_bytes().into(),
+            user_id: value.user_id.into_bytes().into(),
         }
     }
 }
@@ -125,16 +108,18 @@ impl From<InitializeSessionRequest> for service::InitializeSessionRequest {
 }
 
 pub struct InitializeSessionResponse {
-    pub session_id: Uuid,
+    pub database_id: Uuid,
     pub catalog: CatalogState,
+    pub user_id: Option<Uuid>,
 }
 
 impl TryFrom<service::InitializeSessionResponse> for InitializeSessionResponse {
     type Error = ProtoConvError;
     fn try_from(value: service::InitializeSessionResponse) -> Result<Self, Self::Error> {
         Ok(Self {
-            session_id: Uuid::from_slice(&value.session_id)?,
+            database_id: Uuid::from_slice(&value.database_id)?,
             catalog: value.catalog.required("catalog state")?,
+            user_id: Uuid::from_slice(&value.user_id).ok(),
         })
     }
 }
@@ -143,21 +128,25 @@ impl TryFrom<InitializeSessionResponse> for service::InitializeSessionResponse {
     type Error = ProtoConvError;
     fn try_from(value: InitializeSessionResponse) -> Result<Self, Self::Error> {
         Ok(Self {
-            session_id: value.session_id.into_bytes().into(),
+            database_id: value.database_id.into_bytes().into(),
             catalog: Some(value.catalog.try_into()?),
+            user_id: value
+                .user_id
+                .map(|v| v.into_bytes().into())
+                .unwrap_or_default(),
         })
     }
 }
 
 pub struct FetchCatalogRequest {
-    pub session_id: Uuid,
+    pub database_id: Uuid,
 }
 
 impl TryFrom<service::FetchCatalogRequest> for FetchCatalogRequest {
     type Error = ProtoConvError;
     fn try_from(value: service::FetchCatalogRequest) -> Result<Self, Self::Error> {
         Ok(Self {
-            session_id: Uuid::from_slice(&value.session_id)?,
+            database_id: Uuid::from_slice(&value.database_id)?,
         })
     }
 }
@@ -165,7 +154,7 @@ impl TryFrom<service::FetchCatalogRequest> for FetchCatalogRequest {
 impl From<FetchCatalogRequest> for service::FetchCatalogRequest {
     fn from(value: FetchCatalogRequest) -> Self {
         Self {
-            session_id: value.session_id.into_bytes().into(),
+            database_id: value.database_id.into_bytes().into(),
         }
     }
 }
@@ -194,7 +183,7 @@ impl TryFrom<FetchCatalogResponse> for service::FetchCatalogResponse {
 
 #[derive(Debug)]
 pub struct DispatchAccessRequest {
-    pub session_id: Uuid,
+    pub database_id: Uuid,
     pub table_ref: ResolvedTableReference,
     pub args: Option<Vec<FuncParamValue>>,
 
@@ -224,7 +213,7 @@ impl TryFrom<service::DispatchAccessRequest> for DispatchAccessRequest {
         let opts = if opts.is_empty() { None } else { Some(opts) };
 
         Ok(Self {
-            session_id: Uuid::from_slice(&value.session_id)?,
+            database_id: Uuid::from_slice(&value.database_id)?,
             table_ref: value.table_ref.required("table reference")?,
             args,
             opts,
@@ -249,7 +238,7 @@ impl From<DispatchAccessRequest> for service::DispatchAccessRequest {
             .unwrap_or_default();
 
         Self {
-            session_id: value.session_id.into_bytes().into(),
+            database_id: value.database_id.into_bytes().into(),
             table_ref: Some(value.table_ref.into()),
             args,
             options,
@@ -258,16 +247,20 @@ impl From<DispatchAccessRequest> for service::DispatchAccessRequest {
 }
 
 pub struct PhysicalPlanExecuteRequest {
-    pub session_id: Uuid,
+    pub database_id: Uuid,
     pub physical_plan: Vec<u8>,
+    pub user_id: Option<Uuid>,
+    pub query_text: String,
 }
 
 impl TryFrom<service::PhysicalPlanExecuteRequest> for PhysicalPlanExecuteRequest {
     type Error = ProtoConvError;
     fn try_from(value: service::PhysicalPlanExecuteRequest) -> Result<Self, Self::Error> {
         Ok(Self {
-            session_id: Uuid::from_slice(&value.session_id)?,
+            database_id: Uuid::from_slice(&value.database_id)?,
             physical_plan: value.physical_plan,
+            user_id: Uuid::from_slice(&value.user_id).ok(),
+            query_text: value.query_text,
         })
     }
 }
@@ -275,8 +268,13 @@ impl TryFrom<service::PhysicalPlanExecuteRequest> for PhysicalPlanExecuteRequest
 impl From<PhysicalPlanExecuteRequest> for service::PhysicalPlanExecuteRequest {
     fn from(value: PhysicalPlanExecuteRequest) -> Self {
         Self {
-            session_id: value.session_id.into_bytes().into(),
+            database_id: value.database_id.into_bytes().into(),
             physical_plan: value.physical_plan,
+            user_id: value
+                .user_id
+                .map(|v| v.into_bytes().into())
+                .unwrap_or_default(),
+            query_text: value.query_text,
         }
     }
 }
@@ -384,40 +382,5 @@ impl From<ResolvedTableReference> for service::ResolvedTableReference {
                 )),
             },
         }
-    }
-}
-
-pub struct CloseSessionRequest {
-    pub session_id: Uuid,
-}
-
-impl TryFrom<service::CloseSessionRequest> for CloseSessionRequest {
-    type Error = ProtoConvError;
-    fn try_from(value: service::CloseSessionRequest) -> Result<Self, Self::Error> {
-        Ok(Self {
-            session_id: Uuid::from_slice(&value.session_id)?,
-        })
-    }
-}
-
-impl From<CloseSessionRequest> for service::CloseSessionRequest {
-    fn from(value: CloseSessionRequest) -> Self {
-        Self {
-            session_id: value.session_id.into_bytes().into(),
-        }
-    }
-}
-
-pub struct CloseSessionResponse {}
-
-impl From<service::CloseSessionResponse> for CloseSessionResponse {
-    fn from(_value: service::CloseSessionResponse) -> Self {
-        Self {}
-    }
-}
-
-impl From<CloseSessionResponse> for service::CloseSessionResponse {
-    fn from(_value: CloseSessionResponse) -> Self {
-        Self {}
     }
 }

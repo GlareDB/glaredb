@@ -1,26 +1,16 @@
-/// extension implementations for converting our logical plan into datafusion logical plan
-use datafusion_proto::{
-    logical_plan::LogicalExtensionCodec, physical_plan::PhysicalExtensionCodec,
-};
-use protogen::ProtoConvError;
 use std::{str::FromStr, sync::Arc};
 
 use crate::{
     errors::{internal, ExecError, Result},
     LogicalPlan,
 };
-use datafusion::{
-    execution::{runtime_env::RuntimeEnv, FunctionRegistry},
-    logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore},
-    physical_plan::ExecutionPlan,
-    prelude::SessionContext,
-};
+use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 
 use super::logical_plan::{
-    AlterDatabaseRename, AlterTableRename, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
+    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredential, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
-    CreateTunnel, CreateView, Delete, DropCredentials, DropDatabase, DropSchemas, DropTables,
-    DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
+    CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
+    DropTables, DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
 };
 
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
@@ -28,9 +18,10 @@ use super::logical_plan::{
 /// This should match all of the variants expressed in `protogen::sqlexec::logical_plan::LogicalPlanExtension`
 #[derive(Debug)]
 pub enum ExtensionType {
-    AlterDatabaseRename,
-    AlterTableRename,
+    AlterDatabase,
+    AlterTable,
     AlterTunnelRotateKeys,
+    CreateCredential,
     CreateCredentials,
     CreateExternalDatabase,
     CreateExternalTable,
@@ -39,6 +30,7 @@ pub enum ExtensionType {
     CreateTempTable,
     CreateTunnel,
     CreateView,
+    DescribeTable,
     DropTables,
     DropCredentials,
     DropDatabase,
@@ -57,9 +49,10 @@ impl FromStr for ExtensionType {
     type Err = ExecError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            AlterDatabaseRename::EXTENSION_NAME => Self::AlterDatabaseRename,
-            AlterTableRename::EXTENSION_NAME => Self::AlterTableRename,
+            AlterDatabase::EXTENSION_NAME => Self::AlterDatabase,
+            AlterTable::EXTENSION_NAME => Self::AlterTable,
             AlterTunnelRotateKeys::EXTENSION_NAME => Self::AlterTunnelRotateKeys,
+            CreateCredential::EXTENSION_NAME => Self::CreateCredential,
             CreateCredentials::EXTENSION_NAME => Self::CreateCredentials,
             CreateExternalDatabase::EXTENSION_NAME => Self::CreateExternalDatabase,
             CreateExternalTable::EXTENSION_NAME => Self::CreateExternalTable,
@@ -68,6 +61,7 @@ impl FromStr for ExtensionType {
             CreateTempTable::EXTENSION_NAME => Self::CreateTempTable,
             CreateTunnel::EXTENSION_NAME => Self::CreateTunnel,
             CreateView::EXTENSION_NAME => Self::CreateView,
+            DescribeTable::EXTENSION_NAME => Self::DescribeTable,
             DropTables::EXTENSION_NAME => Self::DropTables,
             DropCredentials::EXTENSION_NAME => Self::DropCredentials,
             DropDatabase::EXTENSION_NAME => Self::DropDatabase,
@@ -86,7 +80,6 @@ impl FromStr for ExtensionType {
 }
 
 pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
-    type ProtoRepr;
     const EXTENSION_NAME: &'static str;
 
     fn into_extension(self) -> LogicalPlanExtension {
@@ -100,37 +93,4 @@ pub trait ExtensionNode: Sized + UserDefinedLogicalNodeCore {
             self.into_extension(),
         ))
     }
-
-    fn try_downcast_extension(extension: &LogicalPlanExtension) -> Result<Self>;
-
-    fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn LogicalExtensionCodec) -> Result<()>;
-
-    fn try_decode(
-        proto: Self::ProtoRepr,
-        _ctx: &SessionContext,
-        _codec: &dyn LogicalExtensionCodec,
-    ) -> Result<Self, ProtoConvError>;
-
-    fn try_encode_extension(
-        extension: &LogicalPlanExtension,
-        buf: &mut Vec<u8>,
-        codec: &dyn LogicalExtensionCodec,
-    ) -> Result<()> {
-        // TODO: ?
-        let extension = Self::try_downcast_extension(extension)?;
-        extension.try_encode(buf, codec)
-    }
-}
-
-pub trait PhysicalExtensionNode: Sized + ExecutionPlan {
-    type ProtoRepr;
-
-    fn try_encode(&self, buf: &mut Vec<u8>, _codec: &dyn PhysicalExtensionCodec) -> Result<()>;
-
-    fn try_decode(
-        proto: Self::ProtoRepr,
-        _registry: &dyn FunctionRegistry,
-        _runtime: &RuntimeEnv,
-        _extension_codec: &dyn PhysicalExtensionCodec,
-    ) -> Result<Self, ProtoConvError>;
 }

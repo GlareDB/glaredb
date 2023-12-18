@@ -1,0 +1,21 @@
+[package]
+name = "catalog"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+datafusion = { workspace = true }
+logutil = { path = "../logutil" }
+object_store = { workspace = true }
+parking_lot = "0.12.1"
+protogen = { path = "../protogen" }
+thiserror.workspace = true
+tokio = { workspace = true }
+tonic = { workspace = true }
+tracing = "0.1"
+uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
+
+[dev-dependencies]
+metastore = { path = "../metastore" }

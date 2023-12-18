@@ -7,13 +7,13 @@ use prost::{Message, Oneof};
 
 use super::{
     common::{FullObjectReference, FullSchemaReference},
-    logical_plan::{CopyToDestinationOptions, CopyToFormatOptions},
+    copy_to::{CopyToDestinationOptions, CopyToFormatOptions},
 };
 
 #[derive(Clone, PartialEq, Message)]
 pub struct ClientExchangeRecvExec {
     #[prost(bytes, tag = "1")]
-    pub broadcast_id: Vec<u8>, // UUID
+    pub work_id: Vec<u8>, // UUID
     #[prost(message, tag = "2")]
     pub schema: Option<Schema>,
 }
@@ -40,7 +40,9 @@ pub struct CreateTableExec {
     pub tbl_reference: Option<FullObjectReference>,
     #[prost(bool, tag = "3")]
     pub if_not_exists: bool,
-    #[prost(message, tag = "4")]
+    #[prost(bool, tag = "4")]
+    pub or_replace: bool,
+    #[prost(message, tag = "5")]
     pub arrow_schema: Option<Schema>,
 }
 
@@ -54,26 +56,44 @@ pub struct CreateCredentialsExec {
     pub options: Option<crate::gen::metastore::options::CredentialsOptions>,
     #[prost(string, tag = "4")]
     pub comment: String,
+    #[prost(bool, tag = "5")]
+    pub or_replace: bool,
 }
 
 #[derive(Clone, PartialEq, Message)]
-pub struct AlterDatabaseRenameExec {
+pub struct CreateCredentialExec {
+    #[prost(string, tag = "1")]
+    pub name: String,
+    #[prost(uint64, tag = "2")]
+    pub catalog_version: u64,
+    #[prost(message, tag = "3")]
+    pub options: Option<crate::gen::metastore::options::CredentialsOptions>,
+    #[prost(string, tag = "4")]
+    pub comment: String,
+    #[prost(bool, tag = "5")]
+    pub or_replace: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct AlterDatabaseExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
     #[prost(string, tag = "2")]
     pub name: String,
-    #[prost(string, tag = "3")]
-    pub new_name: String,
+    #[prost(message, tag = "3")]
+    pub operation: Option<crate::gen::metastore::service::AlterDatabaseOperation>,
 }
 
 #[derive(Clone, PartialEq, Message)]
-pub struct AlterTableRenameExec {
+pub struct AlterTableExec {
     #[prost(uint64, tag = "1")]
     pub catalog_version: u64,
-    #[prost(message, tag = "2")]
-    pub tbl_reference: Option<FullObjectReference>,
-    #[prost(message, tag = "3")]
-    pub new_tbl_reference: Option<FullObjectReference>,
+    #[prost(string, tag = "2")]
+    pub schema: String,
+    #[prost(string, tag = "3")]
+    pub name: String,
+    #[prost(message, tag = "4")]
+    pub operation: Option<crate::gen::metastore::service::AlterTableOperation>,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -86,6 +106,12 @@ pub struct AlterTunnelRotateKeysExec {
     pub if_exists: bool,
     #[prost(bytes = "vec", tag = "4")]
     pub new_ssh_key: ::prost::alloc::vec::Vec<u8>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct DescribeTableExec {
+    #[prost(message, tag = "1")]
+    pub entry: Option<TableEntry>,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -146,7 +172,9 @@ pub struct CreateTempTableExec {
     pub tbl_reference: Option<FullObjectReference>,
     #[prost(bool, tag = "2")]
     pub if_not_exists: bool,
-    #[prost(message, tag = "3")]
+    #[prost(bool, tag = "3")]
+    pub or_replace: bool,
+    #[prost(message, tag = "4")]
     pub arrow_schema: Option<Schema>,
 }
 
@@ -176,6 +204,8 @@ pub struct CreateExternalTableExec {
     pub table_options: Option<crate::gen::metastore::options::TableOptions>,
     #[prost(message, optional, tag = "5")]
     pub tunnel: Option<String>,
+    #[prost(bool, tag = "6")]
+    pub or_replace: bool,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -266,8 +296,8 @@ pub struct DeleteExec {
 
 #[derive(Clone, PartialEq, Message)]
 pub struct InsertExec {
-    #[prost(message, tag = "1")]
-    pub table: Option<TableEntry>,
+    #[prost(bytes, tag = "1")]
+    pub provider_id: Vec<u8>, // UUID
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -293,10 +323,18 @@ pub struct InterleaveExec {}
 pub struct RuntimeGroupExec {}
 
 #[derive(Clone, PartialEq, Message)]
+pub struct DataSourceMetricsExecAdapter {
+    #[prost(bool, tag = "1")]
+    pub track_writes: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
 pub struct AnalyzeExec {
     #[prost(bool, tag = "1")]
     pub verbose: bool,
-    #[prost(message, tag = "2")]
+    #[prost(bool, tag = "2")]
+    pub show_statistics: bool,
+    #[prost(message, tag = "3")]
     pub schema: Option<Schema>,
 }
 
@@ -304,7 +342,7 @@ pub struct AnalyzeExec {
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -319,9 +357,9 @@ pub enum ExecutionPlanExtensionType {
     RemoteScanExec(RemoteScanExec),
     // DDLs
     #[prost(message, tag = "3")]
-    AlterDatabaseRenameExec(AlterDatabaseRenameExec),
+    AlterDatabaseExec(AlterDatabaseExec),
     #[prost(message, tag = "4")]
-    AlterTableRenameExec(AlterTableRenameExec),
+    AlterTableExec(AlterTableExec),
     #[prost(message, tag = "5")]
     CreateCredentialsExec(CreateCredentialsExec),
     #[prost(message, tag = "6")]
@@ -374,4 +412,10 @@ pub enum ExecutionPlanExtensionType {
     RuntimeGroupExec(RuntimeGroupExec),
     #[prost(message, tag = "29")]
     AnalyzeExec(AnalyzeExec),
+    #[prost(message, tag = "30")]
+    DataSourceMetricsExecAdapter(DataSourceMetricsExecAdapter),
+    #[prost(message, tag = "31")]
+    DescribeTable(DescribeTableExec),
+    #[prost(message, tag = "32")]
+    CreateCredentialExec(CreateCredentialExec),
 }

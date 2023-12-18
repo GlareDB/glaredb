@@ -143,10 +143,10 @@ pub enum ExecError {
     DispatchError(#[from] crate::dispatch::DispatchError),
 
     #[error(transparent)]
-    MetastoreWorker(#[from] crate::metastore::client::MetastoreClientError),
+    Catalog(#[from] catalog::errors::CatalogError),
 
     #[error(transparent)]
-    SessionCatalog(#[from] crate::metastore::catalog::SessionCatalogError),
+    DistExecError(#[from] crate::distexec::DistExecError),
 
     #[error("{0:?}")]
     TonicTransport(#[from] tonic::transport::Error),
@@ -159,6 +159,9 @@ pub enum ExecError {
 
     #[error("{0}")]
     String(String),
+
+    #[error(transparent)]
+    ReqwestError(#[from] reqwest::Error),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;

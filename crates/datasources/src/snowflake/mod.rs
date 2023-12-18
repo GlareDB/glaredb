@@ -6,14 +6,13 @@ use std::sync::Mutex;
 use std::task::{Context, Poll};
 use std::{any::Any, sync::Arc};
 
-use crate::common::errors::DatasourceCommonError;
-use crate::common::listing::VirtualLister;
 use crate::common::util;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::Fields;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, Partitioning, RecordBatchStream, Statistics,
 };
@@ -26,6 +25,9 @@ use datafusion::{
     logical_expr::{Expr, TableProviderFilterPushDown, TableType},
     physical_plan::ExecutionPlan,
 };
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{Stream, StreamExt};
 use snowflake_connector::{
     datatype::SnowflakeDataType, snowflake_to_arrow_datatype, Connection as SnowflakeConnection,
@@ -192,8 +194,8 @@ WHERE
 
 #[async_trait]
 impl VirtualLister for SnowflakeAccessor {
-    async fn list_schemas(&self) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let res = self
             .conn
@@ -230,8 +232,8 @@ impl VirtualLister for SnowflakeAccessor {
         Ok(schema_list)
     }
 
-    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let (query, bindings) = (
             "SELECT table_name FROM information_schema.tables WHERE table_schema = ?".to_owned(),
@@ -275,8 +277,8 @@ impl VirtualLister for SnowflakeAccessor {
         &self,
         schema_name: &str,
         table_name: &str,
-    ) -> Result<Fields, DatasourceCommonError> {
-        use DatasourceCommonError::ListingErrBoxed;
+    ) -> Result<Fields, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
 
         let schema = self
             .get_table_schema(schema_name, table_name)
@@ -375,6 +377,7 @@ impl TableProvider for SnowflakeTableProvider {
             arrow_schema: projection_schema,
             num_partitions,
             result: Mutex::new(result),
+            metrics: ExecutionPlanMetricsSet::new(),
         }))
     }
 }
@@ -384,6 +387,7 @@ struct SnowflakeExec {
     arrow_schema: ArrowSchemaRef,
     num_partitions: usize,
     result: Mutex<QueryResult>,
+    metrics: ExecutionPlanMetricsSet,
 }
 
 impl ExecutionPlan for SnowflakeExec {
@@ -427,11 +431,20 @@ impl ExecutionPlan for SnowflakeExec {
                 "missing chunk for partition: {partition}"
             )))?
         };
-        Ok(Box::pin(ChunkStream::new(self.schema(), chunk)))
+        let stream = ChunkStream::new(self.schema(), chunk);
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            stream,
+            partition,
+            &self.metrics,
+        )))
     }
 
     fn statistics(&self) -> Statistics {
         Statistics::default()
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
     }
 }
 

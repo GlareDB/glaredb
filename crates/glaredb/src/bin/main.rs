@@ -43,7 +43,6 @@ struct Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-
     // If some one runs "glaredb", we want them to default to running the local
     // version. This pulls out the args and places them in a local command to
     // keep all the below logic.
@@ -52,11 +51,25 @@ fn main() -> Result<()> {
         None => Commands::Local(cli.local_args),
     };
 
-    // Disable logging when running locally since it'll clobber the repl
-    // _unless_ the user specified a logging related option.
     match (&command, cli.log_mode, cli.verbose) {
+        (
+            // User specified a log file, so we should use it.
+            Commands::Local(LocalArgs {
+                log_file: Some(log_file),
+                ..
+            }),
+            _,
+            _,
+        ) => logutil::init(
+            cli.verbose,
+            // Use JSON logging by default when writing to a file.
+            cli.log_mode.unwrap_or(LoggingMode::Json).into(),
+            Some(log_file),
+        ),
+        // Disable logging when running locally since it'll clobber the repl
+        // _unless_ the user specified a logging related option.
         (Commands::Local { .. }, None, 0) => (),
-        _ => logutil::init(cli.verbose, cli.log_mode.unwrap_or_default().into()),
+        _ => logutil::init(cli.verbose, cli.log_mode.unwrap_or_default().into(), None),
     }
 
     command.run()

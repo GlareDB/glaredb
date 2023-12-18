@@ -5,7 +5,8 @@ use datafusion::{
 };
 use futures::StreamExt;
 
-use crate::{metastore::catalog::TempCatalog, planner::logical_plan::OwnedFullObjectReference};
+use crate::planner::logical_plan::OwnedFullObjectReference;
+use catalog::session_catalog::TempCatalog;
 
 use super::*;
 
@@ -13,6 +14,7 @@ use super::*;
 pub struct CreateTempTableExec {
     pub tbl_reference: OwnedFullObjectReference,
     pub if_not_exists: bool,
+    pub or_replace: bool,
     pub arrow_schema: SchemaRef,
     pub source: Option<Arc<dyn ExecutionPlan>>,
 }
@@ -48,6 +50,7 @@ impl ExecutionPlan for CreateTempTableExec {
         Ok(Arc::new(CreateTempTableExec {
             tbl_reference: self.tbl_reference.clone(),
             if_not_exists: self.if_not_exists,
+            or_replace: self.or_replace,
             arrow_schema: self.arrow_schema.clone(),
             source: children.get(0).cloned(),
         }))
@@ -94,9 +97,10 @@ async fn create_temp_table(
     if temp_objects
         .resolve_temp_table(&plan.tbl_reference.name)
         .is_some()
+        && !plan.or_replace
     {
         if plan.if_not_exists {
-            return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
+            return Ok(new_operation_batch("create table if not exists"));
         }
         return Err(DataFusionError::Execution(format!(
             "Duplicate object name: '{}' already exists",
@@ -107,7 +111,7 @@ async fn create_temp_table(
     let schema = plan.arrow_schema;
     let data = RecordBatch::new_empty(schema.clone());
     let table = Arc::new(MemTable::try_new(schema, vec![vec![data]])?);
-    temp_objects.put_temp_table(plan.tbl_reference.name.into_owned(), table.clone());
+    temp_objects.put_temp_table(plan.tbl_reference.name.to_string(), table.clone());
 
     if let Some(source) = plan.source {
         let source: Arc<dyn ExecutionPlan> = match source.output_partitioning().partition_count() {
@@ -118,8 +122,10 @@ async fn create_temp_table(
             }
         };
 
-        let state =
-            SessionState::with_config_rt(context.session_config().clone(), context.runtime_env());
+        let state = SessionState::new_with_config_rt(
+            context.session_config().clone(),
+            context.runtime_env(),
+        );
 
         let exec = table.insert_into(&state, source, false).await?;
         let mut stream = exec.execute(0, context)?;

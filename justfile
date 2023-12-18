@@ -3,14 +3,23 @@ default: help
 export CARGO_TERM_COLOR := "always"
 export PROTOC := justfile_directory() + "/deps/protoc/bin/protoc"
 alias py := python
+alias js := javascript
+
 alias slt := sql-logic-tests
 
 os_arch := os() + '-' + arch()
 
+# Run benchmarks subcommands. see `benchmarks/justfile` for more details.
+bench cmd *args:
+  just benchmarks/{{cmd}} {{args}}
 
-# Run py-glaredb subcommands. see `py-glaredb/justfile` for more details.
+# Run py-glaredb subcommands. see `bindings/python/justfile` for more details.
 python cmd *args: protoc
-  just py-glaredb/{{cmd}} {{args}}
+  just bindings/python/{{cmd}} {{args}}
+
+# Run js-glaredb subcommands. see `bindings/nodejs/justfile` for more details.
+javascript cmd *args: protoc
+  just bindings/nodejs/{{cmd}} {{args}}
 
 # Run glaredb server
 run *args: protoc
@@ -39,7 +48,7 @@ test *args: protoc
 
 # Run unit tests.
 unit-tests *args: protoc
-  just test --lib --bins {{args}}
+  just test --workspace --exclude testing {{args}}
 
 # Run doc tests.
 doc-tests: protoc
@@ -49,9 +58,56 @@ doc-tests: protoc
 sql-logic-tests *args: protoc
   just test --test sqllogictests -- {{args}}
 
+# Run SQL Logic Tests over RPC
+rpc-tests: protoc
+  just sql-logic-tests --protocol=rpc \
+    'sqllogictests/cast/*' \
+    'sqllogictests/cte/*' \
+    'sqllogictests/functions/delta_scan' \
+    'sqllogictests/functions/generate_series' \
+    'sqllogictests/functions/version' \
+    'sqllogictests/joins/*' \
+    'sqllogictests/topn/*' \
+    'sqllogictests/window/*' \
+    'sqllogictests/aggregates' \
+    'sqllogictests/alter' \
+    'sqllogictests/create_table' \
+    'sqllogictests/credentials' \
+    'sqllogictests/csv' \
+    'sqllogictests/debug' \
+    'sqllogictests/delete' \
+    'sqllogictests/demo_pg' \
+    'sqllogictests/drop' \
+    'sqllogictests/explain' \
+    'sqllogictests/external_table' \
+    'sqllogictests/http' \
+    'sqllogictests/infer' \
+    'sqllogictests/information_schema' \
+    'sqllogictests/metabase' \
+    'sqllogictests/name' \
+    'sqllogictests/object_names' \
+    'sqllogictests/pg_catalog' \
+    'sqllogictests/rpc' \
+    'sqllogictests/schema' \
+    'sqllogictests/search_path' \
+    'sqllogictests/select' \
+    'sqllogictests/simple' \
+    'sqllogictests/table' \
+    'sqllogictests/temp_table' \
+    'sqllogictests/time' \
+    'sqllogictests/tunnels' \
+    'sqllogictests/update' \
+    'sqllogictests/vars' \
+    'sqllogictests/views' \
+    'sqllogictests/virtual_catalog' \
+    'sqllogictests/xlsx' \
+    'sqllogictests/prql' \
+    'sqllogictests/describe_rpc' \
+    'sqllogictests/allowed_operations'
+
 #  Check formatting.
 fmt-check: protoc
-  cargo fmt -- --check
+  cargo fmt --check
 
 # Apply formatting.
 fmt *args: protoc
@@ -61,19 +117,22 @@ fmt *args: protoc
 clippy: protoc
   cargo clippy --all --all-features -- --deny warnings
 
+# combined target for all lint
+lint: clippy fmt-check
+
 # apply linting & clippy fixes.
 fix: protoc
   cargo clippy --fix --all --all-features --allow-staged --allow-dirty
-  cargo fix --all --allow-staged  --allow-dirty 
-  just fmt --all
+  cargo fix --all --allow-staged  --allow-dirty
+  cargo fmt --all
 
 # Displays help message.
-help: 
+help:
   @just --list
 
 protoc:
   #!/bin/bash
-  if ! $PROTOC --version > /dev/null; then 
+  if ! $PROTOC --version > /dev/null; then
     echo "Installing protoc..." && \
     curl -L {{protoc_url}} -o protoc.zip && \
     rm -rf deps/protoc && \
@@ -82,6 +141,13 @@ protoc:
     rm protoc.zip
   fi
 
+# Installs python dependencies for testing
+pytest-setup:
+	poetry -C tests install
+
+# Runs pytest in the tests directory.
+pytest *args:
+	poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
 
 # private helpers below
 # ---------------------
