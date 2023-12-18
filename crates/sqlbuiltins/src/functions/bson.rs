@@ -1,16 +1,21 @@
 use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use bytes::BytesMut;
+use datafusion::arrow::datatypes::{Schema, SchemaRef};
 use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
+use datafusion::execution::TaskContext;
 use datafusion::parquet::data_type::AsBytes;
-use futures::StreamExt;
+use datafusion::physical_plan::streaming::PartitionStream;
+use datafusion::physical_plan::SendableRecordBatchStream;
+use futures::{Stream, StreamExt};
 use tokio_util::codec::LengthDelimitedCodec;
 
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
+use datasources::bson::errors::BsonError;
 use datasources::bson::schema::{merge_schemas, schema_from_document};
 use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::ObjStoreAccess;
@@ -166,9 +171,27 @@ impl TableFunc for BsonScan {
         // vector as below: one that just returns the documents from the sample
         // in the table and a second one for each reader.
 
+        let pfps = BsonFilePartitionStream {
+            schema: Arc::new(schema),
+            partition: readers.pop_front().boxed(),
+        };
+
         Ok(Arc::new(StreamingTable::try_new(
             Arc::new(schema), // <= inferred schema
             Vec::new(),       // <= vector of partition scanners
         )?))
     }
+}
+
+struct BsonFilePartitionStream {
+    schema: Arc<Schema>,
+    partition: Mutex<Box<dyn Stream<Item = Result<bson::Document, BsonError>>>>,
+}
+
+impl PartitionStream for BsonFilePartitionStream {
+    fn schema(&self) -> &SchemaRef {
+        &self.schema
+    }
+
+    fn execute(&self, ctx: Arc<TaskContext>) -> SendableRecordBatchStream {}
 }
