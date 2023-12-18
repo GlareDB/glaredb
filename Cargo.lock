@@ -2283,6 +2283,7 @@ dependencies = [
  "bigquery-storage",
  "bitflags 2.4.1",
  "bitvec",
+ "bson",
  "bytes",
  "calamine",
  "chrono",
