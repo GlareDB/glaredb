@@ -1,5 +1,7 @@
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
@@ -15,7 +17,6 @@ use tokio_util::codec::LengthDelimitedCodec;
 
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::bson::errors::BsonError;
 use datasources::bson::schema::{merge_schemas, schema_from_document};
 use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::ObjStoreAccess;
@@ -130,7 +131,7 @@ impl TableFunc for BsonScan {
                                 bt?.freeze().as_bytes().to_owned().as_slice(),
                             )?
                             .to_owned())
-                        }),
+                        }).boxed(),
             );
         }
 
@@ -164,28 +165,30 @@ impl TableFunc for BsonScan {
         // of as a base-level projection, but we'd need a schema specification
         // language). Or have some other strategy for inference rather than
         // every unique field from the first <n> documents.
-        let schema = merge_schemas(sample.iter().map(|doc| schema_from_document(doc).unwrap()))
-            .map_err(|e| ExtensionError::String(e.to_string()))?;
+        let schema = Arc::new(
+            merge_schemas(sample.iter().map(|doc| schema_from_document(doc).unwrap()))
+                .map_err(|e| ExtensionError::String(e.to_string()))?,
+        );
 
         // TODO: create two partion scanner implementations and add them to a
         // vector as below: one that just returns the documents from the sample
         // in the table and a second one for each reader.
 
-        let pfps = BsonFilePartitionStream {
-            schema: Arc::new(schema),
-            partition: readers.pop_front().boxed(),
-        };
+        let pfps = Arc::new(BsonFilePartitionStream {
+            schema: schema.clone(),
+            partition: Mutex::new(readers.pop_front().unwrap()),
+        });
 
         Ok(Arc::new(StreamingTable::try_new(
-            Arc::new(schema), // <= inferred schema
-            Vec::new(),       // <= vector of partition scanners
+            schema.clone(), // <= inferred schema
+            vec![pfps],     // <= vector of partition scanners
         )?))
     }
 }
 
 struct BsonFilePartitionStream {
     schema: Arc<Schema>,
-    partition: Mutex<Box<dyn Stream<Item = Result<bson::Document, BsonError>>>>,
+    partition: Mutex<Pin<Box<dyn Stream<Item = Result<bson::Document, ExtensionError>> + Send>>>,
 }
 
 impl PartitionStream for BsonFilePartitionStream {
