@@ -42,11 +42,11 @@ impl Iterator for BsonBatchConverter {
 
     fn next(&mut self) -> Option<Self::Item> {
         if !self.started {
-            match self.setup() {
-                Ok(_) => {}
-                Err(e) => return Some(Err(e)),
-            };
+            if let Err(e) = self.setup() {
+                return Some(Err(e));
+            }
         }
+
         if self.row >= self.batch.len() {
             return None;
         }
