@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 use url::Url;
 
-use crate::rpc_proxy::TLSMode;
+use crate::proxy::TLSMode;
 pub mod local;
 pub mod server;
 

@@ -1,5 +1,7 @@
+use std::borrow::Cow;
+
 use async_trait::async_trait;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
@@ -16,14 +18,14 @@ pub enum CloudAuthError {
 
 type Result<T, E = CloudAuthError> = std::result::Result<T, E>;
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct Node {
     pub ip: String,
     pub port: String,
 }
 
 /// Connection details for a database. Returned by the connection authenticator.
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseDetails {
     /// IP to connect to.
     // TODO: Rename to host.
@@ -63,12 +65,12 @@ impl ServiceProtocol {
 /// Params used for cloud authentication.
 #[derive(Debug, Clone)]
 pub struct AuthParams<'a> {
-    pub user: &'a str,
-    pub password: &'a str,
-    pub db_name: &'a str,
+    pub user: Cow<'a, str>,
+    pub password: Cow<'a, str>,
+    pub db_name: Cow<'a, str>,
     /// May be either the org name or org id.
     // TODO: We should really do one or the other.
-    pub org: &'a str,
+    pub org: Cow<'a, str>,
     /// Which service we're authenticating for.
     ///
     /// Cloud will use this parameter to direct us to the right port that's
@@ -85,6 +87,23 @@ pub struct AuthParams<'a> {
 pub trait ProxyAuthenticator: Sync + Send {
     /// Authenticate a database connection.
     async fn authenticate(&self, params: AuthParams<'_>) -> Result<DatabaseDetails>;
+}
+// pub struct NoopAuthenticator;
+pub struct NoopAuthenticator;
+
+#[async_trait]
+impl ProxyAuthenticator for NoopAuthenticator {
+    async fn authenticate(&self, _params: AuthParams<'_>) -> Result<DatabaseDetails> {
+        Ok(DatabaseDetails {
+            ip: String::new(),
+            port: String::new(),
+            nodes: None,
+            database_id: String::new(),
+            user_id: String::new(),
+            gcs_storage_bucket: String::new(),
+            memory_limit_bytes: 0,
+        })
+    }
 }
 
 /// Authentice connections using the Cloud service.
@@ -112,13 +131,13 @@ impl CloudAuthenticator {
 #[async_trait]
 impl ProxyAuthenticator for CloudAuthenticator {
     async fn authenticate(&self, params: AuthParams<'_>) -> Result<DatabaseDetails> {
-        let query = if Uuid::try_parse(params.org).is_ok() {
+        let query = if Uuid::try_parse(params.org.as_ref()).is_ok() {
             [
                 ("user", params.user),
                 ("password", params.password),
                 ("name", params.db_name),
                 ("org", params.org),
-                ("service", params.service.as_str()),
+                ("service", Cow::Borrowed(params.service.as_str())),
             ]
         } else {
             [
@@ -126,7 +145,7 @@ impl ProxyAuthenticator for CloudAuthenticator {
                 ("password", params.password),
                 ("name", params.db_name),
                 ("orgname", params.org),
-                ("service", params.service.as_str()),
+                ("service", Cow::Borrowed(params.service.as_str())),
             ]
         };
 

@@ -1,4 +1,5 @@
 use crate::errors::{Result, RpcsrvError};
+use crate::util::ConnKey;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use futures::{Stream, StreamExt};
@@ -11,9 +12,10 @@ use protogen::rpcsrv::types::service::{
 };
 use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, ServiceProtocol};
 use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
+use std::borrow::Cow;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::{hash::Hash, time::Duration};
+use std::time::Duration;
 use tonic::{
     metadata::MetadataMap,
     transport::{Channel, Endpoint},
@@ -22,29 +24,22 @@ use tonic::{
 use tracing::{info, warn};
 use uuid::Uuid;
 
-/// Key used for the connections map.
-// TODO: Possibly per user connections?
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct ConnKey {
-    ip: String,
-    port: String,
-}
-
 /// Proxies rpc requests to compute nodes.
-pub struct RpcProxyHandler<A> {
-    authenticator: A,
+pub struct ProxyHandler<A, C> {
+    pub(crate) authenticator: A,
     /// Connections to compute nodes.
-    conns: DashMap<ConnKey, ExecutionServiceClient<Channel>>,
+    pub(crate) conns: DashMap<ConnKey, C>,
 }
-
-impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
+impl<A: ProxyAuthenticator, C> ProxyHandler<A, C> {
     pub fn new(authenticator: A) -> Self {
-        RpcProxyHandler {
+        ProxyHandler {
             authenticator,
             conns: DashMap::new(),
         }
     }
+}
 
+impl<A: ProxyAuthenticator> ProxyHandler<A, ExecutionServiceClient<Channel>> {
     /// Connect to a compute node.
     ///
     /// This will read authentication params from the metadata map, get
@@ -151,10 +146,10 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
         let org = get_val(ORG_KEY, meta)?;
 
         Ok(AuthParams {
-            user,
-            password,
-            db_name,
-            org,
+            user: Cow::Borrowed(user),
+            password: Cow::Borrowed(password),
+            db_name: Cow::Borrowed(db_name),
+            org: Cow::Borrowed(org),
             service: ServiceProtocol::RpcSrv,
         })
     }
@@ -162,7 +157,7 @@ impl<A: ProxyAuthenticator> RpcProxyHandler<A> {
 
 #[async_trait]
 impl<A: ProxyAuthenticator + 'static> service::execution_service_server::ExecutionService
-    for RpcProxyHandler<A>
+    for ProxyHandler<A, ExecutionServiceClient<Channel>>
 {
     type PhysicalPlanExecuteStream = Streaming<service::RecordBatchResponse>;
 

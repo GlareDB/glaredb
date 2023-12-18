@@ -1,10 +1,13 @@
 use anyhow::Result;
 use clap::ValueEnum;
-use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
+use protogen::gen::rpcsrv::service::{
+    execution_service_client::ExecutionServiceClient,
+    execution_service_server::ExecutionServiceServer,
+};
 use proxyutil::cloudauth::CloudAuthenticator;
-use rpcsrv::proxy::RpcProxyHandler;
+use rpcsrv::proxy::ProxyHandler;
 use std::net::SocketAddr;
-use tonic::transport::{Identity, Server, ServerTlsConfig};
+use tonic::{transport::{Channel, Identity, Server, ServerTlsConfig}, service::Interceptor};
 use tracing::{debug_span, info, warn};
 
 // These paths exist as volume mounts on the cloud container running rpc proxy.
@@ -13,8 +16,10 @@ use tracing::{debug_span, info, warn};
 const CERT_PATH: &str = "/etc/certs/tls.crt";
 const CERT_KEY_PATH: &str = "/etc/certs/tls.key";
 
+type RpcProxyHandler = ProxyHandler<CloudAuthenticator, ExecutionServiceClient<Channel>>;
+
 pub struct RpcProxy {
-    handler: RpcProxyHandler<CloudAuthenticator>,
+    handler: RpcProxyHandler,
 }
 
 #[derive(Clone, Debug, Default, ValueEnum)]
@@ -72,13 +77,13 @@ impl RpcProxy {
                 let key = std::fs::read_to_string(CERT_KEY_PATH)?;
 
                 let identity = Identity::from_pem(cert, key);
-
+                // tonic::service::interceptor(intercept);
                 server
                     .tls_config(
                         ServerTlsConfig::new()
                             .identity(identity)
                             .client_auth_optional(tls_optional),
-                    )?
+                    ).unwrap()
                     .add_service(ExecutionServiceServer::new(self.handler))
                     .serve(addr)
                     .await?;
@@ -86,5 +91,12 @@ impl RpcProxy {
         }
 
         Ok(())
+    }
+}
+
+struct ProxyInterceptor;
+impl Interceptor for ProxyInterceptor {
+    fn call(&mut self, request: tonic::Request<()>) -> std::prelude::v1::Result<tonic::Request<()>, tonic::Status> {
+        todo!()
     }
 }

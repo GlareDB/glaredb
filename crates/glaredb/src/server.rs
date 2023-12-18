@@ -4,7 +4,7 @@ use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use protogen::gen::rpcsrv::simple::simple_service_server::SimpleServiceServer;
-use rpcsrv::flight_handler::{FlightServiceServer, FlightSessionHandler};
+use rpcsrv::flight::handler::{FlightServiceServer, LocalFlightHandler};
 use rpcsrv::{handler::RpcHandler, simple::SimpleHandler};
 use sqlexec::engine::{Engine, EngineStorageConfig};
 use std::collections::HashMap;
@@ -336,7 +336,7 @@ impl ComputeServer {
 
         if self.enable_flight_api {
             info!("enabling flight sql service");
-            let flight_handler = FlightSessionHandler::new(&self.engine);
+            let flight_handler = LocalFlightHandler::new(&self.engine);
             server = server.add_service(FlightServiceServer::new(flight_handler));
         }
         // Add in the simple interface if requested.

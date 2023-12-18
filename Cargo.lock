@@ -3147,6 +3147,7 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tonic",
+ "tower",
  "tracing",
  "url",
  "uuid",
@@ -5973,6 +5974,7 @@ version = "0.7.1"
 dependencies = [
  "arrow-flight",
  "async-trait",
+ "base64 0.21.5",
  "bytes",
  "dashmap",
  "datafusion",
@@ -5986,6 +5988,7 @@ dependencies = [
  "protogen",
  "proxyutil",
  "serde",
+ "serde_json",
  "sqlexec",
  "telemetry",
  "thiserror",
