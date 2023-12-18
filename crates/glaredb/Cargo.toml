@@ -31,8 +31,8 @@ uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tonic = { workspace = true }
 once_cell = "1.19.0"
 futures = "0.3.29"
-colored = "2.0.4"
-reedline = "0.26.0"
+colored = "2.1.0"
+reedline = "0.27.1"
 nu-ansi-term = "0.49.0"
 url.workspace = true
 atty = "0.2.14"
