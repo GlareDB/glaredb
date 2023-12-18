@@ -25,6 +25,7 @@ jobs:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: build
@@ -44,6 +45,7 @@ jobs:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: clippy
@@ -66,9 +68,10 @@ jobs:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: run tests 
+      - name: run tests
         run: just unit-tests
 
   python-binding-tests:
@@ -85,7 +88,11 @@ jobs:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: build glaredb binary
+        run: just build
 
       - name: build python bindings
         run: just python build
@@ -110,6 +117,7 @@ jobs:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: build node.js bindings
         run: just js build-debug
@@ -130,6 +138,7 @@ jobs:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: pg protocol test (script)
         run: |
@@ -152,6 +161,7 @@ jobs:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: public sql logic tests DEBUG
@@ -174,7 +184,7 @@ jobs:
       - name: install python
         uses: actions/setup-python@v5
         with:
-            python-version: '3.11' 
+            python-version: '3.11'
             cache: poetry
             cache-dependency-paths: |
               tests/poetry.lock
@@ -184,6 +194,7 @@ jobs:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache@v3
         name: cache
@@ -197,8 +208,8 @@ jobs:
         run: just pytest
 
   service-integration-tests:
-    if: github.repository_owner == 'glaredb'
     name: Service Integration Tests (SLT)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
@@ -211,6 +222,7 @@ jobs:
           path: |
             ~/.cargo/
             target/
+            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: GCP authenticate

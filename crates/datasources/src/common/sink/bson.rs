@@ -118,7 +118,7 @@ where
         );
 
         for doc in converter {
-            doc.to_writer(&mut self.writer)
+            doc?.to_writer(&mut self.writer)
                 .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
         }
 
