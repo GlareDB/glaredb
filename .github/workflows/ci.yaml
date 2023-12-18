@@ -335,7 +335,7 @@ jobs:
           just slt -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
 
   service-integration-tests-snowflake:
-    if: github.repository_owner == 'glaredb'
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
     name: Snowflake Service Integration Tests (SLT::Snowflake)
     runs-on: ubuntu-latest-8-cores
     needs: ["service-integration-tests"]
