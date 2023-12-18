@@ -53,14 +53,18 @@ impl BsonStream {
                     }
                 }
             }
+
             let (fields, builders) = builder.into_fields_and_builders();
-            yield Ok(RecordBatch::try_new(Arc::new(Schema::new(fields)),
+
+            let out = RecordBatch::try_new(Arc::new(Schema::new(fields)),
                 builders
                 .into_iter()
                 .map(|mut col| col.finish())
                 .collect(),
-            ).map_err(|e| DataFusionError::ArrowError(e))?);
-        }.boxed();
+            ).map_err(|e| DataFusionError::ArrowError(e))?;
+
+            yield Ok(out);
+        };
 
         BsonStream {
             schema: schema.clone(),
