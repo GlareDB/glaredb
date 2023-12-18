@@ -95,15 +95,15 @@ pub enum DatabaseOptions {
 }
 
 impl DatabaseOptions {
-    pub const INTERNAL: &str = "internal";
-    pub const DEBUG: &str = "debug";
-    pub const POSTGRES: &str = "postgres";
-    pub const BIGQUERY: &str = "bigquery";
-    pub const MYSQL: &str = "mysql";
-    pub const MONGO: &str = "mongo";
-    pub const SNOWFLAKE: &str = "snowflake";
-    pub const DELTA: &str = "delta";
-    pub const SQL_SERVER: &str = "sql_server";
+    pub const INTERNAL: &'static str = "internal";
+    pub const DEBUG: &'static str = "debug";
+    pub const POSTGRES: &'static str = "postgres";
+    pub const BIGQUERY: &'static str = "bigquery";
+    pub const MYSQL: &'static str = "mysql";
+    pub const MONGO: &'static str = "mongo";
+    pub const SNOWFLAKE: &'static str = "snowflake";
+    pub const DELTA: &'static str = "delta";
+    pub const SQL_SERVER: &'static str = "sql_server";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -517,21 +517,21 @@ pub enum TableOptions {
 }
 
 impl TableOptions {
-    pub const INTERNAL: &str = "internal";
-    pub const DEBUG: &str = "debug";
-    pub const POSTGRES: &str = "postgres";
-    pub const BIGQUERY: &str = "bigquery";
-    pub const MYSQL: &str = "mysql";
-    pub const LOCAL: &str = "local";
-    pub const GCS: &str = "gcs";
-    pub const S3_STORAGE: &str = "s3";
-    pub const MONGO: &str = "mongo";
-    pub const SNOWFLAKE: &str = "snowflake";
-    pub const DELTA: &str = "delta";
-    pub const ICEBERG: &str = "iceberg";
-    pub const AZURE: &str = "azure";
-    pub const SQL_SERVER: &str = "sql_server";
-    pub const LANCE: &str = "lance";
+    pub const INTERNAL: &'static str = "internal";
+    pub const DEBUG: &'static str = "debug";
+    pub const POSTGRES: &'static str = "postgres";
+    pub const BIGQUERY: &'static str = "bigquery";
+    pub const MYSQL: &'static str = "mysql";
+    pub const LOCAL: &'static str = "local";
+    pub const GCS: &'static str = "gcs";
+    pub const S3_STORAGE: &'static str = "s3";
+    pub const MONGO: &'static str = "mongo";
+    pub const SNOWFLAKE: &'static str = "snowflake";
+    pub const DELTA: &'static str = "delta";
+    pub const ICEBERG: &'static str = "iceberg";
+    pub const AZURE: &'static str = "azure";
+    pub const SQL_SERVER: &'static str = "sql_server";
+    pub const LANCE: &'static str = "lance";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -1037,9 +1037,9 @@ pub enum TunnelOptions {
 }
 
 impl TunnelOptions {
-    pub const INTERNAL: &str = "internal";
-    pub const DEBUG: &str = "debug";
-    pub const SSH: &str = "ssh";
+    pub const INTERNAL: &'static str = "internal";
+    pub const DEBUG: &'static str = "debug";
+    pub const SSH: &'static str = "ssh";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -1183,10 +1183,10 @@ pub enum CredentialsOptions {
 }
 
 impl CredentialsOptions {
-    pub const DEBUG: &str = "debug";
-    pub const GCP: &str = "gcp";
-    pub const AWS: &str = "aws";
-    pub const AZURE: &str = "azure";
+    pub const DEBUG: &'static str = "debug";
+    pub const GCP: &'static str = "gcp";
+    pub const AWS: &'static str = "aws";
+    pub const AZURE: &'static str = "azure";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -1345,10 +1345,10 @@ pub enum CopyToDestinationOptions {
 }
 
 impl CopyToDestinationOptions {
-    pub const LOCAL: &str = "local";
-    pub const GCS: &str = "gcs";
-    pub const S3_STORAGE: &str = "s3";
-    pub const AZURE: &str = "azure";
+    pub const LOCAL: &'static str = "local";
+    pub const GCS: &'static str = "gcs";
+    pub const S3_STORAGE: &'static str = "s3";
+    pub const AZURE: &'static str = "azure";
 
     pub const fn as_str(&self) -> &'static str {
         match self {
@@ -1415,10 +1415,11 @@ impl Default for CopyToFormatOptions {
 }
 
 impl CopyToFormatOptions {
-    pub const CSV: &str = "csv";
-    pub const PARQUET: &str = "parquet";
-    pub const JSON: &str = "json";
-    pub const BSON: &str = "bson";
+    pub const CSV: &'static str = "csv";
+    pub const PARQUET: &'static str = "parquet";
+    pub const JSON: &'static str = "json";
+    pub const BSON: &'static str = "bson";
+in
 
     pub fn as_str(&self) -> &'static str {
         match self {
