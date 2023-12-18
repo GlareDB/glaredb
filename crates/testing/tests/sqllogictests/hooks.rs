@@ -16,8 +16,8 @@ use tracing::warn;
 pub struct AllTestsHook;
 
 impl AllTestsHook {
-    const VAR_CURRENT_DATABASE: &str = "SLT_CURRENT_DATABASE";
-    const TMP_DIR: &str = "TMP";
+    const VAR_CURRENT_DATABASE: &'static str = "SLT_CURRENT_DATABASE";
+    const TMP_DIR: &'static str = "TMP";
 }
 
 #[async_trait]
@@ -36,7 +36,6 @@ impl Hook for AllTestsHook {
             Self::TMP_DIR.to_owned(),
             tmp_dir.to_string_lossy().into_owned(),
         );
-
         // Set the current database to test database
         vars.insert(
             Self::VAR_CURRENT_DATABASE.to_owned(),
@@ -66,8 +65,8 @@ impl Hook for AllTestsHook {
 pub struct SshTunnelHook;
 
 impl SshTunnelHook {
-    const SSH_USER: &str = "glaredb";
-    const TUNNEL_NAME_PREFIX: &str = "test_ssh_tunnel";
+    const SSH_USER: &'static str = "glaredb";
+    const TUNNEL_NAME_PREFIX: &'static str = "test_ssh_tunnel";
 
     /// Generate random port using operating system by using port 0.
     async fn generate_random_port() -> Result<u16> {
@@ -196,6 +195,10 @@ impl Hook for SshTunnelHook {
         let client = match client {
             TestClient::Pg(client) => client,
             TestClient::Rpc(_) => return Err(anyhow!("cannot run SSH tunnel test on rpc")),
+            TestClient::FlightSql(_) => {
+                warn!("cannot run SSH tunnel test on flight protocol. Skipping...");
+                return Ok(());
+            }
         };
 
         let mut err = None;

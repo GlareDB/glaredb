@@ -39,6 +39,8 @@ syntax = "proto3";
 
 package rpcsrv.service;
 
+option go_package = "github.com/glaredb/cloud/pkg/protogen/rpcsrv";
+
 import "metastore/catalog.proto";
 import "rpcsrv/common.proto";
 

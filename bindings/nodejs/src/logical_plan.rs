@@ -20,7 +20,7 @@ impl JsLogicalPlan {
     async fn execute_inner(&self) -> napi::Result<JsExecutionResult> {
         let mut sess = self.session.lock().await;
         let (_, stream) = sess
-            .execute_inner(self.lp.clone(), &self.op)
+            .execute_logical_plan(self.lp.clone(), &self.op)
             .await
             .map_err(JsGlareDbError::from)?;
 

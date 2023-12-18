@@ -16,18 +16,18 @@ jobs:
     name: Build
     runs-on: ubuntu-latest-8-cores
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build
+      - name: build
         run: just build
 
   static-analysis:
@@ -35,21 +35,21 @@ jobs:
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Clippy
+      - name: clippy
         run: just clippy
 
-      - name: Format
+      - name: format
         run: just fmt-check
 
   unit-tests:
@@ -57,51 +57,44 @@ jobs:
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
-          cache-all-crates: true
 
-      - name: Unit Tests
+      - name: run tests 
         run: just unit-tests
-
-      - name: Doc Tests
-        run: just doc-tests
 
   python-binding-tests:
     name: Python Binding Tests
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build python
+      - name: build python bindings
         run: just python build
 
-      - name: Python Bindings Tests
+      - name: run python binding tests
         run: just python test
-  node-bindings-tests:
-    name: Node Binding Tests
+
+  nodejs-bindings-tests:
+    name: Node.js Binding Tests
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
@@ -112,36 +105,37 @@ jobs:
           node-version: 20
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Build nodejs
+      - name: build node.js bindings
         run: just js build-debug
-      - name: Node Bindings Tests
+      - name: run node.js binding tests
         run: just js test
+
   pg-protocol:
     name: PG Protocol Tests
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: PG Protocol Tests
+      - name: pg protocol test (script)
         run: |
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
 
-      - name: PG Protocol Tests (SLT Runner)
+      - name: pg protocol tests (slt runner)
         run: just slt -v 'pgproto/*'
 
   sql-logic-tests:
@@ -149,61 +143,95 @@ jobs:
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Public SQL Logic Tests DEBUG
+      - name: public sql logic tests DEBUG
         if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
         run: just slt -v 'sqllogictests/*'
-      - name: Public SQL Logic Tests
+      - name: public sql logic tests
         if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
         run: just slt 'sqllogictests/*'
 
-  integration-tests:
-    if: github.repository_owner == 'glaredb'
-    name: Integration Tests
+  process-integration-tests:
+    name: Process Integration Tests (pytest)
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
-      - name: Checkout
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - name: install poetry
+        uses: snok/install-poetry@v1
+      - name: install python
+        uses: actions/setup-python@v5
+        with:
+            python-version: '3.11' 
+            cache: poetry
+            cache-dependency-paths: |
+              tests/poetry.lock
+      - uses: actions/cache@v3
+        name: cache
+        with:
+          path: |
+            ~/.cargo/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache@v3
+        name: cache
+        with:
+          path: |
+            tests/.venv/
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/Cargo.lock') }}
+      - name: setup pytest
+        run: just pytest-setup
+      - name: run pytest
+        run: just pytest
+
+  service-integration-tests:
+    name: Service Integration Tests (SLT)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: Cache
+        name: cache
         with:
           path: |
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Authenticate to Google Cloud
+      - name: GCP authenticate
         uses: google-github-actions/auth@v2
-
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
-      - name: Setup SnowSQL
+      - name: setup GCP
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: snowflake setup (SnowSQL)
         run: |
           curl -o snowsql.bash \
             https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
           mkdir -p ~/bin
           SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
 
-      - name: Download Testdata
+      - name: prepare testdata
         run: ./scripts/prepare-testdata.sh
 
-      - name: Setup GCP
-        uses: google-github-actions/setup-gcloud@v1
-
-      - name: Setup SQL Logic Test Fixtures
+      - name: setup fixtures (slt)
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           GCP_PROJECT_ID: glaredb-artifacts
@@ -287,15 +315,15 @@ jobs:
 
           echo "-------------------------------- RPC TESTS --------------------------------"
           just rpc-tests
-          just sql-logic-tests --rpc-test 'sqllogictests_bigquery/*'
-          just sql-logic-tests --rpc-test 'sqllogictests_iceberg/*'
-          just sql-logic-tests --rpc-test 'sqllogictests_native/*'
-          just sql-logic-tests --rpc-test 'sqllogictests_object_store/*'
-          just sql-logic-tests --rpc-test 'sqllogictests_snowflake/*'
-          just sql-logic-tests --rpc-test 'sqllogictests_sqlserver/*'
-          just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
-          just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
-          just sql-logic-tests --rpc-test --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_bigquery/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_iceberg/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_native/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_object_store/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_snowflake/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_sqlserver/*'
+          just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
+          just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
+          just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
 
           echo "-------------------------- REMOTE DATA STORAGE TESTS --------------------------------"
           # Test using a remote object store for storing databases and catalog

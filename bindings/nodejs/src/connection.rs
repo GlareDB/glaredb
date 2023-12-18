@@ -190,7 +190,7 @@ impl Connection {
         let mut sess = self.sess.lock().await;
 
         let plan = sess
-            .query_to_lp(&query)
+            .create_logical_plan(&query)
             .await
             .map_err(JsGlareDbError::from)?;
 
@@ -205,7 +205,7 @@ impl Connection {
             | DFLogicalPlan::Dml(_)
             | DFLogicalPlan::Ddl(_)
             | DFLogicalPlan::Copy(_) => {
-                sess.execute_inner(plan, &op)
+                sess.execute_logical_plan(plan, &op)
                     .await
                     .map_err(JsGlareDbError::from)?;
 
@@ -264,14 +264,14 @@ impl Connection {
         let mut sess = sess.lock().await;
 
         let plan = sess
-            .query_to_lp(&query)
+            .create_logical_plan(&query)
             .await
             .map_err(JsGlareDbError::from)?;
 
         let op = OperationInfo::new().with_query_text(query);
 
         let _ = sess
-            .execute_inner(plan, &op)
+            .execute_logical_plan(plan, &op)
             .await
             .map_err(JsGlareDbError::from)?;
 

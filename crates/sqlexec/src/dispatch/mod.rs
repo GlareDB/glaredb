@@ -15,7 +15,7 @@ use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, FunctionEntry, ViewEntry,
 };
-use sqlbuiltins::functions::BUILTIN_TABLE_FUNCS;
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
 
 use crate::context::local::LocalSessionContext;
 use crate::dispatch::system::SystemTableDispatcher;
@@ -255,7 +255,7 @@ impl<'a> Dispatcher<'a> {
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         let resolve_func = if func.meta.builtin {
-            BUILTIN_TABLE_FUNCS.find_function(&func.meta.name)
+            FUNCTION_REGISTRY.get_table_func(&func.meta.name)
         } else {
             // We only have builtin functions right now.
             None

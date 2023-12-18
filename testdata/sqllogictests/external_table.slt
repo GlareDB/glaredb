@@ -10,6 +10,16 @@ create external table if not exists t1 from debug options (table_type = 'never_e
 statement ok
 create or replace external table t1 from debug options (table_type = 'never_ending');
 
+statement ok
+CREATE OR REPLACE EXTERNAL TABLE T1 FROM DEBUG OPTIONS (TABLE_TYPE = 'never_ending');
+
+statement ok
+CrEaTe ExTeRnAl TaBlE if not exists SuppLIER fRoM lOcAl (LoCaTiOn '../../testdata/parquet/userdata1.parquet');
+
+statement ok
+drop table supplier;
+
+
 query III
 select * from t1 limit 1;
 ----

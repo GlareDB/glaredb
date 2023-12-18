@@ -1,20 +1,13 @@
-use super::*;
+use prost::{Message, Oneof};
 
-#[derive(Clone, PartialEq, Message)]
-pub struct CopyTo {
-    #[prost(message, tag = "1")]
-    pub source: Option<LogicalPlanNode>,
-    #[prost(message, tag = "2")]
-    pub dest: Option<CopyToDestinationOptions>,
-    #[prost(message, tag = "3")]
-    pub format: Option<CopyToFormatOptions>,
-}
+use crate::ProtoConvError;
 
 #[derive(Clone, PartialEq, Message)]
 pub struct CopyToDestinationOptions {
     #[prost(oneof = "CopyToDestinationOptionsEnum", tags = "1, 2, 3, 4")]
     pub copy_to_destination_options_enum: Option<CopyToDestinationOptionsEnum>,
 }
+
 #[derive(Clone, PartialEq, Oneof)]
 pub enum CopyToDestinationOptionsEnum {
     #[prost(message, tag = "1")]
@@ -32,6 +25,7 @@ pub struct CopyToDestinationOptionsLocal {
     #[prost(string, tag = "1")]
     pub location: String,
 }
+
 #[derive(Clone, PartialEq, Message)]
 pub struct CopyToDestinationOptionsGcs {
     #[prost(string, optional, tag = "1")]
@@ -71,6 +65,7 @@ pub struct CopyToFormatOptions {
     #[prost(oneof = "CopyToFormatOptionsEnum", tags = "1, 2, 3")]
     pub copy_to_format_options_enum: Option<CopyToFormatOptionsEnum>,
 }
+
 #[derive(Clone, PartialEq, Oneof)]
 pub enum CopyToFormatOptionsEnum {
     #[prost(message, tag = "1")]
@@ -88,6 +83,7 @@ pub struct CopyToFormatOptionsCsv {
     #[prost(bool, tag = "2")]
     pub header: bool,
 }
+
 #[derive(Clone, PartialEq, Message)]
 pub struct CopyToFormatOptionsJson {
     #[prost(bool, tag = "1")]

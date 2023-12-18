@@ -852,7 +852,7 @@ impl<'a> CustomParser<'a> {
 
             let value = self.parse_options_value()?;
 
-            options.insert(key, value);
+            options.insert(key.to_lowercase(), value);
             let comma = self.parser.consume_token(&Token::Comma);
 
             if self.parser.consume_token(&Token::RParen) {

@@ -4,6 +4,8 @@ syntax = "proto3";
 
 package metastore.service;
 
+option go_package = "github.com/glaredb/cloud/pkg/protogen/metastore";
+
 import "metastore/catalog.proto";
 import "metastore/options.proto";
 
@@ -168,7 +170,6 @@ message CreateCredential {
   string comment = 3;
   bool or_replace = 4;
 }
-
 
 message DropCredentials {
   string name = 1;
