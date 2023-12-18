@@ -224,7 +224,7 @@ jobs:
       - name: prepare testdata
         run: ./scripts/prepare-testdata.sh
 
-      - name: setup fixtures (slt)
+      - name: run tests (slt)
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           GCP_PROJECT_ID: glaredb-artifacts
@@ -283,7 +283,7 @@ jobs:
           echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
           # Run all data source tests without running tunnel tests or the basic
           # SLT tests.
-          just slt --exclude 'sqllogictests/*' --exclude '*/tunnels/ssh'
+          just slt --exclude 'sqllogictests/*' --exclude '*/tunnels/ssh' --exclude 'sqllogictests_snowflake/*'
 
           echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
           # SSH tests are prone to fail if we make a lot of connections at the
@@ -353,7 +353,7 @@ jobs:
       - name: prepare testdata
         run: ./scripts/prepare-testdata.sh
 
-      - name: setup fixtures (slt)
+      - name: run tests (slt)
         env:
           SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
           SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
@@ -370,5 +370,7 @@ jobs:
           else
             export SNOWFLAKE_DATABASE=glaredb_test
           fi
+
+          just sql-logic-tests 'sqllogictests_snowflake/*'
 
           just sql-logic-tests --protocol=rpc 'sqllogictests_snowflake/*'
