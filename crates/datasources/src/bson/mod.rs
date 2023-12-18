@@ -3,8 +3,6 @@ use datafusion::arrow::array::{types::*, Array, ArrayRef, AsArray, StructArray};
 use datafusion::arrow::datatypes::{DataType, Fields, IntervalUnit, TimeUnit};
 use datafusion::arrow::error::ArrowError;
 
-use bson;
-
 pub struct BsonBatchConverter {
     batch: StructArray,
     schema: Vec<String>,
@@ -40,11 +38,14 @@ impl BsonBatchConverter {
 }
 
 impl Iterator for BsonBatchConverter {
-    type Item = bson::Document;
+    type Item = Result<bson::Document, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if !self.started {
-            self.setup().ok()?;
+            match self.setup() {
+                Ok(_) => {}
+                Err(e) => return Some(Err(e)),
+            };
         }
         if self.row >= self.batch.len() {
             return None;
@@ -56,7 +57,7 @@ impl Iterator for BsonBatchConverter {
         }
 
         self.row += 1;
-        Some(doc)
+        Some(Ok(doc))
     }
 }
 
@@ -256,7 +257,7 @@ fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
             let converter = BsonBatchConverter::new(array.as_struct().to_owned(), fields);
 
             for doc in converter {
-                out.push(bson::Bson::Document(doc))
+                out.push(bson::Bson::Document(doc?))
             }
         }
         DataType::Map(_, _) => {
@@ -265,7 +266,7 @@ fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
                 BsonBatchConverter::new(struct_array.to_owned(), struct_array.fields().to_owned());
 
             for doc in converter {
-                out.push(bson::Bson::Document(doc))
+                out.push(bson::Bson::Document(doc?))
             }
         }
         DataType::Dictionary(_, _) => out.push(bson::Bson::Array(array_to_bson(
