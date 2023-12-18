@@ -197,8 +197,8 @@ jobs:
         run: just pytest
 
   service-integration-tests:
-    if: github.repository_owner == 'glaredb'
     name: Service Integration Tests (SLT)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
