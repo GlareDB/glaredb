@@ -1,3 +1,5 @@
+use datafusion::error::DataFusionError;
+
 #[derive(Debug, thiserror::Error)]
 pub enum BsonError {
     #[error("Unsupported bson type: {0}")]
@@ -5,6 +7,9 @@ pub enum BsonError {
 
     #[error("Unexpected datatype for builder {0:?}")]
     UnexpectedDataTypeForBuilder(datafusion::arrow::datatypes::DataType),
+
+    #[error("External Datafusion Error")]
+    Datafusion(#[from] datafusion::error::DataFusionError),
 
     #[error("Unhandled element type to arrow type conversion; {0:?}, {1}")]
     UnhandledElementType(
@@ -23,6 +28,12 @@ pub enum BsonError {
 
     #[error("Recursion limit exceeded for schema inferrence: {0}")]
     RecursionLimitExceeded(usize),
+}
+
+impl From<BsonError> for DataFusionError {
+    fn from(e: BsonError) -> Self {
+        DataFusionError::Execution(e.to_string())
+    }
 }
 
 pub type Result<T, E = BsonError> = std::result::Result<T, E>;

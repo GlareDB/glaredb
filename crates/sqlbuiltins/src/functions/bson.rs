@@ -12,12 +12,13 @@ use datafusion::execution::TaskContext;
 use datafusion::parquet::data_type::AsBytes;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use futures::{Stream, StreamExt};
+use futures::{FutureExt, Stream, StreamExt};
 use tokio_util::codec::LengthDelimitedCodec;
 
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::bson::schema::{merge_schemas, schema_from_document};
+use datasources::bson::stream::BsonStream;
 use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::ObjStoreAccess;
 use protogen::metastore::types::catalog::RuntimePreference;
@@ -196,5 +197,9 @@ impl PartitionStream for BsonFilePartitionStream {
         &self.schema
     }
 
-    fn execute(&self, ctx: Arc<TaskContext>) -> SendableRecordBatchStream {}
+    fn execute(&self, ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
+        let stream = self.partition.lock().unwrap();
+
+        BsonStream::new(self.schema.clone(), stream)
+    }
 }
