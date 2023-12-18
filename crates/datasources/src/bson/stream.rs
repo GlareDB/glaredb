@@ -12,8 +12,6 @@ use datafusion::physical_plan::RecordBatchStream;
 
 use super::builder::RecordStructBuilder;
 
-// use super::builder::RecordStructBuilder;
-
 pub struct BsonStream {
     schema: Arc<Schema>,
     inner: Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>,
@@ -38,27 +36,35 @@ impl BsonStream {
         docs: Pin<Box<dyn Stream<Item = Result<Document, DataFusionError>>>>,
         schema: Arc<Schema>,
     ) -> Self {
-        let stream = stream! {
+        let bstream = stream! {
             let mut builder = RecordStructBuilder::new_with_capacity(schema.fields().to_owned(), 100)?;
-            'docs: while let Some(item) = docs.next().await {
+            while let Some(item) = docs.next().await {
                 match item {
                     Ok(doc) => {
                         let record: bson::RawDocument = doc.try_into()?.as_ref();
                         builder.append_record(&record)?;
-                        continue 'docs
+                        if builder.len() >= 100 {
+                            break
+                        }
                     },
                     Err(err) => {
                         yield Err(err);
-                        break 'docs
+                        return;
                     }
                 }
-            };
+            }
             let (fields, builders) = builder.into_fields_and_builders();
-            yield Ok(RecordBatch::try_new(Arc::new(Schema::new(fields)), builders.into_iter().map(|mut col| col.finish()).collect())?)
-        };
+            yield Ok(RecordBatch::try_new(Arc::new(Schema::new(fields)),
+                builders
+                .into_iter()
+                .map(|mut col| col.finish())
+                .collect(),
+            ).map_err(|e| DataFusionError::ArrowError(e))?);
+        }.boxed();
+
         BsonStream {
             schema: schema.clone(),
-            inner: stream.into(),
+            inner: bstream,
         }
     }
 }

@@ -53,6 +53,13 @@ impl RecordStructBuilder {
         })
     }
 
+    pub fn len(&self) -> usize {
+        match self.builders.first() {
+            Some(elem) => elem.len(),
+            None => 0,
+        }
+    }
+
     pub fn append_nulls(&mut self) -> Result<()> {
         for (builder, field) in self.builders.iter_mut().zip(self.fields.iter()) {
             append_null(field.data_type(), builder.as_mut())?;
