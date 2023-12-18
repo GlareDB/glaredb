@@ -1,4 +1,4 @@
-FROM rust:1.73-bookworm AS builder
+FROM rust:1.74-bookworm AS builder
 
 # Copy in source.
 WORKDIR /usr/src/glaredb
