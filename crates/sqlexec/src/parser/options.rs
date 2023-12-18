@@ -1,9 +1,8 @@
 use std::{collections::BTreeMap, fmt};
 
-use datafusion::{
-    common::{parsers::CompressionTypeVariant, FileType},
-    sql::sqlparser::parser::ParserError,
-};
+use datafusion::common::parsers::CompressionTypeVariant;
+use datafusion::common::FileType;
+use datafusion::sql::sqlparser::parser::ParserError;
 use datasources::{debug::DebugTableType, mongodb::MongoProtocol};
 use protogen::metastore::types::options::StorageOptions;
 

@@ -10,6 +10,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
+use datasources::common::sink::bson::BsonSink;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
 use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
@@ -203,6 +204,7 @@ fn get_sink_for_obj(
                 array: json_opts.array,
             },
         )),
+        CopyToFormatOptions::Bson => Box::new(BsonSink::from_obj_store(store, path)),
     };
     Ok(sink)
 }
