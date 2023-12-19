@@ -126,8 +126,7 @@ impl FlightSessionHandler {
         let db_id = request
             .metadata()
             .get(DATABASE_HEADER)
-            .map(|s| Uuid::try_parse_ascii(s.as_bytes()).ok())
-            .flatten()
+            .and_then(|s| Uuid::try_parse_ascii(s.as_bytes()).ok())
             .unwrap_or_else(|| Uuid::new_v4());
 
         let session_vars = SessionVars::default()

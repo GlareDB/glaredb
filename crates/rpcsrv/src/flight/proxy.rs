@@ -118,9 +118,8 @@ impl FlightService for CloudFlightProxyHandler {
         &self,
         mut request: Request<Streaming<HandshakeRequest>>,
     ) -> Result<Response<Self::HandshakeStream>, Status> {
-        let mut meta = request.metadata_mut();
-
-        let mut client = self.connect(&mut meta).await?;
+        let meta = request.metadata_mut();
+        let mut client = self.connect(meta).await?;
         let req = request.into_inner();
         let req = ProxiedRequestStream::new(req);
         let res = client.handshake(req).await?;
@@ -132,8 +131,8 @@ impl FlightService for CloudFlightProxyHandler {
         &self,
         mut request: Request<Criteria>,
     ) -> Result<Response<Self::ListFlightsStream>, Status> {
-        let mut meta = request.metadata_mut();
-        let mut client = self.connect(&mut meta).await?;
+        let meta = request.metadata_mut();
+        let mut client = self.connect(meta).await?;
         let res = client.list_flights(request).await?;
         let res = res.into_inner();
         Ok(Response::new(res.boxed()))
@@ -143,8 +142,8 @@ impl FlightService for CloudFlightProxyHandler {
         &self,
         mut request: Request<FlightDescriptor>,
     ) -> Result<Response<FlightInfo>, Status> {
-        let mut meta = request.metadata_mut();
-        let mut client = self.connect(&mut meta).await?;
+        let meta = request.metadata_mut();
+        let mut client = self.connect(meta).await?;
         client.get_flight_info(request).await
     }
 
@@ -152,8 +151,8 @@ impl FlightService for CloudFlightProxyHandler {
         &self,
         mut request: Request<FlightDescriptor>,
     ) -> Result<Response<SchemaResult>, Status> {
-        let mut meta = request.metadata_mut();
-        let mut client = self.connect(&mut meta).await?;
+        let meta = request.metadata_mut();
+        let mut client = self.connect(meta).await?;
         client.get_schema(request).await
     }
 
@@ -161,8 +160,8 @@ impl FlightService for CloudFlightProxyHandler {
         &self,
         mut request: Request<Ticket>,
     ) -> Result<Response<Self::DoGetStream>, Status> {
-        let mut meta = request.metadata_mut();
-        let mut client = self.connect(&mut meta).await?;
+        let meta = request.metadata_mut();
+        let mut client = self.connect(meta).await?;
         let res = client.do_get(request).await?;
         let res = res.into_inner();
 
@@ -173,8 +172,8 @@ impl FlightService for CloudFlightProxyHandler {
         &self,
         mut request: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoPutStream>, Status> {
-        let mut meta = request.metadata_mut();
-        let mut client = self.connect(&mut meta).await?;
+        let meta = request.metadata_mut();
+        let mut client = self.connect(meta).await?;
         let req = request.into_inner();
         let req = ProxiedRequestStream::new(req);
         let res = client.do_put(req).await?;
@@ -186,8 +185,8 @@ impl FlightService for CloudFlightProxyHandler {
         &self,
         mut request: Request<Action>,
     ) -> Result<Response<Self::DoActionStream>, Status> {
-        let mut meta = request.metadata_mut();
-        let mut client = self.connect(&mut meta).await?;
+        let meta = request.metadata_mut();
+        let mut client = self.connect(meta).await?;
         let res = client.do_action(request).await?;
         let res = res.into_inner();
         Ok(Response::new(res.boxed()))
@@ -197,8 +196,8 @@ impl FlightService for CloudFlightProxyHandler {
         &self,
         mut request: Request<Empty>,
     ) -> Result<Response<Self::ListActionsStream>, Status> {
-        let mut meta = request.metadata_mut();
-        let mut client = self.connect(&mut meta).await?;
+        let meta = request.metadata_mut();
+        let mut client = self.connect(meta).await?;
         let res = client.list_actions(request).await?;
         let res = res.into_inner();
         Ok(Response::new(res.boxed()))
@@ -208,8 +207,8 @@ impl FlightService for CloudFlightProxyHandler {
         &self,
         mut request: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoExchangeStream>, Status> {
-        let mut meta = request.metadata_mut();
-        let mut client = self.connect(&mut meta).await?;
+        let meta = request.metadata_mut();
+        let mut client = self.connect(meta).await?;
         let req = request.into_inner();
         let req = ProxiedRequestStream::new(req);
         let res = client.do_exchange(req).await?;
