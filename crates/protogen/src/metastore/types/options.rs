@@ -1402,6 +1402,7 @@ pub enum CopyToFormatOptions {
     Csv(CopyToFormatOptionsCsv),
     Parquet(CopyToFormatOptionsParquet),
     Json(CopyToFormatOptionsJson),
+    Bson,
 }
 
 impl Default for CopyToFormatOptions {
@@ -1417,12 +1418,14 @@ impl CopyToFormatOptions {
     pub const CSV: &'static str = "csv";
     pub const PARQUET: &'static str = "parquet";
     pub const JSON: &'static str = "json";
+    pub const BSON: &'static str = "bson";
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Csv(_) => Self::CSV,
             Self::Parquet(_) => Self::PARQUET,
             Self::Json(_) => Self::JSON,
+            Self::Bson => Self::BSON,
         }
     }
 }

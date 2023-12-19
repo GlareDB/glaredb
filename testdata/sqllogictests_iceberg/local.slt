@@ -94,3 +94,11 @@ REG AIR    314
 SHIP       316
 TRUCK      264
 
+# We should be able to query a table with version number longer than i32 limit.
+#
+# See: https://github.com/GlareDB/glaredb/issues/2277
+query T
+select count(*) = 1000
+  from iceberg_scan('../../testdata/iceberg/tables/lineitem_simple_longversion');
+----
+t

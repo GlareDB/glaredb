@@ -1707,6 +1707,7 @@ impl<'a> SessionPlanner<'a> {
                 let array = m.remove_optional::<bool>("array")?.unwrap_or(false);
                 CopyToFormatOptions::Json(CopyToFormatOptionsJson { array })
             }
+            Some(CopyToFormatOptions::BSON) => CopyToFormatOptions::Bson {},
             Some(other) => return Err(internal!("unsupported output format: {other}")),
         };
 
