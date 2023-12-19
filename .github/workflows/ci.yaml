@@ -236,17 +236,10 @@ jobs:
       - name: setup GCP
         uses: google-github-actions/setup-gcloud@v1
 
-      - name: snowflake setup (SnowSQL)
-        run: |
-          curl -o snowsql.bash \
-            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
-          mkdir -p ~/bin
-          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
-
       - name: prepare testdata
         run: ./scripts/prepare-testdata.sh
 
-      - name: setup fixtures (slt)
+      - name: run tests (slt)
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           GCP_PROJECT_ID: glaredb-artifacts
@@ -254,25 +247,10 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AZURE_ACCESS_KEY: ${{ secrets.AZURE_ACCESS_KEY }}
           AZURE_ACCOUNT: ${{ secrets.AZURE_ACCOUNT }}
-          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
-          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
           MINIO_ACCESS_KEY: glaredb
           MINIO_SECRET_KEY: glaredb_test
           TEST_BUCKET: glaredb-test-bucket
         run: |
-          # Prepare SLT (Snowflake)
-          export PATH="$HOME/bin:$PATH"
-          if ./scripts/files-changed-in-branch.sh \
-            "scripts/prepare-testdata.sh" \
-            "scripts/create-test-snowflake-db.sh" \
-            "testdata/sqllogictests_datasources_common/data" \
-            "testdata/sqllogictests_snowflake/data"
-          then
-            export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
-          else
-            export SNOWFLAKE_DATABASE=glaredb_test
-          fi
-
           # Prepare SLT (BigQuery)
           if ./scripts/files-changed-in-branch.sh \
             "scripts/prepare-testdata.sh" \
@@ -320,7 +298,7 @@ jobs:
           echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
           # Run all data source tests without running tunnel tests or the basic
           # SLT tests.
-          just slt --exclude 'sqllogictests/*' --exclude '*/tunnels/ssh'
+          just slt --exclude 'sqllogictests/*' --exclude '*/tunnels/ssh' --exclude 'sqllogictests_snowflake/*'
 
           echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
           # SSH tests are prone to fail if we make a lot of connections at the
@@ -334,7 +312,6 @@ jobs:
           just sql-logic-tests --protocol=rpc 'sqllogictests_iceberg/*'
           just sql-logic-tests --protocol=rpc 'sqllogictests_native/*'
           just sql-logic-tests --protocol=rpc 'sqllogictests_object_store/*'
-          just sql-logic-tests --protocol=rpc 'sqllogictests_snowflake/*'
           just sql-logic-tests --protocol=rpc 'sqllogictests_sqlserver/*'
           just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
           just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
@@ -359,3 +336,56 @@ jobs:
           # Fake GCS server with a sub-directory path; run with two different folder paths to assert no conflicts arise
           just slt -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
           just slt -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
+
+  service-integration-tests-snowflake:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
+    name: Snowflake Service Integration Tests (SLT::Snowflake)
+    runs-on: ubuntu-latest-8-cores
+    needs: ["service-integration-tests"]
+    concurrency:
+      group: snowflake-integration-tests
+      cancel-in-progress: false
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: cache
+        with:
+          path: |
+            ~/.cargo/
+            target/
+            !target/**/glaredb
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: snowflake setup (SnowSQL)
+        run: |
+          curl -o snowsql.bash \
+            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
+          mkdir -p ~/bin
+          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
+
+      - name: prepare testdata
+        run: ./scripts/prepare-testdata.sh
+
+      - name: run tests (slt)
+        env:
+          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+        run: |
+          # Prepare SLT (Snowflake)
+          export PATH="$HOME/bin:$PATH"
+          if ./scripts/files-changed-in-branch.sh \
+            "scripts/prepare-testdata.sh" \
+            "scripts/create-test-snowflake-db.sh" \
+            "testdata/sqllogictests_datasources_common/data" \
+            "testdata/sqllogictests_snowflake/data"
+          then
+            export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
+          else
+            export SNOWFLAKE_DATABASE=glaredb_test
+          fi
+
+          just sql-logic-tests 'sqllogictests_snowflake/*'
+
+          just sql-logic-tests --protocol=rpc 'sqllogictests_snowflake/*'
