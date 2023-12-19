@@ -1,18 +1,19 @@
 use std::collections::{HashMap, VecDeque};
-use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
+use datafusion::common::DataFusionError;
 use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::TaskContext;
 use datafusion::parquet::data_type::AsBytes;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::streaming::PartitionStream;
-use datafusion::physical_plan::SendableRecordBatchStream;
-use futures::{FutureExt, Stream, StreamExt};
+use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use futures::StreamExt;
 use tokio_util::codec::LengthDelimitedCodec;
 
 use datafusion_ext::errors::ExtensionError;
@@ -127,12 +128,12 @@ impl TableFunc for BsonScan {
                         // docuemnts are a superset of the schema, we'll end up
                         // doing much more parsing work than is actually needed
                         // for the bson documents.
-                        |bt: Result<BytesMut, std::io::Error>| -> Result<bson::Document, ExtensionError> {
+                        |bt: Result<BytesMut, std::io::Error>| -> Result<bson::Document, DataFusionError> {
                             Ok(bson::de::from_slice::<bson::Document>(
                                 bt?.freeze().as_bytes().to_owned().as_slice(),
-                            )?
+                            ).map_err(|e| DataFusionError::External(Box::new(e)))?
                             .to_owned())
-                        }).boxed(),
+                        }),
             );
         }
 
@@ -144,7 +145,7 @@ impl TableFunc for BsonScan {
             while let Some(res) = reader.next().await {
                 match res {
                     Ok(doc) => sample.push(doc),
-                    Err(e) => return Err(e),
+                    Err(e) => return Err(e.into()),
                 };
 
                 if sample.len() as i64 >= sample_size {
@@ -175,9 +176,12 @@ impl TableFunc for BsonScan {
         // vector as below: one that just returns the documents from the sample
         // in the table and a second one for each reader.
 
+        let bstr = readers.pop_front().unwrap().boxed();
+        let rbsa = RecordBatchStreamAdapter::new(schema, BsonStream::new(schema.clone(), bstr));
+
         let pfps = Arc::new(BsonFilePartitionStream {
             schema: schema.clone(),
-            partition: Mutex::new(readers.pop_front().unwrap()),
+            stream: Mutex::new(Box::new(rbsa)),
         });
 
         Ok(Arc::new(StreamingTable::try_new(
@@ -189,7 +193,7 @@ impl TableFunc for BsonScan {
 
 struct BsonFilePartitionStream {
     schema: Arc<Schema>,
-    partition: Mutex<Pin<Box<dyn Stream<Item = Result<bson::Document, ExtensionError>> + Send>>>,
+    stream: Mutex<Box<dyn RecordBatchStream + Send>>,
 }
 
 impl PartitionStream for BsonFilePartitionStream {
@@ -197,9 +201,8 @@ impl PartitionStream for BsonFilePartitionStream {
         &self.schema
     }
 
-    fn execute(&self, ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
-        let stream = self.partition.lock().unwrap();
-
-        BsonStream::new(self.schema.clone(), stream)
+    fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
+        let srbs = self.stream.lock().unwrap();
+        srbs
     }
 }
