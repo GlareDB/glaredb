@@ -38,7 +38,7 @@ jobs:
           args:  --release --out dist -m bindings/python/Cargo.toml
           sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: dist
@@ -69,7 +69,7 @@ jobs:
           sccache: 'true'
           container: 'off'
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: bindings/python/dist
@@ -97,7 +97,7 @@ jobs:
           sccache: 'true'
           container: 'off'
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: bindings/python/dist
@@ -107,7 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [linux, macos, windows]
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: wheels
       - name: Publish to PyPI
