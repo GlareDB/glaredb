@@ -28,5 +28,4 @@ bytes = "1.4"
 futures = "0.3.29"
 dashmap = "5.5.0"
 arrow-flight = { version = "47.0.0", features = ["flight-sql-experimental"] }
-serde_json = { workspace = true }
 base64 = "0.21.5"
