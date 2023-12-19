@@ -336,7 +336,7 @@ impl ComputeServer {
 
         if self.enable_flight_api {
             info!("enabling flight sql service");
-            let flight_handler = FlightSessionHandler::new(&self.engine);
+            let flight_handler = FlightSessionHandler::new(self.engine.clone());
             server = server.add_service(FlightServiceServer::new(flight_handler));
         }
         // Add in the simple interface if requested.

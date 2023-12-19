@@ -101,9 +101,9 @@ impl FlightSessionHandler {
         Ok(Response::new(Box::pin(stream)))
     }
 
-    pub fn new(engine: &Arc<Engine>) -> Self {
+    pub fn new(engine: Arc<Engine>) -> Self {
         Self {
-            engine: engine.clone(),
+            engine: engine,
             logical_plans: DashMap::new(),
             sessions: DashMap::new(),
         }
