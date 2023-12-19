@@ -40,4 +40,13 @@ pub enum ExtensionError {
     ListingErrBoxed(#[from] Box<dyn std::error::Error + Sync + Send>),
 }
 
+impl ExtensionError {
+    pub fn access<E>(err: E) -> Self
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        Self::Access(Box::new(err))
+    }
+}
+
 pub type Result<T, E = ExtensionError> = std::result::Result<T, E>;
