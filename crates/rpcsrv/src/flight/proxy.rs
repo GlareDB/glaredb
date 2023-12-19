@@ -11,9 +11,7 @@ use base64::prelude::*;
 
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use proxyutil::cloudauth::{
-    AuthParams, CloudAuthenticator, DatabaseDetails, ProxyAuthenticator, ServiceProtocol,
-};
+use proxyutil::cloudauth::{AuthParams, CloudAuthenticator, ProxyAuthenticator, ServiceProtocol};
 use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY};
 use std::borrow::Cow;
 use std::time::Duration;
@@ -24,16 +22,16 @@ use tonic::{
 };
 use tonic::{Request, Response, Streaming};
 
+use super::handler::DATABASE_HEADER;
+
 pub type CloudFlightProxyHandler = ProxyHandler<CloudAuthenticator, FlightServiceClient<Channel>>;
 
 impl CloudFlightProxyHandler {
-    async fn connect(
-        &self,
-        meta: &MetadataMap,
-    ) -> Result<(DatabaseDetails, FlightServiceClient<Channel>)> {
+    async fn connect(&self, meta: &mut MetadataMap) -> Result<FlightServiceClient<Channel>> {
         let params = Self::auth_params_from_metadata(meta)?;
         let details = self.authenticator.authenticate(params).await?;
 
+        meta.insert(DATABASE_HEADER, details.database_id.try_into()?);
         let key = ConnKey {
             ip: details.ip.clone(),
             port: details.port.clone(),
@@ -41,7 +39,7 @@ impl CloudFlightProxyHandler {
         // Already have a grpc connection,
         if let Some(conn) = self.conns.get(&key) {
             let conn = conn.clone();
-            return Ok((details, conn));
+            return Ok(conn);
         }
 
         let url = format!("http://{}:{}", key.ip, key.port);
@@ -56,7 +54,7 @@ impl CloudFlightProxyHandler {
 
         self.conns.insert(key, client.clone());
 
-        Ok((details, client))
+        Ok(client)
     }
 
     fn auth_params_from_metadata(meta: &MetadataMap) -> Result<AuthParams> {
@@ -118,120 +116,104 @@ impl FlightService for CloudFlightProxyHandler {
 
     async fn handshake(
         &self,
-        request: Request<Streaming<HandshakeRequest>>,
+        mut request: Request<Streaming<HandshakeRequest>>,
     ) -> Result<Response<Self::HandshakeStream>, Status> {
-        let meta = request.metadata();
-        let (details, mut client) = self.connect(meta).await?;
+        let mut meta = request.metadata_mut();
+
+        let mut client = self.connect(&mut meta).await?;
         let req = request.into_inner();
         let req = ProxiedRequestStream::new(req);
         let res = client.handshake(req).await?;
         let res = res.into_inner();
-        let mut res = Response::new(res.boxed());
-        res.extensions_mut().insert(details);
-        Ok(res)
+        Ok(Response::new(res.boxed()))
     }
 
     async fn list_flights(
         &self,
-        request: Request<Criteria>,
+        mut request: Request<Criteria>,
     ) -> Result<Response<Self::ListFlightsStream>, Status> {
-        let meta = request.metadata();
-        let (details, mut client) = self.connect(meta).await?;
+        let mut meta = request.metadata_mut();
+        let mut client = self.connect(&mut meta).await?;
         let res = client.list_flights(request).await?;
         let res = res.into_inner();
-        let mut res = Response::new(res.boxed());
-        res.extensions_mut().insert(details);
-        Ok(res)
+        Ok(Response::new(res.boxed()))
     }
 
     async fn get_flight_info(
         &self,
-        request: Request<FlightDescriptor>,
+        mut request: Request<FlightDescriptor>,
     ) -> Result<Response<FlightInfo>, Status> {
-        let meta = request.metadata();
-        let (details, mut client) = self.connect(meta).await?;
-        let mut res = client.get_flight_info(request).await?;
-        res.extensions_mut().insert(details);
-        Ok(res)
+        let mut meta = request.metadata_mut();
+        let mut client = self.connect(&mut meta).await?;
+        client.get_flight_info(request).await
     }
 
     async fn get_schema(
         &self,
-        request: Request<FlightDescriptor>,
+        mut request: Request<FlightDescriptor>,
     ) -> Result<Response<SchemaResult>, Status> {
-        let meta = request.metadata();
-        let (details, mut client) = self.connect(meta).await?;
-        let mut res = client.get_schema(request).await?;
-        res.extensions_mut().insert(details);
-        Ok(res)
+        let mut meta = request.metadata_mut();
+        let mut client = self.connect(&mut meta).await?;
+        client.get_schema(request).await
     }
 
     async fn do_get(
         &self,
-        request: Request<Ticket>,
+        mut request: Request<Ticket>,
     ) -> Result<Response<Self::DoGetStream>, Status> {
-        let meta = request.metadata();
-        let (details, mut client) = self.connect(meta).await?;
+        let mut meta = request.metadata_mut();
+        let mut client = self.connect(&mut meta).await?;
         let res = client.do_get(request).await?;
         let res = res.into_inner();
-        let mut res = Response::new(res.boxed());
-        res.extensions_mut().insert(details);
-        Ok(res)
+
+        Ok(Response::new(res.boxed()))
     }
 
     async fn do_put(
         &self,
-        request: Request<Streaming<FlightData>>,
+        mut request: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoPutStream>, Status> {
-        let meta = request.metadata();
-        let (details, mut client) = self.connect(meta).await?;
+        let mut meta = request.metadata_mut();
+        let mut client = self.connect(&mut meta).await?;
         let req = request.into_inner();
         let req = ProxiedRequestStream::new(req);
         let res = client.do_put(req).await?;
         let res = res.into_inner();
-        let mut res = Response::new(res.boxed());
-        res.extensions_mut().insert(details);
-        Ok(res)
+        Ok(Response::new(res.boxed()))
     }
 
     async fn do_action(
         &self,
-        request: Request<Action>,
+        mut request: Request<Action>,
     ) -> Result<Response<Self::DoActionStream>, Status> {
-        let meta = request.metadata();
-        let (details, mut client) = self.connect(meta).await?;
+        let mut meta = request.metadata_mut();
+        let mut client = self.connect(&mut meta).await?;
         let res = client.do_action(request).await?;
         let res = res.into_inner();
-        let mut res = Response::new(res.boxed());
-        res.extensions_mut().insert(details);
-        Ok(res)
+        Ok(Response::new(res.boxed()))
     }
 
     async fn list_actions(
         &self,
-        request: Request<Empty>,
+        mut request: Request<Empty>,
     ) -> Result<Response<Self::ListActionsStream>, Status> {
-        let meta = request.metadata();
-        let (details, mut client) = self.connect(meta).await?;
+        let mut meta = request.metadata_mut();
+        let mut client = self.connect(&mut meta).await?;
         let res = client.list_actions(request).await?;
         let res = res.into_inner();
-        let mut res = Response::new(res.boxed());
-        res.extensions_mut().insert(details);
-        Ok(res)
+        Ok(Response::new(res.boxed()))
     }
 
     async fn do_exchange(
         &self,
-        request: Request<Streaming<FlightData>>,
+        mut request: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoExchangeStream>, Status> {
-        let meta = request.metadata();
-        let (details, mut client) = self.connect(meta).await?;
+        let mut meta = request.metadata_mut();
+        let mut client = self.connect(&mut meta).await?;
         let req = request.into_inner();
         let req = ProxiedRequestStream::new(req);
         let res = client.do_exchange(req).await?;
         let res = res.into_inner();
-        let mut res = Response::new(res.boxed());
-        res.extensions_mut().insert(details);
-        Ok(res)
+        Ok(Response::new(res.boxed()))
     }
 }

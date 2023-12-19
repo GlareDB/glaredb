@@ -7,7 +7,6 @@ use dashmap::DashMap;
 use datafusion::{arrow::ipc::writer::IpcWriteOptions, logical_expr::LogicalPlan};
 use datafusion_ext::vars::SessionVars;
 use once_cell::sync::Lazy;
-use proxyutil::cloudauth::DatabaseDetails;
 use sqlexec::{
     engine::{Engine, SessionStorageConfig},
     session::Session,
@@ -45,9 +44,8 @@ static INSTANCE_SQL_DATA: Lazy<SqlInfoData> = Lazy::new(|| {
 });
 
 /// Custom header clients can use to specify the database they want to connect to.
-/// the ADBC driver requires it to be passed in as `adbc.flight.sql.rpc.call_header.x-database`
+/// the ADBC driver requires it to be passed in as `adbc.flight.sql.rpc.call_header.<key>`
 pub const DATABASE_HEADER: &str = "x-glaredb-database";
-pub const ORG_HEADER: &str = "x-glaredb-org";
 pub struct FlightSessionHandler {
     engine: Arc<Engine>,
     // since plans can be tied to any session, we can't use a single session to store them.
@@ -115,8 +113,6 @@ impl FlightSessionHandler {
         request: &Request<T>,
     ) -> Result<Arc<Mutex<Session>>, Status> {
         let remote = request.remote_addr().unwrap();
-        let db_details = request.extensions().get::<DatabaseDetails>().cloned();
-        println!("db_details: {:?}", db_details);
 
         let ip = remote.ip().to_string();
         let port = remote.port().to_string();
@@ -130,7 +126,8 @@ impl FlightSessionHandler {
         let db_id = request
             .metadata()
             .get(DATABASE_HEADER)
-            .map(|s| Uuid::try_parse_ascii(s.as_bytes()).unwrap())
+            .map(|s| Uuid::try_parse_ascii(s.as_bytes()).ok())
+            .flatten()
             .unwrap_or_else(|| Uuid::new_v4());
 
         let session_vars = SessionVars::default()
