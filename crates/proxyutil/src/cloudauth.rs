@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
@@ -18,14 +18,14 @@ pub enum CloudAuthError {
 
 type Result<T, E = CloudAuthError> = std::result::Result<T, E>;
 
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Node {
     pub ip: String,
     pub port: String,
 }
 
 /// Connection details for a database. Returned by the connection authenticator.
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseDetails {
     /// IP to connect to.
     // TODO: Rename to host.
