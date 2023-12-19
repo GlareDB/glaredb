@@ -127,7 +127,7 @@ impl FlightSessionHandler {
             .metadata()
             .get(DATABASE_HEADER)
             .and_then(|s| Uuid::try_parse_ascii(s.as_bytes()).ok())
-            .unwrap_or_else(|| Uuid::new_v4());
+            .unwrap_or_else(Uuid::new_v4);
 
         let session_vars = SessionVars::default()
             .with_database_id(db_id, datafusion::variable::VarType::System)
