@@ -1,6 +1,25 @@
-use super::*;
+use std::{collections::HashMap, sync::Arc};
 
-use crate::functions::ConstBuiltinFunction;
+use async_trait::async_trait;
+use datafusion::{
+    arrow::{
+        array::{Int64Builder, StringBuilder, UInt64Builder},
+        datatypes::{DataType, Field, Schema},
+        record_batch::RecordBatch,
+    },
+    datasource::{MemTable, TableProvider},
+};
+use datafusion_ext::{
+    errors::{ExtensionError, Result},
+    functions::{FuncParamValue, TableFuncContextProvider},
+};
+use datasources::lake::{iceberg::table::IcebergTable, storage_options_into_object_store};
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
+
+use crate::functions::{
+    table::{table_location_and_opts, TableFunc},
+    ConstBuiltinFunction,
+};
 
 /// Scan data file metadata for the current snapshot of an iceberg table. Will
 /// not attempt to read data files.
@@ -28,10 +47,16 @@ impl TableFunc for IcebergDataFiles {
     ) -> Result<Arc<dyn TableProvider>> {
         let (loc, opts) = table_location_and_opts(ctx, args, &mut opts)?;
 
-        let store = storage_options_into_object_store(&loc, &opts).map_err(box_err)?;
-        let table = IcebergTable::open(loc, store).await.map_err(box_err)?;
+        let store =
+            storage_options_into_object_store(&loc, &opts).map_err(ExtensionError::access)?;
+        let table = IcebergTable::open(loc, store)
+            .await
+            .map_err(ExtensionError::access)?;
 
-        let manifests = table.read_manifests().await.map_err(box_err)?;
+        let manifests = table
+            .read_manifests()
+            .await
+            .map_err(ExtensionError::access)?;
 
         let schema = Arc::new(Schema::new(vec![
             Field::new("manifest_index", DataType::UInt64, false),

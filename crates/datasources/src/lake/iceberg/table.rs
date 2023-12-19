@@ -89,28 +89,26 @@ impl TableState {
     async fn open(location: DatasourceUrl, store: Arc<dyn ObjectStore>) -> Result<TableState> {
         // Get table version.
         // TODO: Handle not finding a version hint.
-        let version = {
-            let path = format_object_path(&location, "metadata/version-hint.text")?;
-            let path = ObjectPath::parse(path)?;
-            let bs = store.get(&path).await?.bytes().await?;
-            let s = String::from_utf8(bs.to_vec()).map_err(|e| {
-                IcebergError::DataInvalid(format!("Expected utf-8 in version hint: {}", e))
-            })?;
-
-            s.parse::<i32>().map_err(|e| {
-                IcebergError::DataInvalid(format!("Expected version hint to be a number: {}", e))
-            })?
+        let path = format_object_path(&location, "metadata/version-hint.text")?;
+        let path = ObjectPath::parse(path)?;
+        let bs = store.get(&path).await?.bytes().await?;
+        let version_contents = String::from_utf8(bs.to_vec()).map_err(|e| {
+            IcebergError::DataInvalid(format!("Expected utf-8 in version hint: {}", e))
+        })?;
+        // Read the first line of the `version-hint.text` file.
+        let first_line = if let Some((first_line, _)) = version_contents.split_once('\n') {
+            first_line
+        } else {
+            version_contents.as_str()
         };
+        let version = first_line.trim();
 
         // Read metadata.
-        let metadata = {
-            let path = format_object_path(&location, format!("metadata/v{version}.metadata.json"))?;
-            let bs = store.get(&path).await?.bytes().await?;
-            let metadata: TableMetadata = serde_json::from_slice(&bs).map_err(|e| {
-                IcebergError::DataInvalid(format!("Failed to read table metadata: {}", e))
-            })?;
-            metadata
-        };
+        let path = format_object_path(&location, format!("metadata/v{version}.metadata.json"))?;
+        let bs = store.get(&path).await?.bytes().await?;
+        let metadata: TableMetadata = serde_json::from_slice(&bs).map_err(|e| {
+            IcebergError::DataInvalid(format!("Failed to read table metadata: {}", e))
+        })?;
 
         let resolver = PathResolver::from_metadata(&metadata);
 
