@@ -3147,7 +3147,6 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tonic",
- "tower",
  "tracing",
  "url",
  "uuid",
