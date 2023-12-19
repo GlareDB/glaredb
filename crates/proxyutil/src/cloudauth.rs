@@ -88,25 +88,9 @@ pub trait ProxyAuthenticator: Sync + Send {
     /// Authenticate a database connection.
     async fn authenticate(&self, params: AuthParams<'_>) -> Result<DatabaseDetails>;
 }
-// pub struct NoopAuthenticator;
-pub struct NoopAuthenticator;
-
-#[async_trait]
-impl ProxyAuthenticator for NoopAuthenticator {
-    async fn authenticate(&self, _params: AuthParams<'_>) -> Result<DatabaseDetails> {
-        Ok(DatabaseDetails {
-            ip: String::new(),
-            port: String::new(),
-            nodes: None,
-            database_id: String::new(),
-            user_id: String::new(),
-            gcs_storage_bucket: String::new(),
-            memory_limit_bytes: 0,
-        })
-    }
-}
 
 /// Authentice connections using the Cloud service.
+#[derive(Clone)]
 pub struct CloudAuthenticator {
     api_url: String,
     client: reqwest::Client,

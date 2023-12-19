@@ -58,6 +58,14 @@ pub struct RpcProxyArgs {
     /// (Internal)
     #[clap(long, value_enum, hide = true)]
     pub tls_mode: TLSMode,
+
+    /// Path to TLS server cert to use.
+    #[clap(long, default_value = "/etc/certs/tls.crt")]
+    pub tls_cert_path: String,
+
+    /// Path to TLS server key to use.
+    #[clap(long, default_value = "/etc/certs/tls.key")]
+    pub tls_key_path: String,
 }
 
 #[derive(Parser)]

@@ -10,7 +10,9 @@ use protogen::rpcsrv::types::common::SessionStorageConfig;
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromProxy, InitializeSessionResponse,
 };
-use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, ServiceProtocol};
+use proxyutil::cloudauth::{
+    AuthParams, CloudAuthenticator, DatabaseDetails, ProxyAuthenticator, ServiceProtocol,
+};
 use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
 use std::borrow::Cow;
 use std::pin::Pin;
@@ -23,6 +25,7 @@ use tonic::{
 };
 use tracing::{info, warn};
 use uuid::Uuid;
+pub type CloudRpcProxyHandler = ProxyHandler<CloudAuthenticator, ExecutionServiceClient<Channel>>;
 
 /// Proxies rpc requests to compute nodes.
 pub struct ProxyHandler<A, C> {
@@ -215,12 +218,12 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
 }
 
 /// Adapater stream for proxying streaming requests.
-struct ProxiedRequestStream<M> {
+pub struct ProxiedRequestStream<M> {
     inner: Streaming<M>,
 }
 
 impl<M> ProxiedRequestStream<M> {
-    fn new(request: Streaming<M>) -> Self {
+    pub fn new(request: Streaming<M>) -> Self {
         Self { inner: request }
     }
 }

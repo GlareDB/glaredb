@@ -213,12 +213,15 @@ impl RunCommand for RpcProxyArgs {
             cloud_api_addr,
             cloud_auth_code,
             tls_mode,
+            tls_cert_path,
+            tls_key_path,
         } = self;
 
         let runtime = build_runtime("rpcsrv")?;
         runtime.block_on(async move {
             let addr = bind.parse()?;
-            let proxy = RpcProxy::new(cloud_api_addr, cloud_auth_code).await?;
+            let proxy =
+                RpcProxy::new(cloud_api_addr, cloud_auth_code, tls_cert_path, tls_key_path).await?;
             proxy.serve(addr, tls_mode).await
         })
     }

@@ -3,23 +3,17 @@ use crate::{
     util::ConnKey,
 };
 
-use base64::prelude::{Engine as _, BASE64_STANDARD};
 use dashmap::DashMap;
 use datafusion::{arrow::ipc::writer::IpcWriteOptions, logical_expr::LogicalPlan};
 use datafusion_ext::vars::SessionVars;
 use once_cell::sync::Lazy;
-use proxyutil::{
-    cloudauth::{
-        AuthParams, CloudAuthenticator, NoopAuthenticator, ProxyAuthenticator, ServiceProtocol,
-    },
-    metadata_constants::{DB_NAME_KEY, ORG_KEY},
-};
+use proxyutil::cloudauth::DatabaseDetails;
 use sqlexec::{
     engine::{Engine, SessionStorageConfig},
     session::Session,
     OperationInfo,
 };
-use std::{borrow::Cow, pin::Pin, sync::Arc};
+use std::{pin::Pin, sync::Arc};
 use tokio::sync::{Mutex, MutexGuard};
 use uuid::Uuid;
 
@@ -39,7 +33,7 @@ use arrow_flight::{
 use futures::Stream;
 use futures::TryStreamExt;
 use prost::Message;
-use tonic::{metadata::MetadataMap, Request, Response, Status, Streaming};
+use tonic::{Request, Response, Status, Streaming};
 
 static INSTANCE_SQL_DATA: Lazy<SqlInfoData> = Lazy::new(|| {
     let mut builder = SqlInfoDataBuilder::new();
@@ -52,13 +46,9 @@ static INSTANCE_SQL_DATA: Lazy<SqlInfoData> = Lazy::new(|| {
 
 /// Custom header clients can use to specify the database they want to connect to.
 /// the ADBC driver requires it to be passed in as `adbc.flight.sql.rpc.call_header.x-database`
-const DATABASE_HEADER: &str = "x-database";
-
-pub struct FlightSessionHandler<A>
-where
-    A: ProxyAuthenticator + Send + Sync + 'static,
-{
-    authenticator: A,
+pub const DATABASE_HEADER: &str = "x-glaredb-database";
+pub const ORG_HEADER: &str = "x-glaredb-org";
+pub struct FlightSessionHandler {
     engine: Arc<Engine>,
     // since plans can be tied to any session, we can't use a single session to store them.
     logical_plans: DashMap<String, LogicalPlan>,
@@ -70,10 +60,7 @@ where
     sessions: DashMap<ConnKey, Arc<Mutex<Session>>>,
 }
 
-pub type CloudFlightProxyHandler = FlightSessionHandler<CloudAuthenticator>;
-pub type LocalFlightHandler = FlightSessionHandler<NoopAuthenticator>;
-
-impl LocalFlightHandler {
+impl FlightSessionHandler {
     async fn do_action_execute_logical_plan(
         &self,
         req: &Request<Ticket>,
@@ -112,24 +99,15 @@ impl LocalFlightHandler {
             .with_schema(schema)
             .build(stream)
             .map_err(Status::from);
-        // todo!()
         Ok(Response::new(Box::pin(stream)))
     }
 
     pub fn new(engine: &Arc<Engine>) -> Self {
         Self {
-            authenticator: NoopAuthenticator {},
             engine: engine.clone(),
             logical_plans: DashMap::new(),
             sessions: DashMap::new(),
         }
-    }
-
-    pub async fn authenticate<T>(&self, req: &Request<T>) -> Result<()> {
-        let meta = req.metadata();
-        let params = auth_params_from_metadata(meta)?;
-        let _details = self.authenticator.authenticate(params).await?;
-        Ok(())
     }
 
     async fn get_or_create_ctx<T>(
@@ -137,103 +115,9 @@ impl LocalFlightHandler {
         request: &Request<T>,
     ) -> Result<Arc<Mutex<Session>>, Status> {
         let remote = request.remote_addr().unwrap();
-        let ip = remote.ip().to_string();
-        let port = remote.port().to_string();
-        let conn_key = ConnKey { ip, port };
+        let db_details = request.extensions().get::<DatabaseDetails>().cloned();
+        println!("db_details: {:?}", db_details);
 
-        if self.sessions.contains_key(&conn_key) {
-            let sess = self.sessions.get(&conn_key).unwrap().clone();
-            return Ok(sess);
-        }
-
-        let db_id = request
-            .metadata()
-            .get(DATABASE_HEADER)
-            .map(|s| Uuid::try_parse_ascii(s.as_bytes()).unwrap())
-            .unwrap_or_else(|| Uuid::new_v4());
-
-        let session_vars = SessionVars::default()
-            .with_database_id(db_id, datafusion::variable::VarType::System)
-            .with_force_catalog_refresh(true, datafusion::variable::VarType::System);
-
-        let sess = self
-            .engine
-            .new_untracked_session(session_vars, SessionStorageConfig::default())
-            .await
-            .map_err(RpcsrvError::from)?;
-
-        let sess = Arc::new(Mutex::new(sess));
-        self.sessions.insert(conn_key.clone(), sess.clone());
-
-        Ok(sess)
-    }
-}
-
-impl CloudFlightProxyHandler {
-    async fn do_action_execute_logical_plan(
-        &self,
-        req: &Request<Ticket>,
-        query: ActionExecuteLogicalPlan,
-    ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
-        let ctx = self.get_or_create_ctx(req).await?;
-        let ctx = ctx.lock().await;
-        let ActionExecuteLogicalPlan { handle } = query;
-        let lp = self
-            .logical_plans
-            .get(&handle)
-            .ok_or_else(|| Status::internal(format!("Unable to find logical plan {}", handle)))?
-            .clone();
-        self.execute_lp(ctx, lp).await
-    }
-
-    async fn execute_lp(
-        &self,
-        ctx: MutexGuard<'_, Session>,
-        lp: LogicalPlan,
-    ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
-        let plan = ctx
-            .create_physical_plan(lp, &OperationInfo::default())
-            .await
-            .map_err(RpcsrvError::from)?;
-        let stream = ctx
-            .execute_physical_plan(plan)
-            .await
-            .map_err(RpcsrvError::from)?;
-
-        let schema = stream.schema();
-
-        let stream = stream.map_err(|e| ExternalError(Box::new(e)));
-
-        let stream = FlightDataEncoderBuilder::new()
-            .with_schema(schema)
-            .build(stream)
-            .map_err(Status::from);
-        // todo!()
-        Ok(Response::new(Box::pin(stream)))
-    }
-
-    pub fn new(engine: &Arc<Engine>, authenticator: CloudAuthenticator) -> Self {
-        Self {
-            authenticator,
-            engine: engine.clone(),
-            logical_plans: DashMap::new(),
-            sessions: DashMap::new(),
-        }
-    }
-
-    pub async fn authenticate<T>(&self, req: &Request<T>) -> Result<()> {
-        let meta = req.metadata();
-        let params = auth_params_from_metadata(meta)?;
-        let _details = self.authenticator.authenticate(params).await?;
-        Ok(())
-    }
-
-    async fn get_or_create_ctx<T>(
-        &self,
-        request: &Request<T>,
-    ) -> Result<Arc<Mutex<Session>>, Status> {
-        self.authenticate(request).await?;
-        let remote = request.remote_addr().unwrap();
         let ip = remote.ip().to_string();
         let port = remote.port().to_string();
         let conn_key = ConnKey { ip, port };
@@ -267,7 +151,7 @@ impl CloudFlightProxyHandler {
 }
 
 #[tonic::async_trait]
-impl FlightSqlService for CloudFlightProxyHandler {
+impl FlightSqlService for FlightSessionHandler {
     type FlightService = Self;
 
     async fn do_handshake(
@@ -443,230 +327,6 @@ impl FlightSqlService for CloudFlightProxyHandler {
     }
 
     async fn register_sql_info(&self, _id: i32, _result: &SqlInfo) {}
-}
-
-#[tonic::async_trait]
-impl FlightSqlService for LocalFlightHandler {
-    type FlightService = Self;
-
-    async fn do_handshake(
-        &self,
-        _: Request<Streaming<HandshakeRequest>>,
-    ) -> Result<
-        Response<Pin<Box<dyn Stream<Item = Result<HandshakeResponse, Status>> + Send>>>,
-        Status,
-    > {
-        todo!("support TLS")
-    }
-
-    async fn do_get_fallback(
-        &self,
-        req: Request<Ticket>,
-        message: Any,
-    ) -> Result<Response<<Self as FlightService>::DoGetStream>, Status> {
-        match message.type_url.as_str() {
-            ActionExecuteLogicalPlan::TYPE_URL => {
-                let action: ActionExecuteLogicalPlan = message
-                    .unpack()
-                    .map_err(RpcsrvError::from)?
-                    .ok_or_else(|| {
-                        Status::internal("Expected ActionExecutePhysicalPlan but got None!")
-                    })?;
-                return self.do_action_execute_logical_plan(&req, action).await;
-            }
-
-            // All non specified types should be handled as a sql query
-            sql => {
-                let ctx = self.get_or_create_ctx(&req).await?;
-                let mut ctx = ctx.lock().await;
-
-                match ctx.execute_sql(sql, None).await {
-                    Ok(stream) => {
-                        let schema = stream.schema();
-
-                        let stream = stream.map_err(|e| ExternalError(Box::new(e)));
-
-                        let stream = FlightDataEncoderBuilder::new()
-                            .with_schema(schema)
-                            .build(stream)
-                            .map_err(Status::from);
-                        Ok(Response::new(Box::pin(stream)))
-                    }
-                    Err(e) => Err(Status::internal(format!(
-                        "Expected a SQL query, instead received: {e}"
-                    ))),
-                }
-            }
-        }
-    }
-
-    async fn get_flight_info_statement(
-        &self,
-        query: CommandStatementQuery,
-        request: Request<FlightDescriptor>,
-    ) -> Result<Response<FlightInfo>, Status> {
-        let flight_descriptor = request.into_inner();
-        let ticket = Ticket::new(query.encode_to_vec());
-        let endpoint = FlightEndpoint::new().with_ticket(ticket);
-
-        let flight_info = FlightInfo::new()
-            .with_endpoint(endpoint)
-            .with_descriptor(flight_descriptor);
-
-        Ok(tonic::Response::new(flight_info))
-    }
-
-    async fn get_flight_info_prepared_statement(
-        &self,
-        cmd: CommandPreparedStatementQuery,
-        req: Request<FlightDescriptor>,
-    ) -> Result<Response<FlightInfo>, Status> {
-        let handle = String::from_utf8(cmd.prepared_statement_handle.to_vec()).ok();
-        let handle = handle.unwrap_or_else(|| Uuid::new_v4().to_string());
-
-        let ctx = self.get_or_create_ctx(&req).await?;
-        let ctx = ctx.lock().await;
-        let portal = ctx.get_portal(&handle).map_err(RpcsrvError::from)?;
-
-        let plan = portal.logical_plan().unwrap();
-
-        let plan = plan
-            .clone()
-            .try_into_datafusion_plan()
-            .map_err(RpcsrvError::from)?;
-
-        self.logical_plans.insert(handle.clone(), plan);
-
-        let action = ActionExecuteLogicalPlan {
-            handle: handle.to_string(),
-        };
-
-        let ticket = Ticket::new(action.as_any().encode_to_vec());
-
-        let endpoint = FlightEndpoint::new().with_ticket(ticket);
-
-        // Eventually, we should asynchronously start the execution here,
-        // and return a `Ticket` that contains information on how to retrieve the results.
-        let flight_info = FlightInfo::new()
-            .with_descriptor(FlightDescriptor::new_cmd(vec![]))
-            .with_endpoint(endpoint);
-
-        Ok(tonic::Response::new(flight_info))
-    }
-
-    async fn get_flight_info_sql_info(
-        &self,
-        query: CommandGetSqlInfo,
-        request: Request<FlightDescriptor>,
-    ) -> Result<Response<FlightInfo>, Status> {
-        let flight_descriptor = request.into_inner();
-
-        let flight_info = FlightInfo::new()
-            .try_with_schema(query.into_builder(&INSTANCE_SQL_DATA).schema().as_ref())
-            .map_err(RpcsrvError::from)?
-            .with_descriptor(flight_descriptor);
-
-        Ok(tonic::Response::new(flight_info))
-    }
-
-    async fn do_action_create_prepared_statement(
-        &self,
-        query: ActionCreatePreparedStatementRequest,
-        req: Request<Action>,
-    ) -> Result<ActionCreatePreparedStatementResult, Status> {
-        let handle = query
-            .transaction_id
-            .map(|id| String::from_utf8(id.to_vec()).unwrap())
-            .unwrap_or_else(|| Uuid::new_v4().to_string());
-
-        let ctx = self.get_or_create_ctx(&req).await?;
-        let mut ctx = ctx.lock().await;
-
-        ctx.prepare_portal(&handle, &query.query)
-            .await
-            .map_err(RpcsrvError::from)?;
-
-        let portal = ctx.get_portal(&handle).map_err(RpcsrvError::from)?;
-
-        let output_schema = portal.output_schema().ok_or_else(|| {
-            Status::internal("Expected a valid output schema, instead received: None".to_string())
-        })?;
-
-        let message = SchemaAsIpc::new(output_schema, &IpcWriteOptions::default())
-            .try_into()
-            .map_err(RpcsrvError::from)?;
-
-        let IpcMessage(schema_bytes) = message;
-        let res = ActionCreatePreparedStatementResult {
-            prepared_statement_handle: handle.into(),
-            dataset_schema: schema_bytes,
-            parameter_schema: Default::default(), // TODO: parameters
-        };
-
-        Ok(res)
-    }
-
-    async fn do_action_close_prepared_statement(
-        &self,
-        query: ActionClosePreparedStatementRequest,
-        req: Request<Action>,
-    ) -> Result<(), Status> {
-        let handle = std::str::from_utf8(&query.prepared_statement_handle)
-            .map_err(|e| RpcsrvError::ParseError(e.to_string()))?;
-
-        let ctx = self.get_or_create_ctx(&req).await?;
-        ctx.lock().await.remove_portal(handle);
-        self.logical_plans.remove(handle);
-
-        Ok(())
-    }
-
-    async fn register_sql_info(&self, _id: i32, _result: &SqlInfo) {}
-}
-
-fn auth_params_from_metadata(meta: &MetadataMap) -> Result<AuthParams> {
-    let basic = "Basic ";
-    let authorization = meta
-        .get("authorization")
-        .ok_or_else(|| Status::invalid_argument("authorization field not present"))?
-        .to_str()
-        .map_err(|_| Status::internal("authorization not parsable"))?;
-    if !authorization.starts_with(basic) {
-        Err(Status::invalid_argument(format!(
-            "Auth type not implemented: {authorization}"
-        )))?;
-    }
-    let base64 = &authorization[basic.len()..];
-    let bytes = BASE64_STANDARD
-        .decode(base64)
-        .map_err(|_| Status::internal("authorization not decodable"))?;
-    let s = String::from_utf8(bytes).map_err(|_| Status::internal("authorization not parsable"))?;
-    let parts: Vec<_> = s.split(':').collect();
-    let (user, password) = match parts.as_slice() {
-        [user, pass] => (user.to_string(), pass.to_string()),
-        _ => Err(Status::invalid_argument(
-            "Invalid authorization header".to_string(),
-        ))?,
-    };
-
-    fn get_val<'b>(key: &'static str, meta: &'b MetadataMap) -> Result<&'b str> {
-        let val = meta
-            .get(key)
-            .ok_or(RpcsrvError::MissingAuthKey(key))?
-            .to_str()?;
-        Ok(val)
-    }
-
-    let db_name = get_val(DB_NAME_KEY, meta)?;
-    let org = get_val(ORG_KEY, meta)?;
-
-    Ok(AuthParams {
-        user: Cow::Owned(user),
-        password: Cow::Owned(password),
-        db_name: Cow::Borrowed(db_name),
-        org: Cow::Borrowed(org),
-        service: ServiceProtocol::RpcSrv,
-    })
 }
 
 #[derive(Clone, PartialEq, ::prost::Message)]
