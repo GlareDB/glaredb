@@ -48,12 +48,12 @@ impl Display for DatasourceUrl {
 }
 
 impl DatasourceUrl {
-    const FILE_SCHEME: &str = "file";
-    const HTTP_SCHEME: &str = "http";
-    const HTTPS_SCHEME: &str = "https";
-    const GS_SCHEME: &str = "gs";
-    const S3_SCHEME: &str = "s3";
-    const AZURE_SCHEME: &str = "azure";
+    const FILE_SCHEME: &'static str = "file";
+    const HTTP_SCHEME: &'static str = "http";
+    const HTTPS_SCHEME: &'static str = "https";
+    const GS_SCHEME: &'static str = "gs";
+    const S3_SCHEME: &'static str = "s3";
+    const AZURE_SCHEME: &'static str = "azure";
 
     pub fn try_new(u: impl AsRef<str>) -> Result<Self> {
         let u = u.as_ref();
