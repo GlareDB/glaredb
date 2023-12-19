@@ -235,7 +235,6 @@ impl FlightSqlService for FlightSessionHandler {
         cmd: CommandPreparedStatementQuery,
         req: Request<FlightDescriptor>,
     ) -> Result<Response<FlightInfo>, Status> {
-        println!("get_flight_info_prepared_statement: {:?}", cmd);
         let handle = String::from_utf8(cmd.prepared_statement_handle.to_vec()).ok();
         let handle = handle.unwrap_or_else(|| Uuid::new_v4().to_string());
 
