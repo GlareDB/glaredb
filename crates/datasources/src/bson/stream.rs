@@ -1,7 +1,11 @@
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::task::{Context, Poll};
 
+use datafusion::execution::TaskContext;
+use datafusion::physical_plan::streaming::PartitionStream;
+use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::Stream;
 use futures::StreamExt;
 
@@ -67,5 +71,39 @@ impl BsonStream {
         )?;
 
         Ok(batch)
+    }
+}
+
+pub type SendableDocumentStream =
+    Pin<Box<dyn Stream<Item = Result<Document, DataFusionError>> + Send>>;
+
+pub struct BsonPartitionStream {
+    schema: Arc<Schema>,
+    stream: Mutex<Option<SendableDocumentStream>>,
+}
+
+impl PartitionStream for BsonPartitionStream {
+    fn schema(&self) -> &SchemaRef {
+        &self.schema
+    }
+
+    fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
+        let partition = self
+            .stream
+            .lock()
+            .unwrap()
+            .take()
+            .expect("stream to only be called once")
+            .boxed();
+        Box::pin(BsonStream::new(self.schema.clone(), partition))
+    }
+}
+
+impl BsonPartitionStream {
+    pub fn new(schema: Arc<Schema>, stream: SendableDocumentStream) -> Self {
+        Self {
+            schema,
+            stream: Mutex::new(Some(stream)),
+        }
     }
 }
