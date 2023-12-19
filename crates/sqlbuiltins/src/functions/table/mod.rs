@@ -30,7 +30,7 @@ use self::bigquery::ReadBigQuery;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
-use self::iceberg::{IcebergDataFiles, IcebergScan, IcebergSnapshots};
+use self::iceberg::{data_files::IcebergDataFiles, scan::IcebergScan, snapshots::IcebergSnapshots};
 use self::lance::LanceScan;
 use self::mongo::ReadMongoDb;
 use self::mysql::ReadMysql;
