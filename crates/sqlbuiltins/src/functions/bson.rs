@@ -202,7 +202,6 @@ impl PartitionStream for BsonFilePartitionStream {
     }
 
     fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
-        let srbs = self.stream.lock().unwrap();
-        srbs
+        futures::stream::BoxStream::new(std::pin::Pin::new(&mut self.stream))
     }
 }
