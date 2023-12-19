@@ -45,7 +45,8 @@ static INSTANCE_SQL_DATA: Lazy<SqlInfoData> = Lazy::new(|| {
 
 /// Custom header clients can use to specify the database they want to connect to.
 /// the ADBC driver requires it to be passed in as `adbc.flight.sql.rpc.call_header.<key>`
-pub const DATABASE_HEADER: &str = "x-glaredb-database";
+pub const FLIGHTSQL_DATABASE_HEADER: &str = "x-glaredb-database";
+pub const FLIGHTSQL_GCS_BUCKET_HEADER: &str = "x-glaredb-gcs-bucket";
 pub struct FlightSessionHandler {
     engine: Arc<Engine>,
     // since plans can be tied to any session, we can't use a single session to store them.
@@ -125,17 +126,29 @@ impl FlightSessionHandler {
 
         let db_id = request
             .metadata()
-            .get(DATABASE_HEADER)
-            .and_then(|s| Uuid::try_parse_ascii(s.as_bytes()).ok())
-            .unwrap_or_else(Uuid::new_v4);
+            .get(FLIGHTSQL_DATABASE_HEADER)
+            .and_then(|s| Uuid::try_parse_ascii(s.as_bytes()).ok());
 
+        let bucket_path = request
+            .metadata()
+            .get(FLIGHTSQL_GCS_BUCKET_HEADER)
+            .and_then(|s| s.to_str().ok());
+
+        if let (None, Some(_)) = (db_id, bucket_path) {
+            return Err(Status::invalid_argument(
+                "database id must be specified when using a gcs bucket".to_string(),
+            ));
+        }
         let session_vars = SessionVars::default()
-            .with_database_id(db_id, datafusion::variable::VarType::System)
+            .with_database_id(
+                db_id.unwrap_or_else(Uuid::nil),
+                datafusion::variable::VarType::System,
+            )
             .with_force_catalog_refresh(true, datafusion::variable::VarType::System);
 
         let sess = self
             .engine
-            .new_untracked_session(session_vars, SessionStorageConfig::default())
+            .new_untracked_session(session_vars, SessionStorageConfig::new(bucket_path))
             .await
             .map_err(RpcsrvError::from)?;
 
@@ -222,6 +235,7 @@ impl FlightSqlService for FlightSessionHandler {
         cmd: CommandPreparedStatementQuery,
         req: Request<FlightDescriptor>,
     ) -> Result<Response<FlightInfo>, Status> {
+        println!("get_flight_info_prepared_statement: {:?}", cmd);
         let handle = String::from_utf8(cmd.prepared_statement_handle.to_vec()).ok();
         let handle = handle.unwrap_or_else(|| Uuid::new_v4().to_string());
 

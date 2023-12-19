@@ -44,6 +44,14 @@ pub struct SessionStorageConfig {
     pub gcs_bucket: Option<String>,
 }
 
+impl SessionStorageConfig {
+    pub fn new<T: Into<String>>(bucket: Option<T>) -> Self {
+        Self {
+            gcs_bucket: bucket.map(Into::into),
+        }
+    }
+}
+
 impl From<common::SessionStorageConfig> for SessionStorageConfig {
     fn from(value: common::SessionStorageConfig) -> Self {
         SessionStorageConfig {

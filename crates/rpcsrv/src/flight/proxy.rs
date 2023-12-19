@@ -22,7 +22,7 @@ use tonic::{
 };
 use tonic::{Request, Response, Streaming};
 
-use super::handler::DATABASE_HEADER;
+use super::handler::{FLIGHTSQL_DATABASE_HEADER, FLIGHTSQL_GCS_BUCKET_HEADER};
 
 pub type CloudFlightProxyHandler = ProxyHandler<CloudAuthenticator, FlightServiceClient<Channel>>;
 
@@ -30,8 +30,11 @@ impl CloudFlightProxyHandler {
     async fn connect(&self, meta: &mut MetadataMap) -> Result<FlightServiceClient<Channel>> {
         let params = Self::auth_params_from_metadata(meta)?;
         let details = self.authenticator.authenticate(params).await?;
-
-        meta.insert(DATABASE_HEADER, details.database_id.try_into()?);
+        meta.insert(
+            FLIGHTSQL_GCS_BUCKET_HEADER,
+            details.gcs_storage_bucket.try_into()?,
+        );
+        meta.insert(FLIGHTSQL_DATABASE_HEADER, details.database_id.try_into()?);
         let key = ConnKey {
             ip: details.ip.clone(),
             port: details.port.clone(),

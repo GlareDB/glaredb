@@ -14,6 +14,7 @@ use rpcsrv::export::arrow_flight::sql::client::FlightSqlServiceClient;
 use rpcsrv::export::arrow_flight::utils::flight_data_to_arrow_batch;
 use rpcsrv::export::tonic::transport::{Channel, Endpoint};
 use rpcsrv::export::Schema;
+use rpcsrv::flight::handler::FLIGHTSQL_DATABASE_HEADER;
 use sqlexec::engine::{Engine, EngineStorageConfig, SessionStorageConfig, TrackedSession};
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClient;
@@ -277,8 +278,7 @@ impl FlightSqlTestClient {
         let dbid: Uuid = config.get_dbname().unwrap().parse().unwrap();
 
         let mut client = FlightSqlServiceClient::new(conn);
-
-        client.set_header("x-database", dbid);
+        client.set_header(FLIGHTSQL_DATABASE_HEADER, dbid.to_string());
         Ok(FlightSqlTestClient { client })
     }
 }

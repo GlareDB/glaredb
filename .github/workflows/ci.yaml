@@ -151,6 +151,9 @@ jobs:
     name: SQL Logic Tests
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
+    strategy:
+      matrix:
+        protocol: ['postgres','flightsql']
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -163,13 +166,13 @@ jobs:
             target/
             !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
       - name: public sql logic tests DEBUG
         if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
-        run: just slt -v 'sqllogictests/*'
+        run: just slt -v 'sqllogictests/* --protocol=${{ matrix.protocol }}'
       - name: public sql logic tests
         if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
-        run: just slt 'sqllogictests/*'
+        run: just slt 'sqllogictests/* --protocol=${{ matrix.protocol }}'
+        
 
   process-integration-tests:
     name: Process Integration Tests (pytest)
