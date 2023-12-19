@@ -19,13 +19,12 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
 use errors::ObjectStoreSourceError;
+use errors::Result;
 use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::options::{TableOptions, TableOptionsObjectStore};
-
-use errors::Result;
 
 use crate::common::exprs_to_phys_exprs;
 use crate::common::url::DatasourceUrl;

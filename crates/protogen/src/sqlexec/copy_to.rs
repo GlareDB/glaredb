@@ -102,6 +102,9 @@ impl TryFrom<crate::metastore::types::options::CopyToFormatOptions> for CopyToFo
         value: crate::metastore::types::options::CopyToFormatOptions,
     ) -> Result<Self, Self::Error> {
         match value {
+            crate::metastore::types::options::CopyToFormatOptions::Bson => {
+                Ok(CopyToFormatOptions::default())
+            }
             crate::metastore::types::options::CopyToFormatOptions::Csv(csv) => {
                 Ok(CopyToFormatOptions {
                     copy_to_format_options_enum: Some(CopyToFormatOptionsEnum::Csv(
