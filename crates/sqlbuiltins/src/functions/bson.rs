@@ -39,8 +39,8 @@ impl TableFunc for BsonScan {
         RuntimePreference::Unspecified
     }
 
-    // TODO: in addition to a much needed refactor, most of this should be implemented as a
-    // TableProvider in the datasources bson package and just wrapped here.
+    // TODO: most of this should be implemented as a TableProvider in
+    // the datasources bson package and just wrapped here.
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
@@ -172,6 +172,10 @@ impl TableFunc for BsonScan {
             readers.len() + 1,
         );
 
+        // all the documents we read for the sample are hanging around
+        // somewhere and we want to make sure that callers access
+        // them: we're going to make a special stream with these
+        // documents here.
         streams.push(Arc::new(BsonPartitionStream::new(
             schema.clone(),
             futures::stream::iter(
@@ -182,6 +186,9 @@ impl TableFunc for BsonScan {
             .boxed(),
         )));
 
+        // for all remaining streams we wrap the stream of documents
+        // and convert them into partition streams which the streaming
+        // table exec can read.
         while let Some(reader) = readers.pop_front() {
             streams.push(Arc::new(BsonPartitionStream::new(
                 schema.clone(),
