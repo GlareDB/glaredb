@@ -103,7 +103,7 @@ impl FlightSessionHandler {
 
     pub fn new(engine: Arc<Engine>) -> Self {
         Self {
-            engine: engine,
+            engine,
             logical_plans: DashMap::new(),
             sessions: DashMap::new(),
         }
