@@ -1,4 +1,5 @@
 use std::collections::{HashMap, VecDeque};
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -10,9 +11,9 @@ use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::TaskContext;
 use datafusion::parquet::data_type::AsBytes;
-use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::streaming::PartitionStream;
-use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datafusion::physical_plan::SendableRecordBatchStream;
+use futures::Stream;
 use futures::StreamExt;
 use tokio_util::codec::LengthDelimitedCodec;
 
@@ -172,36 +173,55 @@ impl TableFunc for BsonScan {
                 .map_err(|e| ExtensionError::String(e.to_string()))?,
         );
 
-        // TODO: create two partion scanner implementations and add them to a
-        // vector as below: one that just returns the documents from the sample
-        // in the table and a second one for each reader.
+        let mut streams = Vec::<std::sync::Arc<(dyn PartitionStream + 'static)>>::with_capacity(
+            readers.len() + 1,
+        );
 
-        let bstr = readers.pop_front().unwrap().boxed();
-        let rbsa = RecordBatchStreamAdapter::new(schema, BsonStream::new(schema.clone(), bstr));
-
-        let pfps = Arc::new(BsonFilePartitionStream {
+        streams.push(Arc::new(BsonPartitionStream {
             schema: schema.clone(),
-            stream: Mutex::new(Box::new(rbsa)),
-        });
+            stream: Mutex::new(Some(
+                futures::stream::iter(
+                    sample
+                        .into_iter()
+                        .map(|doc| -> Result<bson::Document, DataFusionError> { Ok(doc) }),
+                )
+                .boxed(),
+            )),
+        }));
+
+        while let Some(reader) = readers.pop_front() {
+            streams.push(Arc::new(BsonPartitionStream {
+                schema: schema.clone(),
+                stream: Mutex::new(Some(reader.boxed())),
+            }));
+        }
 
         Ok(Arc::new(StreamingTable::try_new(
             schema.clone(), // <= inferred schema
-            vec![pfps],     // <= vector of partition scanners
+            streams,        // <= vector of partition streams
         )?))
     }
 }
 
-struct BsonFilePartitionStream {
+struct BsonPartitionStream {
     schema: Arc<Schema>,
-    stream: Mutex<Box<dyn RecordBatchStream + Send>>,
+    stream:
+        Mutex<Option<Pin<Box<dyn Stream<Item = Result<bson::Document, DataFusionError>> + Send>>>>,
 }
 
-impl PartitionStream for BsonFilePartitionStream {
+impl PartitionStream for BsonPartitionStream {
     fn schema(&self) -> &SchemaRef {
         &self.schema
     }
 
     fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
-        futures::stream::BoxStream::new(std::pin::Pin::new(&mut self.stream))
+        let partition = self
+            .stream
+            .lock()
+            .unwrap()
+            .take()
+            .expect("stream to only be called once")
+            .boxed();
+        Box::pin(BsonStream::new(self.schema.clone(), partition))
     }
 }
