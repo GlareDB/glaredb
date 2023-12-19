@@ -7,7 +7,7 @@ use crate::messages::{BackendMessage, ErrorResponse, FrontendMessage, StartupMes
 use crate::ssl::Connection;
 use crate::ssl::SslConfig;
 use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, ServiceProtocol};
-use std::{collections::HashMap, borrow::Cow};
+use std::{borrow::Cow, collections::HashMap};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tracing::debug;
