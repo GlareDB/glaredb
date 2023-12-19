@@ -19,13 +19,16 @@ impl SslConfig {
     /// Create a new ssl config using the provided cert and key files.
     pub async fn new<P: AsRef<Path>>(cert: P, key: P) -> Result<SslConfig> {
         let cert_bs = fs::read(cert).await?;
-        let chain: Vec<_> = rustls_pemfile::certs(&mut cert_bs.as_slice())?
-            .into_iter()
-            .map(Certificate)
-            .collect();
+        let mut chain = Vec::new();
+        for cert in rustls_pemfile::certs(&mut cert_bs.as_slice()) {
+            chain.push(Certificate(cert?.to_vec()))
+        }
 
         let key_bs = fs::read(key).await?;
-        let mut keys = rustls_pemfile::pkcs8_private_keys(&mut key_bs.as_slice())?;
+        let mut keys = Vec::new();
+        for key in rustls_pemfile::pkcs8_private_keys(&mut key_bs.as_slice()) {
+            keys.push(key?.secret_pkcs8_der().to_vec());
+        }
         let key = match keys.len() {
             0 => return Err(PgSrvError::ReadCertsAndKeys("No keys found")),
             1 => PrivateKey(keys.pop().unwrap()),
