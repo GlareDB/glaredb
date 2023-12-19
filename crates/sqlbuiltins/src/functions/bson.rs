@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use async_trait::async_trait;
+use bson::Document;
 use bytes::BytesMut;
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
 use datafusion::common::DataFusionError;
@@ -129,8 +130,8 @@ impl TableFunc for BsonScan {
                         // docuemnts are a superset of the schema, we'll end up
                         // doing much more parsing work than is actually needed
                         // for the bson documents.
-                        |bt: Result<BytesMut, std::io::Error>| -> Result<bson::Document, DataFusionError> {
-                            Ok(bson::de::from_slice::<bson::Document>(
+                        |bt: Result<BytesMut, std::io::Error>| -> Result<Document, DataFusionError> {
+                            Ok(bson::de::from_slice::<Document>(
                                 bt?.freeze().as_bytes().to_owned().as_slice(),
                             ).map_err(|e| DataFusionError::External(Box::new(e)))?
                             .to_owned())
@@ -140,7 +141,7 @@ impl TableFunc for BsonScan {
 
         // iterate through the readers and build up a sample of the first <n>
         // documents to be used to infer the schema.
-        let mut sample = Vec::<bson::Document>::with_capacity(sample_size as usize);
+        let mut sample = Vec::<Document>::with_capacity(sample_size as usize);
         let mut first_active: usize = 0;
         'readers: for reader in readers.iter_mut() {
             while let Some(res) = reader.next().await {
@@ -183,7 +184,7 @@ impl TableFunc for BsonScan {
                 futures::stream::iter(
                     sample
                         .into_iter()
-                        .map(|doc| -> Result<bson::Document, DataFusionError> { Ok(doc) }),
+                        .map(|doc| -> Result<Document, DataFusionError> { Ok(doc) }),
                 )
                 .boxed(),
             )),
@@ -203,10 +204,11 @@ impl TableFunc for BsonScan {
     }
 }
 
+type SendableDocumentStream = Pin<Box<dyn Stream<Item = Result<Document, DataFusionError>> + Send>>;
+
 struct BsonPartitionStream {
     schema: Arc<Schema>,
-    stream:
-        Mutex<Option<Pin<Box<dyn Stream<Item = Result<bson::Document, DataFusionError>> + Send>>>>,
+    stream: Mutex<Option<SendableDocumentStream>>,
 }
 
 impl PartitionStream for BsonPartitionStream {

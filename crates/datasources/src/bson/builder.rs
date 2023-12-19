@@ -60,6 +60,10 @@ impl RecordStructBuilder {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() > 0
+    }
+
     pub fn append_nulls(&mut self) -> Result<()> {
         for (builder, field) in self.builders.iter_mut().zip(self.fields.iter()) {
             append_null(field.data_type(), builder.as_mut())?;
