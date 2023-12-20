@@ -410,7 +410,7 @@ ORDER BY attnum;
             type_oids.push(row.try_get(1)?);
         }
 
-        let mut unknown_type_oids: Vec<i32> = Vec::new();
+        let mut unknown_type_oids: Vec<u32> = Vec::new();
 
         type_oids.iter().for_each(|oid| {
             if let None = PostgresType::from_oid(*oid) {
@@ -423,7 +423,7 @@ ORDER BY attnum;
         }
 
         //will Proceed here ONLY if types are known for all oids else returns error with unknown_type_oids
-        
+
         let pg_types = type_oids
             .iter()
             .map(|oid| PostgresType::from_oid(*oid))
