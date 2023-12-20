@@ -1,10 +1,6 @@
 use crate::{
     errors::{Result, RpcsrvError},
-<<<<<<< HEAD
     util::{ConnKey, ExpiringDashMap},
-=======
-    util::ConnKey,
->>>>>>> 293c37670b9386733b6c2099f58906075e27eb89
 };
 
 use datafusion::{arrow::ipc::writer::IpcWriteOptions, logical_expr::LogicalPlan};
