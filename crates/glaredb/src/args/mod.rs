@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 use url::Url;
 
-use crate::rpc_proxy::TLSMode;
+use crate::proxy::TLSMode;
 pub mod local;
 pub mod server;
 
@@ -58,6 +58,14 @@ pub struct RpcProxyArgs {
     /// (Internal)
     #[clap(long, value_enum, hide = true)]
     pub tls_mode: TLSMode,
+
+    /// Path to TLS server cert to use.
+    #[clap(long, default_value = "/etc/certs/tls.crt")]
+    pub tls_cert_path: String,
+
+    /// Path to TLS server key to use.
+    #[clap(long, default_value = "/etc/certs/tls.key")]
+    pub tls_key_path: String,
 }
 
 #[derive(Parser)]
