@@ -462,6 +462,17 @@ impl<'a> ExternalDispatcher<'a> {
                 let dataset = scan_lance_table(location, storage_options.clone()).await?;
                 Ok(Arc::new(dataset))
             }
+            TableOptions::Bson(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            }) => {
+                todo!(
+                    "implement bson table provider {:?}->{:?}",
+                    location,
+                    storage_options
+                )
+            }
         }
     }
 

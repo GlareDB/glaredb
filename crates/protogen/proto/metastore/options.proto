@@ -109,8 +109,9 @@ message TableOptions {
     TableOptionsObjectStore azure = 13;
     TableOptionsSqlServer sql_server = 14;
     TableOptionsObjectStore lance = 15;
+    TableOptionsObjectStore bson = 16;
   }
-  // next: 16
+  // next: 17
 }
 
 message TableOptionsInternal {
