@@ -413,7 +413,7 @@ ORDER BY attnum;
         let mut unknown_type_oids: Vec<u32> = Vec::new();
 
         type_oids.iter().for_each(|oid| {
-            if let None = PostgresType::from_oid(*oid) {
+            if PostgresType::from_oid(*oid).is_none() {
                 unknown_type_oids.push(*oid);
             }
         });
