@@ -626,6 +626,7 @@ impl<'a> SessionPlanner<'a> {
                     storage_options: opts,
                     file_type: Some(file_type.to_string()),
                     compression: compression.map(|c| c.to_string()),
+                    schema_sample_size: None,
                 })
             }
             TableOptions::DELTA | TableOptions::ICEBERG => {
@@ -644,6 +645,7 @@ impl<'a> SessionPlanner<'a> {
                         storage_options,
                         file_type: None,
                         compression: None,
+                        schema_sample_size: None,
                     })
                 } else {
                     let url = DatasourceUrl::try_new(&location)?;
@@ -659,6 +661,7 @@ impl<'a> SessionPlanner<'a> {
                         storage_options,
                         file_type: None,
                         compression: None,
+                        schema_sample_size: None,
                     })
                 }
             }
@@ -689,6 +692,7 @@ impl<'a> SessionPlanner<'a> {
                     storage_options,
                     file_type: None,
                     compression: None,
+                    schema_sample_size: None,
                 })
             }
             other => return Err(internal!("unsupported datasource: {}", other)),

@@ -12,6 +12,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::prelude::SessionContext;
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasources::bson::table::bson_streaming_table;
 use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
@@ -391,6 +392,7 @@ impl<'a> ExternalDispatcher<'a> {
                 storage_options,
                 file_type,
                 compression,
+                ..
             }) => {
                 // File type should be known at this point since creating the
                 // table requires that we've either inferred the file type, or
@@ -465,12 +467,17 @@ impl<'a> ExternalDispatcher<'a> {
             TableOptions::Bson(TableOptionsObjectStore {
                 location,
                 storage_options,
+                schema_sample_size,
                 ..
             }) => {
-                todo!(
-                    "implement bson table provider {:?}->{:?}",
+                let store_access = GenericStoreAccess::new_from_location_and_opts(
                     location,
-                    storage_options
+                    storage_options.to_owned(),
+                )?;
+                let source_url = DatasourceUrl::try_new(location)?;
+                Ok(
+                    bson_streaming_table(store_access, schema_sample_size.to_owned(), source_url)
+                        .await?,
                 )
             }
         }

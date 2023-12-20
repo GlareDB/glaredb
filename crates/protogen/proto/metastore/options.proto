@@ -193,6 +193,9 @@ message TableOptionsObjectStore {
   // Optional compression used. For data lakes (delta and iceberg), this should
   // be empty.
   optional string compression = 4;
+
+  // Optional: number of records to sample for formats with inferred schema.
+  optional int64 schema_sample_size = 5;
 }
 
 message TableOptionsSqlServer {

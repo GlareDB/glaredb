@@ -1009,6 +1009,7 @@ pub struct TableOptionsObjectStore {
     pub storage_options: StorageOptions,
     pub file_type: Option<String>,
     pub compression: Option<String>,
+    pub schema_sample_size: Option<i64>,
 }
 
 impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
@@ -1019,6 +1020,7 @@ impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
             storage_options: value.storage_options.required("storage_options")?,
             file_type: value.file_type,
             compression: value.compression,
+            schema_sample_size: None,
         })
     }
 }
@@ -1030,6 +1032,7 @@ impl From<TableOptionsObjectStore> for options::TableOptionsObjectStore {
             storage_options: Some(value.storage_options.into()),
             file_type: value.file_type,
             compression: value.compression,
+            schema_sample_size: value.schema_sample_size,
         }
     }
 }
