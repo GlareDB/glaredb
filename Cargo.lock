@@ -5983,6 +5983,7 @@ version = "0.7.1"
 dependencies = [
  "arrow-flight",
  "async-trait",
+ "base64 0.21.5",
  "bytes",
  "dashmap",
  "datafusion",

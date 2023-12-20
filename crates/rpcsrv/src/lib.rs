@@ -1,10 +1,11 @@
 pub mod errors;
-pub mod flight_handler;
+pub mod flight;
 pub mod handler;
 pub mod proxy;
 pub mod simple;
 
 mod session;
+mod util;
 
 pub mod export {
     pub use arrow_flight;

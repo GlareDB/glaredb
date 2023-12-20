@@ -217,7 +217,8 @@ impl Cli {
                     .with_storage_options(HashMap::from_iter(
                         self.storage_config.storage_options.clone(),
                     ))
-                    .integration_testing_mode(true);
+                    .integration_testing_mode(true)
+                    .enable_flight_api(true);
 
                 if matches!(self.protocol, ClientProtocol::Rpc) {
                     builder = builder.disable_rpc_auth(true);
