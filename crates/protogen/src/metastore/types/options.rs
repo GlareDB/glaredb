@@ -1020,7 +1020,7 @@ impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
             storage_options: value.storage_options.required("storage_options")?,
             file_type: value.file_type,
             compression: value.compression,
-            schema_sample_size: None,
+            schema_sample_size: value.schema_sample_size,
         })
     }
 }

@@ -24,18 +24,15 @@ pub async fn bson_streaming_table(
     schema_inference_sample_size: Option<i64>,
     source_url: DatasourceUrl,
 ) -> Result<Arc<dyn TableProvider>, ExtensionError> {
-    let store = store_access
-        .create_store()
-        .map_err(|e| ExtensionError::Arrow(e.into()))?;
+    // TODO: set a maximum (1024?) or have an adaptive mode
+    // (at least n but stop after n the same) or skip documents
+    let sample_size = schema_inference_sample_size.unwrap_or(100);
 
     let path = source_url.path();
 
-    let sample_size = match schema_inference_sample_size {
-        // TODO: set a maximum (1024?) or have an adaptive mode
-        // (at least n but stop after n the same) or skip documents
-        Some(v) => v,
-        None => 100,
-    };
+    let store = store_access
+        .create_store()
+        .map_err(|e| ExtensionError::Arrow(e.into()))?;
 
     // assume that the file type is a glob and see if there are
     // more files...
