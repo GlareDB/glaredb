@@ -131,8 +131,7 @@ pub async fn bson_streaming_table(
             .map_err(|e| ExtensionError::String(e.to_string()))?,
     );
 
-    let mut streams =
-        Vec::<std::sync::Arc<(dyn PartitionStream + 'static)>>::with_capacity(readers.len() + 1);
+    let mut streams = Vec::<Arc<(dyn PartitionStream + 'static)>>::with_capacity(readers.len() + 1);
 
     // all the documents we read for the sample are hanging around
     // somewhere and we want to make sure that callers access
