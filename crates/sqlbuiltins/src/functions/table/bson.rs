@@ -24,7 +24,7 @@ use crate::functions::table::{table_location_and_opts, TableFunc};
 use crate::functions::{ConstBuiltinFunction, FunctionType};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct BsonScan {}
+pub struct BsonScan;
 
 impl ConstBuiltinFunction for BsonScan {
     const NAME: &'static str = "read_bson";

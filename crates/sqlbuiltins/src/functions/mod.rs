@@ -3,8 +3,6 @@ mod aggregates;
 mod scalars;
 mod table;
 
-mod bson;
-
 use self::scalars::df_scalars::ArrowCastFunction;
 use self::scalars::kdl::{KDLMatches, KDLSelect};
 use self::scalars::{postgres::*, ConnectionId, Version};
