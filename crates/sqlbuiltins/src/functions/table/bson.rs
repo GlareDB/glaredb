@@ -47,6 +47,15 @@ impl TableFunc for BsonScan {
         args: Vec<FuncParamValue>,
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>, ExtensionError> {
+        // parse arguments to see how many documents to consider for schema inheritance.
+        let sample_size = match opts.get("schema_sample_size") {
+            // TODO: set a maximum (1024?) or have an adaptive mode
+            // (at least n but stop after n the same) or skip documents
+            Some(v) => v.to_owned().try_into()?,
+            None => 100,
+        };
+
+        // setup storage access
         let (source_url, storage_options) = table_location_and_opts(ctx, args, &mut opts)?;
 
         let store_access = GenericStoreAccess::new_from_location_and_opts(
@@ -58,6 +67,7 @@ impl TableFunc for BsonScan {
         let store = store_access
             .create_store()
             .map_err(|e| ExtensionError::Arrow(e.into()))?;
+
         let path = source_url.path();
 
         // assume that the file type is a glob and see if there are
@@ -76,19 +86,6 @@ impl TableFunc for BsonScan {
         // for consistent results, particularly for the sample, always
         // sort by location
         list.sort_by(|a, b| a.location.cmp(&b.location));
-
-        // parse arguments to see how many documents to consider
-        let sample_size = match opts.get("schema_sample_size") {
-            // TODO: set a maximum (1024?) or have an adaptive mode
-            // (at least n but stop after n the same) or skip documents
-            Some(v) => v.to_owned().try_into()?,
-            None => 100,
-        };
-
-        // by default we'll set up streams that could, in theory (after the
-        // sample) read from the files in parallel, leading to a table that will
-        // be streamed
-        let _serial_scan = opts.get("serial_scan").is_some();
 
         // build a vector of streams, one for each file, that handle BSON's framing.
         let mut readers = VecDeque::with_capacity(list.len());
