@@ -2331,7 +2331,7 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
- "webpki-roots",
+ "webpki-roots 0.26.0",
 ]
 
 [[package]]
@@ -4311,7 +4311,7 @@ dependencies = [
  "rand",
  "rustc_version_runtime",
  "rustls 0.21.10",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "serde",
  "serde_bytes",
  "serde_with 1.14.0",
@@ -4329,7 +4329,7 @@ dependencies = [
  "trust-dns-resolver",
  "typed-builder 0.10.0",
  "uuid",
- "webpki-roots",
+ "webpki-roots 0.25.3",
 ]
 
 [[package]]
@@ -4379,7 +4379,7 @@ dependencies = [
  "pin-project",
  "rand",
  "rustls 0.21.10",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "serde",
  "serde_json",
  "socket2 0.5.5",
@@ -4390,7 +4390,7 @@ dependencies = [
  "twox-hash",
  "url",
  "webpki 0.22.4",
- "webpki-roots",
+ "webpki-roots 0.25.3",
 ]
 
 [[package]]
@@ -4678,7 +4678,7 @@ dependencies = [
  "rand",
  "reqwest",
  "ring 0.16.20",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "serde",
  "serde_json",
  "snafu",
@@ -5007,7 +5007,7 @@ dependencies = [
  "proxyutil",
  "reqwest",
  "rustls 0.21.10",
- "rustls-pemfile",
+ "rustls-pemfile 2.0.0",
  "serde",
  "sqlexec",
  "tempfile",
@@ -5018,7 +5018,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "uuid",
- "webpki-roots",
+ "webpki-roots 0.26.0",
 ]
 
 [[package]]
@@ -5859,7 +5859,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "rustls 0.21.10",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -5873,7 +5873,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
- "webpki-roots",
+ "webpki-roots 0.25.3",
  "winreg",
 ]
 
@@ -6280,7 +6280,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9aace74cb666635c918e9c12bc0d348266037aa8eb599b5cba565709a8dff00"
 dependencies = [
  "openssl-probe",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "schannel",
  "security-framework",
 ]
@@ -6293,6 +6293,22 @@ checksum = "1c74cae0a4cf6ccbbf5f359f08efdf8ee7e1dc532573bf0db71968cb56b1448c"
 dependencies = [
  "base64 0.21.5",
 ]
+
+[[package]]
+name = "rustls-pemfile"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35e4980fa29e4c4b212ffb3db068a564cbf560e51d3944b7c88bd8bf5bec64f4"
+dependencies = [
+ "base64 0.21.5",
+ "rustls-pki-types",
+]
+
+[[package]]
+name = "rustls-pki-types"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7673e0aa20ee4937c6aacfc12bb8341cfbf054cdd21df6bec5fd0629fe9339b"
 
 [[package]]
 name = "rustls-webpki"
@@ -7340,7 +7356,7 @@ dependencies = [
  "pin-project-lite",
  "pretty-hex",
  "rustls-native-certs 0.6.3",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "thiserror",
  "tokio-rustls 0.23.4",
  "tokio-util",
@@ -7586,7 +7602,7 @@ dependencies = [
  "prost",
  "rustls 0.21.10",
  "rustls-native-certs 0.6.3",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "tokio",
  "tokio-rustls 0.24.1",
  "tokio-stream",
@@ -8127,6 +8143,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1778a42e8b3b90bff8d0f5032bf22250792889a5cdc752aa0020c84abe3aaf10"
 
 [[package]]
+name = "webpki-roots"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0de2cfda980f21be5a7ed2eadb3e6fe074d56022bea2cdeb1a62eb220fc04188"
+dependencies = [
+ "rustls-pki-types",
+]
+
+[[package]]
 name = "which"
 version = "4.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8380,7 +8405,7 @@ dependencies = [
  "log",
  "percent-encoding",
  "rustls 0.21.10",
- "rustls-pemfile",
+ "rustls-pemfile 1.0.4",
  "seahash",
  "serde",
  "serde_json",
@@ -8392,18 +8417,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.7.18"
+version = "0.7.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ede7d7c7970ca2215b8c1ccf4d4f354c4733201dfaaba72d44ae5b37472e4901"
+checksum = "1c4061bedbb353041c12f413700357bec76df2c7e2ca8e4df8bac24c6bf68e3d"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.7.18"
+version = "0.7.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b27b1bb92570f989aac0ab7e9cbfbacdd65973f7ee920d9f0e71ebac878fd0b"
+checksum = "b3c129550b3e6de3fd0ba67ba5c81818f9805e58b8d7fee80a3a59d2c9fc601a"
 dependencies = [
  "proc-macro2",
  "quote",

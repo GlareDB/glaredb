@@ -1,6 +1,25 @@
-use super::*;
+use std::{collections::HashMap, sync::Arc};
 
-use crate::functions::ConstBuiltinFunction;
+use async_trait::async_trait;
+use datafusion::{
+    arrow::{
+        array::{Int32Builder, Int64Builder, StringBuilder},
+        datatypes::{DataType, Field, Schema},
+        record_batch::RecordBatch,
+    },
+    datasource::{MemTable, TableProvider},
+};
+use datafusion_ext::{
+    errors::{ExtensionError, Result},
+    functions::{FuncParamValue, TableFuncContextProvider},
+};
+use datasources::lake::{iceberg::table::IcebergTable, storage_options_into_object_store};
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
+
+use crate::functions::{
+    table::{table_location_and_opts, TableFunc},
+    ConstBuiltinFunction,
+};
 
 /// Scan snapshot information for an iceberg tables. Will not attempt to read
 /// data files.
@@ -28,8 +47,11 @@ impl TableFunc for IcebergSnapshots {
     ) -> Result<Arc<dyn TableProvider>> {
         let (loc, opts) = table_location_and_opts(ctx, args, &mut opts)?;
 
-        let store = storage_options_into_object_store(&loc, &opts).map_err(box_err)?;
-        let table = IcebergTable::open(loc, store).await.map_err(box_err)?;
+        let store =
+            storage_options_into_object_store(&loc, &opts).map_err(ExtensionError::access)?;
+        let table = IcebergTable::open(loc, store)
+            .await
+            .map_err(ExtensionError::access)?;
 
         let snapshots = &table.metadata().snapshots;
 
