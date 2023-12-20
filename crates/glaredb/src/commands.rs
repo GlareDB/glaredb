@@ -54,6 +54,11 @@ trait RunCommand {
 
 impl RunCommand for LocalArgs {
     fn run(self) -> Result<()> {
+        if self.debug_tokio {
+            eprintln!("> Starting tokio debugger");
+            console_subscriber::init();
+        }
+
         let runtime = build_runtime("local")?;
         runtime.block_on(async move {
             let query = match (self.file, self.query) {
