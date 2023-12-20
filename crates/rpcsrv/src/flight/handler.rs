@@ -1,9 +1,8 @@
 use crate::{
     errors::{Result, RpcsrvError},
-    util::ConnKey,
+    util::{ConnKey, ExpiringDashMap},
 };
 
-use dashmap::DashMap;
 use datafusion::{arrow::ipc::writer::IpcWriteOptions, logical_expr::LogicalPlan};
 use datafusion_ext::vars::SessionVars;
 use once_cell::sync::Lazy;
@@ -47,19 +46,25 @@ static INSTANCE_SQL_DATA: Lazy<SqlInfoData> = Lazy::new(|| {
 /// the ADBC driver requires it to be passed in as `adbc.flight.sql.rpc.call_header.<key>`
 pub const FLIGHTSQL_DATABASE_HEADER: &str = "x-glaredb-database";
 pub const FLIGHTSQL_GCS_BUCKET_HEADER: &str = "x-glaredb-gcs-bucket";
+type SessionRef = Arc<Mutex<Session>>;
+
 pub struct FlightSessionHandler {
     engine: Arc<Engine>,
     // since plans can be tied to any session, we can't use a single session to store them.
-    logical_plans: DashMap<String, LogicalPlan>,
-    // TODO: currently, we aren't removing these sessions, so this will grow forever.
-    // there's no close/shutdown hook, so the sessions can at most only be tied to a single transaction, not a connection.
-    // We'll want to implement a time based eviction policy, or a max size.
+    logical_plans: ExpiringDashMap<String, LogicalPlan>,
     // We use [`Session`] instead of [`TrackedSession`] because tracked sessions need to be
     // explicitly closed, and we don't have a way to do that yet.
-    sessions: DashMap<ConnKey, Arc<Mutex<Session>>>,
+    sessions: ExpiringDashMap<ConnKey, SessionRef>,
 }
 
 impl FlightSessionHandler {
+    pub fn new(engine: Arc<Engine>) -> Self {
+        Self {
+            engine,
+            logical_plans: ExpiringDashMap::new(),
+            sessions: ExpiringDashMap::new(),
+        }
+    }
     async fn do_action_execute_logical_plan(
         &self,
         req: &Request<Ticket>,
@@ -101,26 +106,14 @@ impl FlightSessionHandler {
         Ok(Response::new(Box::pin(stream)))
     }
 
-    pub fn new(engine: Arc<Engine>) -> Self {
-        Self {
-            engine,
-            logical_plans: DashMap::new(),
-            sessions: DashMap::new(),
-        }
-    }
-
-    async fn get_or_create_ctx<T>(
-        &self,
-        request: &Request<T>,
-    ) -> Result<Arc<Mutex<Session>>, Status> {
+    async fn get_or_create_ctx<T>(&self, request: &Request<T>) -> Result<SessionRef, Status> {
         let remote = request.remote_addr().unwrap();
 
         let ip = remote.ip().to_string();
         let port = remote.port().to_string();
         let conn_key = ConnKey { ip, port };
-
         if self.sessions.contains_key(&conn_key) {
-            let sess = self.sessions.get(&conn_key).unwrap().clone();
+            let sess = self.sessions.get(&conn_key).unwrap();
             return Ok(sess);
         }
 
