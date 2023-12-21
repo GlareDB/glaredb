@@ -17,7 +17,7 @@ fn test_server_bind_addr() {
         .assert();
 
     assert.interrupted(/* We expect a timeout here */).stdout(contains(
-        "Connect via Postgres: postgresql://",
+        "Connect via Postgres protocol: postgresql://",
     ));
 }
 
