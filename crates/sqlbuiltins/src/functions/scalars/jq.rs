@@ -101,8 +101,7 @@ fn jq_parse_udf_args(
                         .join("\n"),
                 ));
             }
-            let f = defs.compile(f.unwrap());
-            f
+            defs.compile(f.unwrap())
         }
         Some(val) => {
             return Err(datafusion::common::DataFusionError::Execution(format!(
