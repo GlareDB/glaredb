@@ -1,0 +1,32 @@
+statement error
+select jq('{"a": 1}', 'invalid filter')
+
+statement error
+select jq('not a json', '.a')
+
+
+query T
+select round(jq('{"price": 100, "tax": 0.15}', '(.price * (.tax + 1))')::float)
+----
+115
+
+query T
+select jq('{"user": {"name": "Alice", "age": 30}}', '.user.name')
+----
+Alice
+
+query T
+select jq('{"a": 1, "b": 2, "c": 3}', '[.a, .b]')
+----
+[1,2]
+
+
+query T
+select jq('[0, 1, 2, 3, 4, 5]', '.[2:4]')
+----
+[2,3]
+
+query T
+select jq('{}', '.')
+----
+{}

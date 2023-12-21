@@ -1,5 +1,6 @@
 pub mod df_scalars;
 pub mod kdl;
+pub mod jq;
 pub mod postgres;
 use crate::{
     document,

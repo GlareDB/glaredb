@@ -3,6 +3,8 @@ mod aggregates;
 mod scalars;
 mod table;
 
+use crate::functions::scalars::jq::Jq;
+
 use self::scalars::df_scalars::ArrowCastFunction;
 use self::scalars::kdl::{KDLMatches, KDLSelect};
 use self::scalars::{postgres::*, ConnectionId, Version};
@@ -191,6 +193,7 @@ impl FunctionRegistry {
             Arc::new(KDLMatches),
             Arc::new(KDLSelect),
             // Other functions
+            Arc::new(Jq),
             Arc::new(ConnectionId),
             Arc::new(Version),
         ];
