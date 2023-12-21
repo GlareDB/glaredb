@@ -368,7 +368,7 @@ impl ComputeServer {
         info!(
             "Starting GlareDB {}\n{}",
             env!("CARGO_PKG_VERSION"),
-            vec![rpc_msg, pg_msg].join("\n"),
+            [rpc_msg, pg_msg].join("\n"),
         );
 
         // Shutdown handler.
