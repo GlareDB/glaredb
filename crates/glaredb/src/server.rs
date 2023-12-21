@@ -351,14 +351,14 @@ impl ComputeServer {
     /// Serve using the provided config.
     pub async fn serve(self) -> Result<()> {
         let rpc_msg = if let Some(listener) = &self.rpc_listener {
-            format!("\nConnect via RPC: grpc://{}\n", listener.local_addr()?)
+            format!("Connect via RPC: grpc://{}", listener.local_addr()?)
         } else {
             "".to_string()
         };
 
         let pg_msg = if let Some(PostgresProtocolConfig { ref listener, .. }) = &self.pg_config {
             format!(
-                "\nConnect via Postgres: postgresql://{}",
+                "Connect via Postgres protocol: postgresql://{}",
                 listener.local_addr()?,
             )
         } else {
@@ -366,10 +366,9 @@ impl ComputeServer {
         };
 
         info!(
-            "Starting GlareDB {}{}{}\n",
+            "Starting GlareDB {}\n{}",
             env!("CARGO_PKG_VERSION"),
-            pg_msg,
-            rpc_msg
+            vec![rpc_msg, pg_msg].join("\n"),
         );
 
         // Shutdown handler.

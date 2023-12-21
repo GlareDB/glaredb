@@ -38,9 +38,8 @@ impl From<Verbosity> for Level {
         }
     }
 }
-#[derive(Default)]
+
 pub enum LoggingMode {
-    #[default]
     Full,
     Json,
     Compact,

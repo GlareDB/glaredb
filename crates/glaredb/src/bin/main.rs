@@ -2,11 +2,12 @@ use anyhow::Result;
 use clap::{Parser, ValueEnum};
 use glaredb::args::LocalArgs;
 use glaredb::commands::Commands;
+
 #[derive(Debug, Clone, Copy, ValueEnum, Default)]
 enum LoggingMode {
-    #[default]
     Full,
     Json,
+    #[default]
     Compact,
 }
 
