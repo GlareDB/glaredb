@@ -23,6 +23,7 @@ pub struct LocalArgs {
     pub log_file: Option<PathBuf>,
 
     /// Start the tokio console subscriber to debug runtime.
+    #[cfg(not(release))]
     #[arg(long, value_parser, hide = true)]
     pub debug_tokio: bool,
 }

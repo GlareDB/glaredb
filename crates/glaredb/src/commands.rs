@@ -52,12 +52,20 @@ trait RunCommand {
     fn run(self) -> Result<()>;
 }
 
-impl RunCommand for LocalArgs {
-    fn run(self) -> Result<()> {
+impl LocalArgs {
+    #[cfg(not(release))]
+    fn start_tokio_debugger(&self) {
         if self.debug_tokio {
             eprintln!("> Starting tokio debugger");
             console_subscriber::init();
         }
+    }
+}
+
+impl RunCommand for LocalArgs {
+    fn run(self) -> Result<()> {
+        #[cfg(not(release))]
+        self.start_tokio_debugger();
 
         let runtime = build_runtime("local")?;
         runtime.block_on(async move {
