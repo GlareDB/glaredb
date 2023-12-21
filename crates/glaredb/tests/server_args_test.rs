@@ -111,7 +111,7 @@ fn test_pg_enabled_by_default() {
         .assert();
 
     assert.interrupted(/* We expect a timeout here */).stdout(contains(
-        "Connect via Postgres: postgresql://"
+        "Connect via Postgres protocol: postgresql://"
     ));
 }
 
@@ -127,6 +127,6 @@ fn test_pg_disable() {
         .assert();
 
     assert.interrupted(/* We expect a timeout here */).stdout(contains(
-        "Connect via Postgres: postgresql"
+        "Connect via Postgres protocol: postgresql"
     ).not());
 }
