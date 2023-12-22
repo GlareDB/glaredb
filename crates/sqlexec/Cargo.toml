@@ -22,7 +22,7 @@ dashmap = "5.5.0"
 metastore = { path = "../metastore" }
 thiserror.workspace = true
 tokio = { workspace = true }
-async-trait = "0.1.75"
+async-trait = { workspace = true }
 serde_json = { workspace = true }
 datafusion = { workspace = true }
 datafusion-proto = { workspace = true }

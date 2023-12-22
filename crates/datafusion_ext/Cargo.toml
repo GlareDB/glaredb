@@ -16,7 +16,7 @@ telemetry = { path = "../telemetry" }
 catalog = { path = "../catalog" }
 serde_json = { workspace = true }
 datafusion = { workspace = true }
-async-trait = "0.1.75"
+async-trait = { workspace = true }
 async-recursion = "1.0.4"
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 regex = "1.8"

@@ -11,6 +11,6 @@ thiserror = { workspace = true }
 tracing = "0.1"
 futures = "0.3.29"
 reqwest = { workspace = true }
-async-trait = "0.1.75"
+async-trait = { workspace = true }
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 serde_json = { workspace = true }

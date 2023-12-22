@@ -18,7 +18,7 @@ prost-types = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = "0.1"
-async-trait = "0.1.75"
+async-trait = { workspace = true }
 datafusion = { workspace = true }
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 bytes = "1.4"
