@@ -27,6 +27,7 @@ anyhow = "1.0.76"
 prost = "0.12"
 prost-types = "0.12"
 prost-build = "0.12"
+reqwest = { version = "0.11.23", default-features = false, features = ["json", "rustls-tls"] }
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 tempfile = "3.8.1"
 
