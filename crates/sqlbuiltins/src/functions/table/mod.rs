@@ -47,17 +47,13 @@ use super::BuiltinFunction;
 /// e.g. `SELECT * FROM my_table_func(...)`
 #[async_trait]
 pub trait TableFunc: BuiltinFunction {
-    /// Get the preference for where a function should run.
-    fn runtime_preference(&self) -> RuntimePreference;
-
-    /// Determine the runtime from the arguments to the function.
+    /// Determine the runtime preference for the function from the passed-on
+    /// arguments.
     fn detect_runtime(
         &self,
         _args: &[FuncParamValue],
         _parent: RuntimePreference,
-    ) -> Result<RuntimePreference> {
-        Ok(self.runtime_preference())
-    }
+    ) -> Result<RuntimePreference>;
 
     /// Return a table provider using the provided args.
     async fn create_provider(

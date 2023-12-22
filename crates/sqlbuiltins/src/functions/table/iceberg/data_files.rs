@@ -35,8 +35,12 @@ impl ConstBuiltinFunction for IcebergDataFiles {
 
 #[async_trait]
 impl TableFunc for IcebergDataFiles {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Remote
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        Ok(RuntimePreference::Remote)
     }
 
     async fn create_provider(
