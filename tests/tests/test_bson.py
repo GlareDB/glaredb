@@ -1,7 +1,9 @@
 import os.path
+import random
 
 import bson
 import psycopg2.extensions
+import psycopg2.extras
 import pytest
 
 from fixtures.glaredb import glaredb_connection, debug_path
@@ -41,3 +43,42 @@ def test_copy_to(
             assert len(doc) == 1
             assert "amount" in doc
             assert doc["amount"] == idx
+
+
+def test_read_bson(
+    glaredb_connection: psycopg2.extensions.connection,
+    tmp_path_factory: pytest.TempPathFactory,
+):
+    beatles = ["john", "paul", "george", "ringo"]
+
+    tmp_dir = tmp_path_factory.mktemp(basename="read-bson-beatles-", numbered=True)
+    data_path = tmp_dir.joinpath("beatles.100.bson")
+
+    with open(data_path, "wb") as f:
+        for i in range(100):
+            beatle_id = random.randrange(0, len(beatles))
+            f.write(
+                bson.encode(
+                    {
+                        "_id": bson.objectid.ObjectId(),
+                        "beatle_idx": beatle_id + 1,
+                        "beatle_name": beatles[beatle_id],
+                        "case": i + 1,
+                        "rand": random.random(),
+                    }
+                )
+            )
+
+    with glaredb_connection.cursor() as curr:
+        curr.execute(f"select count(*) from read_bson('{data_path}')")
+        r = curr.fetchone()
+        assert r[0] == 100
+
+    with glaredb_connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as curr:
+        curr.execute(f"select * from read_bson('{data_path}')")
+        rows = curr.fetchall()
+        assert len(rows) == 100
+        for row in rows:
+            assert len(row) == 5
+            assert row["beatle_name"] in beatles
+            assert beatles.index(row["beatle_name"]) == row["beatle_idx"] - 1

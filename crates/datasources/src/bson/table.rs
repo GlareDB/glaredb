@@ -64,15 +64,17 @@ pub async fn bson_streaming_table(
                 // absurdly large for a row size, and anything larger
                 // wouldn't be round-trippable to MongoDB.
                 .max_frame_length(16 * 1024 * 1024)
+                .little_endian() // bson is always little-endian
                 .length_field_type::<u32>() // actually signed int32s
                 .length_field_offset(0) // length field is first
-                .length_adjustment(4) // length prefix includes
+                .length_adjustment(0) // length prefix includes
+                .num_skip(0) // send the prefix and payload to the bson library
                 // the prefix use the object_store buffered reader
                 // to stream data from the object store:
                 .new_read(object_store::buffered::BufReader::with_capacity(
                     store.to_owned(),
                     &obj,
-                    32 * 1024 * 1024, // 32 MB buffer, probably still too small
+                    32 * 1024 * 1024, // 32 MB buffer, probably still too small.
                 ))
                 // convert the chunk of bytes to bson.
                 .map(
