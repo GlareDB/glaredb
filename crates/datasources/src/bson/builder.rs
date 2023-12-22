@@ -61,7 +61,7 @@ impl RecordStructBuilder {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.len() > 0
+        self.len() == 0
     }
 
     pub fn append_nulls(&mut self) -> Result<()> {
