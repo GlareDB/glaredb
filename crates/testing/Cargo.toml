@@ -15,7 +15,7 @@ tokio-postgres = "0.7.8"
 tempfile = "3"
 sqllogictest = "0.19.0"
 object_store = { workspace = true, features = ["gcp"] }
-async-trait = "0.1.74"
+async-trait = "0.1.75"
 regex = "1.8.1"
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 openssh = "0.10.2"
