@@ -70,15 +70,21 @@ def test_read_bson(
             )
 
     with glaredb_connection.cursor() as curr:
-        curr.execute(f"select count(*) from read_bson('{data_path}')")
-        r = curr.fetchone()
-        assert r[0] == 100
+        curr.execute(
+            f"create external table bson_beatles from bson options ( location='{data_path}', file_type='bson')"
+        )
 
-    with glaredb_connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as curr:
-        curr.execute(f"select * from read_bson('{data_path}')")
-        rows = curr.fetchall()
-        assert len(rows) == 100
-        for row in rows:
-            assert len(row) == 5
-            assert row["beatle_name"] in beatles
-            assert beatles.index(row["beatle_name"]) == row["beatle_idx"] - 1
+    for from_clause in ["bson_beatles", f"read_bson('{data_path}')"]:
+        with glaredb_connection.cursor() as curr:
+            curr.execute(f"select count(*) from {from_clause}")
+            r = curr.fetchone()
+            assert r[0] == 100
+
+        with glaredb_connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as curr:
+            curr.execute(f"select * from {from_clause}")
+            rows = curr.fetchall()
+            assert len(rows) == 100
+            for row in rows:
+                assert len(row) == 5
+                assert row["beatle_name"] in beatles
+                assert beatles.index(row["beatle_name"]) == row["beatle_idx"] - 1
