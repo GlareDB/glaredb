@@ -10,7 +10,7 @@ use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, S
 use once_cell::sync::Lazy;
 
 use scalars::df_scalars::ArrowCastFunction;
-use scalars::hashing::{FnvHash, SipHash};
+use scalars::hashing::{FnvHash, PartitionResults, SipHash};
 use scalars::kdl::{KDLMatches, KDLSelect};
 use scalars::postgres::*;
 use scalars::{ConnectionId, Version};
@@ -196,9 +196,10 @@ impl FunctionRegistry {
             // KDL functions
             Arc::new(KDLMatches),
             Arc::new(KDLSelect),
-            // Hashing/Sharding
+            // Hashing/Partitioning
             Arc::new(SipHash),
             Arc::new(FnvHash),
+            Arc::new(PartitionResults),
         ];
         let udfs = udfs
             .into_iter()
