@@ -1,7 +1,6 @@
 //! MongoDB as a data source.
 pub mod errors;
 
-mod builder;
 mod exec;
 mod infer;
 

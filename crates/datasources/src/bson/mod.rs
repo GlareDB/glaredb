@@ -1,3 +1,9 @@
+pub mod builder;
+pub mod errors;
+pub mod schema;
+pub mod stream;
+pub mod table;
+
 use datafusion::arrow::array::cast::as_string_array;
 use datafusion::arrow::array::{types::*, Array, ArrayRef, AsArray, StructArray};
 use datafusion::arrow::datatypes::{DataType, Fields, IntervalUnit, TimeUnit};
