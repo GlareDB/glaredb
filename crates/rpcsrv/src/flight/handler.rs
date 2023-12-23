@@ -1,4 +1,7 @@
-use crate::errors::{Result, RpcsrvError};
+use crate::{
+    errors::{Result, RpcsrvError},
+    util::ConnKey,
+};
 
 use dashmap::DashMap;
 use datafusion::{arrow::ipc::writer::IpcWriteOptions, logical_expr::LogicalPlan};
@@ -41,9 +44,9 @@ static INSTANCE_SQL_DATA: Lazy<SqlInfoData> = Lazy::new(|| {
 });
 
 /// Custom header clients can use to specify the database they want to connect to.
-/// the ADBC driver requires it to be passed in as `adbc.flight.sql.rpc.call_header.x-database`
-const DATABASE_HEADER: &str = "x-database";
-
+/// the ADBC driver requires it to be passed in as `adbc.flight.sql.rpc.call_header.<key>`
+pub const FLIGHTSQL_DATABASE_HEADER: &str = "x-glaredb-database";
+pub const FLIGHTSQL_GCS_BUCKET_HEADER: &str = "x-glaredb-gcs-bucket";
 pub struct FlightSessionHandler {
     engine: Arc<Engine>,
     // since plans can be tied to any session, we can't use a single session to store them.
@@ -53,53 +56,10 @@ pub struct FlightSessionHandler {
     // We'll want to implement a time based eviction policy, or a max size.
     // We use [`Session`] instead of [`TrackedSession`] because tracked sessions need to be
     // explicitly closed, and we don't have a way to do that yet.
-    sessions: DashMap<String, Arc<Mutex<Session>>>,
+    sessions: DashMap<ConnKey, Arc<Mutex<Session>>>,
 }
 
 impl FlightSessionHandler {
-    pub fn new(engine: &Arc<Engine>) -> Self {
-        Self {
-            engine: engine.clone(),
-            logical_plans: DashMap::new(),
-            sessions: DashMap::new(),
-        }
-    }
-
-    async fn get_or_create_ctx<T>(
-        &self,
-        request: &Request<T>,
-    ) -> Result<Arc<Mutex<Session>>, Status> {
-        // If the client specified a database id, use it, otherwise create a new one.
-        let db_handle = request
-            .metadata()
-            .get(DATABASE_HEADER)
-            .map(|s| s.to_str().unwrap().to_string())
-            .unwrap_or_else(|| Uuid::new_v4().to_string());
-
-        if self.sessions.contains_key(&db_handle) {
-            let sess = self.sessions.get(&db_handle).unwrap().clone();
-            return Ok(sess);
-        }
-
-        let db_id = Uuid::parse_str(&db_handle)
-            .map_err(|e| Status::internal(format!("Unable to parse database handle: {e}")))?;
-
-        let session_vars = SessionVars::default()
-            .with_database_id(db_id, datafusion::variable::VarType::System)
-            .with_force_catalog_refresh(true, datafusion::variable::VarType::System);
-
-        let sess = self
-            .engine
-            .new_untracked_session(session_vars, SessionStorageConfig::default())
-            .await
-            .map_err(RpcsrvError::from)?;
-
-        let sess = Arc::new(Mutex::new(sess));
-        self.sessions.insert(db_handle.clone(), sess.clone());
-
-        Ok(sess)
-    }
-
     async fn do_action_execute_logical_plan(
         &self,
         req: &Request<Ticket>,
@@ -140,11 +100,68 @@ impl FlightSessionHandler {
             .map_err(Status::from);
         Ok(Response::new(Box::pin(stream)))
     }
+
+    pub fn new(engine: Arc<Engine>) -> Self {
+        Self {
+            engine,
+            logical_plans: DashMap::new(),
+            sessions: DashMap::new(),
+        }
+    }
+
+    async fn get_or_create_ctx<T>(
+        &self,
+        request: &Request<T>,
+    ) -> Result<Arc<Mutex<Session>>, Status> {
+        let remote = request.remote_addr().unwrap();
+
+        let ip = remote.ip().to_string();
+        let port = remote.port().to_string();
+        let conn_key = ConnKey { ip, port };
+
+        if self.sessions.contains_key(&conn_key) {
+            let sess = self.sessions.get(&conn_key).unwrap().clone();
+            return Ok(sess);
+        }
+
+        let db_id = request
+            .metadata()
+            .get(FLIGHTSQL_DATABASE_HEADER)
+            .and_then(|s| Uuid::try_parse_ascii(s.as_bytes()).ok());
+
+        let bucket_path = request
+            .metadata()
+            .get(FLIGHTSQL_GCS_BUCKET_HEADER)
+            .and_then(|s| s.to_str().ok());
+
+        if let (None, Some(_)) = (db_id, bucket_path) {
+            return Err(Status::invalid_argument(
+                "database id must be specified when using a gcs bucket".to_string(),
+            ));
+        }
+        let session_vars = SessionVars::default()
+            .with_database_id(
+                db_id.unwrap_or_else(Uuid::nil),
+                datafusion::variable::VarType::System,
+            )
+            .with_force_catalog_refresh(true, datafusion::variable::VarType::System);
+
+        let sess = self
+            .engine
+            .new_untracked_session(session_vars, SessionStorageConfig::new(bucket_path))
+            .await
+            .map_err(RpcsrvError::from)?;
+
+        let sess = Arc::new(Mutex::new(sess));
+        self.sessions.insert(conn_key.clone(), sess.clone());
+
+        Ok(sess)
+    }
 }
 
 #[tonic::async_trait]
 impl FlightSqlService for FlightSessionHandler {
-    type FlightService = FlightSessionHandler;
+    type FlightService = Self;
 
     async fn do_handshake(
         &self,

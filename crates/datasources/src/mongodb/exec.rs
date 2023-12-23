@@ -1,5 +1,9 @@
-use super::builder::RecordStructBuilder;
-use super::errors::{MongoError, Result};
+use std::any::Any;
+use std::fmt;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
+
 use async_stream::stream;
 use datafusion::arrow::array::Array;
 use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
@@ -12,15 +16,14 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
-use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{Stream, StreamExt};
 use mongodb::bson::RawDocumentBuf;
 use mongodb::Cursor;
-use std::any::Any;
-use std::fmt;
-use std::pin::Pin;
-use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll};
+
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
+
+use super::errors::{MongoError, Result};
+use crate::bson::builder::RecordStructBuilder;
 
 #[derive(Debug)]
 pub struct MongoBsonExec {

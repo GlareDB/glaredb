@@ -7,7 +7,7 @@ use crate::messages::{BackendMessage, ErrorResponse, FrontendMessage, StartupMes
 use crate::ssl::Connection;
 use crate::ssl::SslConfig;
 use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, ServiceProtocol};
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tracing::debug;
@@ -349,10 +349,10 @@ impl<A: ProxyAuthenticator> ProxyHandler<A> {
                 let details = self
                     .authenticator
                     .authenticate(AuthParams {
-                        user,
-                        password: &password,
-                        db_name,
-                        org: org_id,
+                        user: Cow::Borrowed(user),
+                        password: Cow::Owned(password),
+                        db_name: Cow::Borrowed(db_name),
+                        org: Cow::Borrowed(org_id),
                         service: ServiceProtocol::PgSrv,
                     })
                     .await?;

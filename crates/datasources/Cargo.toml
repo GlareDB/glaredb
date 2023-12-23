@@ -10,7 +10,7 @@ ioutil = { path = "../ioutil" }
 apache-avro = "0.16"
 async-channel = "2.1.1"
 async-stream = "0.3.5"
-async-trait = "0.1.74"
+async-trait = { workspace = true }
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "deps/2023-10-27-update" }
 bitflags = "2.4"
 bitvec = "1"
@@ -36,7 +36,7 @@ regex = "1.9.1"
 repr = { path = "../repr" }
 ring = "0.17.7"
 rustls = "0.21.10"
-reqwest = { version = "0.11.22", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { workspace = true }
 rust_decimal = { version = "1.33.1", features = ["db-tokio-postgres"] }
 serde = { workspace = true }
 serde_bytes = "0.11.12"
@@ -56,11 +56,11 @@ uuid = "1.6.1"
 url.workspace = true
 webpki-roots = "0.26.0"
 dashmap = "5.5.0"
-calamine = { version = "0.23.0", features = ["dates"] }
+calamine = { version = "0.23.1", features = ["dates"] }
 tiberius = { version = "0.12.2", default-features = false, features = ["tds73", "rustls", "chrono"] }
 lance = { git = "https://github.com/universalmind303/lance", rev = "81158eb540ff88ab5b4fce3a1170447760137412" }
 bson = "2.7.0"
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
-openssh = "0.10.1"
+openssh = "0.10.2"

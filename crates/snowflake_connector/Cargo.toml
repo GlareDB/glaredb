@@ -7,7 +7,7 @@ edition = { workspace = true }
 
 [dependencies]
 thiserror.workspace = true
-reqwest = { version = "0.11.22", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = "0.1"

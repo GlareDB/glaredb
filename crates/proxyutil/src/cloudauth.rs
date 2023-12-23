@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use async_trait::async_trait;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -63,12 +65,12 @@ impl ServiceProtocol {
 /// Params used for cloud authentication.
 #[derive(Debug, Clone)]
 pub struct AuthParams<'a> {
-    pub user: &'a str,
-    pub password: &'a str,
-    pub db_name: &'a str,
+    pub user: Cow<'a, str>,
+    pub password: Cow<'a, str>,
+    pub db_name: Cow<'a, str>,
     /// May be either the org name or org id.
     // TODO: We should really do one or the other.
-    pub org: &'a str,
+    pub org: Cow<'a, str>,
     /// Which service we're authenticating for.
     ///
     /// Cloud will use this parameter to direct us to the right port that's
@@ -88,6 +90,7 @@ pub trait ProxyAuthenticator: Sync + Send {
 }
 
 /// Authentice connections using the Cloud service.
+#[derive(Clone)]
 pub struct CloudAuthenticator {
     api_url: String,
     client: reqwest::Client,
@@ -112,13 +115,13 @@ impl CloudAuthenticator {
 #[async_trait]
 impl ProxyAuthenticator for CloudAuthenticator {
     async fn authenticate(&self, params: AuthParams<'_>) -> Result<DatabaseDetails> {
-        let query = if Uuid::try_parse(params.org).is_ok() {
+        let query = if Uuid::try_parse(params.org.as_ref()).is_ok() {
             [
                 ("user", params.user),
                 ("password", params.password),
                 ("name", params.db_name),
                 ("org", params.org),
-                ("service", params.service.as_str()),
+                ("service", Cow::Borrowed(params.service.as_str())),
             ]
         } else {
             [
@@ -126,7 +129,7 @@ impl ProxyAuthenticator for CloudAuthenticator {
                 ("password", params.password),
                 ("name", params.db_name),
                 ("orgname", params.org),
-                ("service", params.service.as_str()),
+                ("service", Cow::Borrowed(params.service.as_str())),
             ]
         };
 
