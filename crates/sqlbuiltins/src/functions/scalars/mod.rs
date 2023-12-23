@@ -1,24 +1,22 @@
 pub mod df_scalars;
+pub mod hashing;
 pub mod kdl;
 pub mod postgres;
-use crate::{
-    document,
-    functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction},
-};
-use datafusion::logical_expr::BuiltinScalarFunction;
-
-use protogen::metastore::types::catalog::FunctionType;
 
 use std::sync::Arc;
 
-use datafusion::{
-    arrow::datatypes::{DataType, Field},
-    logical_expr::{Expr, ScalarUDF, Signature, TypeSignature, Volatility},
-    physical_plan::ColumnarValue,
-    scalar::ScalarValue,
-};
+use crate::document;
+use crate::functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction};
+use datafusion::logical_expr::BuiltinScalarFunction;
+use protogen::metastore::types::catalog::FunctionType;
+
+use datafusion::arrow::datatypes::{DataType, Field};
+use datafusion::logical_expr::{Expr, ScalarUDF, Signature, TypeSignature, Volatility};
+use datafusion::physical_plan::ColumnarValue;
+use datafusion::scalar::ScalarValue;
 
 pub struct ConnectionId;
+
 impl ConstBuiltinFunction for ConnectionId {
     const NAME: &'static str = "connection_id";
     const DESCRIPTION: &'static str = "Returns the connection id of the current session";
@@ -34,7 +32,9 @@ impl BuiltinScalarUDF for ConnectionId {
         session_var("connection_id")
     }
 }
+
 pub struct Version;
+
 impl ConstBuiltinFunction for Version {
     const NAME: &'static str = "version";
     const DESCRIPTION: &'static str = "Returns the version of the database";

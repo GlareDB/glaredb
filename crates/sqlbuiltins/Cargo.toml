@@ -32,4 +32,6 @@ num-traits = "0.2.17"
 url.workspace = true
 strum = "0.25.0"
 kdl = "5.0.0-alpha.1"
+siphasher = "1.0.0"
+fnv = "1.0.7"
 
