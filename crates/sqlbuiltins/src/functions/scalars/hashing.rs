@@ -38,11 +38,9 @@ impl BuiltinScalarUDF for SipHash {
                         hasher.finish(),
                     ))))
                 }
-                None => {
-                    return Err(datafusion::error::DataFusionError::Execution(
-                        "must have exactly one value to hash".to_string(),
-                    ))
-                }
+                None => Err(datafusion::error::DataFusionError::Execution(
+                    "must have exactly one value to hash".to_string(),
+                )),
             }),
         };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
@@ -85,11 +83,9 @@ impl BuiltinScalarUDF for FnvHash {
                         hasher.finish(),
                     ))))
                 }
-                None => {
-                    return Err(datafusion::error::DataFusionError::Execution(
-                        "must have exactly one value to hash".to_string(),
-                    ))
-                }
+                None => Err(datafusion::error::DataFusionError::Execution(
+                    "must have exactly one value to hash".to_string(),
+                )),
             }),
         };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
