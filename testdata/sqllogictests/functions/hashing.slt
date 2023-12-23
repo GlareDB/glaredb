@@ -56,6 +56,11 @@ select siphash('42');
 8771948186893062792
 
 query I
+select siphash([0, 100, 100, 300, 500, 800]);
+----
+3773389192103504674
+
+query I
 select fnv();
 ----
 12478008331234465636
@@ -74,6 +79,11 @@ query I
 select fnv('42');
 ----
 16857446072837519227
+
+query I
+select fnv([0, 100, 100, 300, 500, 800]);
+----
+16366770854503053831
 
 # rerun some earlier cases to ensure we're not accidentally stateful
 
