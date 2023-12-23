@@ -27,7 +27,7 @@ impl BuiltinScalarUDF for SipHash {
         let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+            return_type: Arc::new(|_| Ok(Arc::new(DataType::UInt64))),
             fun: Arc::new(move |input| match get_nth_scalar_value(input, 0) {
                 Some(value) => {
                     let mut hasher = SipHasher24::new();
@@ -73,7 +73,7 @@ impl BuiltinScalarUDF for FnvHash {
         let udf = ScalarUDF {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+            return_type: Arc::new(|_| Ok(Arc::new(DataType::UInt64))),
             fun: Arc::new(move |input| match get_nth_scalar_value(input, 0) {
                 Some(value) => {
                     let mut hasher = FnvHasher::default();
