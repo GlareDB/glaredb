@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use crate::document;
 use crate::functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction};
+use datafusion::error::DataFusionError;
 use datafusion::logical_expr::BuiltinScalarFunction;
+use num_traits::ToPrimitive;
 use protogen::metastore::types::catalog::FunctionType;
 
 use datafusion::arrow::datatypes::{DataType, Field};
@@ -58,6 +60,83 @@ fn get_nth_scalar_value(input: &[ColumnarValue], n: usize) -> Option<ScalarValue
             ColumnarValue::Array(arr) => ScalarValue::try_from_array(arr, 0).ok(),
         },
         None => None,
+    }
+}
+
+fn safe_up_cast_integer_scalar(
+    dt: DataType,
+    idx: usize,
+    value: i64,
+) -> Result<u64, DataFusionError> {
+    if value < 0 {
+        Err(datafusion::error::DataFusionError::Execution(
+            format!(
+                "expected {} value at {} to be greater than zero or unsigned",
+                dt, idx,
+            )
+            .to_string(),
+        ))
+    } else {
+        Ok(value as u64)
+    }
+}
+
+fn get_nth_scalar_as_u64(input: &[ColumnarValue], n: usize) -> Result<u64, DataFusionError> {
+    match input.get(n) {
+        Some(input) => match input {
+            ColumnarValue::Scalar(scalar) => match scalar.clone() {
+                ScalarValue::Int8(Some(value)) => {
+                    safe_up_cast_integer_scalar(scalar.data_type(), n, value as i64)
+                }
+                ScalarValue::Int16(Some(value)) => {
+                    safe_up_cast_integer_scalar(scalar.data_type(), n, value as i64)
+                }
+                ScalarValue::Int32(Some(value)) => {
+                    safe_up_cast_integer_scalar(scalar.data_type(), n, value as i64)
+                }
+                ScalarValue::Int64(Some(value)) => {
+                    safe_up_cast_integer_scalar(scalar.data_type(), n, value)
+                }
+                ScalarValue::UInt8(Some(value)) => Ok(value as u64),
+                ScalarValue::UInt16(Some(value)) => Ok(value as u64),
+                ScalarValue::UInt32(Some(value)) => Ok(value as u64),
+                ScalarValue::Float64(Some(value)) => {
+                    if value.trunc() != value {
+                        Err(datafusion::error::DataFusionError::Execution(
+                            format!("float value {} at index {}, expected integer", value, n)
+                                .to_string(),
+                        ))
+                    } else {
+                        Ok(value.to_i64().unwrap() as u64)
+                    }
+                }
+                ScalarValue::Float32(Some(value)) => {
+                    if value.trunc() != value {
+                        Err(datafusion::error::DataFusionError::Execution(
+                            format!("float value {} at index {}, expected integer", value, n)
+                                .to_string(),
+                        ))
+                    } else {
+                        Ok(value.to_i64().unwrap() as u64)
+                    }
+                }
+                ScalarValue::UInt64(Some(value)) => Ok(value),
+                _ => Err(datafusion::error::DataFusionError::Execution(
+                    format!(
+                        "value in index {} was {}, expected integer",
+                        n,
+                        scalar.data_type()
+                    )
+                    .to_string(),
+                )),
+            },
+            ColumnarValue::Array(_) => Err(datafusion::error::DataFusionError::Execution(
+                format!("invalid array value in index {}, expected integer", n).to_string(),
+            )),
+        },
+        None => Err(datafusion::error::DataFusionError::Execution(
+            format!("expected integer value in index {}", n).to_string(),
+        )),
     }
 }
 

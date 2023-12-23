@@ -103,7 +103,7 @@ impl BuiltinScalarUDF for FnvHash {
 pub struct PartitionResults;
 
 impl ConstBuiltinFunction for PartitionResults {
-    const NAME: &'static str = "parition_results";
+    const NAME: &'static str = "partition_results";
     const DESCRIPTION: &'static str =
         "Returns true if the value is in the partition ID given the number of partitions.";
     const EXAMPLE: &'static str = "partition_results(<value>, <num_partitions>, <partition_id>)";
@@ -112,11 +112,7 @@ impl ConstBuiltinFunction for PartitionResults {
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             // args: <FIELD>, <num_partitions>, <partition_id>
-            TypeSignature::Exact(vec![
-                DataType::LargeBinary, // arguments should downcast
-                DataType::UInt64,
-                DataType::UInt64,
-            ]),
+            TypeSignature::Any(3),
             Volatility::Immutable,
         ))
     }
@@ -129,33 +125,15 @@ impl BuiltinScalarUDF for PartitionResults {
             signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
             fun: Arc::new(move |input| {
-                let num_partitions = match get_nth_scalar_value(input, 1) {
-                    Some(ScalarValue::UInt64(Some(val))) => val,
-                    Some(val) => {
-                        return Err(datafusion::error::DataFusionError::Execution(
-                            format!("invalid for number of partitions '{}'", val).to_string(),
-                        ))
-                    }
-                    None => {
-                        return Err(datafusion::error::DataFusionError::Execution(
-                            "must specify a number of partitions".to_string(),
-                        ))
-                    }
-                };
+                if input.len() != 3 {
+                    return Err(datafusion::error::DataFusionError::Execution(
+                        "must specify exactly three arguments".to_string(),
+                    ));
+                }
 
-                let partition_id = match get_nth_scalar_value(input, 2) {
-                    Some(ScalarValue::UInt64(Some(val))) => val,
-                    Some(val) => {
-                        return Err(datafusion::error::DataFusionError::Execution(
-                            format!("invalid for value for partition_id '{}'", val).to_string(),
-                        ))
-                    }
-                    None => {
-                        return Err(datafusion::error::DataFusionError::Execution(
-                            "must specify a number of partitions".to_string(),
-                        ))
-                    }
-                };
+                // get numerical values before the hash
+                let num_partitions = get_nth_scalar_as_u64(input, 1)?;
+                let partition_id = get_nth_scalar_as_u64(input, 2)?;
 
                 if partition_id >= num_partitions {
                     return Err(datafusion::error::DataFusionError::Execution(
