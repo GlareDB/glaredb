@@ -31,5 +31,7 @@ once_cell = "1.19.0"
 num-traits = "0.2.17"
 url.workspace = true
 strum = "0.25.0"
+bson = "2.7.0"
+tokio-util = "0.7.10"
+bytes = "1.5.0"
 kdl = "5.0.0-alpha.1"
-
