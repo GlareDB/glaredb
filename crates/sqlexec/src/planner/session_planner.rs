@@ -626,6 +626,7 @@ impl<'a> SessionPlanner<'a> {
                     storage_options: opts,
                     file_type: Some(file_type.to_string()),
                     compression: compression.map(|c| c.to_string()),
+                    schema_sample_size: None,
                 })
             }
             TableOptions::DELTA | TableOptions::ICEBERG => {
@@ -644,6 +645,7 @@ impl<'a> SessionPlanner<'a> {
                         storage_options,
                         file_type: None,
                         compression: None,
+                        schema_sample_size: None,
                     })
                 } else {
                     let url = DatasourceUrl::try_new(&location)?;
@@ -659,6 +661,7 @@ impl<'a> SessionPlanner<'a> {
                         storage_options,
                         file_type: None,
                         compression: None,
+                        schema_sample_size: None,
                     })
                 }
             }
@@ -689,6 +692,28 @@ impl<'a> SessionPlanner<'a> {
                     storage_options,
                     file_type: None,
                     compression: None,
+                    schema_sample_size: None,
+                })
+            }
+            TableOptions::BSON => {
+                let location: String = m.remove_required("location")?;
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+                let schema_sample_size = Some(
+                    storage_options
+                        .inner
+                        .get("schema_sample_size")
+                        .map(|strint| strint.parse())
+                        .unwrap_or(Ok(100))?,
+                );
+                TableOptions::Bson(TableOptionsObjectStore {
+                    location,
+                    storage_options,
+                    file_type: None,
+                    compression: None,
+                    schema_sample_size,
                 })
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
