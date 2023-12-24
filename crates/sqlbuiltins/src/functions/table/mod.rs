@@ -1,6 +1,7 @@
 //! Builtin table returning functions.
 mod bigquery;
 mod bson;
+mod clickhouse;
 mod delta;
 mod excel;
 mod generate_series;

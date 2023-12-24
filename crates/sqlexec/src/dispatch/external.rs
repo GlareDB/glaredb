@@ -32,12 +32,12 @@ use datasources::sqlserver::{
 };
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionEntry, TableEntry};
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
-    DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
-    DatabaseOptionsSqlServer, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
-    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
-    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
-    TableOptionsSqlServer, TunnelOptions,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse, DatabaseOptionsDebug,
+    DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, TableOptions, TableOptionsBigQuery,
+    TableOptionsDebug, TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo,
+    TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3,
+    TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
@@ -217,6 +217,9 @@ impl<'a> ExternalDispatcher<'a> {
                 })
                 .await?;
                 Ok(Arc::new(table))
+            }
+            DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string }) => {
+                unimplemented!()
             }
         }
     }

@@ -322,6 +322,11 @@ pub(crate) async fn get_virtual_lister_for_external_db(
                 "SQL Server information listing",
             ))
         }
+        DatabaseOptions::Clickhouse(_) => {
+            return Err(ExtensionError::Unimplemented(
+                "Clickhouse information listing",
+            ))
+        }
         DatabaseOptions::Delta(_) => {
             return Err(ExtensionError::Unimplemented(
                 "deltalake information listing",

@@ -46,8 +46,9 @@ message DatabaseOptions {
     DatabaseOptionsSnowflake snowflake = 7;
     DatabaseOptionsDeltaLake delta = 8;
     DatabaseOptionsSqlServer sql_server = 9;
+    DatabaseOptionsClickhouse clickhouse = 10;
   }
-  // next: 10
+  // next: 11
 }
 
 message DatabaseOptionsInternal {}
@@ -66,6 +67,8 @@ message DatabaseOptionsMysql { string connection_string = 1; }
 message DatabaseOptionsMongo { string connection_string = 1; }
 
 message DatabaseOptionsSqlServer { string connection_string = 1; }
+
+message DatabaseOptionsClickhouse { string connection_string = 1; }
 
 message DatabaseOptionsSnowflake {
   string account_name = 1;

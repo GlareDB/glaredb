@@ -14,6 +14,7 @@
 // limited to a single method. For example, an S3 data source can only be added
 // as an external table.
 //
+// TODO: Update me
 // Support matrix:
 //
 // | Data source        | External Database? | External Table? |
@@ -255,13 +256,7 @@ message UniformSignature {
   repeated common.arrow.ArrowType args = 2;
 }
 
-message ExactSignature {
-  repeated common.arrow.ArrowType args = 1;
-}
-message AnySignature {
-  uint32 num_args = 1;
-}
+message ExactSignature { repeated common.arrow.ArrowType args = 1; }
+message AnySignature { uint32 num_args = 1; }
 
-message OneOfSignature {
-  repeated TypeSignature args = 1;
-}
+message OneOfSignature { repeated TypeSignature args = 1; }
