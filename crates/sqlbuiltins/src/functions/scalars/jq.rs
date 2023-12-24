@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::sync::Mutex;
 
 use datafusion::error::DataFusionError;
@@ -56,8 +57,8 @@ impl BuiltinScalarUDF for JQ {
 }
 
 #[memoize(Capacity: 256, TimeToLive: std::time::Duration::from_secs(300))]
-fn compile_jq(query: String) -> Result<Arc<Mutex<jq_rs::JqProgram>>, BuiltinError> {
+fn compile_jq(query: String) -> Result<Rc<Mutex<jq_rs::JqProgram>>, BuiltinError> {
     jq_rs::compile(query.as_str())
-        .map(|v| Arc::new(Mutex::new(v)))
+        .map(|v| Rc::new(Mutex::new(v)))
         .map_err(|e| BuiltinError::ParseError(e.to_string()))
 }

@@ -119,12 +119,12 @@ fn kdl_parse_udf_args(
 
     let doc: kdl::KdlDocument = get_nth_string_value(args, 0)?
         .parse()
-        .map_err(|e| BuiltinError::KdlError(e))?;
+        .map_err(BuiltinError::KdlError)?;
 
     Ok((doc, filter))
 }
 
 #[memoize(Capacity: 256, TimeToLive: std::time::Duration::from_secs(300))]
 fn compile_kdl_query(query: String) -> Result<KdlQuery, BuiltinError> {
-    Ok(query.parse().map_err(|e| BuiltinError::KdlError(e))?)
+    query.parse().map_err(BuiltinError::KdlError)
 }
