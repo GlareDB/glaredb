@@ -6,7 +6,7 @@ use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use errors::{ClickhouseError, Result};
 
 use async_trait::async_trait;
-use clickhouse_rs::{Block, Options, Pool};
+use clickhouse_rs::{Block, ClientHandle, Options, Pool};
 use datafusion::arrow::datatypes::{
     DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
@@ -18,7 +18,7 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
@@ -54,6 +54,61 @@ impl ClickhouseAccessState {
         client.ping().await?;
 
         Ok(ClickhouseAccessState { pool })
+    }
+
+    async fn get_table_schema(&self, database: &str, name: &str) -> Result<ArrowSchema> {
+        let mut client = self.pool.get_handle().await?;
+        // TODO: Does clickhouse actually return blocks for empty data sets?
+        let mut blocks = client
+            .query(format!("SELECT * FROM {database}.{name} LIMIT 0"))
+            .stream_blocks();
+
+        let block = match blocks.next().await {
+            Some(block) => block?,
+            None => {
+                return Err(ClickhouseError::String(
+                    "unable to determine schema for table, no blocks returned".to_string(),
+                ))
+            }
+        };
+
+        let mut fields = Vec::with_capacity(block.columns().len());
+        for col in block.columns() {
+            use clickhouse_rs::types::SqlType;
+
+            fn to_data_type(sql_type: &SqlType) -> Result<DataType> {
+                // TODO: The rest
+                Ok(match sql_type {
+                    SqlType::Bool => DataType::Boolean,
+                    SqlType::UInt8 => DataType::UInt8,
+                    SqlType::UInt16 => DataType::UInt16,
+                    SqlType::UInt32 => DataType::UInt32,
+                    SqlType::UInt64 => DataType::UInt64,
+                    SqlType::Int8 => DataType::Int8,
+                    SqlType::Int16 => DataType::Int16,
+                    SqlType::Int32 => DataType::Int32,
+                    SqlType::Int64 => DataType::Int64,
+                    SqlType::Float32 => DataType::Float32,
+                    SqlType::Float64 => DataType::Float64,
+                    SqlType::String | SqlType::FixedString(_) => DataType::Utf8,
+                    other => {
+                        return Err(ClickhouseError::String(format!(
+                            "unsupported Clickhouse type: {other:?}"
+                        )))
+                    }
+                })
+            }
+
+            let (arrow_typ, nullable) = match col.sql_type() {
+                SqlType::Nullable(typ) => (to_data_type(typ)?, true),
+                typ => (to_data_type(&typ)?, false),
+            };
+
+            let field = Field::new(col.name(), arrow_typ, nullable);
+            fields.push(field);
+        }
+
+        Ok(ArrowSchema::new(fields))
     }
 }
 
@@ -107,6 +162,7 @@ impl TableProvider for ClickhouseTableProvider {
 }
 
 struct ClickhouseExec {
+    state: Arc<ClickhouseAccessState>,
     metrics: ExecutionPlanMetricsSet,
 }
 
@@ -151,6 +207,13 @@ impl ExecutionPlan for ClickhouseExec {
             ));
         }
 
+        let state = self.state.clone();
+        let fut = async move {
+            let mut handle = state.pool.get_handle().await.unwrap();
+            let stream = handle.query("select 1").stream_blocks();
+            // whyyyyyyyyyyy
+        };
+
         unimplemented!()
     }
 
@@ -174,6 +237,8 @@ impl fmt::Debug for ClickhouseExec {
         f.debug_struct("ClickhouseExec").finish_non_exhaustive()
     }
 }
+
+enum BlockStreamState {}
 
 /// Converts a block stream from clickhouse into a record batch stream.
 struct BlockStream {}
