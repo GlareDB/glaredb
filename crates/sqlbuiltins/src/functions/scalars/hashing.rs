@@ -28,19 +28,23 @@ impl BuiltinScalarUDF for SipHash {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::UInt64))),
-            fun: Arc::new(move |input| match get_nth_scalar_value(input, 0) {
-                Some(value) => {
-                    let mut hasher = SipHasher24::new();
+            fun: Arc::new(move |input| {
+                Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
+                    ScalarValue,
+                    BuiltinError,
+                > {
+                    if let Some(value) = value {
+                        let mut hasher = SipHasher24::new();
 
-                    value.hash(&mut hasher);
+                        value.hash(&mut hasher);
 
-                    Ok(ColumnarValue::Scalar(ScalarValue::UInt64(Some(
-                        hasher.finish(),
-                    ))))
-                }
-                None => Err(datafusion::error::DataFusionError::Execution(
-                    "must have exactly one value to hash".to_string(),
-                )),
+                        Ok(ScalarValue::UInt64(Some(hasher.finish())))
+                    } else {
+                        Err(BuiltinError::ParseError(
+                            "must have exactly one value to hash".to_string(),
+                        ))
+                    }
+                })?)
             }),
         };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
@@ -73,19 +77,23 @@ impl BuiltinScalarUDF for FnvHash {
             name: Self::NAME.to_string(),
             signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::UInt64))),
-            fun: Arc::new(move |input| match get_nth_scalar_value(input, 0) {
-                Some(value) => {
-                    let mut hasher = FnvHasher::default();
+            fun: Arc::new(move |input| {
+                Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
+                    ScalarValue,
+                    BuiltinError,
+                > {
+                    if let Some(value) = value {
+                        let mut hasher = FnvHasher::default();
 
-                    value.hash(&mut hasher);
+                        value.hash(&mut hasher);
 
-                    Ok(ColumnarValue::Scalar(ScalarValue::UInt64(Some(
-                        hasher.finish(),
-                    ))))
-                }
-                None => Err(datafusion::error::DataFusionError::Execution(
-                    "must have exactly one value to hash".to_string(),
-                )),
+                        Ok(ScalarValue::UInt64(Some(hasher.finish())))
+                    } else {
+                        Err(BuiltinError::ParseError(
+                            "must have exactly one value to hash".to_string(),
+                        ))
+                    }
+                })?)
             }),
         };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
