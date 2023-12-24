@@ -1,7 +1,8 @@
-use super::*;
 use ::kdl::{KdlDocument, KdlNode, KdlQuery};
+use memoize::memoize;
 
-#[derive(Clone)]
+use super::*;
+
 pub struct KDLSelect;
 
 impl ConstBuiltinFunction for KDLSelect {
@@ -61,8 +62,8 @@ impl BuiltinScalarUDF for KDLSelect {
     }
 }
 
-#[derive(Clone)]
 pub struct KDLMatches;
+
 impl ConstBuiltinFunction for KDLMatches {
     const NAME: &'static str = "kdl_matches";
     const DESCRIPTION: &'static str =
@@ -83,19 +84,12 @@ impl ConstBuiltinFunction for KDLMatches {
         ))
     }
 }
+
 impl BuiltinScalarUDF for KDLMatches {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
-            name: "kdl_matches".to_string(),
-            signature: Signature::new(
-                TypeSignature::OneOf(vec![
-                    TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
-                    TypeSignature::Exact(vec![DataType::Utf8, DataType::LargeUtf8]),
-                    TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::Utf8]),
-                    TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::LargeUtf8]),
-                ]),
-                Volatility::Immutable,
-            ),
+            name: Self::NAME.to_string(),
+            signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
             fun: Arc::new(move |input| {
                 let (doc, filter) = kdl_parse_udf_args(input)?;
@@ -120,43 +114,16 @@ fn kdl_parse_udf_args(
     // parse the filter first, because it's probably shorter and
     // erroring earlier would be preferable to parsing a large that we
     // don't need/want.
-    let filter: kdl::KdlQuery = match get_nth_scalar_value(args, 1) {
-        Some(ScalarValue::Utf8(Some(val))) | Some(ScalarValue::LargeUtf8(Some(val))) => {
-            val.parse().map_err(|err: ::kdl::KdlError| {
-                datafusion::common::DataFusionError::Execution(err.to_string())
-            })?
-        }
-        Some(val) => {
-            return Err(datafusion::common::DataFusionError::Execution(format!(
-                "invalid type for KQL expression {}",
-                val.data_type(),
-            )))
-        }
-        None => {
-            return Err(datafusion::common::DataFusionError::Execution(
-                "missing KQL query".to_string(),
-            ))
-        }
-    };
+    let filter = compile_kdl_query(get_nth_string_value(args, 1)?)?;
 
-    let doc: kdl::KdlDocument = match get_nth_scalar_value(args, 0) {
-        Some(ScalarValue::Utf8(Some(val))) | Some(ScalarValue::LargeUtf8(Some(val))) => {
-            val.parse().map_err(|err: ::kdl::KdlError| {
-                datafusion::common::DataFusionError::Execution(err.to_string())
-            })?
-        }
-        Some(val) => {
-            return Err(datafusion::common::DataFusionError::Execution(format!(
-                "invalid type for KDL value {}",
-                val.data_type(),
-            )))
-        }
-        None => {
-            return Err(datafusion::common::DataFusionError::Execution(
-                "invalid field for KDL".to_string(),
-            ))
-        }
-    };
+    let doc: kdl::KdlDocument = get_nth_string_value(args, 0)?
+        .parse()
+        .map_err(BuiltinError::KdlError)?;
 
     Ok((doc, filter))
+}
+
+#[memoize(Capacity: 256)]
+fn compile_kdl_query(query: String) -> Result<KdlQuery, BuiltinError> {
+    query.parse().map_err(BuiltinError::KdlError)
 }

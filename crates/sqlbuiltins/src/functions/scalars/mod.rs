@@ -99,10 +99,22 @@ fn safe_up_cast_integer_scalar(
     }
 }
 
-fn get_nth_scalar_as_u64(input: &[ColumnarValue], n: usize) -> Result<u64, DataFusionError> {
-    match input.get(n) {
-        Some(input) => match input {
-            ColumnarValue::Scalar(scalar) => match scalar.clone() {
+fn get_nth_scalar_as_u64(
+    input: &[ColumnarValue],
+    n: usize,
+    op: &dyn Fn(Option<u64>) -> Result<ScalarValue, BuiltinError>,
+    output_type: DataType,
+) -> Result<ColumnarValue, BuiltinError> {
+    get_nth_scalar_value(
+        input,
+        n,
+        &|scalar| -> Result<ScalarValue, BuiltinError> {
+            let scalar = match scalar.clone() {
+                Some(v) => v.to_owned(),
+                None => return Err(BuiltinError::MissingValueAtIndex(n)),
+            };
+
+            let value = match scalar {
                 ScalarValue::Int8(Some(value)) => {
                     safe_up_cast_integer_scalar(scalar.data_type(), n, value as i64)
                 }
@@ -120,42 +132,72 @@ fn get_nth_scalar_as_u64(input: &[ColumnarValue], n: usize) -> Result<u64, DataF
                 ScalarValue::UInt32(Some(value)) => Ok(value as u64),
                 ScalarValue::Float64(Some(value)) => {
                     if value.trunc() != value {
-                        Err(datafusion::error::DataFusionError::Execution(
-                            format!("float value {} at index {}, expected integer", value, n)
-                                .to_string(),
-                        ))
-                    } else {
-                        Ok(value.to_i64().unwrap() as u64)
+                        return Err(BuiltinError::InvalidValueAtIndex(
+                            n,
+                            format!("expected whole value for float {}", value).to_string(),
+                        ));
                     }
+                    Ok(value.to_i64().ok_or(BuiltinError::IncorrectTypeAtIndex(
+                        n,
+                        scalar.data_type(),
+                        DataType::UInt64,
+                    ))? as u64)
                 }
                 ScalarValue::Float32(Some(value)) => {
                     if value.trunc() != value {
-                        Err(datafusion::error::DataFusionError::Execution(
-                            format!("float value {} at index {}, expected integer", value, n)
-                                .to_string(),
-                        ))
-                    } else {
-                        Ok(value.to_i64().unwrap() as u64)
+                        return Err(BuiltinError::InvalidValueAtIndex(
+                            n,
+                            format!("expected whole value for float {}", value).to_string(),
+                        ));
                     }
+                    Ok(value.to_i64().ok_or(BuiltinError::IncorrectTypeAtIndex(
+                        n,
+                        scalar.data_type(),
+                        DataType::UInt64,
+                    ))? as u64)
                 }
                 ScalarValue::UInt64(Some(value)) => Ok(value),
-                _ => Err(datafusion::error::DataFusionError::Execution(
-                    format!(
-                        "value in index {} was {}, expected integer",
+                _ => {
+                    return Err(BuiltinError::IncorrectTypeAtIndex(
                         n,
-                        scalar.data_type()
-                    )
-                    .to_string(),
-                )),
-            },
-            ColumnarValue::Array(_) => Err(datafusion::error::DataFusionError::Execution(
-                format!("invalid array value in index {}, expected integer", n).to_string(),
-            )),
+                        scalar.data_type(),
+                        DataType::UInt64,
+                    ))
+                }
+            }?;
+
+            op(Some(value))
         },
-        None => Err(datafusion::error::DataFusionError::Execution(
-            format!("expected integer value in index {}", n).to_string(),
-        )),
-    }
+        output_type,
+    )
+}
+
+fn get_nth_string_value(
+    input: &[ColumnarValue],
+    n: usize,
+    op: &dyn Fn(Option<String>) -> Result<ScalarValue, BuiltinError>,
+    output_type: DataType,
+) -> Result<ColumnarValue, BuiltinError> {
+    get_nth_scalar_value(
+        input,
+        n,
+        &|scalar| -> Result<ScalarValue, BuiltinError> {
+            let scalar = match scalar.clone() {
+                Some(v) => v.to_owned(),
+                None => return Err(BuiltinError::MissingValueAtIndex(n)),
+            };
+
+            match scalar {
+                ScalarValue::Utf8(v) | ScalarValue::LargeUtf8(v) => op(v),
+                _ => Err(BuiltinError::IncorrectTypeAtIndex(
+                    n,
+                    scalar.data_type(),
+                    DataType::Utf8,
+                )),
+            }
+        },
+        output_type,
+    )
 }
 
 fn session_var(s: &str) -> Expr {
