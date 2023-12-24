@@ -56,7 +56,7 @@ impl BuiltinScalarUDF for JQ {
     }
 }
 
-#[memoize(Capacity: 256, TimeToLive: std::time::Duration::from_secs(300))]
+#[memoize(Capacity: 256)]
 fn compile_jq(query: String) -> Result<Rc<Mutex<jq_rs::JqProgram>>, BuiltinError> {
     jq_rs::compile(query.as_str())
         .map(|v| Rc::new(Mutex::new(v)))

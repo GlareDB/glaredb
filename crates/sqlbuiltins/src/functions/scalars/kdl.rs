@@ -124,7 +124,7 @@ fn kdl_parse_udf_args(
     Ok((doc, filter))
 }
 
-#[memoize(Capacity: 256, TimeToLive: std::time::Duration::from_secs(300))]
+#[memoize(Capacity: 256)]
 fn compile_kdl_query(query: String) -> Result<KdlQuery, BuiltinError> {
     query.parse().map_err(BuiltinError::KdlError)
 }
