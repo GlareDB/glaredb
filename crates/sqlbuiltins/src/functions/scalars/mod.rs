@@ -70,14 +70,12 @@ fn get_nth_scalar_value(input: &[ColumnarValue], n: usize) -> Option<ScalarValue
 fn get_nth_string_value(input: &[ColumnarValue], n: usize) -> Result<String, BuiltinError> {
     match get_nth_scalar_value(input, n) {
         Some(ScalarValue::Utf8(Some(v))) | Some(ScalarValue::LargeUtf8(Some(v))) => Ok(v),
-        None => return Err(BuiltinError::MissingValueAtIndex(n)),
-        Some(val) => {
-            return Err(BuiltinError::IncorrectTypeAtIndex(
-                n,
-                val.data_type(),
-                DataType::Utf8,
-            ))
-        }
+        None => Err(BuiltinError::MissingValueAtIndex(n)),
+        Some(val) => Err(BuiltinError::IncorrectTypeAtIndex(
+            n,
+            val.data_type(),
+            DataType::Utf8,
+        )),
     }
 }
 
