@@ -62,12 +62,15 @@ impl BuiltinScalarUDF for PgTableIsVisible {
             signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
             fun: Arc::new(move |input| {
-                let is_visible = match get_nth_scalar_value(input, 0) {
-                    Some(ScalarValue::Int64(Some(_))) => Some(true),
-                    _ => None,
-                };
-
-                Ok(ColumnarValue::Scalar(ScalarValue::Boolean(is_visible)))
+                Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
+                    ScalarValue,
+                    BuiltinError,
+                > {
+                    match value {
+                        Some(ScalarValue::Int64(Some(_))) => Ok(ScalarValue::Boolean(Some(true))),
+                        _ => Ok(ScalarValue::Boolean(None)),
+                    }
+                })?)
             }),
         };
 
@@ -103,13 +106,20 @@ impl BuiltinScalarUDF for PgEncodingToChar {
             signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
             fun: Arc::new(move |input| {
-                let enc = match get_nth_scalar_value(input, 0) {
-                    Some(ScalarValue::Int64(Some(6))) => Some("UTF8".to_string()),
-                    Some(ScalarValue::Int64(Some(_))) => Some("".to_string()),
-                    _ => None,
-                };
-
-                Ok(ColumnarValue::Scalar(ScalarValue::Utf8(enc)))
+                Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
+                    ScalarValue,
+                    BuiltinError,
+                > {
+                    match value {
+                        Some(ScalarValue::Int64(Some(6))) => {
+                            Ok(ScalarValue::Utf8(Some("UTF8".to_string())))
+                        }
+                        Some(ScalarValue::Int64(Some(_))) => {
+                            Ok(ScalarValue::Utf8(Some("".to_string())))
+                        }
+                        _ => Ok(ScalarValue::Utf8(None)),
+                    }
+                })?)
             }),
         };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(

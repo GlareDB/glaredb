@@ -7,11 +7,17 @@ pub enum BuiltinError {
     #[error("parse error: {0}")]
     ParseError(String),
 
+    #[error("fundamental parsing error")]
+    FundamentalError,
+
     #[error("missing value at index {0}")]
     MissingValueAtIndex(usize),
 
     #[error("invalid value at index {0}")]
     InvalidValueAtIndex(usize, String),
+
+    #[error("columnar values not support at index {0}")]
+    InvalidColumnarValue(usize),
 
     #[error("value at index {0} was {1}, expected {2}")]
     IncorrectTypeAtIndex(usize, DataType, DataType),
