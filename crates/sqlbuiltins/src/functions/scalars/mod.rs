@@ -1,10 +1,16 @@
 pub mod df_scalars;
 pub mod kdl;
 pub mod postgres;
+
+#[cfg(feature = "jq")]
+pub mod jq;
+
 use crate::{
     document,
+    errors::BuiltinError,
     functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction},
 };
+
 use datafusion::logical_expr::BuiltinScalarFunction;
 
 use protogen::metastore::types::catalog::FunctionType;
@@ -58,6 +64,20 @@ fn get_nth_scalar_value(input: &[ColumnarValue], n: usize) -> Option<ScalarValue
             ColumnarValue::Array(arr) => ScalarValue::try_from_array(arr, 0).ok(),
         },
         None => None,
+    }
+}
+
+fn get_nth_string_value(input: &[ColumnarValue], n: usize) -> Result<String, BuiltinError> {
+    match get_nth_scalar_value(input, n) {
+        Some(ScalarValue::Utf8(Some(v))) | Some(ScalarValue::LargeUtf8(Some(v))) => Ok(v),
+        None => return Err(BuiltinError::MissingValueAtIndex(n)),
+        Some(val) => {
+            return Err(BuiltinError::IncorrectTypeAtIndex(
+                n,
+                val.data_type(),
+                DataType::Utf8,
+            ))
+        }
     }
 }
 

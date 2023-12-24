@@ -4,6 +4,8 @@ mod scalars;
 mod table;
 
 use self::scalars::df_scalars::ArrowCastFunction;
+#[cfg(feature = "jq")]
+use self::scalars::jq::JQ;
 use self::scalars::kdl::{KDLMatches, KDLSelect};
 use self::scalars::{postgres::*, ConnectionId, Version};
 use self::table::{BuiltinTableFuncs, TableFunc};
@@ -187,9 +189,11 @@ impl FunctionRegistry {
             Arc::new(PgTableIsVisible),
             Arc::new(PgEncodingToChar),
             Arc::new(PgArrayToString),
-            // KDL functions
+            // Document functions
             Arc::new(KDLMatches),
             Arc::new(KDLSelect),
+            #[cfg(feature = "jq")]
+            Arc::new(JQ),
             // Other functions
             Arc::new(ConnectionId),
             Arc::new(Version),

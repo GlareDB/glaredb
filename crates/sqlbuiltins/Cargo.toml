@@ -3,6 +3,10 @@ name = "sqlbuiltins"
 version = { workspace = true }
 edition = { workspace = true }
 
+[features]
+default = ["jq"]
+jq = ["dep:jq-rs"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -35,3 +39,5 @@ bson = "2.7.0"
 tokio-util = "0.7.10"
 bytes = "1.5.0"
 kdl = "5.0.0-alpha.1"
+memoize = {version = "0.4.2", features = ["full"]}
+jq-rs = {version = "0.4.1", features = ["bundled"], optional = true }

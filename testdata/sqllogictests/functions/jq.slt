@@ -1,0 +1,15 @@
+query T
+select jq('{"a":1}', '.')
+----
+{"a":1}
+
+
+query I
+select jq('{"a":1}', '.a')
+----
+1
+
+query T
+select jq('{"a":"rsc","b":"ksr"}', '.b')
+----
+"ksr"
