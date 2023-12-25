@@ -33,17 +33,9 @@ impl BuiltinScalarUDF for SipHash {
                     ScalarValue,
                     BuiltinError,
                 > {
-                    if let Some(value) = value {
-                        let mut hasher = SipHasher24::new();
-
-                        value.hash(&mut hasher);
-
-                        Ok(ScalarValue::UInt64(Some(hasher.finish())))
-                    } else {
-                        Err(BuiltinError::ParseError(
-                            "must have exactly one value to hash".to_string(),
-                        ))
-                    }
+                    let mut hasher = SipHasher24::new();
+                    value.hash(&mut hasher);
+                    Ok(ScalarValue::UInt64(Some(hasher.finish())))
                 })?)
             }),
         };
@@ -82,17 +74,9 @@ impl BuiltinScalarUDF for FnvHash {
                     ScalarValue,
                     BuiltinError,
                 > {
-                    if let Some(value) = value {
-                        let mut hasher = FnvHasher::default();
-
-                        value.hash(&mut hasher);
-
-                        Ok(ScalarValue::UInt64(Some(hasher.finish())))
-                    } else {
-                        Err(BuiltinError::ParseError(
-                            "must have exactly one value to hash".to_string(),
-                        ))
-                    }
+                    let mut hasher = FnvHasher::default();
+                    value.hash(&mut hasher);
+                    Ok(ScalarValue::UInt64(Some(hasher.finish())))
                 })?)
             }),
         };
