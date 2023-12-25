@@ -67,7 +67,7 @@ impl BuiltinScalarUDF for PgTableIsVisible {
                     BuiltinError,
                 > {
                     match value {
-                        Some(ScalarValue::Int64(Some(_))) => Ok(ScalarValue::Boolean(Some(true))),
+                        ScalarValue::Int64(Some(_)) => Ok(ScalarValue::Boolean(Some(true))),
                         _ => Ok(ScalarValue::Boolean(None)),
                     }
                 })?)
@@ -111,12 +111,10 @@ impl BuiltinScalarUDF for PgEncodingToChar {
                     BuiltinError,
                 > {
                     match value {
-                        Some(ScalarValue::Int64(Some(6))) => {
+                        ScalarValue::Int64(Some(6)) => {
                             Ok(ScalarValue::Utf8(Some("UTF8".to_string())))
                         }
-                        Some(ScalarValue::Int64(Some(_))) => {
-                            Ok(ScalarValue::Utf8(Some("".to_string())))
-                        }
+                        ScalarValue::Int64(Some(_)) => Ok(ScalarValue::Utf8(Some("".to_string()))),
                         _ => Ok(ScalarValue::Utf8(None)),
                     }
                 })?)

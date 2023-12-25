@@ -37,11 +37,9 @@ impl BuiltinScalarUDF for KDLSelect {
                 get_nth_string_value(
                     input,
                     0,
-                    &|value: Option<String>| -> Result<ScalarValue, BuiltinError> {
-                        let sdoc: kdl::KdlDocument = value
-                            .ok_or(BuiltinError::MissingValueAtIndex(0))?
-                            .parse()
-                            .map_err(BuiltinError::KdlError)?;
+                    &|value: String| -> Result<ScalarValue, BuiltinError> {
+                        let sdoc: kdl::KdlDocument =
+                            value.parse().map_err(BuiltinError::KdlError)?;
 
                         let out: Vec<&KdlNode> = sdoc
                             .query_all(compile_kdl_query(filter.clone())?)
@@ -107,11 +105,9 @@ impl BuiltinScalarUDF for KDLMatches {
                 get_nth_string_value(
                     input,
                     0,
-                    &|value: Option<String>| -> Result<ScalarValue, BuiltinError> {
-                        let doc: kdl::KdlDocument = value
-                            .ok_or(BuiltinError::MissingValueAtIndex(0))?
-                            .parse()
-                            .map_err(BuiltinError::KdlError)?;
+                    &|value: String| -> Result<ScalarValue, BuiltinError> {
+                        let doc: kdl::KdlDocument =
+                            value.parse().map_err(BuiltinError::KdlError)?;
 
                         Ok(ScalarValue::Boolean(Some(
                             doc.query(compile_kdl_query(filter.clone())?)
