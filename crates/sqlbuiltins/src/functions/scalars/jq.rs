@@ -1,7 +1,6 @@
 use std::rc::Rc;
 use std::sync::Mutex;
 
-use datafusion::error::DataFusionError;
 use jq_rs;
 use memoize::memoize;
 
@@ -37,16 +36,23 @@ impl BuiltinScalarUDF for JQ {
             signature: ConstBuiltinFunction::signature(self).unwrap(),
             return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
             fun: Arc::new(move |input| {
-                let query = compile_jq(get_nth_string_value(input, 1)?)?;
-                let mut query = query.lock().unwrap();
+                let query = get_nth_string_fn_arg(input, 1)?;
 
-                Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
-                    query
-                        .run(get_nth_string_value(input, 0)?.as_str())
-                        .map_err(|e| DataFusionError::Execution(e.to_string()))?
-                        .trim_end()
-                        .to_string(),
-                ))))
+                Ok(get_nth_string_value(input, 0, &|value: String| -> Result<
+                    ScalarValue,
+                    BuiltinError,
+                > {
+                    let query = compile_jq(query.clone())?;
+                    let mut query = query.lock().unwrap();
+
+                    Ok(ScalarValue::Utf8(Some(
+                        query
+                            .run(value.as_str())
+                            .map_err(|e| BuiltinError::JQError(e.to_string()))?
+                            .trim_end()
+                            .to_string(),
+                    )))
+                })?)
             }),
         };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
