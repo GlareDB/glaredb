@@ -74,7 +74,7 @@ fn get_nth_scalar_value(
                 )?))
             }
         },
-        None => Err(BuiltinError::MissingValueAtIndex(idx)),
+        None => Err(BuiltinError::MissingValueAtIndex(n)),
     }
 }
 
