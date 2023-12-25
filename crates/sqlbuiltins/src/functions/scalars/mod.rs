@@ -113,15 +113,14 @@ fn try_from_u64_scalar(scalar: ScalarValue) -> Result<u64, BuiltinError> {
             ))? as u64)
         }
         ScalarValue::UInt64(Some(value)) => Ok(value),
-        _ => {
-            return Err(BuiltinError::IncorrectType(
-                scalar.data_type(),
-                DataType::UInt64,
-            ))
-        }
+        _ => Err(BuiltinError::IncorrectType(
+            scalar.data_type(),
+            DataType::UInt64,
+        )),
     }
 }
 
+#[allow(dead_code)] // just for merging order
 fn safe_up_cast_integer_scalar(value: i64) -> Result<u64, BuiltinError> {
     if value < 0 {
         Err(BuiltinError::ParseError(
@@ -134,7 +133,7 @@ fn safe_up_cast_integer_scalar(value: i64) -> Result<u64, BuiltinError> {
 
 // get_nth_64_fn_arg extracts a string value (or tries to) from a
 // function argument; columns are always an error.
-#[allow(dead_code)] // for merging order
+#[allow(dead_code)] // just for merging order
 fn get_nth_u64_fn_arg(input: &[ColumnarValue], idx: usize) -> Result<u64, BuiltinError> {
     match input.get(idx) {
         Some(ColumnarValue::Scalar(value)) => try_from_u64_scalar(value.to_owned()),
