@@ -34,7 +34,7 @@ pub struct ClickhouseAccess {
 impl ClickhouseAccess {
     /// Create access configuration from a connection string.
     ///
-    /// Format: tcp://user:password@host:9000/db
+    /// Format: clickhouse://user:password@host:9000/db
     pub fn new_from_connection_string(conn_string: String) -> Self {
         ClickhouseAccess { conn_string }
     }
@@ -56,11 +56,11 @@ impl ClickhouseAccessState {
         Ok(ClickhouseAccessState { pool })
     }
 
-    async fn get_table_schema(&self, database: &str, name: &str) -> Result<ArrowSchema> {
+    async fn get_table_schema(&self, name: &str) -> Result<ArrowSchema> {
         let mut client = self.pool.get_handle().await?;
         // TODO: Does clickhouse actually return blocks for empty data sets?
         let mut blocks = client
-            .query(format!("SELECT * FROM {database}.{name} LIMIT 0"))
+            .query(format!("SELECT * FROM {name} LIMIT 0"))
             .stream_blocks();
 
         let block = match blocks.next().await {
@@ -114,9 +114,17 @@ impl ClickhouseAccessState {
 
 pub struct ClickhouseTableProvider {
     state: Arc<ClickhouseAccessState>,
+    schema: Arc<ArrowSchema>,
 }
 
-impl ClickhouseTableProvider {}
+impl ClickhouseTableProvider {
+    pub async fn try_new(access: ClickhouseAccess, table: &str) -> Result<Self> {
+        let state = Arc::new(ClickhouseAccessState::connect(&access.conn_string).await?);
+        let schema = Arc::new(state.get_table_schema(table).await?);
+
+        Ok(ClickhouseTableProvider { state, schema })
+    }
+}
 
 #[async_trait]
 impl TableProvider for ClickhouseTableProvider {
@@ -125,7 +133,7 @@ impl TableProvider for ClickhouseTableProvider {
     }
 
     fn schema(&self) -> ArrowSchemaRef {
-        unimplemented!()
+        self.schema.clone()
     }
 
     fn table_type(&self) -> TableType {
