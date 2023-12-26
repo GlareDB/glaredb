@@ -40,6 +40,7 @@ impl TableFunc for IcebergDataFiles {
         _args: &[FuncParamValue],
         _parent: RuntimePreference,
     ) -> Result<RuntimePreference> {
+        // TODO: Check URL path to detect runtime dynamically.
         Ok(RuntimePreference::Remote)
     }
 

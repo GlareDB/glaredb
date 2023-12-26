@@ -202,7 +202,7 @@ message FunctionEntry {
 
   EntryMeta meta = 1;
   FunctionType func_type = 2;
-  reserved 3;
+  reserved 3; // Function runtime preference (static)
   Signature signature = 4;
 }
 
