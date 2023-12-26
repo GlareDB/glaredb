@@ -4,6 +4,8 @@ pub enum ClickhouseError {
     Clickhouse(#[from] clickhouse_rs::errors::Error),
     #[error(transparent)]
     UrlParse(#[from] url::ParseError),
+    #[error(transparent)]
+    Arrow(#[from] datafusion::arrow::error::ArrowError),
     #[error("{0}")]
     String(String),
 }

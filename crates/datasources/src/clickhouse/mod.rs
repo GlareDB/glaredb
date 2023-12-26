@@ -1,5 +1,7 @@
 pub mod errors;
 
+mod stream;
+
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
@@ -18,6 +20,7 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
+use futures::stream::BoxStream;
 use futures::{Stream, StreamExt};
 use std::any::Any;
 use std::fmt;
@@ -219,6 +222,7 @@ impl ExecutionPlan for ClickhouseExec {
         let fut = async move {
             let mut handle = state.pool.get_handle().await.unwrap();
             let stream = handle.query("select 1").stream_blocks();
+            // let stream = BlockStream { stream };
             // whyyyyyyyyyyy
         };
 
@@ -249,7 +253,9 @@ impl fmt::Debug for ClickhouseExec {
 enum BlockStreamState {}
 
 /// Converts a block stream from clickhouse into a record batch stream.
-struct BlockStream {}
+struct BlockStream {
+    stream: BoxStream<'static, Result<Block, clickhouse_rs::errors::Error>>,
+}
 
 impl BlockStream {}
 
