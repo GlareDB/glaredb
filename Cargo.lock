@@ -6854,6 +6854,7 @@ dependencies = [
 name = "sqlbuiltins"
 version = "0.7.1"
 dependencies = [
+ "async-stream",
  "async-trait",
  "bson",
  "bytes",

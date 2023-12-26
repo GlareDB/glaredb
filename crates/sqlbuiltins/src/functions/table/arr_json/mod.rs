@@ -7,7 +7,7 @@ use datafusion::{
     common::FileType,
     datasource::{
         file_format::{file_compression_type::FileCompressionType, FileFormat},
-        physical_plan::{FileScanConfig, FileSinkConfig, NdJsonExec},
+        physical_plan::{FileScanConfig, FileSinkConfig},
     },
     error::{DataFusionError, Result},
     execution::context::SessionState,
@@ -16,9 +16,11 @@ use datafusion::{
 use object_store::{GetResultPayload, ObjectMeta, ObjectStore};
 use serde_json::Value;
 
-mod schema;
-
+use exec::ArrayJsonExec;
 use schema::infer_schema_from_value;
+
+mod exec;
+mod schema;
 
 /// Format for array json
 #[derive(Debug, Clone)]
@@ -119,16 +121,15 @@ impl FileFormat for ArrayJsonFormat {
         _filters: Option<&Arc<dyn PhysicalExpr>>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         println!("physical plan");
-        // placeholder
-        let exec = NdJsonExec::new(conf, self.file_compression_type.to_owned());
+        let exec: ArrayJsonExec = ArrayJsonExec::new(conf, self.file_compression_type.to_owned());
         Ok(Arc::new(exec))
     }
 
     async fn create_writer_physical_plan(
         &self,
-        input: Arc<dyn ExecutionPlan>,
+        _input: Arc<dyn ExecutionPlan>,
         _state: &SessionState,
-        conf: FileSinkConfig,
+        _conf: FileSinkConfig,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         println!("writer physical plan");
         todo!()

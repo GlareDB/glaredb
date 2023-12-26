@@ -190,6 +190,7 @@ impl TableFunc for ObjScanTableFunc {
             FileType::PARQUET => Arc::new(ParquetFormat::default()),
             FileType::JSON => {
                 if self.is_arr_json() {
+                    // TODO: figure this out
                     // let data_size_arg = args.next().unwrap().to_owned();
                     // let max_data_size: usize = data_size_arg as usize;
                     Arc::new(
