@@ -514,6 +514,7 @@ pub enum TableOptions {
     Azure(TableOptionsObjectStore),
     SqlServer(TableOptionsSqlServer),
     Lance(TableOptionsObjectStore),
+    Bson(TableOptionsObjectStore),
 }
 
 impl TableOptions {
@@ -532,6 +533,7 @@ impl TableOptions {
     pub const AZURE: &'static str = "azure";
     pub const SQL_SERVER: &'static str = "sql_server";
     pub const LANCE: &'static str = "lance";
+    pub const BSON: &'static str = "bson";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -554,6 +556,7 @@ impl TableOptions {
             TableOptions::Azure(_) => Self::AZURE,
             TableOptions::SqlServer(_) => Self::SQL_SERVER,
             TableOptions::Lance(_) => Self::LANCE,
+            TableOptions::Bson(_) => Self::BSON,
         }
     }
 }
@@ -583,6 +586,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::Azure(v) => TableOptions::Azure(v.try_into()?),
             options::table_options::Options::SqlServer(v) => TableOptions::SqlServer(v.try_into()?),
             options::table_options::Options::Lance(v) => TableOptions::Lance(v.try_into()?),
+            options::table_options::Options::Bson(v) => TableOptions::Bson(v.try_into()?),
         })
     }
 }
@@ -613,6 +617,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Azure(v) => options::table_options::Options::Azure(v.into()),
             TableOptions::SqlServer(v) => options::table_options::Options::SqlServer(v.into()),
             TableOptions::Lance(v) => options::table_options::Options::Lance(v.into()),
+            TableOptions::Bson(v) => options::table_options::Options::Bson(v.into()),
         })
     }
 }
@@ -1004,6 +1009,7 @@ pub struct TableOptionsObjectStore {
     pub storage_options: StorageOptions,
     pub file_type: Option<String>,
     pub compression: Option<String>,
+    pub schema_sample_size: Option<i64>,
 }
 
 impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
@@ -1014,6 +1020,7 @@ impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
             storage_options: value.storage_options.required("storage_options")?,
             file_type: value.file_type,
             compression: value.compression,
+            schema_sample_size: value.schema_sample_size,
         })
     }
 }
@@ -1025,6 +1032,7 @@ impl From<TableOptionsObjectStore> for options::TableOptionsObjectStore {
             storage_options: Some(value.storage_options.into()),
             file_type: value.file_type,
             compression: value.compression,
+            schema_sample_size: value.schema_sample_size,
         }
     }
 }

@@ -1,5 +1,6 @@
 //! Builtin table returning functions.
 mod bigquery;
+mod bson;
 mod delta;
 mod excel;
 mod generate_series;
@@ -27,6 +28,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use self::bigquery::ReadBigQuery;
+use self::bson::BsonScan;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
@@ -85,6 +87,7 @@ impl BuiltinTableFuncs {
             Arc::new(READ_CSV),
             Arc::new(JSON_SCAN),
             Arc::new(READ_JSON),
+            Arc::new(BsonScan),
             // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),
@@ -125,7 +128,7 @@ impl Default for BuiltinTableFuncs {
 }
 
 // Parse the data lake table location and object store options from the provided function arguments
-fn table_location_and_opts(
+pub fn table_location_and_opts(
     ctx: &dyn TableFuncContextProvider,
     args: Vec<FuncParamValue>,
     opts: &mut HashMap<String, FuncParamValue>,
