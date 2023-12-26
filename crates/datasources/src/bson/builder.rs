@@ -1,15 +1,17 @@
-use super::errors::{MongoError, Result};
+use std::any::Any;
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use bitvec::{order::Lsb0, vec::BitVec};
+use bson::{RawBsonRef, RawDocument};
 use datafusion::arrow::array::{
     Array, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanBuilder, Decimal128Builder,
     Float64Builder, Int32Builder, Int64Builder, StringBuilder, StructArray,
     TimestampMicrosecondBuilder, TimestampMillisecondBuilder,
 };
 use datafusion::arrow::datatypes::{DataType, Field, Fields, TimeUnit};
-use mongodb::bson::{RawBsonRef, RawDocument};
-use std::any::Any;
-use std::collections::HashMap;
-use std::sync::Arc;
+
+use crate::bson::errors::{BsonError, Result};
 
 /// Similar to arrow's `StructBuilder`, but specific for "shredding" bson
 /// records.
@@ -33,10 +35,10 @@ impl RecordStructBuilder {
         builders: Vec<Box<dyn ArrayBuilder>>,
     ) -> Result<RecordStructBuilder> {
         if fields.len() != builders.len() {
-            return Err(MongoError::InvalidArgsForRecordStructBuilder);
+            return Err(BsonError::InvalidArgsForRecordStructBuilder);
         }
         if builders.is_empty() {
-            return Err(MongoError::InvalidArgsForRecordStructBuilder);
+            return Err(BsonError::InvalidArgsForRecordStructBuilder);
         }
 
         let mut field_index = HashMap::with_capacity(fields.len());
@@ -49,6 +51,17 @@ impl RecordStructBuilder {
             builders,
             field_index,
         })
+    }
+
+    pub fn len(&self) -> usize {
+        match self.builders.first() {
+            Some(elem) => elem.len(),
+            None => 0,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn append_nulls(&mut self) -> Result<()> {
@@ -67,7 +80,7 @@ impl RecordStructBuilder {
                     let idx = *self
                         .field_index
                         .get(key)
-                        .ok_or_else(|| MongoError::ColumnNotInInferredSchema(key.to_string()))?;
+                        .ok_or_else(|| BsonError::ColumnNotInInferredSchema(key.to_string()))?;
 
                     if *cols_set.get(idx).unwrap() {
                         println!("DUPLICATE SET: {}, {:?}", key, doc);
@@ -81,7 +94,7 @@ impl RecordStructBuilder {
                     // Track which columns we've added values to.
                     cols_set.set(idx, true);
                 }
-                Err(_) => return Err(MongoError::FailedToReadRawBsonDocument),
+                Err(_) => return Err(BsonError::FailedToReadRawBsonDocument),
             }
         }
 
@@ -267,7 +280,7 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
             .append_value(i128::from_le_bytes(v.bytes())),
 
         (bson_ref, dt) => {
-            return Err(MongoError::UnhandledElementType(
+            return Err(BsonError::UnhandledElementType(
                 bson_ref.element_type(),
                 dt.clone(),
             ))
@@ -327,7 +340,7 @@ fn append_null(typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
             .downcast_mut::<Decimal128Builder>()
             .unwrap()
             .append_null(),
-        other => return Err(MongoError::UnexpectedDataTypeForBuilder(other.clone())),
+        other => return Err(BsonError::UnexpectedDataTypeForBuilder(other.clone())),
     }
     Ok(())
 }
@@ -357,7 +370,7 @@ fn column_builders_for_fields(
                     nested,
                 )?)
             }
-            other => return Err(MongoError::UnexpectedDataTypeForBuilder(other.clone())),
+            other => return Err(BsonError::UnexpectedDataTypeForBuilder(other.clone())),
         };
 
         cols.push(col);
