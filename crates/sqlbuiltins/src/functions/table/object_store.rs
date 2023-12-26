@@ -28,6 +28,7 @@ use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
+use super::arr_json::ArrayJsonFormat;
 use super::TableFunc;
 use crate::functions::BuiltinFunction;
 
@@ -40,8 +41,16 @@ pub const READ_CSV: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "read_csv
 pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson_scan");
 pub const READ_JSON: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "read_ndjson");
 
+pub const READ_ARR_JSON: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "read_arjson");
+
 #[derive(Debug, Clone)]
 pub struct ObjScanTableFunc(FileType, &'static str);
+
+impl ObjScanTableFunc {
+    fn is_arr_json(&self) -> bool {
+        matches!(self.1, "read_arjson")
+    }
+}
 
 impl BuiltinFunction for ObjScanTableFunc {
     fn name(&self) -> &'static str {
@@ -67,14 +76,20 @@ impl BuiltinFunction for ObjScanTableFunc {
     }
 
     fn signature(&self) -> Option<Signature> {
-        Some(Signature::uniform(
-            1,
-            vec![
-                DataType::Utf8,
-                DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))),
-            ],
-            Volatility::Stable,
-        ))
+        let signature: Signature = if self.is_arr_json() {
+            // TODO find a way to accept both an array of files and a single file as the first arg
+            Signature::exact(vec![DataType::Utf8, DataType::Int64], Volatility::Stable)
+        } else {
+            Signature::uniform(
+                1,
+                vec![
+                    DataType::Utf8,
+                    DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))),
+                ],
+                Volatility::Stable,
+            )
+        };
+        Some(signature)
     }
 }
 
@@ -126,6 +141,13 @@ impl TableFunc for ObjScanTableFunc {
             return Err(ExtensionError::InvalidNumArgs);
         }
 
+        // TODO(baasit): clean this up
+        // This serves to remove the `max_size` argument so that the "get_store_access" function can work as is intended.
+        let mut args = args;
+        if self.is_arr_json() {
+            let _max_size_arg = args.remove(1);
+        }
+
         let mut args = args.into_iter();
         let url_arg = args.next().unwrap().to_owned();
 
@@ -167,7 +189,17 @@ impl TableFunc for ObjScanTableFunc {
             ),
             FileType::PARQUET => Arc::new(ParquetFormat::default()),
             FileType::JSON => {
-                Arc::new(JsonFormat::default().with_file_compression_type(file_compression))
+                if self.is_arr_json() {
+                    // let data_size_arg = args.next().unwrap().to_owned();
+                    // let max_data_size: usize = data_size_arg as usize;
+                    Arc::new(
+                        ArrayJsonFormat::default()
+                            .set_file_compression_type(file_compression)
+                            .set_max_data_size(1000),
+                    )
+                } else {
+                    Arc::new(JsonFormat::default().with_file_compression_type(file_compression))
+                }
             }
             ft => {
                 return Err(ExtensionError::String(format!(

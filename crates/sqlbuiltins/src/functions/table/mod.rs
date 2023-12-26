@@ -1,4 +1,5 @@
 //! Builtin table returning functions.
+mod arr_json;
 mod bigquery;
 mod bson;
 mod delta;
@@ -36,7 +37,9 @@ use self::iceberg::{data_files::IcebergDataFiles, scan::IcebergScan, snapshots::
 use self::lance::LanceScan;
 use self::mongo::ReadMongoDb;
 use self::mysql::ReadMysql;
-use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON, READ_PARQUET};
+use self::object_store::{
+    CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_ARR_JSON, READ_CSV, READ_JSON, READ_PARQUET,
+};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
@@ -92,6 +95,7 @@ impl BuiltinTableFuncs {
             Arc::new(JSON_SCAN),
             Arc::new(READ_JSON),
             Arc::new(BsonScan),
+            Arc::new(READ_ARR_JSON),
             // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),
