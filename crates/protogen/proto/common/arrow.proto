@@ -8,7 +8,9 @@ package common.arrow;
 
 option go_package = "github.com/glaredb/cloud/pkg/protogen/common";
 
-message Schema { repeated Field columns = 1; }
+message Schema {
+  repeated Field columns = 1;
+}
 
 message Field {
   // Name of the field.
@@ -19,7 +21,9 @@ message Field {
   repeated Field children = 4;
 }
 
-message FixedSizeBinary { int32 length = 1; }
+message FixedSizeBinary {
+  int32 length = 1;
+}
 
 message Timestamp {
   TimeUnit time_unit = 1;
@@ -50,7 +54,9 @@ message Decimal {
   int32 scale = 4;
 }
 
-message List { Field field_type = 1; }
+message List {
+  Field field_type = 1;
+}
 
 message FixedSizeList {
   Field field_type = 1;
@@ -62,7 +68,9 @@ message Dictionary {
   ArrowType value = 2;
 }
 
-message Struct { repeated Field sub_field_types = 1; }
+message Struct {
+  repeated Field sub_field_types = 1;
+}
 
 enum UnionMode {
   sparse = 0;
