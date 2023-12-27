@@ -199,9 +199,10 @@ message FunctionEntry {
     LOCAL = 1;
     REMOTE = 2;
   }
+
   EntryMeta meta = 1;
   FunctionType func_type = 2;
-  RuntimePreference runtime_preference = 3;
+  reserved 3; // Function runtime preference (static)
   Signature signature = 4;
 }
 

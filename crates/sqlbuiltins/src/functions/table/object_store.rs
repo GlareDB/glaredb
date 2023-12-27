@@ -80,14 +80,10 @@ impl BuiltinFunction for ObjScanTableFunc {
 
 #[async_trait]
 impl TableFunc for ObjScanTableFunc {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Unspecified
-    }
-
     fn detect_runtime(
         &self,
         args: &[FuncParamValue],
-        _: RuntimePreference,
+        _parent: RuntimePreference,
     ) -> Result<RuntimePreference> {
         let mut args = args.iter();
         let url_arg = args.next().unwrap().to_owned();

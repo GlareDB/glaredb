@@ -49,17 +49,13 @@ use super::BuiltinFunction;
 /// e.g. `SELECT * FROM my_table_func(...)`
 #[async_trait]
 pub trait TableFunc: BuiltinFunction {
-    /// Get the preference for where a function should run.
-    fn runtime_preference(&self) -> RuntimePreference;
-
-    /// Determine the runtime from the arguments to the function.
+    /// Determine the runtime preference for the function from the passed-on
+    /// arguments.
     fn detect_runtime(
         &self,
         _args: &[FuncParamValue],
         _parent: RuntimePreference,
-    ) -> Result<RuntimePreference> {
-        Ok(self.runtime_preference())
-    }
+    ) -> Result<RuntimePreference>;
 
     /// Return a table provider using the provided args.
     async fn create_provider(
@@ -138,7 +134,13 @@ pub fn table_location_and_opts(
     opts: &mut HashMap<String, FuncParamValue>,
 ) -> Result<(DatasourceUrl, StorageOptions)> {
     let mut args = args.into_iter();
-    let first = args.next().unwrap();
+    let first = args
+        .next()
+        .ok_or_else(|| ExtensionError::ExpectedIndexedArgument {
+            index: 0,
+            what: "location for the table".to_string(),
+        })?;
+
     let url: String = first.try_into()?;
     let source_url =
         DatasourceUrl::try_new(url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
