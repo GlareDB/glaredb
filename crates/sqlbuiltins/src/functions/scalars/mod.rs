@@ -11,6 +11,8 @@ use datafusion::logical_expr::BuiltinScalarFunction;
 use datafusion::logical_expr::{Expr, ScalarUDF, Signature, TypeSignature, Volatility};
 use datafusion::physical_plan::ColumnarValue;
 use datafusion::scalar::ScalarValue;
+use datafusion_ext::cast::scalar_iter_to_array;
+use datafusion_ext::errors::ExtensionError;
 use num_traits::ToPrimitive;
 
 use crate::document;
@@ -62,17 +64,12 @@ fn get_nth_scalar_value(
     match input.get(n) {
         Some(input) => match input {
             ColumnarValue::Scalar(scalar) => Ok(ColumnarValue::Scalar(op(scalar.clone())?)),
-            ColumnarValue::Array(arr) => {
-                let mut values = Vec::with_capacity(arr.len());
-
-                for idx in 0..arr.len() {
-                    values.push(op(ScalarValue::try_from_array(arr, idx)?)?);
-                }
-
-                Ok(ColumnarValue::Array(ScalarValue::iter_to_array(
-                    values.into_iter(),
-                )?))
-            }
+            ColumnarValue::Array(arr) => Ok(ColumnarValue::Array(scalar_iter_to_array(
+                arr.data_type(),
+                (0..arr.len()).map(|idx| -> Result<ScalarValue, ExtensionError> {
+                    Ok(op(ScalarValue::try_from_array(arr, idx)?)?)
+                }),
+            )?)),
         },
         None => Err(BuiltinError::MissingValueAtIndex(n)),
     }
