@@ -143,7 +143,6 @@ impl LocalSession {
             .with_validator(Box::new(SQLValidator));
 
         let prompt = SQLPrompt {};
-        let mut scratch = String::with_capacity(1024);
 
         loop {
             let sig = line_editor.read_line(&prompt);
@@ -157,26 +156,14 @@ impl LocalSession {
                         }
                     },
                     _ => {
-                        let mut parts = buffer.splitn(2, ';');
-                        let first = parts.next().unwrap();
-                        scratch.push_str(first);
-
-                        let second = parts.next();
-                        if second.is_some() {
-                            match self.execute(&scratch).await {
-                                Ok(_) => {}
-                                Err(e) => println!("Error: {e}"),
-                            };
-                            scratch.clear();
-                        } else {
-                            scratch.push(' ');
-                        }
+                        match self.execute(&buffer).await {
+                            Ok(_) => {}
+                            Err(e) => println!("Error: {e}"),
+                        };
                     }
                 },
                 Ok(Signal::CtrlD) => break,
-                Ok(Signal::CtrlC) => {
-                    scratch.clear();
-                }
+                Ok(Signal::CtrlC) => {}
                 Err(e) => {
                     return Err(anyhow!("Unable to read from prompt: {e}"));
                 }
