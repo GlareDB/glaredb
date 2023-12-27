@@ -1,13 +1,14 @@
 use std::io::{self};
 
+use datafusion::sql::sqlparser::tokenizer::Word;
 use nu_ansi_term::{Color, Style};
 
+use crate::local::is_client_cmd;
 use reedline::{Highlighter, Hinter, SearchQuery, StyledText, Validator};
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
 use sqlexec::export::sqlparser::dialect::GenericDialect;
 use sqlexec::export::sqlparser::keywords::Keyword;
 use sqlexec::export::sqlparser::tokenizer::{Token, Tokenizer};
-
-use crate::local::is_client_cmd;
 
 pub(crate) struct SQLHighlighter;
 pub(crate) struct SQLValidator;
@@ -40,6 +41,8 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
             Style::new()
         }
     };
+    let colorize_function = || new_style().fg(Color::Cyan);
+
     // the tokenizer will error if the final character is an unescaped quote
     // such as `select * from read_csv("
     // in this case we will try to find the quote and colorize the rest of the query
@@ -60,13 +63,28 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
     }
     let tokens = tokens.unwrap();
 
-    for token in tokens {
+    for (idx, token) in tokens.iter().enumerate() {
         match token {
-            Token::Mul => st.push((new_style().fg(Color::Purple), "*".to_string())),
-            Token::LParen => st.push((new_style().fg(Color::Purple), "(".to_string())),
-            Token::RParen => st.push((new_style().fg(Color::Purple), ")".to_string())),
-            Token::Comma => st.push((new_style().fg(Color::Purple), ",".to_string())),
-            Token::SemiColon => st.push((new_style().fg(Color::Blue).bold(), ";".to_string())),
+            // Symbols
+            token @ (Token::LParen
+            | Token::RParen
+            | Token::Mul
+            | Token::Comma
+            | Token::Ampersand
+            | Token::Pipe
+            | Token::Plus
+            | Token::Minus
+            | Token::Div
+            | Token::Mod
+            | Token::Caret
+            | Token::Lt
+            | Token::LtEq
+            | Token::Gt
+            | Token::GtEq
+            | Token::Eq
+            | Token::Neq
+            | Token::SemiColon) => st.push((new_style().fg(Color::Purple), format!("{token}"))),
+            // Strings
             Token::SingleQuotedString(s) => {
                 st.push((new_style().fg(Color::Yellow).italic(), format!("'{}'", s)))
             }
@@ -74,6 +92,30 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 st.push((new_style().fg(Color::Yellow).italic(), format!("\"{}\"", s)))
             }
             Token::Word(w) => match w.keyword {
+                Keyword::TABLES => {
+                    let expected_whitespace = tokens.get(idx - 1);
+                    let expected_show = tokens.get(idx - 2);
+
+                    // match against SHOW TABLES, but not "tables"
+                    // SHOW TABLES -> highlighted
+                    // select * from tables -> not highlighted
+                    if matches!(
+                        (expected_show, expected_whitespace),
+                        (
+                            Some(Token::Word(Word {
+                                keyword: Keyword::SHOW,
+                                ..
+                            })),
+                            Some(Token::Whitespace(_))
+                        )
+                    ) {
+                        st.push((new_style().fg(Color::LightGreen), format!("{w}")));
+                    } else {
+                        st.push((new_style(), format!("{w}")));
+                    }
+                }
+
+                // Keywords
                 Keyword::SELECT
                 | Keyword::FROM
                 | Keyword::WHERE
@@ -96,16 +138,6 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 | Keyword::EXTERNAL
                 | Keyword::TABLE
                 | Keyword::SHOW
-                | Keyword::TABLES
-                | Keyword::VARCHAR
-                | Keyword::INT
-                | Keyword::FLOAT
-                | Keyword::DOUBLE
-                | Keyword::BOOLEAN
-                | Keyword::DATE
-                | Keyword::TIME
-                | Keyword::DATETIME
-                | Keyword::ARRAY
                 | Keyword::ASC
                 | Keyword::DESC
                 | Keyword::NULL
@@ -133,17 +165,56 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 | Keyword::EXPLAIN
                 | Keyword::ANALYZE
                 | Keyword::DESCRIBE
-                | Keyword::EXCLUDE => {
+                | Keyword::EXCLUDE
+                | Keyword::TEMP
+                | Keyword::TEMPORARY => {
                     st.push((new_style().fg(Color::LightGreen), format!("{w}")));
                 }
+                // Types
+                Keyword::INT
+                | Keyword::INT4
+                | Keyword::INT8
+                | Keyword::FLOAT
+                | Keyword::FLOAT4
+                | Keyword::FLOAT8
+                | Keyword::DOUBLE
+                | Keyword::BOOLEAN
+                | Keyword::VARCHAR
+                | Keyword::DATE
+                | Keyword::TIME
+                | Keyword::DATETIME
+                | Keyword::ARRAY
+                | Keyword::DECIMAL
+                | Keyword::TEXT
+                | Keyword::TIMESTAMP
+                | Keyword::INTERVAL
+                | Keyword::BIGINT
+                | Keyword::SMALLINT
+                | Keyword::TINYINT
+                | Keyword::UNSIGNED => {
+                    st.push((new_style().fg(Color::Purple), format!("{w}")));
+                }
+                // Custom Keywords
                 Keyword::NoKeyword => match w.value.to_uppercase().as_str() {
                     "TUNNEL" | "PROVIDER" | "CREDENTIAL" => {
                         st.push((new_style().fg(Color::LightGreen), format!("{w}")))
                     }
-                    _ => st.push((new_style(), format!("{w}"))),
+                    // Functions
+                    other if FUNCTION_REGISTRY.contains(other) => {
+                        st.push((colorize_function(), format!("{w}")));
+                    }
+                    _ => {
+                        st.push((new_style(), format!("{w}")));
+                    }
                 },
                 // TODO: add more keywords
-                _ => st.push((new_style(), format!("{w}"))),
+                _ => {
+                    if FUNCTION_REGISTRY.contains(&w.value) {
+                        st.push((colorize_function(), format!("{w}")));
+                    } else {
+                        st.push((new_style(), format!("{w}")))
+                    }
+                }
             },
             other => {
                 st.push((new_style(), format!("{other}")));
