@@ -63,7 +63,7 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
     }
     let tokens = tokens.unwrap();
 
-    for (idx, token) in tokens.iter().enumerate() {
+    for token in tokens {
         match token {
             // Symbols
             token @ (Token::LParen
