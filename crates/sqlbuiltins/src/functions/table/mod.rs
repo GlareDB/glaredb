@@ -134,8 +134,13 @@ pub fn table_location_and_opts(
     opts: &mut HashMap<String, FuncParamValue>,
 ) -> Result<(DatasourceUrl, StorageOptions)> {
     let mut args = args.into_iter();
-    let first = args.next().ok_or_else(|| ExtensionError::ExpectedIndexedArgument { index: 0, what: "location for the table".to_string() })?;
-    
+    let first = args
+        .next()
+        .ok_or_else(|| ExtensionError::ExpectedIndexedArgument {
+            index: 0,
+            what: "location for the table".to_string(),
+        })?;
+
     let url: String = first.try_into()?;
     let source_url =
         DatasourceUrl::try_new(url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
