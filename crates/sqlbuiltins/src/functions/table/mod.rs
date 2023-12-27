@@ -11,6 +11,7 @@ mod mysql;
 mod object_store;
 mod postgres;
 mod snowflake;
+mod sqlserver;
 mod system;
 mod virtual_listing;
 
@@ -39,6 +40,7 @@ use self::mysql::ReadMysql;
 use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
+use self::sqlserver::ReadSqlServer;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
 
@@ -80,6 +82,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadMongoDb),
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
+            Arc::new(ReadSqlServer),
             // Object store
             Arc::new(PARQUET_SCAN),
             Arc::new(READ_PARQUET),
