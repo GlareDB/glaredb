@@ -27,7 +27,7 @@ pub fn scalar_iter_to_array(
     data_type: &DataType,
     scalars: impl IntoIterator<Item = Result<ScalarValue, ExtensionError>>,
 ) -> Result<ArrayRef, ExtensionError> {
-    let  scalars = scalars.into_iter();
+    let scalars = scalars.into_iter();
 
     /// Creates an array of $ARRAY_TY by unpacking values of
     /// SCALAR_TY for primitive types
@@ -317,9 +317,9 @@ pub fn scalar_iter_to_array(
         DataType::Dictionary(key_type, value_type) => {
             // create the values array
             let value_scalars = scalars
-                    .map(|scalar| 
-{let scalar = scalar?;
-match scalar {
+                .map(|scalar| {
+                    let scalar = scalar?;
+                    match scalar {
                         ScalarValue::Dictionary(inner_key_type, scalar) => {
                             if &inner_key_type == key_type {
                                 Ok(*scalar)
