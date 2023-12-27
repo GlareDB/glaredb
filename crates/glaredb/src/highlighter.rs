@@ -92,29 +92,6 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 st.push((new_style().fg(Color::Yellow).italic(), format!("\"{}\"", s)))
             }
             Token::Word(w) => match w.keyword {
-                Keyword::TABLES => {
-                    let expected_whitespace = tokens.get(idx - 1);
-                    let expected_show = tokens.get(idx - 2);
-
-                    // match against SHOW TABLES, but not "tables"
-                    // SHOW TABLES -> highlighted
-                    // select * from tables -> not highlighted
-                    if matches!(
-                        (expected_show, expected_whitespace),
-                        (
-                            Some(Token::Word(Word {
-                                keyword: Keyword::SHOW,
-                                ..
-                            })),
-                            Some(Token::Whitespace(_))
-                        )
-                    ) {
-                        st.push((new_style().fg(Color::LightGreen), format!("{w}")));
-                    } else {
-                        st.push((new_style(), format!("{w}")));
-                    }
-                }
-
                 // Keywords
                 Keyword::SELECT
                 | Keyword::FROM
@@ -137,7 +114,6 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 | Keyword::CREATE
                 | Keyword::EXTERNAL
                 | Keyword::TABLE
-                | Keyword::SHOW
                 | Keyword::ASC
                 | Keyword::DESC
                 | Keyword::NULL
