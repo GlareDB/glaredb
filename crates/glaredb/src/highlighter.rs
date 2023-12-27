@@ -3,7 +3,7 @@ use std::io::{self};
 use nu_ansi_term::{Color, Style};
 
 use crate::local::is_client_cmd;
-use reedline::{Highlighter, Hinter, SearchQuery, StyledText, Validator};
+use reedline::{Highlighter, Hinter, SearchQuery, StyledText, ValidationResult, Validator};
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
 use sqlexec::export::sqlparser::dialect::GenericDialect;
 use sqlexec::export::sqlparser::keywords::Keyword;
@@ -14,11 +14,25 @@ pub(crate) struct SQLValidator;
 
 impl Validator for SQLValidator {
     fn validate(&self, line: &str) -> reedline::ValidationResult {
-        if line.trim().is_empty() || line.trim_end().ends_with(';') || is_client_cmd(line) {
-            reedline::ValidationResult::Complete
-        } else {
-            reedline::ValidationResult::Incomplete
+        if line.trim().is_empty() || is_client_cmd(line) {
+            return ValidationResult::Complete;
         }
+
+        let mut in_single_quote = false;
+        let mut in_double_quote = false;
+        let mut last_char = '\0';
+
+        for ch in line.chars() {
+            match ch {
+                '\'' if last_char != '\\' && !in_double_quote => in_single_quote = !in_single_quote,
+                '"' if last_char != '\\' && !in_single_quote => in_double_quote = !in_double_quote,
+                ';' if !in_single_quote && !in_double_quote => return ValidationResult::Complete,
+                _ => {}
+            }
+            last_char = ch;
+        }
+
+        ValidationResult::Incomplete
     }
 }
 
@@ -279,5 +293,64 @@ impl Hinter for SQLHinter {
             })
             .collect();
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use reedline::{ValidationResult, Validator};
+
+    #[test]
+    fn test_is_line_complete() {
+        use ValidationResult::*;
+        let incompletes = vec![
+            "';''",
+            r#"'\'"#,
+            r#"'\';'"#,
+            r#"";"#,
+            "select 'value;",                 // Single quote not closed
+            "select \"value;",                // Double quote not closed
+            "select 'value",                  // Missing semicolon and single quote not closed
+            "select \"value",                 // Missing semicolon and double quote not closed
+            "select 'val;ue",                 // Semicolon inside single quote
+            "select \"val;ue",                // Semicolon inside double quote
+            "select '",                       // Only single quote opened
+            "select \"",                      // Only double quote opened
+            "select 'value\\';",              // Escaped single quote
+            "select \"value\\\";",            // Escaped double quote
+            "select 'value\\\"",              // Mixed quote, single quote not closed
+            "select \"value\\'",              // Mixed quote, double quote not closed
+            "select 'value; \"inner\"'",      // Nested double quote inside single quote
+            "select \"value; 'inner'\"",      // Nested single quote inside double quote
+            "select 'value; \\\"incomplete",  // Escaped double quote inside single quote
+            "select \"value; \\\'incomplete", // Escaped single quote inside double quote
+        ];
+
+        let completes = vec![
+            "select 'value';",                // Correct single quote closed, semicolon outside
+            "select 'value\\'; another';",    // Escaped single quote inside, semicolon outside
+            "select ';value';",               // Semicolon inside single quotes, but also outside
+            "select '';",                     // Empty single quotes
+            "select \"value\";",              // Correct double quote closed, semicolon outside
+            "select \"value\\\"; another\";", // Escaped double quote inside, semicolon outside
+            "select \";value\";",             // Semicolon inside double quotes, but also outside
+            "select \"\";",                   // Empty double quotes
+            "select 'value; \"inner\"';", // Nested double quote inside single quote, semicolon outside
+            "select \"value; 'inner'\";", // Nested single quote inside double quote, semicolon outside
+            "select 'value; \\'another\\'';", // Escaped single quote inside single quotes
+            "select \"value; \\\"another\\\"\";", // Escaped double quote inside double quotes
+        ];
+
+        let validator = super::SQLValidator;
+        for case in incompletes {
+            if !matches!(validator.validate(case), Incomplete) {
+                panic!("Expected Incomplete for {:?}", case);
+            }
+        }
+        for case in completes {
+            if !matches!(validator.validate(case), Complete) {
+                panic!("Expected Complete for {:?}", case);
+            }
+        }
     }
 }

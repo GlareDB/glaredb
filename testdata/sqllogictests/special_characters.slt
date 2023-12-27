@@ -1,0 +1,9 @@
+# https://github.com/GlareDB/glaredb/issues/2309
+statement ok
+select ';';
+
+statement ok
+select ';"';
+
+statement error Schema error: No field named ";".
+select ";";
