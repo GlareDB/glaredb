@@ -19,8 +19,8 @@ pub struct BsonScan;
 
 impl ConstBuiltinFunction for BsonScan {
     const NAME: &'static str = "read_bson";
-    const DESCRIPTION: &'static str = "Reads one or more bson files. Supports globbing.";
-    const EXAMPLE: &'static str = "SELECT * FROM bson_scan('file:///path/to/table*.bson')";
+    const DESCRIPTION: &'static str = "Reads one or more BSON files. Supports globbing.";
+    const EXAMPLE: &'static str = "SELECT * FROM read_bson('./path/to/table*.bson')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 }
 
@@ -69,9 +69,8 @@ impl TableFunc for BsonScan {
         let store_access = GenericStoreAccess::new_from_location_and_opts(
             source_url.to_string().as_str(),
             storage_options,
-        )
-        .map_err(|e| ExtensionError::Arrow(e.into()))?;
+        )?;
 
-        bson_streaming_table(store_access, Some(sample_size), source_url).await
+        Ok(bson_streaming_table(store_access, Some(sample_size), source_url).await?)
     }
 }
