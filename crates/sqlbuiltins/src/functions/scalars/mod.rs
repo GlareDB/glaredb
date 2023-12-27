@@ -75,7 +75,7 @@ fn get_nth_scalar_value(
                 )?))
             }
         },
-        None => Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true)))),
+        None => Err(BuiltinError::MissingValueAtIndex(n)),
     }
 }
 
