@@ -40,7 +40,7 @@ fn fields_from_document<'a>(
 fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
     Ok(match bson {
         Bson::Array(array_doc) => DataType::new_list(
-            bson_to_arrow_type(0, &array_doc.to_owned().pop().or(Some(Bson::Null)).unwrap())?,
+            bson_to_arrow_type(0, &array_doc.to_owned().pop().unwrap_or(Bson::Null))?,
             true,
         ),
         Bson::Document(nested) => {

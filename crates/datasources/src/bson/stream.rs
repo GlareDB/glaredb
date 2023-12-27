@@ -29,7 +29,7 @@ impl Stream for BsonStream {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.stream
             .poll_next_unpin(cx)
-            .map_err(|e| DataFusionError::from(e))
+            .map_err(DataFusionError::from)
     }
 }
 

@@ -95,7 +95,7 @@ pub async fn bson_streaming_table(
         while let Some(res) = reader.next().await {
             match res {
                 Ok(doc) => sample.push(doc),
-                Err(e) => return Err(e.into()),
+                Err(e) => return Err(e),
             };
 
             if sample.len() >= sample_size as usize {
