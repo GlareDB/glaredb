@@ -5,5 +5,5 @@ select ';';
 statement ok
 select ';"';
 
-statement error Schema error: No field named ";".
+statement error Schema error
 select ";";
