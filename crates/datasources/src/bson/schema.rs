@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::iter::IntoIterator;
 
 use bson::{Bson, Document};
-use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
 
 use crate::bson::errors::{BsonError, Result};
 
@@ -39,15 +39,13 @@ fn fields_from_document<'a>(
 
 fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
     Ok(match bson {
-        Bson::Array(array_doc) => match array_doc.to_owned().pop() {
-            Some(val) => bson_to_arrow_type(0, &val)?,
-            None => DataType::Utf8,
-        },
+        Bson::Array(array_doc) => DataType::new_list(
+            bson_to_arrow_type(0, &array_doc.to_owned().pop().or(Some(Bson::Null)).unwrap())?,
+            true,
+        ),
         Bson::Document(nested) => {
-            let fields = fields_from_document(depth + 1, nested.iter())?;
-            DataType::Struct(fields.into())
+            DataType::Struct(fields_from_document(depth + 1, nested.iter())?.into())
         }
-
         Bson::String(_) => DataType::Utf8,
         Bson::Double(_) => DataType::Float64,
         Bson::Boolean(_) => DataType::Boolean,
@@ -56,7 +54,7 @@ fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
         Bson::Int64(_) => DataType::Float64,
         Bson::Binary(_) => DataType::Binary,
         Bson::ObjectId(_) => DataType::Utf8,
-        Bson::DateTime(_) => DataType::Timestamp(TimeUnit::Millisecond, None),
+        Bson::DateTime(_) => DataType::Date64,
         Bson::Symbol(_) => DataType::Utf8,
         Bson::Decimal128(_) => DataType::Decimal128(38, 10),
         Bson::Undefined => DataType::Null,
