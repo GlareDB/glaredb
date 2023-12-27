@@ -1,0 +1,11 @@
+# Test if large amount of data loads successfully.
+
+statement ok
+CREATE EXTERNAL TABLE large_table
+	FROM clickhouse
+	OPTIONS (
+		connection_string = '${CLICKHOUSE_CONN_STRING}',
+		table = 'bikeshare_trips'
+	);
+
+include ${PWD}/testdata/sqllogictests_datasources_common/include/large_table.slti

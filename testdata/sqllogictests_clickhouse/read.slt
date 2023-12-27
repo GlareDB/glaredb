@@ -1,0 +1,6 @@
+# Tests for the `read_*` function.
+
+query I
+SELECT count(*) FROM read_clickhouse('${CLICKHOUSE_CONN_STRING}', 'bikeshare_stations');
+----
+102
