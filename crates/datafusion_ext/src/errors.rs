@@ -3,6 +3,9 @@ pub enum ExtensionError {
     #[error("Invalid number of arguments.")]
     InvalidNumArgs,
 
+    #[error("Expected argument at index {index}: {what}")]
+    ExpectedIndexedArgument { index: usize, what: String },
+
     #[error("{0}")]
     String(String),
 

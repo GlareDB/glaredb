@@ -47,18 +47,15 @@ impl ConstBuiltinFunction for GenerateSeries {
 
 #[async_trait]
 impl TableFunc for GenerateSeries {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Unspecified
-    }
     fn detect_runtime(
         &self,
         _: &[FuncParamValue],
         parent: RuntimePreference,
     ) -> Result<RuntimePreference> {
-        match parent {
-            RuntimePreference::Unspecified => Ok(RuntimePreference::Local),
-            other => Ok(other),
-        }
+        Ok(match parent {
+            RuntimePreference::Unspecified => RuntimePreference::Local,
+            other => other,
+        })
     }
 
     async fn create_provider(

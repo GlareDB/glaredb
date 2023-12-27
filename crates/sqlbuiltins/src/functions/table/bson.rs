@@ -7,6 +7,7 @@ use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::bson::table::bson_streaming_table;
+use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::object_store::generic::GenericStoreAccess;
 use protogen::metastore::types::catalog::RuntimePreference;
 
@@ -25,8 +26,25 @@ impl ConstBuiltinFunction for BsonScan {
 
 #[async_trait]
 impl TableFunc for BsonScan {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Unspecified
+    fn detect_runtime(
+        &self,
+        args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference, ExtensionError> {
+        if let Some(arg) = args.first() {
+            let url: String = arg.clone().try_into()?;
+            let source_url =
+                DatasourceUrl::try_new(url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
+            Ok(match source_url.datasource_url_type() {
+                DatasourceUrlType::File => RuntimePreference::Local,
+                _ => RuntimePreference::Remote,
+            })
+        } else {
+            Err(ExtensionError::ExpectedIndexedArgument {
+                index: 0,
+                what: "location of the table".to_string(),
+            })
+        }
     }
 
     // TODO: most of this should be implemented as a TableProvider in

@@ -9,16 +9,13 @@ use std::sync::Arc;
 use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
 use once_cell::sync::Lazy;
 
+use protogen::metastore::types::catalog::{EntryMeta, EntryType, FunctionEntry, FunctionType};
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, SipHash};
 use scalars::kdl::{KDLMatches, KDLSelect};
 use scalars::postgres::*;
 use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
-
-use protogen::metastore::types::catalog::{
-    EntryMeta, EntryType, FunctionEntry, FunctionType, RuntimePreference,
-};
 
 /// Builtin table returning functions available for all sessions.
 static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
@@ -76,7 +73,6 @@ pub trait BuiltinFunction: Sync + Send {
         FunctionEntry {
             meta,
             func_type: self.function_type(),
-            runtime_preference: RuntimePreference::Unspecified,
             signature: self.signature(),
         }
     }
