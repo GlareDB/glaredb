@@ -1,9 +1,6 @@
 use clickhouse_rs::{
-    types::{
-        column::iter::{Iterable, StringIterator},
-        Column, ColumnType, Simple, SqlType,
-    },
-    Block, ClientHandle, Options, Pool,
+    types::{column::iter::Iterable, Column, Simple},
+    Block, ClientHandle,
 };
 use datafusion::error::DataFusionError;
 use datafusion::{
@@ -29,6 +26,9 @@ use crate::clickhouse::errors::ClickhouseError;
 
 use super::errors::Result;
 
+/// A stream that converts blocks from clickhouse into a stream of record
+/// batches.
+#[derive(Debug)]
 pub struct BlockStream {
     /// Schema of the output batches.
     schema: Arc<Schema>,
@@ -39,6 +39,7 @@ pub struct BlockStream {
 
 impl BlockStream {
     /// Execute a query against a client, and return a stream of record batches.
+    /// The provided schema should match the output of the query.
     ///
     /// This will spin up a separate tokio thread in the background to satisfy
     /// lifetime requirements of the stream and client.
@@ -49,6 +50,8 @@ impl BlockStream {
             let mut stream = handle.query(query).stream_blocks();
             while let Some(block) = stream.next().await {
                 if sender.send(block).await.is_err() {
+                    // This is fine, receiver side was dropped due to a global
+                    // limit, or a query execution error.
                     trace!("block receiver closed");
                 }
             }

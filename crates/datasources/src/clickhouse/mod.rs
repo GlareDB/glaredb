@@ -2,26 +2,26 @@ pub mod errors;
 
 mod stream;
 
-use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{ClickhouseError, Result};
 use parking_lot::Mutex;
 
 use async_trait::async_trait;
-use clickhouse_rs::{Block, ClientHandle, Options, Pool};
+use clickhouse_rs::{ClientHandle, Options, Pool};
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
 };
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    Statistics,
 };
-use futures::{Stream, StreamExt};
+use futures::StreamExt;
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
@@ -164,7 +164,7 @@ impl TableProvider for ClickhouseTableProvider {
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
         _filters: &[Expr],
-        limit: Option<usize>,
+        _limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let projected_schema = match projection {
             Some(projection) => Arc::new(self.schema.project(projection)?),
@@ -209,9 +209,13 @@ impl TableProvider for ClickhouseTableProvider {
 }
 
 struct ClickhouseExec {
+    /// Output schema.
     schema: ArrowSchemaRef,
+    /// A single-use client handle to clickhouse.
     handle: Mutex<Option<ClientHandle>>,
+    /// Query to run against clickhouse.
     query: String,
+    /// Execution metrics.
     metrics: ExecutionPlanMetricsSet,
 }
 
@@ -259,7 +263,7 @@ impl ExecutionPlan for ClickhouseExec {
     fn execute(
         &self,
         partition: usize,
-        context: Arc<TaskContext>,
+        _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         if partition != 0 {
             return Err(DataFusionError::Execution(
@@ -280,8 +284,11 @@ impl ExecutionPlan for ClickhouseExec {
 
         let stream = BlockStream::execute(client, self.query.clone(), self.schema());
 
-        // TODO: Wrap in metrics stream
-        Ok(Box::pin(stream))
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            stream,
+            partition,
+            &self.metrics,
+        )))
     }
 
     fn statistics(&self) -> Statistics {
@@ -301,6 +308,9 @@ impl DisplayAs for ClickhouseExec {
 
 impl fmt::Debug for ClickhouseExec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ClickhouseExec").finish_non_exhaustive()
+        f.debug_struct("ClickhouseExec")
+            .field("schema", &self.schema)
+            .field("query", &self.query)
+            .finish_non_exhaustive()
     }
 }

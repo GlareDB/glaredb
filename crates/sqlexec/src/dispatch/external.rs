@@ -13,6 +13,7 @@ use datafusion::prelude::SessionContext;
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::bson::table::bson_streaming_table;
+use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider};
 use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
@@ -219,7 +220,10 @@ impl<'a> ExternalDispatcher<'a> {
                 Ok(Arc::new(table))
             }
             DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string }) => {
-                unimplemented!()
+                let access =
+                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
+                let table = ClickhouseTableProvider::try_new(access, name).await?;
+                Ok(Arc::new(table))
             }
         }
     }
