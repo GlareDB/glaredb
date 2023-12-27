@@ -25,8 +25,28 @@ impl Scheduler {
     /// Returns an executor builder along-with to create different kinds of
     /// task executors.
     pub fn new() -> (Self, ExecutorBuilder) {
-        let (task_sender, task_receiver) = async_channel::unbounded();
-        (Self { task_sender }, ExecutorBuilder { task_receiver })
+        let (actual_task_sender, actual_task_receiver) = async_channel::unbounded();
+
+        // Due to our implementation, the runtime is blocked somehow and unable
+        // to spawn new tasks.
+        //
+        // HACK: Introducing a new task here doesn't block the runtime from
+        // spawning new tasks.
+        let (dummy_task_sender, dummy_task_receiver) = async_channel::unbounded();
+        tokio::spawn(async move {
+            while let Ok(task) = dummy_task_receiver.recv().await {
+                actual_task_sender.send(task).await.unwrap();
+            }
+        });
+
+        (
+            Self {
+                task_sender: dummy_task_sender,
+            },
+            ExecutorBuilder {
+                task_receiver: actual_task_receiver,
+            },
+        )
     }
 
     /// Schedule a plan for execution.

@@ -34,9 +34,14 @@ impl ConstBuiltinFunction for ReadSnowflake {
 
 #[async_trait]
 impl TableFunc for ReadSnowflake {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Remote
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        Ok(RuntimePreference::Remote)
     }
+
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,
