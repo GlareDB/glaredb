@@ -16,6 +16,7 @@ bitflags = "2.4"
 bitvec = "1"
 bytes = "1.4.0"
 chrono = { workspace = true }
+chrono-tz = "0.8.4"
 clickhouse-rs = { version = "1.1.0-alpha.1"}
 datafusion = { workspace = true }
 decimal = { path = "../decimal" }

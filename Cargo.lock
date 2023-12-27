@@ -2372,6 +2372,7 @@ dependencies = [
  "bytes",
  "calamine",
  "chrono",
+ "chrono-tz",
  "clickhouse-rs",
  "dashmap",
  "datafusion",

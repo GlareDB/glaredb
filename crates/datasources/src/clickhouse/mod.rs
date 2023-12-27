@@ -2,6 +2,7 @@ pub mod errors;
 
 mod stream;
 
+use clickhouse_rs::types::DateTimeType;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
@@ -11,7 +12,7 @@ use parking_lot::Mutex;
 use async_trait::async_trait;
 use clickhouse_rs::{ClientHandle, Options, Pool};
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
+    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -95,8 +96,13 @@ impl ClickhouseAccessState {
         for col in block.columns() {
             use clickhouse_rs::types::SqlType;
 
+            /// Convert a clickhouse sql type to an arrow data type.
+            ///
+            /// Clickhouse type reference: <https://clickhouse.com/docs/en/sql-reference/data-types>
+            ///
+            /// TODO: Support more types. Note that adding a type here requires
+            /// implementing the appropriate conversion in `BlockStream`.
             fn to_data_type(sql_type: &SqlType) -> Result<DataType> {
-                // TODO: The rest
                 Ok(match sql_type {
                     SqlType::Bool => DataType::Boolean,
                     SqlType::UInt8 => DataType::UInt8,
@@ -110,6 +116,34 @@ impl ClickhouseAccessState {
                     SqlType::Float32 => DataType::Float32,
                     SqlType::Float64 => DataType::Float64,
                     SqlType::String | SqlType::FixedString(_) => DataType::Utf8,
+                    // Clickhouse has both a 'Date' type (2 bytes) and a
+                    // 'Date32' type (4 bytes). I think they're both represented
+                    // with this one variant.
+                    SqlType::Date => DataType::Date32,
+                    SqlType::DateTime(DateTimeType::DateTime32) => {
+                        DataType::Timestamp(TimeUnit::Second, None)
+                    }
+                    SqlType::DateTime(DateTimeType::DateTime64(precision, tz)) => {
+                        // Precision represents the tick size, computed as
+                        // 10^precision seconds.
+                        //
+                        // <https://clickhouse.com/docs/en/sql-reference/data-types/datetime64>
+                        let unit = match *precision {
+                            0 => TimeUnit::Second,
+                            3 => TimeUnit::Millisecond,
+                            6 => TimeUnit::Microsecond,
+                            9 => TimeUnit::Nanosecond,
+                            other => {
+                                return Err(ClickhouseError::String(format!(
+                                    "unsupported time precision: {other}"
+                                )))
+                            }
+                        };
+
+                        let tz: Arc<str> = tz.to_string().into_boxed_str().into();
+
+                        DataType::Timestamp(unit, Some(tz))
+                    }
                     other => {
                         return Err(ClickhouseError::String(format!(
                             "unsupported Clickhouse type: {other:?}"

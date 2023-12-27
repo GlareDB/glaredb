@@ -1,15 +1,22 @@
+use chrono::{DateTime, NaiveDate, Timelike, Utc};
+use chrono_tz::Tz;
 use clickhouse_rs::{
-    types::{column::iter::Iterable, Column, Simple},
+    types::{
+        column::iter::{Iterable, NullableIterator},
+        Column, Simple,
+    },
     Block, ClientHandle,
 };
-use datafusion::error::DataFusionError;
+use datafusion::{arrow::array::Date32Array, error::DataFusionError};
 use datafusion::{
     arrow::{
         array::{
             Array, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
-            Int8Array, StringArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+            Int8Array, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+            TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
+            UInt8Array,
         },
-        datatypes::{DataType, Schema},
+        datatypes::{DataType, Schema, TimeUnit},
         record_batch::RecordBatch,
     },
     physical_plan::RecordBatchStream,
@@ -95,7 +102,7 @@ impl RecordBatchStream for BlockStream {
 fn block_to_batch(schema: Arc<Schema>, block: Block) -> Result<RecordBatch> {
     let mut arrs = Vec::with_capacity(schema.fields.len());
     for (field, col) in schema.fields.iter().zip(block.columns()) {
-        let arr = column_to_array(field.data_type().clone(), col)?;
+        let arr = column_to_array(field.data_type().clone(), col, field.is_nullable())?;
         arrs.push(arr);
     }
 
@@ -105,34 +112,129 @@ fn block_to_batch(schema: Arc<Schema>, block: Block) -> Result<RecordBatch> {
 /// Converts a column from a block into an arrow array.
 ///
 /// The column's data type should be known beforehand.
-fn column_to_array(datatype: DataType, column: &Column<Simple>) -> Result<Arc<dyn Array>> {
+fn column_to_array(
+    datatype: DataType,
+    column: &Column<Simple>,
+    nullable: bool,
+) -> Result<Arc<dyn Array>> {
     // TODO: This could be a function, but I'm not too keen on figuring out the
     // types right now.
     macro_rules! make_primitive_array {
-        ($primitive:ty, $arr_type:ty) => {{
-            let vals: Vec<_> = column.iter::<$primitive>()?.cloned().collect();
-            Arc::new(<$arr_type>::from(vals))
+        ($primitive:ty, $arr_type:ty, $nullable:expr) => {{
+            if nullable {
+                let vals: Vec<_> = column
+                    .iter::<Option<$primitive>>()?
+                    .map(|opt| opt.cloned())
+                    .collect();
+                Arc::new(<$arr_type>::from(vals))
+            } else {
+                let vals: Vec<_> = column.iter::<$primitive>()?.cloned().collect();
+                Arc::new(<$arr_type>::from(vals))
+            }
         }};
     }
 
     let arr: Arc<dyn Array> = match datatype {
-        DataType::Boolean => make_primitive_array!(bool, BooleanArray),
-        DataType::UInt8 => make_primitive_array!(u8, UInt8Array),
-        DataType::UInt16 => make_primitive_array!(u16, UInt16Array),
-        DataType::UInt32 => make_primitive_array!(u32, UInt32Array),
-        DataType::UInt64 => make_primitive_array!(u64, UInt64Array),
-        DataType::Int8 => make_primitive_array!(i8, Int8Array),
-        DataType::Int16 => make_primitive_array!(i16, Int16Array),
-        DataType::Int32 => make_primitive_array!(i32, Int32Array),
-        DataType::Int64 => make_primitive_array!(i64, Int64Array),
-        DataType::Float32 => make_primitive_array!(f32, Float32Array),
-        DataType::Float64 => make_primitive_array!(f64, Float64Array),
+        DataType::Boolean => make_primitive_array!(bool, BooleanArray, nullable),
+        DataType::UInt8 => make_primitive_array!(u8, UInt8Array, nullable),
+        DataType::UInt16 => make_primitive_array!(u16, UInt16Array, nullable),
+        DataType::UInt32 => make_primitive_array!(u32, UInt32Array, nullable),
+        DataType::UInt64 => make_primitive_array!(u64, UInt64Array, nullable),
+        DataType::Int8 => make_primitive_array!(i8, Int8Array, nullable),
+        DataType::Int16 => make_primitive_array!(i16, Int16Array, nullable),
+        DataType::Int32 => make_primitive_array!(i32, Int32Array, nullable),
+        DataType::Int64 => make_primitive_array!(i64, Int64Array, nullable),
+        DataType::Float32 => make_primitive_array!(f32, Float32Array, nullable),
+        DataType::Float64 => make_primitive_array!(f64, Float64Array, nullable),
         DataType::Utf8 => {
-            // Idk if this is what I should be doing here.
-            let vals: Vec<_> = <&[u8]>::iter(column, column.sql_type())?
-                .map(|bs| str::from_utf8(bs).unwrap())
-                .collect();
-            Arc::new(StringArray::from(vals))
+            if nullable {
+                let vals: Vec<_> =
+                    <Option<&[u8]> as Iterable<Simple>>::iter(column, column.sql_type())?
+                        .map(|bs| bs.map(|bs| str::from_utf8(bs).unwrap()))
+                        .collect();
+                Arc::new(StringArray::from(vals))
+            } else {
+                let vals: Vec<_> = <&[u8]>::iter(column, column.sql_type())?
+                    .map(|bs| str::from_utf8(bs).unwrap())
+                    .collect();
+                Arc::new(StringArray::from(vals))
+            }
+        }
+        DataType::Date32 => {
+            let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+
+            if nullable {
+                let vals: Vec<_> =
+                    <Option<NaiveDate> as Iterable<Simple>>::iter(column, column.sql_type())?
+                        .collect();
+                Arc::new(Date32Array::from(
+                    vals.into_iter()
+                        .map(|date| {
+                            date.map(|date| date.signed_duration_since(epoch).num_days() as i32)
+                        })
+                        .collect::<Vec<_>>(),
+                ))
+            } else {
+                let vals: Vec<_> = <NaiveDate>::iter(column, column.sql_type())?.collect();
+                Arc::new(Date32Array::from(
+                    vals.into_iter()
+                        .map(|date| date.signed_duration_since(epoch).num_days() as i32)
+                        .collect::<Vec<_>>(),
+                ))
+            }
+        }
+        DataType::Timestamp(unit, _tz) => {
+            if nullable {
+                let vals: Vec<_> =
+                    <Option<DateTime<Tz>> as Iterable<Simple>>::iter(column, column.sql_type())?
+                        .collect();
+                match unit {
+                    TimeUnit::Second => Arc::new(TimestampSecondArray::from(
+                        vals.into_iter()
+                            .map(|time| time.map(|time| time.timestamp()))
+                            .collect::<Vec<_>>(),
+                    )),
+                    TimeUnit::Millisecond => Arc::new(TimestampMillisecondArray::from(
+                        vals.into_iter()
+                            .map(|time| time.map(|time| time.timestamp_millis()))
+                            .collect::<Vec<_>>(),
+                    )),
+                    TimeUnit::Microsecond => Arc::new(TimestampMicrosecondArray::from(
+                        vals.into_iter()
+                            .map(|time| time.map(|time| time.timestamp_micros()))
+                            .collect::<Vec<_>>(),
+                    )),
+                    TimeUnit::Nanosecond => Arc::new(TimestampNanosecondArray::from(
+                        vals.into_iter()
+                            .map(|time| time.map(|time| time.timestamp_nanos_opt().unwrap()))
+                            .collect::<Vec<_>>(),
+                    )),
+                }
+            } else {
+                let vals: Vec<_> = <DateTime<Tz>>::iter(column, column.sql_type())?.collect();
+                match unit {
+                    TimeUnit::Second => Arc::new(TimestampSecondArray::from(
+                        vals.into_iter()
+                            .map(|time| time.timestamp())
+                            .collect::<Vec<_>>(),
+                    )),
+                    TimeUnit::Millisecond => Arc::new(TimestampMillisecondArray::from(
+                        vals.into_iter()
+                            .map(|time| time.timestamp_millis())
+                            .collect::<Vec<_>>(),
+                    )),
+                    TimeUnit::Microsecond => Arc::new(TimestampMicrosecondArray::from(
+                        vals.into_iter()
+                            .map(|time| time.timestamp_micros())
+                            .collect::<Vec<_>>(),
+                    )),
+                    TimeUnit::Nanosecond => Arc::new(TimestampNanosecondArray::from(
+                        vals.into_iter()
+                            .map(|time| time.timestamp_nanos_opt().unwrap())
+                            .collect::<Vec<_>>(),
+                    )),
+                }
+            }
         }
         other => {
             return Err(ClickhouseError::String(format!(

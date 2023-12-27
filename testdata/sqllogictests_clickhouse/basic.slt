@@ -1,0 +1,11 @@
+# Basic tests for external tables.
+
+statement ok
+CREATE EXTERNAL TABLE basic
+	FROM clickhouse
+	OPTIONS (
+		connection_string = '${CLICKHOUSE_CONN_STRING}',
+		table = 'bikeshare_stations'
+	);
+
+include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti
