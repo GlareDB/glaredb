@@ -1,9 +1,8 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use bson::Document;
+use bson::RawDocumentBuf;
 use bytes::BytesMut;
-use datafusion::common::DataFusionError;
 use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
 use datafusion::parquet::data_type::AsBytes;
@@ -11,8 +10,7 @@ use datafusion::physical_plan::streaming::PartitionStream;
 use futures::StreamExt;
 use tokio_util::codec::LengthDelimitedCodec;
 
-use datafusion_ext::errors::ExtensionError;
-
+use crate::bson::errors::BsonError;
 use crate::bson::schema::{merge_schemas, schema_from_document};
 use crate::bson::stream::BsonPartitionStream;
 use crate::common::url::DatasourceUrl;
@@ -23,28 +21,21 @@ pub async fn bson_streaming_table(
     store_access: GenericStoreAccess,
     schema_inference_sample_size: Option<i64>,
     source_url: DatasourceUrl,
-) -> Result<Arc<dyn TableProvider>, ExtensionError> {
+) -> Result<Arc<dyn TableProvider>, BsonError> {
     // TODO: set a maximum (1024?) or have an adaptive mode
     // (at least n but stop after n the same) or skip documents
     let sample_size = schema_inference_sample_size.unwrap_or(100);
 
     let path = source_url.path();
 
-    let store = store_access
-        .create_store()
-        .map_err(|e| ExtensionError::Arrow(e.into()))?;
+    let store = store_access.create_store()?;
 
     // assume that the file type is a glob and see if there are
     // more files...
-    let mut list = store_access
-        .list_globbed(&store, path.as_ref())
-        .await
-        .map_err(|e| ExtensionError::Arrow(e.into()))?;
+    let mut list = store_access.list_globbed(&store, path.as_ref()).await?;
 
     if list.is_empty() {
-        return Err(ExtensionError::String(format!(
-            "no matching objects for '{path}'"
-        )));
+        return Err(BsonError::NotFound(path.into_owned()));
     }
 
     // for consistent results, particularly for the sample, always
@@ -87,12 +78,10 @@ pub async fn bson_streaming_table(
                     // docuemnts are a superset of the schema, we'll end up
                     // doing much more parsing work than is actually needed
                     // for the bson documents.
-                    |bt: Result<BytesMut, std::io::Error>| -> Result<Document, DataFusionError> {
-                        Ok(bson::de::from_slice::<Document>(
+                    |bt: Result<BytesMut, std::io::Error>| -> Result<RawDocumentBuf, BsonError> {
+                        Ok(bson::de::from_slice::<RawDocumentBuf>(
                             bt?.freeze().as_bytes().to_owned().as_slice(),
-                        )
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?
-                        .to_owned())
+                        )?)
                     },
                 ),
         );
@@ -100,7 +89,7 @@ pub async fn bson_streaming_table(
 
     // iterate through the readers and build up a sample of the first <n>
     // documents to be used to infer the schema.
-    let mut sample = Vec::<Document>::with_capacity(sample_size as usize);
+    let mut sample = Vec::with_capacity(sample_size as usize);
     let mut first_active: usize = 0;
     'readers: for reader in readers.iter_mut() {
         while let Some(res) = reader.next().await {
@@ -128,10 +117,11 @@ pub async fn bson_streaming_table(
     // of as a base-level projection, but we'd need a schema specification
     // language). Or have some other strategy for inference rather than
     // every unique field from the first <n> documents.
-    let schema = Arc::new(
-        merge_schemas(sample.iter().map(|doc| schema_from_document(doc).unwrap()))
-            .map_err(|e| ExtensionError::String(e.to_string()))?,
-    );
+    let schema = Arc::new(merge_schemas(
+        sample
+            .iter()
+            .map(|doc| schema_from_document(doc.to_document()?)),
+    )?);
 
     let mut streams = Vec::<Arc<(dyn PartitionStream + 'static)>>::with_capacity(readers.len() + 1);
 
@@ -144,7 +134,7 @@ pub async fn bson_streaming_table(
         futures::stream::iter(
             sample
                 .into_iter()
-                .map(|doc| -> Result<Document, DataFusionError> { Ok(doc) }),
+                .map(|doc| -> Result<RawDocumentBuf, BsonError> { Ok(doc) }),
         )
         .boxed(),
     )));

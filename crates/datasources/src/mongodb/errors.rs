@@ -10,13 +10,16 @@ pub enum MongoError {
     InvalidProtocol(String),
 
     #[error(transparent)]
-    Mongo(#[from] mongodb::error::Error),
+    MongoDB(#[from] mongodb::error::Error),
 
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
     #[error(transparent)]
     Bson(#[from] crate::bson::errors::BsonError),
+
+    #[error(transparent)]
+    RawBSON(#[from] mongodb::bson::raw::Error),
 }
 
 pub type Result<T, E = MongoError> = std::result::Result<T, E>;
