@@ -1,8 +1,8 @@
 # Adding something new? It's probably good to add to .dockerignore too.
 
 .pre-commit-config.yaml
-# nix build results
-/target
+# Cargo target directories.
+/*target
 /result
 glaredb_image
 pgsrv_image
