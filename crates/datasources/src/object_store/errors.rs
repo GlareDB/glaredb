@@ -1,4 +1,5 @@
 use datafusion::arrow::error::ArrowError;
+use datafusion_ext::errors::ExtensionError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ObjectStoreSourceError {
@@ -45,5 +46,11 @@ pub type Result<T, E = ObjectStoreSourceError> = std::result::Result<T, E>;
 impl From<ObjectStoreSourceError> for ArrowError {
     fn from(e: ObjectStoreSourceError) -> Self {
         ArrowError::ExternalError(Box::new(e))
+    }
+}
+
+impl From<ObjectStoreSourceError> for ExtensionError {
+    fn from(e: ObjectStoreSourceError) -> Self {
+        ExtensionError::ObjectStore(e.to_string())
     }
 }
