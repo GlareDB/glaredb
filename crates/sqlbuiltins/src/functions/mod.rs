@@ -10,9 +10,7 @@ use self::table::{BuiltinTableFuncs, TableFunc};
 
 use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
 use once_cell::sync::Lazy;
-use protogen::metastore::types::catalog::{
-    EntryMeta, EntryType, FunctionEntry, FunctionType, RuntimePreference,
-};
+use protogen::metastore::types::catalog::{EntryMeta, EntryType, FunctionEntry, FunctionType};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -73,7 +71,6 @@ pub trait BuiltinFunction: Sync + Send {
         FunctionEntry {
             meta,
             func_type: self.function_type(),
-            runtime_preference: RuntimePreference::Unspecified,
             signature: self.signature(),
         }
     }

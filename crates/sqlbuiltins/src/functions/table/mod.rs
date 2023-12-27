@@ -11,6 +11,7 @@ mod mysql;
 mod object_store;
 mod postgres;
 mod snowflake;
+mod sqlserver;
 mod system;
 mod virtual_listing;
 
@@ -39,6 +40,7 @@ use self::mysql::ReadMysql;
 use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
+use self::sqlserver::ReadSqlServer;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
 
@@ -49,17 +51,13 @@ use super::BuiltinFunction;
 /// e.g. `SELECT * FROM my_table_func(...)`
 #[async_trait]
 pub trait TableFunc: BuiltinFunction {
-    /// Get the preference for where a function should run.
-    fn runtime_preference(&self) -> RuntimePreference;
-
-    /// Determine the runtime from the arguments to the function.
+    /// Determine the runtime preference for the function from the passed-on
+    /// arguments.
     fn detect_runtime(
         &self,
         _args: &[FuncParamValue],
         _parent: RuntimePreference,
-    ) -> Result<RuntimePreference> {
-        Ok(self.runtime_preference())
-    }
+    ) -> Result<RuntimePreference>;
 
     /// Return a table provider using the provided args.
     async fn create_provider(
@@ -84,6 +82,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadMongoDb),
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
+            Arc::new(ReadSqlServer),
             // Object store
             Arc::new(PARQUET_SCAN),
             Arc::new(READ_PARQUET),
@@ -141,7 +140,13 @@ pub fn table_location_and_opts(
     opts: &mut HashMap<String, FuncParamValue>,
 ) -> Result<(DatasourceUrl, StorageOptions)> {
     let mut args = args.into_iter();
-    let first = args.next().unwrap();
+    let first = args
+        .next()
+        .ok_or_else(|| ExtensionError::ExpectedIndexedArgument {
+            index: 0,
+            what: "location for the table".to_string(),
+        })?;
+
     let url: String = first.try_into()?;
     let source_url =
         DatasourceUrl::try_new(url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
