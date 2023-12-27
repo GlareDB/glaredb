@@ -122,6 +122,9 @@ impl BuiltinTableFuncs {
     pub fn iter_funcs(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
         self.funcs.values()
     }
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.funcs.keys()
+    }
 }
 
 impl Default for BuiltinTableFuncs {
