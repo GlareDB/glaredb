@@ -1,6 +1,5 @@
 use std::io::{self};
 
-use datafusion::sql::sqlparser::tokenizer::Word;
 use nu_ansi_term::{Color, Style};
 
 use crate::local::is_client_cmd;
