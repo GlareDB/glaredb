@@ -21,6 +21,11 @@ pub struct LocalArgs {
     /// File for logs to be written to
     #[arg(long, value_parser)]
     pub log_file: Option<PathBuf>,
+
+    /// Start the tokio console subscriber to debug runtime.
+    #[cfg(not(release))]
+    #[arg(long, value_parser, hide = true)]
+    pub debug_tokio: bool,
 }
 
 #[derive(Debug, Clone, Args)]
