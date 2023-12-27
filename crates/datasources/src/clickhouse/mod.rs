@@ -6,6 +6,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use errors::{ClickhouseError, Result};
+use parking_lot::Mutex;
 
 use async_trait::async_trait;
 use clickhouse_rs::{Block, ClientHandle, Options, Pool};
@@ -20,14 +21,13 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
-use futures::stream::BoxStream;
 use futures::{Stream, StreamExt};
 use std::any::Any;
 use std::fmt;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 use url::Url;
+
+use crate::clickhouse::stream::BlockStream;
 
 #[derive(Debug, Clone)]
 pub struct ClickhouseAccess {
@@ -47,6 +47,9 @@ struct ClickhouseAccessState {
     // TODO: We currently limit the pool to 1 connection to have it behave
     // similarly to our other data sources. We will likely want to actually make
     // use of a connection pool to avoid creating connections on every query.
+    //
+    // A depreceted `connect` method does return us a client direction, unsure
+    // if we want to use that or not.
     pool: Pool,
 }
 
@@ -63,7 +66,7 @@ impl ClickhouseAccessState {
         let mut client = self.pool.get_handle().await?;
         // TODO: Does clickhouse actually return blocks for empty data sets?
         let mut blocks = client
-            .query(format!("SELECT * FROM {name} LIMIT 0"))
+            .query(format!("SELECT * FROM {name} LIMIT 1"))
             .stream_blocks();
 
         let block = match blocks.next().await {
@@ -117,15 +120,21 @@ impl ClickhouseAccessState {
 
 pub struct ClickhouseTableProvider {
     state: Arc<ClickhouseAccessState>,
+    table: String,
     schema: Arc<ArrowSchema>,
 }
 
 impl ClickhouseTableProvider {
-    pub async fn try_new(access: ClickhouseAccess, table: &str) -> Result<Self> {
+    pub async fn try_new(access: ClickhouseAccess, table: impl Into<String>) -> Result<Self> {
+        let table = table.into();
         let state = Arc::new(ClickhouseAccessState::connect(&access.conn_string).await?);
-        let schema = Arc::new(state.get_table_schema(table).await?);
+        let schema = Arc::new(state.get_table_schema(&table).await?);
 
-        Ok(ClickhouseTableProvider { state, schema })
+        Ok(ClickhouseTableProvider {
+            state,
+            table,
+            schema,
+        })
     }
 }
 
@@ -157,7 +166,34 @@ impl TableProvider for ClickhouseTableProvider {
         _filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        unimplemented!()
+        let projected_schema = match projection {
+            Some(projection) => Arc::new(self.schema.project(projection)?),
+            None => self.schema.clone(),
+        };
+
+        // Get the projected columns, joined by a ','. This will be put in the
+        // 'SELECT ...' portion of the query.
+        let projection_string = projected_schema
+            .fields
+            .iter()
+            .map(|f| f.name().clone())
+            .collect::<Vec<_>>()
+            .join(",");
+
+        // TODO: Where, Limit
+
+        let query = format!("SELECT {} FROM {};", projection_string, self.table);
+
+        let client =
+            self.state.pool.get_handle().await.map_err(|e| {
+                DataFusionError::Execution(format!("failed to get client handle: {e}"))
+            })?;
+
+        Ok(Arc::new(ClickhouseExec::new(
+            projected_schema,
+            query,
+            client,
+        )))
     }
 
     async fn insert_into(
@@ -173,8 +209,21 @@ impl TableProvider for ClickhouseTableProvider {
 }
 
 struct ClickhouseExec {
-    state: Arc<ClickhouseAccessState>,
+    schema: ArrowSchemaRef,
+    handle: Mutex<Option<ClientHandle>>,
+    query: String,
     metrics: ExecutionPlanMetricsSet,
+}
+
+impl ClickhouseExec {
+    fn new(schema: ArrowSchemaRef, query: String, handle: ClientHandle) -> ClickhouseExec {
+        ClickhouseExec {
+            schema,
+            handle: Mutex::new(Some(handle)),
+            query,
+            metrics: ExecutionPlanMetricsSet::new(),
+        }
+    }
 }
 
 impl ExecutionPlan for ClickhouseExec {
@@ -183,7 +232,7 @@ impl ExecutionPlan for ClickhouseExec {
     }
 
     fn schema(&self) -> ArrowSchemaRef {
-        unimplemented!()
+        self.schema.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -218,15 +267,21 @@ impl ExecutionPlan for ClickhouseExec {
             ));
         }
 
-        let state = self.state.clone();
-        let fut = async move {
-            let mut handle = state.pool.get_handle().await.unwrap();
-            let stream = handle.query("select 1").stream_blocks();
-            // let stream = BlockStream { stream };
-            // whyyyyyyyyyyy
+        // This would need to be updated for if/when we do multiple partitions
+        // (1 client handle per partition).
+        let client = match self.handle.lock().take() {
+            Some(client) => client,
+            None => {
+                return Err(DataFusionError::Execution(
+                    "client handle already taken".to_string(),
+                ))
+            }
         };
 
-        unimplemented!()
+        let stream = BlockStream::execute(client, self.query.clone(), self.schema());
+
+        // TODO: Wrap in metrics stream
+        Ok(Box::pin(stream))
     }
 
     fn statistics(&self) -> Statistics {
@@ -247,22 +302,5 @@ impl DisplayAs for ClickhouseExec {
 impl fmt::Debug for ClickhouseExec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ClickhouseExec").finish_non_exhaustive()
-    }
-}
-
-enum BlockStreamState {}
-
-/// Converts a block stream from clickhouse into a record batch stream.
-struct BlockStream {
-    stream: BoxStream<'static, Result<Block, clickhouse_rs::errors::Error>>,
-}
-
-impl BlockStream {}
-
-impl Stream for BlockStream {
-    type Item = DatafusionResult<RecordBatch>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        unimplemented!()
     }
 }

@@ -30,6 +30,7 @@ use std::sync::Arc;
 
 use self::bigquery::ReadBigQuery;
 use self::bson::BsonScan;
+use self::clickhouse::ReadClickhouse;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
@@ -85,6 +86,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadMongoDb),
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
+            Arc::new(ReadClickhouse),
             // Object store
             Arc::new(PARQUET_SCAN),
             Arc::new(READ_PARQUET),

@@ -1,38 +1,48 @@
 use clickhouse_rs::{
     types::{
         column::iter::{Iterable, StringIterator},
-        Column, ColumnType, SqlType,
+        Column, ColumnType, Simple, SqlType,
     },
     Block, ClientHandle, Options, Pool,
 };
-use datafusion::arrow::{
-    array::{
-        Array, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
-        Int8Array, StringArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+use datafusion::error::DataFusionError;
+use datafusion::{
+    arrow::{
+        array::{
+            Array, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
+            Int8Array, StringArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        },
+        datatypes::{DataType, Schema},
+        record_batch::RecordBatch,
     },
-    datatypes::{DataType, Schema},
-    record_batch::RecordBatch,
+    physical_plan::RecordBatchStream,
 };
 use futures::{Stream, StreamExt};
+use std::pin::Pin;
 use std::str;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use tokio::sync::mpsc;
 use tracing::trace;
 
+use crate::clickhouse::errors::ClickhouseError;
+
 use super::errors::Result;
 
-pub struct BlockStreamReceiver {
+pub struct BlockStream {
+    /// Schema of the output batches.
     schema: Arc<Schema>,
-    handle: tokio::task::JoinHandle<()>,
+    /// Receiver side for getting blocks from the clickhouse client.
     receiver: mpsc::Receiver<Result<Block, clickhouse_rs::errors::Error>>,
+    _handle: tokio::task::JoinHandle<()>,
 }
 
-impl BlockStreamReceiver {
-    pub fn new(
-        mut handle: ClientHandle,
-        query: String,
-        schema: Arc<Schema>,
-    ) -> BlockStreamReceiver {
+impl BlockStream {
+    /// Execute a query against a client, and return a stream of record batches.
+    ///
+    /// This will spin up a separate tokio thread in the background to satisfy
+    /// lifetime requirements of the stream and client.
+    pub fn execute(mut handle: ClientHandle, query: String, schema: Arc<Schema>) -> BlockStream {
         let (sender, receiver) = mpsc::channel(1);
 
         let thread_handle = tokio::spawn(async move {
@@ -44,14 +54,41 @@ impl BlockStreamReceiver {
             }
         });
 
-        BlockStreamReceiver {
+        BlockStream {
             schema,
-            handle: thread_handle,
             receiver,
+            _handle: thread_handle,
         }
     }
 }
 
+impl Stream for BlockStream {
+    type Item = Result<RecordBatch, DataFusionError>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.receiver.poll_recv(cx) {
+            Poll::Ready(Some(result)) => match result {
+                Ok(block) => Poll::Ready(Some(
+                    block_to_batch(self.schema.clone(), block)
+                        .map_err(|e| DataFusionError::Execution(e.to_string())),
+                )),
+                Err(e) => Poll::Ready(Some(Err(DataFusionError::Execution(format!(
+                    "failed to convert block to batch: {e}"
+                ))))),
+            },
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl RecordBatchStream for BlockStream {
+    fn schema(&self) -> Arc<Schema> {
+        self.schema.clone()
+    }
+}
+
+/// Convert a block to a record batch.
 fn block_to_batch(schema: Arc<Schema>, block: Block) -> Result<RecordBatch> {
     let mut arrs = Vec::with_capacity(schema.fields.len());
     for (field, col) in schema.fields.iter().zip(block.columns()) {
@@ -65,10 +102,9 @@ fn block_to_batch(schema: Arc<Schema>, block: Block) -> Result<RecordBatch> {
 /// Converts a column from a block into an arrow array.
 ///
 /// The column's data type should be known beforehand.
-fn column_to_array(
-    datatype: DataType,
-    column: &Column<clickhouse_rs::types::Simple>,
-) -> Result<Arc<dyn Array>> {
+fn column_to_array(datatype: DataType, column: &Column<Simple>) -> Result<Arc<dyn Array>> {
+    // TODO: This could be a function, but I'm not too keen on figuring out the
+    // types right now.
     macro_rules! make_primitive_array {
         ($primitive:ty, $arr_type:ty) => {{
             let vals: Vec<_> = column.iter::<$primitive>()?.cloned().collect();
@@ -95,7 +131,11 @@ fn column_to_array(
                 .collect();
             Arc::new(StringArray::from(vals))
         }
-        _ => unimplemented!(),
+        other => {
+            return Err(ClickhouseError::String(format!(
+                "unhandled data type trying to convert to arrow array: {other}"
+            )))
+        }
     };
 
     Ok(arr)
