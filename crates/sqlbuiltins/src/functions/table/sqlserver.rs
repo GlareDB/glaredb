@@ -7,20 +7,22 @@ use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
+use datasources::sqlserver::{
+    SqlServerAccess, SqlServerTableProvider, SqlServerTableProviderConfig,
+};
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
 use super::TableFunc;
 use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
-pub struct ReadPostgres;
+pub struct ReadSqlServer;
 
-impl ConstBuiltinFunction for ReadPostgres {
-    const NAME: &'static str = "read_postgres";
-    const DESCRIPTION: &'static str = "Read a Postgres table";
+impl ConstBuiltinFunction for ReadSqlServer {
+    const NAME: &'static str = "read_sqlserver";
+    const DESCRIPTION: &'static str = "Reads an SQL Server table";
     const EXAMPLE: &'static str =
-        "SELECT * FROM read_postgres('postgres://localhost:5432', 'database', 'table')";
+        "SELECT * FROM read_sqlserver('server=tcp:localhost,1433;user=SA;password=Password123;TrustServerCertificate=true', 'dbo', 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
@@ -32,7 +34,7 @@ impl ConstBuiltinFunction for ReadPostgres {
 }
 
 #[async_trait]
-impl TableFunc for ReadPostgres {
+impl TableFunc for ReadSqlServer {
     fn detect_runtime(
         &self,
         _args: &[FuncParamValue],
@@ -54,15 +56,16 @@ impl TableFunc for ReadPostgres {
                 let schema: String = args.next().unwrap().try_into()?;
                 let table: String = args.next().unwrap().try_into()?;
 
-                let access = PostgresAccess::new_from_conn_str(conn_str, None);
-                let prov_conf = PostgresTableProviderConfig {
+                let access = SqlServerAccess::try_new_from_ado_string(&conn_str)
+                    .map_err(ExtensionError::access)?;
+                let prov_conf = SqlServerTableProviderConfig {
                     access,
                     schema,
                     table,
                 };
-                let prov = PostgresTableProvider::try_new(prov_conf)
+                let prov = SqlServerTableProvider::try_new(prov_conf)
                     .await
-                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+                    .map_err(ExtensionError::access)?;
 
                 Ok(Arc::new(prov))
             }

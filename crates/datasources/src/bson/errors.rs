@@ -1,15 +1,33 @@
 use datafusion::error::DataFusionError;
+use datafusion_ext::errors::ExtensionError;
+
+use crate::object_store::errors::ObjectStoreSourceError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BsonError {
     #[error("Unsupported bson type: {0}")]
-    UnsupportedBsonType(&'static str),
+    UnspportedType(&'static str),
 
     #[error("Unexpected datatype for builder {0:?}")]
     UnexpectedDataTypeForBuilder(datafusion::arrow::datatypes::DataType),
 
-    #[error("External Datafusion Error")]
+    #[error(transparent)]
+    IO(#[from] std::io::Error),
+
+    #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
+
+    #[error(transparent)]
+    Arrow(#[from] datafusion::arrow::error::ArrowError),
+
+    #[error(transparent)]
+    Raw(#[from] bson::raw::Error),
+
+    #[error(transparent)]
+    Serialization(#[from] bson::de::Error),
+
+    #[error(transparent)]
+    ObjectStore(#[from] ObjectStoreSourceError),
 
     #[error("Unhandled element type to arrow type conversion; {0:?}, {1}")]
     UnhandledElementType(
@@ -28,11 +46,20 @@ pub enum BsonError {
 
     #[error("Recursion limit exceeded for schema inferrence: {0}")]
     RecursionLimitExceeded(usize),
+
+    #[error("no objects found {0}")]
+    NotFound(String),
 }
 
 impl From<BsonError> for DataFusionError {
     fn from(e: BsonError) -> Self {
         DataFusionError::Execution(e.to_string())
+    }
+}
+
+impl From<BsonError> for ExtensionError {
+    fn from(e: BsonError) -> Self {
+        ExtensionError::String(e.to_string())
     }
 }
 

@@ -32,10 +32,15 @@ impl ConstBuiltinFunction for DeltaScan {
 
 #[async_trait]
 impl TableFunc for DeltaScan {
-    fn runtime_preference(&self) -> RuntimePreference {
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
         // TODO: Detect runtime.
-        RuntimePreference::Remote
+        Ok(RuntimePreference::Remote)
     }
+
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,

@@ -1,0 +1,6 @@
+# Tests for the `read_*` function.
+
+query I
+SELECT count(*) FROM read_sqlserver('${SQL_SERVER_CONN_STRING}', 'dbo', 'bikeshare_stations');
+----
+102

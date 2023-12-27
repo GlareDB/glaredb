@@ -37,10 +37,16 @@ impl ConstBuiltinFunction for ListSchemas {
 
 #[async_trait]
 impl TableFunc for ListSchemas {
-    fn runtime_preference(&self) -> RuntimePreference {
-        // Currently all of our db's are "external"  it'd never be preferred to run this locally.
-        RuntimePreference::Remote
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        // Currently all of our db's are "external" so it'd never be preferred
+        // to run this locally.
+        Ok(RuntimePreference::Remote)
     }
+
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
@@ -93,9 +99,14 @@ impl ConstBuiltinFunction for ListTables {
 
 #[async_trait]
 impl TableFunc for ListTables {
-    fn runtime_preference(&self) -> RuntimePreference {
-        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
-        RuntimePreference::Remote
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        // Currently all of our db's are "external" so it'd never be preferred
+        // to run this locally.
+        Ok(RuntimePreference::Remote)
     }
 
     async fn create_provider(
@@ -152,10 +163,16 @@ impl ConstBuiltinFunction for ListColumns {
 
 #[async_trait]
 impl TableFunc for ListColumns {
-    fn runtime_preference(&self) -> RuntimePreference {
-        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
-        RuntimePreference::Remote
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        // Currently all of our db's are "external" so it'd never be preferred
+        // to run this locally.
+        Ok(RuntimePreference::Remote)
     }
+
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
