@@ -286,6 +286,10 @@ jobs:
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
+          # Prepare SLT (Clickhouse)
+          source ./scripts/ci-install-clickhouse.sh
+          export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
+
           # Prepare SLT (SQL Server)
           export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
 
@@ -313,6 +317,7 @@ jobs:
           just sql-logic-tests --protocol=rpc 'sqllogictests_native/*'
           just sql-logic-tests --protocol=rpc 'sqllogictests_object_store/*'
           just sql-logic-tests --protocol=rpc 'sqllogictests_sqlserver/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_clickhouse/*'
           just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
           just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
           just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'

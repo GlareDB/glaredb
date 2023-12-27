@@ -1,10 +1,7 @@
-use chrono::{DateTime, NaiveDate, Timelike, Utc};
+use chrono::{DateTime, NaiveDate};
 use chrono_tz::Tz;
 use clickhouse_rs::{
-    types::{
-        column::iter::{Iterable, NullableIterator},
-        Column, Simple,
-    },
+    types::{column::iter::Iterable, Column, Simple},
     Block, ClientHandle,
 };
 use datafusion::{arrow::array::Date32Array, error::DataFusionError};

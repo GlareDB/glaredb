@@ -5,7 +5,7 @@
 # By default, the container will start up a 'default' database an not require a
 # username or password.
 #
-# Requires `clickhouse-client`: <https://clickhouse.com/docs/en/install>
+# Requires `clickhouse`: <https://clickhouse.com/docs/en/install>
 
 set -e
 
@@ -29,7 +29,7 @@ INIT_TIME=$(date +%s)
 EXIT_CODE=1
 while [[ $EXIT_CODE -ne 0 ]]; do
   set +e
-  clickhouse-client --query "select 1" &> /dev/null
+  clickhouse client --query "select 1" &> /dev/null
   EXIT_CODE=$?
   set -e
 
@@ -42,12 +42,12 @@ while [[ $EXIT_CODE -ne 0 ]]; do
 done
 
 # Create tables.
-clickhouse-client --multiquery < ./testdata/sqllogictests_clickhouse/data/setup-clickhouse.sql
+clickhouse client --multiquery < ./testdata/sqllogictests_clickhouse/data/setup-clickhouse.sql
 
 # Load data into tables.
-clickhouse-client \
+clickhouse client \
     --query="INSERT INTO bikeshare_stations FORMAT CSVWithNames" < ./testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv
-clickhouse-client \
+clickhouse client \
     --query="INSERT INTO bikeshare_trips FORMAT CSVWithNames" < ./testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv
 
 echo "clickhouse://localhost:9000/default"
