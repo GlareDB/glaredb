@@ -1,5 +1,5 @@
 -- bikeshare_stations table for testing datasources.
-CREATE TABLE IF NOT EXISTS bikeshare_stations (
+CREATE OR REPLACE TABLE bikeshare_stations (
     station_id        Int32,
     name              String,
     status            String,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS bikeshare_stations (
   ORDER BY station_id;
 
 -- bikeshare_trips table (quite big).
-CREATE TABLE IF NOT EXISTS bikeshare_trips (
+CREATE OR REPLACE TABLE bikeshare_trips (
     trip_id            Int64,
     subscriber_type    String,
     bikeid             String,

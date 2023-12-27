@@ -128,6 +128,7 @@ impl_from_dispatch_variant!(datasources::lake::delta::errors::DeltaError);
 impl_from_dispatch_variant!(datasources::lake::iceberg::errors::IcebergError);
 impl_from_dispatch_variant!(datasources::object_store::errors::ObjectStoreSourceError);
 impl_from_dispatch_variant!(datasources::sqlserver::errors::SqlServerError);
+impl_from_dispatch_variant!(datasources::clickhouse::errors::ClickhouseError);
 
 #[allow(unused_macros)]
 macro_rules! internal {

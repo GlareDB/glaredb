@@ -41,6 +41,19 @@ impl ClickhouseAccess {
     pub fn new_from_connection_string(conn_string: String) -> Self {
         ClickhouseAccess { conn_string }
     }
+
+    /// Validate connection to the clickhouse server.
+    pub async fn validate_access(&self) -> Result<()> {
+        let _state = ClickhouseAccessState::connect(&self.conn_string).await?;
+        Ok(())
+    }
+
+    /// Validate that we have access to a specific table.
+    pub async fn validate_table_access(&self, table: &str) -> Result<()> {
+        let state = ClickhouseAccessState::connect(&self.conn_string).await?;
+        let _schema = state.get_table_schema(table).await?;
+        Ok(())
+    }
 }
 
 struct ClickhouseAccessState {

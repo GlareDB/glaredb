@@ -36,9 +36,10 @@ use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse, DatabaseOptionsDebug,
     DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres,
     DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, TableOptions, TableOptionsBigQuery,
-    TableOptionsDebug, TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo,
-    TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
+    TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
+    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer,
+    TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
@@ -461,6 +462,15 @@ impl<'a> ExternalDispatcher<'a> {
                     table: table.to_string(),
                 })
                 .await?;
+                Ok(Arc::new(table))
+            }
+            TableOptions::Clickhouse(TableOptionsClickhouse {
+                connection_string,
+                table,
+            }) => {
+                let access =
+                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
+                let table = ClickhouseTableProvider::try_new(access, table).await?;
                 Ok(Arc::new(table))
             }
             TableOptions::Lance(TableOptionsObjectStore {
