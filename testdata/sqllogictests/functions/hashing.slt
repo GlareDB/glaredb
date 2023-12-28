@@ -106,3 +106,62 @@ query I
 select siphash('42');
 ----
 8771948186893062792
+
+########################################################################
+#
+# partition_results(<value>, <num_shards>, <shard_id>)
+#
+########################################################################
+
+statement error
+select partition_results();
+
+statement error
+select partition_results('buddy', 100, 2, 3);
+
+statement error
+select partition_results('buddy', -100, -2);
+
+statement error
+select partition_results('buddy', 100, 200);
+
+statement error
+select partition_results('9001', '100', '10');
+
+statement error
+select partition_results(9001, 100, '10');
+
+statement error
+select partition_results(9001, '100', 10);
+
+statement ok
+select partition_results(100, 10, 0);
+
+statement ok
+select partition_results(100, 10.0, 1.0);
+
+statement error
+select partition_results(100, 10.5, 1.5);
+
+statement error
+select partition_results(16, 4, 4);
+
+query B
+select partition_results(16, 4, 0);
+----
+t
+
+query B
+select partition_results(16, 4, 1);
+----
+f
+
+query B
+select partition_results(16, 4, 2);
+----
+f
+
+query B
+select partition_results(16, 4, 3);
+----
+f

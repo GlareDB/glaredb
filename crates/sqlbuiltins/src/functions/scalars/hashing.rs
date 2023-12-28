@@ -63,6 +63,7 @@ impl ConstBuiltinFunction for FnvHash {
         ))
     }
 }
+
 impl BuiltinScalarUDF for FnvHash {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
@@ -77,6 +78,72 @@ impl BuiltinScalarUDF for FnvHash {
                     let mut hasher = FnvHasher::default();
                     value.hash(&mut hasher);
                     Ok(ScalarValue::UInt64(Some(hasher.finish())))
+                })?)
+            }),
+        };
+        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
+            Arc::new(udf),
+            args,
+        ))
+    }
+}
+
+pub struct PartitionResults;
+
+impl ConstBuiltinFunction for PartitionResults {
+    const NAME: &'static str = "partition_results";
+    const DESCRIPTION: &'static str =
+        "Returns true if the value is in the partition ID given the number of partitions.";
+    const EXAMPLE: &'static str = "partition_results(<value>, <num_partitions>, <partition_id>)";
+    const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::new(
+            // args: <FIELD>, <num_partitions>, <partition_id>
+            TypeSignature::Any(3),
+            Volatility::Immutable,
+        ))
+    }
+}
+
+impl BuiltinScalarUDF for PartitionResults {
+    fn as_expr(&self, args: Vec<Expr>) -> Expr {
+        let udf = ScalarUDF {
+            name: Self::NAME.to_string(),
+            signature: ConstBuiltinFunction::signature(self).unwrap(),
+            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+            fun: Arc::new(move |input| {
+                if input.len() != 3 {
+                    return Err(DataFusionError::Execution(
+                        "must specify exactly three arguments".to_string(),
+                    ));
+                }
+
+                let num_partitions = get_nth_u64_fn_arg(input, 1)?;
+                let partition_id = get_nth_u64_fn_arg(input, 2)?;
+
+                if partition_id >= num_partitions {
+                    return Err(DataFusionError::Execution(
+                        format!(
+                            "id {} must be less than number of partitions {}",
+                            partition_id, num_partitions,
+                        )
+                        .to_string(),
+                    ));
+                }
+
+                // hash at the end once the other arguments are
+                // validated because the hashing is potentially the
+                // expensive part
+                Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
+                    ScalarValue,
+                    BuiltinError,
+                > {
+                    let mut hasher = FnvHasher::default();
+                    value.hash(&mut hasher);
+                    Ok(ScalarValue::Boolean(Some(
+                        hasher.finish() % num_partitions == partition_id,
+                    )))
                 })?)
             }),
         };
