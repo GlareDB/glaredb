@@ -447,8 +447,14 @@ fn iter_to_array_list(
     let mut elements: Vec<ArrayRef> = Vec::new();
     let mut valid = BooleanBufferBuilder::new(0);
     let mut flat_len = 0i32;
+    let mut data_type: Option<DataType> = None;
     for scalar in scalars {
         let scalar = scalar?;
+
+        if data_type.is_none() {
+            data_type = Some(scalar.data_type());
+        }
+
         if let ScalarValue::List(values, field) = scalar {
             match values {
                 Some(values) => {
@@ -457,6 +463,10 @@ fn iter_to_array_list(
                     } else {
                         new_empty_array(field.data_type())
                     };
+
+                    if data_type.is_none() {
+                        data_type = Some(element_array.data_type().to_owned());
+                    }
 
                     // Add new offset index
                     flat_len += element_array.len() as i32;
@@ -488,10 +498,13 @@ fn iter_to_array_list(
         Ok(flat_array) => flat_array,
         Err(err) => return Ok(Err(DataFusionError::ArrowError(err))?),
     };
+    if data_type.is_none() {
+        return Err(ExtensionError::String("unspecified DataType".to_string()));
+    }
 
     // Build ListArray using ArrayData so we can specify a flat inner array, and offset indices
     let offsets_array = offsets.finish();
-    let array_data = ArrayDataBuilder::new(flat_array.data_type().to_owned())
+    let array_data = ArrayDataBuilder::new(data_type.unwrap())
         .len(offsets_array.len() - 1)
         .nulls(Some(NullBuffer::new(valid.finish())))
         .add_buffer(offsets_array.values().inner().clone())
