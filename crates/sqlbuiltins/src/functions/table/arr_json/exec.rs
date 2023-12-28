@@ -6,11 +6,11 @@ use datafusion::{
     arrow::{
         array::{
             Array, ArrayDataBuilder, ArrayRef, BooleanBufferBuilder, BooleanBuilder, BufferBuilder,
-            Float64Builder, GenericListArray, GenericListBuilder, Int64Array, Int64Builder,
-            NullBuilder, OffsetSizeTrait, StringArray, StringBuilder, UInt64Builder,
+            Float64Builder, GenericListArray, Int64Builder,
+         StringBuilder, UInt64Builder,
         },
-        buffer::{Buffer, NullBuffer, OffsetBuffer, ScalarBuffer},
-        datatypes::{DataType, Field, SchemaRef, ToByteSlice},
+        buffer::NullBuffer,
+        datatypes::{DataType, SchemaRef},
         error::ArrowError,
         record_batch::RecordBatch,
     },
@@ -30,6 +30,8 @@ use datafusion::{
 use futures::StreamExt;
 use object_store::{GetResultPayload, ObjectStore};
 use serde_json::Value;
+
+use super::builder::ArrayBuilderVariant;
 
 // TODO add metrics and output ordering
 /// Execution plan for scanning array json data source
@@ -136,95 +138,6 @@ impl ExecutionPlan for ArrayJsonExec {
     }
 }
 
-fn handle_nested_lists(field: &Arc<Field>, rows: &[Value]) -> Result<Arc<dyn Array>, ArrowError> {
-    Ok(match field.data_type() {
-        DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 => {
-            // TODO instead of using "GenericListBuilder", use the type Array instead
-            let mut builder: GenericListBuilder<i32, Int64Builder> =
-                GenericListBuilder::with_capacity(Int64Builder::new(), rows.len());
-
-            for row in rows.iter() {
-                let val: Option<i64> = row.as_i64();
-                builder.values().append_option(val);
-            }
-
-            let array = builder.finish();
-            let values = array
-                .values()
-                .as_any()
-                .downcast_ref::<Int64Array>()
-                .unwrap();
-
-            Arc::new(values.clone())
-        }
-        DataType::Float16 | DataType::Float32 | DataType::Float64 => {
-            let mut builder: GenericListBuilder<i32, Float64Builder> =
-                GenericListBuilder::with_capacity(Float64Builder::new(), rows.len());
-
-            for row in rows.iter() {
-                let val: Option<f64> = row.as_f64();
-                builder.values().append_option(val);
-            }
-
-            Arc::new(builder.finish())
-        }
-        DataType::UInt16 | DataType::UInt8 | DataType::UInt32 | DataType::UInt64 => {
-            let mut builder: GenericListBuilder<i32, UInt64Builder> =
-                GenericListBuilder::with_capacity(UInt64Builder::new(), rows.len());
-
-            for row in rows.iter() {
-                let val: Option<u64> = row.as_u64();
-                builder.values().append_option(val);
-            }
-            Arc::new(builder.finish())
-        }
-        DataType::Boolean => {
-            let mut builder: GenericListBuilder<i32, BooleanBuilder> =
-                GenericListBuilder::with_capacity(BooleanBuilder::new(), rows.len());
-
-            for row in rows.iter() {
-                let val: Option<bool> = row.as_bool();
-                builder.values().append_option(val);
-            }
-            Arc::new(builder.finish())
-        }
-        DataType::Utf8 => {
-            let mut builder: GenericListBuilder<i32, StringBuilder> =
-                GenericListBuilder::with_capacity(
-                    StringBuilder::with_capacity(rows.len(), rows.len() * 16),
-                    rows.len(),
-                );
-
-            for row in rows.iter() {
-                if let Some(val) = row.as_str() {
-                    builder.values().append_value(val);
-                } else {
-                    builder.append_null();
-                }
-            }
-            let array = builder.finish();
-            let values = array
-                .values()
-                .as_any()
-                .downcast_ref::<StringArray>()
-                .unwrap();
-
-            Arc::new(values.clone())
-        }
-        DataType::Null => {
-            let mut builder: GenericListBuilder<i32, NullBuilder> =
-                GenericListBuilder::with_capacity(NullBuilder::new(), rows.len());
-            Arc::new(builder.finish())
-        }
-        other => {
-            return Err(ArrowError::CastError(format!(
-                "Failed to convert {:#?} in nested list",
-                other
-            )))
-        }
-    })
-}
-
 // TODO; use limit from passed in max_size_limit argument
 fn json_values_to_record_batch(
     rows: &[Value],
@@ -282,30 +195,44 @@ fn json_values_to_record_batch(
                     .then(|| BooleanBufferBuilder::new(rows.len()));
                 let mut offsets = vec![0];
 
-                let mut child_data = Vec::new();
+                let mut child_builder = match arr_field.data_type() {
+                    DataType::Int64 => {
+                        ArrayBuilderVariant::Int64Builder(Int64Builder::with_capacity(rows.len()))
+                    }
+                    DataType::Float64 => ArrayBuilderVariant::Float64Builder(
+                        Float64Builder::with_capacity(rows.len()),
+                    ),
+                    DataType::Utf8 => ArrayBuilderVariant::StringBuilder(
+                        StringBuilder::with_capacity(rows.len(), rows.len() * 16),
+                    ),
+                    // Initialize other types
+                    _ => {
+                        return Err(ArrowError::JsonError(
+                            "This type is not supported yet".to_string(),
+                        ))
+                    }
+                };
 
-                for (idx, row) in rows.iter().enumerate() {
-                    println!("index {idx}======{:#?}", child_data);
-
+                for row in rows.iter() {
                     match (row.as_object().unwrap().get(field.name()), nulls.as_mut()) {
                         (Some(val), None) => {
-                            let result =
-                                handle_nested_lists(arr_field, val.as_array().unwrap())?.to_data();
+                            let value_arrays = val.as_array().unwrap();
+                            for r in value_arrays.iter() {
+                                child_builder.append_value(r)?;
+                            }
 
                             let last_offset = *offsets.last().unwrap();
-                            offsets.push(last_offset + result.len() as i32);
-
-                            child_data.push(result);
+                            offsets.push(last_offset + value_arrays.len() as i32);
                         }
                         (Some(val), Some(nulls)) => {
                             nulls.append(true);
-                            let result =
-                                handle_nested_lists(arr_field, val.as_array().unwrap())?.to_data();
+                            let value_arrays = val.as_array().unwrap();
+                            for r in value_arrays.iter() {
+                                child_builder.append_value(r)?;
+                            }
 
                             let last_offset = *offsets.last().unwrap();
-                            offsets.push(last_offset + result.len() as i32);
-
-                            child_data.push(result);
+                            offsets.push(last_offset + value_arrays.len() as i32);
                         }
                         (None, Some(nulls)) => nulls.append(false),
                         _ => {
@@ -317,6 +244,8 @@ fn json_values_to_record_batch(
                     }
                 }
 
+                let child_array = child_builder.finish()?;
+
                 let mut offset_buffer = BufferBuilder::<i32>::new(rows.len() + 1);
                 offset_buffer.append_slice(&offsets);
 
@@ -325,25 +254,10 @@ fn json_values_to_record_batch(
                     .len(rows.len())
                     .nulls(nulls)
                     .add_buffer(offset_buffer.finish())
-                    .child_data(child_data);
+                    .child_data(vec![child_array.to_data().clone()]);
 
                 let arr: GenericListArray<i32> = GenericListArray::from(data.build()?);
                 Arc::new(arr) as ArrayRef
-
-                // let extracted_value = rows.iter().find_map(|row| {
-                //     row.as_object()
-                //         .and_then(|obj| obj.get(field.name()))
-                //         .cloned()
-                // });
-
-                // if let Some(Value::Array(mut array_value)) = extracted_value {
-                //     if array_value.len() < rows.len() {
-                //         array_value.resize(rows.len(), Value::Null);
-                //     }
-                //     handle_nested_lists(arr_field, &array_value)?
-                // } else {
-                //     return Err(ArrowError::JsonError("failed".to_string()));
-                // }
             }
 
             // TODO

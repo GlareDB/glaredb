@@ -21,6 +21,7 @@ use schema::infer_schema_from_value;
 
 mod exec;
 mod schema;
+mod builder;
 
 /// Format for array json
 #[derive(Debug, Clone)]
