@@ -274,10 +274,9 @@ pub fn scalar_iter_to_array(
         DataType::List(fields) if fields.data_type() == &DataType::LargeUtf8 => {
             build_array_list_string!(LargeStringBuilder, LargeUtf8)
         }
-        DataType::List(field) => {
+        DataType::List(_) => {
             // Fallback case handling homogeneous lists with any ScalarValue element type
-            let list_array = iter_to_array_list(field.data_type(), scalars)?;
-            Arc::new(list_array)
+            Arc::new(iter_to_array_list(scalars)?)
         }
         DataType::Struct(fields) => {
             // Initialize a Vector to store the ScalarValues for each column
@@ -440,7 +439,6 @@ fn dict_from_values<K: ArrowDictionaryKeyType>(
 }
 
 fn iter_to_array_list(
-    data_type: &DataType,
     scalars: impl IntoIterator<Item = Result<ScalarValue, ExtensionError>>,
 ) -> Result<GenericListArray<i32>, ExtensionError> {
     let mut offsets = Int32Array::builder(0);
@@ -493,7 +491,7 @@ fn iter_to_array_list(
 
     // Build ListArray using ArrayData so we can specify a flat inner array, and offset indices
     let offsets_array = offsets.finish();
-    let array_data = ArrayDataBuilder::new(data_type.clone())
+    let array_data = ArrayDataBuilder::new(flat_array.data_type().to_owned())
         .len(offsets_array.len() - 1)
         .nulls(Some(NullBuffer::new(valid.finish())))
         .add_buffer(offsets_array.values().inner().clone())
@@ -1812,7 +1810,7 @@ mod tests {
         );
 
         let array =
-            scalar_iter_to_array(vec![l1, l2, l3].iter().map(|v| v.to_owned()).map(Ok)).unwrap();
+            scalar_iter_to_array(vec![l1, l2, l3].iter().map(|v| Ok(v.to_owned()))).unwrap();
         let array = as_list_array(&array).unwrap();
 
         // Construct expected array with array builders
