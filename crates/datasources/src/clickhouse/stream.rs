@@ -161,73 +161,58 @@ fn column_to_array(
             let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
 
             if nullable {
-                let vals: Vec<_> =
-                    <Option<NaiveDate> as Iterable<Simple>>::iter(column, column.sql_type())?
-                        .collect();
+                let iter =
+                    <Option<NaiveDate> as Iterable<Simple>>::iter(column, column.sql_type())?;
                 Arc::new(Date32Array::from(
-                    vals.into_iter()
-                        .map(|date| {
-                            date.map(|date| date.signed_duration_since(epoch).num_days() as i32)
-                        })
-                        .collect::<Vec<_>>(),
+                    iter.map(|date| {
+                        date.map(|date| date.signed_duration_since(epoch).num_days() as i32)
+                    })
+                    .collect::<Vec<_>>(),
                 ))
             } else {
-                let vals: Vec<_> = <NaiveDate>::iter(column, column.sql_type())?.collect();
+                let iter = <NaiveDate>::iter(column, column.sql_type())?;
                 Arc::new(Date32Array::from(
-                    vals.into_iter()
-                        .map(|date| date.signed_duration_since(epoch).num_days() as i32)
+                    iter.map(|date| date.signed_duration_since(epoch).num_days() as i32)
                         .collect::<Vec<_>>(),
                 ))
             }
         }
         DataType::Timestamp(unit, _tz) => {
             if nullable {
-                let vals: Vec<_> =
-                    <Option<DateTime<Tz>> as Iterable<Simple>>::iter(column, column.sql_type())?
-                        .collect();
+                let iter =
+                    <Option<DateTime<Tz>> as Iterable<Simple>>::iter(column, column.sql_type())?;
                 match unit {
                     TimeUnit::Second => Arc::new(TimestampSecondArray::from(
-                        vals.into_iter()
-                            .map(|time| time.map(|time| time.timestamp()))
+                        iter.map(|time| time.map(|time| time.timestamp()))
                             .collect::<Vec<_>>(),
                     )),
                     TimeUnit::Millisecond => Arc::new(TimestampMillisecondArray::from(
-                        vals.into_iter()
-                            .map(|time| time.map(|time| time.timestamp_millis()))
+                        iter.map(|time| time.map(|time| time.timestamp_millis()))
                             .collect::<Vec<_>>(),
                     )),
                     TimeUnit::Microsecond => Arc::new(TimestampMicrosecondArray::from(
-                        vals.into_iter()
-                            .map(|time| time.map(|time| time.timestamp_micros()))
+                        iter.map(|time| time.map(|time| time.timestamp_micros()))
                             .collect::<Vec<_>>(),
                     )),
                     TimeUnit::Nanosecond => Arc::new(TimestampNanosecondArray::from(
-                        vals.into_iter()
-                            .map(|time| time.map(|time| time.timestamp_nanos_opt().unwrap()))
+                        iter.map(|time| time.map(|time| time.timestamp_nanos_opt().unwrap()))
                             .collect::<Vec<_>>(),
                     )),
                 }
             } else {
-                let vals: Vec<_> = <DateTime<Tz>>::iter(column, column.sql_type())?.collect();
+                let iter = <DateTime<Tz>>::iter(column, column.sql_type())?;
                 match unit {
                     TimeUnit::Second => Arc::new(TimestampSecondArray::from(
-                        vals.into_iter()
-                            .map(|time| time.timestamp())
-                            .collect::<Vec<_>>(),
+                        iter.map(|time| time.timestamp()).collect::<Vec<_>>(),
                     )),
                     TimeUnit::Millisecond => Arc::new(TimestampMillisecondArray::from(
-                        vals.into_iter()
-                            .map(|time| time.timestamp_millis())
-                            .collect::<Vec<_>>(),
+                        iter.map(|time| time.timestamp_millis()).collect::<Vec<_>>(),
                     )),
                     TimeUnit::Microsecond => Arc::new(TimestampMicrosecondArray::from(
-                        vals.into_iter()
-                            .map(|time| time.timestamp_micros())
-                            .collect::<Vec<_>>(),
+                        iter.map(|time| time.timestamp_micros()).collect::<Vec<_>>(),
                     )),
                     TimeUnit::Nanosecond => Arc::new(TimestampNanosecondArray::from(
-                        vals.into_iter()
-                            .map(|time| time.timestamp_nanos_opt().unwrap())
+                        iter.map(|time| time.timestamp_nanos_opt().unwrap())
                             .collect::<Vec<_>>(),
                     )),
                 }
