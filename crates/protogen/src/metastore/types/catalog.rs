@@ -644,7 +644,6 @@ impl From<RuntimePreference> for catalog::function_entry::RuntimePreference {
 pub struct FunctionEntry {
     pub meta: EntryMeta,
     pub func_type: FunctionType,
-    pub runtime_preference: RuntimePreference,
     pub signature: Option<Signature>,
 }
 
@@ -655,7 +654,6 @@ impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
         Ok(FunctionEntry {
             meta,
             func_type: value.func_type.try_into()?,
-            runtime_preference: value.runtime_preference.try_into()?,
             signature: value.signature.map(|s| s.try_into()).transpose()?,
         })
     }
@@ -803,12 +801,9 @@ impl TryFrom<catalog::Signature> for Signature {
 impl From<FunctionEntry> for catalog::FunctionEntry {
     fn from(value: FunctionEntry) -> Self {
         let func_type: catalog::function_entry::FunctionType = value.func_type.into();
-        let runtime_preference: catalog::function_entry::RuntimePreference =
-            value.runtime_preference.into();
         catalog::FunctionEntry {
             meta: Some(value.meta.into()),
             func_type: func_type as i32,
-            runtime_preference: runtime_preference as i32,
             signature: value.signature.map(|s| s.into()),
         }
     }

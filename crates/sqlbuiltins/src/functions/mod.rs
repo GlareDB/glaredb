@@ -9,16 +9,13 @@ use std::sync::Arc;
 use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
 use once_cell::sync::Lazy;
 
+use protogen::metastore::types::catalog::{EntryMeta, EntryType, FunctionEntry, FunctionType};
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
 use scalars::kdl::{KDLMatches, KDLSelect};
 use scalars::postgres::*;
 use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
-
-use protogen::metastore::types::catalog::{
-    EntryMeta, EntryType, FunctionEntry, FunctionType, RuntimePreference,
-};
 
 /// Builtin table returning functions available for all sessions.
 static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
@@ -76,7 +73,6 @@ pub trait BuiltinFunction: Sync + Send {
         FunctionEntry {
             meta,
             func_type: self.function_type(),
-            runtime_preference: RuntimePreference::Unspecified,
             signature: self.signature(),
         }
     }
@@ -231,6 +227,14 @@ impl FunctionRegistry {
             scalars.chain(aggregates).chain(arrow_cast).collect();
 
         FunctionRegistry { funcs, udfs }
+    }
+
+    pub fn contains(&self, name: impl AsRef<str>) -> bool {
+        self.funcs
+            .keys()
+            .chain(self.udfs.keys())
+            .chain(BUILTIN_TABLE_FUNCS.keys())
+            .any(|k| k.to_lowercase() == name.as_ref().to_lowercase())
     }
 
     pub fn find_function(&self, name: &str) -> Option<Arc<dyn BuiltinFunction>> {

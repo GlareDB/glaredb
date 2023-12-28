@@ -1302,10 +1302,10 @@ impl BuiltinCatalog {
             let schema_id = schema_names
                 .get(DEFAULT_SCHEMA)
                 .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
-            let mut entry = func.as_function_entry(oid, *schema_id);
-            entry.runtime_preference = func.runtime_preference();
 
+            let entry = func.as_function_entry(oid, *schema_id);
             insert_entry(oid, CatalogEntry::Function(entry))?;
+
             schema_objects
                 .get_mut(schema_id)
                 .unwrap()

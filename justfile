@@ -29,6 +29,14 @@ run *args: protoc
 build *args: protoc
   cargo build --bin glaredb {{args}}
 
+# Build glaredb with unstable_tokio flag.
+#
+# Need to run the local command with `--debug-tokio` argument.
+build-debug-tokio *args:
+  RUSTFLAGS="--cfg tokio_unstable" CARGO_TARGET_DIR=tokio-unstable-target just build {{args}}
+
+run-debug-tokio *args:
+  RUSTFLAGS="--cfg tokio_unstable" CARGO_TARGET_DIR=tokio-unstable-target just run {{args}}
 
 # A zip archive will be placed in `target/dist` containing the release binary.
 

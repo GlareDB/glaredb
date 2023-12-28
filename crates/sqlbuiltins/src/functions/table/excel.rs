@@ -25,8 +25,12 @@ impl ConstBuiltinFunction for ExcelScan {
 
 #[async_trait]
 impl TableFunc for ExcelScan {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Local
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        Ok(RuntimePreference::Local)
     }
 
     async fn create_provider(
