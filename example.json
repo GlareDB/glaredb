@@ -1,2 +1,23 @@
-{"station":"franklin ave", "services":["1","2","3","4","5","S"]}
-{"station":"Broadway–Lafayette Street/Bleecker Street","services":["B","D","F","M","6"]}
+[
+  {
+    "station": "franklin ave",
+    "services": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "S"
+    ]
+  },
+  {
+    "station": "Broadway–Lafayette Street/Bleecker Street",
+    "services": [
+      "B",
+      "D",
+      "F",
+      "M",
+      "6"
+    ]
+  }
+]

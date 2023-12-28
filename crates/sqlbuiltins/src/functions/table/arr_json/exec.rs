@@ -5,10 +5,12 @@ use bytes::Buf;
 use datafusion::{
     arrow::{
         array::{
-            Array, BooleanBuilder, Float64Builder, GenericListBuilder,
-            Int64Array, Int64Builder, NullBuilder, StringArray, StringBuilder, UInt64Builder,
+            Array, ArrayDataBuilder, ArrayRef, BooleanBufferBuilder, BooleanBuilder, BufferBuilder,
+            Float64Builder, GenericListArray, GenericListBuilder, Int64Array, Int64Builder,
+            NullBuilder, OffsetSizeTrait, StringArray, StringBuilder, UInt64Builder,
         },
-        datatypes::{DataType, Field, SchemaRef},
+        buffer::{Buffer, NullBuffer, OffsetBuffer, ScalarBuffer},
+        datatypes::{DataType, Field, SchemaRef, ToByteSlice},
         error::ArrowError,
         record_batch::RecordBatch,
     },
@@ -170,7 +172,7 @@ fn handle_nested_lists(field: &Arc<Field>, rows: &[Value]) -> Result<Arc<dyn Arr
             let mut builder: GenericListBuilder<i32, UInt64Builder> =
                 GenericListBuilder::with_capacity(UInt64Builder::new(), rows.len());
 
-            for row in rows.iter() {       
+            for row in rows.iter() {
                 let val: Option<u64> = row.as_u64();
                 builder.values().append_option(val);
             }
@@ -275,20 +277,73 @@ fn json_values_to_record_batch(
                 Arc::new(arr.finish())
             }
             DataType::List(arr_field) => {
-                let extracted_value = rows.iter().find_map(|row| {
-                    row.as_object()
-                        .and_then(|obj| obj.get(field.name()))
-                        .cloned()
-                });
+                let mut nulls = arr_field
+                    .is_nullable()
+                    .then(|| BooleanBufferBuilder::new(rows.len()));
+                let mut offsets = vec![0];
 
-                if let Some(Value::Array(mut array_value)) = extracted_value {
-                    if array_value.len() < rows.len() {
-                        array_value.resize(rows.len(), Value::Null);
+                let mut child_data = Vec::new();
+
+                for (idx, row) in rows.iter().enumerate() {
+                    println!("index {idx}======{:#?}", child_data);
+
+                    match (row.as_object().unwrap().get(field.name()), nulls.as_mut()) {
+                        (Some(val), None) => {
+                            let result =
+                                handle_nested_lists(arr_field, val.as_array().unwrap())?.to_data();
+
+                            let last_offset = *offsets.last().unwrap();
+                            offsets.push(last_offset + result.len() as i32);
+
+                            child_data.push(result);
+                        }
+                        (Some(val), Some(nulls)) => {
+                            nulls.append(true);
+                            let result =
+                                handle_nested_lists(arr_field, val.as_array().unwrap())?.to_data();
+
+                            let last_offset = *offsets.last().unwrap();
+                            offsets.push(last_offset + result.len() as i32);
+
+                            child_data.push(result);
+                        }
+                        (None, Some(nulls)) => nulls.append(false),
+                        _ => {
+                            return Err(ArrowError::JsonError(format!(
+                                "Invalid key for {:#?}",
+                                field.name()
+                            )))
+                        }
                     }
-                    handle_nested_lists(arr_field, &array_value)?
-                } else {
-                    return Err(ArrowError::JsonError("failed".to_string()));
                 }
+
+                let mut offset_buffer = BufferBuilder::<i32>::new(rows.len() + 1);
+                offset_buffer.append_slice(&offsets);
+
+                let nulls = nulls.as_mut().map(|x| NullBuffer::new(x.finish()));
+                let data = ArrayDataBuilder::new(field.data_type().clone())
+                    .len(rows.len())
+                    .nulls(nulls)
+                    .add_buffer(offset_buffer.finish())
+                    .child_data(child_data);
+
+                let arr: GenericListArray<i32> = GenericListArray::from(data.build()?);
+                Arc::new(arr) as ArrayRef
+
+                // let extracted_value = rows.iter().find_map(|row| {
+                //     row.as_object()
+                //         .and_then(|obj| obj.get(field.name()))
+                //         .cloned()
+                // });
+
+                // if let Some(Value::Array(mut array_value)) = extracted_value {
+                //     if array_value.len() < rows.len() {
+                //         array_value.resize(rows.len(), Value::Null);
+                //     }
+                //     handle_nested_lists(arr_field, &array_value)?
+                // } else {
+                //     return Err(ArrowError::JsonError("failed".to_string()));
+                // }
             }
 
             // TODO
@@ -301,7 +356,7 @@ fn json_values_to_record_batch(
                 )))
             }
         };
-       
+
         columns.push(col);
     }
     let batch = RecordBatch::try_new(schema, columns)?;
