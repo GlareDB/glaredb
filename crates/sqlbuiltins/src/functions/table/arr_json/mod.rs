@@ -19,9 +19,9 @@ use serde_json::Value;
 use exec::ArrayJsonExec;
 use schema::infer_schema_from_value;
 
+mod builder;
 mod exec;
 mod schema;
-mod builder;
 
 /// Format for array json
 #[derive(Debug, Clone)]

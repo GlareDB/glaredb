@@ -8,7 +8,12 @@
       "4",
       "5",
       "S"
-    ]
+    ],
+    "location": {
+      "address": "3, fire rd",
+      "code": 8039,
+      "city": "Lagos"
+    }
   },
   {
     "station": "Broadway–Lafayette Street/Bleecker Street",
@@ -18,6 +23,11 @@
       "F",
       "M",
       "6"
-    ]
+    ],
+    "location": {
+      "address": "6, fire rd",
+      "code": 899,
+      "city": "Abuja"
+    }
   }
 ]

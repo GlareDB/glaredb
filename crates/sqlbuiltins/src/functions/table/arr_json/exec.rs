@@ -6,8 +6,8 @@ use datafusion::{
     arrow::{
         array::{
             Array, ArrayDataBuilder, ArrayRef, BooleanBufferBuilder, BooleanBuilder, BufferBuilder,
-            Float64Builder, GenericListArray, Int64Builder,
-         StringBuilder, UInt64Builder,
+            Float64Builder, GenericListArray, Int64Builder, StringBuilder, StructBuilder,
+            UInt64Builder,
         },
         buffer::NullBuffer,
         datatypes::{DataType, SchemaRef},
@@ -31,7 +31,7 @@ use futures::StreamExt;
 use object_store::{GetResultPayload, ObjectStore};
 use serde_json::Value;
 
-use super::builder::ArrayBuilderVariant;
+use super::builder::create_child_builder;
 
 // TODO add metrics and output ordering
 /// Execution plan for scanning array json data source
@@ -189,29 +189,51 @@ fn json_values_to_record_batch(
                 }
                 Arc::new(arr.finish())
             }
+            // TODO work on structs with unequal lengths, i.e merge the schemas
+            DataType::Struct(fields) => {
+                let mut builder = StructBuilder::from_fields(fields.clone(), fields.len());
+
+                for row in rows {
+                    let row_value = &row[field.name()];
+                    for (idx, struct_field) in fields.into_iter().enumerate() {
+                        match &row_value[struct_field.name()] {
+                            Value::String(s) => {
+                                builder
+                                    .field_builder::<StringBuilder>(idx)
+                                    .unwrap()
+                                    .append_value(s);
+                            }
+                            Value::Number(n) => {
+                                // TODO handle u64 and i64. Do that by matching on n with the Number enum
+                                builder
+                                    .field_builder::<Int64Builder>(idx)
+                                    .unwrap()
+                                    .append_value(n.as_i64().unwrap());
+                            }
+                            Value::Bool(b) => {
+                                builder
+                                    .field_builder::<BooleanBuilder>(idx)
+                                    .unwrap()
+                                    .append_value(*b);
+                            }
+                            Value::Null => builder.append(false),
+                            // TODO nested lists and structs
+                            _ => unimplemented!(),
+                        };
+                    }
+                    builder.append(true);
+                }
+
+                Arc::new(builder.finish())
+            }
             DataType::List(arr_field) => {
                 let mut nulls = arr_field
                     .is_nullable()
                     .then(|| BooleanBufferBuilder::new(rows.len()));
                 let mut offsets = vec![0];
 
-                let mut child_builder = match arr_field.data_type() {
-                    DataType::Int64 => {
-                        ArrayBuilderVariant::Int64Builder(Int64Builder::with_capacity(rows.len()))
-                    }
-                    DataType::Float64 => ArrayBuilderVariant::Float64Builder(
-                        Float64Builder::with_capacity(rows.len()),
-                    ),
-                    DataType::Utf8 => ArrayBuilderVariant::StringBuilder(
-                        StringBuilder::with_capacity(rows.len(), rows.len() * 16),
-                    ),
-                    // Initialize other types
-                    _ => {
-                        return Err(ArrowError::JsonError(
-                            "This type is not supported yet".to_string(),
-                        ))
-                    }
-                };
+                // TODO look into using arrow's "make_builder" macro
+                let mut child_builder = create_child_builder(arr_field.data_type(), rows.len())?;
 
                 for row in rows.iter() {
                     match (row.as_object().unwrap().get(field.name()), nulls.as_mut()) {
