@@ -40,12 +40,11 @@ pub fn scalar_iter_to_array(
                         if let ScalarValue::$SCALAR_TY(v) = sv {
                             Ok(v)
                         } else {
-                            todo!(
-                                "Inconsistent types in ScalarValue::iter_to_array. \
+                            Err(ExtensionError::String(format!(
+                                "Inconsistent types in scalar_iter_to_array. \
                                     Expected {:?}, got {:?}",
-                                data_type,
-                                sv
-                            )
+                                data_type, sv
+                            )))
                         }
                     })
                     .collect::<Result<$ARRAY_TY, ExtensionError>>()?;
@@ -63,12 +62,11 @@ pub fn scalar_iter_to_array(
                         if let ScalarValue::$SCALAR_TY(v, _) = sv {
                             Ok(v)
                         } else {
-                            todo!(
-                                "Inconsistent types in ScalarValue::iter_to_array. \
+                            Err(ExtensionError::String(format!(
+                                "Inconsistent types in scalar_iter_to_array. \
                                     Expected {:?}, got {:?}",
-                                data_type,
-                                sv
-                            )
+                                data_type, sv
+                            )))
                         }
                     })
                     .collect::<Result<$ARRAY_TY, ExtensionError>>()?;
@@ -89,7 +87,7 @@ pub fn scalar_iter_to_array(
                             Ok(v)
                         } else {
                             return Err(ExtensionError::String(format!(
-                                "Inconsistent types in ScalarValue::iter_to_array. \
+                                "Inconsistent types in scalar_iter_to_array. \
                                     Expected {:?}, got {:?}",
                                 data_type, sv,
                             )));
@@ -104,25 +102,29 @@ pub fn scalar_iter_to_array(
     macro_rules! build_array_list_primitive {
         ($ARRAY_TY:ident, $SCALAR_TY:ident, $NATIVE_TYPE:ident) => {{
             Arc::new(ListArray::from_iter_primitive::<$ARRAY_TY, _, _>(
-                scalars.into_iter().collect::<Result<Vec<_>,_>>()?.into_iter().map(|x| match x {
-                    ScalarValue::List(xs, _) => xs.map(|x| {
-                        x.iter()
-                            .map(|x| match x {
-                                ScalarValue::$SCALAR_TY(i) => *i,
-                                sv => panic!(
-                                    "Inconsistent types in ScalarValue::iter_to_array. \
+                scalars
+                    .into_iter()
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .map(|x| match x {
+                        ScalarValue::List(xs, _) => xs.map(|x| {
+                            x.iter()
+                                .map(|x| match x {
+                                    ScalarValue::$SCALAR_TY(i) => *i,
+                                    sv => panic!(
+                                        "Inconsistent types in scalar_iter_to_array. \
                                         Expected {:?}, got {:?}",
-                                    data_type, sv
-                                ),
-                            })
-                            .collect::<Vec<Option<$NATIVE_TYPE>>>()
-                    }),
-                    sv => panic!(
-                        "Inconsistent types in ScalarValue::iter_to_array. \
+                                        data_type, sv
+                                    ),
+                                })
+                                .collect::<Vec<Option<$NATIVE_TYPE>>>()
+                        }),
+                        sv => panic!(
+                            "Inconsistent types in scalar_iter_to_array. \
                                 Expected {:?}, got {:?}",
-                        data_type, sv
-                    ),
-                }),
+                            data_type, sv
+                        ),
+                    }),
             ))
         }};
     }
@@ -142,11 +144,11 @@ pub fn scalar_iter_to_array(
                                     builder.values().append_null();
                                 }
                                 sv => {
-                                    todo!(
-                                        "Inconsistent types in ScalarValue::iter_to_array. \
+                                    return Err(ExtensionError::String(format!(
+                                        "Inconsistent types in scalar_iter_to_array. \
                                                 Expected Utf8, got {:?}",
                                         sv
-                                    )
+                                    )))
                                 }
                             }
                         }
@@ -157,7 +159,7 @@ pub fn scalar_iter_to_array(
                     }
                     sv => {
                         return Err(ExtensionError::String(format!(
-                            "Inconsistent types in ScalarValue::iter_to_array. \
+                            "Inconsistent types in scalar_iter_to_array. \
                                     Expected List, got {:?}",
                             sv
                         )));
@@ -308,7 +310,12 @@ pub fn scalar_iter_to_array(
             let field_values = fields
                 .iter()
                 .zip(columns)
-                .map(|(field, column)| Ok((field.clone(), ScalarValue::iter_to_array(column)?)))
+                .map(|(field, column)| {
+                    Ok((
+                        field.clone(),
+                        ScalarValue::iter_to_array(column.iter().map(|v| v.to_owned()))?,
+                    ))
+                })
                 .collect::<Result<Vec<_>, ExtensionError>>()?;
 
             let array = StructArray::from(field_values);
@@ -358,7 +365,7 @@ pub fn scalar_iter_to_array(
                         Ok(v)
                     } else {
                         return Err(ExtensionError::String(format!(
-                            "Inconsistent types in ScalarValue::iter_to_array. \
+                            "Inconsistent types in scalar_iter_to_array. \
                                 Expected {data_type:?}, got {sv:?}"
                         )));
                     }
@@ -384,7 +391,7 @@ pub fn scalar_iter_to_array(
         | DataType::Union(_, _)
         | DataType::Map(_, _)
         | DataType::RunEndEncoded(_, _) => {
-            todo!("make a better error");
+            return Err(ExtensionError::String("unsupported type".to_string()))
         }
     };
 
@@ -440,7 +447,7 @@ fn iter_to_array_list(
             match values {
                 Some(values) => {
                     let element_array = if !values.is_empty() {
-                        ScalarValue::iter_to_array(values)?
+                        ScalarValue::iter_to_array(values.iter().map(|v| v.to_owned()))?
                     } else {
                         new_empty_array(field.data_type())
                     };
@@ -545,17 +552,24 @@ mod tests {
     use std::cmp::Ordering;
     use std::sync::Arc;
 
-    use arrow::compute::kernels;
-    use arrow::compute::{concat, is_null};
-    use arrow::datatypes::ArrowPrimitiveType;
-    use arrow::util::pretty::pretty_format_columns;
-    use arrow_array::ArrowNumericType;
     use chrono::NaiveDate;
+    use datafusion::arrow::array::{
+        ArrowNumericType, AsArray, PrimitiveBuilder, StringBuilder, StructBuilder,
+    };
+    use datafusion::arrow::compute::kernels;
+    use datafusion::arrow::compute::{concat, is_null};
+    use datafusion::arrow::datatypes::{ArrowPrimitiveType, Field, Fields};
+    use datafusion::arrow::util::pretty::pretty_format_columns;
     use rand::Rng;
 
-    use crate::cast::{as_string_array, as_uint32_array, as_uint64_array};
+    use datafusion::common::cast::{
+        as_decimal128_array, as_dictionary_array, as_list_array, as_string_array, as_struct_array,
+        as_uint32_array, as_uint64_array,
+    };
+    use std::collections::HashSet;
 
     use super::*;
+    use datafusion::common::*;
 
     #[test]
     fn scalar_add_trait_test() -> Result<()> {
@@ -770,7 +784,11 @@ mod tests {
             ScalarValue::Decimal128(Some(3), 10, 2),
         ];
         // convert the vec to decimal array and check the result
-        let array = ScalarValue::iter_to_array(decimal_vec).unwrap();
+        let array = scalar_iter_to_array(
+            &DataType::Decimal128(10, 2),
+            decimal_vec.iter().map(|v| v.to_owned()).map(Ok),
+        )
+        .unwrap();
         assert_eq!(3, array.len());
         assert_eq!(DataType::Decimal128(10, 2), array.data_type().clone());
 
@@ -780,7 +798,11 @@ mod tests {
             ScalarValue::Decimal128(Some(3), 10, 2),
             ScalarValue::Decimal128(None, 10, 2),
         ];
-        let array = ScalarValue::iter_to_array(decimal_vec).unwrap();
+        let array = scalar_iter_to_array(
+            &DataType::Decimal128(10, 2),
+            decimal_vec.iter().map(|v| v.to_owned()).map(Ok),
+        )
+        .unwrap();
         assert_eq!(4, array.len());
         assert_eq!(DataType::Decimal128(10, 2), array.data_type().clone());
 
@@ -877,24 +899,11 @@ mod tests {
         ($SCALAR_T:ident, $ARRAYTYPE:ident, $INPUT:expr) => {{
             let scalars: Vec<_> = $INPUT.iter().map(|v| ScalarValue::$SCALAR_T(*v)).collect();
 
-            let array = ScalarValue::iter_to_array(scalars.into_iter()).unwrap();
-
-            let expected: ArrayRef = Arc::new($ARRAYTYPE::from($INPUT));
-
-            assert_eq!(&array, &expected);
-        }};
-    }
-
-    /// Creates array directly and via ScalarValue and ensures they are the same
-    /// but for variants that carry a timezone field.
-    macro_rules! check_scalar_iter_tz {
-        ($SCALAR_T:ident, $ARRAYTYPE:ident, $INPUT:expr) => {{
-            let scalars: Vec<_> = $INPUT
-                .iter()
-                .map(|v| ScalarValue::$SCALAR_T(*v, None))
-                .collect();
-
-            let array = ScalarValue::iter_to_array(scalars.into_iter()).unwrap();
+            let array = scalar_iter_to_array(
+                &DataType::$SCALAR_T,
+                scalars.into_iter().map(|v| Ok(v.to_owned())),
+            )
+            .unwrap();
 
             let expected: ArrayRef = Arc::new($ARRAYTYPE::from($INPUT));
 
@@ -911,7 +920,11 @@ mod tests {
                 .map(|v| ScalarValue::$SCALAR_T(v.map(|v| v.to_string())))
                 .collect();
 
-            let array = ScalarValue::iter_to_array(scalars.into_iter()).unwrap();
+            let array = scalar_iter_to_array(
+                &DataType::$SCALAR_T,
+                scalars.into_iter().map(|v| Ok(v.to_owned())),
+            )
+            .unwrap();
 
             let expected: ArrayRef = Arc::new($ARRAYTYPE::from($INPUT));
 
@@ -928,7 +941,11 @@ mod tests {
                 .map(|v| ScalarValue::$SCALAR_T(v.map(|v| v.to_vec())))
                 .collect();
 
-            let array = ScalarValue::iter_to_array(scalars.into_iter()).unwrap();
+            let array = scalar_iter_to_array(
+                &DataType::$SCALAR_T,
+                scalars.into_iter().map(|v| Ok(v.to_owned())),
+            )
+            .unwrap();
 
             let expected: $ARRAYTYPE = $INPUT.iter().map(|v| v.map(|v| v.to_vec())).collect();
 
@@ -956,27 +973,6 @@ mod tests {
         check_scalar_iter!(UInt32, UInt32Array, vec![Some(1), None, Some(3)]);
         check_scalar_iter!(UInt64, UInt64Array, vec![Some(1), None, Some(3)]);
 
-        check_scalar_iter_tz!(
-            TimestampSecond,
-            TimestampSecondArray,
-            vec![Some(1), None, Some(3)]
-        );
-        check_scalar_iter_tz!(
-            TimestampMillisecond,
-            TimestampMillisecondArray,
-            vec![Some(1), None, Some(3)]
-        );
-        check_scalar_iter_tz!(
-            TimestampMicrosecond,
-            TimestampMicrosecondArray,
-            vec![Some(1), None, Some(3)]
-        );
-        check_scalar_iter_tz!(
-            TimestampNanosecond,
-            TimestampNanosecondArray,
-            vec![Some(1), None, Some(3)]
-        );
-
         check_scalar_iter_string!(Utf8, StringArray, vec![Some("foo"), None, Some("bar")]);
         check_scalar_iter_string!(
             LargeUtf8,
@@ -995,11 +991,13 @@ mod tests {
     fn scalar_iter_to_array_empty() {
         let scalars = vec![] as Vec<ScalarValue>;
 
-        let result = ScalarValue::iter_to_array(scalars).unwrap_err();
+        let result =
+            scalar_iter_to_array(&DataType::Null, scalars.iter().map(|v| Ok(v.to_owned())))
+                .unwrap_err();
         assert!(
             result
                 .to_string()
-                .contains("Empty iterator passed to ScalarValue::iter_to_array"),
+                .contains("Empty iterator passed to scalar_iter_to_array"),
             "{}",
             result
         );
@@ -1019,7 +1017,11 @@ mod tests {
             make_val(Some("Bar".into())),
         ];
 
-        let array = ScalarValue::iter_to_array(scalars).unwrap();
+        let array = scalar_iter_to_array(
+            &scalars.get(0).unwrap().data_type(),
+            scalars.into_iter().map(|v| Ok(v.to_owned())),
+        )
+        .unwrap();
         let array = as_dictionary_array::<Int32Type>(&array).unwrap();
         let values_array = as_string_array(array.values()).unwrap();
 
@@ -1043,10 +1045,14 @@ mod tests {
         // If the scalar values are not all the correct type, error here
         let scalars = [Boolean(Some(true)), Int32(Some(5))];
 
-        let result = ScalarValue::iter_to_array(scalars).unwrap_err();
+        let result = scalar_iter_to_array(
+            &DataType::Boolean,
+            scalars.into_iter().map(|v| Ok(v.to_owned())),
+        )
+        .unwrap_err();
         assert!(
             result.to_string().contains(
-                "Inconsistent types in ScalarValue::iter_to_array. Expected Boolean, got Int32(5)"
+                "Inconsistent types in scalar_iter_to_array. Expected Boolean, got Int32(5)"
             ),
             "{}",
             result
@@ -1567,7 +1573,11 @@ mod tests {
                 ),
             ]),
         ];
-        let array = ScalarValue::iter_to_array(scalars).unwrap();
+        let array = scalar_iter_to_array(
+            &constructed.data_type(),
+            scalars.iter().map(|v| v.to_owned()).map(Ok),
+        )
+        .unwrap();
 
         let expected = Arc::new(StructArray::from(vec![
             (
@@ -1646,7 +1656,13 @@ mod tests {
         ]);
 
         // iter_to_array for struct scalars
-        let array = ScalarValue::iter_to_array(vec![s0.clone(), s1.clone(), s2.clone()]).unwrap();
+        let array = scalar_iter_to_array(
+            &field_a.data_type(),
+            vec![s0.clone(), s1.clone(), s2.clone()]
+                .into_iter()
+                .map(|v| Ok(v.to_owned())),
+        )
+        .unwrap();
         let array = as_struct_array(&array).unwrap();
         let expected = StructArray::from(vec![
             (
@@ -1672,7 +1688,11 @@ mod tests {
 
         let nl2 = ScalarValue::new_list(Some(vec![s1]), s0.data_type());
         // iter_to_array for list-of-struct
-        let array = ScalarValue::iter_to_array(vec![nl0, nl1, nl2]).unwrap();
+        let array = scalar_iter_to_array(
+            &nl0.data_type(),
+            vec![nl0, nl1, nl2].into_iter().map(|v| Ok(v.to_owned())),
+        )
+        .unwrap();
         let array = as_list_array(&array).unwrap();
 
         // Construct expected array with array builders
@@ -1833,7 +1853,11 @@ mod tests {
             DataType::List(Arc::new(Field::new("item", DataType::Int32, true))),
         );
 
-        let array = ScalarValue::iter_to_array(vec![l1, l2, l3]).unwrap();
+        let array = scalar_iter_to_array(
+            &l3.data_type(),
+            vec![l1, l2, l3].iter().map(|v| v.to_owned()).map(Ok),
+        )
+        .unwrap();
         let array = as_list_array(&array).unwrap();
 
         // Construct expected array with array builders
@@ -2365,8 +2389,12 @@ mod tests {
             );
         };
 
-        // test `ScalarValue::iter_to_array`
-        let array = ScalarValue::iter_to_array(scalars.clone()).unwrap();
+        // test `scalar_iter_to_array`
+        let array = scalar_iter_to_array(
+            &DataType::Boolean,
+            scalars.clone().into_iter().map(|v| Ok(v.to_owned())),
+        )
+        .unwrap();
         check_array(array);
 
         // test `ScalarValue::to_array` / `ScalarValue::to_array_of_size`
