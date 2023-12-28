@@ -24,10 +24,18 @@ use std::sync::Arc;
 use crate::errors::ExtensionError;
 
 pub fn scalar_iter_to_array(
-    data_type: &DataType,
     scalars: impl IntoIterator<Item = Result<ScalarValue, ExtensionError>>,
 ) -> Result<ArrayRef, ExtensionError> {
-    let scalars = scalars.into_iter();
+    let mut scalars = scalars.into_iter().peekable();
+    let data_type = match scalars.peek().as_ref() {
+        Some(Ok(res)) => res.data_type(),
+        Some(Err(e)) => return Err(ExtensionError::String(e.to_string())),
+        None => {
+            return Err(ExtensionError::String(
+                "cannot produce empty value".to_string(),
+            ))
+        }
+    };
 
     /// Creates an array of $ARRAY_TY by unpacking values of
     /// SCALAR_TY for primitive types
@@ -266,9 +274,9 @@ pub fn scalar_iter_to_array(
         DataType::List(fields) if fields.data_type() == &DataType::LargeUtf8 => {
             build_array_list_string!(LargeStringBuilder, LargeUtf8)
         }
-        DataType::List(_) => {
+        DataType::List(field) => {
             // Fallback case handling homogeneous lists with any ScalarValue element type
-            let list_array = iter_to_array_list(scalars, &data_type)?;
+            let list_array = iter_to_array_list(field.data_type(), scalars)?;
             Arc::new(list_array)
         }
         DataType::Struct(fields) => {
@@ -364,10 +372,10 @@ pub fn scalar_iter_to_array(
                     if let ScalarValue::FixedSizeBinary(_, v) = sv {
                         Ok(v)
                     } else {
-                        return Err(ExtensionError::String(format!(
+                        Err(ExtensionError::String(format!(
                             "Inconsistent types in scalar_iter_to_array. \
                                 Expected {data_type:?}, got {sv:?}"
-                        )));
+                        )))
                     }
                 })
                 .collect::<Result<Vec<_>, ExtensionError>>()?;
@@ -432,8 +440,8 @@ fn dict_from_values<K: ArrowDictionaryKeyType>(
 }
 
 fn iter_to_array_list(
-    scalars: impl IntoIterator<Item = Result<ScalarValue, ExtensionError>>,
     data_type: &DataType,
+    scalars: impl IntoIterator<Item = Result<ScalarValue, ExtensionError>>,
 ) -> Result<GenericListArray<i32>, ExtensionError> {
     let mut offsets = Int32Array::builder(0);
     offsets.append_value(0);
@@ -782,11 +790,7 @@ mod tests {
             ScalarValue::Decimal128(Some(3), 10, 2),
         ];
         // convert the vec to decimal array and check the result
-        let array = scalar_iter_to_array(
-            &DataType::Decimal128(10, 2),
-            decimal_vec.iter().map(|v| v.to_owned()).map(Ok),
-        )
-        .unwrap();
+        let array = scalar_iter_to_array(decimal_vec.iter().map(|v| v.to_owned()).map(Ok)).unwrap();
         assert_eq!(3, array.len());
         assert_eq!(DataType::Decimal128(10, 2), array.data_type().clone());
 
@@ -796,11 +800,7 @@ mod tests {
             ScalarValue::Decimal128(Some(3), 10, 2),
             ScalarValue::Decimal128(None, 10, 2),
         ];
-        let array = scalar_iter_to_array(
-            &DataType::Decimal128(10, 2),
-            decimal_vec.iter().map(|v| v.to_owned()).map(Ok),
-        )
-        .unwrap();
+        let array = scalar_iter_to_array(decimal_vec.iter().map(|v| v.to_owned()).map(Ok)).unwrap();
         assert_eq!(4, array.len());
         assert_eq!(DataType::Decimal128(10, 2), array.data_type().clone());
 
@@ -897,11 +897,8 @@ mod tests {
         ($SCALAR_T:ident, $ARRAYTYPE:ident, $INPUT:expr) => {{
             let scalars: Vec<_> = $INPUT.iter().map(|v| ScalarValue::$SCALAR_T(*v)).collect();
 
-            let array = scalar_iter_to_array(
-                &DataType::$SCALAR_T,
-                scalars.into_iter().map(|v| Ok(v.to_owned())),
-            )
-            .unwrap();
+            let array =
+                scalar_iter_to_array(scalars.into_iter().map(|v| Ok(v.to_owned()))).unwrap();
 
             let expected: ArrayRef = Arc::new($ARRAYTYPE::from($INPUT));
 
@@ -918,11 +915,8 @@ mod tests {
                 .map(|v| ScalarValue::$SCALAR_T(v.map(|v| v.to_string())))
                 .collect();
 
-            let array = scalar_iter_to_array(
-                &DataType::$SCALAR_T,
-                scalars.into_iter().map(|v| Ok(v.to_owned())),
-            )
-            .unwrap();
+            let array =
+                scalar_iter_to_array(scalars.into_iter().map(|v| Ok(v.to_owned()))).unwrap();
 
             let expected: ArrayRef = Arc::new($ARRAYTYPE::from($INPUT));
 
@@ -939,11 +933,8 @@ mod tests {
                 .map(|v| ScalarValue::$SCALAR_T(v.map(|v| v.to_vec())))
                 .collect();
 
-            let array = scalar_iter_to_array(
-                &DataType::$SCALAR_T,
-                scalars.into_iter().map(|v| Ok(v.to_owned())),
-            )
-            .unwrap();
+            let array =
+                scalar_iter_to_array(scalars.into_iter().map(|v| Ok(v.to_owned()))).unwrap();
 
             let expected: $ARRAYTYPE = $INPUT.iter().map(|v| v.map(|v| v.to_vec())).collect();
 
@@ -999,11 +990,7 @@ mod tests {
             make_val(Some("Bar".into())),
         ];
 
-        let array = scalar_iter_to_array(
-            &scalars.get(0).unwrap().data_type(),
-            scalars.into_iter().map(|v| Ok(v.to_owned())),
-        )
-        .unwrap();
+        let array = scalar_iter_to_array(scalars.into_iter().map(|v| Ok(v.to_owned()))).unwrap();
         let array = as_dictionary_array::<Int32Type>(&array).unwrap();
         let values_array = as_string_array(array.values()).unwrap();
 
@@ -1027,11 +1014,8 @@ mod tests {
         // If the scalar values are not all the correct type, error here
         let scalars = [Boolean(Some(true)), Int32(Some(5))];
 
-        let result = scalar_iter_to_array(
-            &DataType::Boolean,
-            scalars.into_iter().map(|v| Ok(v.to_owned())),
-        )
-        .unwrap_err();
+        let result =
+            scalar_iter_to_array(scalars.into_iter().map(|v| Ok(v.to_owned()))).unwrap_err();
         assert!(
             result.to_string().contains(
                 "Inconsistent types in scalar_iter_to_array. Expected Boolean, got Int32(5)"
@@ -1555,11 +1539,7 @@ mod tests {
                 ),
             ]),
         ];
-        let array = scalar_iter_to_array(
-            &constructed.data_type(),
-            scalars.iter().map(|v| v.to_owned()).map(Ok),
-        )
-        .unwrap();
+        let array = scalar_iter_to_array(scalars.iter().map(|v| v.to_owned()).map(Ok)).unwrap();
 
         let expected = Arc::new(StructArray::from(vec![
             (
@@ -1639,7 +1619,6 @@ mod tests {
 
         // iter_to_array for struct scalars
         let array = scalar_iter_to_array(
-            &s0.data_type(),
             vec![s0.clone(), s1.clone(), s2.clone()]
                 .into_iter()
                 .map(|v| Ok(v.to_owned())),
@@ -1670,11 +1649,8 @@ mod tests {
 
         let nl2 = ScalarValue::new_list(Some(vec![s1]), s0.data_type());
         // iter_to_array for list-of-struct
-        let array = scalar_iter_to_array(
-            &nl0.data_type(),
-            vec![nl0, nl1, nl2].into_iter().map(|v| Ok(v.to_owned())),
-        )
-        .unwrap();
+        let array = scalar_iter_to_array(vec![nl0, nl1, nl2].into_iter().map(|v| Ok(v.to_owned())))
+            .unwrap();
         let array = as_list_array(&array).unwrap();
 
         // Construct expected array with array builders
@@ -1835,11 +1811,8 @@ mod tests {
             DataType::List(Arc::new(Field::new("item", DataType::Int32, true))),
         );
 
-        let array = scalar_iter_to_array(
-            &l3.data_type(),
-            vec![l1, l2, l3].iter().map(|v| v.to_owned()).map(Ok),
-        )
-        .unwrap();
+        let array =
+            scalar_iter_to_array(vec![l1, l2, l3].iter().map(|v| v.to_owned()).map(Ok)).unwrap();
         let array = as_list_array(&array).unwrap();
 
         // Construct expected array with array builders

@@ -65,7 +65,6 @@ fn get_nth_scalar_value(
         Some(input) => match input {
             ColumnarValue::Scalar(scalar) => Ok(ColumnarValue::Scalar(op(scalar.clone())?)),
             ColumnarValue::Array(arr) => Ok(ColumnarValue::Array(scalar_iter_to_array(
-                arr.data_type(),
                 (0..arr.len()).map(|idx| -> Result<ScalarValue, ExtensionError> {
                     Ok(op(ScalarValue::try_from_array(arr, idx)?)?)
                 }),
