@@ -341,6 +341,11 @@ pub(crate) async fn get_virtual_lister_for_external_db(
             let state = access.connect().await.map_err(ExtensionError::access)?;
             Box::new(state)
         }
+        DatabaseOptions::Clickhouse(_) => {
+            return Err(ExtensionError::Unimplemented(
+                "Clickhouse information listing",
+            ))
+        }
         DatabaseOptions::Delta(_) => {
             return Err(ExtensionError::Unimplemented(
                 "deltalake information listing",

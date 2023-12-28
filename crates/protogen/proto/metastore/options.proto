@@ -46,8 +46,9 @@ message DatabaseOptions {
     DatabaseOptionsSnowflake snowflake = 7;
     DatabaseOptionsDeltaLake delta = 8;
     DatabaseOptionsSqlServer sql_server = 9;
+    DatabaseOptionsClickhouse clickhouse = 10;
   }
-  // next: 10
+  // next: 11
 }
 
 message DatabaseOptionsInternal {}
@@ -72,6 +73,10 @@ message DatabaseOptionsMongo {
 }
 
 message DatabaseOptionsSqlServer {
+  string connection_string = 1;
+}
+
+message DatabaseOptionsClickhouse {
   string connection_string = 1;
 }
 
@@ -122,8 +127,9 @@ message TableOptions {
     TableOptionsSqlServer sql_server = 14;
     TableOptionsObjectStore lance = 15;
     TableOptionsObjectStore bson = 16;
+    TableOptionsClickhouse clickhouse = 17;
   }
-  // next: 17
+  // next: 18
 }
 
 message TableOptionsInternal {
@@ -216,6 +222,11 @@ message TableOptionsSqlServer {
   string connection_string = 1;
   string schema = 2;
   string table = 3;
+}
+
+message TableOptionsClickhouse {
+  string connection_string = 1;
+  string table = 2;
 }
 
 // Tunnel options

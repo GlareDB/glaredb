@@ -1,6 +1,7 @@
 //! Data source implementations.
 pub mod bigquery;
 pub mod bson;
+pub mod clickhouse;
 pub mod common;
 pub mod debug;
 pub mod excel;

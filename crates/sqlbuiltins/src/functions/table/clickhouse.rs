@@ -7,24 +7,25 @@ use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
+use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider};
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
 use super::TableFunc;
 use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
-pub struct ReadPostgres;
+pub struct ReadClickhouse;
 
-impl ConstBuiltinFunction for ReadPostgres {
-    const NAME: &'static str = "read_postgres";
-    const DESCRIPTION: &'static str = "Read a Postgres table";
+impl ConstBuiltinFunction for ReadClickhouse {
+    const NAME: &'static str = "read_clickhouse";
+    const DESCRIPTION: &'static str = "Read a Clickhouse table";
     const EXAMPLE: &'static str =
-        "SELECT * FROM read_postgres('postgres://localhost:5432', 'database', 'table')";
+        "SELECT * FROM read_clickhouse('clickhouse://user:password@localhost:9000/database', 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
-            3,
+            2,
             vec![DataType::Utf8],
             Volatility::Stable,
         ))
@@ -32,7 +33,7 @@ impl ConstBuiltinFunction for ReadPostgres {
 }
 
 #[async_trait]
-impl TableFunc for ReadPostgres {
+impl TableFunc for ReadClickhouse {
     fn detect_runtime(
         &self,
         _args: &[FuncParamValue],
@@ -48,19 +49,13 @@ impl TableFunc for ReadPostgres {
         _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
-            3 => {
+            2 => {
                 let mut args = args.into_iter();
-                let conn_str: String = args.next().unwrap().try_into()?;
-                let schema: String = args.next().unwrap().try_into()?;
+                let conn_string: String = args.next().unwrap().try_into()?;
                 let table: String = args.next().unwrap().try_into()?;
 
-                let access = PostgresAccess::new_from_conn_str(conn_str, None);
-                let prov_conf = PostgresTableProviderConfig {
-                    access,
-                    schema,
-                    table,
-                };
-                let prov = PostgresTableProvider::try_new(prov_conf)
+                let access = ClickhouseAccess::new_from_connection_string(conn_string);
+                let prov = ClickhouseTableProvider::try_new(access, &table)
                     .await
                     .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
