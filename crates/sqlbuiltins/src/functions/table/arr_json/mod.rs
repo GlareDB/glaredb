@@ -95,8 +95,6 @@ impl FileFormat for ArrayJsonFormat {
                 }
             };
 
-            println!("{:#?}", schema);
-
             schemas.push(schema);
         }
 
