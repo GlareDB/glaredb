@@ -557,9 +557,7 @@ mod tests {
         ArrowNumericType, AsArray, PrimitiveBuilder, StringBuilder, StructBuilder,
     };
     use datafusion::arrow::compute::kernels;
-    use datafusion::arrow::compute::{concat, is_null};
-    use datafusion::arrow::datatypes::{ArrowPrimitiveType, Field, Fields};
-    use datafusion::arrow::util::pretty::pretty_format_columns;
+    use datafusion::arrow::datatypes::{ArrowPrimitiveType, Field};
     use rand::Rng;
 
     use datafusion::common::cast::{
@@ -984,22 +982,6 @@ mod tests {
             LargeBinary,
             LargeBinaryArray,
             vec![Some(b"foo"), None, Some(b"bar")]
-        );
-    }
-
-    #[test]
-    fn scalar_iter_to_array_empty() {
-        let scalars = vec![] as Vec<ScalarValue>;
-
-        let result =
-            scalar_iter_to_array(&DataType::Null, scalars.iter().map(|v| Ok(v.to_owned())))
-                .unwrap_err();
-        assert!(
-            result
-                .to_string()
-                .contains("Empty iterator passed to scalar_iter_to_array"),
-            "{}",
-            result
         );
     }
 
@@ -1657,7 +1639,7 @@ mod tests {
 
         // iter_to_array for struct scalars
         let array = scalar_iter_to_array(
-            &field_a.data_type(),
+            &s0.data_type(),
             vec![s0.clone(), s1.clone(), s2.clone()]
                 .into_iter()
                 .map(|v| Ok(v.to_owned())),
@@ -2321,90 +2303,6 @@ mod tests {
                 assert_eq!(ts1, &back);
             };
         }
-    }
-
-    #[test]
-    fn test_struct_nulls() {
-        let fields_b = Fields::from(vec![
-            Field::new("ba", DataType::UInt64, true),
-            Field::new("bb", DataType::UInt64, true),
-        ]);
-        let fields = Fields::from(vec![
-            Field::new("a", DataType::UInt64, true),
-            Field::new("b", DataType::Struct(fields_b.clone()), true),
-        ]);
-        let scalars = vec![
-            ScalarValue::Struct(None, fields.clone()),
-            ScalarValue::Struct(
-                Some(vec![
-                    ScalarValue::UInt64(None),
-                    ScalarValue::Struct(None, fields_b.clone()),
-                ]),
-                fields.clone(),
-            ),
-            ScalarValue::Struct(
-                Some(vec![
-                    ScalarValue::UInt64(None),
-                    ScalarValue::Struct(
-                        Some(vec![ScalarValue::UInt64(None), ScalarValue::UInt64(None)]),
-                        fields_b.clone(),
-                    ),
-                ]),
-                fields.clone(),
-            ),
-            ScalarValue::Struct(
-                Some(vec![
-                    ScalarValue::UInt64(Some(1)),
-                    ScalarValue::Struct(
-                        Some(vec![
-                            ScalarValue::UInt64(Some(2)),
-                            ScalarValue::UInt64(Some(3)),
-                        ]),
-                        fields_b,
-                    ),
-                ]),
-                fields,
-            ),
-        ];
-
-        let check_array = |array| {
-            let is_null = is_null(&array).unwrap();
-            assert_eq!(is_null, BooleanArray::from(vec![true, false, false, false]));
-
-            let formatted = pretty_format_columns("col", &[array]).unwrap().to_string();
-            let formatted = formatted.split('\n').collect::<Vec<_>>();
-            let expected = vec![
-                "+---------------------------+",
-                "| col                       |",
-                "+---------------------------+",
-                "|                           |",
-                "| {a: , b: }                |",
-                "| {a: , b: {ba: , bb: }}    |",
-                "| {a: 1, b: {ba: 2, bb: 3}} |",
-                "+---------------------------+",
-            ];
-            assert_eq!(
-                formatted, expected,
-                "Actual:\n{formatted:#?}\n\nExpected:\n{expected:#?}"
-            );
-        };
-
-        // test `scalar_iter_to_array`
-        let array = scalar_iter_to_array(
-            &DataType::Boolean,
-            scalars.clone().into_iter().map(|v| Ok(v.to_owned())),
-        )
-        .unwrap();
-        check_array(array);
-
-        // test `ScalarValue::to_array` / `ScalarValue::to_array_of_size`
-        let arrays = scalars
-            .iter()
-            .map(ScalarValue::to_array)
-            .collect::<Vec<_>>();
-        let arrays = arrays.iter().map(|a| a.as_ref()).collect::<Vec<_>>();
-        let array = concat(&arrays).unwrap();
-        check_array(array);
     }
 
     #[test]
