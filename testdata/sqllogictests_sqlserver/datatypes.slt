@@ -1,0 +1,17 @@
+# Test if the datasource supports the different datatypes (and NULLs).
+
+# Create an external table that connects to the datatypes table.
+statement ok
+CREATE EXTERNAL TABLE datatypes
+	FROM sql_server
+	OPTIONS (
+		connection_string = '${SQL_SERVER_CONN_STRING}',
+		schema = 'dbo',
+		table = 'datatypes'
+	);
+
+query I
+SELECT * FROM datatypes;
+----
+t  1  2  3  4  4.5  6.7  a  b  cde  fghi  text  moretext  \x78  \x616263  1999-09-16 16:33:00  1999-09-16 16:32:34  1999-09-16 16:32:34  1999-09-16 16:32:34.53+00
+NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL
