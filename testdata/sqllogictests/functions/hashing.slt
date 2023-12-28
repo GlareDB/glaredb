@@ -1,0 +1,108 @@
+statement error
+select siphash(1, 2, 3);
+
+statement error
+select siphash(1, 2);
+
+statement ok
+select siphash(1);
+
+statement ok
+select siphash('000');
+
+statement ok
+select siphash(9001);
+
+statement ok
+select siphash(true);
+
+
+statement error
+select fnv(1, 2, 3);
+
+statement error
+select fnv(1, 2);
+
+statement ok
+select fnv(1);
+
+statement ok
+select fnv('000');
+
+statement ok
+select fnv(9001);
+
+statement ok
+select fnv(true);
+
+query I
+select siphash();
+----
+13715208377448023093
+
+query I
+select siphash(42);
+----
+8315904219845249920
+
+query I
+select siphash(3000);
+----
+14490819164275330428
+
+query I
+select siphash('42');
+----
+8771948186893062792
+
+query I
+select siphash([0, 100, 100, 300, 500, 800]);
+----
+3773389192103504674
+
+query I
+select fnv();
+----
+12478008331234465636
+
+query I
+select fnv(42);
+----
+10346157209210711374
+
+query I
+select fnv(3000);
+----
+4500112066730064389
+
+query I
+select fnv('42');
+----
+16857446072837519227
+
+query I
+select fnv([0, 100, 100, 300, 500, 800]);
+----
+16366770854503053831
+
+# rerun some earlier cases to ensure we're not accidentally stateful
+
+query I
+select fnv();
+----
+12478008331234465636
+
+query I
+select fnv('42');
+----
+16857446072837519227
+
+query I
+select siphash();
+----
+13715208377448023093
+
+query I
+select siphash('42');
+----
+8771948186893062792
