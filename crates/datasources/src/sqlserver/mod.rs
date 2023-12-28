@@ -2,11 +2,10 @@ pub mod errors;
 
 mod client;
 
-use chrono::{DateTime, Utc};
-use client::{Client, QueryStream};
-
 use async_trait::async_trait;
 use chrono::naive::NaiveDateTime;
+use chrono::{DateTime, Utc};
+use client::{Client, QueryStream};
 use datafusion::arrow::datatypes::{
     DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
@@ -28,17 +27,20 @@ use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{Result, SqlServerError};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
-use std::any::Any;
-use std::fmt;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-use std::time::Duration;
 use tiberius::FromSql;
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tracing::warn;
+
+use std::any::Any;
+use std::fmt::{self, Write};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+use std::time::Duration;
+
+use crate::common::util;
 
 /// Timeout when attempting to connecting to the remote server.
 pub const CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
@@ -293,7 +295,7 @@ impl TableProvider for SqlServerTableProvider {
         &self,
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
+        filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // Project the schema.
@@ -316,10 +318,17 @@ impl TableProvider for SqlServerTableProvider {
             None => String::new(),
         };
 
-        // TODO: Where/filters
+        let predicate_string = exprs_to_predicate_string(filters)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+        let predicate_string = if predicate_string.is_empty() {
+            predicate_string
+        } else {
+            format!("WHERE {predicate_string}")
+        };
 
         let query = format!(
-            "SELECT {projection_string} FROM {}.{} {limit_string}",
+            "SELECT {projection_string} FROM {}.{} {predicate_string} {limit_string}",
             self.schema, self.table
         );
 
@@ -341,6 +350,76 @@ impl TableProvider for SqlServerTableProvider {
             "inserts not yet supported for SQL Server".to_string(),
         ))
     }
+}
+
+/// Convert filtering expressions to a predicate string usable with the
+/// generated SQL Server query.
+fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
+    let mut ss = Vec::new();
+    let mut buf = String::new();
+    for expr in exprs {
+        if try_write_expr(expr, &mut buf)? {
+            ss.push(buf);
+            buf = String::new();
+        }
+    }
+
+    Ok(ss.join(" AND "))
+}
+
+/// Try to write the expression to the string, returning true if it was written.
+fn try_write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
+    match expr {
+        Expr::Column(col) => {
+            write!(buf, "{}", col)?;
+        }
+        Expr::Literal(val) => {
+            util::encode_literal_to_text(util::Datasource::SqlServer, buf, val)?;
+        }
+        Expr::IsNull(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS NULL")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsNotNull(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS NOT NULL")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsTrue(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS TRUE")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsFalse(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS FALSE")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::BinaryExpr(binary) => {
+            if !try_write_expr(binary.left.as_ref(), buf)? {
+                return Ok(false);
+            }
+            write!(buf, " {} ", binary.op)?;
+            if !try_write_expr(binary.right.as_ref(), buf)? {
+                return Ok(false);
+            }
+        }
+        _ => {
+            // Unsupported.
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
 }
 
 /// Execution plan for reading from SQL Server.
