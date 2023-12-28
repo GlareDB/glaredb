@@ -156,7 +156,7 @@ message SchemaEntry {
 message TableEntry {
   EntryMeta meta = 1;
 
-  reserved 2; // Column fields
+  reserved 2;  // Column fields
 
   options.TableOptions options = 3;
   optional uint32 tunnel_id = 4;
@@ -202,7 +202,7 @@ message FunctionEntry {
 
   EntryMeta meta = 1;
   FunctionType func_type = 2;
-  reserved 3; // Function runtime preference (static)
+  reserved 3;  // Function runtime preference (static)
   Signature signature = 4;
 }
 

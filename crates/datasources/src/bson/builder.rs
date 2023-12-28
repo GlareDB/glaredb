@@ -5,9 +5,10 @@ use std::sync::Arc;
 use bitvec::{order::Lsb0, vec::BitVec};
 use bson::{RawBsonRef, RawDocument};
 use datafusion::arrow::array::{
-    Array, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanBuilder, Decimal128Builder,
-    Float64Builder, Int32Builder, Int64Builder, StringBuilder, StructArray,
-    TimestampMicrosecondBuilder, TimestampMillisecondBuilder,
+    Array, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanBuilder, Date32Builder, Date64Builder,
+    Decimal128Builder, Float64Builder, Int32Builder, Int64Builder, LargeBinaryBuilder,
+    LargeStringBuilder, StringBuilder, StructArray, TimestampMicrosecondBuilder,
+    TimestampMillisecondBuilder, TimestampSecondBuilder,
 };
 use datafusion::arrow::datatypes::{DataType, Field, Fields, TimeUnit};
 
@@ -182,13 +183,10 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
     // So robust
     match (val, typ) {
         // Boolean
-        (RawBsonRef::Boolean(v), DataType::Boolean) => {
-            append_scalar!(BooleanBuilder, col, v)
-        }
+        (RawBsonRef::Boolean(v), DataType::Boolean) => append_scalar!(BooleanBuilder, col, v),
         (RawBsonRef::Boolean(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
         }
-
         // Double
         (RawBsonRef::Double(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
         (RawBsonRef::Double(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),
@@ -214,6 +212,8 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
         }
 
         // String
+        (RawBsonRef::String(v), DataType::Utf8) => append_scalar!(StringBuilder, col, v),
+        (RawBsonRef::String(v), DataType::LargeUtf8) => append_scalar!(LargeStringBuilder, col, v),
         (RawBsonRef::String(v), DataType::Boolean) => {
             append_scalar!(BooleanBuilder, col, v.parse().unwrap_or_default())
         }
@@ -226,30 +226,60 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
         (RawBsonRef::String(v), DataType::Float64) => {
             append_scalar!(Float64Builder, col, v.parse().unwrap_or_default())
         }
-        (RawBsonRef::String(v), DataType::Utf8) => {
-            append_scalar!(StringBuilder, col, v)
-        }
 
         // Binary
         (RawBsonRef::Binary(v), DataType::Binary) => append_scalar!(BinaryBuilder, col, v.bytes),
+        (RawBsonRef::Binary(v), DataType::LargeBinary) => {
+            append_scalar!(LargeBinaryBuilder, col, v.bytes)
+        }
 
         // Object id
+        (RawBsonRef::ObjectId(v), DataType::Binary) => {
+            append_scalar!(BinaryBuilder, col, v.bytes())
+        }
         (RawBsonRef::ObjectId(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
         }
 
-        // Timestamp
+        // Timestamp (internal mongodb type; second specified)
+        (RawBsonRef::Timestamp(v), DataType::Timestamp(TimeUnit::Second, _)) => {
+            append_scalar!(TimestampSecondBuilder, col, v.time as i64)
+        }
+        (RawBsonRef::Timestamp(v), DataType::Timestamp(TimeUnit::Millisecond, _)) => {
+            append_scalar!(TimestampSecondBuilder, col, v.time as i64 * 1000)
+        }
         (RawBsonRef::Timestamp(v), DataType::Timestamp(TimeUnit::Microsecond, _)) => {
-            append_scalar!(TimestampMicrosecondBuilder, col, v.time as i64) // TODO: Possibly change to nanosecond.
+            append_scalar!(TimestampSecondBuilder, col, v.time as i64 * 1000 * 1000)
+        }
+        (RawBsonRef::Timestamp(v), DataType::Date64) => {
+            append_scalar!(Date64Builder, col, v.time as i64 * 1000)
+        }
+        (RawBsonRef::Timestamp(v), DataType::Date32) => {
+            append_scalar!(
+                Date32Builder,
+                col,
+                v.time
+                    .try_into()
+                    .map_err(|_| BsonError::UnhandledElementType(
+                        bson::spec::ElementType::Timestamp,
+                        DataType::Date32
+                    ))?
+            )
         }
 
-        // Datetime
+        // Datetime (actual timestamps that you'd actually use. in an application )
+        (RawBsonRef::DateTime(v), DataType::Timestamp(TimeUnit::Millisecond, _)) => {
+            append_scalar!(TimestampMillisecondBuilder, col, v.timestamp_millis())
+        }
         (RawBsonRef::DateTime(v), DataType::Timestamp(TimeUnit::Microsecond, _)) => {
             append_scalar!(
-                TimestampMicrosecondBuilder, // TODO: Possibly change to nanosecond.
+                TimestampMicrosecondBuilder,
                 col,
-                v.timestamp_millis()
+                v.timestamp_millis() * 1000
             )
+        }
+        (RawBsonRef::DateTime(v), DataType::Date64) => {
+            append_scalar!(Date64Builder, col, v.timestamp_millis())
         }
 
         // Document
@@ -263,13 +293,16 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
 
         // Array
         (RawBsonRef::Array(arr), DataType::Utf8) => {
-            // TODO: Proper types.
-            let s = arr
-                .into_iter()
-                .map(|r| r.map(|v| format!("{:?}", v)).unwrap_or_default())
-                .collect::<Vec<_>>()
-                .join(", ");
-            append_scalar!(StringBuilder, col, format!("[{}]", s))
+            append_scalar!(
+                StringBuilder,
+                col,
+                serde_json::Value::try_from(
+                    bson::Array::try_from(arr)
+                        .map_err(|_| BsonError::FailedToReadRawBsonDocument)?
+                )
+                .map_err(|_| BsonError::FailedToReadRawBsonDocument)?
+                .to_string()
+            )
         }
 
         // Decimal128

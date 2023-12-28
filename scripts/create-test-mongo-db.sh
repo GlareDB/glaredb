@@ -36,6 +36,7 @@ docker cp \
 docker exec $CONTAINER_ID mongoimport \
        --type csv \
        --headerline \
+       --ignoreBlanks \
        "mongodb://localhost:27017/${DB_NAME}" \
        /tmp/bikeshare_stations.csv 1>&2
 

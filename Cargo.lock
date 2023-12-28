@@ -3180,6 +3180,7 @@ dependencies = [
  "proxyutil",
  "reedline",
  "rpcsrv",
+ "sqlbuiltins",
  "sqlexec",
  "telemetry",
  "tempfile",
