@@ -36,30 +36,33 @@ impl BuiltinScalarUDF for KDLSelect {
             fun: Arc::new(move |input| {
                 let filter = get_nth_string_fn_arg(input, 1)?;
 
-                Ok(get_nth_string_value(input, 0, &|value: String| -> Result<
-                    ScalarValue,
-                    BuiltinError,
-                > {
-                    let sdoc: kdl::KdlDocument = value.parse().map_err(BuiltinError::KdlError)?;
+                get_nth_string_value(
+                    input,
+                    0,
+                    &|value: String| -> Result<ScalarValue, BuiltinError> {
+                        let sdoc: kdl::KdlDocument =
+                            value.parse().map_err(BuiltinError::KdlError)?;
 
-                    let out: Vec<&KdlNode> = sdoc
-                        .query_all(compile_kdl_query(filter.clone())?)
-                        .map_err(BuiltinError::KdlError)
-                        .map(|iter| iter.collect())?;
+                        let out: Vec<&KdlNode> = sdoc
+                            .query_all(compile_kdl_query(filter.clone())?)
+                            .map_err(BuiltinError::KdlError)
+                            .map(|iter| iter.collect())?;
 
-                    let mut doc = sdoc.clone();
-                    let elems = doc.nodes_mut();
-                    elems.clear();
-                    for item in &out {
-                        elems.push(item.to_owned().clone())
-                    }
+                        let mut doc = sdoc.clone();
+                        let elems = doc.nodes_mut();
+                        elems.clear();
+                        for item in &out {
+                            elems.push(item.to_owned().clone())
+                        }
 
-                    // TODO: consider if we should always return LargeUtf8?
-                    // could end up with truncation (or an error) the document
-                    // is too long and we write the data to a table that is
-                    // established (and mostly) shorter values.
-                    Ok(ScalarValue::Utf8(Some(doc.to_string())))
-                })?)
+                        // TODO: consider if we should always return LargeUtf8?
+                        // could end up with truncation (or an error) the document
+                        // is too long and we write the data to a table that is
+                        // established (and mostly) shorter values.
+                        Ok(ScalarValue::Utf8(Some(doc.to_string())))
+                    },
+                )
+                .map_err(DataFusionError::from)
             }),
         };
         Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(

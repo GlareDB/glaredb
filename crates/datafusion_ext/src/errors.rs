@@ -3,6 +3,9 @@ pub enum ExtensionError {
     #[error("Invalid number of arguments.")]
     InvalidNumArgs,
 
+    #[error("Expected argument at index {index}: {what}")]
+    ExpectedIndexedArgument { index: usize, what: String },
+
     #[error("{0}")]
     String(String),
 
@@ -28,9 +31,6 @@ pub enum ExtensionError {
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
     #[error(transparent)]
-    BsonDeserialize(#[from] bson::de::Error),
-
-    #[error(transparent)]
     DecimalError(#[from] decimal::DecimalError),
 
     #[error(transparent)]
@@ -41,6 +41,9 @@ pub enum ExtensionError {
 
     #[error(transparent)]
     ListingErrBoxed(#[from] Box<dyn std::error::Error + Sync + Send>),
+
+    #[error("object store: {0}")]
+    ObjectStore(String),
 }
 
 impl ExtensionError {

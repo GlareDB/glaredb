@@ -18,7 +18,7 @@ pub struct ReadPostgres;
 
 impl ConstBuiltinFunction for ReadPostgres {
     const NAME: &'static str = "read_postgres";
-    const DESCRIPTION: &'static str = "Reads a Postgres table";
+    const DESCRIPTION: &'static str = "Read a Postgres table";
     const EXAMPLE: &'static str =
         "SELECT * FROM read_postgres('postgres://localhost:5432', 'database', 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
@@ -33,9 +33,14 @@ impl ConstBuiltinFunction for ReadPostgres {
 
 #[async_trait]
 impl TableFunc for ReadPostgres {
-    fn runtime_preference(&self) -> RuntimePreference {
-        RuntimePreference::Remote
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        Ok(RuntimePreference::Remote)
     }
+
     async fn create_provider(
         &self,
         _: &dyn TableFuncContextProvider,

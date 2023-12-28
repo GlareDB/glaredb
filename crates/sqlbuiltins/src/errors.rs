@@ -1,6 +1,7 @@
 use datafusion::arrow::datatypes::DataType;
 use datafusion::arrow::error::ArrowError;
 use datafusion::error::DataFusionError;
+use datafusion_ext::errors::ExtensionError;
 
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum BuiltinError {
@@ -37,6 +38,9 @@ pub enum BuiltinError {
 
     #[error("ArrowError: {0}")]
     ArrowError(String),
+
+    #[error("DataFusionExtension: {0}")]
+    DataFusionExtension(String),
 }
 
 pub type Result<T, E = BuiltinError> = std::result::Result<T, E>;
@@ -47,9 +51,21 @@ impl From<BuiltinError> for DataFusionError {
     }
 }
 
+impl From<BuiltinError> for ExtensionError {
+    fn from(e: BuiltinError) -> Self {
+        ExtensionError::String(e.to_string())
+    }
+}
+
 impl From<DataFusionError> for BuiltinError {
     fn from(e: DataFusionError) -> Self {
         BuiltinError::DataFusionError(e.to_string())
+    }
+}
+
+impl From<ExtensionError> for BuiltinError {
+    fn from(e: ExtensionError) -> Self {
+        BuiltinError::DataFusionExtension(e.to_string())
     }
 }
 

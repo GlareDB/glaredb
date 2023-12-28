@@ -3,21 +3,21 @@ mod aggregates;
 mod scalars;
 mod table;
 
-use self::scalars::df_scalars::ArrowCastFunction;
-#[cfg(feature = "jq")]
-use self::scalars::jq::JQ;
-use self::scalars::kdl::{KDLMatches, KDLSelect};
-use self::scalars::{postgres::*, ConnectionId, Version};
-use self::table::{BuiltinTableFuncs, TableFunc};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
 use once_cell::sync::Lazy;
-use protogen::metastore::types::catalog::{
-    EntryMeta, EntryType, FunctionEntry, FunctionType, RuntimePreference,
-};
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use protogen::metastore::types::catalog::{EntryMeta, EntryType, FunctionEntry, FunctionType};
+use scalars::df_scalars::ArrowCastFunction;
+use scalars::hashing::{FnvHash, PartitionResults, SipHash};
+#[cfg(feature = "jq")]
+use scalars::jq::JQ;
+use scalars::kdl::{KDLMatches, KDLSelect};
+use scalars::postgres::*;
+use scalars::{ConnectionId, Version};
+use table::{BuiltinTableFuncs, TableFunc};
 
 /// Builtin table returning functions available for all sessions.
 static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
@@ -75,7 +75,6 @@ pub trait BuiltinFunction: Sync + Send {
         FunctionEntry {
             meta,
             func_type: self.function_type(),
-            runtime_preference: RuntimePreference::Unspecified,
             signature: self.signature(),
         }
     }
@@ -189,14 +188,18 @@ impl FunctionRegistry {
             Arc::new(PgTableIsVisible),
             Arc::new(PgEncodingToChar),
             Arc::new(PgArrayToString),
+            // System functions
+            Arc::new(ConnectionId),
+            Arc::new(Version),
             // Document functions
             Arc::new(KDLMatches),
             Arc::new(KDLSelect),
             #[cfg(feature = "jq")]
             Arc::new(JQ),
-            // Other functions
-            Arc::new(ConnectionId),
-            Arc::new(Version),
+            // Hashing/Partitioning
+            Arc::new(SipHash),
+            Arc::new(FnvHash),
+            Arc::new(PartitionResults),
         ];
         let udfs = udfs
             .into_iter()
@@ -228,6 +231,14 @@ impl FunctionRegistry {
             scalars.chain(aggregates).chain(arrow_cast).collect();
 
         FunctionRegistry { funcs, udfs }
+    }
+
+    pub fn contains(&self, name: impl AsRef<str>) -> bool {
+        self.funcs
+            .keys()
+            .chain(self.udfs.keys())
+            .chain(BUILTIN_TABLE_FUNCS.keys())
+            .any(|k| k.to_lowercase() == name.as_ref().to_lowercase())
     }
 
     pub fn find_function(&self, name: &str) -> Option<Arc<dyn BuiltinFunction>> {

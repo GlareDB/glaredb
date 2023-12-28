@@ -13,6 +13,7 @@ use datafusion::prelude::SessionContext;
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::bson::table::bson_streaming_table;
+use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider};
 use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
@@ -32,12 +33,13 @@ use datasources::sqlserver::{
 };
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionEntry, TableEntry};
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
-    DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
-    DatabaseOptionsSqlServer, TableOptions, TableOptionsBigQuery, TableOptionsDebug,
-    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo, TableOptionsMysql,
-    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
-    TableOptionsSqlServer, TunnelOptions,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse, DatabaseOptionsDebug,
+    DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, TableOptions, TableOptionsBigQuery,
+    TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
+    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer,
+    TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
@@ -216,6 +218,12 @@ impl<'a> ExternalDispatcher<'a> {
                     table: name.to_string(),
                 })
                 .await?;
+                Ok(Arc::new(table))
+            }
+            DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string }) => {
+                let access =
+                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
+                let table = ClickhouseTableProvider::try_new(access, name).await?;
                 Ok(Arc::new(table))
             }
         }
@@ -454,6 +462,15 @@ impl<'a> ExternalDispatcher<'a> {
                     table: table.to_string(),
                 })
                 .await?;
+                Ok(Arc::new(table))
+            }
+            TableOptions::Clickhouse(TableOptionsClickhouse {
+                connection_string,
+                table,
+            }) => {
+                let access =
+                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
+                let table = ClickhouseTableProvider::try_new(access, table).await?;
                 Ok(Arc::new(table))
             }
             TableOptions::Lance(TableOptionsObjectStore {

@@ -1,4 +1,5 @@
 pub mod df_scalars;
+pub mod hashing;
 #[cfg(feature = "jq")]
 pub mod jq;
 pub mod kdl;
@@ -18,6 +19,8 @@ use num_traits::ToPrimitive;
 use crate::document;
 use crate::errors::BuiltinError;
 use crate::functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction};
+use datafusion_ext::cast::scalar_iter_to_array;
+use datafusion_ext::errors::ExtensionError;
 use protogen::metastore::types::catalog::FunctionType;
 
 pub struct ConnectionId;
@@ -64,23 +67,16 @@ fn get_nth_scalar_value(
     match input.get(n) {
         Some(input) => match input {
             ColumnarValue::Scalar(scalar) => Ok(ColumnarValue::Scalar(op(scalar.clone())?)),
-            ColumnarValue::Array(arr) => {
-                let mut values = Vec::with_capacity(arr.len());
-
-                for idx in 0..arr.len() {
-                    values.push(op(ScalarValue::try_from_array(arr, idx)?)?);
-                }
-
-                Ok(ColumnarValue::Array(ScalarValue::iter_to_array(
-                    values.into_iter(),
-                )?))
-            }
+            ColumnarValue::Array(arr) => Ok(ColumnarValue::Array(scalar_iter_to_array(
+                (0..arr.len()).map(|idx| -> Result<ScalarValue, ExtensionError> {
+                    Ok(op(ScalarValue::try_from_array(arr, idx)?)?)
+                }),
+            )?)),
         },
-        None => Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true)))),
+        None => Err(BuiltinError::MissingValueAtIndex(n)),
     }
 }
 
-#[allow(dead_code)] // just for merging order
 fn try_from_u64_scalar(scalar: ScalarValue) -> Result<u64, BuiltinError> {
     match scalar {
         ScalarValue::Int8(Some(value)) => safe_up_cast_integer_scalar(value as i64),
@@ -120,7 +116,6 @@ fn try_from_u64_scalar(scalar: ScalarValue) -> Result<u64, BuiltinError> {
     }
 }
 
-#[allow(dead_code)] // just for merging order
 fn safe_up_cast_integer_scalar(value: i64) -> Result<u64, BuiltinError> {
     if value < 0 {
         Err(BuiltinError::ParseError(
@@ -133,7 +128,6 @@ fn safe_up_cast_integer_scalar(value: i64) -> Result<u64, BuiltinError> {
 
 // get_nth_64_fn_arg extracts a string value (or tries to) from a
 // function argument; columns are always an error.
-#[allow(dead_code)] // just for merging order
 fn get_nth_u64_fn_arg(input: &[ColumnarValue], idx: usize) -> Result<u64, BuiltinError> {
     match input.get(idx) {
         Some(ColumnarValue::Scalar(value)) => try_from_u64_scalar(value.to_owned()),

@@ -14,6 +14,7 @@ use datafusion::sql::TableReference;
 use datafusion_ext::planner::SqlQueryPlanner;
 use datafusion_ext::AsyncContextProvider;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasources::clickhouse::ClickhouseAccess;
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
@@ -41,13 +42,14 @@ use protogen::metastore::types::options::{
     CopyToDestinationOptionsLocal, CopyToDestinationOptionsS3, CopyToFormatOptions,
     CopyToFormatOptionsCsv, CopyToFormatOptionsJson, CopyToFormatOptionsParquet,
     CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsAzure, CredentialsOptionsDebug,
-    CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug,
-    DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres,
-    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog, DeltaLakeUnityCatalog,
-    StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
-    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer,
-    TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
+    CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse,
+    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
+    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog,
+    DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery,
+    TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
+    TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres,
+    TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
+    TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
@@ -305,6 +307,16 @@ impl<'a> SessionPlanner<'a> {
 
                 DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string })
             }
+            DatabaseOptions::CLICKHOUSE => {
+                let connection_string: String = m.remove_required("connection_string")?;
+
+                // Validate
+                let access =
+                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
+                access.validate_access().await?;
+
+                DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string })
+            }
             DatabaseOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
                 DatabaseOptions::Debug(DatabaseOptionsDebug {})
@@ -498,7 +510,20 @@ impl<'a> SessionPlanner<'a> {
                     table: table_name,
                 })
             }
+            TableOptions::CLICKHOUSE => {
+                let connection_string: String = m.remove_required("connection_string")?;
+                let table_name: String = m.remove_required("table")?;
 
+                // Validate
+                let access =
+                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
+                access.validate_table_access(&table_name).await?;
+
+                TableOptions::Clickhouse(TableOptionsClickhouse {
+                    connection_string,
+                    table: table_name,
+                })
+            }
             TableOptions::LOCAL => {
                 let location: String = m.remove_required("location")?;
 
