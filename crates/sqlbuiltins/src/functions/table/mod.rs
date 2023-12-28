@@ -1,6 +1,7 @@
 //! Builtin table returning functions.
 mod bigquery;
 mod bson;
+mod clickhouse;
 mod delta;
 mod excel;
 mod generate_series;
@@ -30,6 +31,7 @@ use std::sync::Arc;
 
 use self::bigquery::ReadBigQuery;
 use self::bson::BsonScan;
+use self::clickhouse::ReadClickhouse;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
@@ -82,6 +84,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadMongoDb),
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
+            Arc::new(ReadClickhouse),
             Arc::new(ReadSqlServer),
             // Object store
             Arc::new(PARQUET_SCAN),
@@ -121,6 +124,9 @@ impl BuiltinTableFuncs {
 
     pub fn iter_funcs(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
         self.funcs.values()
+    }
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.funcs.keys()
     }
 }
 

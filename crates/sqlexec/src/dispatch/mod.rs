@@ -86,6 +86,10 @@ pub enum DispatchError {
     #[error(transparent)]
     SqlServerError(#[from] datasources::sqlserver::errors::SqlServerError),
     #[error(transparent)]
+    BsonDatasource(#[from] datasources::bson::errors::BsonError),
+    #[error(transparent)]
+    ClickhouseDatasource(#[from] datasources::clickhouse::errors::ClickhouseError),
+    #[error(transparent)]
     NativeDatasource(#[from] datasources::native::errors::NativeError),
     #[error(transparent)]
     CommonDatasource(#[from] datasources::common::errors::DatasourceCommonError),

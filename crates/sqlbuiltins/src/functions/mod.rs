@@ -228,6 +228,14 @@ impl FunctionRegistry {
         FunctionRegistry { funcs, udfs }
     }
 
+    pub fn contains(&self, name: impl AsRef<str>) -> bool {
+        self.funcs
+            .keys()
+            .chain(self.udfs.keys())
+            .chain(BUILTIN_TABLE_FUNCS.keys())
+            .any(|k| k.to_lowercase() == name.as_ref().to_lowercase())
+    }
+
     pub fn find_function(&self, name: &str) -> Option<Arc<dyn BuiltinFunction>> {
         self.funcs.get(name).cloned()
     }

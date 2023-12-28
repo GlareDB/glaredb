@@ -1568,6 +1568,43 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 
 [[package]]
+name = "clickhouse-rs"
+version = "1.1.0-alpha.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "802fe62a5480415bcdbb5217b3ea029d748c9a3ce3b884767cf58888e33e7f65"
+dependencies = [
+ "byteorder",
+ "chrono",
+ "chrono-tz",
+ "clickhouse-rs-cityhash-sys",
+ "combine",
+ "crossbeam",
+ "either",
+ "futures-core",
+ "futures-sink",
+ "futures-util",
+ "hostname",
+ "lazy_static",
+ "log",
+ "lz4",
+ "percent-encoding",
+ "pin-project",
+ "thiserror",
+ "tokio",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "clickhouse-rs-cityhash-sys"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4baf9d4700a28d6cb600e17ed6ae2b43298a5245f1f76b4eab63027ebfd592b9"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "cmake"
 version = "0.1.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1599,6 +1636,16 @@ checksum = "cbf2150cce219b664a8a70df7a1f933836724b503f8a413af9365b4dcc4d90b8"
 dependencies = [
  "lazy_static",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "combine"
+version = "4.6.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35ed6e9d84f0b51a7f52daf1c7d71dd136fd7a3f41a8462b8cdb8c78d920fad4"
+dependencies = [
+ "bytes",
+ "memchr",
 ]
 
 [[package]]
@@ -2291,6 +2338,7 @@ dependencies = [
  "async-trait",
  "bson",
  "catalog",
+ "chrono",
  "ctor",
  "datafusion",
  "decimal",
@@ -2301,6 +2349,7 @@ dependencies = [
  "parking_lot",
  "paste",
  "protogen",
+ "rand",
  "regex",
  "rstest",
  "serde_json",
@@ -2325,6 +2374,8 @@ dependencies = [
  "bytes",
  "calamine",
  "chrono",
+ "chrono-tz",
+ "clickhouse-rs",
  "dashmap",
  "datafusion",
  "datafusion_ext",
@@ -3180,6 +3231,7 @@ dependencies = [
  "proxyutil",
  "reedline",
  "rpcsrv",
+ "sqlbuiltins",
  "sqlexec",
  "telemetry",
  "tempfile",
@@ -4052,6 +4104,9 @@ name = "log"
 version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "logutil"
