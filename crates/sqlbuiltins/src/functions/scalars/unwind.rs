@@ -67,8 +67,7 @@ impl BuiltinScalarUDF for Json {
 
 impl Json {
     fn into_json_map(raw: &str) -> Result<Map<String, Value>, BuiltinError> {
-        Ok(from_str::<Map<String, Value>>(raw)
-            .map_err(|e| BuiltinError::ParseError(e.to_string()))?)
+        from_str::<Map<String, Value>>(raw).map_err(|e| BuiltinError::ParseError(e.to_string()))
     }
 
     fn parse_json(k: String, v: Value) -> (Field, ScalarValue) {
