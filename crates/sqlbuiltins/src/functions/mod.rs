@@ -3,17 +3,19 @@ mod aggregates;
 mod scalars;
 mod table;
 
-use self::scalars::df_scalars::ArrowCastFunction;
-use self::scalars::kdl::{KDLMatches, KDLSelect};
-use self::scalars::{postgres::*, ConnectionId, Version};
-use self::table::{BuiltinTableFuncs, TableFunc};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
 use once_cell::sync::Lazy;
-use protogen::metastore::types::catalog::{EntryMeta, EntryType, FunctionEntry, FunctionType};
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use protogen::metastore::types::catalog::{EntryMeta, EntryType, FunctionEntry, FunctionType};
+use scalars::df_scalars::ArrowCastFunction;
+use scalars::hashing::{FnvHash, PartitionResults, SipHash};
+use scalars::kdl::{KDLMatches, KDLSelect};
+use scalars::postgres::*;
+use scalars::{ConnectionId, Version};
+use table::{BuiltinTableFuncs, TableFunc};
 
 /// Builtin table returning functions available for all sessions.
 static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
@@ -184,12 +186,16 @@ impl FunctionRegistry {
             Arc::new(PgTableIsVisible),
             Arc::new(PgEncodingToChar),
             Arc::new(PgArrayToString),
+            // System functions
+            Arc::new(ConnectionId),
+            Arc::new(Version),
             // KDL functions
             Arc::new(KDLMatches),
             Arc::new(KDLSelect),
-            // Other functions
-            Arc::new(ConnectionId),
-            Arc::new(Version),
+            // Hashing/Partitioning
+            Arc::new(SipHash),
+            Arc::new(FnvHash),
+            Arc::new(PartitionResults),
         ];
         let udfs = udfs
             .into_iter()

@@ -35,3 +35,6 @@ bson = "2.7.0"
 tokio-util = "0.7.10"
 bytes = "1.5.0"
 kdl = "5.0.0-alpha.1"
+siphasher = "1.0.0"
+fnv = "1.0.7"
+memoize = { version = "0.4.2", features = ["full"] }
