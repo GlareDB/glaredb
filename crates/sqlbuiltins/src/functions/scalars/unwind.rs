@@ -10,7 +10,7 @@ pub struct Json;
 impl ConstBuiltinFunction for Json {
     const NAME: &'static str = "unwind_json";
     const DESCRIPTION: &'static str =
-        "Converts a json document in a string feilld to a struct field.";
+        "Converts a json document in a string field to a struct field.";
     const EXAMPLE: &'static str = "unwind_json(<value>)";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
 
