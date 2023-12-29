@@ -4,6 +4,7 @@ use crate::distexec::scheduler::Scheduler;
 use crate::errors::{ExecError, Result};
 use crate::session::Session;
 use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
+use object_store::azure::AzureConfigKey;
 use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
 use std::collections::HashMap;
 
@@ -166,7 +167,37 @@ impl EngineStorageConfig {
                             },
                         }
                     }
-                    _ => unreachable!(),
+                    DatasourceUrlType::Azure => {
+                        let account_name = opts.get("account_name").cloned().unwrap_or_else(|| {
+                            std::env::var(AzureConfigKey::AccountName.as_ref().to_uppercase())
+                                .expect(
+                                    "'account_name' in provided storage options or 'AZURE_STORAGE_ACCOUNT_NAME' as env var"
+                                )
+                        });
+
+                        let access_key = opts.get("access_key").cloned().unwrap_or_else(|| {
+                            std::env::var(AzureConfigKey::AccessKey.as_ref().to_uppercase())
+                                .expect(
+                                    "'access_key' in provided storage options or 'AZURE_STORAGE_ACCOUNT_KEY' as env var"
+                                )
+                        });
+
+                        // Extract bucket (azure container) from the location URL
+                        let container_name = opts
+                            .get("container_name")
+                            .cloned()
+                            .or(url.host_str().map(|h| h.to_string()));
+
+                        EngineStorageConfig {
+                            location: url.clone(),
+                            conf: StorageConfig::Azure {
+                                account_name,
+                                access_key,
+                                container_name,
+                            },
+                        }
+                    }
+                    DatasourceUrlType::File => unreachable!(), // Handled as Datasource::File(_)
                 }
             }
         })

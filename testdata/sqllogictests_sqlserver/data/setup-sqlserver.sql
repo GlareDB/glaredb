@@ -1,4 +1,87 @@
--- TODO: Data types table.
+-- Setup a simple table with all the supported sqlserver datatypes.
+
+IF OBJECT_ID('dbo.datatypes', 'u') IS NOT NULL
+   DROP TABLE datatypes;
+GO
+
+CREATE TABLE datatypes (
+    -- Bool
+    c1  BIT,
+
+    -- Integers
+    c2  TINYINT,
+    c3  SMALLINT,
+    c4  INT,
+    c5  BIGINT,
+
+    -- Floats
+    c6  FLOAT(4),
+    c7  FLOAT(8),
+
+    -- Text/Char
+    c8  CHAR,
+    c9  NCHAR,
+    c10 VARCHAR(32),
+    c11 NVARCHAR(32),
+    c12 TEXT,
+    c13 NTEXT,
+
+    -- Bytes
+    c14 BINARY,
+    c15 VARBINARY(32),
+
+    -- Dates and times
+    c16 SMALLDATETIME,
+    c17 DATETIME2,
+    c18 DATETIME,
+    c19 DATETIMEOFFSET,
+
+    -- Numerics
+    -- c20 NUMERIC,
+    -- c21 NUMERIC(10),
+    -- c22 NUMERIC(10, 5)
+);
+
+INSERT INTO datatypes
+VALUES (
+    -- Bool
+    1,
+
+    -- Integers
+    1,
+    2,
+    3,
+    4,
+
+    -- Floats
+    4.5,
+    6.25,
+
+    -- Text/Char
+    'a',
+    'b',
+    'cde',
+    'fghi',
+    'text',
+    'moretext',
+
+    -- Bytes
+    CONVERT(BINARY, 'x'),
+    CONVERT(VARBINARY, 'abc'),
+
+    -- Dates and times
+    '1999-09-16T16:32:34',
+    '1999-09-16T16:32:34',
+    '1999-09-16T16:32:34',
+    '1999-09-16T16:32:34.530Z'
+
+    -- Numerics
+    -- 12345.6789,
+    -- 12345.6789,
+    -- 12345.67891234
+);
+
+INSERT INTO datatypes(c1) VALUES (NULL); -- inserts nulls
 
 IF OBJECT_ID('dbo.bikeshare_stations', 'u') IS NOT NULL
    DROP TABLE bikeshare_stations;
