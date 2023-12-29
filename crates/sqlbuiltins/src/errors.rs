@@ -3,6 +3,8 @@ use datafusion::arrow::error::ArrowError;
 use datafusion::error::DataFusionError;
 use datafusion_ext::errors::ExtensionError;
 
+use datasources::bson::errors::BsonError;
+
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum BuiltinError {
     #[error("parse error: {0}")]
@@ -37,6 +39,9 @@ pub enum BuiltinError {
 
     #[error("DataFusionExtension: {0}")]
     DataFusionExtension(String),
+
+    #[error("bson: {0}")]
+    Bson(String),
 }
 
 pub type Result<T, E = BuiltinError> = std::result::Result<T, E>;
@@ -68,5 +73,17 @@ impl From<ExtensionError> for BuiltinError {
 impl From<ArrowError> for BuiltinError {
     fn from(e: ArrowError) -> Self {
         BuiltinError::ArrowError(e.to_string())
+    }
+}
+
+impl From<BsonError> for BuiltinError {
+    fn from(e: BsonError) -> Self {
+        BuiltinError::Bson(e.to_string())
+    }
+}
+
+impl From<bson::de::Error> for BuiltinError {
+    fn from(e: bson::de::Error) -> Self {
+        BuiltinError::Bson(e.to_string())
     }
 }

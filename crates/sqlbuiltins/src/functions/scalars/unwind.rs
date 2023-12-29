@@ -130,15 +130,12 @@ impl BuiltinScalarUDF for Bson {
                         BuiltinError,
                     > {
                         match value {
-                            ScalarValue::Binary(v) | ScalarValue::LargeBinary(v) => {
-                                match v {
-                                    None => Ok(ScalarValue::Null),
-                                    Some(slice) => bson_scalar::from_document(
-                                        bson::de::from_slice::<Document>(v)?,
-                                    )?,
-                                }
-                                Ok(ScalarValue::Struct(Some(values), fields.into()))
-                            }
+                            ScalarValue::Binary(v) | ScalarValue::LargeBinary(v) => match v {
+                                None => Ok(ScalarValue::Null),
+                                Some(bytes) => Ok(bson_scalar::from_document(
+                                    bson::de::from_slice::<Document>(bytes.as_slice())?,
+                                )?),
+                            },
                             _ => Err(BuiltinError::IncorrectType(
                                 value.data_type(),
                                 DataType::Utf8,
