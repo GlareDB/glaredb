@@ -41,7 +41,7 @@ impl TableSampler {
 
         let mut schemas = Vec::with_capacity(sample_count as usize);
         while let Some(doc) = cursor.try_next().await? {
-            let schema = schema_from_document(&doc)?;
+            let schema = schema_from_document(doc);
             schemas.push(schema);
         }
 

@@ -88,9 +88,13 @@ message InitializeSessionResponse {
   bytes user_id = 3;
 }
 
-message FetchCatalogRequest { bytes database_id = 1; }
+message FetchCatalogRequest {
+  bytes database_id = 1;
+}
 
-message FetchCatalogResponse { metastore.catalog.CatalogState catalog = 1; }
+message FetchCatalogResponse {
+  metastore.catalog.CatalogState catalog = 1;
+}
 
 // Dispatch the table access on remote server.
 message DispatchAccessRequest {

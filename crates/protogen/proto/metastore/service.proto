@@ -14,7 +14,9 @@ message FetchCatalogRequest {
   bytes db_id = 1;
 }
 
-message FetchCatalogResponse { catalog.CatalogState catalog = 1; }
+message FetchCatalogResponse {
+  catalog.CatalogState catalog = 1;
+}
 
 // Possible mutations to make.
 message Mutation {
@@ -129,7 +131,8 @@ message AlterDatabaseOperationSetAccessMode {
 message AlterDatabaseOperation {
   oneof operation {
     AlterDatabaseOperationRename alter_database_operation_rename = 1;
-    AlterDatabaseOperationSetAccessMode alter_database_operation_set_access_mode = 2;
+    AlterDatabaseOperationSetAccessMode
+        alter_database_operation_set_access_mode = 2;
   };
 }
 
@@ -176,7 +179,9 @@ message DropCredentials {
   bool if_exists = 2;
 }
 
-message UpdateDeploymentStorage { uint64 new_storage_size = 1; }
+message UpdateDeploymentStorage {
+  uint64 new_storage_size = 1;
+}
 
 message MutateRequest {
   // Mutate the catalog for this database.

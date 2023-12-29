@@ -7,7 +7,7 @@ use client::{Client, QueryStream};
 use async_trait::async_trait;
 use chrono::naive::NaiveDateTime;
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
@@ -22,6 +22,8 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{Result, SqlServerError};
 use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
@@ -67,10 +69,15 @@ impl SqlServerAccess {
         let _schema = state.get_table_schema(schema, table).await?;
         Ok(())
     }
+
+    /// Connect to the server and return the access state.
+    pub async fn connect(&self) -> Result<SqlServerAccessState> {
+        SqlServerAccessState::connect(self.config.clone()).await
+    }
 }
 
 #[derive(Debug)]
-struct SqlServerAccessState {
+pub struct SqlServerAccessState {
     client: Client,
     /// Handle for underlying sql server connection.
     ///
@@ -171,6 +178,64 @@ impl SqlServerAccessState {
         }
 
         Ok(ArrowSchema::new(fields))
+    }
+}
+
+#[async_trait]
+impl VirtualLister for SqlServerAccessState {
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        let mut query = self
+            .client
+            .query("SELECT schema_name FROM information_schema.schemata")
+            .await
+            .map_err(ExtensionError::access)?;
+
+        let mut schema_names = Vec::new();
+        while let Some(row) = query.next().await {
+            let row = row.map_err(ExtensionError::access)?;
+            if let Some(s) = row
+                .try_get::<&str, usize>(0)
+                .map_err(ExtensionError::access)?
+            {
+                schema_names.push(s.to_owned());
+            }
+        }
+
+        Ok(schema_names)
+    }
+
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        let mut query = self
+            .client
+            .query(format!(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = '{schema}'"
+            ))
+            .await
+            .map_err(ExtensionError::access)?;
+
+        let mut table_names = Vec::new();
+        while let Some(row) = query.next().await {
+            let row = row.map_err(ExtensionError::access)?;
+            if let Some(s) = row
+                .try_get::<&str, usize>(0)
+                .map_err(ExtensionError::access)?
+            {
+                table_names.push(s.to_owned());
+            }
+        }
+
+        Ok(table_names)
+    }
+
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
+        use ExtensionError::ListingErrBoxed;
+
+        let schema = self
+            .get_table_schema(schema, table)
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+
+        Ok(schema.fields)
     }
 }
 
