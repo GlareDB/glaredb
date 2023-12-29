@@ -1,4 +1,5 @@
 use object_store::aws::{AmazonS3Builder, S3CopyIfNotExists};
+use object_store::azure::MicrosoftAzureBuilder;
 use object_store::{
     gcp::GoogleCloudStorageBuilder, local::LocalFileSystem, memory::InMemory,
     Error as ObjectStoreError, ObjectStore,
@@ -22,6 +23,11 @@ pub enum StorageConfig {
     Gcs {
         service_account_key: String,
         bucket: Option<String>,
+    },
+    Azure {
+        account_name: String,
+        access_key: String,
+        container_name: Option<String>,
     },
     Local {
         path: PathBuf,
@@ -75,6 +81,21 @@ impl StorageConfig {
 
                 if let Some(bucket) = bucket {
                     builder = builder.with_bucket_name(bucket);
+                }
+
+                Arc::new(builder.build()?)
+            }
+            StorageConfig::Azure {
+                account_name,
+                access_key,
+                container_name,
+            } => {
+                let mut builder = MicrosoftAzureBuilder::new()
+                    .with_account(account_name)
+                    .with_access_key(access_key);
+
+                if let Some(container_name) = container_name {
+                    builder = builder.with_container_name(container_name);
                 }
 
                 Arc::new(builder.build()?)
