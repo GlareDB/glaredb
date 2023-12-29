@@ -1,7 +1,13 @@
+use datafusion::arrow::datatypes::DataType;
 use datafusion::error::DataFusionError;
 use datafusion_ext::errors::ExtensionError;
 
 use crate::object_store::errors::ObjectStoreSourceError;
+
+/// Recursion limit for inferring the schema for nested documents.
+///
+/// The MongoDB kernel rejects nesting of greater than 100.
+pub const RECURSION_LIMIT: usize = 100;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BsonError {
@@ -34,6 +40,9 @@ pub enum BsonError {
         bson::spec::ElementType,
         datafusion::arrow::datatypes::DataType,
     ),
+
+    #[error("value was type {0}, expected {1}")]
+    IncorrectType(DataType, DataType),
 
     #[error("Invalid args for record struct builder")]
     InvalidArgsForRecordStructBuilder,

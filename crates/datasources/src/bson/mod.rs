@@ -1,5 +1,6 @@
 pub mod builder;
 pub mod errors;
+pub mod scalar;
 pub mod schema;
 pub mod stream;
 pub mod table;

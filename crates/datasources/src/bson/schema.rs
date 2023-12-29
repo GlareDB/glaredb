@@ -4,12 +4,7 @@ use std::iter::IntoIterator;
 use bson::{Bson, Document};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 
-use crate::bson::errors::{BsonError, Result};
-
-/// Recursion limit for inferring the schema for nested documents.
-///
-/// The MongoDB kernel rejects nesting of greater than 100.
-const RECURSION_LIMIT: usize = 100;
+use crate::bson::errors::{BsonError, Result, RECURSION_LIMIT};
 
 pub fn schema_from_document(doc: Document) -> Result<Schema> {
     Ok(Schema::new(fields_from_document(0, doc.iter())?))
@@ -23,7 +18,6 @@ fn fields_from_document<'a>(
         return Err(BsonError::RecursionLimitExceeded(RECURSION_LIMIT));
     }
 
-    // let doc_iter = doc.iter();
     let (_, size) = doc_iter.size_hint();
     let mut fields = Vec::with_capacity(size.unwrap_or_default());
 
@@ -50,14 +44,15 @@ fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
         Bson::Double(_) => DataType::Float64,
         Bson::Boolean(_) => DataType::Boolean,
         Bson::Null => DataType::Null,
-        Bson::Int32(_) => DataType::Float64,
-        Bson::Int64(_) => DataType::Float64,
+        Bson::Int32(_) => DataType::Int32,
+        Bson::Int64(_) => DataType::Int64,
         Bson::Binary(_) => DataType::Binary,
         Bson::ObjectId(_) => DataType::Utf8,
         Bson::DateTime(_) => DataType::Date64,
         Bson::Symbol(_) => DataType::Utf8,
         Bson::Decimal128(_) => DataType::Decimal128(38, 10),
         Bson::Undefined => DataType::Null,
+        // TODO: capture the options
         Bson::RegularExpression(_) => DataType::Utf8,
         Bson::JavaScriptCode(_) => DataType::Utf8,
 

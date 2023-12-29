@@ -10,6 +10,7 @@ ioutil = { path = "../ioutil" }
 logutil = { path = "../logutil" }
 pgrepr = { path = "../pgrepr" }
 protogen = { path = "../protogen" }
+datasources = { path = "../datasources" }
 datafusion_ext = { path = "../datafusion_ext" }
 telemetry = { path = "../telemetry" }
 datasources = { path = "../datasources" }

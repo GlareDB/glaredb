@@ -14,6 +14,7 @@ use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
 use scalars::kdl::{KDLMatches, KDLSelect};
 use scalars::postgres::*;
+use scalars::unwind;
 use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
 
@@ -189,9 +190,11 @@ impl FunctionRegistry {
             // System functions
             Arc::new(ConnectionId),
             Arc::new(Version),
-            // KDL functions
+            // Document functions
             Arc::new(KDLMatches),
             Arc::new(KDLSelect),
+            Arc::new(unwind::Json),
+            Arc::new(unwind::Bson),
             // Hashing/Partitioning
             Arc::new(SipHash),
             Arc::new(FnvHash),

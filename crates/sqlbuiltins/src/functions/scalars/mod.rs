@@ -2,6 +2,7 @@ pub mod df_scalars;
 pub mod hashing;
 pub mod kdl;
 pub mod postgres;
+pub mod unwind;
 
 use std::sync::Arc;
 
