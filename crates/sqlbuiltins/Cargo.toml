@@ -39,3 +39,4 @@ async-stream = "0.3.5"
 siphasher = "1.0.0"
 fnv = "1.0.7"
 memoize = { version = "0.4.2", features = ["full"] }
+simd-json = { version = "0.13.4", features = ["known-key"] }

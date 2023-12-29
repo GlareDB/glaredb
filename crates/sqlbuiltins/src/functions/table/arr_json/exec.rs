@@ -337,7 +337,7 @@ impl FileOpener for ArrayJsonOpener {
                 GetResultPayload::File(file, _) => {
                     let decoder = file_compression_type.convert_read(file)?;
                     let mut reader = BufReader::new(decoder);
-                    let values: Value = serde_json::from_reader(&mut reader)
+                    let values: Value = simd_json::serde::from_reader(&mut reader)
                         .map_err(|e| DataFusionError::External(Box::new(e)))?;
                     let rows = json_values_to_record_batch(values.as_array().unwrap(), schema, batch_size);
                         yield(rows);
@@ -348,7 +348,7 @@ impl FileOpener for ArrayJsonOpener {
                     })?;
                     let decoder = file_compression_type.convert_read(data.reader())?;
                     let mut reader = BufReader::new(decoder);
-                    let values: Value = serde_json::from_reader(&mut reader)
+                    let values: Value = simd_json::serde::from_reader(&mut reader)
                         .map_err(|e| DataFusionError::External(Box::new(e)))?;
                     let rows = json_values_to_record_batch(values.as_array().unwrap(), schema, batch_size);
                     yield(rows);
