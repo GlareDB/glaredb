@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.76"
-clap = { version = "4.4.11", features = ["derive"] }
+clap = { version = "4.4.12", features = ["derive"] }
 xshell = "0.2.5"
 zip = "0.6.6"

@@ -25,7 +25,7 @@ object_store_util = { path = "../object_store_util" }
 metastore = { path = "../metastore" }
 anyhow = "1.0"
 tokio = { workspace = true }
-clap = { version = "4.4.11", features = ["derive"] }
+clap = { version = "4.4.12", features = ["derive"] }
 tracing = "0.1"
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tonic = { workspace = true }
