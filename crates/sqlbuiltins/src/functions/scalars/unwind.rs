@@ -39,45 +39,14 @@ impl BuiltinScalarUDF for Json {
                 > {
                     match value {
                         ScalarValue::Utf8(v) | ScalarValue::LargeUtf8(v) => {
-                            let jv = from_str::<Map<String, Value>>(v.unwrap_or_default().as_str())
-                                .map_err(|e| BuiltinError::ParseError(e.to_string()))?;
-
-                            let mut values = Vec::with_capacity(jv.len());
+                            let jv = Self::into_json_map(v.unwrap_or_default().as_str())?;
                             let mut fields = Vec::with_capacity(jv.len());
+                            let mut values = Vec::with_capacity(jv.len());
 
                             for (k, v) in jv {
-                                match v {
-                                    Value::Null => {
-                                        fields.push(Field::new(k, DataType::Null, true));
-                                        values.push(ScalarValue::Null);
-                                    }
-                                    Value::Bool(item) => {
-                                        fields.push(Field::new(k, DataType::Boolean, true));
-                                        values.push(ScalarValue::Boolean(Some(item)));
-                                    }
-                                    Value::String(item) => {
-                                        fields.push(Field::new(k, DataType::Utf8, true));
-                                        values.push(ScalarValue::Utf8(Some(item)));
-                                    }
-                                    Value::Number(item) => {
-                                        if item.is_i64() {
-                                            fields.push(Field::new(k, DataType::Int64, true));
-                                            values.push(ScalarValue::Int64(item.as_i64()));
-                                        } else if item.is_u64() {
-                                            fields.push(Field::new(k, DataType::UInt64, true));
-                                            values.push(ScalarValue::UInt64(item.as_u64()));
-                                        } else if item.is_f64() {
-                                            fields.push(Field::new(k, DataType::Float64, true));
-                                            values.push(ScalarValue::Float64(item.as_f64()));
-                                        } else {
-                                            panic!("unreachable")
-                                        }
-                                    }
-                                    Value::Array(_) | Value::Object(_) => {
-                                        fields.push(Field::new(k, DataType::Utf8, true));
-                                        values.push(ScalarValue::Utf8(Some(v.to_string())));
-                                    }
-                                }
+                                let (f, sv) = Self::parse_json(k, v);
+                                fields.push(f);
+                                values.push(sv);
                             }
                             Ok(ScalarValue::Struct(Some(values), fields.into()))
                         }
@@ -93,6 +62,66 @@ impl BuiltinScalarUDF for Json {
             Arc::new(udf),
             args,
         ))
+    }
+}
+
+impl Json {
+    fn into_json_map(raw: &str) -> Result<Map<String, Value>, BuiltinError> {
+        Ok(from_str::<Map<String, Value>>(raw)
+            .map_err(|e| BuiltinError::ParseError(e.to_string()))?)
+    }
+
+    fn parse_json(k: String, v: Value) -> (Field, ScalarValue) {
+        match v {
+            Value::Null => (Field::new(k, DataType::Null, true), ScalarValue::Null),
+            Value::Bool(item) => (
+                Field::new(k, DataType::Boolean, true),
+                ScalarValue::Boolean(Some(item)),
+            ),
+            Value::String(item) => (
+                Field::new(k, DataType::Utf8, true),
+                ScalarValue::Utf8(Some(item)),
+            ),
+            Value::Number(item) => {
+                if item.is_i64() {
+                    (
+                        Field::new(k, DataType::Int64, true),
+                        ScalarValue::Int64(item.as_i64()),
+                    )
+                } else if item.is_u64() {
+                    (
+                        Field::new(k, DataType::UInt64, true),
+                        ScalarValue::UInt64(item.as_u64()),
+                    )
+                } else if item.is_f64() {
+                    (
+                        Field::new(k, DataType::Float64, true),
+                        ScalarValue::Float64(item.as_f64()),
+                    )
+                } else {
+                    panic!("unreachable")
+                }
+            }
+            Value::Array(_) => (
+                Field::new(k, DataType::Utf8, true),
+                ScalarValue::Utf8(Some(v.to_string())),
+            ),
+            Value::Object(obj) => {
+                let mut fields = Vec::with_capacity(obj.len());
+                let mut values = Vec::with_capacity(obj.len());
+
+                for (k, v) in obj {
+                    let (f, sv) = Self::parse_json(k, v);
+                    fields.push(f);
+                    values.push(sv);
+                }
+                let fields: Fields = fields.into();
+                (
+                    Field::new(k, DataType::Struct(fields.clone()), true),
+                    ScalarValue::Struct(Some(values), fields.clone()),
+                )
+            }
+        }
     }
 }
 
