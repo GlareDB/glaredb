@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
 ioutil = { path = "../../crates/ioutil" }
 napi = { version = "2.14.1", default-features = false, features = ["full"] }
-napi-derive = "2.14.4"
+napi-derive = "2.14.6"
 sqlexec = { path = "../../crates/sqlexec" }
 metastore = { path = "../../crates/metastore" }
 telemetry = { path = "../../crates/telemetry" }
@@ -19,7 +19,7 @@ pgrepr = { path = "../../crates/pgrepr" }
 datafusion_ext = { path = "../../crates/datafusion_ext" }
 arrow_util = { path = "../../crates/arrow_util" }
 glaredb = { path = "../../crates/glaredb" }
-futures = "0.3.28"
+futures = { workspace = true }
 datafusion.workspace = true
 thiserror = { workspace = true }
 url = { workspace = true }
