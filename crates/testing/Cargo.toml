@@ -19,7 +19,7 @@ async-trait = { workspace = true }
 regex = "1.8.1"
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 openssh = "0.10.2"
-futures = "0.3.29"
+futures = "0.3.30"
 ioutil = { path = "../ioutil" }
 logutil = { path = "../logutil" }
 glaredb = { path = "../glaredb" }
