@@ -14,7 +14,7 @@ pgrepr = {path = "../pgrepr"}
 datafusion_ext = {path = "../datafusion_ext"}
 thiserror = { workspace = true }
 tracing = "0.1"
-futures = "0.3.30"
+futures = { workspace = true }
 async-trait = { workspace = true }
 datafusion = { workspace = true }
 tokio-util = { version = "0.7.10", features = ["codec"] }

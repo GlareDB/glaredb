@@ -14,23 +14,24 @@ codegen-units = 1
 strip = true
 
 [workspace.dependencies]
+anyhow = "1.0.77"
 async-trait = "0.1.75"
+chrono = "0.4.31"
 datafusion = { version = "32.0", features = ["avro"] }
 datafusion-proto = { version = "32.0" }
+futures = "0.3.30"
 object_store = { version = "0.7" }
-tokio = { version = "1", features = ["full"] }
-url = "2.5.0"
-thiserror = "1.0"
+prost = "0.12"
+prost-build = "0.12"
+prost-types = "0.12"
+reqwest = { version = "0.11.23", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.108"
-chrono = "0.4.31"
-anyhow = "1.0.77"
-prost = "0.12"
-prost-types = "0.12"
-prost-build = "0.12"
-reqwest = { version = "0.11.23", default-features = false, features = ["json", "rustls-tls"] }
-tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 tempfile = "3.9.0"
+thiserror = "1.0"
+tokio = { version = "1", features = ["full"] }
+tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
+url = "2.5.0"
 
 [workspace.dependencies.deltalake]
 git = "https://github.com/delta-io/delta-rs.git"

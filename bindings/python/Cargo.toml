@@ -25,7 +25,7 @@ pgrepr = { path = "../../crates/pgrepr" }
 datafusion_ext = { path = "../../crates/datafusion_ext" }
 arrow_util = { path = "../../crates/arrow_util" }
 glaredb = { path = "../../crates/glaredb" }
-futures = "0.3.30"
+futures = { workspace = true }
 uuid = "1.6.1"
 async-trait = { workspace = true }
 once_cell = "1.19.0"
