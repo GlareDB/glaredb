@@ -2,6 +2,7 @@ pub mod errors;
 
 mod client;
 
+use chrono::{DateTime, Utc};
 use client::{Client, QueryStream};
 
 use async_trait::async_trait;
@@ -143,7 +144,7 @@ impl SqlServerAccessState {
 
             let arrow_typ = match col.column_type() {
                 ColumnType::Null => DataType::Null,
-                ColumnType::Bit => DataType::Boolean,
+                ColumnType::Bit | ColumnType::Bitn => DataType::Boolean,
                 ColumnType::Int1 => DataType::Int8,
                 ColumnType::Int2 => DataType::Int16,
                 ColumnType::Int4 => DataType::Int32,
@@ -155,8 +156,9 @@ impl SqlServerAccessState {
                 | ColumnType::Datetime2
                 | ColumnType::Datetime4
                 | ColumnType::Datetimen => DataType::Timestamp(TimeUnit::Nanosecond, None),
-                // TODO: Tiberius doesn't give us the offset here.
-                ColumnType::DatetimeOffsetn => DataType::Timestamp(TimeUnit::Nanosecond, None),
+                ColumnType::DatetimeOffsetn => {
+                    DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into()))
+                }
                 ColumnType::Guid => DataType::Utf8,
                 // TODO: These actually have UTF-16 encoding...
                 ColumnType::Text
@@ -165,7 +167,7 @@ impl SqlServerAccessState {
                 | ColumnType::BigChar
                 | ColumnType::BigVarChar
                 | ColumnType::NVarchar => DataType::Utf8,
-                ColumnType::BigBinary => DataType::Binary,
+                ColumnType::BigBinary | ColumnType::BigVarBin => DataType::Binary,
                 other => {
                     return Err(SqlServerError::String(format!(
                         "unsupported SQL Server type: {other:?}"
@@ -552,7 +554,14 @@ fn rows_to_record_batch(
                 Arc::new(arr.finish())
             }
             DataType::Float32 => make_column!(Float32Builder, rows, col_idx),
-            DataType::Float64 => make_column!(Float64Builder, rows, col_idx),
+            DataType::Float64 => {
+                let mut arr = Float64Builder::with_capacity(rows.len());
+                for row in rows.iter() {
+                    let val: Option<Floatn> = row.try_get(col_idx)?;
+                    arr.append_option(val.map(|v| v.0));
+                }
+                Arc::new(arr.finish())
+            }
             DataType::Utf8 => {
                 // Assumes an average of 16 bytes per item.
                 let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
@@ -575,6 +584,16 @@ fn rows_to_record_batch(
                 let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> = row.try_get(col_idx)?;
+                    let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
+                    arr.append_option(val);
+                }
+                Arc::new(arr.finish())
+            }
+            dt @ DataType::Timestamp(TimeUnit::Nanosecond, Some(_)) => {
+                let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len())
+                    .with_data_type(dt.clone());
+                for row in rows.iter() {
+                    let val: Option<DateTime<Utc>> = row.try_get(col_idx)?;
                     let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
                     arr.append_option(val);
                 }
@@ -617,6 +636,25 @@ impl<'a> FromSql<'a> for Intn {
             other => {
                 return Err(tiberius::error::Error::Conversion(
                     format!("{other:?} to Intn").into(),
+                ))
+            }
+        })
+    }
+}
+
+/// Read a variable width float from a column value.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[repr(transparent)]
+struct Floatn(f64);
+
+impl<'a> FromSql<'a> for Floatn {
+    fn from_sql(value: &'a tiberius::ColumnData<'static>) -> tiberius::Result<Option<Self>> {
+        Ok(match value {
+            tiberius::ColumnData::F32(v) => v.as_ref().map(|v| Floatn(*v as f64)),
+            tiberius::ColumnData::F64(v) => v.as_ref().map(|v| Floatn(*v)),
+            other => {
+                return Err(tiberius::error::Error::Conversion(
+                    format!("{other:?} to Floatn").into(),
                 ))
             }
         })
