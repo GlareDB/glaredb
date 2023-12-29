@@ -55,7 +55,7 @@ VALUES (
 
     -- Floats
     4.5,
-    6.7,
+    6.25,
 
     -- Text/Char
     'a',

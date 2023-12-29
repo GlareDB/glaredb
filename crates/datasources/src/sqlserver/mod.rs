@@ -149,8 +149,8 @@ impl SqlServerAccessState {
                 ColumnType::Int2 => DataType::Int16,
                 ColumnType::Int4 => DataType::Int32,
                 ColumnType::Int8 | ColumnType::Intn => DataType::Int64,
-                ColumnType::Float4 | ColumnType::Floatn => DataType::Float32,
-                ColumnType::Float8 => DataType::Float64,
+                ColumnType::Float4 => DataType::Float32,
+                ColumnType::Float8 | ColumnType::Floatn => DataType::Float64,
                 // TODO: Double check that this mapping is correct.
                 ColumnType::Datetime
                 | ColumnType::Datetime2
@@ -554,7 +554,14 @@ fn rows_to_record_batch(
                 Arc::new(arr.finish())
             }
             DataType::Float32 => make_column!(Float32Builder, rows, col_idx),
-            DataType::Float64 => make_column!(Float64Builder, rows, col_idx),
+            DataType::Float64 => {
+                let mut arr = Float64Builder::with_capacity(rows.len());
+                for row in rows.iter() {
+                    let val: Option<Floatn> = row.try_get(col_idx)?;
+                    arr.append_option(val.map(|v| v.0));
+                }
+                Arc::new(arr.finish())
+            }
             DataType::Utf8 => {
                 // Assumes an average of 16 bytes per item.
                 let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
@@ -629,6 +636,25 @@ impl<'a> FromSql<'a> for Intn {
             other => {
                 return Err(tiberius::error::Error::Conversion(
                     format!("{other:?} to Intn").into(),
+                ))
+            }
+        })
+    }
+}
+
+/// Read a variable width float from a column value.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[repr(transparent)]
+struct Floatn(f64);
+
+impl<'a> FromSql<'a> for Floatn {
+    fn from_sql(value: &'a tiberius::ColumnData<'static>) -> tiberius::Result<Option<Self>> {
+        Ok(match value {
+            tiberius::ColumnData::F32(v) => v.as_ref().map(|v| Floatn(*v as f64)),
+            tiberius::ColumnData::F64(v) => v.as_ref().map(|v| Floatn(*v)),
+            other => {
+                return Err(tiberius::error::Error::Conversion(
+                    format!("{other:?} to Floatn").into(),
                 ))
             }
         })

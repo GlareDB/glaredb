@@ -13,5 +13,5 @@ CREATE EXTERNAL TABLE datatypes
 query I
 SELECT * FROM datatypes;
 ----
-t  1  2  3  4  4.5  6.7  a  b  cde  fghi  text  moretext  \x78  \x616263  1999-09-16 16:33:00  1999-09-16 16:32:34  1999-09-16 16:32:34  1999-09-16 16:32:34.53+00
+t  1  2  3  4  4.5  6.25  a  b  cde  fghi  text  moretext  \x78  \x616263  1999-09-16 16:33:00  1999-09-16 16:32:34  1999-09-16 16:32:34  1999-09-16 16:32:34.53+00
 NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL
