@@ -375,6 +375,7 @@ mod tests {
             }),
             tunnel_id: None,
             access_mode: SourceAccessMode::ReadOnly,
+            columns: None,
         };
 
         // Create a table, load it, delete it and load it again!
