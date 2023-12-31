@@ -88,9 +88,7 @@ impl RecordStructBuilder {
                     }
 
                     // Add value to columns.
-                    let typ = self.fields.get(idx).unwrap().data_type(); // Programmer error if data type doesn't exist.
-                    let col = self.builders.get_mut(idx).unwrap(); // Programmer error if this doesn't exist.
-                    append_value(val, typ, col.as_mut())?;
+                    self.add_value_at_index(idx, Some(val))?;
 
                     // Track which columns we've added values to.
                     cols_set.set(idx, true);
@@ -102,10 +100,48 @@ impl RecordStructBuilder {
         // Append nulls to all columns not included in the doc.
         for (idx, did_set) in cols_set.iter().enumerate() {
             if !did_set {
-                // Add nulls...
-                let typ = self.fields.get(idx).unwrap().data_type(); // Programmer error if data type doesn't exist.
-                let col = self.builders.get_mut(idx).unwrap(); // Programmer error if column doesn't exist.
-                append_null(typ, col.as_mut())?;
+                // Add null...
+                self.add_value_at_index(idx, None)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn project_and_append(&mut self, doc: &RawDocument) -> Result<()> {
+        let mut cols_set: BitVec<u8, Lsb0> = BitVec::repeat(false, self.fields.len());
+
+        for iter_result in doc {
+            match iter_result {
+                Ok((key, val)) => {
+                    if let Some(idx) = self.field_index.get(key) {
+                        let idx = idx.to_owned();
+
+                        if cols_set.get(idx).is_some_and(|v| v == true) {
+                            // TODO: if this happens it means that the bson document has a field
+                            // name that appears more than once. This is legal and possible to build
+                            // with some libraries but isn't forbidden, and (I think?) historically
+                            // not (always?) rejected by MongoDB. Regardless "ignoring second
+                            // appearances of the key" is a reasonable semantic.
+                            continue;
+                        }
+
+                        // Add value to columns.
+                        self.add_value_at_index(idx, Some(val))?;
+
+                        // Track which columns we've added values to.
+                        cols_set.set(idx, true);
+                    };
+                }
+                Err(_) => return Err(BsonError::FailedToReadRawBsonDocument),
+            }
+        }
+
+        // Append nulls to all columns not included in the doc.
+        for (idx, did_set) in cols_set.iter().enumerate() {
+            if !did_set {
+                // Add null...
+                self.add_value_at_index(idx, None)?;
             }
         }
 
@@ -114,6 +150,16 @@ impl RecordStructBuilder {
 
     pub fn into_fields_and_builders(self) -> (Fields, Vec<Box<dyn ArrayBuilder>>) {
         (self.fields, self.builders)
+    }
+
+    fn add_value_at_index(&mut self, idx: usize, val: Option<RawBsonRef>) -> Result<()> {
+        let typ = self.fields.get(idx).unwrap().data_type(); // Programmer error if data type doesn't exist.
+        let col = self.builders.get_mut(idx).unwrap(); // Programmer error if column doesn't exist.
+
+        match val {
+            Some(v) => append_value(v, typ, col.as_mut()),
+            None => append_null(typ, col.as_mut()),
+        }
     }
 }
 
