@@ -40,7 +40,7 @@ impl RuntimeGroupPullUp {
                     return Ok(None);
                 }
                 Ok(Some(if children.len() == 1 {
-                    self.optimize(children.get(0).unwrap().clone().child, config)?
+                    self.optimize(children.first().unwrap().clone().child, config)?
                 } else {
                     Arc::new(UnionExec::new(
                         children
@@ -109,7 +109,7 @@ impl PhysicalOptimizerRule for RuntimeGroupPullUp {
             }
 
             // Check that all execs have the same runtime preference.
-            let preference = match children.get(0) {
+            let preference = match children.first() {
                 Some(exec) => exec.preference,
                 None => return Ok(Transformed::No(plan)),
             };
