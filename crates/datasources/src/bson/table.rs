@@ -96,8 +96,8 @@ pub async fn bson_streaming_table(
     let mut streams = Vec::<Arc<(dyn PartitionStream + 'static)>>::with_capacity(readers.len() + 1);
 
     // get the schema; if provided as an argument, just use that, otherwise, sample.
-    let schema = if fields.is_some() {
-        Arc::new(Schema::new(fields.unwrap()))
+    let schema = if let Some(fields) = fields {
+        Arc::new(Schema::new(fields))
     } else {
         // iterate through the readers and build up a sample of the first <n>
         // documents to be used to infer the schema.

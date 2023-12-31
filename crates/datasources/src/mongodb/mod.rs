@@ -34,7 +34,7 @@ use tracing::debug;
 
 /// Field name in mongo for uniquely identifying a record. Some special handling
 /// needs to be done with the field when projecting.
-const ID_FIELD_NAME: &'static str = "_id";
+const ID_FIELD_NAME: &str = "_id";
 
 #[derive(Debug)]
 pub enum MongoDbProtocol {
