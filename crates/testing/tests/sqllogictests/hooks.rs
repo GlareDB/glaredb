@@ -113,7 +113,7 @@ SELECT public_key
                 &[],
             )
             .await?;
-        let public_key: String = row.get(0);
+        let public_key: String = row.first();
 
         // Create the OpenSSH container with an exposed port.
         let cmd = Command::new("docker")

@@ -59,7 +59,7 @@ CREATE TUNNEL test_tunnel_2
             .await?;
         test_assert!(rows.len() == 2, anyhow!("query should return 2 rows"));
 
-        let (key1, key2): (String, String) = (rows[0].get(0), rows[1].get(0));
+        let (key1, key2): (String, String) = (rows[0].first(), rows[1].first());
         test_assert!(key1 != key2, anyhow!("both public keys must be different"));
 
         // Rotate key
@@ -77,7 +77,7 @@ SELECT public_key
                 &[],
             )
             .await?;
-        let key1_new: String = row.get(0);
+        let key1_new: String = row.first();
         test_assert!(
             key1 != key1_new,
             anyhow!("keys must be different after rotating")

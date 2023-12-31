@@ -261,7 +261,7 @@ impl BuiltinScalarUDF for CurrentSchemas {
         // There's no good way to handle the `include_implicit` argument,
         // but since its a binary value (true/false),
         // we can just assign it to a different variable
-        let var_name = if let Some(Expr::Literal(ScalarValue::Boolean(Some(true)))) = args.get(0) {
+        let var_name = if let Some(Expr::Literal(ScalarValue::Boolean(Some(true)))) = args.first() {
             "current_schemas_include_implicit".to_string()
         } else {
             "current_schemas".to_string()

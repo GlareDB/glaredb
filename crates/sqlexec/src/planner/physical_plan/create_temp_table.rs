@@ -52,7 +52,7 @@ impl ExecutionPlan for CreateTempTableExec {
             if_not_exists: self.if_not_exists,
             or_replace: self.or_replace,
             arrow_schema: self.arrow_schema.clone(),
-            source: children.get(0).cloned(),
+            source: children.first().cloned(),
         }))
     }
 

@@ -64,7 +64,7 @@ impl ExecutionBatchStream {
 
         // Get first set of batches (primarily for the schema)
         let batches: VecDeque<_> = Self::read_arrow_ipc(req.arrow_ipc)?.collect();
-        let schema = match batches.get(0) {
+        let schema = match batches.front() {
             Some(Ok(batch)) => batch.schema(),
             Some(Err(e)) => {
                 return Err(ExecError::RemoteSession(format!(

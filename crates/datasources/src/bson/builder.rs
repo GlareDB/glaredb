@@ -119,7 +119,7 @@ impl RecordStructBuilder {
 
 impl ArrayBuilder for RecordStructBuilder {
     fn len(&self) -> usize {
-        self.builders.get(0).unwrap().len()
+        self.builders.first().unwrap().len()
     }
 
     fn is_empty(&self) -> bool {
@@ -296,11 +296,10 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
             append_scalar!(
                 StringBuilder,
                 col,
-                serde_json::Value::try_from(
+                serde_json::Value::from(
                     bson::Array::try_from(arr)
                         .map_err(|_| BsonError::FailedToReadRawBsonDocument)?
                 )
-                .map_err(|_| BsonError::FailedToReadRawBsonDocument)?
                 .to_string()
             )
         }
