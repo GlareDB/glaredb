@@ -538,7 +538,7 @@ pub enum TableOptions {
     Local(TableOptionsLocal),
     Gcs(TableOptionsGcs),
     S3(TableOptionsS3),
-    Mongo(TableOptionsMongo),
+    MongoDb(TableOptionsMongoDb),
     Snowflake(TableOptionsSnowflake),
     Delta(TableOptionsObjectStore),
     Iceberg(TableOptionsObjectStore),
@@ -558,7 +558,7 @@ impl TableOptions {
     pub const LOCAL: &'static str = "local";
     pub const GCS: &'static str = "gcs";
     pub const S3_STORAGE: &'static str = "s3";
-    pub const MONGO: &'static str = "mongo";
+    pub const MONGODB: &'static str = "mongo";
     pub const SNOWFLAKE: &'static str = "snowflake";
     pub const DELTA: &'static str = "delta";
     pub const ICEBERG: &'static str = "iceberg";
@@ -582,7 +582,7 @@ impl TableOptions {
             TableOptions::Local(_) => Self::LOCAL,
             TableOptions::Gcs(_) => Self::GCS,
             TableOptions::S3(_) => Self::S3_STORAGE,
-            TableOptions::Mongo(_) => Self::MONGO,
+            TableOptions::MongoDb(_) => Self::MONGODB,
             TableOptions::Snowflake(_) => Self::SNOWFLAKE,
             TableOptions::Delta(_) => Self::DELTA,
             TableOptions::Iceberg(_) => Self::ICEBERG,
@@ -613,7 +613,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::Local(v) => TableOptions::Local(v.try_into()?),
             options::table_options::Options::Gcs(v) => TableOptions::Gcs(v.try_into()?),
             options::table_options::Options::S3(v) => TableOptions::S3(v.try_into()?),
-            options::table_options::Options::Mongo(v) => TableOptions::Mongo(v.try_into()?),
+            options::table_options::Options::Mongo(v) => TableOptions::MongoDb(v.try_into()?),
             options::table_options::Options::Snowflake(v) => TableOptions::Snowflake(v.try_into()?),
             options::table_options::Options::Delta(v) => TableOptions::Delta(v.try_into()?),
             options::table_options::Options::Iceberg(v) => TableOptions::Iceberg(v.try_into()?),
@@ -647,7 +647,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Local(v) => options::table_options::Options::Local(v.into()),
             TableOptions::Gcs(v) => options::table_options::Options::Gcs(v.into()),
             TableOptions::S3(v) => options::table_options::Options::S3(v.into()),
-            TableOptions::Mongo(v) => options::table_options::Options::Mongo(v.into()),
+            TableOptions::MongoDb(v) => options::table_options::Options::Mongo(v.into()),
             TableOptions::Snowflake(v) => options::table_options::Options::Snowflake(v.into()),
             TableOptions::Delta(v) => options::table_options::Options::Delta(v.into()),
             TableOptions::Iceberg(v) => options::table_options::Options::Iceberg(v.into()),
@@ -943,16 +943,16 @@ impl From<TableOptionsS3> for options::TableOptionsS3 {
     }
 }
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
-pub struct TableOptionsMongo {
+pub struct TableOptionsMongoDb {
     pub connection_string: String,
     pub database: String,
     pub collection: String,
 }
 
-impl TryFrom<options::TableOptionsMongo> for TableOptionsMongo {
+impl TryFrom<options::TableOptionsMongo> for TableOptionsMongoDb {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsMongo) -> Result<Self, Self::Error> {
-        Ok(TableOptionsMongo {
+        Ok(TableOptionsMongoDb {
             connection_string: value.connection_string,
             database: value.database,
             collection: value.collection,
@@ -960,8 +960,8 @@ impl TryFrom<options::TableOptionsMongo> for TableOptionsMongo {
     }
 }
 
-impl From<TableOptionsMongo> for options::TableOptionsMongo {
-    fn from(value: TableOptionsMongo) -> Self {
+impl From<TableOptionsMongoDb> for options::TableOptionsMongo {
+    fn from(value: TableOptionsMongoDb) -> Self {
         options::TableOptionsMongo {
             connection_string: value.connection_string,
             database: value.database,

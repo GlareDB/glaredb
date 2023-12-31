@@ -1,3 +1,12 @@
+use std::collections::HashMap;
+use std::fmt::{self, Display};
+use std::str::FromStr;
+use std::sync::Arc;
+
+use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
+use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
+use proptest_derive::Arbitrary;
+
 use super::options::{
     CredentialsOptions, DatabaseOptions, InternalColumnDefinition, TableOptions,
     TableOptionsInternal, TunnelOptions,
@@ -5,12 +14,6 @@ use super::options::{
 use crate::gen::common::arrow::ArrowType;
 use crate::gen::metastore::catalog::{self, type_signature};
 use crate::{FromOptionalField, ProtoConvError};
-use datafusion::arrow::datatypes::DataType;
-use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
-use proptest_derive::Arbitrary;
-use std::collections::HashMap;
-use std::fmt::{self, Display};
-use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogState {
@@ -468,6 +471,15 @@ impl TableEntry {
                 }
             }
         }
+    }
+    pub fn get_columns(&self) -> Option<Vec<FieldRef>> {
+        self.get_internal_columns().map(|val| {
+            val.iter()
+                .map(InternalColumnDefinition::to_owned)
+                .map(|icd| Field::new(icd.name, icd.arrow_type, icd.nullable))
+                .map(Arc::new)
+                .collect()
+        })
     }
 }
 

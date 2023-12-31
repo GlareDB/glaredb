@@ -225,16 +225,21 @@ impl MongoDbTableAccessor {
         Ok(())
     }
 
-    pub async fn into_table_provider(self) -> Result<MongoTableProvider> {
-        let collection = self
-            .client
-            .database(&self.info.database)
-            .collection(&self.info.collection);
-        let sampler = TableSampler::new(collection);
+    pub async fn into_table_provider(self) -> Result<MongoDbTableProvider> {
+        let schema = if self.info.fields.is_some() {
+            ArrowSchema::new(self.info.fields.unwrap())
+        } else {
+            let collection = self
+                .client
+                .database(&self.info.database)
+                .collection(&self.info.collection);
 
-        let schema = sampler.infer_schema_from_sample().await?;
+            TableSampler::new(collection)
+                .infer_schema_from_sample()
+                .await?
+        };
 
-        Ok(MongoTableProvider {
+        Ok(MongoDbTableProvider {
             schema: Arc::new(schema),
             collection: self
                 .client
@@ -244,13 +249,13 @@ impl MongoDbTableAccessor {
     }
 }
 
-pub struct MongoTableProvider {
+pub struct MongoDbTableProvider {
     schema: Arc<ArrowSchema>,
     collection: Collection<RawDocumentBuf>,
 }
 
 #[async_trait]
-impl TableProvider for MongoTableProvider {
+impl TableProvider for MongoDbTableProvider {
     fn as_any(&self) -> &dyn Any {
         self
     }

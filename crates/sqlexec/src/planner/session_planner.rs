@@ -47,7 +47,7 @@ use protogen::metastore::types::options::{
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog,
     DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery,
     TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
-    TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres,
+    TableOptionsMongoDb, TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres,
     TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
     TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
 };
@@ -439,14 +439,14 @@ impl<'a> SessionPlanner<'a> {
                     table: access.name,
                 })
             }
-            TableOptions::MONGO => {
+            TableOptions::MONGODB => {
                 let connection_string = get_mongo_conn_str(m)?;
                 let database = m.remove_required("database")?;
                 let collection = m.remove_required("collection")?;
 
                 // TODO: Validate
 
-                TableOptions::Mongo(TableOptionsMongo {
+                TableOptions::MongoDb(TableOptionsMongoDb {
                     connection_string,
                     database,
                     collection,

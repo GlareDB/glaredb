@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use datafusion::arrow::datatypes::Field;
 use datafusion::common::FileType;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
@@ -11,6 +10,7 @@ use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::TableProvider;
 use datafusion::prelude::SessionContext;
+
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::bson::table::bson_streaming_table;
@@ -36,11 +36,11 @@ use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionE
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse, DatabaseOptionsDebug,
     DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer,
-    InternalColumnDefinition, TableOptions, TableOptionsBigQuery, TableOptionsClickhouse,
-    TableOptionsDebug, TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongo,
-    TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
+    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, TableOptions,
+    TableOptionsBigQuery, TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs,
+    TableOptionsInternal, TableOptionsLocal, TableOptionsMongoDb, TableOptionsMysql,
+    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
+    TableOptionsSqlServer, TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
@@ -288,7 +288,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
-            TableOptions::Mongo(TableOptionsMongo {
+            TableOptions::MongoDb(TableOptionsMongoDb {
                 connection_string,
                 database,
                 collection,
@@ -296,13 +296,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let table_info = MongoDbTableAccessInfo {
                     database: database.to_string(),
                     collection: collection.to_string(),
-                    fields: table.columns.to_owned().map(|vals| {
-                        vals.iter()
-                            .map(InternalColumnDefinition::to_owned)
-                            .map(|icd| Field::new(icd.name, icd.arrow_type, icd.nullable))
-                            .map(Arc::new)
-                            .collect()
-                    }),
+                    fields: table.get_columns(),
                 };
                 let accessor = MongoDbAccessor::connect(connection_string).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
@@ -501,10 +495,15 @@ impl<'a> ExternalDispatcher<'a> {
                     storage_options.to_owned(),
                 )?;
                 let source_url = DatasourceUrl::try_new(location)?;
-                Ok(
-                    bson_streaming_table(store_access, schema_sample_size.to_owned(), source_url)
-                        .await?,
+                let fields = table.get_columns();
+
+                Ok(bson_streaming_table(
+                    store_access,
+                    source_url,
+                    fields,
+                    schema_sample_size.to_owned(),
                 )
+                .await?)
             }
         }
     }

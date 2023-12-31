@@ -71,6 +71,6 @@ impl TableFunc for BsonScan {
             storage_options,
         )?;
 
-        Ok(bson_streaming_table(store_access, Some(sample_size), source_url).await?)
+        Ok(bson_streaming_table(store_access, source_url, None, Some(sample_size)).await?)
     }
 }
