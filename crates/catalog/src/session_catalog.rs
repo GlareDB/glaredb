@@ -423,7 +423,7 @@ impl TempCatalog {
         let inner = self.inner.lock();
         inner.tables.get(name).map(|tbl| {
             let schema = tbl.schema();
-            let columns = schema
+            let columns: Vec<_> = schema
                 .fields()
                 .iter()
                 .map(|f| {
@@ -449,9 +449,12 @@ impl TempCatalog {
                     sql_example: None,
                     description: None,
                 },
-                options: TableOptions::Internal(TableOptionsInternal { columns }),
+                options: TableOptions::Internal(TableOptionsInternal {
+                    columns: columns.to_owned(),
+                }),
                 tunnel_id: None,
                 access_mode: SourceAccessMode::ReadWrite,
+                columns: Some(columns.to_owned()),
             }
         })
     }
@@ -497,6 +500,7 @@ impl TempCatalog {
                 }),
                 tunnel_id: None,
                 access_mode: SourceAccessMode::ReadWrite,
+                columns: Some(Vec::new()),
             });
         }
 

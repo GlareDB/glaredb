@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, fmt};
 use datafusion::common::parsers::CompressionTypeVariant;
 use datafusion::common::FileType;
 use datafusion::sql::sqlparser::parser::ParserError;
-use datasources::{debug::DebugTableType, mongodb::MongoProtocol};
+use datasources::{debug::DebugTableType, mongodb::MongoDbProtocol};
 use protogen::metastore::types::options::StorageOptions;
 
 /// Contains the value parsed from Options(...).
@@ -137,8 +137,8 @@ impl ParseOptionValue<char> for OptionValue {
     }
 }
 
-impl ParseOptionValue<MongoProtocol> for OptionValue {
-    fn parse_opt(self) -> Result<MongoProtocol, ParserError> {
+impl ParseOptionValue<MongoDbProtocol> for OptionValue {
+    fn parse_opt(self) -> Result<MongoDbProtocol, ParserError> {
         let opt = match self {
             Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => {
                 s.parse().map_err(|e| parser_err!("{e}"))?

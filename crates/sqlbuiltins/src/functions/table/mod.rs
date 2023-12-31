@@ -7,7 +7,7 @@ mod excel;
 mod generate_series;
 mod iceberg;
 mod lance;
-mod mongo;
+mod mongodb;
 mod mysql;
 mod object_store;
 mod postgres;
@@ -16,18 +16,20 @@ mod sqlserver;
 mod system;
 mod virtual_listing;
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use ::object_store::aws::AmazonS3ConfigKey;
 use ::object_store::azure::AzureConfigKey;
 use ::object_store::gcp::GoogleConfigKey;
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
+
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
-use std::collections::HashMap;
-use std::sync::Arc;
 
 use self::bigquery::ReadBigQuery;
 use self::bson::BsonScan;
@@ -37,7 +39,7 @@ use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
 use self::iceberg::{data_files::IcebergDataFiles, scan::IcebergScan, snapshots::IcebergSnapshots};
 use self::lance::LanceScan;
-use self::mongo::ReadMongoDb;
+use self::mongodb::ReadMongoDb;
 use self::mysql::ReadMysql;
 use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
@@ -45,7 +47,6 @@ use self::snowflake::ReadSnowflake;
 use self::sqlserver::ReadSqlServer;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
-
 use super::BuiltinFunction;
 
 /// A builtin table function.

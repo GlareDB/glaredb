@@ -42,7 +42,7 @@ message DatabaseOptions {
     DatabaseOptionsPostgres postgres = 3;
     DatabaseOptionsBigQuery bigquery = 4;
     DatabaseOptionsMysql mysql = 5;
-    DatabaseOptionsMongo mongo = 6;
+    DatabaseOptionsMongoDb mongodb = 6;
     DatabaseOptionsSnowflake snowflake = 7;
     DatabaseOptionsDeltaLake delta = 8;
     DatabaseOptionsSqlServer sql_server = 9;
@@ -68,7 +68,7 @@ message DatabaseOptionsMysql {
   string connection_string = 1;
 }
 
-message DatabaseOptionsMongo {
+message DatabaseOptionsMongoDb {
   string connection_string = 1;
 }
 

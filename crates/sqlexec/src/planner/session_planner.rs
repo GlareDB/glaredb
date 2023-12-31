@@ -21,7 +21,7 @@ use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lance::scan_lance_table;
-use datasources::mongodb::{MongoAccessor, MongoDbConnection};
+use datasources::mongodb::{MongoDbAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::generic::GenericStoreAccess;
@@ -43,7 +43,7 @@ use protogen::metastore::types::options::{
     CopyToFormatOptionsCsv, CopyToFormatOptionsJson, CopyToFormatOptionsParquet,
     CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsAzure, CredentialsOptionsDebug,
     CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse,
-    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
+    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog,
     DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery,
     TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
@@ -233,15 +233,15 @@ impl<'a> SessionPlanner<'a> {
                     })?;
                 DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string })
             }
-            DatabaseOptions::MONGO => {
+            DatabaseOptions::MONGODB => {
                 let connection_string = get_mongo_conn_str(m)?;
                 // Validate the accessor
-                MongoAccessor::validate_external_database(connection_string.as_str())
+                MongoDbAccessor::validate_external_database(connection_string.as_str())
                     .await
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
                     })?;
-                DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string })
+                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string })
             }
             DatabaseOptions::SNOWFLAKE => {
                 let account_name: String = m.remove_required("account")?;
@@ -746,12 +746,30 @@ impl<'a> SessionPlanner<'a> {
 
         let table_name = object_name_to_table_ref(stmt.name)?;
 
+        let columns = if let Some(columns) = stmt.columns.map(|coll_def| {
+            coll_def
+                .into_iter()
+                .map(|coll| -> Result<Arc<Field>, PlanError> {
+                    Ok(Arc::new(Field::new(
+                        coll.name.to_string(),
+                        convert_data_type(&coll.data_type)?,
+                        false,
+                    )))
+                })
+                .collect::<Result<Vec<_>, PlanError>>()
+        }) {
+            Some(columns?)
+        } else {
+            None
+        };
+
         let plan = CreateExternalTable {
             tbl_reference: self.ctx.resolve_table_ref(table_name)?,
             or_replace: stmt.or_replace,
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
             tunnel,
+            columns,
         };
 
         Ok(plan.into_logical_plan())

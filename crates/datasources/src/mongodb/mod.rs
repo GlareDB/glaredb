@@ -6,12 +6,14 @@ mod infer;
 
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
-use errors::{MongoError, Result};
+use errors::{MongoDbError, Result};
 use exec::MongoBsonExec;
 use infer::TableSampler;
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
+use datafusion::arrow::datatypes::{
+    FieldRef, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
+};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
@@ -32,39 +34,39 @@ use tracing::debug;
 
 /// Field name in mongo for uniquely identifying a record. Some special handling
 /// needs to be done with the field when projecting.
-const ID_FIELD_NAME: &str = "_id";
+const ID_FIELD_NAME: &'static str = "_id";
 
 #[derive(Debug)]
-pub enum MongoProtocol {
+pub enum MongoDbProtocol {
     MongoDb,
     MongoDbSrv,
 }
 
-impl Default for MongoProtocol {
+impl Default for MongoDbProtocol {
     fn default() -> Self {
         Self::MongoDb
     }
 }
 
-impl MongoProtocol {
+impl MongoDbProtocol {
     const MONGODB: &'static str = "mongodb";
     const MONGODB_SRV: &'static str = "mongodb+srv";
 }
 
-impl FromStr for MongoProtocol {
-    type Err = MongoError;
+impl FromStr for MongoDbProtocol {
+    type Err = MongoDbError;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let proto = match s {
             Self::MONGODB => Self::MongoDb,
             Self::MONGODB_SRV => Self::MongoDbSrv,
-            s => return Err(MongoError::InvalidProtocol(s.to_owned())),
+            s => return Err(MongoDbError::InvalidProtocol(s.to_owned())),
         };
         Ok(proto)
     }
 }
 
-impl Display for MongoProtocol {
+impl Display for MongoDbProtocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Self::MongoDb => Self::MONGODB,
@@ -78,7 +80,7 @@ impl Display for MongoProtocol {
 pub enum MongoDbConnection {
     ConnectionString(String),
     Parameters {
-        protocol: MongoProtocol,
+        protocol: MongoDbProtocol,
         host: String,
         port: Option<u16>,
         user: String,
@@ -107,7 +109,7 @@ impl MongoDbConnection {
                 }
                 // Address
                 write!(&mut conn_str, "@{host}").unwrap();
-                if matches!(protocol, MongoProtocol::MongoDb) {
+                if matches!(protocol, MongoDbProtocol::MongoDb) {
                     // Only attempt to write port if the protocol is "mongodb"
                     if let Some(port) = port {
                         write!(&mut conn_str, ":{port}").unwrap();
@@ -120,17 +122,17 @@ impl MongoDbConnection {
 }
 
 #[derive(Debug, Clone)]
-pub struct MongoAccessor {
+pub struct MongoDbAccessor {
     client: Client,
 }
 
-impl MongoAccessor {
-    pub async fn connect(connection_string: &str) -> Result<MongoAccessor> {
+impl MongoDbAccessor {
+    pub async fn connect(connection_string: &str) -> Result<MongoDbAccessor> {
         let mut opts = ClientOptions::parse(connection_string).await?;
         opts.app_name = Some("GlareDB (MongoDB Data source)".to_string());
         let client = Client::with_options(opts)?;
 
-        Ok(MongoAccessor { client })
+        Ok(MongoDbAccessor { client })
     }
 
     pub async fn validate_external_database(connection_string: &str) -> Result<()> {
@@ -144,8 +146,8 @@ impl MongoAccessor {
         Ok(())
     }
 
-    pub fn into_table_accessor(self, info: MongoTableAccessInfo) -> MongoTableAccessor {
-        MongoTableAccessor {
+    pub fn into_table_accessor(self, info: MongoDbTableAccessInfo) -> MongoDbTableAccessor {
+        MongoDbTableAccessor {
             info,
             client: self.client,
         }
@@ -153,7 +155,7 @@ impl MongoAccessor {
 }
 
 #[async_trait]
-impl VirtualLister for MongoAccessor {
+impl VirtualLister for MongoDbAccessor {
     async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
         use ExtensionError::ListingErrBoxed;
 
@@ -198,18 +200,19 @@ impl VirtualLister for MongoAccessor {
 }
 
 #[derive(Debug, Clone)]
-pub struct MongoTableAccessInfo {
+pub struct MongoDbTableAccessInfo {
     pub database: String, // "Schema"
     pub collection: String,
+    pub fields: Option<Vec<FieldRef>>, // filter
 }
 
 #[derive(Debug, Clone)]
-pub struct MongoTableAccessor {
-    info: MongoTableAccessInfo,
+pub struct MongoDbTableAccessor {
+    info: MongoDbTableAccessInfo,
     client: Client,
 }
 
-impl MongoTableAccessor {
+impl MongoDbTableAccessor {
     /// Validate that we can access the table.
     pub async fn validate(&self) -> Result<()> {
         let _ = self
@@ -427,7 +430,7 @@ mod tests {
         assert_eq!(&conn_str, "mongodb://prod:password123@127.0.0.1:5432");
 
         let conn_str = MongoDbConnection::Parameters {
-            protocol: MongoProtocol::MongoDb,
+            protocol: MongoDbProtocol::MongoDb,
             host: "127.0.0.1".to_string(),
             port: Some(5432),
             user: "prod".to_string(),
@@ -437,7 +440,7 @@ mod tests {
         assert_eq!(&conn_str, "mongodb://prod:password123@127.0.0.1:5432");
 
         let conn_str = MongoDbConnection::Parameters {
-            protocol: MongoProtocol::MongoDbSrv,
+            protocol: MongoDbProtocol::MongoDbSrv,
             host: "127.0.0.1".to_string(),
             port: Some(5432),
             user: "prod".to_string(),

@@ -868,6 +868,7 @@ impl State {
                     options: TableOptions::Internal(create_table.options),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadWrite,
+                    columns: None,
                 };
 
                 let policy =
@@ -911,6 +912,7 @@ impl State {
                     options: create_ext.options,
                     tunnel_id,
                     access_mode: SourceAccessMode::ReadOnly,
+                    columns: None,
                 };
 
                 let policy = CreatePolicy::new(create_ext.if_not_exists, create_ext.or_replace)?;
@@ -1254,6 +1256,7 @@ impl BuiltinCatalog {
                     options: TableOptions::new_internal(table.columns.clone()),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadOnly,
+                    columns: None,
                 }),
             )?;
             schema_objects

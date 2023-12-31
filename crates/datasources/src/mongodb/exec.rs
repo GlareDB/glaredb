@@ -22,7 +22,7 @@ use mongodb::Cursor;
 
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 
-use super::errors::{MongoError, Result};
+use super::errors::{MongoDbError, Result};
 use crate::bson::builder::RecordStructBuilder;
 
 #[derive(Debug)]
@@ -174,7 +174,7 @@ impl RecordBatchStream for BsonStream {
     }
 }
 
-fn document_chunk_to_record_batch<E: Into<MongoError>>(
+fn document_chunk_to_record_batch<E: Into<MongoDbError>>(
     chunk: Vec<Result<RawDocumentBuf, E>>,
     fields: Fields,
 ) -> Result<RecordBatch> {

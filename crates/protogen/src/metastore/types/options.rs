@@ -65,8 +65,6 @@ impl TryFrom<options::InternalColumnDefinition> for InternalColumnDefinition {
     }
 }
 
-// TODO: Try to make this just `From`. Would require some additional conversions
-// for the arrow types.
 impl TryFrom<InternalColumnDefinition> for options::InternalColumnDefinition {
     type Error = ProtoConvError;
     fn try_from(value: InternalColumnDefinition) -> Result<Self, Self::Error> {
@@ -88,7 +86,7 @@ pub enum DatabaseOptions {
     Postgres(DatabaseOptionsPostgres),
     BigQuery(DatabaseOptionsBigQuery),
     Mysql(DatabaseOptionsMysql),
-    Mongo(DatabaseOptionsMongo),
+    MongoDb(DatabaseOptionsMongoDb),
     Snowflake(DatabaseOptionsSnowflake),
     Delta(DatabaseOptionsDeltaLake),
     SqlServer(DatabaseOptionsSqlServer),
@@ -101,7 +99,7 @@ impl DatabaseOptions {
     pub const POSTGRES: &'static str = "postgres";
     pub const BIGQUERY: &'static str = "bigquery";
     pub const MYSQL: &'static str = "mysql";
-    pub const MONGO: &'static str = "mongo";
+    pub const MONGODB: &'static str = "mongo";
     pub const SNOWFLAKE: &'static str = "snowflake";
     pub const DELTA: &'static str = "delta";
     pub const SQL_SERVER: &'static str = "sql_server";
@@ -114,7 +112,7 @@ impl DatabaseOptions {
             DatabaseOptions::Postgres(_) => Self::POSTGRES,
             DatabaseOptions::BigQuery(_) => Self::BIGQUERY,
             DatabaseOptions::Mysql(_) => Self::MYSQL,
-            DatabaseOptions::Mongo(_) => Self::MONGO,
+            DatabaseOptions::MongoDb(_) => Self::MONGODB,
             DatabaseOptions::Snowflake(_) => Self::SNOWFLAKE,
             DatabaseOptions::Delta(_) => Self::DELTA,
             DatabaseOptions::SqlServer(_) => Self::SQL_SERVER,
@@ -144,7 +142,9 @@ impl TryFrom<options::database_options::Options> for DatabaseOptions {
                 DatabaseOptions::BigQuery(v.try_into()?)
             }
             options::database_options::Options::Mysql(v) => DatabaseOptions::Mysql(v.try_into()?),
-            options::database_options::Options::Mongo(v) => DatabaseOptions::Mongo(v.try_into()?),
+            options::database_options::Options::Mongodb(v) => {
+                DatabaseOptions::MongoDb(v.try_into()?)
+            }
             options::database_options::Options::Snowflake(v) => {
                 DatabaseOptions::Snowflake(v.try_into()?)
             }
@@ -174,7 +174,7 @@ impl From<DatabaseOptions> for options::database_options::Options {
             DatabaseOptions::Postgres(v) => options::database_options::Options::Postgres(v.into()),
             DatabaseOptions::BigQuery(v) => options::database_options::Options::Bigquery(v.into()),
             DatabaseOptions::Mysql(v) => options::database_options::Options::Mysql(v.into()),
-            DatabaseOptions::Mongo(v) => options::database_options::Options::Mongo(v.into()),
+            DatabaseOptions::MongoDb(v) => options::database_options::Options::Mongodb(v.into()),
             DatabaseOptions::Snowflake(v) => {
                 options::database_options::Options::Snowflake(v.into())
             }
@@ -299,22 +299,22 @@ impl From<DatabaseOptionsMysql> for options::DatabaseOptionsMysql {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
-pub struct DatabaseOptionsMongo {
+pub struct DatabaseOptionsMongoDb {
     pub connection_string: String,
 }
 
-impl TryFrom<options::DatabaseOptionsMongo> for DatabaseOptionsMongo {
+impl TryFrom<options::DatabaseOptionsMongoDb> for DatabaseOptionsMongoDb {
     type Error = ProtoConvError;
-    fn try_from(value: options::DatabaseOptionsMongo) -> Result<Self, Self::Error> {
-        Ok(DatabaseOptionsMongo {
+    fn try_from(value: options::DatabaseOptionsMongoDb) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsMongoDb {
             connection_string: value.connection_string,
         })
     }
 }
 
-impl From<DatabaseOptionsMongo> for options::DatabaseOptionsMongo {
-    fn from(value: DatabaseOptionsMongo) -> Self {
-        options::DatabaseOptionsMongo {
+impl From<DatabaseOptionsMongoDb> for options::DatabaseOptionsMongoDb {
+    fn from(value: DatabaseOptionsMongoDb) -> Self {
+        options::DatabaseOptionsMongoDb {
             connection_string: value.connection_string,
         }
     }
