@@ -174,7 +174,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     if_not_exists: lp.if_not_exists,
                     or_replace: lp.or_replace,
                     arrow_schema: Arc::new(lp.schema.as_ref().into()),
-                    source: physical_inputs.get(0).cloned(),
+                    source: physical_inputs.first().cloned(),
                 };
                 RuntimeGroupExec::new(RuntimePreference::Remote, Arc::new(exec))
             }
@@ -185,7 +185,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     if_not_exists: lp.if_not_exists,
                     or_replace: lp.or_replace,
                     arrow_schema: Arc::new(lp.schema.as_ref().into()),
-                    source: physical_inputs.get(0).cloned(),
+                    source: physical_inputs.first().cloned(),
                 };
                 RuntimeGroupExec::new(RuntimePreference::Local, Arc::new(exec))
             }
@@ -345,7 +345,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     format: lp.format.clone(),
                     dest: lp.dest.clone(),
                     source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
-                        physical_inputs.get(0).unwrap().clone(),
+                        physical_inputs.first().unwrap().clone(),
                     )),
                 });
                 RuntimeGroupExec::new(runtime, exec)
@@ -372,7 +372,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 let exec = Arc::new(InsertExec {
                     provider,
                     source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
-                        physical_inputs.get(0).unwrap().clone(),
+                        physical_inputs.first().unwrap().clone(),
                     )),
                 });
                 RuntimeGroupExec::new(lp.runtime_preference, exec)
