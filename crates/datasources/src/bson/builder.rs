@@ -114,8 +114,7 @@ impl RecordStructBuilder {
         for iter_result in doc {
             match iter_result {
                 Ok((key, val)) => {
-                    if let Some(idx) = self.field_index.get(key) {
-                        let idx = idx.to_owned();
+                    if let Some(&idx) = self.field_index.get(key) {
 
                         if cols_set.get(idx).is_some_and(|v| v == true) {
                             // TODO: if this happens it means that the bson document has a field
