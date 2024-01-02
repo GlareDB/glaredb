@@ -454,3 +454,45 @@ fn column_builders_for_fields(
 
     Ok(cols)
 }
+
+#[cfg(test)]
+mod test {
+    use bson::oid::ObjectId;
+
+    use super::*;
+
+    #[test]
+    fn test_duplicate_field_handling() {
+        let fields = Fields::from_iter(vec![
+            Field::new("_id", DataType::Binary, true),
+            Field::new("idx", DataType::Int64, true),
+            Field::new("value", DataType::Utf8, true),
+        ]);
+        let mut rsb = RecordStructBuilder::new_with_capacity(fields, 100).unwrap();
+        for idx in 0..100 {
+            let mut buf = bson::RawDocumentBuf::new();
+
+            buf.append("_id", ObjectId::new());
+            buf.append("idx", idx as i64);
+            buf.append("value", "first");
+            buf.append("value", "second");
+
+            rsb.append_record(RawDocument::from_bytes(&buf.into_bytes()).unwrap())
+                .unwrap();
+        }
+        assert_eq!(rsb.len(), 100);
+        for value in rsb
+            .builders
+            .get_mut(2)
+            .unwrap()
+            .as_any_mut()
+            .downcast_mut::<StringBuilder>()
+            .unwrap()
+            .finish_cloned()
+            .iter()
+        {
+            let v = value.unwrap();
+            assert_eq!(v, "first");
+        }
+    }
+}
