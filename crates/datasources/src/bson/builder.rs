@@ -524,6 +524,9 @@ mod test {
         rsb.append_record(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
             .expect_err("for append_record schema changes are an error");
         assert_eq!(rsb.len(), 1);
+        rsb.project_and_append(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
+            .expect("project and append should filter out unrequired fields");
+        assert_eq!(rsb.len(), 2);
 
         let mut buf = bson::RawDocumentBuf::new();
         buf.append("_id", ObjectId::new());
@@ -531,14 +534,13 @@ mod test {
         buf.append("values", 3);
         assert_eq!(buf.iter().count(), 3);
 
-        assert_eq!(rsb.len(), 1);
         rsb.append_record(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
             .expect_err("for append_record schema changes are an error");
         // the first value was added successfully to another buffer to the rsb grew
-        assert_eq!(rsb.len(), 2);
+        assert_eq!(rsb.len(), 3);
 
         rsb.project_and_append(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
             .expect("project and append should filter out unrequired fields");
-        assert_eq!(rsb.len(), 3);
+        assert_eq!(rsb.len(), 4);
     }
 }
