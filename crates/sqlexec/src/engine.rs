@@ -114,7 +114,8 @@ impl EngineStorageConfig {
                         let bucket = opts
                             .get("bucket")
                             .cloned()
-                            .or(url.host_str().map(|h| h.to_string()));
+                            .or(url.host_str().map(|h| h.to_string()))
+                            .ok_or(ExecError::MissingBucketName)?;
 
                         EngineStorageConfig {
                             location: url.clone(),
@@ -156,6 +157,8 @@ impl EngineStorageConfig {
                             }
                         }
 
+                        let bucket = bucket.ok_or(ExecError::MissingBucketName)?;
+
                         EngineStorageConfig {
                             location: url.clone(),
                             conf: StorageConfig::S3 {
@@ -186,7 +189,8 @@ impl EngineStorageConfig {
                         let container_name = opts
                             .get("container_name")
                             .cloned()
-                            .or(url.host_str().map(|h| h.to_string()));
+                            .or(url.host_str().map(|h| h.to_string()))
+                            .ok_or(ExecError::MissingBucketName)?;
 
                         EngineStorageConfig {
                             location: url.clone(),
@@ -227,21 +231,15 @@ impl EngineStorageConfig {
                         .map_err(DatasourceCommonError::from)?,
                     conf: StorageConfig::Gcs {
                         service_account_key,
-                        bucket: Some(bucket),
+                        bucket,
                     },
                 }
-            }
-            // Expected gcs config opts for the session.
-            (StorageConfig::Gcs { bucket: None, .. }, None) => {
-                return Err(ExecError::InvalidStorageConfig(
-                    "Missing bucket on session configuration",
-                ))
             }
             (_, Some(_)) => EngineStorageConfig {
                 location: Url::parse("memory://").map_err(DatasourceCommonError::from)?,
                 conf: StorageConfig::Memory,
             },
-            _ => self.clone(),
+            (_, None) => self.clone(),
         })
     }
 
@@ -567,14 +565,14 @@ mod tests {
                 secret_access_key,
                 region: None,
                 endpoint: None,
-                bucket: Some("some-bucket".to_string()),
+                bucket: "some-bucket".to_string(),
             }
         );
 
         let merged_conf = conf.with_session_config(&SessionStorageConfig {
             gcs_bucket: Some("my-other-bucket".to_string()),
         })?;
-        assert_eq!(merged_conf.conf, StorageConfig::Memory,);
+        assert_eq!(merged_conf.conf, StorageConfig::Memory);
         Ok(())
     }
 }
