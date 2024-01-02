@@ -84,7 +84,7 @@ impl RecordStructBuilder {
                         .ok_or_else(|| BsonError::ColumnNotInInferredSchema(key.to_string()))?;
 
                     if *cols_set.get(idx).unwrap() {
-                        println!("DUPLICATE SET: {}, {:?}", key, doc);
+                        continue;
                     }
 
                     // Add value to columns.
@@ -115,9 +115,8 @@ impl RecordStructBuilder {
             match iter_result {
                 Ok((key, val)) => {
                     if let Some(&idx) = self.field_index.get(key) {
-
                         if cols_set.get(idx).is_some_and(|v| v == true) {
-                            // TODO: if this happens it means that the bson document has a field
+                            // If this happens it means that the bson document has a field
                             // name that appears more than once. This is legal and possible to build
                             // with some libraries but isn't forbidden, and (I think?) historically
                             // not (always?) rejected by MongoDB. Regardless "ignoring second
