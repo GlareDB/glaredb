@@ -18,16 +18,16 @@ pub enum StorageConfig {
         secret_access_key: String,
         region: Option<String>,
         endpoint: Option<String>,
-        bucket: Option<String>,
+        bucket: String,
     },
     Gcs {
         service_account_key: String,
-        bucket: Option<String>,
+        bucket: String,
     },
     Azure {
         account_name: String,
         access_key: String,
-        container_name: Option<String>,
+        container_name: String,
     },
     Local {
         path: PathBuf,
@@ -49,6 +49,7 @@ impl StorageConfig {
                 let mut builder = AmazonS3Builder::new()
                     .with_access_key_id(access_key_id)
                     .with_secret_access_key(secret_access_key)
+                    .with_bucket_name(bucket)
                     .with_region(region.clone().unwrap_or_default());
 
                 if let Some(endpoint) = endpoint {
@@ -66,22 +67,15 @@ impl StorageConfig {
                     }
                 }
 
-                if let Some(bucket) = bucket {
-                    builder = builder.with_bucket_name(bucket);
-                }
-
                 Arc::new(builder.build()?)
             }
             StorageConfig::Gcs {
                 service_account_key,
                 bucket,
             } => {
-                let mut builder =
-                    GoogleCloudStorageBuilder::new().with_service_account_key(service_account_key);
-
-                if let Some(bucket) = bucket {
-                    builder = builder.with_bucket_name(bucket);
-                }
+                let builder = GoogleCloudStorageBuilder::new()
+                    .with_service_account_key(service_account_key)
+                    .with_bucket_name(bucket);
 
                 Arc::new(builder.build()?)
             }
@@ -90,13 +84,10 @@ impl StorageConfig {
                 access_key,
                 container_name,
             } => {
-                let mut builder = MicrosoftAzureBuilder::new()
+                let builder = MicrosoftAzureBuilder::new()
                     .with_account(account_name)
-                    .with_access_key(access_key);
-
-                if let Some(container_name) = container_name {
-                    builder = builder.with_container_name(container_name);
-                }
+                    .with_access_key(access_key)
+                    .with_container_name(container_name);
 
                 Arc::new(builder.build()?)
             }
