@@ -20,7 +20,7 @@ serde = { workspace = true }
 async-trait = { workspace = true }
 serde_json = { workspace = true }
 datafusion = { workspace = true }
-futures = "0.3.29"
+futures = { workspace = true }
 tracing = "0.1"
 object_store = { workspace = true }
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
