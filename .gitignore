@@ -16,7 +16,6 @@ benchmarks/artifacts/
 /deps
 
 .vscode/
-.helix/
 
 # Spark jar for iceberg data generation
 *.jar
