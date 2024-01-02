@@ -82,6 +82,7 @@ impl RecordStructBuilder {
                         .field_index
                         .get(key)
                         .ok_or_else(|| BsonError::ColumnNotInInferredSchema(key.to_string()))?;
+                    println!("{}->{}", key, idx);
 
                     if *cols_set.get(idx).unwrap() {
                         continue;
@@ -495,5 +496,49 @@ mod test {
             let v = value.unwrap();
             assert_eq!(v, "first");
         }
+    }
+
+    #[test]
+    fn test_unexpected_schema_change() {
+        let fields = Fields::from_iter(vec![
+            Field::new("_id", DataType::Binary, true),
+            Field::new("idx", DataType::Int64, true),
+            Field::new("value", DataType::Utf8, true),
+        ]);
+        let mut rsb = RecordStructBuilder::new_with_capacity(fields, 100).unwrap();
+        let mut buf = bson::RawDocumentBuf::new();
+
+        buf.append("_id", ObjectId::new());
+        buf.append("idx", 0);
+        buf.append("value", "first");
+        assert_eq!(buf.iter().count(), 3);
+
+        rsb.append_record(RawDocument::from_bytes(&buf.into_bytes()).unwrap())
+            .expect("first record matchex expectations");
+        assert_eq!(rsb.len(), 1);
+
+        let mut buf = bson::RawDocumentBuf::new();
+        buf.append("index", 1);
+        buf.append("values", 3);
+        assert_eq!(buf.iter().count(), 2);
+        rsb.append_record(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
+            .expect_err("for append_record schema changes are an error");
+        assert_eq!(rsb.len(), 1);
+
+        let mut buf = bson::RawDocumentBuf::new();
+        buf.append("_id", ObjectId::new());
+        buf.append("index", 1);
+        buf.append("values", 3);
+        assert_eq!(buf.iter().count(), 3);
+
+        assert_eq!(rsb.len(), 1);
+        rsb.append_record(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
+            .expect_err("for append_record schema changes are an error");
+        // the first value was added successfully to another buffer to the rsb grew
+        assert_eq!(rsb.len(), 2);
+
+        rsb.project_and_append(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
+            .expect("project and append should filter out unrequired fields");
+        assert_eq!(rsb.len(), 3);
     }
 }
