@@ -58,8 +58,7 @@ impl BsonStream {
         let mut builder = RecordStructBuilder::new_with_capacity(schema.fields().to_owned(), 100)?;
 
         for result in results {
-            // TOOD: shouldn't convert here.
-            builder.append_record(&result?)?;
+            builder.project_and_append(&result?)?;
         }
 
         let (fields, builders) = builder.into_fields_and_builders();
