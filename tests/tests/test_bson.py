@@ -90,31 +90,6 @@ def test_read_bson(
                 assert beatles.index(row["beatle_name"]) == row["beatle_idx"] - 1
 
 
-def test_read_bson_multiple_fields(
-    glaredb_connection: psycopg2.extensions.connection,
-    tmp_path_factory: pytest.TempPathFactory,
-):
-    data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "dupes.bson")
-
-    with glaredb_connection.cursor() as curr:
-        curr.execute(
-            f"create external table dupes from bson options ( location='{data_path}', file_type='bson')"
-        )
-
-    for from_clause in ["dupes", f"read_bson('{data_path}')"]:
-        with glaredb_connection.cursor() as curr:
-            curr.execute(f"select count(*) from {from_clause}")
-            r = curr.fetchone()
-            assert r[0] == 100
-        with glaredb_connection.cursor() as curr:
-            curr.execute(f"select * from {from_clause}")
-            rows = curr.fetchall()
-            assert len(rows) == 100
-            for row in rows:
-                assert len(row) == 3
-                assert row[2] == "first", row
-
-
 def test_read_bson(
     glaredb_connection: psycopg2.extensions.connection,
     tmp_path_factory: pytest.TempPathFactory,

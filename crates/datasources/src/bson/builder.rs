@@ -476,6 +476,7 @@ mod test {
             buf.append("idx", idx as i64);
             buf.append("value", "first");
             buf.append("value", "second");
+            assert_eq!(buf.iter().count(), 4);
 
             rsb.append_record(RawDocument::from_bytes(&buf.into_bytes()).unwrap())
                 .unwrap();
