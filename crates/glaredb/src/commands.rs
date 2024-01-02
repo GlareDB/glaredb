@@ -252,7 +252,7 @@ impl RunCommand for MetastoreArgs {
             (Some(bucket), Some(service_account_path), None) => {
                 let service_account_key = std::fs::read_to_string(service_account_path)?;
                 StorageConfig::Gcs {
-                    bucket,
+                    bucket: Some(bucket),
                     service_account_key,
                 }
             }

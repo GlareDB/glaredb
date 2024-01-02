@@ -124,9 +124,6 @@ pub enum ExecError {
     #[error("Invalid URL for remote execution: {0}")]
     InvalidRemoteExecUrl(String),
 
-    #[error("Missing bucket name: required for storage configuration")]
-    MissingBucketName,
-
     #[error(transparent)]
     DatasourceDebug(#[from] datasources::debug::errors::DebugError),
 
