@@ -160,7 +160,7 @@ pub async fn read_excel_impl(
     let mut workbook: Xlsx<_> = open_workbook(path)?;
     let sheet = sheet_name.map(Cow::Borrowed).unwrap_or_else(|| {
         let sheets = workbook.sheet_names();
-        let first = sheets.get(0).unwrap();
+        let first = sheets.first().unwrap();
         Cow::Owned(first.clone())
     });
 
