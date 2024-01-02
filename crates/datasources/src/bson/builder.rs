@@ -332,7 +332,7 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
                 .as_any_mut()
                 .downcast_mut::<RecordStructBuilder>()
                 .unwrap();
-            builder.append_record(nested)?;
+            builder.project_and_append(nested)?;
         }
 
         // Array
