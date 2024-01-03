@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::iter::IntoIterator;
 
-use bson::{Bson, Document};
+use bson::{RawBsonRef, RawDocumentBuf};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 
 use crate::bson::errors::{BsonError, Result};
@@ -11,13 +11,16 @@ use crate::bson::errors::{BsonError, Result};
 /// The MongoDB kernel rejects nesting of greater than 100.
 const RECURSION_LIMIT: usize = 100;
 
-pub fn schema_from_document(doc: Document) -> Result<Schema> {
-    Ok(Schema::new(fields_from_document(0, doc.iter())?))
+pub fn schema_from_document<'a>(doc: &'a RawDocumentBuf) -> Result<Schema> {
+    Ok(Schema::new(fields_from_document(
+        0,
+        doc.iter().map(|item| item.map_err(|e| e.into())),
+    )?))
 }
 
 fn fields_from_document<'a>(
     depth: usize,
-    doc_iter: impl Iterator<Item = (&'a String, &'a Bson)>,
+    doc_iter: impl Iterator<Item = Result<(&'a str, RawBsonRef<'a>)>>,
 ) -> Result<Vec<Field>> {
     if depth >= RECURSION_LIMIT {
         return Err(BsonError::RecursionLimitExceeded(RECURSION_LIMIT));
@@ -27,7 +30,8 @@ fn fields_from_document<'a>(
     let (_, size) = doc_iter.size_hint();
     let mut fields = Vec::with_capacity(size.unwrap_or_default());
 
-    for (key, val) in doc_iter {
+    for item in doc_iter {
+        let (key, val) = item?;
         let arrow_typ = bson_to_arrow_type(depth, val)?;
 
         // Assume everything is nullable.
@@ -37,41 +41,60 @@ fn fields_from_document<'a>(
     Ok(fields)
 }
 
-fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
+fn bson_to_arrow_type<'a>(depth: usize, bson: RawBsonRef<'a>) -> Result<DataType> {
     Ok(match bson {
-        Bson::Array(array_doc) => DataType::new_list(
-            bson_to_arrow_type(0, &array_doc.to_owned().pop().unwrap_or(Bson::Null))?,
+        RawBsonRef::Array(array_doc) => DataType::new_list(
+            // TODO this should become a struct with numeric keys to
+            // allow for heterogeneous types
+            bson_to_arrow_type(
+                0,
+                array_doc
+                    .to_owned()
+                    .into_iter()
+                    .next()
+                    .map(|v| v.unwrap_or(RawBsonRef::Null))
+                    .unwrap(),
+            )?,
             true,
         ),
-        Bson::Document(nested) => {
-            DataType::Struct(fields_from_document(depth + 1, nested.iter())?.into())
-        }
-        Bson::String(_) => DataType::Utf8,
-        Bson::Double(_) => DataType::Float64,
-        Bson::Boolean(_) => DataType::Boolean,
-        Bson::Null => DataType::Null,
-        Bson::Int32(_) => DataType::Float64,
-        Bson::Int64(_) => DataType::Float64,
-        Bson::Binary(_) => DataType::Binary,
-        Bson::ObjectId(_) => DataType::Utf8,
-        Bson::DateTime(_) => DataType::Date64,
-        Bson::Symbol(_) => DataType::Utf8,
-        Bson::Decimal128(_) => DataType::Decimal128(38, 10),
-        Bson::Undefined => DataType::Null,
-        Bson::RegularExpression(_) => DataType::Utf8,
-        Bson::JavaScriptCode(_) => DataType::Utf8,
+        RawBsonRef::Document(nested) => DataType::Struct(
+            fields_from_document(
+                depth + 1,
+                nested
+                    .to_owned()
+                    .into_iter()
+                    .map(|item| item.map_err(|e| e.into())),
+            )?
+            .into(),
+        ),
+        RawBsonRef::String(_) => DataType::Utf8,
+        RawBsonRef::Double(_) => DataType::Float64,
+        RawBsonRef::Boolean(_) => DataType::Boolean,
+        RawBsonRef::Null => DataType::Null,
+        RawBsonRef::Undefined => DataType::Null,
+        RawBsonRef::Int32(_) => DataType::Int32,
+        RawBsonRef::Int64(_) => DataType::Int64,
+        RawBsonRef::Binary(_) => DataType::Binary,
+        RawBsonRef::ObjectId(_) => DataType::Binary,
+        RawBsonRef::DateTime(_) => DataType::Date64,
+        RawBsonRef::Symbol(_) => DataType::Utf8,
+        RawBsonRef::Decimal128(_) => DataType::Decimal128(38, 10),
+        RawBsonRef::RegularExpression(_) => DataType::Utf8,
+        RawBsonRef::JavaScriptCode(_) => DataType::Utf8,
 
-        // TODO: storing these (which exist to establish a total order
-        // of types for indexing in the MongoDB server,) in documents
-        // that GlareDB would interact with is probably always an
-        // error.
-        Bson::MaxKey => DataType::Utf8,
-        Bson::MinKey => DataType::Utf8,
+        // storing these values (which exist to establish a total
+        // order of types for indexing in the MongoDB server,) in
+        // documents that GlareDB would interact with is probably
+        // always an error.
+        RawBsonRef::MaxKey => return Err(BsonError::UnspportedType("maxKey")),
+        RawBsonRef::MinKey => return Err(BsonError::UnspportedType("minKey")),
 
         // Deprecated or MongoDB server intrenal types
-        Bson::JavaScriptCodeWithScope(_) => return Err(BsonError::UnspportedType("CodeWithScope")),
-        Bson::Timestamp(_) => return Err(BsonError::UnspportedType("OplogTimestamp")),
-        Bson::DbPointer(_) => return Err(BsonError::UnspportedType("DbPointer")),
+        RawBsonRef::JavaScriptCodeWithScope(_) => {
+            return Err(BsonError::UnspportedType("CodeWithScope"))
+        }
+        RawBsonRef::Timestamp(_) => return Err(BsonError::UnspportedType("OplogTimestamp")),
+        RawBsonRef::DbPointer(_) => return Err(BsonError::UnspportedType("DbPointer")),
     })
 }
 
