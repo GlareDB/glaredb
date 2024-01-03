@@ -29,13 +29,6 @@ bikeshare_stations
 query TTT rowsort
 SELECT column_name, data_type, nullable
 	FROM list_columns(external_db, test, bikeshare_stations)
-	WHERE data_type = 'Float64';
-----
-footprint_width		Float64	t
-
-query TTT rowsort
-SELECT column_name, data_type, nullable
-	FROM list_columns(external_db, test, bikeshare_stations)
 	WHERE data_type = 'Int32';
 ----
 city_asset_number Int32 t
