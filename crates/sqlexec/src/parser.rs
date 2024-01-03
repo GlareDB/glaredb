@@ -708,7 +708,7 @@ impl<'a> CustomParser<'a> {
     fn parse_columns_definition(&mut self) -> Result<Option<Vec<ColumnDef>>, ParserError> {
         let (columns, constraint) = self.parser.parse_columns()?;
 
-        Ok(if constraint.is_empty() {
+        Ok(if !constraint.is_empty() {
             return Err(ParserError::ParserError(
                 "external tables cannot have constraints".to_string(),
             ));

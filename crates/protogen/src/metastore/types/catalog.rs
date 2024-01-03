@@ -491,13 +491,18 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
         for col in value.columns {
             columns.push(col.try_into()?);
         }
+        let columns = if columns.is_empty() {
+            None
+        } else {
+            Some(columns)
+        };
 
         Ok(TableEntry {
             meta,
             options: value.options.required("options".to_string())?,
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.try_into()?,
-            columns: Some(columns),
+            columns,
         })
     }
 }

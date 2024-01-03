@@ -36,10 +36,10 @@ impl RecordStructBuilder {
         builders: Vec<Box<dyn ArrayBuilder>>,
     ) -> Result<RecordStructBuilder> {
         if fields.len() != builders.len() {
-            return Err(BsonError::InvalidArgsForRecordStructBuilder);
+            return Err(BsonError::RecordStructBuilderInvalidArgs);
         }
         if builders.is_empty() {
-            return Err(BsonError::InvalidArgsForRecordStructBuilder);
+            return Err(BsonError::RecordStructBuilderRequiresColumns);
         }
 
         let mut field_index = HashMap::with_capacity(fields.len());
@@ -82,7 +82,6 @@ impl RecordStructBuilder {
                         .field_index
                         .get(key)
                         .ok_or_else(|| BsonError::ColumnNotInInferredSchema(key.to_string()))?;
-                    println!("{}->{}", key, idx);
 
                     if *cols_set.get(idx).unwrap() {
                         continue;
