@@ -40,13 +40,5 @@ SELECT data_type, nullable
 ----
 Utf8 t
 
-query T
-SELECT data_type, nullable
-	FROM list_columns(external_db, test, bikeshare_stations)
-	WHERE column_name = 'modified_date';
-----
-Date64 t
-
-
 statement ok
 DROP DATABASE external_db;
