@@ -452,14 +452,7 @@ impl TableEntry {
     pub fn get_internal_columns(&self) -> Option<Vec<InternalColumnDefinition>> {
         match &self.options {
             TableOptions::Internal(TableOptionsInternal { columns, .. }) => {
-                let mut out = Vec::with_capacity(
-                    columns.len() + self.columns.as_ref().map_or(0, |v| v.len()),
-                );
-                out.extend_from_slice(columns.as_slice());
-                if self.columns.is_some() {
-                    out.extend_from_slice(self.columns.as_ref().unwrap().as_slice());
-                }
-                Some(out)
+                Some(columns.to_owned())
             }
             _ => {
                 if let Some(columns) = self.columns.as_ref() {
