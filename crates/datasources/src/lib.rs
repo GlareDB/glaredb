@@ -14,3 +14,4 @@ pub mod object_store;
 pub mod postgres;
 pub mod snowflake;
 pub mod sqlserver;
+pub mod scylla;

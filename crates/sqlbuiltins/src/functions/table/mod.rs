@@ -15,6 +15,7 @@ mod snowflake;
 mod sqlserver;
 mod system;
 mod virtual_listing;
+mod scylla;
 
 use ::object_store::aws::AmazonS3ConfigKey;
 use ::object_store::azure::AzureConfigKey;
@@ -41,6 +42,7 @@ use self::mongo::ReadMongoDb;
 use self::mysql::ReadMysql;
 use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
+use self::scylla::ReadScylla;
 use self::snowflake::ReadSnowflake;
 use self::sqlserver::ReadSqlServer;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
@@ -86,6 +88,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadSnowflake),
             Arc::new(ReadClickhouse),
             Arc::new(ReadSqlServer),
+            Arc::new(ReadScylla),
             // Object store
             Arc::new(PARQUET_SCAN),
             Arc::new(READ_PARQUET),
