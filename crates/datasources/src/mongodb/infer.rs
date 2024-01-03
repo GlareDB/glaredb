@@ -1,4 +1,5 @@
 use super::errors::Result;
+use bson::RawDocumentBuf;
 use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use futures::TryStreamExt;
 
@@ -41,7 +42,7 @@ impl TableSampler {
 
         let mut schemas = Vec::with_capacity(sample_count as usize);
         while let Some(doc) = cursor.try_next().await? {
-            let schema = schema_from_document(doc);
+            let schema = schema_from_document(&RawDocumentBuf::from_document(&doc)?);
             schemas.push(schema);
         }
 

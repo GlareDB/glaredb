@@ -26,17 +26,19 @@ SELECT table_name FROM list_tables(external_db, test)
 ----
 bikeshare_stations
 
-query TTT rowsort
-SELECT column_name, data_type, nullable
+query T
+SELECT data_type, nullable
 	FROM list_columns(external_db, test, bikeshare_stations)
-	WHERE data_type = 'Float64';
+	WHERE column_name = 'station_id';
 ----
-city_asset_number	Float64	t
-council_district	Float64	t
-footprint_length	Float64	t
-footprint_width		Float64	t
-number_of_docks		Float64	t
-station_id			Float64	t
+Int32 t
+
+query T
+SELECT data_type, nullable
+	FROM list_columns(external_db, test, bikeshare_stations)
+	WHERE column_name = 'name';
+----
+Utf8 t
 
 statement ok
 DROP DATABASE external_db;

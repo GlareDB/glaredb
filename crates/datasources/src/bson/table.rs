@@ -120,7 +120,7 @@ pub async fn bson_streaming_table(
     let schema = Arc::new(merge_schemas(
         sample
             .iter()
-            .map(|doc| schema_from_document(doc.to_document()?)),
+            .map(|doc| schema_from_document(&doc.to_raw_document_buf())),
     )?);
 
     let mut streams = Vec::<Arc<(dyn PartitionStream + 'static)>>::with_capacity(readers.len() + 1);
