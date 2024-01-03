@@ -11,7 +11,7 @@ use crate::bson::errors::{BsonError, Result};
 /// The MongoDB kernel rejects nesting of greater than 100.
 const RECURSION_LIMIT: usize = 100;
 
-pub fn schema_from_document<'a>(doc: &'a RawDocumentBuf) -> Result<Schema> {
+pub fn schema_from_document(doc: &RawDocumentBuf) -> Result<Schema> {
     Ok(Schema::new(fields_from_document(
         0,
         doc.iter().map(|item| item.map_err(|e| e.into())),
@@ -41,7 +41,7 @@ fn fields_from_document<'a>(
     Ok(fields)
 }
 
-fn bson_to_arrow_type<'a>(depth: usize, bson: RawBsonRef<'a>) -> Result<DataType> {
+fn bson_to_arrow_type(depth: usize, bson: RawBsonRef) -> Result<DataType> {
     Ok(match bson {
         RawBsonRef::Array(array_doc) => DataType::new_list(
             // TODO this should become a struct with numeric keys to
@@ -49,7 +49,6 @@ fn bson_to_arrow_type<'a>(depth: usize, bson: RawBsonRef<'a>) -> Result<DataType
             bson_to_arrow_type(
                 0,
                 array_doc
-                    .to_owned()
                     .into_iter()
                     .next()
                     .map(|v| v.unwrap_or(RawBsonRef::Null))
@@ -60,10 +59,7 @@ fn bson_to_arrow_type<'a>(depth: usize, bson: RawBsonRef<'a>) -> Result<DataType
         RawBsonRef::Document(nested) => DataType::Struct(
             fields_from_document(
                 depth + 1,
-                nested
-                    .to_owned()
-                    .into_iter()
-                    .map(|item| item.map_err(|e| e.into())),
+                nested.into_iter().map(|item| item.map_err(|e| e.into())),
             )?
             .into(),
         ),
