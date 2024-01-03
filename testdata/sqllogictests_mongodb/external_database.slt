@@ -31,12 +31,17 @@ SELECT column_name, data_type, nullable
 	FROM list_columns(external_db, test, bikeshare_stations)
 	WHERE data_type = 'Float64';
 ----
-city_asset_number	Float64	t
-council_district	Float64	t
-footprint_length	Float64	t
 footprint_width		Float64	t
-number_of_docks		Float64	t
-station_id			Float64	t
+
+query TTT rowsort
+SELECT column_name, data_type, nullable
+	FROM list_columns(external_db, test, bikeshare_stations)
+	WHERE data_type = 'Int32';
+----
+city_asset_number	Int32	t
+council_district	Int32	t
+number_of_docks		Int32	t
+station_id		Int32	t
 
 statement ok
 DROP DATABASE external_db;
