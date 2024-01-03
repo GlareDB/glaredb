@@ -132,7 +132,7 @@ pub async fn bson_streaming_table(
         let schema = Arc::new(merge_schemas(
             sample
                 .iter()
-                .map(|doc| schema_from_document(doc.to_document()?)),
+                .map(|doc| schema_from_document(&doc.to_raw_document_buf())),
         )?);
 
         // all the documents we read for the sample are hanging around
