@@ -67,7 +67,7 @@ impl ExecutionPlan for CopyToExec {
             format: self.format.clone(),
             dest: self.dest.clone(),
             source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
-                children.get(0).unwrap().clone(),
+                children.first().unwrap().clone(),
             )),
         }))
     }

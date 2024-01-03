@@ -56,7 +56,7 @@ impl ExecutionPlan for InsertExec {
         Ok(Arc::new(InsertExec {
             provider: self.provider.clone(),
             source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
-                children.get(0).unwrap().clone(),
+                children.first().unwrap().clone(),
             )),
         }))
     }

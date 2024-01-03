@@ -467,7 +467,7 @@ impl AsyncDB for FlightSqlTestClient {
         let ticket = client.execute(sql.to_string(), None).await?;
         let ticket = ticket
             .endpoint
-            .get(0)
+            .first()
             .ok_or_else(|| ExecError::String("The server should support this".to_string()))?
             .clone();
         let ticket = ticket.ticket.unwrap();

@@ -9,7 +9,7 @@ edition.workspace = true
 serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = "0.1"
-futures = "0.3.29"
+futures = { workspace = true }
 reqwest = { workspace = true }
 async-trait = { workspace = true }
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
