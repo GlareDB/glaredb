@@ -249,7 +249,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     if_not_exists: ext.if_not_exists,
                     or_replace: ext.or_replace,
                     arrow_schema: Arc::new(schema),
-                    source: inputs.get(0).cloned(),
+                    source: inputs.first().cloned(),
                 })
             }
             proto::ExecutionPlanExtensionType::CreateTempTableExec(ext) => {
@@ -268,7 +268,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     if_not_exists: ext.if_not_exists,
                     or_replace: ext.or_replace,
                     arrow_schema: Arc::new(schema),
-                    source: inputs.get(0).cloned(),
+                    source: inputs.first().cloned(),
                 })
             }
             proto::ExecutionPlanExtensionType::DropSchemasExec(ext) => Arc::new(DropSchemasExec {
@@ -404,7 +404,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     provider: ProviderReference::Provider(prov),
                     source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
                         inputs
-                            .get(0)
+                            .first()
                             .ok_or_else(|| {
                                 DataFusionError::Internal("missing input source".to_string())
                             })?
@@ -438,7 +438,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .try_into()?,
                 source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
                     inputs
-                        .get(0)
+                        .first()
                         .ok_or_else(|| {
                             DataFusionError::Internal("missing input source".to_string())
                         })?
@@ -462,14 +462,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 Arc::new(RuntimeGroupExec::new(
                     RuntimePreference::Unspecified,
                     inputs
-                        .get(0)
+                        .first()
                         .ok_or_else(|| DataFusionError::Internal("missing child".to_string()))?
                         .clone(),
                 ))
             }
             proto::ExecutionPlanExtensionType::AnalyzeExec(ext) => {
                 let input = inputs
-                    .get(0)
+                    .first()
                     .ok_or_else(|| DataFusionError::Internal("missing input source".to_string()))?
                     .clone();
                 let schema = ext
@@ -484,7 +484,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }
             proto::ExecutionPlanExtensionType::DataSourceMetricsExecAdapter(ext) => {
                 let source = inputs
-                    .get(0)
+                    .first()
                     .ok_or_else(|| DataFusionError::Internal("missing child".to_string()))?
                     .clone();
 

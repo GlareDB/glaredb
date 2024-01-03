@@ -132,7 +132,7 @@ impl SessionVars {
 
     /// Get the first non-implicit schema.
     pub fn first_nonimplicit_schema(&self) -> Option<String> {
-        self.search_path().get(0).cloned()
+        self.search_path().first().cloned()
     }
 
     pub fn set(&mut self, name: &str, val: &str, setter: VarType) -> datafusion::error::Result<()> {
@@ -244,7 +244,7 @@ impl VarProvider for SessionVars {
             "version" => ScalarValue::Utf8(Some(self.glaredb_version())),
             "current_user" | "current_role" | "user" => ScalarValue::Utf8(Some(self.user_name())),
             "current_database" | "current_catalog" => ScalarValue::Utf8(Some(self.database_name())),
-            "current_schema" => ScalarValue::Utf8(self.search_path().get(0).cloned()),
+            "current_schema" => ScalarValue::Utf8(self.search_path().first().cloned()),
             "connection_id" => ScalarValue::Utf8(Some(self.connection_id().to_string())),
             "current_schemas" => {
                 let schemas = self
