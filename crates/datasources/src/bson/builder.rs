@@ -82,7 +82,6 @@ impl RecordStructBuilder {
                         .field_index
                         .get(key)
                         .ok_or_else(|| BsonError::ColumnNotInInferredSchema(key.to_string()))?;
-                    println!("{}->{}", key, idx);
 
                     if *cols_set.get(idx).unwrap() {
                         continue;
