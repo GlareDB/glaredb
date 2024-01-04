@@ -41,22 +41,21 @@ impl Default for LanceSinkOpts {
 
 impl LanceSinkOpts {
     fn no_column_stats_specified(&self) -> bool {
-        return self.column_stats.is_none()
+        self.column_stats.is_none()
             && self.disable_all_column_stats.is_none()
-            && self.collect_all_column_stats.is_none();
+            && self.collect_all_column_stats.is_none()
     }
     fn conflicting_user_specified_stats(&self) -> bool {
-        return self.column_stats.is_some()
-            && (self.disable_all_column_stats.is_some()
-                || self.collect_all_column_stats.is_some());
+        self.column_stats.is_some()
+            && (self.disable_all_column_stats.is_some() || self.collect_all_column_stats.is_some())
     }
     fn conflicting_stats_options(&self) -> bool {
-        return self.disable_all_column_stats.is_some() && self.collect_all_column_stats.is_some();
+        self.disable_all_column_stats.is_some() && self.collect_all_column_stats.is_some()
     }
     fn is_invalid(&self) -> bool {
-        return self.no_column_stats_specified()
+        self.no_column_stats_specified()
             || self.conflicting_stats_options()
-            || self.conflicting_user_specified_stats();
+            || self.conflicting_user_specified_stats()
     }
 }
 
@@ -103,11 +102,7 @@ impl LanceSink {
 
     async fn stream_into_inner(&self, mut stream: SendableRecordBatchStream) -> DfResult<usize> {
         let mut opts = FileWriterOptions::default();
-        if self
-            .opts
-            .collect_all_column_stats
-            .is_some_and(|val| val == true)
-        {
+        if self.opts.collect_all_column_stats.is_some_and(|val| val) {
             opts.collect_stats_for_fields = stream
                 .schema()
                 .fields
@@ -118,7 +113,7 @@ impl LanceSink {
         } else if self.opts.column_stats.is_some() {
             let colls: &Vec<String> = self.opts.column_stats.as_ref().unwrap();
             let mut set = HashSet::with_capacity(colls.len());
-            for c in colls.into_iter() {
+            for c in colls.iter() {
                 set.replace(c);
             }
 
