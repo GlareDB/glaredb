@@ -1,5 +1,5 @@
 #[derive(Debug, thiserror::Error)]
-pub enum MongoError {
+pub enum MongoDbError {
     #[error("Failed to merge schemas: {0}")]
     FailedSchemaMerge(datafusion::arrow::error::ArrowError),
 
@@ -19,7 +19,7 @@ pub enum MongoError {
     Bson(#[from] crate::bson::errors::BsonError),
 
     #[error(transparent)]
-    RawBSON(#[from] mongodb::bson::raw::Error),
+    RawBson(#[from] mongodb::bson::raw::Error),
 }
 
-pub type Result<T, E = MongoError> = std::result::Result<T, E>;
+pub type Result<T, E = MongoDbError> = std::result::Result<T, E>;
