@@ -457,25 +457,25 @@ impl fmt::Debug for ClickhouseExec {
 
 #[derive(Debug, Clone)]
 pub struct ClickhouseTableRef<'a> {
-    schema: Option<Cow<'a, str>>,
+    database: Option<Cow<'a, str>>,
     table: Cow<'a, str>,
 }
 
 impl<'a> ClickhouseTableRef<'a> {
-    pub fn new<S, T>(schema: Option<S>, table: T) -> Self
+    pub fn new<S, T>(database: Option<S>, table: T) -> Self
     where
         S: Into<Cow<'a, str>>,
         T: Into<Cow<'a, str>>,
     {
         Self {
-            schema: schema.map(Into::into),
+            database: database.map(Into::into),
             table: table.into(),
         }
     }
 
     pub fn as_ref(&self) -> ClickhouseTableRef<'_> {
         ClickhouseTableRef {
-            schema: self.schema.as_ref().map(|s| s.as_ref().into()),
+            database: self.database.as_ref().map(|s| s.as_ref().into()),
             table: self.table.as_ref().into(),
         }
     }
@@ -485,7 +485,7 @@ pub type OwnedClickhouseTableRef = ClickhouseTableRef<'static>;
 
 impl<'a> Display for ClickhouseTableRef<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(schema) = self.schema.as_ref() {
+        if let Some(schema) = self.database.as_ref() {
             write!(f, "{schema}.")?;
         }
         write!(f, "{}", self.table)

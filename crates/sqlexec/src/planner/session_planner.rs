@@ -513,19 +513,24 @@ impl<'a> SessionPlanner<'a> {
             TableOptions::CLICKHOUSE => {
                 let connection_string: String = m.remove_required("connection_string")?;
                 let table_name: String = m.remove_required("table")?;
-                let schema_name: Option<String> = m.remove_optional("schema")?;
+
+                // You can optionally provide a database name in clickhouse.
+                // This is similar to schema in other databases such as PG.
+                let database_name: Option<String> = m.remove_optional("database")?;
 
                 // Validate
                 let access =
                     ClickhouseAccess::new_from_connection_string(connection_string.clone());
 
-                let table_ref = ClickhouseTableRef::new(schema_name.as_ref(), table_name.as_str());
+                let table_ref =
+                    ClickhouseTableRef::new(database_name.as_ref(), table_name.as_str());
+
                 access.validate_table_access(table_ref.as_ref()).await?;
 
                 TableOptions::Clickhouse(TableOptionsClickhouse {
                     connection_string,
                     table: table_name,
-                    schema: schema_name,
+                    database: database_name,
                 })
             }
             TableOptions::LOCAL => {

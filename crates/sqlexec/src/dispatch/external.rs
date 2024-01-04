@@ -468,12 +468,12 @@ impl<'a> ExternalDispatcher<'a> {
             }
             TableOptions::Clickhouse(TableOptionsClickhouse {
                 connection_string,
-                schema,
+                database,
                 table,
             }) => {
                 let access =
                     ClickhouseAccess::new_from_connection_string(connection_string.clone());
-                let table_ref = OwnedClickhouseTableRef::new(schema.clone(), table.to_owned());
+                let table_ref = OwnedClickhouseTableRef::new(database.clone(), table.to_owned());
                 let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
                 Ok(Arc::new(table))
             }
