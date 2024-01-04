@@ -26,7 +26,7 @@ use datafusion::physical_plan::{
 };
 use std::any::Any;
 use std::borrow::Cow;
-use std::fmt::{self, Display};
+use std::fmt::{self, Display, Write};
 use std::sync::Arc;
 use url::Url;
 
@@ -301,7 +301,7 @@ impl TableProvider for ClickhouseTableProvider {
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
         _filters: &[Expr],
-        _limit: Option<usize>,
+        limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let projected_schema = match projection {
             Some(projection) => Arc::new(self.schema.project(projection)?),
@@ -317,9 +317,12 @@ impl TableProvider for ClickhouseTableProvider {
             .collect::<Vec<_>>()
             .join(",");
 
-        // TODO: Where, Limit
+        // TODO: Where
 
-        let query = format!("SELECT {} FROM {};", projection_string, self.table_ref);
+        let mut query = format!("SELECT {} FROM {}", projection_string, self.table_ref);
+        if let Some(limit) = limit {
+            write!(&mut query, " LIMIT {limit}")?;
+        }
 
         let client =
             self.state.pool.get_handle().await.map_err(|e| {
