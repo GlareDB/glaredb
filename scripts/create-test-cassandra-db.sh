@@ -16,7 +16,7 @@ if [[ -n "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]]; then
     docker rm -f $CONTAINER_NAME > /dev/null
 fi
 
-if docker network ls | grep -q "$network_name"; then
+if docker network ls | grep -q "$NETWORK_NAME"; then
     # Remove the network
     docker network rm "$NETWORK_NAME" > /dev/null
 fi
