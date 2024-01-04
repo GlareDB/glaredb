@@ -169,7 +169,6 @@ impl CqlValueArrayBuilder {
                 builder.append_value(timestamp)
             }
             (List(builder), CqlValue::List(values)) => {
-                // There's likely a better way to do this
                 for value in values {
                     builder.values().append_value(value)
                 }
