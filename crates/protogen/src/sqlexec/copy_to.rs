@@ -74,6 +74,8 @@ pub enum CopyToFormatOptionsEnum {
     Json(CopyToFormatOptionsJson),
     #[prost(message, tag = "3")]
     Parquet(CopyToFormatOptionsParquet),
+    #[prost(message, tag = "4")]
+    Lance(CopyToFormatOptionsLance),
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -98,8 +100,12 @@ pub struct CopyToFormatOptionsParquet {
 
 #[derive(Clone, PartialEq, Message)]
 pub struct CopyToFormatOptionsLance {
-    #[prost(uint64, tag = "1")]
-    pub batch_size: u64,
+    #[prost(bool, optional, tag = "1")]
+    pub disable_all_column_stats: Option<bool>,
+    #[prost(bool, optional, tag = "2")]
+    pub collect_all_column_stats: Option<bool>,
+    #[prost(string, repeated, tag = "3")]
+    pub collect_column_stats: Vec<String>,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -114,8 +120,20 @@ impl TryFrom<crate::metastore::types::options::CopyToFormatOptions> for CopyToFo
             crate::metastore::types::options::CopyToFormatOptions::Bson => {
                 Ok(CopyToFormatOptions::default())
             }
-            crate::metastore::types::options::CopyToFormatOptions::Lance => {
-                Ok(CopyToFormatOptions::default())
+            crate::metastore::types::options::CopyToFormatOptions::Lance(opts) => {
+                Ok(CopyToFormatOptions {
+                    copy_to_format_options_enum: Some(CopyToFormatOptionsEnum::Lance(
+                        CopyToFormatOptionsLance {
+                            disable_all_column_stats: opts.disable_all_column_stats,
+                            collect_all_column_stats: opts.collect_all_column_stats,
+                            collect_column_stats: if let Some(colls) = opts.collect_column_stats {
+                                colls
+                            } else {
+                                Vec::new()
+                            },
+                        },
+                    )),
+                })
             }
             crate::metastore::types::options::CopyToFormatOptions::Csv(csv) => {
                 Ok(CopyToFormatOptions {
@@ -166,6 +184,19 @@ impl TryFrom<CopyToFormatOptions> for crate::metastore::types::options::CopyToFo
                     },
                 ))
             }
+            CopyToFormatOptionsEnum::Lance(lance) => Ok(
+                crate::metastore::types::options::CopyToFormatOptions::Lance(
+                    crate::metastore::types::options::CopyToFormatOptionsLance {
+                        disable_all_column_stats: lance.disable_all_column_stats,
+                        collect_all_column_stats: lance.collect_all_column_stats,
+                        collect_column_stats: if lance.collect_column_stats.is_empty() {
+                            None
+                        } else {
+                            Some(lance.collect_column_stats)
+                        },
+                    },
+                ),
+            ),
             CopyToFormatOptionsEnum::Json(json) => {
                 Ok(crate::metastore::types::options::CopyToFormatOptions::Json(
                     crate::metastore::types::options::CopyToFormatOptionsJson { array: json.array },

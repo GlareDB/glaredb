@@ -39,17 +39,17 @@ impl Default for LanceSinkOpts {
 
 impl LanceSinkOpts {
     fn no_column_stats_specified(self) -> bool {
-        return opts.column_stats.is_none()
-            && opts.disable_all_column_stats.is_none()
-            && opts.collect_all_column_stats.is_none();
+        return self.column_stats.is_none()
+            && self.disable_all_column_stats.is_none()
+            && self.collect_all_column_stats.is_none();
     }
     fn conflicting_user_specified_stats(self) -> bool {
-        return opts.column_stats.is_some()
-            && (opts.disable_all_column_stats.is_some()
-                || opts.collect_all_column_stats.is_some());
+        return self.column_stats.is_some()
+            && (self.disable_all_column_stats.is_some()
+                || self.collect_all_column_stats.is_some());
     }
     fn conflicting_stats_options(self) -> bool {
-        return opts.disable_all_column_stats.is_some() && opts.collect_all_column_stats.is_some();
+        return self.disable_all_column_stats.is_some() && self.collect_all_column_stats.is_some();
     }
     fn is_invalid(self) -> bool {
         return self.no_column_stats_specified()
