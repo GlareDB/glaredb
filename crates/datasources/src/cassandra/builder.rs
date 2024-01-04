@@ -175,8 +175,8 @@ impl CqlValueArrayBuilder {
                 }
                 builder.append(true)
             }
-            (builder, value) => {
-                unreachable!("schema is already checked. This indicates a bug")
+            (_, _) => {
+                unreachable!("Schema is already checked. This indicates a bug")
             }
         }
     }
