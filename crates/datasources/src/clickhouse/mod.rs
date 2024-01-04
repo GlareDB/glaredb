@@ -5,6 +5,8 @@ mod stream;
 use clickhouse_rs::types::DateTimeType;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{ClickhouseError, Result};
 use parking_lot::Mutex;
@@ -12,7 +14,7 @@ use parking_lot::Mutex;
 use async_trait::async_trait;
 use clickhouse_rs::{ClientHandle, Options, Pool};
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -22,9 +24,9 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
-use futures::StreamExt;
 use std::any::Any;
-use std::fmt;
+use std::borrow::Cow;
+use std::fmt::{self, Display};
 use std::sync::Arc;
 use url::Url;
 
@@ -50,14 +52,18 @@ impl ClickhouseAccess {
     }
 
     /// Validate that we have access to a specific table.
-    pub async fn validate_table_access(&self, table: &str) -> Result<()> {
+    pub async fn validate_table_access(&self, table_ref: ClickhouseTableRef<'_>) -> Result<()> {
         let state = ClickhouseAccessState::connect(&self.conn_string).await?;
-        let _schema = state.get_table_schema(table).await?;
+        let _schema = state.get_table_schema(table_ref).await?;
         Ok(())
+    }
+
+    pub async fn connect(&self) -> Result<ClickhouseAccessState> {
+        ClickhouseAccessState::connect(&self.conn_string).await
     }
 }
 
-struct ClickhouseAccessState {
+pub struct ClickhouseAccessState {
     // TODO: We currently limit the pool to 1 connection to have it behave
     // similarly to our other data sources. We will likely want to actually make
     // use of a connection pool to avoid creating connections on every query.
@@ -69,28 +75,54 @@ struct ClickhouseAccessState {
 
 impl ClickhouseAccessState {
     async fn connect(conn_str: &str) -> Result<Self> {
-        let pool = Pool::new(Options::new(Url::parse(conn_str)?).pool_min(1).pool_max(1));
+        let conn_str = Url::parse(conn_str)?;
+
+        // Verify that the conn_str has "clickhouse://" protocol.
+        if conn_str.scheme() != "clickhouse" {
+            return Err(ClickhouseError::String(format!(
+                "Expected url with scheme `clickhouse://`, got: `{}`",
+                conn_str.scheme()
+            )));
+        }
+
+        let addr = conn_str.clone(); // Let it take the address from original URL
+        let mut opts = Options::new(addr).pool_min(1).pool_max(1);
+
+        if let Some(mut path) = conn_str.path_segments() {
+            if let Some(database) = path.next() {
+                opts = opts.database(database);
+            }
+        }
+
+        let user = conn_str.username();
+        if !user.is_empty() {
+            opts = opts.username(user);
+        }
+
+        if let Some(password) = conn_str.password() {
+            opts = opts.password(password);
+        }
+
+        for (key, _val) in conn_str.query_pairs() {
+            if key.as_ref() == "s" || key.as_ref() == "secure" {
+                opts = opts.secure(true);
+            }
+        }
+
+        let pool = Pool::new(opts);
         let mut client = pool.get_handle().await?;
         client.ping().await?;
 
         Ok(ClickhouseAccessState { pool })
     }
 
-    async fn get_table_schema(&self, name: &str) -> Result<ArrowSchema> {
+    async fn get_table_schema(&self, table_ref: ClickhouseTableRef<'_>) -> Result<ArrowSchema> {
         let mut client = self.pool.get_handle().await?;
-        // TODO: Does clickhouse actually return blocks for empty data sets?
-        let mut blocks = client
-            .query(format!("SELECT * FROM {name} LIMIT 1"))
-            .stream_blocks();
 
-        let block = match blocks.next().await {
-            Some(block) => block?,
-            None => {
-                return Err(ClickhouseError::String(
-                    "unable to determine schema for table, no blocks returned".to_string(),
-                ))
-            }
-        };
+        let block = client
+            .query(format!("SELECT * FROM {table_ref} LIMIT 0"))
+            .fetch_all()
+            .await?;
 
         let mut fields = Vec::with_capacity(block.columns().len());
         for col in block.columns() {
@@ -165,21 +197,79 @@ impl ClickhouseAccessState {
     }
 }
 
+#[async_trait]
+impl VirtualLister for ClickhouseAccessState {
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        let query = "SELECT schema_name FROM information_schema.schemata";
+
+        let mut client = self
+            .pool
+            .get_handle()
+            .await
+            .map_err(ExtensionError::access)?;
+
+        let block = client
+            .query(query)
+            .fetch_all()
+            .await
+            .map_err(ExtensionError::access)?;
+
+        block
+            .rows()
+            .map(|row| row.get::<String, usize>(0).map_err(ExtensionError::access))
+            .collect::<Result<Vec<_>, ExtensionError>>()
+    }
+
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        let query = format!(
+            "SELECT table_name FROM information_schema.tables
+WHERE table_schema = '{schema}'"
+        );
+
+        let mut client = self
+            .pool
+            .get_handle()
+            .await
+            .map_err(ExtensionError::access)?;
+
+        let block = client
+            .query(query)
+            .fetch_all()
+            .await
+            .map_err(ExtensionError::access)?;
+
+        block
+            .rows()
+            .map(|row| row.get::<String, usize>(0).map_err(ExtensionError::access))
+            .collect::<Result<Vec<_>, ExtensionError>>()
+    }
+
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
+        let table_ref = ClickhouseTableRef::new(Some(schema), table);
+        self.get_table_schema(table_ref)
+            .await
+            .map(|s| s.fields)
+            .map_err(ExtensionError::access)
+    }
+}
+
 pub struct ClickhouseTableProvider {
     state: Arc<ClickhouseAccessState>,
-    table: String,
+    table_ref: OwnedClickhouseTableRef,
     schema: Arc<ArrowSchema>,
 }
 
 impl ClickhouseTableProvider {
-    pub async fn try_new(access: ClickhouseAccess, table: impl Into<String>) -> Result<Self> {
-        let table = table.into();
+    pub async fn try_new(
+        access: ClickhouseAccess,
+        table_ref: OwnedClickhouseTableRef,
+    ) -> Result<Self> {
         let state = Arc::new(ClickhouseAccessState::connect(&access.conn_string).await?);
-        let schema = Arc::new(state.get_table_schema(&table).await?);
+        let schema = Arc::new(state.get_table_schema(table_ref.as_ref()).await?);
 
         Ok(ClickhouseTableProvider {
             state,
-            table,
+            table_ref,
             schema,
         })
     }
@@ -229,7 +319,7 @@ impl TableProvider for ClickhouseTableProvider {
 
         // TODO: Where, Limit
 
-        let query = format!("SELECT {} FROM {};", projection_string, self.table);
+        let query = format!("SELECT {} FROM {};", projection_string, self.table_ref);
 
         let client =
             self.state.pool.get_handle().await.map_err(|e| {
@@ -359,5 +449,42 @@ impl fmt::Debug for ClickhouseExec {
             .field("schema", &self.schema)
             .field("query", &self.query)
             .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ClickhouseTableRef<'a> {
+    schema: Option<Cow<'a, str>>,
+    table: Cow<'a, str>,
+}
+
+impl<'a> ClickhouseTableRef<'a> {
+    pub fn new<S, T>(schema: Option<S>, table: T) -> Self
+    where
+        S: Into<Cow<'a, str>>,
+        T: Into<Cow<'a, str>>,
+    {
+        Self {
+            schema: schema.map(Into::into),
+            table: table.into(),
+        }
+    }
+
+    pub fn as_ref(&self) -> ClickhouseTableRef<'_> {
+        ClickhouseTableRef {
+            schema: self.schema.as_ref().map(|s| s.as_ref().into()),
+            table: self.table.as_ref().into(),
+        }
+    }
+}
+
+pub type OwnedClickhouseTableRef = ClickhouseTableRef<'static>;
+
+impl<'a> Display for ClickhouseTableRef<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(schema) = self.schema.as_ref() {
+            write!(f, "{schema}.")?;
+        }
+        write!(f, "{}", self.table)
     }
 }

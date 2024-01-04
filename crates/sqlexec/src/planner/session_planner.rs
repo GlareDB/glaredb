@@ -14,7 +14,7 @@ use datafusion::sql::TableReference;
 use datafusion_ext::planner::SqlQueryPlanner;
 use datafusion_ext::AsyncContextProvider;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasources::clickhouse::ClickhouseAccess;
+use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableRef};
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
@@ -513,15 +513,19 @@ impl<'a> SessionPlanner<'a> {
             TableOptions::CLICKHOUSE => {
                 let connection_string: String = m.remove_required("connection_string")?;
                 let table_name: String = m.remove_required("table")?;
+                let schema_name: Option<String> = m.remove_optional("schema")?;
 
                 // Validate
                 let access =
                     ClickhouseAccess::new_from_connection_string(connection_string.clone());
-                access.validate_table_access(&table_name).await?;
+
+                let table_ref = ClickhouseTableRef::new(schema_name.as_ref(), table_name.as_str());
+                access.validate_table_access(table_ref.as_ref()).await?;
 
                 TableOptions::Clickhouse(TableOptionsClickhouse {
                     connection_string,
                     table: table_name,
+                    schema: schema_name,
                 })
             }
             TableOptions::LOCAL => {
