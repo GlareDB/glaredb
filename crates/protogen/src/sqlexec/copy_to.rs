@@ -96,6 +96,15 @@ pub struct CopyToFormatOptionsParquet {
     pub row_group_size: u64,
 }
 
+#[derive(Clone, PartialEq, Message)]
+pub struct CopyToFormatOptionsLance {
+    #[prost(uint64, tag = "1")]
+    pub batch_size: u64,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct CopyToFormatOptionsBson {}
+
 impl TryFrom<crate::metastore::types::options::CopyToFormatOptions> for CopyToFormatOptions {
     type Error = crate::errors::ProtoConvError;
     fn try_from(
@@ -103,6 +112,9 @@ impl TryFrom<crate::metastore::types::options::CopyToFormatOptions> for CopyToFo
     ) -> Result<Self, Self::Error> {
         match value {
             crate::metastore::types::options::CopyToFormatOptions::Bson => {
+                Ok(CopyToFormatOptions::default())
+            }
+            crate::metastore::types::options::CopyToFormatOptions::Lance => {
                 Ok(CopyToFormatOptions::default())
             }
             crate::metastore::types::options::CopyToFormatOptions::Csv(csv) => {
@@ -159,7 +171,6 @@ impl TryFrom<CopyToFormatOptions> for crate::metastore::types::options::CopyToFo
                     crate::metastore::types::options::CopyToFormatOptionsJson { array: json.array },
                 ))
             }
-
             CopyToFormatOptionsEnum::Parquet(parquet) => Ok(
                 crate::metastore::types::options::CopyToFormatOptions::Parquet(
                     crate::metastore::types::options::CopyToFormatOptionsParquet {

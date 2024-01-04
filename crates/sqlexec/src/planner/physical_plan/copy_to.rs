@@ -13,6 +13,7 @@ use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use datasources::common::sink::bson::BsonSink;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
+use datasources::common::sink::lance::{LanceSink, LanceSinkOpts};
 use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
 use datasources::common::url::DatasourceUrl;
 use datasources::object_store::gcs::GcsStoreAccess;
@@ -197,6 +198,13 @@ fn get_sink_for_obj(
                 row_group_size: parquet_opts.row_group_size,
             },
         )),
+        CopyToFormatOptions::Lance(opts) => Box::new(
+            LanceSink::from_obj_store(store, path).with_options(LanceSinkOpts {
+                disable_all_column_stats: opts.disable_all_column_stats,
+                collect_all_column_stats: opts.column_stats,
+                column_stats: opts.column_stats,
+            }),
+        ),
         CopyToFormatOptions::Json(json_opts) => Box::new(JsonSink::from_obj_store(
             store,
             path,
