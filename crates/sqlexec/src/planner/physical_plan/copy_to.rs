@@ -198,13 +198,15 @@ fn get_sink_for_obj(
                 row_group_size: parquet_opts.row_group_size,
             },
         )),
-        CopyToFormatOptions::Lance(opts) => Box::new(
-            LanceSink::from_obj_store(store, path).with_options(LanceSinkOpts {
+        CopyToFormatOptions::Lance(opts) => Box::new(LanceSink::try_from_obj_store(
+            store,
+            path,
+            Some(LanceSinkOpts {
                 disable_all_column_stats: opts.disable_all_column_stats,
-                collect_all_column_stats: opts.column_stats,
-                column_stats: opts.column_stats,
+                collect_all_column_stats: opts.collect_all_column_stats,
+                column_stats: opts.collect_column_stats,
             }),
-        ),
+        )?),
         CopyToFormatOptions::Json(json_opts) => Box::new(JsonSink::from_obj_store(
             store,
             path,

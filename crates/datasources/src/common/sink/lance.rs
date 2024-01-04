@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::common::Result as DfResult;
+use datafusion::error::DataFusionError;
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::DisplayAs;
@@ -38,20 +39,20 @@ impl Default for LanceSinkOpts {
 }
 
 impl LanceSinkOpts {
-    fn no_column_stats_specified(self) -> bool {
+    fn no_column_stats_specified(&self) -> bool {
         return self.column_stats.is_none()
             && self.disable_all_column_stats.is_none()
             && self.collect_all_column_stats.is_none();
     }
-    fn conflicting_user_specified_stats(self) -> bool {
+    fn conflicting_user_specified_stats(&self) -> bool {
         return self.column_stats.is_some()
             && (self.disable_all_column_stats.is_some()
                 || self.collect_all_column_stats.is_some());
     }
-    fn conflicting_stats_options(self) -> bool {
+    fn conflicting_stats_options(&self) -> bool {
         return self.disable_all_column_stats.is_some() && self.collect_all_column_stats.is_some();
     }
-    fn is_invalid(self) -> bool {
+    fn is_invalid(&self) -> bool {
         return self.no_column_stats_specified()
             || self.conflicting_stats_options()
             || self.conflicting_user_specified_stats();
@@ -74,22 +75,29 @@ impl DisplayAs for LanceSink {
 }
 
 impl LanceSink {
-    pub fn from_obj_store(store: Arc<dyn ObjectStore>, loc: impl Into<ObjectPath>) -> Self {
-        LanceSink {
+    pub fn try_from_obj_store(
+        store: Arc<dyn ObjectStore>,
+        loc: impl Into<ObjectPath>,
+        opts: Option<LanceSinkOpts>,
+    ) -> Result<Self, DataFusionError> {
+        let opts = match opts {
+            Some(o) => {
+                if o.is_invalid() {
+                    return Err(DataFusionError::Execution(
+                        "impossible lance configuration".to_string(),
+                    ));
+                } else {
+                    o
+                }
+            }
+            None => LanceSinkOpts::default(),
+        };
+
+        Ok(LanceSink {
             store,
             loc: loc.into(),
-            opts: LanceSinkOpts::default(),
-        }
-    }
-
-    pub fn with_options(self, opts: LanceSinkOpts) -> Self {
-        if self.opts.is_invalid() {
-            return self;
-        }
-
-        let mut out = self;
-        out.opts = opts;
-        self
+            opts,
+        })
     }
 
     async fn stream_into_inner(&self, mut stream: SendableRecordBatchStream) -> DfResult<usize> {
