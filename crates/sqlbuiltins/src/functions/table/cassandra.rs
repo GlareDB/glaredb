@@ -7,20 +7,19 @@ use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::scylla::ScyllaTableProvider;
+use datasources::cassandra::CassandraTableProvider;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
 use super::TableFunc;
 use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
-pub struct ReadScylla;
+pub struct ReadCassandra;
 
-impl ConstBuiltinFunction for ReadScylla {
-    const NAME: &'static str = "read_scylla";
-    const DESCRIPTION: &'static str = "Read a Scylla table";
-    const EXAMPLE: &'static str =
-        "SELECT * FROM read_scylla('scylla://user:password@localhost:9000/database', 'table')";
+impl ConstBuiltinFunction for ReadCassandra {
+    const NAME: &'static str = "read_cassandra";
+    const DESCRIPTION: &'static str = "Read a Cassandra table";
+    const EXAMPLE: &'static str = "SELECT * FROM read_cassandra('localhost:9000', '<ns>.<table>')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 
     fn signature(&self) -> Option<Signature> {
@@ -33,7 +32,7 @@ impl ConstBuiltinFunction for ReadScylla {
 }
 
 #[async_trait]
-impl TableFunc for ReadScylla {
+impl TableFunc for ReadCassandra {
     fn detect_runtime(
         &self,
         _args: &[FuncParamValue],
@@ -54,7 +53,7 @@ impl TableFunc for ReadScylla {
                 let conn_string: String = args.next().unwrap().try_into()?;
                 let table: String = args.next().unwrap().try_into()?;
 
-                let prov = ScyllaTableProvider::try_new(&conn_string, &table)
+                let prov = CassandraTableProvider::try_new(&conn_string, &table)
                     .await
                     .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 

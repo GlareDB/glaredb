@@ -1,0 +1,6 @@
+# Tests for the `read_*` function.
+
+query I
+SELECT count(*) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.bikeshare_stations');
+----
+102

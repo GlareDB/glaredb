@@ -1,6 +1,7 @@
 //! Builtin table returning functions.
 mod bigquery;
 mod bson;
+mod cassandra;
 mod clickhouse;
 mod delta;
 mod excel;
@@ -15,7 +16,6 @@ mod snowflake;
 mod sqlserver;
 mod system;
 mod virtual_listing;
-mod scylla;
 
 use ::object_store::aws::AmazonS3ConfigKey;
 use ::object_store::azure::AzureConfigKey;
@@ -32,6 +32,7 @@ use std::sync::Arc;
 
 use self::bigquery::ReadBigQuery;
 use self::bson::BsonScan;
+use self::cassandra::ReadCassandra;
 use self::clickhouse::ReadClickhouse;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
@@ -42,7 +43,6 @@ use self::mongo::ReadMongoDb;
 use self::mysql::ReadMysql;
 use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
-use self::scylla::ReadScylla;
 use self::snowflake::ReadSnowflake;
 use self::sqlserver::ReadSqlServer;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
@@ -88,7 +88,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadSnowflake),
             Arc::new(ReadClickhouse),
             Arc::new(ReadSqlServer),
-            Arc::new(ReadScylla),
+            Arc::new(ReadCassandra),
             // Object store
             Arc::new(PARQUET_SCAN),
             Arc::new(READ_PARQUET),
