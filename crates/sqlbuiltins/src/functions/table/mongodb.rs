@@ -7,7 +7,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
+use datasources::mongodb::{MongoDbAccessor, MongoDbTableAccessInfo};
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
 use super::TableFunc;
@@ -55,11 +55,11 @@ impl TableFunc for ReadMongoDb {
                 let database: String = args.next().unwrap().try_into()?;
                 let collection: String = args.next().unwrap().try_into()?;
 
-                let access = MongoAccessor::connect(&conn_str)
+                let access = MongoDbAccessor::connect(&conn_str)
                     .await
                     .map_err(|e| ExtensionError::Access(Box::new(e)))?;
                 let prov = access
-                    .into_table_accessor(MongoTableAccessInfo {
+                    .into_table_accessor(MongoDbTableAccessInfo {
                         database,
                         collection,
                     })
