@@ -19,7 +19,7 @@ use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lance::scan_lance_table;
-use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
+use datasources::mongodb::{MongoDbAccessor, MongoDbTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::generic::GenericStoreAccess;
@@ -34,12 +34,12 @@ use datasources::sqlserver::{
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionEntry, TableEntry};
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse, DatabaseOptionsDebug,
-    DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres,
-    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, TableOptions, TableOptionsBigQuery,
-    TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs, TableOptionsInternal,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
-    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer,
-    TunnelOptions,
+    DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
+    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, TableOptions,
+    TableOptionsBigQuery, TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs,
+    TableOptionsInternal, TableOptionsLocal, TableOptionsMongoDb, TableOptionsMysql,
+    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
+    TableOptionsSqlServer, TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
@@ -158,12 +158,12 @@ impl<'a> ExternalDispatcher<'a> {
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
-            DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string }) => {
-                let table_info = MongoTableAccessInfo {
+            DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string }) => {
+                let table_info = MongoDbTableAccessInfo {
                     database: schema.to_string(), // A mongodb database is pretty much a schema.
                     collection: name.to_string(),
                 };
-                let accessor = MongoAccessor::connect(connection_string).await?;
+                let accessor = MongoDbAccessor::connect(connection_string).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
                 let provider = table_accessor.into_table_provider().await?;
                 Ok(Arc::new(provider))
@@ -286,16 +286,16 @@ impl<'a> ExternalDispatcher<'a> {
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
-            TableOptions::Mongo(TableOptionsMongo {
+            TableOptions::MongoDb(TableOptionsMongoDb {
                 connection_string,
                 database,
                 collection,
             }) => {
-                let table_info = MongoTableAccessInfo {
+                let table_info = MongoDbTableAccessInfo {
                     database: database.to_string(),
                     collection: collection.to_string(),
                 };
-                let accessor = MongoAccessor::connect(connection_string).await?;
+                let accessor = MongoDbAccessor::connect(connection_string).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
                 let provider = table_accessor.into_table_provider().await?;
                 Ok(Arc::new(provider))
