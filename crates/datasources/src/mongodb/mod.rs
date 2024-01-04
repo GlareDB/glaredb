@@ -7,7 +7,7 @@ mod infer;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use errors::{MongoDbError, Result};
-use exec::MongoBsonExec;
+use exec::MongoDbBsonExec;
 use infer::TableSampler;
 
 use async_trait::async_trait;
@@ -325,7 +325,7 @@ impl TableProvider for MongoDbTableProvider {
                 .await
                 .map_err(|e| DataFusionError::External(Box::new(e)))?,
         ));
-        Ok(Arc::new(MongoBsonExec::new(cursor, schema, limit)))
+        Ok(Arc::new(MongoDbBsonExec::new(cursor, schema, limit)))
     }
 }
 

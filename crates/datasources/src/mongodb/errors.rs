@@ -19,7 +19,7 @@ pub enum MongoDbError {
     Bson(#[from] crate::bson::errors::BsonError),
 
     #[error(transparent)]
-    RawBSON(#[from] mongodb::bson::raw::Error),
+    RawBson(#[from] mongodb::bson::raw::Error),
 }
 
 pub type Result<T, E = MongoDbError> = std::result::Result<T, E>;

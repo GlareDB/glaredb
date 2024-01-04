@@ -26,20 +26,20 @@ use super::errors::{MongoDbError, Result};
 use crate::bson::builder::RecordStructBuilder;
 
 #[derive(Debug)]
-pub struct MongoBsonExec {
+pub struct MongoDbBsonExec {
     cursor: Mutex<Option<Cursor<RawDocumentBuf>>>,
     schema: Arc<ArrowSchema>,
     limit: Option<usize>,
     metrics: ExecutionPlanMetricsSet,
 }
 
-impl MongoBsonExec {
+impl MongoDbBsonExec {
     pub fn new(
         cursor: Mutex<Option<Cursor<RawDocumentBuf>>>,
         schema: Arc<ArrowSchema>,
         limit: Option<usize>,
-    ) -> MongoBsonExec {
-        MongoBsonExec {
+    ) -> MongoDbBsonExec {
+        MongoDbBsonExec {
             cursor,
             schema,
             limit,
@@ -48,7 +48,7 @@ impl MongoBsonExec {
     }
 }
 
-impl ExecutionPlan for MongoBsonExec {
+impl ExecutionPlan for MongoDbBsonExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -74,7 +74,7 @@ impl ExecutionPlan for MongoBsonExec {
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Execution(
-            "cannot replace children for MongoDBExec".to_string(),
+            "cannot replace children for MongoDB Exec".to_string(),
         ))
     }
 
@@ -114,7 +114,7 @@ impl ExecutionPlan for MongoBsonExec {
     }
 }
 
-impl DisplayAs for MongoBsonExec {
+impl DisplayAs for MongoDbBsonExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "MongoBsonExec")
     }

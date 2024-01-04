@@ -143,7 +143,7 @@ impl ParseOptionValue<MongoDbProtocol> for OptionValue {
             Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => {
                 s.parse().map_err(|e| parser_err!("{e}"))?
             }
-            o => return Err(unexpected_type_err!("mongo protocol", o)),
+            o => return Err(unexpected_type_err!("mongodb protocol", o)),
         };
         Ok(opt)
     }

@@ -234,7 +234,7 @@ impl<'a> SessionPlanner<'a> {
                 DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string })
             }
             DatabaseOptions::MONGODB => {
-                let connection_string = get_mongo_conn_str(m)?;
+                let connection_string = get_mongodb_conn_str(m)?;
                 // Validate the accessor
                 MongoDbAccessor::validate_external_database(connection_string.as_str())
                     .await
@@ -440,7 +440,7 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::MONGODB => {
-                let connection_string = get_mongo_conn_str(m)?;
+                let connection_string = get_mongodb_conn_str(m)?;
                 let database = m.remove_required("database")?;
                 let collection = m.remove_required("collection")?;
 
@@ -2113,7 +2113,7 @@ fn get_mysql_conn_str(m: &mut StmtOptions) -> Result<String> {
     Ok(conn.connection_string())
 }
 
-fn get_mongo_conn_str(m: &mut StmtOptions) -> Result<String> {
+fn get_mongodb_conn_str(m: &mut StmtOptions) -> Result<String> {
     let conn = match m.remove_optional("connection_string")? {
         Some(conn_str) => MongoDbConnection::ConnectionString(conn_str),
         None => {
