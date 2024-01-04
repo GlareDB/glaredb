@@ -21,13 +21,14 @@ pub struct LanceSinkOpts {
     pub column_stats: Option<Vec<String>>,
 }
 
-/// Writes parquet files to object storage.
+/// Writes lance files to object storage.
 #[derive(Debug, Clone)]
 pub struct LanceSink {
     store: Arc<dyn ObjectStore>,
     loc: ObjectPath,
     opts: LanceSinkOpts,
 }
+
 impl Default for LanceSinkOpts {
     fn default() -> Self {
         LanceSinkOpts {
