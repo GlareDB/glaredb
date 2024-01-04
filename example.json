@@ -1,33 +1,110 @@
 [
   {
-    "station": "franklin ave",
-    "services": [
-      "1",
-      "2",
-      "3",
-      "4",
-      "5",
-      "S"
+    "id": 1,
+    "name": "John Doe",
+    "is_active": true,
+    "scores": [
+      87,
+      90,
+      78
     ],
-    "location": {
-      "address": "3, fire rd",
-      "code": 8039,
-      "city": "Lagos"
+    "address": {
+      "street": "123 Main St",
+      "city": "Anytown",
+      "zip": "12345",
+      "coordinates": {
+        "latitude": 40.7128,
+        "longitude": -74.0060
+      }
+    },
+    "tags": [
+      "leader",
+      "innovative"
+    ],
+    "contact": {
+      "email": "johndoe@example.com",
+      "phone": "123-456-7890"
+    },
+    "employment": {
+      "current": "Software Developer"
     }
   },
   {
-    "station": "Broadway–Lafayette Street/Bleecker Street",
-    "services": [
-      "B",
-      "D",
-      "F",
-      "M",
-      "6"
+    "id": 2,
+    "name": "Jane Smith",
+    "is_active": false,
+    "scores": [
+      92,
+      85,
+      88
     ],
-    "location": {
-      "address": "6, fire rd",
-      "code": 899,
-      "city": "Abuja"
+    "address": {
+      "street": "456 Elm St",
+      "city": "Othertown",
+      "zip": "54321",
+      "coordinates": {
+        "latitude": 34.0522,
+        "longitude": -118.2437
+      }
+    },
+    "tags": [
+      "organized",
+      "meticulous"
+    ],
+    "contact": {
+      "email": "janesmith@example.com",
+      "phone": "321-654-0987"
+    },
+    "employment": {
+      "current": "Project Manager"
+    }
+  },
+  {
+    "id": 3,
+    "name": "Alex Johnson",
+    "is_active": true,
+    "scores": [
+      75,
+      80,
+      85
+    ],
+    "address": {
+      "street": "789 Oak St",
+      "city": "Sometown",
+      "zip": "67890",
+      "coordinates": {
+        "latitude": 37.7749,
+        "longitude": -122.4194
+      }
+    },
+    "tags": [
+      "creative",
+      "thoughtful"
+    ],
+    "contact": {
+      "email": "alexjohnson@example.com",
+      "phone": "987-654-3210"
+    },
+    "employment": {
+      "current": "Graphic Designer",
+      "history": [
+        {
+          "position": "Junior Designer",
+          "company": "Creative Minds",
+          "years": 1
+        },
+        {
+          "position": "Freelancer",
+          "company": "Self-Employed",
+          "years": 2
+        }
+      ]
+    },
+    "education": {
+      "university": "State University",
+      "degree": "Bachelor of Arts",
+      "field": "Graphic Design",
+      "graduation_year": 2020
     }
   }
 ]

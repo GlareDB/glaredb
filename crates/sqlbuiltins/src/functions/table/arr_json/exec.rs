@@ -3,17 +3,7 @@ use std::{any::Any, io::BufReader, sync::Arc};
 use async_stream::stream;
 use bytes::Buf;
 use datafusion::{
-    arrow::{
-        array::{
-            Array, ArrayDataBuilder, ArrayRef, BooleanBufferBuilder, BooleanBuilder, BufferBuilder,
-            Float64Builder, GenericListArray, Int64Builder, StringBuilder, StructBuilder,
-            UInt64Builder,
-        },
-        buffer::NullBuffer,
-        datatypes::{DataType, SchemaRef},
-        error::ArrowError,
-        record_batch::RecordBatch,
-    },
+    arrow::datatypes::SchemaRef,
     datasource::{
         file_format::file_compression_type::FileCompressionType,
         physical_plan::{FileMeta, FileOpenFuture, FileOpener, FileScanConfig, FileStream},
@@ -31,7 +21,7 @@ use futures::StreamExt;
 use object_store::{GetResultPayload, ObjectStore};
 use serde_json::Value;
 
-use super::builder::create_child_builder;
+use super::builder::json_values_to_record_batch;
 
 // TODO add metrics and output ordering
 /// Execution plan for scanning array json data source
@@ -136,167 +126,6 @@ impl ExecutionPlan for ArrayJsonExec {
 
         Ok(Box::pin(stream) as SendableRecordBatchStream)
     }
-}
-
-// TODO; use limit from passed in max_size_limit argument
-fn json_values_to_record_batch(
-    rows: &[Value],
-    schema: SchemaRef,
-    size: usize,
-) -> Result<RecordBatch, ArrowError> {
-    let fields = schema.fields().iter().take(size);
-    let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(fields.len());
-    for field in fields {
-        let col: Arc<dyn Array> = match field.data_type() {
-            DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 => {
-                let mut arr = Int64Builder::new();
-                for row in rows.iter() {
-                    let val: Option<i64> = row[field.name()].as_i64();
-                    arr.append_option(val);
-                }
-                Arc::new(arr.finish())
-            }
-            DataType::Float16 | DataType::Float32 | DataType::Float64 => {
-                let mut arr = Float64Builder::new();
-                for row in rows.iter() {
-                    let val: Option<f64> = row[field.name()].as_f64();
-                    arr.append_option(val);
-                }
-                Arc::new(arr.finish())
-            }
-            DataType::UInt16 | DataType::UInt8 | DataType::UInt32 | DataType::UInt64 => {
-                let mut arr = UInt64Builder::new();
-                for row in rows.iter() {
-                    let val: Option<u64> = row[field.name()].as_u64();
-                    arr.append_option(val);
-                }
-                Arc::new(arr.finish())
-            }
-            DataType::Boolean => {
-                let mut arr = BooleanBuilder::new();
-                for row in rows.iter() {
-                    let val: Option<bool> = row[field.name()].as_bool();
-                    arr.append_option(val);
-                }
-                Arc::new(arr.finish())
-            }
-            DataType::Utf8 => {
-                // Assumes an average of 16 bytes per item.
-                let mut arr = StringBuilder::with_capacity(rows.len(), rows.len() * 16);
-                for row in rows.iter() {
-                    let val: Option<&str> = row[field.name()].as_str();
-                    arr.append_option(val);
-                }
-                Arc::new(arr.finish())
-            }
-            // TODO work on structs with unequal lengths, i.e merge the schemas
-            DataType::Struct(fields) => {
-                let mut builder = StructBuilder::from_fields(fields.clone(), fields.len());
-
-                for row in rows {
-                    let row_value = &row[field.name()];
-                    for (idx, struct_field) in fields.into_iter().enumerate() {
-                        match &row_value[struct_field.name()] {
-                            Value::String(s) => {
-                                builder
-                                    .field_builder::<StringBuilder>(idx)
-                                    .unwrap()
-                                    .append_value(s);
-                            }
-                            Value::Number(n) => {
-                                // TODO handle u64 and i64. Do that by matching on n with the Number enum
-                                builder
-                                    .field_builder::<Int64Builder>(idx)
-                                    .unwrap()
-                                    .append_value(n.as_i64().unwrap());
-                            }
-                            Value::Bool(b) => {
-                                builder
-                                    .field_builder::<BooleanBuilder>(idx)
-                                    .unwrap()
-                                    .append_value(*b);
-                            }
-                            Value::Null => builder.append(false),
-                            // TODO nested lists and structs
-                            _ => unimplemented!(),
-                        };
-                    }
-                    builder.append(true);
-                }
-
-                Arc::new(builder.finish())
-            }
-            DataType::List(arr_field) => {
-                let mut nulls = arr_field
-                    .is_nullable()
-                    .then(|| BooleanBufferBuilder::new(rows.len()));
-                let mut offsets = vec![0];
-
-                // TODO look into using arrow's "make_builder" macro
-                let mut child_builder = create_child_builder(arr_field.data_type(), rows.len())?;
-
-                for row in rows.iter() {
-                    match (row.as_object().unwrap().get(field.name()), nulls.as_mut()) {
-                        (Some(val), None) => {
-                            let value_arrays = val.as_array().unwrap();
-                            for r in value_arrays.iter() {
-                                child_builder.append_value(r)?;
-                            }
-
-                            let last_offset = *offsets.last().unwrap();
-                            offsets.push(last_offset + value_arrays.len() as i32);
-                        }
-                        (Some(val), Some(nulls)) => {
-                            nulls.append(true);
-                            let value_arrays = val.as_array().unwrap();
-                            for r in value_arrays.iter() {
-                                child_builder.append_value(r)?;
-                            }
-
-                            let last_offset = *offsets.last().unwrap();
-                            offsets.push(last_offset + value_arrays.len() as i32);
-                        }
-                        (None, Some(nulls)) => nulls.append(false),
-                        _ => {
-                            return Err(ArrowError::JsonError(format!(
-                                "Invalid key for {:#?}",
-                                field.name()
-                            )))
-                        }
-                    }
-                }
-
-                let child_array = child_builder.finish()?;
-
-                let mut offset_buffer = BufferBuilder::<i32>::new(rows.len() + 1);
-                offset_buffer.append_slice(&offsets);
-
-                let nulls = nulls.as_mut().map(|x| NullBuffer::new(x.finish()));
-                let data = ArrayDataBuilder::new(field.data_type().clone())
-                    .len(rows.len())
-                    .nulls(nulls)
-                    .add_buffer(offset_buffer.finish())
-                    .child_data(vec![child_array.to_data().clone()]);
-
-                let arr: GenericListArray<i32> = GenericListArray::from(data.build()?);
-                Arc::new(arr) as ArrayRef
-            }
-
-            // TODO
-            // 1. Nested Structs
-            // 2. add timestamp and date conversions; (serde does not suppoert that though)
-            other => {
-                return Err(ArrowError::CastError(format!(
-                    "Failed to convert {:#?}",
-                    other
-                )))
-            }
-        };
-
-        columns.push(col);
-    }
-    let batch = RecordBatch::try_new(schema, columns)?;
-    Ok(batch)
 }
 
 /// A [`FileOpener`] that opens an Array JSON file and yields a [`FileOpenFuture`]
