@@ -289,9 +289,10 @@ jobs:
           # Prepare SLT (Clickhouse)
           source ./scripts/ci-install-clickhouse.sh
           export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
-
+          
           # Prepare SLT (Cassandra)
           export CASSANDRA_CONN_STRING=$(./scripts/create-test-cassandra-db.sh)
+          echo "Cassandra connection string: $CASSANDRA_CONN_STRING"
 
           # Prepare SLT (SQL Server)
           export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
