@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 
@@ -83,12 +83,12 @@ impl LanceSink {
     }
 
     pub fn with_options(self, opts: LanceSinkOpts) -> Self {
-        if self.is_invalid() {
+        if self.opts.is_invalid() {
             return self;
         }
 
         let mut out = self;
-        out.opts = Some(opts);
+        out.opts = opts;
         self
     }
 
@@ -107,12 +107,17 @@ impl LanceSink {
                 .map(|v| v.0 as i32)
                 .collect();
         } else if self.opts.column_stats.is_some() {
-            let set = HashSet::from_iter(self.opts.column_stats.unwrap().iter());
+            let colls: &Vec<String> = self.opts.column_stats.as_ref().unwrap();
+            let mut set = HashSet::with_capacity(colls.len());
+            for c in colls.into_iter() {
+                set.replace(c);
+            }
 
             opts.collect_stats_for_fields = stream
                 .schema()
                 .fields
                 .iter()
+                .map(|f| f.name().to_owned())
                 .filter(|f| set.contains(f))
                 .enumerate()
                 .map(|v| v.0 as i32)
