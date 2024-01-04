@@ -103,7 +103,9 @@ impl CqlValueArrayBuilder {
                 let builder = Box::new(builder);
                 CqlValueArrayBuilder::List(builder)
             }
-            _ => unreachable!("the casting from cql type to arrow type makes this impossible"),
+            _ => unreachable!(
+                "the casting in `try_convert_dtype` makes the above an exhaustive match"
+            ),
         }
     }
 
@@ -174,8 +176,6 @@ impl CqlValueArrayBuilder {
                 builder.append(true)
             }
             (builder, value) => {
-                dbg!(builder);
-                dbg!(value);
                 unreachable!("schema is already checked. This indicates a bug")
             }
         }
