@@ -97,6 +97,8 @@ pub enum DispatchError {
     SshKey(#[from] datasources::common::ssh::key::SshKeyError),
     #[error(transparent)]
     ExtensionError(#[from] datafusion_ext::errors::ExtensionError),
+    #[error(transparent)]
+    CassandraDatasource(#[from] datasources::cassandra::CassandraError),
 }
 
 impl DispatchError {

@@ -128,6 +128,7 @@ message TableOptions {
     TableOptionsObjectStore lance = 15;
     TableOptionsObjectStore bson = 16;
     TableOptionsClickhouse clickhouse = 17;
+    TableOptionsCassandra cassandra = 18;
   }
   // next: 18
 }
@@ -227,6 +228,12 @@ message TableOptionsSqlServer {
 message TableOptionsClickhouse {
   string connection_string = 1;
   string table = 2;
+}
+
+message TableOptionsCassandra {
+  string connection_string = 1;
+  string keyspace = 2;
+  string table = 3;
 }
 
 // Tunnel options

@@ -1,0 +1,12 @@
+# Basic tests for external tables.
+
+statement ok
+CREATE EXTERNAL TABLE basic
+	FROM cassandra
+	OPTIONS (
+		connection_string = '${CASSANDRA_CONN_STRING}',
+		keyspace = 'test',
+		table = 'bikeshare_stations'
+	);
+
+include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti

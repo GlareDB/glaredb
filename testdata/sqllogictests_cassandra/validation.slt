@@ -1,0 +1,21 @@
+# Validation tests for clickhouse external database and external tables
+
+# External database validation
+
+statement error
+CREATE EXTERNAL DATABASE wrong_connection_string
+	FROM cassandra
+	OPTIONS (
+		connection_string = '127.0.0.1:9876',
+	);
+
+# Validation test error with the wrong table name
+statement error
+CREATE EXTERNAL TABLE missing_table
+	FROM cassandra
+	OPTIONS (
+		connection_string = '${CASSANDRA_CONN_STRING}',
+		keyspace = 'test',
+		table = 'missing_table'
+	);
+
