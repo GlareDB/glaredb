@@ -4,6 +4,7 @@ pub mod errors;
 mod exec;
 mod infer;
 
+use bson::RawBson;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use errors::{MongoDbError, Result};
@@ -414,9 +415,34 @@ fn df_to_bson(val: ScalarValue) -> Result<Bson, ExtensionError> {
         ScalarValue::UInt64(v) => Ok(Bson::Int64(i64::try_from(v.unwrap_or_default()).unwrap())),
         ScalarValue::Float32(v) => Ok(Bson::Double(f64::from(v.unwrap_or_default()))),
         ScalarValue::Float64(v) => Ok(Bson::Double(v.unwrap_or_default())),
+        ScalarValue::Struct(v, f) => {
+            let mut doc = RawDocumentBuf::new();
+            for (key, value) in f.into_iter().zip(v.unwrap_or_default().into_iter()) {
+                doc.append(
+                    key.name(),
+                    RawBson::try_from(df_to_bson(value)?)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?,
+                );
+            }
+            Ok(Bson::Document(
+                doc.to_document()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?,
+            ))
+        }
+        ScalarValue::List(v, _) => {
+            if let Some(val) = v {
+                let mut out = Vec::with_capacity(val.len());
+                for elem in val.into_iter() {
+                    out.push(df_to_bson(elem)?);
+                }
+                Ok(Bson::Array(out))
+            } else {
+                Ok(Bson::Array(Vec::new()))
+            }
+        }
         ScalarValue::Null => Ok(Bson::Null),
         _ => Err(ExtensionError::String(format!(
-            "{} conversion undefined",
+            "{} conversion undefined/unspuported",
             val
         ))),
     }
