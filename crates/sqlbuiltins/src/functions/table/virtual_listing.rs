@@ -303,7 +303,9 @@ pub(crate) async fn get_virtual_lister_for_external_db(
                 .map_err(|e| ExtensionError::Access(Box::new(e)))?;
             Box::new(accessor)
         }
-        DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string }) => {
+        DatabaseOptions::MongoDb(DatabaseOptionsMongoDb {
+            connection_string, ..
+        }) => {
             let accessor = MongoDbAccessor::connect(connection_string)
                 .await
                 .map_err(|e| ExtensionError::Access(Box::new(e)))?;

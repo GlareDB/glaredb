@@ -36,11 +36,11 @@ use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionE
 use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse, DatabaseOptionsDebug,
     DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, TableOptions,
-    TableOptionsBigQuery, TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs,
-    TableOptionsInternal, TableOptionsLocal, TableOptionsMongoDb, TableOptionsMysql,
-    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
-    TableOptionsSqlServer, TunnelOptions,
+    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer,
+    InternalColumnDefinition, TableOptions, TableOptionsBigQuery, TableOptionsClickhouse,
+    TableOptionsDebug, TableOptionsGcs, TableOptionsInternal, TableOptionsLocal,
+    TableOptionsMongoDb, TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres,
+    TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
@@ -159,7 +159,9 @@ impl<'a> ExternalDispatcher<'a> {
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
-            DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string }) => {
+            DatabaseOptions::MongoDb(DatabaseOptionsMongoDb {
+                connection_string, ..
+            }) => {
                 let table_info = MongoDbTableAccessInfo {
                     database: schema.to_string(),
                     collection: name.to_string(),
@@ -292,11 +294,14 @@ impl<'a> ExternalDispatcher<'a> {
                 connection_string,
                 database,
                 collection,
+                columns,
             }) => {
                 let table_info = MongoDbTableAccessInfo {
                     database: database.to_string(),
                     collection: collection.to_string(),
-                    fields: table.get_columns(),
+                    fields: columns
+                        .to_owned()
+                        .map(|cs| InternalColumnDefinition::to_arrow_fields(cs.into_iter())),
                 };
                 let accessor = MongoDbAccessor::connect(connection_string).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
@@ -488,6 +493,7 @@ impl<'a> ExternalDispatcher<'a> {
                 location,
                 storage_options,
                 schema_sample_size,
+                columns,
                 ..
             }) => {
                 let store_access = GenericStoreAccess::new_from_location_and_opts(
@@ -495,12 +501,13 @@ impl<'a> ExternalDispatcher<'a> {
                     storage_options.to_owned(),
                 )?;
                 let source_url = DatasourceUrl::try_new(location)?;
-                let fields = table.get_columns();
 
                 Ok(bson_streaming_table(
                     store_access,
                     source_url,
-                    fields,
+                    columns
+                        .to_owned()
+                        .map(|vc| InternalColumnDefinition::to_arrow_fields(vc)),
                     schema_sample_size.to_owned(),
                 )
                 .await?)
