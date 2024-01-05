@@ -28,6 +28,7 @@ use std::any::Any;
 use std::borrow::Cow;
 use std::fmt::{self, Display, Write};
 use std::sync::Arc;
+use std::time::Duration;
 use url::Url;
 
 use crate::clickhouse::stream::BlockStream;
@@ -86,8 +87,54 @@ impl ClickhouseAccessState {
             )));
         }
 
-        let addr = conn_str.clone(); // Let it take the address from original URL
-        let mut opts = Options::new(addr).pool_min(1).pool_max(1);
+        let mut secure = false;
+        for (key, _val) in conn_str.query_pairs() {
+            if key.as_ref() == "s" || key.as_ref() == "secure" {
+                secure = true;
+                break;
+            }
+        }
+
+        let addr = {
+            let port = if let Some(port) = conn_str.port() {
+                port
+            } else if secure {
+                9440
+            } else {
+                9000
+            };
+            if port == 9440 && !secure {
+                // We assume that if someone is trying to connect to port 9440,
+                // they are trying to connect to the Clickhouse Cloud on the
+                // TLS port. Due to a panic, we error early. In a rare scenario,
+                // this might be incorrect. So we should fix and push the fix
+                // upstream.
+                //
+                // Issue to track: https://github.com/GlareDB/glaredb/issues/2360
+                return Err(ClickhouseError::String(
+                    "Cannot connect to SSL/TLS port without secure parameter enabled.
+Enable secure param in connection string:
+    `clickhouse://<user>:<password>@<host>:<port>/?secure`"
+                        .to_string(),
+                ));
+            }
+            let mut addr = if let Some(host) = conn_str.host_str() {
+                format!("tcp://default@{host}").parse::<Url>()?
+            } else {
+                "tcp://default@127.0.0.1".parse::<Url>()?
+            };
+            addr.set_port(Some(port)).map_err(|_| {
+                ClickhouseError::String("unable to set port for clickhouse URL".to_string())
+            })?;
+            addr
+        };
+
+        let mut opts = Options::new(addr)
+            .pool_min(1)
+            .pool_max(1)
+            .secure(secure)
+            .ping_timeout(Duration::from_secs(5))
+            .connection_timeout(Duration::from_secs(5));
 
         if let Some(mut path) = conn_str.path_segments() {
             if let Some(database) = path.next() {
@@ -102,12 +149,6 @@ impl ClickhouseAccessState {
 
         if let Some(password) = conn_str.password() {
             opts = opts.password(password);
-        }
-
-        for (key, _val) in conn_str.query_pairs() {
-            if key.as_ref() == "s" || key.as_ref() == "secure" {
-                opts = opts.secure(true);
-            }
         }
 
         let pool = Pool::new(opts);
