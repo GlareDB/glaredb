@@ -31,6 +31,7 @@ use std::sync::Arc;
 use url::Url;
 
 use crate::clickhouse::stream::BlockStream;
+use crate::common::util;
 
 #[derive(Debug, Clone)]
 pub struct ClickhouseAccess {
@@ -154,28 +155,13 @@ impl ClickhouseAccessState {
                     // TODO: Maybe upstream support for Date32?
                     SqlType::Date => DataType::Date32,
                     SqlType::DateTime(DateTimeType::DateTime32) => {
-                        DataType::Timestamp(TimeUnit::Second, None)
+                        DataType::Timestamp(TimeUnit::Nanosecond, None)
                     }
-                    SqlType::DateTime(DateTimeType::DateTime64(precision, tz)) => {
-                        // Precision represents the tick size, computed as
-                        // 10^precision seconds.
-                        //
-                        // <https://clickhouse.com/docs/en/sql-reference/data-types/datetime64>
-                        let unit = match *precision {
-                            0 => TimeUnit::Second,
-                            3 => TimeUnit::Millisecond,
-                            6 => TimeUnit::Microsecond,
-                            9 => TimeUnit::Nanosecond,
-                            other => {
-                                return Err(ClickhouseError::String(format!(
-                                    "unsupported time precision: {other}"
-                                )))
-                            }
-                        };
-
-                        let tz: Arc<str> = tz.to_string().into_boxed_str().into();
-
-                        DataType::Timestamp(unit, Some(tz))
+                    SqlType::DateTime(DateTimeType::DateTime64(_precision, tz)) => {
+                        // We store all timestamps in nanos, so the precision
+                        // here doesn't matter. clickhouse_rs crate handles this
+                        // for us.
+                        DataType::Timestamp(TimeUnit::Nanosecond, Some(tz.to_string().into()))
                     }
                     other => {
                         return Err(ClickhouseError::String(format!(
@@ -301,7 +287,7 @@ impl TableProvider for ClickhouseTableProvider {
         &self,
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
+        filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let projected_schema = match projection {
@@ -318,9 +304,16 @@ impl TableProvider for ClickhouseTableProvider {
             .collect::<Vec<_>>()
             .join(",");
 
-        // TODO: Where
-
         let mut query = format!("SELECT {} FROM {}", projection_string, self.table_ref);
+
+        let predicate_string = {
+            exprs_to_predicate_string(filters)
+                .map_err(|e| DataFusionError::External(Box::new(e)))?
+        };
+        if !predicate_string.is_empty() {
+            write!(&mut query, " WHERE {predicate_string}")?;
+        }
+
         if let Some(limit) = limit {
             write!(&mut query, " LIMIT {limit}")?;
         }
@@ -454,6 +447,76 @@ impl fmt::Debug for ClickhouseExec {
             .field("query", &self.query)
             .finish_non_exhaustive()
     }
+}
+
+/// Convert filtering expressions to a predicate string usable with the
+/// generated Postgres query.
+fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
+    let mut ss = Vec::new();
+    let mut buf = String::new();
+    for expr in exprs {
+        if try_write_expr(expr, &mut buf)? {
+            ss.push(buf);
+            buf = String::new();
+        }
+    }
+
+    Ok(ss.join(" AND "))
+}
+
+/// Try to write the expression to the string, returning true if it was written.
+fn try_write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
+    match expr {
+        Expr::Column(col) => {
+            write!(buf, "{}", col)?;
+        }
+        Expr::Literal(val) => {
+            util::encode_literal_to_text(util::Datasource::Clickhouse, buf, val)?;
+        }
+        Expr::IsNull(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS NULL")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsNotNull(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS NOT NULL")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsTrue(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS TRUE")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsFalse(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS FALSE")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::BinaryExpr(binary) => {
+            if !try_write_expr(binary.left.as_ref(), buf)? {
+                return Ok(false);
+            }
+            write!(buf, " {} ", binary.op)?;
+            if !try_write_expr(binary.right.as_ref(), buf)? {
+                return Ok(false);
+            }
+        }
+        _ => {
+            // Unsupported.
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
 }
 
 #[derive(Debug, Clone)]

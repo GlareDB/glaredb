@@ -9,9 +9,8 @@ use datafusion::{
     arrow::{
         array::{
             Array, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
-            Int8Array, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
-            TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
-            UInt8Array,
+            Int8Array, StringArray, TimestampNanosecondArray, UInt16Array, UInt32Array,
+            UInt64Array, UInt8Array,
         },
         datatypes::{DataType, Schema, TimeUnit},
         record_batch::RecordBatch,
@@ -179,69 +178,26 @@ fn column_to_array(
                 ))
             }
         }
-        DataType::Timestamp(unit, tz) => {
+        DataType::Timestamp(TimeUnit::Nanosecond, tz) => {
             if nullable {
                 let iter =
                     <Option<DateTime<Tz>> as Iterable<Simple>>::iter(column, column.sql_type())?;
-                match unit {
-                    TimeUnit::Second => Arc::new(
-                        TimestampSecondArray::from(
-                            iter.map(|time| time.map(|time| time.timestamp()))
-                                .collect::<Vec<_>>(),
-                        )
-                        .with_timezone_opt(tz),
-                    ),
-                    TimeUnit::Millisecond => Arc::new(
-                        TimestampMillisecondArray::from(
-                            iter.map(|time| time.map(|time| time.timestamp_millis()))
-                                .collect::<Vec<_>>(),
-                        )
-                        .with_timezone_opt(tz),
-                    ),
-                    TimeUnit::Microsecond => Arc::new(
-                        TimestampMicrosecondArray::from(
-                            iter.map(|time| time.map(|time| time.timestamp_micros()))
-                                .collect::<Vec<_>>(),
-                        )
-                        .with_timezone_opt(tz),
-                    ),
-                    TimeUnit::Nanosecond => Arc::new(
-                        TimestampNanosecondArray::from(
-                            iter.map(|time| time.map(|time| time.timestamp_nanos_opt().unwrap()))
-                                .collect::<Vec<_>>(),
-                        )
-                        .with_timezone_opt(tz),
-                    ),
-                }
+                Arc::new(
+                    TimestampNanosecondArray::from(
+                        iter.map(|time| time.map(|time| time.timestamp_nanos_opt().unwrap()))
+                            .collect::<Vec<_>>(),
+                    )
+                    .with_timezone_opt(tz),
+                )
             } else {
                 let iter = <DateTime<Tz>>::iter(column, column.sql_type())?;
-                match unit {
-                    TimeUnit::Second => Arc::new(
-                        TimestampSecondArray::from(
-                            iter.map(|time| time.timestamp()).collect::<Vec<_>>(),
-                        )
-                        .with_timezone_opt(tz),
-                    ),
-                    TimeUnit::Millisecond => Arc::new(
-                        TimestampMillisecondArray::from(
-                            iter.map(|time| time.timestamp_millis()).collect::<Vec<_>>(),
-                        )
-                        .with_timezone_opt(tz),
-                    ),
-                    TimeUnit::Microsecond => Arc::new(
-                        TimestampMicrosecondArray::from(
-                            iter.map(|time| time.timestamp_micros()).collect::<Vec<_>>(),
-                        )
-                        .with_timezone_opt(tz),
-                    ),
-                    TimeUnit::Nanosecond => Arc::new(
-                        TimestampNanosecondArray::from(
-                            iter.map(|time| time.timestamp_nanos_opt().unwrap())
-                                .collect::<Vec<_>>(),
-                        )
-                        .with_timezone_opt(tz),
-                    ),
-                }
+                Arc::new(
+                    TimestampNanosecondArray::from(
+                        iter.map(|time| time.timestamp_nanos_opt().unwrap())
+                            .collect::<Vec<_>>(),
+                    )
+                    .with_timezone_opt(tz),
+                )
             }
         }
         other => {

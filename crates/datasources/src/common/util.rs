@@ -24,6 +24,7 @@ pub enum Datasource {
     MySql,
     BigQuery,
     Snowflake,
+    Clickhouse,
 }
 
 /// Returns true if the literal expression encoding should be wrapped inside
@@ -85,6 +86,14 @@ pub fn encode_literal_to_text(
         }
         ScalarValue::TimestampMicrosecond(Some(v), tz) => {
             let naive = Utc.timestamp_nanos(*v * 1_000).naive_utc();
+            encode_utc_timestamp(buf, &naive, tz.is_some())?;
+        }
+        ScalarValue::TimestampMillisecond(Some(v), tz) => {
+            let naive = Utc.timestamp_nanos(*v * 1_000_000).naive_utc();
+            encode_utc_timestamp(buf, &naive, tz.is_some())?;
+        }
+        ScalarValue::TimestampSecond(Some(v), tz) => {
+            let naive = Utc.timestamp_nanos(*v * 1_000_000_000).naive_utc();
             encode_utc_timestamp(buf, &naive, tz.is_some())?;
         }
         ScalarValue::Time64Nanosecond(Some(v)) => {

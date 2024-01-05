@@ -91,4 +91,5 @@ clickhouse client \
 clickhouse client \
     --query="INSERT INTO bikeshare_trips FORMAT CSVWithNames" < ./testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv
 
-echo "clickhouse://localhost:9000/default"
+# Leaving out database names so we can append it in tests.
+echo "clickhouse://localhost:9000"
