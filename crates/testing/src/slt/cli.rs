@@ -148,7 +148,7 @@ impl Cli {
             let patterns = patterns
                 .iter()
                 .map(|p| p.trim_end_matches(".slt"))
-                .map(|p| glob::Pattern::new(p))
+                .map(glob::Pattern::new)
                 .collect::<Result<Vec<_>, _>>()?;
 
             tests

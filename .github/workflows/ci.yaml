@@ -138,10 +138,7 @@ jobs:
       - uses: actions/cache@v3
         name: cache
         with:
-          path: |
-            ~/.cargo/
-            target/
-            !target/**/glaredb
+          path: target/debug/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: pg protocol test (script)
         run: |
@@ -149,7 +146,7 @@ jobs:
 
       - name: pg protocol tests (slt runner)
         # TODO: make this work with the binary
-        run: just slt -v 'pgproto/*'
+        run: just slt-bin -v 'pgproto/*'
 
   sql-logic-tests:
     name: SQL Logic Tests
@@ -157,7 +154,7 @@ jobs:
     needs: ["build"]
     strategy:
       matrix:
-        protocol: ['postgres','flightsql']
+        protocol: ["postgres", "flightsql"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -165,11 +162,7 @@ jobs:
       - uses: actions/cache@v3
         name: cache
         with:
-          path: |
-            ~/.cargo/
-            target/
-            !target/**/glaredb
-            !target/**/slt
+          path: target/debug/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: public sql logic tests DEBUG
         if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
@@ -177,7 +170,6 @@ jobs:
       - name: public sql logic tests
         if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
         run: just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
-        
 
   process-integration-tests:
     name: Process Integration Tests (pytest)
@@ -192,10 +184,10 @@ jobs:
       - name: install python
         uses: actions/setup-python@v5
         with:
-            python-version: '3.11'
-            cache: poetry
-            cache-dependency-paths: |
-              tests/poetry.lock
+          python-version: "3.11"
+          cache: poetry
+          cache-dependency-paths: |
+            tests/poetry.lock
       - uses: actions/cache@v3
         name: cache
         with:
@@ -228,11 +220,7 @@ jobs:
       - uses: actions/cache@v3
         name: cache
         with:
-          path: |
-            ~/.cargo/
-            target/
-            !target/**/glaredb
-            !target/**/slt
+          path: target/debug/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: GCP authenticate
@@ -296,10 +284,10 @@ jobs:
           # Prepare SLT (Clickhouse)
           source ./scripts/ci-install-clickhouse.sh
           export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
-          
+
           # Prepare SLT (Cassandra)
           export CASSANDRA_CONN_STRING=$(./scripts/create-test-cassandra-db.sh | tail -n 1)
-          
+
           # Prepare SLT (SQL Server)
           export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
 
