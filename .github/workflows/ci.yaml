@@ -30,7 +30,14 @@ jobs:
 
       - name: build
         run: just build
-  
+      - name: build testrunner
+        run: just build-testrunner
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: slt
+          path: target/debug/slt
+
   build-testrunner:
     name: Build Test Runner
     runs-on: ubuntu-latest-8-cores
