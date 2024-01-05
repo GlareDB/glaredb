@@ -1,14 +1,14 @@
 query I
-select count(*) from '../../testdata/parquet/userdata1.parquet';
+select count(*) from '${PWD}/testdata/parquet/userdata1.parquet';
 ----
 1000
 
 query I
-select count(*) from '../../testdata/parquet/*.parquet' as pd where pd.id != '';
+select count(*) from '${PWD}/testdata/parquet/*.parquet' as pd where pd.id != '';
 ----
 2000
 
 query I
-select count(*) from '../../testdata/parquet/*.parquet';
+select count(*) from '${PWD}/testdata/parquet/*.parquet';
 ----
 2000

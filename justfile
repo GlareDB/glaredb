@@ -113,6 +113,14 @@ rpc-tests: protoc
     'sqllogictests/describe_rpc' \
     'sqllogictests/allowed_operations'
 
+# Build a pre-compiled slt runner
+build-testrunner *args:
+  cargo build --bin slt -- {{args}}
+
+# Run SQL Logic Tests with a pre-compiled slt runner
+slt-bin *args:
+  ./target/debug/slt -d testdata {{args}}
+
 #  Check formatting.
 fmt-check: protoc
   cargo fmt --check

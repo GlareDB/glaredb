@@ -126,7 +126,7 @@ select * from datasources;
 # View referencing a local file.
 
 statement ok
-create view file_view as select * from '../../testdata/parquet/userdata1.parquet'
+create view file_view as select * from '${PWD}/testdata/parquet/userdata1.parquet'
 
 query I
 select id from file_view order by id limit 1;

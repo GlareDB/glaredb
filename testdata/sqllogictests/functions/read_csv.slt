@@ -33,7 +33,7 @@ select count(*) from read_csv(
 
 # Relative path
 query I
-select count(*) from read_csv('../../testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
+select count(*) from read_csv('${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
 ----
 102
 

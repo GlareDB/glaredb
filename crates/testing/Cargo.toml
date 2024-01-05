@@ -35,3 +35,7 @@ rpcsrv = { path = "../rpcsrv" }
 harness = false
 name = "sqllogictests"
 path = "tests/sqllogictests/main.rs"
+
+[[bin]]
+name = "slt"
+path = "src/main.rs"

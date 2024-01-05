@@ -86,6 +86,8 @@ pub struct Cli {
     /// Provide glob like regexes for test names. If omitted, runs all the
     /// tests. This is similar to providing parameter as `*`.
     tests_pattern: Option<Vec<String>>,
+    #[arg(short = 'd')]
+    pub test_dir: Option<PathBuf>,
 }
 
 impl Cli {
@@ -145,6 +147,7 @@ impl Cli {
         let mut tests: Vec<_> = if let Some(patterns) = &self.tests_pattern {
             let patterns = patterns
                 .iter()
+                .map(|p| p.trim_end_matches(".slt"))
                 .map(|p| glob::Pattern::new(p))
                 .collect::<Result<Vec<_>, _>>()?;
 

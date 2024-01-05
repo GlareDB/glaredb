@@ -26,10 +26,13 @@ jobs:
             ~/.cargo/
             target/
             !target/**/glaredb
+            !target/**/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: build
         run: just build
+      - name: build testrunner
+        run: just build-testrunner
 
   static-analysis:
     name: Lint and Format
@@ -145,6 +148,7 @@ jobs:
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
 
       - name: pg protocol tests (slt runner)
+        # TODO: make this work with the binary
         run: just slt -v 'pgproto/*'
 
   sql-logic-tests:
@@ -165,13 +169,14 @@ jobs:
             ~/.cargo/
             target/
             !target/**/glaredb
+            !target/**/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: public sql logic tests DEBUG
         if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
-        run: just slt -v 'sqllogictests/* --protocol=${{ matrix.protocol }}'
+        run: just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
       - name: public sql logic tests
         if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
-        run: just slt 'sqllogictests/* --protocol=${{ matrix.protocol }}'
+        run: just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
         
 
   process-integration-tests:
@@ -198,6 +203,7 @@ jobs:
             ~/.cargo/
             target/
             !target/**/glaredb
+            !target/**/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache@v3
         name: cache
@@ -226,6 +232,7 @@ jobs:
             ~/.cargo/
             target/
             !target/**/glaredb
+            !target/**/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: GCP authenticate
@@ -305,31 +312,31 @@ jobs:
           echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
           # Run all data source tests without running tunnel tests or the basic
           # SLT tests.
-          just slt --exclude 'sqllogictests/*' --exclude '*/tunnels/ssh' --exclude 'sqllogictests_snowflake/*'
+          just slt-bin --exclude 'sqllogictests/*' --exclude '*/tunnels/ssh' --exclude 'sqllogictests_snowflake/*'
 
           echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
           # SSH tests are prone to fail if we make a lot of connections at the
           # same time. Hence, it makes sense to run all the SSH tests one-by-one
           # in order to test the SSH tunnels (which is our aim).
-          just sql-logic-tests --jobs=1 '*/tunnels/ssh'
+          just slt-bin  --jobs=1 '*/tunnels/ssh'
 
           echo "-------------------------------- RPC TESTS --------------------------------"
           just rpc-tests
-          just sql-logic-tests --protocol=rpc 'sqllogictests_bigquery/*'
-          just sql-logic-tests --protocol=rpc 'sqllogictests_iceberg/*'
-          just sql-logic-tests --protocol=rpc 'sqllogictests_native/*'
-          just sql-logic-tests --protocol=rpc 'sqllogictests_object_store/*'
-          just sql-logic-tests --protocol=rpc 'sqllogictests_sqlserver/*'
-          just sql-logic-tests --protocol=rpc 'sqllogictests_clickhouse/*'
-          just sql-logic-tests --protocol=rpc 'sqllogictests_cassandra/*'
-          just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
-          just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
-          just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
+          just slt-bin --protocol=rpc 'sqllogictests_bigquery/*'
+          just slt-bin --protocol=rpc 'sqllogictests_iceberg/*'
+          just slt-bin --protocol=rpc 'sqllogictests_native/*'
+          just slt-bin --protocol=rpc 'sqllogictests_object_store/*'
+          just slt-bin --protocol=rpc 'sqllogictests_sqlserver/*'
+          just slt-bin --protocol=rpc 'sqllogictests_clickhouse/*'
+          just slt-bin --protocol=rpc 'sqllogictests_cassandra/*'
+          just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
+          just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
+          just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
 
           echo "-------------------------- REMOTE DATA STORAGE TESTS --------------------------------"
           # Test using a remote object store for storing databases and catalog
           # MinIO (S3)
-          just sql-logic-tests --location http://localhost:9100 \
+          just slt-bin --location http://localhost:9100 \
               --option access_key_id=$MINIO_ACCESS_KEY \
               --option secret_access_key=$MINIO_SECRET_KEY \
               --option bucket=$TEST_BUCKET \
@@ -337,14 +344,14 @@ jobs:
               'sqllogictests_native/*'
 
           # MinIO (S3) but with a sub-directory path
-          just slt -l http://localhost:9100/$TEST_BUCKET/path/to/folder \
+          just slt-bin -l http://localhost:9100/$TEST_BUCKET/path/to/folder \
               -o access_key_id=$MINIO_ACCESS_KEY \
               -o secret_access_key=$MINIO_SECRET_KEY \
               'sqllogictests/*'
 
           # Fake GCS server with a sub-directory path; run with two different folder paths to assert no conflicts arise
-          just slt -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
-          just slt -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
+          just slt-bin -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
+          just slt-bin -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
 
   service-integration-tests-snowflake:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
@@ -365,6 +372,7 @@ jobs:
             ~/.cargo/
             target/
             !target/**/glaredb
+            !target/**/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: snowflake setup (SnowSQL)
@@ -395,6 +403,6 @@ jobs:
             export SNOWFLAKE_DATABASE=glaredb_test
           fi
 
-          just sql-logic-tests 'sqllogictests_snowflake/*'
+          just slt-bin 'sqllogictests_snowflake/*'
 
-          just sql-logic-tests --protocol=rpc 'sqllogictests_snowflake/*'
+          just slt-bin --protocol=rpc 'sqllogictests_snowflake/*'

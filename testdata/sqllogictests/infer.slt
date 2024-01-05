@@ -1,13 +1,13 @@
 # Tests for inferring table functions from file paths.
 
 query I
-select count(*) from '../../testdata/parquet/userdata1.parquet'
+select count(*) from '${PWD}/testdata/parquet/userdata1.parquet'
 ----
 1000
 
 query IT
-select id, "../../testdata/parquet/userdata1.parquet".first_name
-  from '../../testdata/parquet/userdata1.parquet'
+select id, "${PWD}/testdata/parquet/userdata1.parquet".first_name
+  from '${PWD}/testdata/parquet/userdata1.parquet'
   order by id
   limit 1
 ----
@@ -15,39 +15,39 @@ select id, "../../testdata/parquet/userdata1.parquet".first_name
 
 
 query I
-select count(*) from '../../testdata/json/userdata1.json'
+select count(*) from '${PWD}/testdata/json/userdata1.json'
 ----
 1000
 
 query IT
-select id, "../../testdata/json/userdata1.json".first_name
-  from '../../testdata/json/userdata1.json'
+select id, "${PWD}/testdata/json/userdata1.json".first_name
+  from '${PWD}/testdata/json/userdata1.json'
   order by id
   limit 1
 ----
 1  Amanda
 
 query I
-select count(*) from '../../testdata/csv/userdata1.csv'
+select count(*) from '${PWD}/testdata/csv/userdata1.csv'
 ----
 1000
 
 query IT
-select id, "../../testdata/csv/userdata1.csv".first_name
-  from '../../testdata/csv/userdata1.csv'
+select id, "${PWD}/testdata/csv/userdata1.csv".first_name
+  from '${PWD}/testdata/csv/userdata1.csv'
   order by id
   limit 1
 ----
 1  Amanda
 
 statement error unable to infer
-select count(*) from '../../testdata/parquet/userdata1.unknown'
+select count(*) from '${PWD}/testdata/parquet/userdata1.unknown'
 
 query I
-select count(*) from '../../testdata/parquet/*.parquet'
+select count(*) from '${PWD}/testdata/parquet/*.parquet'
 ----
 2000
 
 statement error missing file extension
-select count(*) from '../../testdata/parquet/*'
+select count(*) from '${PWD}/testdata/parquet/*'
 
