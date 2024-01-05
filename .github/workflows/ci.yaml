@@ -26,13 +26,34 @@ jobs:
             ~/.cargo/
             target/
             !target/**/glaredb
-            !target/**/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: build
         run: just build
-      - name: build testrunner
+  
+  build-testrunner:
+    name: Build Test Runner
+    runs-on: ubuntu-latest-8-cores
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: cache
+        with:
+          path: |
+            ~/.cargo/
+            target/
+            !target/**/glaredb
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: build
         run: just build-testrunner
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: slt
+          path: target/debug/slt
 
   static-analysis:
     name: Lint and Format
@@ -130,16 +151,16 @@ jobs:
   pg-protocol:
     name: PG Protocol Tests
     runs-on: ubuntu-latest-8-cores
-    needs: ["build"]
+    needs: ["build-testrunner"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
-      - uses: actions/cache@v3
-        name: cache
+      - name: Download Artifact
+        uses: actions/download-artifact@v2
         with:
+          name: slt 
           path: target/debug/slt
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: pg protocol test (script)
         run: |
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
@@ -151,7 +172,7 @@ jobs:
   sql-logic-tests:
     name: SQL Logic Tests
     runs-on: ubuntu-latest-8-cores
-    needs: ["build"]
+    needs: ["build-testrunner"]
     strategy:
       matrix:
         protocol: ["postgres", "flightsql"]
@@ -159,11 +180,11 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
-      - uses: actions/cache@v3
-        name: cache
+      - name: Download Artifact
+        uses: actions/download-artifact@v2
         with:
+          name: slt 
           path: target/debug/slt
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: public sql logic tests DEBUG
         if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
         run: just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
@@ -212,16 +233,16 @@ jobs:
     name: Service Integration Tests (SLT)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
     runs-on: ubuntu-latest-8-cores
-    needs: ["build"]
+    needs: ["build-testrunner"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
-      - uses: actions/cache@v3
-        name: cache
+      - name: Download Artifact
+        uses: actions/download-artifact@v2
         with:
+          name: slt 
           path: target/debug/slt
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: GCP authenticate
         uses: google-github-actions/auth@v2
@@ -353,15 +374,11 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
-      - uses: actions/cache@v3
-        name: cache
+      - name: Download Artifact
+        uses: actions/download-artifact@v2
         with:
-          path: |
-            ~/.cargo/
-            target/
-            !target/**/glaredb
-            !target/**/slt
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          name: slt
+          path: target/debug/slt
 
       - name: snowflake setup (SnowSQL)
         run: |
