@@ -45,7 +45,7 @@ while [[ $EXIT_CODE -ne 0 ]]; do
   set -e
 
   CURRENT_TIME=$(date +%s)
-  CURRENT_TIME=$((CURRENT_TIME - 90))
+  CURRENT_TIME=$((CURRENT_TIME - 180))
   if [[ "$CURRENT_TIME" -gt "$INIT_TIME" ]]; then
     echo "Timed out waiting for CASSANDRA to start!"
     exit 1
