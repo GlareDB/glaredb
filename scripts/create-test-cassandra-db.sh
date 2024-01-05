@@ -38,7 +38,7 @@ while [[ $EXIT_CODE -ne 0 ]]; do
   set -e
 
   CURRENT_TIME=$(date +%s)
-  CURRENT_TIME=$((CURRENT_TIME - 180))
+  CURRENT_TIME=$((CURRENT_TIME - 300))
   REMAINING_TIME=$((INIT_TIME - CURRENT_TIME))
   echo "Waiting for Cassandra to start... $REMAINING_TIME seconds remaining" >&2
   sleep 5
