@@ -68,9 +68,9 @@ fn try_convert_dtype(ty: &ColumnType) -> Result<DataType> {
 }
 
 impl CassandraAccess {
-    pub async fn try_new(conn_str: impl AsRef<str>) -> Result<Self> {
+    pub async fn try_new(host: impl AsRef<str>) -> Result<Self> {
         let session = SessionBuilder::new()
-            .known_node(conn_str)
+            .known_node(host)
             .connection_timeout(Duration::from_secs(10))
             .build()
             .await?;
@@ -113,8 +113,8 @@ pub struct CassandraTableProvider {
 }
 
 impl CassandraTableProvider {
-    pub async fn try_new(conn_str: String, ks: String, table: String) -> Result<Self> {
-        let access = CassandraAccess::try_new(conn_str).await?;
+    pub async fn try_new(host: String, ks: String, table: String) -> Result<Self> {
+        let access = CassandraAccess::try_new(host).await?;
         let schema = access.get_schema(&ks, &table).await?;
         Ok(Self {
             schema: Arc::new(schema),

@@ -499,12 +499,12 @@ impl<'a> ExternalDispatcher<'a> {
                 )
             }
             TableOptions::Cassandra(TableOptionsCassandra {
-                connection_string,
+                host,
                 keyspace,
                 table,
             }) => {
                 let table = CassandraTableProvider::try_new(
-                    connection_string.clone(),
+                    host.clone(),
                     keyspace.clone(),
                     table.clone(),
                 )

@@ -526,14 +526,14 @@ impl<'a> SessionPlanner<'a> {
                 })
             }
             TableOptions::CASSANDRA => {
-                let connection_string: String = m.remove_required("connection_string")?;
+                let host: String = m.remove_required("host")?;
                 let keyspace: String = m.remove_required("keyspace")?;
                 let table: String = m.remove_required("table")?;
-                let access = CassandraAccess::try_new(connection_string.clone()).await?;
+                let access = CassandraAccess::try_new(host.clone()).await?;
                 access.validate_table_access(&keyspace, &table).await?;
 
                 TableOptions::Cassandra(TableOptionsCassandra {
-                    connection_string,
+                    host,
                     keyspace,
                     table,
                 })

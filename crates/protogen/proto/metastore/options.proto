@@ -231,7 +231,7 @@ message TableOptionsClickhouse {
 }
 
 message TableOptionsCassandra {
-  string connection_string = 1;
+  string host = 1;
   string keyspace = 2;
   string table = 3;
 }

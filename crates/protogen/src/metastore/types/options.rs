@@ -1032,7 +1032,7 @@ impl From<TableOptionsClickhouse> for options::TableOptionsClickhouse {
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct TableOptionsCassandra {
-    pub connection_string: String,
+    pub host: String,
     pub keyspace: String,
     pub table: String,
 }
@@ -1041,7 +1041,7 @@ impl TryFrom<options::TableOptionsCassandra> for TableOptionsCassandra {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsCassandra) -> Result<Self, Self::Error> {
         Ok(TableOptionsCassandra {
-            connection_string: value.connection_string,
+            host: value.host,
             keyspace: value.keyspace,
             table: value.table,
         })
@@ -1051,7 +1051,7 @@ impl TryFrom<options::TableOptionsCassandra> for TableOptionsCassandra {
 impl From<TableOptionsCassandra> for options::TableOptionsCassandra {
     fn from(value: TableOptionsCassandra) -> Self {
         options::TableOptionsCassandra {
-            connection_string: value.connection_string,
+            host: value.host,
             keyspace: value.keyspace,
             table: value.table,
         }
