@@ -37,8 +37,13 @@ jobs:
           path: |
             target/
             !target/**/glaredb
+            !target/**/slt
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache@v3
+        name: slt cache
+        with:
+          path: target/debug/slt
           key: ${{ github.run_id }}
-
       - name: build
         run: just build
 
@@ -122,7 +127,8 @@ jobs:
           path: |
             target/
             !target/**/glaredb
-          key: ${{ github.run_id }}
+            !target/**/slt
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: build python bindings
         run: just python build
@@ -159,7 +165,8 @@ jobs:
           path: |
             target/
             !target/**/glaredb
-          key: ${{ github.run_id }}
+            !target/**/slt
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: build node.js bindings
         run: just js build-debug
       - name: run node.js binding tests
@@ -191,7 +198,8 @@ jobs:
           path: |
             target/
             !target/**/glaredb
-          key: ${{ github.run_id }}
+            !target/**/slt
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: pg protocol test (script)
         run: |
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
@@ -212,7 +220,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: build cache
+        name: slt cache
         with:
           path: target/debug/slt
           key: ${{ github.run_id }}
@@ -259,7 +267,8 @@ jobs:
           path: |
             target/
             !target/**/glaredb
-          key: ${{ github.run_id }}
+            !target/**/slt
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache@v3
         name: py cache
         with:
@@ -281,7 +290,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: build cache
+        name: slt cache
         with:
           path: target/debug/slt
           key: ${{ github.run_id }}
@@ -417,7 +426,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: build cache
+        name: slt cache
         with:
           path: target/debug/slt
           key: ${{ github.run_id }}
