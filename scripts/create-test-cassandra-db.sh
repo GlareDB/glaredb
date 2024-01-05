@@ -30,17 +30,21 @@ docker run  --network $NETWORK_NAME --name $CONTAINER_NAME  -p 9042:9042  --rm -
 # # Wait until cassandra is ready.
 INIT_TIME=$(date +%s)
 EXIT_CODE=1
+
 while [[ $EXIT_CODE -ne 0 ]]; do
   set +e
-  docker run --rm -it --network $NETWORK_NAME cassandra cqlsh $CONTAINER_NAME 9042 --cqlversion='3.4.6' -e "SELECT now() FROM system.local;" > /dev/null
+  docker logs $CONTAINER_NAME 2>&1 | grep -q 'Startup complete'
   EXIT_CODE=$?
   set -e
 
   CURRENT_TIME=$(date +%s)
-  CURRENT_TIME=$((CURRENT_TIME - 300))
+  CURRENT_TIME=$((CURRENT_TIME - 180))
+  REMAINING_TIME=$((INIT_TIME - CURRENT_TIME))
+  echo "Waiting for Cassandra to start... $REMAINING_TIME seconds remaining" >&2
+  sleep 5
   if [[ "$CURRENT_TIME" -gt "$INIT_TIME" ]]; then
-    echo "Timed out waiting for CASSANDRA to start!"
-    exit 1x
+    echo "Timed out waiting for Cassandra to start!"
+    exit 1
   fi
 done
 
@@ -53,6 +57,6 @@ docker run \
     --network $NETWORK_NAME \
     -v "$script_dir:/scripts/data.cql" \
     -v "$bikeshare_stations:/data/bikeshare_stations.csv" \
-    cassandra cqlsh $CONTAINER_NAME 9042 --cqlversion='3.4.6' -f /scripts/data.cql > /dev/null
+    cassandra cqlsh $CONTAINER_NAME 9042 --cqlversion='3.4.6' -f /scripts/data.cql 2> /dev/null > /dev/null
 
 echo "127.0.0.1:9042"

@@ -291,8 +291,8 @@ jobs:
           export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
           
           # Prepare SLT (Cassandra)
-          export CASSANDRA_CONN_STRING=$(./scripts/create-test-cassandra-db.sh)
-
+          export CASSANDRA_CONN_STRING=$(./scripts/create-test-cassandra-db.sh | tail -n 1)
+          
           # Prepare SLT (SQL Server)
           export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
 
