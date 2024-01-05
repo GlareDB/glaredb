@@ -4,7 +4,7 @@ statement ok
 CREATE EXTERNAL TABLE basic
 	FROM cassandra
 	OPTIONS (
-		connection_string = '${CASSANDRA_CONN_STRING}',
+		host = '${CASSANDRA_CONN_STRING}',
 		keyspace = 'test',
 		table = 'bikeshare_stations'
 	);

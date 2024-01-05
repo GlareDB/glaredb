@@ -9,7 +9,6 @@ use tests::{PgBinaryEncoding, SshKeysTest};
 
 fn main() -> Result<()> {
     SltRunner::new()
-    
         .test_files_dir("../../testdata")?
         // Rust tests
         .test("sqllogictests/ssh_keys", Box::new(SshKeysTest))?

@@ -503,12 +503,9 @@ impl<'a> ExternalDispatcher<'a> {
                 keyspace,
                 table,
             }) => {
-                let table = CassandraTableProvider::try_new(
-                    host.clone(),
-                    keyspace.clone(),
-                    table.clone(),
-                )
-                .await?;
+                let table =
+                    CassandraTableProvider::try_new(host.clone(), keyspace.clone(), table.clone())
+                        .await?;
 
                 Ok(Arc::new(table))
             }

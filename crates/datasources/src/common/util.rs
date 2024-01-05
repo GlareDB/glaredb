@@ -80,7 +80,6 @@ pub fn encode_literal_to_text(
         }
         ScalarValue::Binary(Some(v)) => encode_binary(buf, v)?,
         ScalarValue::TimestampNanosecond(Some(v), tz) => {
-
             let naive = Utc.timestamp_nanos(*v).naive_utc();
             encode_utc_timestamp(buf, &naive, tz.is_some())?;
         }

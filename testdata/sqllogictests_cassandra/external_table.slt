@@ -4,7 +4,7 @@ statement ok
 CREATE EXTERNAL TABLE external_table
 	FROM cassandra
 	OPTIONS (
-		connection_string = '127.0.0.1:9042',
+		host = '127.0.0.1:9042',
 		keyspace = 'test',
 		table = 'bikeshare_stations',
 	);
