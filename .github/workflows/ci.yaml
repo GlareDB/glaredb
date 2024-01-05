@@ -30,13 +30,9 @@ jobs:
 
       - name: build
         run: just build
+        
       - name: build testrunner
         run: just build-testrunner
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: slt
-          path: target/debug/slt
 
   static-analysis:
     name: Lint and Format
@@ -95,11 +91,7 @@ jobs:
           path: |
             ~/.cargo/
             target/
-            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: build glaredb binary
-        run: just build
 
       - name: build python bindings
         run: just python build
@@ -139,11 +131,13 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
-      - name: Download Artifact
-        uses: actions/download-artifact@v2
+      - uses: actions/cache@v3
+        name: cache
         with:
-          name: slt 
-          path: target/debug/slt
+          path: |
+            target/
+            !target/**/glaredb
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: pg protocol test (script)
         run: |
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
@@ -158,22 +152,25 @@ jobs:
     needs: ["build"]
     strategy:
       matrix:
-        protocol: ["postgres", "flightsql"]
+        protocol: ['postgres','flightsql']
     steps:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
-      - name: Download Artifact
-        uses: actions/download-artifact@v2
+      - uses: actions/cache@v3
+        name: cache
         with:
-          name: slt 
-          path: target/debug/slt
+          path: |
+            target/
+            !target/**/glaredb
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: public sql logic tests DEBUG
         if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
         run: just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
       - name: public sql logic tests
         if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
         run: just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
+        
 
   process-integration-tests:
     name: Process Integration Tests (pytest)
@@ -188,10 +185,10 @@ jobs:
       - name: install python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-          cache: poetry
-          cache-dependency-paths: |
-            tests/poetry.lock
+            python-version: '3.11'
+            cache: poetry
+            cache-dependency-paths: |
+              tests/poetry.lock
       - uses: actions/cache@v3
         name: cache
         with:
@@ -221,11 +218,13 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
-      - name: Download Artifact
-        uses: actions/download-artifact@v2
+      - uses: actions/cache@v3
+        name: cache
         with:
-          name: slt 
-          path: target/debug/slt
+          path: |
+            target/
+            !target/**/glaredb
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: GCP authenticate
         uses: google-github-actions/auth@v2
@@ -288,10 +287,10 @@ jobs:
           # Prepare SLT (Clickhouse)
           source ./scripts/ci-install-clickhouse.sh
           export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
-
+          
           # Prepare SLT (Cassandra)
           export CASSANDRA_CONN_STRING=$(./scripts/create-test-cassandra-db.sh | tail -n 1)
-
+          
           # Prepare SLT (SQL Server)
           export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
 
@@ -357,11 +356,13 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
-      - name: Download Artifact
-        uses: actions/download-artifact@v2
+      - uses: actions/cache@v3
+        name: cache
         with:
-          name: slt
-          path: target/debug/slt
+          path: |
+            target/
+            !target/**/glaredb
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: snowflake setup (SnowSQL)
         run: |
