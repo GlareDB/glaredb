@@ -1,6 +1,7 @@
 //! Builtin table returning functions.
 mod bigquery;
 mod bson;
+mod cassandra;
 mod clickhouse;
 mod delta;
 mod excel;
@@ -31,6 +32,7 @@ use std::sync::Arc;
 
 use self::bigquery::ReadBigQuery;
 use self::bson::BsonScan;
+use self::cassandra::ReadCassandra;
 use self::clickhouse::ReadClickhouse;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
@@ -86,6 +88,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadSnowflake),
             Arc::new(ReadClickhouse),
             Arc::new(ReadSqlServer),
+            Arc::new(ReadCassandra),
             // Object store
             Arc::new(PARQUET_SCAN),
             Arc::new(READ_PARQUET),
