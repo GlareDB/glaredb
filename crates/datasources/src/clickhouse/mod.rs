@@ -149,8 +149,9 @@ impl ClickhouseAccessState {
                     SqlType::Float64 => DataType::Float64,
                     SqlType::String | SqlType::FixedString(_) => DataType::Utf8,
                     // Clickhouse has both a 'Date' type (2 bytes) and a
-                    // 'Date32' type (4 bytes). I think they're both represented
-                    // with this one variant.
+                    // 'Date32' type (4 bytes). The library doesn't support
+                    // 'Date32' type yet.
+                    // TODO: Maybe upstream support for Date32?
                     SqlType::Date => DataType::Date32,
                     SqlType::DateTime(DateTimeType::DateTime32) => {
                         DataType::Timestamp(TimeUnit::Second, None)

@@ -1,0 +1,17 @@
+# Test if the datasource supports the different datatypes (and NULLs).
+
+# Create an external table that connects to the datatypes table.
+statement ok
+CREATE EXTERNAL TABLE datatypes
+	FROM clickhouse
+	OPTIONS (
+		connection_string = '${CLICKHOUSE_CONN_STRING}',
+		table = 'datatypes'
+	);
+
+# Check if we can fetch contents of the datatype table.
+query ITIIIIIIIIRRTTTTTTT rowsort
+SELECT * FROM datatypes;
+----
+1  t  1  12  1234  12345678  -1  -12  -1234  -12345678  1.25  -34.625  abc  def  1999-09-30  1999-09-30 16:32:34  1999-09-30 16:32:34.123456+00  1999-09-30 11:02:34  1999-09-30 16:32:34.123456+00
+2  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL
