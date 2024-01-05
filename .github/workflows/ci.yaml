@@ -214,7 +214,7 @@ jobs:
     needs: ["build"]
     strategy:
       matrix:
-        protocol: ['postgres','flightsql']
+        protocol: ["postgres", "flightsql", "rpc"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -226,11 +226,20 @@ jobs:
           key: ${{ github.run_id }}
       - name: public sql logic tests DEBUG
         if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
-        run: just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
+        run: |
+          if [[ "${{ matrix.protocol }}" == "rpc" ]]; then
+            just rpc-tests
+          else
+            just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
+          fi
       - name: public sql logic tests
         if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
-        run: just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
-        
+        run: |
+          if [[ "${{ matrix.protocol }}" == "rpc" ]]; then
+            just rpc-tests
+          else
+            just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
+          fi
 
   process-integration-tests:
     name: Process Integration Tests (pytest)
@@ -245,10 +254,9 @@ jobs:
       - name: install python
         uses: actions/setup-python@v5
         with:
-            python-version: '3.11'
-            cache: poetry
-            cache-dependency-paths: |
-              tests/poetry.lock
+          python-version: "3.11"
+          cache: poetry
+          cache-dependency-path: tests/poetry.lock
       - uses: actions/cache@v3
         name: toolchain cache
         with:
@@ -352,10 +360,6 @@ jobs:
 
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
-
-          # Prepare SLT (Clickhouse)
-          source ./scripts/ci-install-clickhouse.sh
-          export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
                   
           # Prepare SLT (SQL Server)
           export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
@@ -369,7 +373,11 @@ jobs:
           echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
           # Run all data source tests without running tunnel tests or the basic
           # SLT tests.
-          just slt-bin --exclude 'sqllogictests/*' --exclude '*/tunnels/ssh' --exclude 'sqllogictests_snowflake/*' 'sqllogictests_cassandra/*'
+          just slt-bin --exclude 'sqllogictests/*' \
+            --exclude '*/tunnels/ssh' \
+            --exclude 'sqllogictests_snowflake/*' \
+            --exclude 'sqllogictests_cassandra/*' \
+            --exclude 'sqllogictests_clickhouse/*'
 
           echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
           # SSH tests are prone to fail if we make a lot of connections at the
@@ -378,13 +386,11 @@ jobs:
           just slt-bin  --jobs=1 '*/tunnels/ssh'
 
           echo "-------------------------------- RPC TESTS --------------------------------"
-          just rpc-tests
           just slt-bin --protocol=rpc 'sqllogictests_bigquery/*'
           just slt-bin --protocol=rpc 'sqllogictests_iceberg/*'
           just slt-bin --protocol=rpc 'sqllogictests_native/*'
           just slt-bin --protocol=rpc 'sqllogictests_object_store/*'
           just slt-bin --protocol=rpc 'sqllogictests_sqlserver/*'
-          just slt-bin --protocol=rpc 'sqllogictests_clickhouse/*'
           just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
           just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
           just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
@@ -408,7 +414,34 @@ jobs:
           # Fake GCS server with a sub-directory path; run with two different folder paths to assert no conflicts arise
           just slt-bin -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
           just slt-bin -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
+  
+  service-integration-tests-clickhouse:
+    name: SLT::Clickhouse
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: slt cache
+        with:
+          path: target/debug/slt
+          key: ${{ github.run_id }}
+      - name: setup GCP
+        uses: google-github-actions/setup-gcloud@v2
 
+      - name: prepare testdata
+        run: ./scripts/prepare-testdata.sh
+      - name: run tests (slt)
+        run: |
+          # Prepare SLT (Clickhouse)
+          source ./scripts/ci-install-clickhouse.sh
+          export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
+
+          just slt-bin 'sqllogictests_clickhouse/*'
+          just slt-bin --protocol=flightsql 'sqllogictests_clickhouse/*'
+          just slt-bin --protocol=rpc 'sqllogictests_clickhouse/*'
   service-integration-tests-cassandra:
     name: SLT::Cassandra
     runs-on: ubuntu-latest-8-cores
