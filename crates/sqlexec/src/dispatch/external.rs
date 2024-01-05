@@ -507,7 +507,7 @@ impl<'a> ExternalDispatcher<'a> {
                     source_url,
                     columns
                         .to_owned()
-                        .map(|vc| InternalColumnDefinition::to_arrow_fields(vc)),
+                        .map(InternalColumnDefinition::to_arrow_fields),
                     schema_sample_size.to_owned(),
                 )
                 .await?)

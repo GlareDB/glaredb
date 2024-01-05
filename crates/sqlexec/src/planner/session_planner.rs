@@ -467,7 +467,7 @@ impl<'a> SessionPlanner<'a> {
                 // TODO: Validate
                 let cols = columns
                     .clone()
-                    .map(|cc| InternalColumnDefinition::from_arrow_fields(cc));
+                    .map(InternalColumnDefinition::from_arrow_fields);
 
                 TableOptions::MongoDb(TableOptionsMongoDb {
                     connection_string,
@@ -770,7 +770,7 @@ impl<'a> SessionPlanner<'a> {
                     schema_sample_size,
                     columns: columns
                         .clone()
-                        .map(|cc| InternalColumnDefinition::from_arrow_fields(cc)),
+                        .map(InternalColumnDefinition::from_arrow_fields),
                 })
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
