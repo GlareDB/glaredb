@@ -20,17 +20,28 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: cache
+        name: toolchain cache
+        with:
+          path: |
+            ~/.rustup/toolchains/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/rust-toolchain.toml') }}
+      - uses: actions/cache@v3
+        name: cargo cache
         with:
           path: |
             ~/.cargo/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache@v3
+        name: build cache
+        with:
+          path: |
             target/
             !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.run_id }}
 
       - name: build
         run: just build
-        
+
       - name: build testrunner
         run: just build-testrunner
 
@@ -43,12 +54,16 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: cache
+        name: toolchain cache
+        with:
+          path: |
+            ~/.rustup/toolchains/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/rust-toolchain.toml') }}
+      - uses: actions/cache@v3
+        name: cargo cache
         with:
           path: |
             ~/.cargo/
-            target/
-            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: clippy
@@ -66,12 +81,16 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: cache
+        name: toolchain cache
+        with:
+          path: |
+            ~/.rustup/toolchains/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/rust-toolchain.toml') }}
+      - uses: actions/cache@v3
+        name: cargo cache
         with:
           path: |
             ~/.cargo/
-            target/
-            !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: run tests
@@ -86,12 +105,24 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: cache
+        name: toolchain cache
+        with:
+          path: |
+            ~/.rustup/toolchains/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/rust-toolchain.toml') }}
+      - uses: actions/cache@v3
+        name: cargo cache
         with:
           path: |
             ~/.cargo/
-            target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache@v3
+        name: build cache
+        with:
+          path: |
+            target/
+            !target/**/glaredb
+          key: ${{ github.run_id }}
 
       - name: build python bindings
         run: just python build
@@ -111,13 +142,24 @@ jobs:
           node-version: 20
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: cache
+        name: toolchain cache
+        with:
+          path: |
+            ~/.rustup/toolchains/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/rust-toolchain.toml') }}
+      - uses: actions/cache@v3
+        name: cargo cache
         with:
           path: |
             ~/.cargo/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache@v3
+        name: build cache
+        with:
+          path: |
             target/
             !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.run_id }}
       - name: build node.js bindings
         run: just js build-debug
       - name: run node.js binding tests
@@ -132,12 +174,24 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: cache
+        name: toolchain cache
+        with:
+          path: |
+            ~/.rustup/toolchains/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/rust-toolchain.toml') }}
+      - uses: actions/cache@v3
+        name: cargo cache
+        with:
+          path: |
+            ~/.cargo/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache@v3
+        name: build cache
         with:
           path: |
             target/
             !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.run_id }}
       - name: pg protocol test (script)
         run: |
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
@@ -190,16 +244,26 @@ jobs:
             cache-dependency-paths: |
               tests/poetry.lock
       - uses: actions/cache@v3
-        name: cache
+        name: toolchain cache
+        with:
+          path: |
+            ~/.rustup/toolchains/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/rust-toolchain.toml') }}
+      - uses: actions/cache@v3
+        name: cargo cache
         with:
           path: |
             ~/.cargo/
-            target/
-            !target/**/glaredb
-            !target/**/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache@v3
-        name: cache
+        name: build cache
+        with:
+          path: |
+            target/
+            !target/**/glaredb
+          key: ${{ github.run_id }}
+      - uses: actions/cache@v3
+        name: py cache
         with:
           path: |
             tests/.venv/
@@ -219,12 +283,12 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: cache
+        name: build cache
         with:
           path: |
             target/
             !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.run_id }}
 
       - name: GCP authenticate
         uses: google-github-actions/auth@v2
@@ -357,12 +421,12 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: cache
+        name: build cache
         with:
           path: |
             target/
             !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.run_id }}
 
       - name: snowflake setup (SnowSQL)
         run: |
