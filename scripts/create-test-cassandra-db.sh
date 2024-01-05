@@ -23,7 +23,7 @@ fi
 docker network create $NETWORK_NAME > /dev/null
 
 # Start container.
-docker run --platform linux/amd64  --network $NETWORK_NAME --name $CONTAINER_NAME  -p 9042:9042  --rm -d cassandra &> /dev/null
+docker run  --network $NETWORK_NAME --name $CONTAINER_NAME  -p 9042:9042  --rm -d cassandra &> /dev/null
 
 
 
@@ -32,14 +32,7 @@ INIT_TIME=$(date +%s)
 EXIT_CODE=1
 while [[ $EXIT_CODE -ne 0 ]]; do
   set +e
-  docker run --platform linux/amd64 \
-        --rm \
-        -it \
-        --network \
-        $NETWORK_NAME  \
-        cassandra \
-        cqlsh $CONTAINER_NAME 9042 --cqlversion='3.4.6' \
-        -e "SELECT now() FROM system.local;" > /dev/null
+  docker run --rm -it --network $NETWORK_NAME cassandra cqlsh $CONTAINER_NAME 9042 --cqlversion='3.4.6' -e "SELECT now() FROM system.local;" > /dev/null
   EXIT_CODE=$?
   set -e
 
@@ -47,7 +40,7 @@ while [[ $EXIT_CODE -ne 0 ]]; do
   CURRENT_TIME=$((CURRENT_TIME - 300))
   if [[ "$CURRENT_TIME" -gt "$INIT_TIME" ]]; then
     echo "Timed out waiting for CASSANDRA to start!"
-    exit 1
+    exit 1x
   fi
 done
 
@@ -55,7 +48,7 @@ done
 script_dir="$(realpath ./testdata/sqllogictests_cassandra/data/setup-cassandra.cql)"
 bikeshare_stations="$(realpath ./testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv)"
 
-docker run --platform linux/amd64 \
+docker run \
     --rm \
     --network $NETWORK_NAME \
     -v "$script_dir:/scripts/data.cql" \
