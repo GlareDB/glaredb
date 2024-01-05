@@ -71,8 +71,8 @@ impl CassandraAccess {
         let session = SessionBuilder::new().known_node(conn_str).build().await?;
         Ok(Self { session })
     }
-    async fn get_schema(&self, table: &str) -> Result<ArrowSchema> {
-        let query = format!("SELECT * FROM {table} LIMIT 1");
+    async fn get_schema(&self, ks: &str, table: &str) -> Result<ArrowSchema> {
+        let query = format!("SELECT * FROM {ks}.{table} LIMIT 1");
         let res = self.session.query(query, &[]).await?;
         let fields: Fields = res
             .col_specs
@@ -91,18 +91,20 @@ impl CassandraAccess {
 #[derive(Debug, Clone)]
 pub struct CassandraTableProvider {
     schema: Arc<ArrowSchema>,
+    ks: String,
     table: String,
     session: Arc<Session>,
 }
 
 impl CassandraTableProvider {
-    pub async fn try_new(conn_str: &str, table: &str) -> Result<Self> {
+    pub async fn try_new(conn_str: String, ks: String, table: String) -> Result<Self> {
         let access = CassandraAccess::try_new(conn_str).await?;
-        let schema = access.get_schema(table).await?;
+        let schema = access.get_schema(&ks, &table).await?;
         Ok(Self {
             schema: Arc::new(schema),
             session: Arc::new(access.session),
-            table: table.to_string(),
+            ks,
+            table,
         })
     }
 }
@@ -148,7 +150,10 @@ impl TableProvider for CassandraTableProvider {
             .map(|f| f.name().clone())
             .collect::<Vec<_>>()
             .join(",");
-        let query = format!("SELECT {} FROM {}", projection_string, self.table);
+        let query = format!(
+            "SELECT {} FROM {}.{}",
+            projection_string, self.ks, self.table
+        );
 
         let exec = CassandraExec::new(projected_schema, query, self.session.clone());
         Ok(Arc::new(exec))

@@ -4,8 +4,6 @@
 #
 # By default, the container will start up a 'default' database an not require a
 # username or password.
-#
-# Requires `cassandra`: <https://cassandra.apache.org/_/quickstart.html>
 
 set -e
 CONTAINER_NAME="glaredb_cassandra_test"
@@ -38,14 +36,15 @@ while [[ $EXIT_CODE -ne 0 ]]; do
         --rm \
         -it \
         --network \
-        $NETWORK_NAME nuvo/docker-cqlsh \
+        $NETWORK_NAME  \
+        cassandra \
         cqlsh $CONTAINER_NAME 9042 --cqlversion='3.4.6' \
         -e "SELECT now() FROM system.local;" > /dev/null
   EXIT_CODE=$?
   set -e
 
   CURRENT_TIME=$(date +%s)
-  CURRENT_TIME=$((CURRENT_TIME - 180))
+  CURRENT_TIME=$((CURRENT_TIME - 300))
   if [[ "$CURRENT_TIME" -gt "$INIT_TIME" ]]; then
     echo "Timed out waiting for CASSANDRA to start!"
     exit 1

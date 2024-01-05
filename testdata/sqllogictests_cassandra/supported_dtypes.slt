@@ -1,12 +1,12 @@
 query II
-SELECT id, arrow_typeof(id) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT id, arrow_typeof(id) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 1 Int32
 2 Int32
 3 Int32
 
 query I
-SELECT c1, arrow_typeof(c1) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c1, arrow_typeof(c1) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 ascii1 Utf8
 ascii2 Utf8
@@ -14,7 +14,7 @@ ascii3 Utf8
 
 
 query I
-SELECT c2::string, arrow_typeof(c2) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c2::string, arrow_typeof(c2) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 2023-01-01T00:00:00 Date64
 2023-01-02T00:00:00 Date64
@@ -23,63 +23,63 @@ SELECT c2::string, arrow_typeof(c2) FROM read_cassandra('${CASSANDRA_CONN_STRING
 
 
 query R
-SELECT c3, arrow_typeof(c3) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c3, arrow_typeof(c3) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 123.456 Float64
 456.789 Float64
 789.012 Float64
 
 query I
-SELECT c4::string, arrow_typeof(c4) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c4::string, arrow_typeof(c4) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 0 days 1 hours 0 mins 0.000000000 secs Duration(Nanosecond) 
 0 days 2 hours 0 mins 0.000000000 secs Duration(Nanosecond)
 0 days 3 hours 0 mins 0.000000000 secs Duration(Nanosecond)
 
 query I
-SELECT c5, arrow_typeof(c5) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c5, arrow_typeof(c5) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 1.23 Float32
 4.56 Float32
 7.89 Float32
 
 query I
-SELECT c6, arrow_typeof(c6) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c6, arrow_typeof(c6) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 123 Int32
 456 Int32
 789 Int32
 
 query I
-SELECT c7, arrow_typeof(c7) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c7, arrow_typeof(c7) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 text1 Utf8
 text2 Utf8
 text3 Utf8
 
 query I
-SELECT c8::string, arrow_typeof(c8) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c8::string, arrow_typeof(c8) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 2023-01-01T12:00:00 Timestamp(Millisecond, None)
 2023-01-02T13:00:00 Timestamp(Millisecond, None)
 2023-01-03T14:00:00 Timestamp(Millisecond, None)
 
 query I
-SELECT c9, arrow_typeof(c9) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c9, arrow_typeof(c9) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 123 Int16
 456 Int16
 789 Int16
 
 query I
-SELECT c10, arrow_typeof(c10) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c10, arrow_typeof(c10) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 12 Int8
 45 Int8
 78 Int8
 
 query I
-SELECT c11, arrow_typeof(c11) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c11, arrow_typeof(c11) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 0d23c01f-90d9-45d0-a2a9-c289991d19aa Utf8
 b50df0de-1fd4-4f5b-95c1-22ba211db324 Utf8
@@ -87,7 +87,7 @@ b50df0de-1fd4-4f5b-95c1-22ba211db324 Utf8
 
 
 query I
-SELECT c12, arrow_typeof(c12) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c12, arrow_typeof(c12) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 1234567890123 Int64
 9876543210123 Int64
@@ -95,7 +95,7 @@ SELECT c12, arrow_typeof(c12) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 't
 
 
 query I
-SELECT c13, arrow_typeof(c13) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test.supported_dtypes');
+SELECT c13, arrow_typeof(c13) FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
 1,2,3 List(Field { name: "item", data_type: Int32, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} })
 4,5,6 List(Field { name: "item", data_type: Int32, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} })

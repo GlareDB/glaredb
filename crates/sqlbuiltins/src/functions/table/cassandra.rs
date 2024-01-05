@@ -19,12 +19,12 @@ pub struct ReadCassandra;
 impl ConstBuiltinFunction for ReadCassandra {
     const NAME: &'static str = "read_cassandra";
     const DESCRIPTION: &'static str = "Read a Cassandra table";
-    const EXAMPLE: &'static str = "SELECT * FROM read_cassandra('localhost:9000', '<ns>.<table>')";
+    const EXAMPLE: &'static str = "SELECT * FROM read_cassandra('localhost:9000', 'ks', 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
-            2,
+            3,
             vec![DataType::Utf8],
             Volatility::Stable,
         ))
@@ -48,12 +48,13 @@ impl TableFunc for ReadCassandra {
         _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         match args.len() {
-            2 => {
+            3 => {
                 let mut args = args.into_iter();
                 let conn_string: String = args.next().unwrap().try_into()?;
+                let ks: String = args.next().unwrap().try_into()?;
                 let table: String = args.next().unwrap().try_into()?;
 
-                let prov = CassandraTableProvider::try_new(&conn_string, &table)
+                let prov = CassandraTableProvider::try_new(conn_string, ks, table)
                     .await
                     .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
