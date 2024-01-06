@@ -353,11 +353,6 @@ jobs:
           export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
           export POSTGRES_TUNNEL_SSH_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 2p)
 
-          # Prepare SLT (MySQL)
-          MYSQL_TEST_DB=$(./scripts/create-test-mysql-db.sh)
-          export MYSQL_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 1p)
-          export MYSQL_TUNNEL_SSH_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 2p)
-
           # Prepare SLT (MinIO)
           ./scripts/create-test-minio-store.sh
 
@@ -373,7 +368,8 @@ jobs:
             --exclude 'sqllogictests_cassandra/*' \
             --exclude 'sqllogictests_clickhouse/*' \
             --exclude 'sqllogictests_sqlserver/*' \
-            --exclude 'sqllogictests_mongodb/*' 
+            --exclude 'sqllogictests_mongodb/*' \
+            --exclude 'sqllogictests_mysql/*' \
 
           echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
           # SSH tests are prone to fail if we make a lot of connections at the
@@ -387,7 +383,6 @@ jobs:
           just slt-bin --protocol=rpc 'sqllogictests_native/*'
           just slt-bin --protocol=rpc 'sqllogictests_object_store/*'
         
-          just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
           just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
 
           echo "-------------------------- REMOTE DATA STORAGE TESTS --------------------------------"
@@ -457,6 +452,51 @@ jobs:
           just slt-bin 'sqllogictests_cassandra/*'
           just slt-bin --protocol=flightsql 'sqllogictests_cassandra/*'
           just slt-bin --protocol=rpc 'sqllogictests_cassandra/*'
+  
+  service-integration-tests-mysql:
+    name: SLT::MySQL
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: slt cache
+        with:
+          path: target/debug/slt
+          key: ${{ github.run_id }}
+
+      - name: run tests (slt)
+        run: |
+          # Prepare SLT (MySQL)
+          MYSQL_TEST_DB=$(./scripts/create-test-mysql-db.sh)
+          export MYSQL_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 1p)
+          export MYSQL_TUNNEL_SSH_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 2p)
+          just slt-bin 'sqllogictests_mysql/*'
+          just slt-bin --protocol=flightsql 'sqllogictests_mysql/*'
+          just slt-bin --protocol=rpc 'sqllogictests_mysql/*'
+
+  service-integration-tests-mongo:
+    name: SLT::Mongo
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: slt cache
+        with:
+          path: target/debug/slt
+          key: ${{ github.run_id }}
+
+      - name: run tests (slt)
+        run: |
+          export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)          
+          just slt-bin 'sqllogictests_mongo/*'
+          just slt-bin --protocol=flightsql 'sqllogictests_mongo/*'
+          just slt-bin --protocol=rpc 'sqllogictests_mongo/*'
 
   service-integration-tests-sqlserver:
     name: SLT::SqlServer
