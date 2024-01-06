@@ -27,7 +27,7 @@ pub fn walk(
             if verbose {
                 println!();
                 println!("--- TESTCASE ({}) ---", testcase.directive);
-                println!("{}"-, testcase.input);
+                println!("{}", testcase.input);
             }
 
             match testcase.directive.as_str() {
