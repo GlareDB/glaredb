@@ -45,7 +45,7 @@ jobs:
 
       - name: install aarch64 dependencies
         if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
-        run: sudo apt-get install gcc-aarch64-linux-gnu libc6-dev-arm64-cros
+        run: sudo apt-get install gcc-aarch64-linux-gnu libc6-dev-arm64-cross
 
       - name: Build
         run: just dist
