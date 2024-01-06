@@ -205,7 +205,6 @@ jobs:
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
 
       - name: pg protocol tests (slt runner)
-        # TODO: make this work with the binary
         run: just slt-bin -v 'pgproto/*'
 
   sql-logic-tests:
@@ -404,9 +403,11 @@ jobs:
           # Fake GCS server with a sub-directory path; run with two different folder paths to assert no conflicts arise
           just slt-bin -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
           just slt-bin -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
-  service-integration-tests-matrix:
+
+
+
+  datasource-integration-tests:
     strategy: 
-      fail-fast: true
       matrix:
         settings:
           - name: Clickhouse
@@ -429,10 +430,12 @@ jobs:
           - name: MongoDB
             path: "sqllogictests_mongodb/*"
             prepare: |
+              ./scripts/prepare-testdata.sh
               export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
           - name: Sqlserver
             path: "sqllogictests_sqlserver/*"
             prepare: |
+              ./scripts/prepare-testdata.sh
               export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
     name: SLT (${{matrix.settings.name}})
     runs-on: ubuntu-latest-8-cores
