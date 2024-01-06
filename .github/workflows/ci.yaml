@@ -446,11 +446,9 @@ jobs:
         with:
           path: target/debug/slt
           key: ${{ github.run_id }}
-
-      - name: prepare testdata
-        run: ${{matrix.settings.prepare}}
       - name: run tests (slt)
         run: |
+          ${{matrix.settings.prepare}}
           just slt-bin --protocol=rpc ${{matrix.settings.path}}
           just slt-bin --protocol=flightsql ${{matrix.settings.path}}
           just slt-bin ${{matrix.settings.path}}
