@@ -302,52 +302,29 @@ impl<'a> PartialContextProvider<'a> {
         let args = args.unwrap_or_default();
         let opts = opts.unwrap_or_default();
 
-        Ok(match func.runtime_preference {
-            RuntimePreference::Local => self.dispatch_function_local(func, args, opts).await?,
+        let resolve_func = if func.meta.builtin {
+            FUNCTION_REGISTRY
+                .get_table_func(&func.meta.name)
+                .expect("function should always exist for builtins")
+        } else {
+            return Err(PlanError::Internal(
+                "only builtin functions supported at this time".to_string(),
+            ));
+        };
 
-            RuntimePreference::Remote => {
-                self.dispatch_function_remote(func, args, opts, &mut client)
-                    .await?
-            }
+        let actual_runtime = resolve_func
+            .detect_runtime(&args, self.runtime_preference)
+            .map_err(DispatchError::ExtensionError)?;
 
-            RuntimePreference::Unspecified => {
-                let resolve_func = if func.meta.builtin {
-                    FUNCTION_REGISTRY
-                        .get_table_func(&func.meta.name)
-                        .expect("function should always exist for builtins")
-                } else {
-                    return Err(PlanError::Internal(
-                        "only builtin functions supported at this timef".to_string(),
-                    ));
-                };
-
-                let actual_runtime = resolve_func
-                    .detect_runtime(&args, self.runtime_preference)
-                    .map_err(DispatchError::ExtensionError)?;
-
-                match actual_runtime {
-                    RuntimePreference::Local => {
-                        self.dispatch_function_local(func, args, opts).await?
-                    }
-
-                    RuntimePreference::Remote => RuntimeAwareTableProvider::new(
-                        RuntimePreference::Remote,
-                        client
-                            .dispatch_access(
-                                ResolvedTableReference::Internal {
-                                    table_oid: func.meta.id,
-                                },
-                                Some(args),
-                                Some(opts),
-                            )
-                            .await?,
-                    ),
-                    _ => panic!(
-                        "function should have a specified runtime at this point. This is a bug."
-                    ),
-                }
-            }
-        })
+        match actual_runtime {
+            RuntimePreference::Local => Ok(self.dispatch_function_local(func, args, opts).await?),
+            RuntimePreference::Remote => Ok(self
+                .dispatch_function_remote(func, args, opts, &mut client)
+                .await?),
+            _ => Err(PlanError::Internal(
+                "function's actual runtime should always be one of remote or local".to_string(),
+            )),
+        }
     }
 
     async fn handle_table_entry_dispatch(

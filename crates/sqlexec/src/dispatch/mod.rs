@@ -76,7 +76,7 @@ pub enum DispatchError {
     #[error(transparent)]
     ObjectStoreDatasource(#[from] datasources::object_store::errors::ObjectStoreSourceError),
     #[error(transparent)]
-    MongoDatasource(#[from] datasources::mongodb::errors::MongoError),
+    MongoDatasource(#[from] datasources::mongodb::errors::MongoDbError),
     #[error(transparent)]
     SnowflakeDatasource(#[from] datasources::snowflake::errors::DatasourceSnowflakeError),
     #[error(transparent)]
@@ -85,6 +85,10 @@ pub enum DispatchError {
     IcebergDatasource(#[from] datasources::lake::iceberg::errors::IcebergError),
     #[error(transparent)]
     SqlServerError(#[from] datasources::sqlserver::errors::SqlServerError),
+    #[error(transparent)]
+    BsonDatasource(#[from] datasources::bson::errors::BsonError),
+    #[error(transparent)]
+    ClickhouseDatasource(#[from] datasources::clickhouse::errors::ClickhouseError),
     #[error(transparent)]
     NativeDatasource(#[from] datasources::native::errors::NativeError),
     #[error(transparent)]

@@ -2,23 +2,37 @@ use std::io::{self};
 
 use nu_ansi_term::{Color, Style};
 
-use reedline::{Highlighter, Hinter, SearchQuery, StyledText, Validator};
+use crate::local::is_client_cmd;
+use reedline::{Highlighter, Hinter, SearchQuery, StyledText, ValidationResult, Validator};
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
 use sqlexec::export::sqlparser::dialect::GenericDialect;
 use sqlexec::export::sqlparser::keywords::Keyword;
 use sqlexec::export::sqlparser::tokenizer::{Token, Tokenizer};
-
-use crate::local::is_client_cmd;
 
 pub(crate) struct SQLHighlighter;
 pub(crate) struct SQLValidator;
 
 impl Validator for SQLValidator {
     fn validate(&self, line: &str) -> reedline::ValidationResult {
-        if line.trim().is_empty() || line.trim_end().ends_with(';') || is_client_cmd(line) {
-            reedline::ValidationResult::Complete
-        } else {
-            reedline::ValidationResult::Incomplete
+        if line.trim().is_empty() || is_client_cmd(line) {
+            return ValidationResult::Complete;
         }
+
+        let mut in_single_quote = false;
+        let mut in_double_quote = false;
+        let mut last_char = '\0';
+
+        for ch in line.chars() {
+            match ch {
+                '\'' if last_char != '\\' && !in_double_quote => in_single_quote = !in_single_quote,
+                '"' if last_char != '\\' && !in_single_quote => in_double_quote = !in_double_quote,
+                ';' if !in_single_quote && !in_double_quote => return ValidationResult::Complete,
+                _ => {}
+            }
+            last_char = ch;
+        }
+
+        ValidationResult::Incomplete
     }
 }
 
@@ -40,6 +54,8 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
             Style::new()
         }
     };
+    let colorize_function = || new_style().fg(Color::Cyan);
+
     // the tokenizer will error if the final character is an unescaped quote
     // such as `select * from read_csv("
     // in this case we will try to find the quote and colorize the rest of the query
@@ -62,11 +78,26 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
 
     for token in tokens {
         match token {
-            Token::Mul => st.push((new_style().fg(Color::Purple), "*".to_string())),
-            Token::LParen => st.push((new_style().fg(Color::Purple), "(".to_string())),
-            Token::RParen => st.push((new_style().fg(Color::Purple), ")".to_string())),
-            Token::Comma => st.push((new_style().fg(Color::Purple), ",".to_string())),
-            Token::SemiColon => st.push((new_style().fg(Color::Blue).bold(), ";".to_string())),
+            // Symbols
+            token @ (Token::LParen
+            | Token::RParen
+            | Token::Mul
+            | Token::Comma
+            | Token::Ampersand
+            | Token::Pipe
+            | Token::Plus
+            | Token::Minus
+            | Token::Div
+            | Token::Mod
+            | Token::Caret
+            | Token::Lt
+            | Token::LtEq
+            | Token::Gt
+            | Token::GtEq
+            | Token::Eq
+            | Token::Neq
+            | Token::SemiColon) => st.push((new_style().fg(Color::Purple), format!("{token}"))),
+            // Strings
             Token::SingleQuotedString(s) => {
                 st.push((new_style().fg(Color::Yellow).italic(), format!("'{}'", s)))
             }
@@ -74,6 +105,7 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 st.push((new_style().fg(Color::Yellow).italic(), format!("\"{}\"", s)))
             }
             Token::Word(w) => match w.keyword {
+                // Keywords
                 Keyword::SELECT
                 | Keyword::FROM
                 | Keyword::WHERE
@@ -95,17 +127,6 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 | Keyword::CREATE
                 | Keyword::EXTERNAL
                 | Keyword::TABLE
-                | Keyword::SHOW
-                | Keyword::TABLES
-                | Keyword::VARCHAR
-                | Keyword::INT
-                | Keyword::FLOAT
-                | Keyword::DOUBLE
-                | Keyword::BOOLEAN
-                | Keyword::DATE
-                | Keyword::TIME
-                | Keyword::DATETIME
-                | Keyword::ARRAY
                 | Keyword::ASC
                 | Keyword::DESC
                 | Keyword::NULL
@@ -133,17 +154,56 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 | Keyword::EXPLAIN
                 | Keyword::ANALYZE
                 | Keyword::DESCRIBE
-                | Keyword::EXCLUDE => {
+                | Keyword::EXCLUDE
+                | Keyword::TEMP
+                | Keyword::TEMPORARY => {
                     st.push((new_style().fg(Color::LightGreen), format!("{w}")));
                 }
+                // Types
+                Keyword::INT
+                | Keyword::INT4
+                | Keyword::INT8
+                | Keyword::FLOAT
+                | Keyword::FLOAT4
+                | Keyword::FLOAT8
+                | Keyword::DOUBLE
+                | Keyword::BOOLEAN
+                | Keyword::VARCHAR
+                | Keyword::DATE
+                | Keyword::TIME
+                | Keyword::DATETIME
+                | Keyword::ARRAY
+                | Keyword::DECIMAL
+                | Keyword::TEXT
+                | Keyword::TIMESTAMP
+                | Keyword::INTERVAL
+                | Keyword::BIGINT
+                | Keyword::SMALLINT
+                | Keyword::TINYINT
+                | Keyword::UNSIGNED => {
+                    st.push((new_style().fg(Color::Purple), format!("{w}")));
+                }
+                // Custom Keywords
                 Keyword::NoKeyword => match w.value.to_uppercase().as_str() {
                     "TUNNEL" | "PROVIDER" | "CREDENTIAL" => {
                         st.push((new_style().fg(Color::LightGreen), format!("{w}")))
                     }
-                    _ => st.push((new_style(), format!("{w}"))),
+                    // Functions
+                    other if FUNCTION_REGISTRY.contains(other) => {
+                        st.push((colorize_function(), format!("{w}")));
+                    }
+                    _ => {
+                        st.push((new_style(), format!("{w}")));
+                    }
                 },
                 // TODO: add more keywords
-                _ => st.push((new_style(), format!("{w}"))),
+                _ => {
+                    if FUNCTION_REGISTRY.contains(&w.value) {
+                        st.push((colorize_function(), format!("{w}")));
+                    } else {
+                        st.push((new_style(), format!("{w}")))
+                    }
+                }
             },
             other => {
                 st.push((new_style(), format!("{other}")));
@@ -194,7 +254,7 @@ impl Hinter for SQLHinter {
                     history.session(),
                 ))
                 .expect("todo: error handling")
-                .get(0)
+                .first()
                 .map_or_else(String::new, |entry| {
                     entry
                         .command_line
@@ -233,5 +293,64 @@ impl Hinter for SQLHinter {
             })
             .collect();
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use reedline::{ValidationResult, Validator};
+
+    #[test]
+    fn test_is_line_complete() {
+        use ValidationResult::*;
+        let incompletes = vec![
+            "';''",
+            r#"'\'"#,
+            r#"'\';'"#,
+            r#"";"#,
+            "select 'value;",                 // Single quote not closed
+            "select \"value;",                // Double quote not closed
+            "select 'value",                  // Missing semicolon and single quote not closed
+            "select \"value",                 // Missing semicolon and double quote not closed
+            "select 'val;ue",                 // Semicolon inside single quote
+            "select \"val;ue",                // Semicolon inside double quote
+            "select '",                       // Only single quote opened
+            "select \"",                      // Only double quote opened
+            "select 'value\\';",              // Escaped single quote
+            "select \"value\\\";",            // Escaped double quote
+            "select 'value\\\"",              // Mixed quote, single quote not closed
+            "select \"value\\'",              // Mixed quote, double quote not closed
+            "select 'value; \"inner\"'",      // Nested double quote inside single quote
+            "select \"value; 'inner'\"",      // Nested single quote inside double quote
+            "select 'value; \\\"incomplete",  // Escaped double quote inside single quote
+            "select \"value; \\\'incomplete", // Escaped single quote inside double quote
+        ];
+
+        let completes = vec![
+            "select 'value';",                // Correct single quote closed, semicolon outside
+            "select 'value\\'; another';",    // Escaped single quote inside, semicolon outside
+            "select ';value';",               // Semicolon inside single quotes, but also outside
+            "select '';",                     // Empty single quotes
+            "select \"value\";",              // Correct double quote closed, semicolon outside
+            "select \"value\\\"; another\";", // Escaped double quote inside, semicolon outside
+            "select \";value\";",             // Semicolon inside double quotes, but also outside
+            "select \"\";",                   // Empty double quotes
+            "select 'value; \"inner\"';", // Nested double quote inside single quote, semicolon outside
+            "select \"value; 'inner'\";", // Nested single quote inside double quote, semicolon outside
+            "select 'value; \\'another\\'';", // Escaped single quote inside single quotes
+            "select \"value; \\\"another\\\"\";", // Escaped double quote inside double quotes
+        ];
+
+        let validator = super::SQLValidator;
+        for case in incompletes {
+            if !matches!(validator.validate(case), Incomplete) {
+                panic!("Expected Incomplete for {:?}", case);
+            }
+        }
+        for case in completes {
+            if !matches!(validator.validate(case), Complete) {
+                panic!("Expected Complete for {:?}", case);
+            }
+        }
     }
 }

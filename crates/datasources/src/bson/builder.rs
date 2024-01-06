@@ -5,9 +5,10 @@ use std::sync::Arc;
 use bitvec::{order::Lsb0, vec::BitVec};
 use bson::{RawBsonRef, RawDocument};
 use datafusion::arrow::array::{
-    Array, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanBuilder, Decimal128Builder,
-    Float64Builder, Int32Builder, Int64Builder, StringBuilder, StructArray,
-    TimestampMicrosecondBuilder, TimestampMillisecondBuilder,
+    Array, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanBuilder, Date32Builder, Date64Builder,
+    Decimal128Builder, Float64Builder, Int32Builder, Int64Builder, LargeBinaryBuilder,
+    LargeStringBuilder, StringBuilder, StructArray, TimestampMicrosecondBuilder,
+    TimestampMillisecondBuilder, TimestampSecondBuilder,
 };
 use datafusion::arrow::datatypes::{DataType, Field, Fields, TimeUnit};
 
@@ -81,15 +82,14 @@ impl RecordStructBuilder {
                         .field_index
                         .get(key)
                         .ok_or_else(|| BsonError::ColumnNotInInferredSchema(key.to_string()))?;
+                    println!("{}->{}", key, idx);
 
                     if *cols_set.get(idx).unwrap() {
-                        println!("DUPLICATE SET: {}, {:?}", key, doc);
+                        continue;
                     }
 
                     // Add value to columns.
-                    let typ = self.fields.get(idx).unwrap().data_type(); // Programmer error if data type doesn't exist.
-                    let col = self.builders.get_mut(idx).unwrap(); // Programmer error if this doesn't exist.
-                    append_value(val, typ, col.as_mut())?;
+                    self.add_value_at_index(idx, Some(val))?;
 
                     // Track which columns we've added values to.
                     cols_set.set(idx, true);
@@ -101,10 +101,46 @@ impl RecordStructBuilder {
         // Append nulls to all columns not included in the doc.
         for (idx, did_set) in cols_set.iter().enumerate() {
             if !did_set {
-                // Add nulls...
-                let typ = self.fields.get(idx).unwrap().data_type(); // Programmer error if data type doesn't exist.
-                let col = self.builders.get_mut(idx).unwrap(); // Programmer error if column doesn't exist.
-                append_null(typ, col.as_mut())?;
+                // Add null...
+                self.add_value_at_index(idx, None)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn project_and_append(&mut self, doc: &RawDocument) -> Result<()> {
+        let mut cols_set: BitVec<u8, Lsb0> = BitVec::repeat(false, self.fields.len());
+
+        for iter_result in doc {
+            match iter_result {
+                Ok((key, val)) => {
+                    if let Some(&idx) = self.field_index.get(key) {
+                        if cols_set.get(idx).is_some_and(|v| v == true) {
+                            // If this happens it means that the bson document has a field
+                            // name that appears more than once. This is legal and possible to build
+                            // with some libraries but isn't forbidden, and (I think?) historically
+                            // not (always?) rejected by MongoDB. Regardless "ignoring second
+                            // appearances of the key" is a reasonable semantic.
+                            continue;
+                        }
+
+                        // Add value to columns.
+                        self.add_value_at_index(idx, Some(val))?;
+
+                        // Track which columns we've added values to.
+                        cols_set.set(idx, true);
+                    };
+                }
+                Err(_) => return Err(BsonError::FailedToReadRawBsonDocument),
+            }
+        }
+
+        // Append nulls to all columns not included in the doc.
+        for (idx, did_set) in cols_set.iter().enumerate() {
+            if !did_set {
+                // Add null...
+                self.add_value_at_index(idx, None)?;
             }
         }
 
@@ -114,11 +150,21 @@ impl RecordStructBuilder {
     pub fn into_fields_and_builders(self) -> (Fields, Vec<Box<dyn ArrayBuilder>>) {
         (self.fields, self.builders)
     }
+
+    fn add_value_at_index(&mut self, idx: usize, val: Option<RawBsonRef>) -> Result<()> {
+        let typ = self.fields.get(idx).unwrap().data_type(); // Programmer error if data type doesn't exist.
+        let col = self.builders.get_mut(idx).unwrap(); // Programmer error if column doesn't exist.
+
+        match val {
+            Some(v) => append_value(v, typ, col.as_mut()),
+            None => append_null(typ, col.as_mut()),
+        }
+    }
 }
 
 impl ArrayBuilder for RecordStructBuilder {
     fn len(&self) -> usize {
-        self.builders.get(0).unwrap().len()
+        self.builders.first().unwrap().len()
     }
 
     fn is_empty(&self) -> bool {
@@ -182,13 +228,10 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
     // So robust
     match (val, typ) {
         // Boolean
-        (RawBsonRef::Boolean(v), DataType::Boolean) => {
-            append_scalar!(BooleanBuilder, col, v)
-        }
+        (RawBsonRef::Boolean(v), DataType::Boolean) => append_scalar!(BooleanBuilder, col, v),
         (RawBsonRef::Boolean(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
         }
-
         // Double
         (RawBsonRef::Double(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
         (RawBsonRef::Double(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),
@@ -214,6 +257,8 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
         }
 
         // String
+        (RawBsonRef::String(v), DataType::Utf8) => append_scalar!(StringBuilder, col, v),
+        (RawBsonRef::String(v), DataType::LargeUtf8) => append_scalar!(LargeStringBuilder, col, v),
         (RawBsonRef::String(v), DataType::Boolean) => {
             append_scalar!(BooleanBuilder, col, v.parse().unwrap_or_default())
         }
@@ -226,30 +271,60 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
         (RawBsonRef::String(v), DataType::Float64) => {
             append_scalar!(Float64Builder, col, v.parse().unwrap_or_default())
         }
-        (RawBsonRef::String(v), DataType::Utf8) => {
-            append_scalar!(StringBuilder, col, v)
-        }
 
         // Binary
         (RawBsonRef::Binary(v), DataType::Binary) => append_scalar!(BinaryBuilder, col, v.bytes),
+        (RawBsonRef::Binary(v), DataType::LargeBinary) => {
+            append_scalar!(LargeBinaryBuilder, col, v.bytes)
+        }
 
         // Object id
+        (RawBsonRef::ObjectId(v), DataType::Binary) => {
+            append_scalar!(BinaryBuilder, col, v.bytes())
+        }
         (RawBsonRef::ObjectId(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
         }
 
-        // Timestamp
+        // Timestamp (internal mongodb type; second specified)
+        (RawBsonRef::Timestamp(v), DataType::Timestamp(TimeUnit::Second, _)) => {
+            append_scalar!(TimestampSecondBuilder, col, v.time as i64)
+        }
+        (RawBsonRef::Timestamp(v), DataType::Timestamp(TimeUnit::Millisecond, _)) => {
+            append_scalar!(TimestampSecondBuilder, col, v.time as i64 * 1000)
+        }
         (RawBsonRef::Timestamp(v), DataType::Timestamp(TimeUnit::Microsecond, _)) => {
-            append_scalar!(TimestampMicrosecondBuilder, col, v.time as i64) // TODO: Possibly change to nanosecond.
+            append_scalar!(TimestampSecondBuilder, col, v.time as i64 * 1000 * 1000)
+        }
+        (RawBsonRef::Timestamp(v), DataType::Date64) => {
+            append_scalar!(Date64Builder, col, v.time as i64 * 1000)
+        }
+        (RawBsonRef::Timestamp(v), DataType::Date32) => {
+            append_scalar!(
+                Date32Builder,
+                col,
+                v.time
+                    .try_into()
+                    .map_err(|_| BsonError::UnhandledElementType(
+                        bson::spec::ElementType::Timestamp,
+                        DataType::Date32
+                    ))?
+            )
         }
 
-        // Datetime
+        // Datetime (actual timestamps that you'd actually use. in an application )
+        (RawBsonRef::DateTime(v), DataType::Timestamp(TimeUnit::Millisecond, _)) => {
+            append_scalar!(TimestampMillisecondBuilder, col, v.timestamp_millis())
+        }
         (RawBsonRef::DateTime(v), DataType::Timestamp(TimeUnit::Microsecond, _)) => {
             append_scalar!(
-                TimestampMicrosecondBuilder, // TODO: Possibly change to nanosecond.
+                TimestampMicrosecondBuilder,
                 col,
-                v.timestamp_millis()
+                v.timestamp_millis() * 1000
             )
+        }
+        (RawBsonRef::DateTime(v), DataType::Date64) => {
+            append_scalar!(Date64Builder, col, v.timestamp_millis())
         }
 
         // Document
@@ -258,18 +333,20 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
                 .as_any_mut()
                 .downcast_mut::<RecordStructBuilder>()
                 .unwrap();
-            builder.append_record(nested)?;
+            builder.project_and_append(nested)?;
         }
 
         // Array
         (RawBsonRef::Array(arr), DataType::Utf8) => {
-            // TODO: Proper types.
-            let s = arr
-                .into_iter()
-                .map(|r| r.map(|v| format!("{:?}", v)).unwrap_or_default())
-                .collect::<Vec<_>>()
-                .join(", ");
-            append_scalar!(StringBuilder, col, format!("[{}]", s))
+            append_scalar!(
+                StringBuilder,
+                col,
+                serde_json::Value::from(
+                    bson::Array::try_from(arr)
+                        .map_err(|_| BsonError::FailedToReadRawBsonDocument)?
+                )
+                .to_string()
+            )
         }
 
         // Decimal128
@@ -377,4 +454,93 @@ fn column_builders_for_fields(
     }
 
     Ok(cols)
+}
+
+#[cfg(test)]
+mod test {
+    use bson::oid::ObjectId;
+
+    use super::*;
+
+    #[test]
+    fn test_duplicate_field_handling() {
+        let fields = Fields::from_iter(vec![
+            Field::new("_id", DataType::Binary, true),
+            Field::new("idx", DataType::Int64, true),
+            Field::new("value", DataType::Utf8, true),
+        ]);
+        let mut rsb = RecordStructBuilder::new_with_capacity(fields, 100).unwrap();
+        for idx in 0..100 {
+            let mut buf = bson::RawDocumentBuf::new();
+
+            buf.append("_id", ObjectId::new());
+            buf.append("idx", idx as i64);
+            buf.append("value", "first");
+            buf.append("value", "second");
+            assert_eq!(buf.iter().count(), 4);
+
+            rsb.append_record(RawDocument::from_bytes(&buf.into_bytes()).unwrap())
+                .unwrap();
+        }
+        assert_eq!(rsb.len(), 100);
+        for value in rsb
+            .builders
+            .get_mut(2)
+            .unwrap()
+            .as_any_mut()
+            .downcast_mut::<StringBuilder>()
+            .unwrap()
+            .finish_cloned()
+            .iter()
+        {
+            let v = value.unwrap();
+            assert_eq!(v, "first");
+        }
+    }
+
+    #[test]
+    fn test_unexpected_schema_change() {
+        let fields = Fields::from_iter(vec![
+            Field::new("_id", DataType::Binary, true),
+            Field::new("idx", DataType::Int64, true),
+            Field::new("value", DataType::Utf8, true),
+        ]);
+        let mut rsb = RecordStructBuilder::new_with_capacity(fields, 100).unwrap();
+        let mut buf = bson::RawDocumentBuf::new();
+
+        buf.append("_id", ObjectId::new());
+        buf.append("idx", 0);
+        buf.append("value", "first");
+        assert_eq!(buf.iter().count(), 3);
+
+        rsb.append_record(RawDocument::from_bytes(&buf.into_bytes()).unwrap())
+            .expect("first record matchex expectations");
+        assert_eq!(rsb.len(), 1);
+
+        let mut buf = bson::RawDocumentBuf::new();
+        buf.append("index", 1);
+        buf.append("values", 3);
+        assert_eq!(buf.iter().count(), 2);
+        rsb.append_record(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
+            .expect_err("for append_record schema changes are an error");
+        assert_eq!(rsb.len(), 1);
+        rsb.project_and_append(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
+            .expect("project and append should filter out unrequired fields");
+        assert_eq!(rsb.len(), 2);
+
+        let mut buf = bson::RawDocumentBuf::new();
+        buf.append("_id", ObjectId::new());
+        buf.append("index", 1);
+        buf.append("values", 3);
+        assert_eq!(buf.iter().count(), 3);
+
+        rsb.append_record(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
+            .expect_err("for append_record schema changes are an error");
+        // the first value was added successfully to another buffer to the rsb grew
+        assert_eq!(rsb.len(), 3);
+
+        rsb.project_and_append(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
+            .expect("project and append should filter out unrequired fields");
+        assert_eq!(rsb.len(), 4);
+    }
 }

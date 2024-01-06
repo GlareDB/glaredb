@@ -27,5 +27,5 @@ once_cell = "1.19.0"
 proptest = "1.4"
 proptest-derive = "0.4"
 tower = "0.4"
-futures = "0.3.29"
+futures = { workspace = true }
 dashmap = "5.5.0"

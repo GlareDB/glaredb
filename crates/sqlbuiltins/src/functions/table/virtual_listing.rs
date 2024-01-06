@@ -13,14 +13,15 @@ use datafusion_ext::functions::{
 };
 use datasources::bigquery::BigQueryAccessor;
 use datasources::debug::DebugVirtualLister;
-use datasources::mongodb::MongoAccessor;
+use datasources::mongodb::MongoDbAccessor;
 use datasources::mysql::MysqlAccessor;
 use datasources::postgres::PostgresAccess;
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection};
+use datasources::sqlserver::SqlServerAccess;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
+    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer,
 };
 
 use super::TableFunc;
@@ -37,10 +38,16 @@ impl ConstBuiltinFunction for ListSchemas {
 
 #[async_trait]
 impl TableFunc for ListSchemas {
-    fn runtime_preference(&self) -> RuntimePreference {
-        // Currently all of our db's are "external"  it'd never be preferred to run this locally.
-        RuntimePreference::Remote
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        // Currently all of our db's are "external" so it'd never be preferred
+        // to run this locally.
+        Ok(RuntimePreference::Remote)
     }
+
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
@@ -93,9 +100,14 @@ impl ConstBuiltinFunction for ListTables {
 
 #[async_trait]
 impl TableFunc for ListTables {
-    fn runtime_preference(&self) -> RuntimePreference {
-        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
-        RuntimePreference::Remote
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        // Currently all of our db's are "external" so it'd never be preferred
+        // to run this locally.
+        Ok(RuntimePreference::Remote)
     }
 
     async fn create_provider(
@@ -152,10 +164,16 @@ impl ConstBuiltinFunction for ListColumns {
 
 #[async_trait]
 impl TableFunc for ListColumns {
-    fn runtime_preference(&self) -> RuntimePreference {
-        // Currently all of our db's are "external" so it'd never be preferred to run this locally.
-        RuntimePreference::Remote
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        // Currently all of our db's are "external" so it'd never be preferred
+        // to run this locally.
+        Ok(RuntimePreference::Remote)
     }
+
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
@@ -285,8 +303,8 @@ pub(crate) async fn get_virtual_lister_for_external_db(
                 .map_err(|e| ExtensionError::Access(Box::new(e)))?;
             Box::new(accessor)
         }
-        DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string }) => {
-            let accessor = MongoAccessor::connect(connection_string)
+        DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string }) => {
+            let accessor = MongoDbAccessor::connect(connection_string)
                 .await
                 .map_err(|e| ExtensionError::Access(Box::new(e)))?;
             Box::new(accessor)
@@ -317,9 +335,15 @@ pub(crate) async fn get_virtual_lister_for_external_db(
                 .map_err(|e| ExtensionError::Access(Box::new(e)))?;
             Box::new(accessor)
         }
-        DatabaseOptions::SqlServer(_) => {
+        DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string }) => {
+            let access = SqlServerAccess::try_new_from_ado_string(connection_string)
+                .map_err(ExtensionError::access)?;
+            let state = access.connect().await.map_err(ExtensionError::access)?;
+            Box::new(state)
+        }
+        DatabaseOptions::Clickhouse(_) => {
             return Err(ExtensionError::Unimplemented(
-                "SQL Server information listing",
+                "Clickhouse information listing",
             ))
         }
         DatabaseOptions::Delta(_) => {

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::iter::IntoIterator;
 
-use bson::{Bson, Document};
-use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+use bson::{RawBsonRef, RawDocumentBuf};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
 
 use crate::bson::errors::{BsonError, Result};
 
@@ -11,14 +11,16 @@ use crate::bson::errors::{BsonError, Result};
 /// The MongoDB kernel rejects nesting of greater than 100.
 const RECURSION_LIMIT: usize = 100;
 
-pub fn schema_from_document(doc: &Document) -> Result<Schema> {
-    let fields = fields_from_document(0, doc.iter())?;
-    Ok(Schema::new(fields))
+pub fn schema_from_document(doc: &RawDocumentBuf) -> Result<Schema> {
+    Ok(Schema::new(fields_from_document(
+        0,
+        doc.iter().map(|item| item.map_err(|e| e.into())),
+    )?))
 }
 
 fn fields_from_document<'a>(
     depth: usize,
-    doc_iter: impl Iterator<Item = (&'a String, &'a Bson)>,
+    doc_iter: impl Iterator<Item = Result<(&'a str, RawBsonRef<'a>)>>,
 ) -> Result<Vec<Field>> {
     if depth >= RECURSION_LIMIT {
         return Err(BsonError::RecursionLimitExceeded(RECURSION_LIMIT));
@@ -28,7 +30,8 @@ fn fields_from_document<'a>(
     let (_, size) = doc_iter.size_hint();
     let mut fields = Vec::with_capacity(size.unwrap_or_default());
 
-    for (key, val) in doc_iter {
+    for item in doc_iter {
+        let (key, val) = item?;
         let arrow_typ = bson_to_arrow_type(depth, val)?;
 
         // Assume everything is nullable.
@@ -38,62 +41,67 @@ fn fields_from_document<'a>(
     Ok(fields)
 }
 
-fn bson_to_arrow_type(depth: usize, bson: &Bson) -> Result<DataType> {
-    let arrow_typ = match bson {
-        Bson::Double(_) => DataType::Float64,
-        Bson::String(val) => {
-            if val.is_empty() {
-                // TODO: We'll want to determine if this is something we should
-                // keep in. Currently when we load in the test file, we're
-                // loading a csv that might have empty values (null). Mongo
-                // reads those in and puts them as empty strings.
-                //
-                // During schema merges, we'll widen "null" types to whatever
-                // type we're merging with. This _should_ be more resilient to
-                // empty values.
-                DataType::Null
-            } else {
-                DataType::Utf8
-            }
+fn bson_to_arrow_type(depth: usize, bson: RawBsonRef) -> Result<DataType> {
+    Ok(match bson {
+        RawBsonRef::Array(array_doc) => DataType::new_list(
+            // TODO this should become a struct with numeric keys to
+            // allow for heterogeneous types
+            bson_to_arrow_type(
+                0,
+                array_doc
+                    .into_iter()
+                    .next()
+                    .map(|v| v.unwrap_or(RawBsonRef::Null))
+                    .unwrap(),
+            )?,
+            true,
+        ),
+        RawBsonRef::Document(nested) => DataType::Struct(
+            fields_from_document(
+                depth + 1,
+                nested.into_iter().map(|item| item.map_err(|e| e.into())),
+            )?
+            .into(),
+        ),
+        RawBsonRef::String(_) => DataType::Utf8,
+        RawBsonRef::Double(_) => DataType::Float64,
+        RawBsonRef::Boolean(_) => DataType::Boolean,
+        RawBsonRef::Null => DataType::Null,
+        RawBsonRef::Undefined => DataType::Null,
+        RawBsonRef::Int32(_) => DataType::Int32,
+        RawBsonRef::Int64(_) => DataType::Int64,
+        RawBsonRef::Binary(_) => DataType::Binary,
+        RawBsonRef::ObjectId(_) => DataType::Binary,
+        RawBsonRef::DateTime(_) => DataType::Date64,
+        RawBsonRef::Symbol(_) => DataType::Utf8,
+        RawBsonRef::Decimal128(_) => DataType::Decimal128(38, 10),
+        RawBsonRef::RegularExpression(_) => DataType::Utf8,
+        RawBsonRef::JavaScriptCode(_) => DataType::Utf8,
+
+        // storing these values (which exist to establish a total
+        // order of types for indexing in the MongoDB server,) in
+        // documents that GlareDB would interact with is probably
+        // always an error.
+        RawBsonRef::MaxKey => return Err(BsonError::UnspportedType("maxKey")),
+        RawBsonRef::MinKey => return Err(BsonError::UnspportedType("minKey")),
+
+        // Deprecated or MongoDB server intrenal types
+        RawBsonRef::JavaScriptCodeWithScope(_) => {
+            return Err(BsonError::UnspportedType("CodeWithScope"))
         }
-        Bson::Array(array_doc) => match array_doc.to_owned().pop() {
-            Some(val) => bson_to_arrow_type(0, &val)?,
-            None => DataType::Utf8,
-        },
-        Bson::Document(nested) => {
-            let fields = fields_from_document(depth + 1, nested.iter())?;
-            DataType::Struct(fields.into())
-        }
-        Bson::Boolean(_) => DataType::Boolean,
-        Bson::Null => DataType::Null,
-        Bson::RegularExpression(_) => DataType::Utf8,
-        Bson::JavaScriptCode(_) => DataType::Utf8,
-        Bson::JavaScriptCodeWithScope(_) => {
-            return Err(BsonError::UnsupportedBsonType("CodeWithScope"))
-        }
-        Bson::Int32(_) => DataType::Float64,
-        Bson::Int64(_) => DataType::Float64,
-        Bson::Timestamp(_) => return Err(BsonError::UnsupportedBsonType("OplogTimestamp")),
-        Bson::Binary(_) => DataType::Binary,
-        Bson::ObjectId(_) => DataType::Utf8,
-        Bson::DateTime(_) => DataType::Timestamp(TimeUnit::Millisecond, None),
-        Bson::Symbol(_) => DataType::Utf8,
-        Bson::Decimal128(_) => DataType::Decimal128(38, 10),
-        Bson::Undefined => DataType::Null,
-        Bson::MaxKey => DataType::Utf8,
-        Bson::MinKey => DataType::Utf8,
-        Bson::DbPointer(_) => return Err(BsonError::UnsupportedBsonType("DbPointer")),
-    };
-    Ok(arrow_typ)
+        RawBsonRef::Timestamp(_) => return Err(BsonError::UnspportedType("OplogTimestamp")),
+        RawBsonRef::DbPointer(_) => return Err(BsonError::UnspportedType("DbPointer")),
+    })
 }
 
 #[derive(Debug, Clone)]
 struct OrderedField(usize, Field);
 
-pub fn merge_schemas(schemas: impl IntoIterator<Item = Schema>) -> Result<Schema> {
+pub fn merge_schemas(schemas: impl IntoIterator<Item = Result<Schema>>) -> Result<Schema> {
     let mut fields: HashMap<String, OrderedField> = HashMap::new();
 
     for schema in schemas.into_iter() {
+        let schema = schema?;
         for (idx, field) in schema.fields.into_iter().enumerate() {
             match fields.get_mut(field.name()) {
                 Some(existing) => {

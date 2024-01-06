@@ -286,6 +286,13 @@ jobs:
           # Prepare SLT (MongoDB)
           export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
 
+          # Prepare SLT (Clickhouse)
+          source ./scripts/ci-install-clickhouse.sh
+          export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
+          
+          # Prepare SLT (Cassandra)
+          export CASSANDRA_CONN_STRING=$(./scripts/create-test-cassandra-db.sh | tail -n 1)
+          
           # Prepare SLT (SQL Server)
           export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
 
@@ -313,6 +320,8 @@ jobs:
           just sql-logic-tests --protocol=rpc 'sqllogictests_native/*'
           just sql-logic-tests --protocol=rpc 'sqllogictests_object_store/*'
           just sql-logic-tests --protocol=rpc 'sqllogictests_sqlserver/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_clickhouse/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_cassandra/*'
           just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
           just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
           just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
@@ -320,7 +329,7 @@ jobs:
           echo "-------------------------- REMOTE DATA STORAGE TESTS --------------------------------"
           # Test using a remote object store for storing databases and catalog
           # MinIO (S3)
-          just sql-logic-tests --location http://localhost:9000 \
+          just sql-logic-tests --location http://localhost:9100 \
               --option access_key_id=$MINIO_ACCESS_KEY \
               --option secret_access_key=$MINIO_SECRET_KEY \
               --option bucket=$TEST_BUCKET \
@@ -328,7 +337,7 @@ jobs:
               'sqllogictests_native/*'
 
           # MinIO (S3) but with a sub-directory path
-          just slt -l http://localhost:9000/$TEST_BUCKET/path/to/folder \
+          just slt -l http://localhost:9100/$TEST_BUCKET/path/to/folder \
               -o access_key_id=$MINIO_ACCESS_KEY \
               -o secret_access_key=$MINIO_SECRET_KEY \
               'sqllogictests/*'

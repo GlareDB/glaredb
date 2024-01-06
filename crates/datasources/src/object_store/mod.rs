@@ -400,9 +400,10 @@ pub fn init_session_registry<'a>(
             | TableOptions::Postgres(_)
             | TableOptions::BigQuery(_)
             | TableOptions::Mysql(_)
-            | TableOptions::Mongo(_)
+            | TableOptions::MongoDb(_)
             | TableOptions::Snowflake(_)
-            | TableOptions::SqlServer(_) => continue,
+            | TableOptions::SqlServer(_)
+            | TableOptions::Clickhouse(_) => continue,
         };
 
         let base_url = access.base_url()?;

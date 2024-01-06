@@ -15,7 +15,7 @@ if [[ -n "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]]; then
     docker rm -f $CONTAINER_NAME > /dev/null
 fi
 
-# Start mongo.
+# Start mongod.
 CONTAINER_ID="$(docker run \
        -p 27017:27017 \
        --rm \
@@ -36,10 +36,11 @@ docker cp \
 docker exec $CONTAINER_ID mongoimport \
        --type csv \
        --headerline \
+       --ignoreBlanks \
        "mongodb://localhost:27017/${DB_NAME}" \
        /tmp/bikeshare_stations.csv 1>&2
 
-# The mongo docker container is kinda bad. The MONGO_INITDB_... environment vars
+# The mongod docker container is kinda bad. The MONGO_INITDB_... environment vars
 # might look like the obvious solution, but they don't work as you would expect.
 #
 # See https://github.com/docker-library/mongo/issues/329

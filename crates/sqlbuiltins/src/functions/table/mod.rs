@@ -1,16 +1,19 @@
 //! Builtin table returning functions.
 mod bigquery;
 mod bson;
+mod cassandra;
+mod clickhouse;
 mod delta;
 mod excel;
 mod generate_series;
 mod iceberg;
 mod lance;
-mod mongo;
+mod mongodb;
 mod mysql;
 mod object_store;
 mod postgres;
 mod snowflake;
+mod sqlserver;
 mod system;
 mod virtual_listing;
 
@@ -29,16 +32,19 @@ use std::sync::Arc;
 
 use self::bigquery::ReadBigQuery;
 use self::bson::BsonScan;
+use self::cassandra::ReadCassandra;
+use self::clickhouse::ReadClickhouse;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
 use self::iceberg::{data_files::IcebergDataFiles, scan::IcebergScan, snapshots::IcebergSnapshots};
 use self::lance::LanceScan;
-use self::mongo::ReadMongoDb;
+use self::mongodb::ReadMongoDb;
 use self::mysql::ReadMysql;
 use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
+use self::sqlserver::ReadSqlServer;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
 
@@ -49,17 +55,13 @@ use super::BuiltinFunction;
 /// e.g. `SELECT * FROM my_table_func(...)`
 #[async_trait]
 pub trait TableFunc: BuiltinFunction {
-    /// Get the preference for where a function should run.
-    fn runtime_preference(&self) -> RuntimePreference;
-
-    /// Determine the runtime from the arguments to the function.
+    /// Determine the runtime preference for the function from the passed-on
+    /// arguments.
     fn detect_runtime(
         &self,
         _args: &[FuncParamValue],
         _parent: RuntimePreference,
-    ) -> Result<RuntimePreference> {
-        Ok(self.runtime_preference())
-    }
+    ) -> Result<RuntimePreference>;
 
     /// Return a table provider using the provided args.
     async fn create_provider(
@@ -84,6 +86,9 @@ impl BuiltinTableFuncs {
             Arc::new(ReadMongoDb),
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
+            Arc::new(ReadClickhouse),
+            Arc::new(ReadSqlServer),
+            Arc::new(ReadCassandra),
             // Object store
             Arc::new(PARQUET_SCAN),
             Arc::new(READ_PARQUET),
@@ -123,6 +128,9 @@ impl BuiltinTableFuncs {
     pub fn iter_funcs(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
         self.funcs.values()
     }
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.funcs.keys()
+    }
 }
 
 impl Default for BuiltinTableFuncs {
@@ -138,7 +146,13 @@ pub fn table_location_and_opts(
     opts: &mut HashMap<String, FuncParamValue>,
 ) -> Result<(DatasourceUrl, StorageOptions)> {
     let mut args = args.into_iter();
-    let first = args.next().unwrap();
+    let first = args
+        .next()
+        .ok_or_else(|| ExtensionError::ExpectedIndexedArgument {
+            index: 0,
+            what: "location for the table".to_string(),
+        })?;
+
     let url: String = first.try_into()?;
     let source_url =
         DatasourceUrl::try_new(url).map_err(|e| ExtensionError::Access(Box::new(e)))?;

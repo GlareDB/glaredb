@@ -14,13 +14,14 @@ use datafusion::sql::TableReference;
 use datafusion_ext::planner::SqlQueryPlanner;
 use datafusion_ext::AsyncContextProvider;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+use datasources::clickhouse::ClickhouseAccess;
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lance::scan_lance_table;
-use datasources::mongodb::{MongoAccessor, MongoDbConnection};
+use datasources::mongodb::{MongoDbAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::generic::GenericStoreAccess;
@@ -41,13 +42,14 @@ use protogen::metastore::types::options::{
     CopyToDestinationOptionsLocal, CopyToDestinationOptionsS3, CopyToFormatOptions,
     CopyToFormatOptionsCsv, CopyToFormatOptionsJson, CopyToFormatOptionsParquet,
     CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsAzure, CredentialsOptionsDebug,
-    CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsDebug,
-    DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql, DatabaseOptionsPostgres,
-    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog, DeltaLakeUnityCatalog,
-    StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsDebug, TableOptionsGcs,
-    TableOptionsLocal, TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore,
-    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer,
-    TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
+    CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse,
+    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
+    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog,
+    DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery,
+    TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
+    TableOptionsMongoDb, TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres,
+    TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
+    TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
@@ -231,15 +233,15 @@ impl<'a> SessionPlanner<'a> {
                     })?;
                 DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string })
             }
-            DatabaseOptions::MONGO => {
-                let connection_string = get_mongo_conn_str(m)?;
+            DatabaseOptions::MONGODB => {
+                let connection_string = get_mongodb_conn_str(m)?;
                 // Validate the accessor
-                MongoAccessor::validate_external_database(connection_string.as_str())
+                MongoDbAccessor::validate_external_database(connection_string.as_str())
                     .await
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
                     })?;
-                DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string })
+                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string })
             }
             DatabaseOptions::SNOWFLAKE => {
                 let account_name: String = m.remove_required("account")?;
@@ -304,6 +306,16 @@ impl<'a> SessionPlanner<'a> {
                 access.validate_access().await?;
 
                 DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string })
+            }
+            DatabaseOptions::CLICKHOUSE => {
+                let connection_string: String = m.remove_required("connection_string")?;
+
+                // Validate
+                let access =
+                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
+                access.validate_access().await?;
+
+                DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string })
             }
             DatabaseOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
@@ -427,14 +439,14 @@ impl<'a> SessionPlanner<'a> {
                     table: access.name,
                 })
             }
-            TableOptions::MONGO => {
-                let connection_string = get_mongo_conn_str(m)?;
+            TableOptions::MONGODB => {
+                let connection_string = get_mongodb_conn_str(m)?;
                 let database = m.remove_required("database")?;
                 let collection = m.remove_required("collection")?;
 
                 // TODO: Validate
 
-                TableOptions::Mongo(TableOptionsMongo {
+                TableOptions::MongoDb(TableOptionsMongoDb {
                     connection_string,
                     database,
                     collection,
@@ -498,7 +510,20 @@ impl<'a> SessionPlanner<'a> {
                     table: table_name,
                 })
             }
+            TableOptions::CLICKHOUSE => {
+                let connection_string: String = m.remove_required("connection_string")?;
+                let table_name: String = m.remove_required("table")?;
 
+                // Validate
+                let access =
+                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
+                access.validate_table_access(&table_name).await?;
+
+                TableOptions::Clickhouse(TableOptionsClickhouse {
+                    connection_string,
+                    table: table_name,
+                })
+            }
             TableOptions::LOCAL => {
                 let location: String = m.remove_required("location")?;
 
@@ -2070,7 +2095,7 @@ fn get_mysql_conn_str(m: &mut StmtOptions) -> Result<String> {
     Ok(conn.connection_string())
 }
 
-fn get_mongo_conn_str(m: &mut StmtOptions) -> Result<String> {
+fn get_mongodb_conn_str(m: &mut StmtOptions) -> Result<String> {
     let conn = match m.remove_optional("connection_string")? {
         Some(conn_str) => MongoDbConnection::ConnectionString(conn_str),
         None => {

@@ -88,10 +88,11 @@ pub enum DatabaseOptions {
     Postgres(DatabaseOptionsPostgres),
     BigQuery(DatabaseOptionsBigQuery),
     Mysql(DatabaseOptionsMysql),
-    Mongo(DatabaseOptionsMongo),
+    MongoDb(DatabaseOptionsMongoDb),
     Snowflake(DatabaseOptionsSnowflake),
     Delta(DatabaseOptionsDeltaLake),
     SqlServer(DatabaseOptionsSqlServer),
+    Clickhouse(DatabaseOptionsClickhouse),
 }
 
 impl DatabaseOptions {
@@ -100,10 +101,11 @@ impl DatabaseOptions {
     pub const POSTGRES: &'static str = "postgres";
     pub const BIGQUERY: &'static str = "bigquery";
     pub const MYSQL: &'static str = "mysql";
-    pub const MONGO: &'static str = "mongo";
+    pub const MONGODB: &'static str = "mongo";
     pub const SNOWFLAKE: &'static str = "snowflake";
     pub const DELTA: &'static str = "delta";
     pub const SQL_SERVER: &'static str = "sql_server";
+    pub const CLICKHOUSE: &'static str = "clickhouse";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -112,10 +114,11 @@ impl DatabaseOptions {
             DatabaseOptions::Postgres(_) => Self::POSTGRES,
             DatabaseOptions::BigQuery(_) => Self::BIGQUERY,
             DatabaseOptions::Mysql(_) => Self::MYSQL,
-            DatabaseOptions::Mongo(_) => Self::MONGO,
+            DatabaseOptions::MongoDb(_) => Self::MONGODB,
             DatabaseOptions::Snowflake(_) => Self::SNOWFLAKE,
             DatabaseOptions::Delta(_) => Self::DELTA,
             DatabaseOptions::SqlServer(_) => Self::SQL_SERVER,
+            DatabaseOptions::Clickhouse(_) => Self::CLICKHOUSE,
         }
     }
 }
@@ -141,13 +144,18 @@ impl TryFrom<options::database_options::Options> for DatabaseOptions {
                 DatabaseOptions::BigQuery(v.try_into()?)
             }
             options::database_options::Options::Mysql(v) => DatabaseOptions::Mysql(v.try_into()?),
-            options::database_options::Options::Mongo(v) => DatabaseOptions::Mongo(v.try_into()?),
+            options::database_options::Options::Mongodb(v) => {
+                DatabaseOptions::MongoDb(v.try_into()?)
+            }
             options::database_options::Options::Snowflake(v) => {
                 DatabaseOptions::Snowflake(v.try_into()?)
             }
             options::database_options::Options::Delta(v) => DatabaseOptions::Delta(v.try_into()?),
             options::database_options::Options::SqlServer(v) => {
                 DatabaseOptions::SqlServer(v.try_into()?)
+            }
+            options::database_options::Options::Clickhouse(v) => {
+                DatabaseOptions::Clickhouse(v.try_into()?)
             }
         })
     }
@@ -168,13 +176,16 @@ impl From<DatabaseOptions> for options::database_options::Options {
             DatabaseOptions::Postgres(v) => options::database_options::Options::Postgres(v.into()),
             DatabaseOptions::BigQuery(v) => options::database_options::Options::Bigquery(v.into()),
             DatabaseOptions::Mysql(v) => options::database_options::Options::Mysql(v.into()),
-            DatabaseOptions::Mongo(v) => options::database_options::Options::Mongo(v.into()),
+            DatabaseOptions::MongoDb(v) => options::database_options::Options::Mongodb(v.into()),
             DatabaseOptions::Snowflake(v) => {
                 options::database_options::Options::Snowflake(v.into())
             }
             DatabaseOptions::Delta(v) => options::database_options::Options::Delta(v.into()),
             DatabaseOptions::SqlServer(v) => {
                 options::database_options::Options::SqlServer(v.into())
+            }
+            DatabaseOptions::Clickhouse(v) => {
+                options::database_options::Options::Clickhouse(v.into())
             }
         }
     }
@@ -290,22 +301,22 @@ impl From<DatabaseOptionsMysql> for options::DatabaseOptionsMysql {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
-pub struct DatabaseOptionsMongo {
+pub struct DatabaseOptionsMongoDb {
     pub connection_string: String,
 }
 
-impl TryFrom<options::DatabaseOptionsMongo> for DatabaseOptionsMongo {
+impl TryFrom<options::DatabaseOptionsMongoDb> for DatabaseOptionsMongoDb {
     type Error = ProtoConvError;
-    fn try_from(value: options::DatabaseOptionsMongo) -> Result<Self, Self::Error> {
-        Ok(DatabaseOptionsMongo {
+    fn try_from(value: options::DatabaseOptionsMongoDb) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsMongoDb {
             connection_string: value.connection_string,
         })
     }
 }
 
-impl From<DatabaseOptionsMongo> for options::DatabaseOptionsMongo {
-    fn from(value: DatabaseOptionsMongo) -> Self {
-        options::DatabaseOptionsMongo {
+impl From<DatabaseOptionsMongoDb> for options::DatabaseOptionsMongoDb {
+    fn from(value: DatabaseOptionsMongoDb) -> Self {
+        options::DatabaseOptionsMongoDb {
             connection_string: value.connection_string,
         }
     }
@@ -328,6 +339,28 @@ impl TryFrom<options::DatabaseOptionsSqlServer> for DatabaseOptionsSqlServer {
 impl From<DatabaseOptionsSqlServer> for options::DatabaseOptionsSqlServer {
     fn from(value: DatabaseOptionsSqlServer) -> Self {
         options::DatabaseOptionsSqlServer {
+            connection_string: value.connection_string,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct DatabaseOptionsClickhouse {
+    pub connection_string: String,
+}
+
+impl TryFrom<options::DatabaseOptionsClickhouse> for DatabaseOptionsClickhouse {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DatabaseOptionsClickhouse) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsClickhouse {
+            connection_string: value.connection_string,
+        })
+    }
+}
+
+impl From<DatabaseOptionsClickhouse> for options::DatabaseOptionsClickhouse {
+    fn from(value: DatabaseOptionsClickhouse) -> Self {
+        options::DatabaseOptionsClickhouse {
             connection_string: value.connection_string,
         }
     }
@@ -507,7 +540,7 @@ pub enum TableOptions {
     Local(TableOptionsLocal),
     Gcs(TableOptionsGcs),
     S3(TableOptionsS3),
-    Mongo(TableOptionsMongo),
+    MongoDb(TableOptionsMongoDb),
     Snowflake(TableOptionsSnowflake),
     Delta(TableOptionsObjectStore),
     Iceberg(TableOptionsObjectStore),
@@ -515,6 +548,7 @@ pub enum TableOptions {
     SqlServer(TableOptionsSqlServer),
     Lance(TableOptionsObjectStore),
     Bson(TableOptionsObjectStore),
+    Clickhouse(TableOptionsClickhouse),
 }
 
 impl TableOptions {
@@ -526,7 +560,7 @@ impl TableOptions {
     pub const LOCAL: &'static str = "local";
     pub const GCS: &'static str = "gcs";
     pub const S3_STORAGE: &'static str = "s3";
-    pub const MONGO: &'static str = "mongo";
+    pub const MONGODB: &'static str = "mongo";
     pub const SNOWFLAKE: &'static str = "snowflake";
     pub const DELTA: &'static str = "delta";
     pub const ICEBERG: &'static str = "iceberg";
@@ -534,6 +568,7 @@ impl TableOptions {
     pub const SQL_SERVER: &'static str = "sql_server";
     pub const LANCE: &'static str = "lance";
     pub const BSON: &'static str = "bson";
+    pub const CLICKHOUSE: &'static str = "clickhouse";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -549,7 +584,7 @@ impl TableOptions {
             TableOptions::Local(_) => Self::LOCAL,
             TableOptions::Gcs(_) => Self::GCS,
             TableOptions::S3(_) => Self::S3_STORAGE,
-            TableOptions::Mongo(_) => Self::MONGO,
+            TableOptions::MongoDb(_) => Self::MONGODB,
             TableOptions::Snowflake(_) => Self::SNOWFLAKE,
             TableOptions::Delta(_) => Self::DELTA,
             TableOptions::Iceberg(_) => Self::ICEBERG,
@@ -557,6 +592,7 @@ impl TableOptions {
             TableOptions::SqlServer(_) => Self::SQL_SERVER,
             TableOptions::Lance(_) => Self::LANCE,
             TableOptions::Bson(_) => Self::BSON,
+            TableOptions::Clickhouse(_) => Self::CLICKHOUSE,
         }
     }
 }
@@ -579,7 +615,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::Local(v) => TableOptions::Local(v.try_into()?),
             options::table_options::Options::Gcs(v) => TableOptions::Gcs(v.try_into()?),
             options::table_options::Options::S3(v) => TableOptions::S3(v.try_into()?),
-            options::table_options::Options::Mongo(v) => TableOptions::Mongo(v.try_into()?),
+            options::table_options::Options::Mongo(v) => TableOptions::MongoDb(v.try_into()?),
             options::table_options::Options::Snowflake(v) => TableOptions::Snowflake(v.try_into()?),
             options::table_options::Options::Delta(v) => TableOptions::Delta(v.try_into()?),
             options::table_options::Options::Iceberg(v) => TableOptions::Iceberg(v.try_into()?),
@@ -587,6 +623,9 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::SqlServer(v) => TableOptions::SqlServer(v.try_into()?),
             options::table_options::Options::Lance(v) => TableOptions::Lance(v.try_into()?),
             options::table_options::Options::Bson(v) => TableOptions::Bson(v.try_into()?),
+            options::table_options::Options::Clickhouse(v) => {
+                TableOptions::Clickhouse(v.try_into()?)
+            }
         })
     }
 }
@@ -610,7 +649,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Local(v) => options::table_options::Options::Local(v.into()),
             TableOptions::Gcs(v) => options::table_options::Options::Gcs(v.into()),
             TableOptions::S3(v) => options::table_options::Options::S3(v.into()),
-            TableOptions::Mongo(v) => options::table_options::Options::Mongo(v.into()),
+            TableOptions::MongoDb(v) => options::table_options::Options::Mongo(v.into()),
             TableOptions::Snowflake(v) => options::table_options::Options::Snowflake(v.into()),
             TableOptions::Delta(v) => options::table_options::Options::Delta(v.into()),
             TableOptions::Iceberg(v) => options::table_options::Options::Iceberg(v.into()),
@@ -618,6 +657,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::SqlServer(v) => options::table_options::Options::SqlServer(v.into()),
             TableOptions::Lance(v) => options::table_options::Options::Lance(v.into()),
             TableOptions::Bson(v) => options::table_options::Options::Bson(v.into()),
+            TableOptions::Clickhouse(v) => options::table_options::Options::Clickhouse(v.into()),
         })
     }
 }
@@ -905,16 +945,16 @@ impl From<TableOptionsS3> for options::TableOptionsS3 {
     }
 }
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
-pub struct TableOptionsMongo {
+pub struct TableOptionsMongoDb {
     pub connection_string: String,
     pub database: String,
     pub collection: String,
 }
 
-impl TryFrom<options::TableOptionsMongo> for TableOptionsMongo {
+impl TryFrom<options::TableOptionsMongo> for TableOptionsMongoDb {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsMongo) -> Result<Self, Self::Error> {
-        Ok(TableOptionsMongo {
+        Ok(TableOptionsMongoDb {
             connection_string: value.connection_string,
             database: value.database,
             collection: value.collection,
@@ -922,8 +962,8 @@ impl TryFrom<options::TableOptionsMongo> for TableOptionsMongo {
     }
 }
 
-impl From<TableOptionsMongo> for options::TableOptionsMongo {
-    fn from(value: TableOptionsMongo) -> Self {
+impl From<TableOptionsMongoDb> for options::TableOptionsMongo {
+    fn from(value: TableOptionsMongoDb) -> Self {
         options::TableOptionsMongo {
             connection_string: value.connection_string,
             database: value.database,
@@ -955,6 +995,31 @@ impl From<TableOptionsSqlServer> for options::TableOptionsSqlServer {
         options::TableOptionsSqlServer {
             connection_string: value.connection_string,
             schema: value.schema,
+            table: value.table,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct TableOptionsClickhouse {
+    pub connection_string: String,
+    pub table: String,
+}
+
+impl TryFrom<options::TableOptionsClickhouse> for TableOptionsClickhouse {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsClickhouse) -> Result<Self, Self::Error> {
+        Ok(TableOptionsClickhouse {
+            connection_string: value.connection_string,
+            table: value.table,
+        })
+    }
+}
+
+impl From<TableOptionsClickhouse> for options::TableOptionsClickhouse {
+    fn from(value: TableOptionsClickhouse) -> Self {
+        options::TableOptionsClickhouse {
+            connection_string: value.connection_string,
             table: value.table,
         }
     }
