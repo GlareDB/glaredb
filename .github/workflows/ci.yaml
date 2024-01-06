@@ -358,12 +358,6 @@ jobs:
           export MYSQL_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 1p)
           export MYSQL_TUNNEL_SSH_CONN_STRING=$(echo "$MYSQL_TEST_DB" | sed -n 2p)
 
-          # Prepare SLT (MongoDB)
-          export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
-                  
-          # Prepare SLT (SQL Server)
-          export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
-
           # Prepare SLT (MinIO)
           ./scripts/create-test-minio-store.sh
 
@@ -377,7 +371,9 @@ jobs:
             --exclude '*/tunnels/ssh' \
             --exclude 'sqllogictests_snowflake/*' \
             --exclude 'sqllogictests_cassandra/*' \
-            --exclude 'sqllogictests_clickhouse/*'
+            --exclude 'sqllogictests_clickhouse/*' \
+            --exclude 'sqllogictests_sqlserver/*' \
+            --exclude 'sqllogictests_mongodb/*' 
 
           echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
           # SSH tests are prone to fail if we make a lot of connections at the
@@ -390,8 +386,7 @@ jobs:
           just slt-bin --protocol=rpc 'sqllogictests_iceberg/*'
           just slt-bin --protocol=rpc 'sqllogictests_native/*'
           just slt-bin --protocol=rpc 'sqllogictests_object_store/*'
-          just slt-bin --protocol=rpc 'sqllogictests_sqlserver/*'
-          just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
+        
           just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
           just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
 
@@ -417,6 +412,7 @@ jobs:
   
   service-integration-tests-clickhouse:
     name: SLT::Clickhouse
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
@@ -442,6 +438,7 @@ jobs:
           just slt-bin 'sqllogictests_clickhouse/*'
           just slt-bin --protocol=flightsql 'sqllogictests_clickhouse/*'
           just slt-bin --protocol=rpc 'sqllogictests_clickhouse/*'
+  
   service-integration-tests-cassandra:
     name: SLT::Cassandra
     runs-on: ubuntu-latest-8-cores
@@ -463,6 +460,28 @@ jobs:
           just slt-bin 'sqllogictests_cassandra/*'
           just slt-bin --protocol=flightsql 'sqllogictests_cassandra/*'
           just slt-bin --protocol=rpc 'sqllogictests_cassandra/*'
+
+  service-integration-tests-mongo:
+    name: SLT::Mongo
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: slt cache
+        with:
+          path: target/debug/slt
+          key: ${{ github.run_id }}
+
+      - name: run tests (slt)
+        run: |
+          # Prepare SLT (MongoDB)
+          export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
+          just slt-bin 'sqllogictests_mongodb/*'
+          just slt-bin --protocol=flightsql 'sqllogictests_mongodb/*'
+          just slt-bin --protocol=rpc 'sqllogictests_mongodb/*'
 
   service-integration-tests-snowflake:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
