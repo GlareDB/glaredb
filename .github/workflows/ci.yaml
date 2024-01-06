@@ -407,6 +407,7 @@ jobs:
 
 
   datasource-integration-tests:
+    name: Datasource Integration (${{matrix.settings.name}})
     strategy: 
       matrix:
         settings:
@@ -437,7 +438,7 @@ jobs:
             prepare: |
               ./scripts/prepare-testdata.sh
               export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
-    name: SLT (${{matrix.settings.name}})
+    
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
