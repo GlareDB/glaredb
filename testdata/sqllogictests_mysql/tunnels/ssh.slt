@@ -1,5 +1,4 @@
 # SSH Tunnels test with MySQL
-onlyif glaredb_pg
 statement ok
 CREATE EXTERNAL DATABASE test_db
 	FROM mysql
@@ -8,7 +7,6 @@ CREATE EXTERNAL DATABASE test_db
 		connection_string = '${MYSQL_TUNNEL_SSH_CONN_STRING}',
 	);
 
-onlyif glaredb_pg
 statement ok
 CREATE EXTERNAL TABLE basic
 	FROM mysql
@@ -23,7 +21,6 @@ CREATE EXTERNAL TABLE basic
 include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti
 
 # Validate when tunnel is invalid.
-onlyif glaredb_pg
 statement ok
 CREATE TUNNEL test_err_tunnel
 	FROM ssh
@@ -31,7 +28,6 @@ CREATE TUNNEL test_err_tunnel
 		connection_string = 'ssh://glaredb@localhost:1234',
 	);
 
-onlyif glaredb_pg
 statement error
 CREATE EXTERNAL DATABASE test_err_db
 	FROM mysql
