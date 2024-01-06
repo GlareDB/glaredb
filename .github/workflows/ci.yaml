@@ -412,7 +412,6 @@ jobs:
   
   service-integration-tests-clickhouse:
     name: SLT::Clickhouse
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
@@ -424,8 +423,6 @@ jobs:
         with:
           path: target/debug/slt
           key: ${{ github.run_id }}
-      - name: setup GCP
-        uses: google-github-actions/setup-gcloud@v2
 
       - name: prepare testdata
         run: ./scripts/prepare-testdata.sh
@@ -461,8 +458,8 @@ jobs:
           just slt-bin --protocol=flightsql 'sqllogictests_cassandra/*'
           just slt-bin --protocol=rpc 'sqllogictests_cassandra/*'
 
-  service-integration-tests-mongo:
-    name: SLT::Mongo
+  service-integration-tests-sqlserver:
+    name: SLT::SqlServer
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
@@ -474,15 +471,16 @@ jobs:
         with:
           path: target/debug/slt
           key: ${{ github.run_id }}
-
+      - name: prepare testdata
+        run: ./scripts/prepare-testdata.sh
       - name: run tests (slt)
         run: |
-          # Prepare SLT (MongoDB)
-          export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
-          just slt-bin 'sqllogictests_mongodb/*'
-          just slt-bin --protocol=flightsql 'sqllogictests_mongodb/*'
-          just slt-bin --protocol=rpc 'sqllogictests_mongodb/*'
-
+          # Prepare SLT (SQL Server)
+          export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
+          just slt-bin 'sqllogictests_sqlserver/*'
+          just slt-bin --protocol=flightsql 'sqllogictests_sqlserver/*'
+          just slt-bin --protocol=rpc 'sqllogictests_sqlserver/*'
+          
   service-integration-tests-snowflake:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
     name: Snowflake Service Integration Tests (SLT::Snowflake)
