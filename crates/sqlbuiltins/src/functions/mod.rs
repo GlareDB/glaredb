@@ -1,4 +1,4 @@
-//! Builtin table returning functions.
+//! Builtin functions.
 mod aggregates;
 mod scalars;
 mod table;
@@ -19,8 +19,8 @@ use table::{BuiltinTableFuncs, TableFunc};
 
 /// Builtin table returning functions available for all sessions.
 static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
-// TODO: Why is this separate?
-pub static ARROW_CAST_FUNC: Lazy<ArrowCastFunction> = Lazy::new(|| ArrowCastFunction {});
+
+/// All builtin functions available for all sessions.
 pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
 
 /// A builtin function.
@@ -48,13 +48,13 @@ pub trait BuiltinFunction: Sync + Send {
 
     /// Return a sql example for this function.
     /// Defaults to None.
-    fn sql_example(&self) -> Option<String> {
+    fn sql_example(&self) -> Option<&str> {
         None
     }
 
     /// Return a description for this function.
     /// Defaults to None.
-    fn description(&self) -> Option<String> {
+    fn description(&self) -> Option<&str> {
         None
     }
 
@@ -113,11 +113,11 @@ where
     fn name(&self) -> &str {
         Self::NAME
     }
-    fn sql_example(&self) -> Option<String> {
-        Some(Self::EXAMPLE.to_string())
+    fn sql_example(&self) -> Option<&str> {
+        Some(Self::EXAMPLE)
     }
-    fn description(&self) -> Option<String> {
-        Some(Self::DESCRIPTION.to_string())
+    fn description(&self) -> Option<&str> {
+        Some(Self::DESCRIPTION)
     }
     fn function_type(&self) -> FunctionType {
         Self::FUNCTION_TYPE
@@ -151,7 +151,11 @@ impl FunctionRegistry {
             let value: Arc<dyn BuiltinFunction> = Arc::new(f);
             (key, value)
         });
-        let arrow_cast: Arc<dyn BuiltinFunction> = Arc::new(ArrowCastFunction {});
+
+        // The arrow cast function has special handling in datafusion due to the
+        // dynamic return type. So it isn't a 'scalar_udf' and needs to be
+        // handled a bit differently.
+        let arrow_cast: Arc<dyn BuiltinFunction> = Arc::new(ArrowCastFunction);
         let arrow_cast = (arrow_cast.name().to_string(), arrow_cast);
         let arrow_cast = std::iter::once(arrow_cast);
 
@@ -215,20 +219,11 @@ impl FunctionRegistry {
         FunctionRegistry { funcs, udfs }
     }
 
-    // TODO: This is confusing as this will return true for `read_csv`, but
-    // `find_function` will return None.
-    //
-    // Also this allocates quite a bit.
-    pub fn contains(&self, name: impl AsRef<str>) -> bool {
-        self.funcs
-            .keys()
-            .chain(self.udfs.keys())
-            .chain(BUILTIN_TABLE_FUNCS.keys())
-            .any(|k| k.to_lowercase() == name.as_ref().to_lowercase())
-    }
-
-    pub fn find_function(&self, name: &str) -> Option<Arc<dyn BuiltinFunction>> {
-        self.funcs.get(name).cloned()
+    /// Checks if a function with the the given name exists.
+    pub fn contains(&self, name: &str) -> bool {
+        self.funcs.contains_key(name)
+            || self.udfs.contains_key(name)
+            || BUILTIN_TABLE_FUNCS.funcs.contains_key(name)
     }
 
     /// Find a scalar UDF by name
@@ -252,7 +247,39 @@ impl FunctionRegistry {
     }
 
     pub fn get_table_func(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
-        BUILTIN_TABLE_FUNCS.find_function(name)
+        BUILTIN_TABLE_FUNCS.find_function(name).cloned()
+    }
+
+    /// Get a function description.
+    ///
+    /// Looks up descriptions for both scalar functions and table functions.
+    pub fn get_function_description(&self, name: &str) -> Option<&str> {
+        if let Some(func) = self.funcs.get(name) {
+            return func.description();
+        }
+        if let Some(func) = self.udfs.get(name) {
+            return func.description();
+        }
+        if let Some(func) = BUILTIN_TABLE_FUNCS.find_function(name) {
+            return func.description();
+        }
+        None
+    }
+
+    /// Get a function example.
+    ///
+    /// Looks up examples for both scalar functions and table functions.
+    pub fn get_function_example(&self, name: &str) -> Option<&str> {
+        if let Some(func) = self.funcs.get(name) {
+            return func.sql_example();
+        }
+        if let Some(func) = self.udfs.get(name) {
+            return func.sql_example();
+        }
+        if let Some(func) = BUILTIN_TABLE_FUNCS.find_function(name) {
+            return func.sql_example();
+        }
+        None
     }
 }
 
@@ -262,8 +289,10 @@ impl Default for FunctionRegistry {
     }
 }
 
-// Define a macro to associate doc strings and examples with items
-// The macro helps preserve the line wrapping. rustfmt will otherwise collapse the lines.
+// Macro to associate doc strings and examples with items.
+//
+// The macro helps preserve the line wrapping. rustfmt will otherwise collapse
+// the lines.
 #[macro_export]
 macro_rules! document {
     (doc => $doc:expr, example => $example:expr, name => $item:ident) => {
@@ -280,14 +309,6 @@ macro_rules! document {
         #[doc = $doc]
         pub struct $item;
 
-        impl $item {
-            pub const DESCRIPTION: &'static str = $doc;
-            pub const EXAMPLE: &'static str = $example;
-            pub const NAME: &'static str = $name;
-        }
-    };
-    // uses an existing struct
-    ($doc:expr, $example:expr, name => $name:expr, implementation => $item:ident) => {
         impl $item {
             pub const DESCRIPTION: &'static str = $doc;
             pub const EXAMPLE: &'static str = $example;

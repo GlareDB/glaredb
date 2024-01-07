@@ -74,21 +74,14 @@ impl BuiltinFunction for ObjScanTableFunc {
         FunctionType::TableReturning
     }
 
-    fn sql_example(&self) -> Option<String> {
-        fn build_example(extension: &str) -> String {
-            format!(
-                "SELECT * FROM {ext}_scan('./my_data.{ext}')",
-                ext = extension
-            )
-        }
-        Some(build_example(self.name))
+    fn sql_example(&self) -> Option<&str> {
+        // TODO: Sean will add this back.
+        None
     }
 
-    fn description(&self) -> Option<String> {
-        Some(format!(
-            "Returns a table by scanning the given {ext} file(s).",
-            ext = self.name.to_lowercase()
-        ))
+    fn description(&self) -> Option<&str> {
+        // TODO: Sean will add this back.
+        None
     }
 
     fn signature(&self) -> Option<Signature> {
