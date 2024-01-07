@@ -253,8 +253,8 @@ mod tests {
         let names_and_aliases = [
             "read_csv", // name
             "csv_scan", // alias
-            "read_json",
-            "json_scan",
+            "read_ndjson",
+            "ndjson_scan",
             "read_parquet",
             "parquet_scan",
         ];

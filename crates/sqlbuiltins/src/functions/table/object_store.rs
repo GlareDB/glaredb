@@ -45,8 +45,8 @@ pub const READ_CSV: ObjScanTableFunc = ObjScanTableFunc {
 
 pub const READ_JSON: ObjScanTableFunc = ObjScanTableFunc {
     file_type: FileType::CSV,
-    name: "read_json",
-    aliases: &["json_scan"],
+    name: "read_ndjson",
+    aliases: &["ndjson_scan"],
 };
 
 /// Generic file scan for different file types.
