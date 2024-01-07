@@ -6,9 +6,6 @@ pub enum ExtensionError {
     #[error("Expected argument at index {index}: {what}")]
     ExpectedIndexedArgument { index: usize, what: String },
 
-    #[error("{0}")]
-    String(String),
-
     #[error("Unable to find {obj_typ}: '{name}'")]
     MissingObject { obj_typ: &'static str, name: String },
 
@@ -44,6 +41,9 @@ pub enum ExtensionError {
 
     #[error("object store: {0}")]
     ObjectStore(String),
+
+    #[error("{0}")]
+    String(String),
 }
 
 impl ExtensionError {
