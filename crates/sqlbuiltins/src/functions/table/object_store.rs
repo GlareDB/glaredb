@@ -31,25 +31,49 @@ use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 use super::TableFunc;
 use crate::functions::BuiltinFunction;
 
-pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
-pub const READ_PARQUET: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "read_parquet");
+pub const READ_PARQUET: ObjScanTableFunc = ObjScanTableFunc {
+    file_type: FileType::PARQUET,
+    name: "read_parquet",
+    aliases: &["parquet_scan"],
+};
 
-pub const CSV_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "csv_scan");
-pub const READ_CSV: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "read_csv");
+pub const READ_CSV: ObjScanTableFunc = ObjScanTableFunc {
+    file_type: FileType::CSV,
+    name: "read_csv",
+    aliases: &["csv_scan"],
+};
 
-pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson_scan");
-pub const READ_JSON: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "read_ndjson");
+pub const READ_JSON: ObjScanTableFunc = ObjScanTableFunc {
+    file_type: FileType::CSV,
+    name: "read_json",
+    aliases: &["json_scan"],
+};
 
+/// Generic file scan for different file types.
 #[derive(Debug, Clone)]
-pub struct ObjScanTableFunc(FileType, &'static str);
+pub struct ObjScanTableFunc {
+    file_type: FileType,
+
+    /// Primary name for the function.
+    name: &'static str,
+
+    /// Additional aliases for this function.
+    aliases: &'static [&'static str],
+}
 
 impl BuiltinFunction for ObjScanTableFunc {
     fn name(&self) -> &'static str {
-        self.1
+        self.name
     }
+
+    fn aliases(&self) -> &'static [&'static str] {
+        self.aliases
+    }
+
     fn function_type(&self) -> FunctionType {
         FunctionType::TableReturning
     }
+
     fn sql_example(&self) -> Option<String> {
         fn build_example(extension: &str) -> String {
             format!(
@@ -57,12 +81,13 @@ impl BuiltinFunction for ObjScanTableFunc {
                 ext = extension
             )
         }
-        Some(build_example(self.0.to_string().as_str()))
+        Some(build_example(self.name))
     }
+
     fn description(&self) -> Option<String> {
         Some(format!(
             "Returns a table by scanning the given {ext} file(s).",
-            ext = self.0.to_string().to_lowercase()
+            ext = self.name.to_lowercase()
         ))
     }
 
@@ -154,8 +179,7 @@ impl TableFunc for ObjScanTableFunc {
             }
         };
 
-        let Self(ft, _) = self;
-        let ft: Arc<dyn FileFormat> = match ft {
+        let ft: Arc<dyn FileFormat> = match &self.file_type {
             FileType::CSV => Arc::new(
                 CsvFormat::default()
                     .with_file_compression_type(file_compression)

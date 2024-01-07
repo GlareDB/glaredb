@@ -9,7 +9,7 @@ use std::sync::Arc;
 use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
 use once_cell::sync::Lazy;
 
-use protogen::metastore::types::catalog::{EntryMeta, EntryType, FunctionEntry, FunctionType};
+use protogen::metastore::types::catalog::FunctionType;
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
 use scalars::kdl::{KDLMatches, KDLSelect};
@@ -19,6 +19,7 @@ use table::{BuiltinTableFuncs, TableFunc};
 
 /// Builtin table returning functions available for all sessions.
 static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
+// TODO: Why is this separate?
 pub static ARROW_CAST_FUNC: Lazy<ArrowCastFunction> = Lazy::new(|| ArrowCastFunction {});
 pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
 
@@ -30,6 +31,13 @@ pub trait BuiltinFunction: Sync + Send {
     /// The name for this function. This name will be used when looking up
     /// function implementations.
     fn name(&self) -> &str;
+
+    /// Additional aliases for this function.
+    ///
+    /// Default implementation provides no additional aliases.
+    fn aliases(&self) -> &[&str] {
+        &[]
+    }
 
     /// Return the signature for this function.
     /// Defaults to None.
@@ -52,30 +60,6 @@ pub trait BuiltinFunction: Sync + Send {
 
     // Returns the function type. 'aggregate', 'scalar', or 'table'
     fn function_type(&self) -> FunctionType;
-
-    /// Convert to a builtin [`FunctionEntry`] for catalogging.
-    ///
-    /// The default implementation is suitable for aggregates and scalars. Table
-    /// functions need to set runtime preference manually.
-    fn as_function_entry(&self, id: u32, parent: u32) -> FunctionEntry {
-        let meta = EntryMeta {
-            entry_type: EntryType::Function,
-            id,
-            parent,
-            name: self.name().to_string(),
-            builtin: true,
-            external: false,
-            is_temp: false,
-            sql_example: self.sql_example(),
-            description: self.description(),
-        };
-
-        FunctionEntry {
-            meta,
-            func_type: self.function_type(),
-            signature: self.signature(),
-        }
-    }
 }
 
 /// The same as [`BuiltinFunction`] , but with const values.
@@ -148,6 +132,8 @@ where
 /// We use our own implementation to allow us to have finer grained control over them.
 /// We also don't have any session specific functions (for now), so it makes more sense to have a const global.
 pub struct FunctionRegistry {
+    // TODO: What's the difference between `BuiltinFunction` and
+    // `BuiltinScalarUDF`?
     funcs: HashMap<String, Arc<dyn BuiltinFunction>>,
     udfs: HashMap<String, Arc<dyn BuiltinScalarUDF>>,
 }
@@ -229,6 +215,10 @@ impl FunctionRegistry {
         FunctionRegistry { funcs, udfs }
     }
 
+    // TODO: This is confusing as this will return true for `read_csv`, but
+    // `find_function` will return None.
+    //
+    // Also this allocates quite a bit.
     pub fn contains(&self, name: impl AsRef<str>) -> bool {
         self.funcs
             .keys()
@@ -248,15 +238,16 @@ impl FunctionRegistry {
         self.udfs.get(name).cloned()
     }
 
-    pub fn scalar_functions(&self) -> impl Iterator<Item = &Arc<dyn BuiltinFunction>> {
+    pub fn scalar_funcs_iter(&self) -> impl Iterator<Item = &Arc<dyn BuiltinFunction>> {
         self.funcs.values()
     }
 
-    pub fn scalar_udfs(&self) -> impl Iterator<Item = &Arc<dyn BuiltinScalarUDF>> {
+    pub fn scalar_udfs_iter(&self) -> impl Iterator<Item = &Arc<dyn BuiltinScalarUDF>> {
         self.udfs.values()
     }
+
     /// Return an iterator over all builtin table functions.
-    pub fn table_funcs(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
+    pub fn table_funcs_iter(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
         BUILTIN_TABLE_FUNCS.iter_funcs()
     }
 
