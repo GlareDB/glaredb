@@ -289,7 +289,10 @@ jobs:
           # Prepare SLT (Clickhouse)
           source ./scripts/ci-install-clickhouse.sh
           export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
-
+          
+          # Prepare SLT (Cassandra)
+          export CASSANDRA_CONN_STRING=$(./scripts/create-test-cassandra-db.sh | tail -n 1)
+          
           # Prepare SLT (SQL Server)
           export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
 
@@ -318,6 +321,7 @@ jobs:
           just sql-logic-tests --protocol=rpc 'sqllogictests_object_store/*'
           just sql-logic-tests --protocol=rpc 'sqllogictests_sqlserver/*'
           just sql-logic-tests --protocol=rpc 'sqllogictests_clickhouse/*'
+          just sql-logic-tests --protocol=rpc 'sqllogictests_cassandra/*'
           just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mongodb/*'
           just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_mysql/*'
           just sql-logic-tests --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'

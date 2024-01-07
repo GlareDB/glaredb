@@ -13,14 +13,14 @@ use datafusion_ext::functions::{
 };
 use datasources::bigquery::BigQueryAccessor;
 use datasources::debug::DebugVirtualLister;
-use datasources::mongodb::MongoAccessor;
+use datasources::mongodb::MongoDbAccessor;
 use datasources::mysql::MysqlAccessor;
 use datasources::postgres::PostgresAccess;
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection};
 use datasources::sqlserver::SqlServerAccess;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongo, DatabaseOptionsMysql,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer,
 };
 
@@ -303,8 +303,8 @@ pub(crate) async fn get_virtual_lister_for_external_db(
                 .map_err(|e| ExtensionError::Access(Box::new(e)))?;
             Box::new(accessor)
         }
-        DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string }) => {
-            let accessor = MongoAccessor::connect(connection_string)
+        DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string }) => {
+            let accessor = MongoDbAccessor::connect(connection_string)
                 .await
                 .map_err(|e| ExtensionError::Access(Box::new(e)))?;
             Box::new(accessor)

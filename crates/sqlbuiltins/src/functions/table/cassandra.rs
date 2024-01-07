@@ -7,20 +7,19 @@ use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::mongodb::{MongoAccessor, MongoTableAccessInfo};
+use datasources::cassandra::CassandraTableProvider;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
 use super::TableFunc;
 use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
-pub struct ReadMongoDb;
+pub struct ReadCassandra;
 
-impl ConstBuiltinFunction for ReadMongoDb {
-    const NAME: &'static str = "read_mongodb";
-    const DESCRIPTION: &'static str = "Reads a MongoDB table";
-    const EXAMPLE: &'static str =
-        "SELECT * FROM read_mongodb('mongodb://localhost:27017', 'database', 'collection')";
+impl ConstBuiltinFunction for ReadCassandra {
+    const NAME: &'static str = "read_cassandra";
+    const DESCRIPTION: &'static str = "Read a Cassandra table";
+    const EXAMPLE: &'static str = "SELECT * FROM read_cassandra('localhost:9000', 'ks', 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 
     fn signature(&self) -> Option<Signature> {
@@ -33,7 +32,7 @@ impl ConstBuiltinFunction for ReadMongoDb {
 }
 
 #[async_trait]
-impl TableFunc for ReadMongoDb {
+impl TableFunc for ReadCassandra {
     fn detect_runtime(
         &self,
         _args: &[FuncParamValue],
@@ -51,19 +50,11 @@ impl TableFunc for ReadMongoDb {
         match args.len() {
             3 => {
                 let mut args = args.into_iter();
-                let conn_str: String = args.next().unwrap().try_into()?;
-                let database: String = args.next().unwrap().try_into()?;
-                let collection: String = args.next().unwrap().try_into()?;
+                let conn_string: String = args.next().unwrap().try_into()?;
+                let ks: String = args.next().unwrap().try_into()?;
+                let table: String = args.next().unwrap().try_into()?;
 
-                let access = MongoAccessor::connect(&conn_str)
-                    .await
-                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
-                let prov = access
-                    .into_table_accessor(MongoTableAccessInfo {
-                        database,
-                        collection,
-                    })
-                    .into_table_provider()
+                let prov = CassandraTableProvider::try_new(conn_string, ks, table)
                     .await
                     .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 

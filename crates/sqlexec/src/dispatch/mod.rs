@@ -76,7 +76,7 @@ pub enum DispatchError {
     #[error(transparent)]
     ObjectStoreDatasource(#[from] datasources::object_store::errors::ObjectStoreSourceError),
     #[error(transparent)]
-    MongoDatasource(#[from] datasources::mongodb::errors::MongoError),
+    MongoDatasource(#[from] datasources::mongodb::errors::MongoDbError),
     #[error(transparent)]
     SnowflakeDatasource(#[from] datasources::snowflake::errors::DatasourceSnowflakeError),
     #[error(transparent)]
