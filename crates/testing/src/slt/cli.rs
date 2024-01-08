@@ -86,8 +86,6 @@ pub struct Cli {
     /// Provide glob like regexes for test names. If omitted, runs all the
     /// tests. This is similar to providing parameter as `*`.
     tests_pattern: Option<Vec<String>>,
-    #[arg(short = 'd')]
-    pub test_dir: Option<PathBuf>,
 }
 
 impl Cli {

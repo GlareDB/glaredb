@@ -33,7 +33,7 @@ select count(*) from read_csv(
 
 # Relative path
 query I
-select count(*) from read_csv('${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
+select count(*) from read_csv('./testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
 ----
 102
 
@@ -66,11 +66,11 @@ select * from read_csv(
 # Alternative delimiters
 
 query ITR
-select * from read_csv('../../testdata/csv/delimiter.csv', delimiter => ';');
+select * from read_csv('./testdata/csv/delimiter.csv', delimiter => ';');
 ----
 1   hello, world   3.9
 2   HELLO, WORLD   4.9
 
 # Invalid delimiter (longer than one byte)
 statement error delimiters for CSV must fit in one byte \(e.g. ','\)
-select * from read_csv('../../testdata/csv/delimiter.csv', delimiter => ';;');
+select * from read_csv('./testdata/csv/delimiter.csv', delimiter => ';;');

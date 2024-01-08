@@ -47,8 +47,8 @@ jobs:
       - name: build
         run: just build
 
-      - name: build testrunner
-        run: just build-testrunner
+      - name: build slt
+        run: just build-slt
 
   static-analysis:
     name: Lint and Format

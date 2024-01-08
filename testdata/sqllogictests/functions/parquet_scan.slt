@@ -8,7 +8,7 @@ select count(*) from parquet_scan('file://${PWD}/testdata/parquet/userdata1.parq
 
 # Relative path
 query I
-select count(*) from parquet_scan('${PWD}/testdata/parquet/userdata1.parquet')
+select count(*) from parquet_scan('./testdata/parquet/userdata1.parquet')
 ----
 1000
 
