@@ -10,7 +10,6 @@ use ioutil::resolve_path;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::field;
 
 use super::{table_location_and_opts, TableFunc};
 use crate::functions::ConstBuiltinFunction;
