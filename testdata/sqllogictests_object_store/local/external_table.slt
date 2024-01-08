@@ -58,7 +58,7 @@ select * from ext_table_2;
 
 statement ok
 create external table ext_table_3 from local (
-	location '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz',
+	location './testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz',
 	file_type csv
 );
 
@@ -72,7 +72,7 @@ select count(*) from ext_table_3;
 # Giving wrong compression should error
 statement ok
 create external table ext_table_4 from local (
-	location '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz',
+	location './testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz',
 	file_type csv,
 	compression xz
 );
@@ -82,7 +82,7 @@ select * from ext_table_4;
 
 statement ok
 create external table ext_table_5 from local (
-	location '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz',
+	location './testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz',
 	file_type csv,
 	compression gz
 );

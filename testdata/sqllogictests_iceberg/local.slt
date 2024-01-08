@@ -5,7 +5,7 @@
 # The actual number of snapshots is unknown, but we know we have at least two:
 # the initial snapshot, and the snapshot from the additional insert.
 query T
-select count(*) >= 2 from iceberg_snapshots('${PWD}/testdata/iceberg/tables/lineitem_versioned');
+select count(*) >= 2 from iceberg_snapshots('./testdata/iceberg/tables/lineitem_versioned');
 ----
 t
 
@@ -14,17 +14,17 @@ t
 # These tables exist, and so they all must need _some_ number of data files.
 
 query T
-select count(*) >= 1 from iceberg_data_files('${PWD}/testdata/iceberg/tables/lineitem_simple');
+select count(*) >= 1 from iceberg_data_files('./testdata/iceberg/tables/lineitem_simple');
 ----
 t
 
 query T
-select count(*) >= 1 from iceberg_data_files('${PWD}/testdata/iceberg/tables/lineitem_versioned');
+select count(*) >= 1 from iceberg_data_files('./testdata/iceberg/tables/lineitem_versioned');
 ----
 t
 
 query T
-select count(*) >= 1 from iceberg_data_files('${PWD}/testdata/iceberg/tables/lineitem_partitioned');
+select count(*) >= 1 from iceberg_data_files('./testdata/iceberg/tables/lineitem_partitioned');
 ----
 t
 
@@ -34,25 +34,25 @@ t
 # records.
 
 query T
-select count(*) = 1000 from iceberg_scan('${PWD}/testdata/iceberg/tables/lineitem_simple');
+select count(*) = 1000 from iceberg_scan('./testdata/iceberg/tables/lineitem_simple');
 ----
 t
 
 query T
-select count(*) = 1000 from iceberg_scan('${PWD}/testdata/iceberg/tables/lineitem_partitioned');
+select count(*) = 1000 from iceberg_scan('./testdata/iceberg/tables/lineitem_partitioned');
 ----
 t
 
 # Note that this table has twice as many records since creating the second
 # version of the table was from inserting the source data again.
 query T
-select count(*) = 2000 from iceberg_scan('${PWD}/testdata/iceberg/tables/lineitem_versioned');
+select count(*) = 2000 from iceberg_scan('./testdata/iceberg/tables/lineitem_versioned');
 ----
 t
 
 query TI
 select l_shipmode, count(*)
-  from iceberg_scan('${PWD}/testdata/iceberg/tables/lineitem_simple')
+  from iceberg_scan('./testdata/iceberg/tables/lineitem_simple')
   group by l_shipmode
   order by l_shipmode;
 ----
@@ -66,7 +66,7 @@ TRUCK      132
 
 query TI
 select l_shipmode, count(*)
-  from iceberg_scan('${PWD}/testdata/iceberg/tables/lineitem_partitioned')
+  from iceberg_scan('./testdata/iceberg/tables/lineitem_partitioned')
   group by l_shipmode
   order by l_shipmode;
 ----
@@ -82,7 +82,7 @@ TRUCK      132
 # of 1000.
 query TI
 select l_shipmode, count(*)
-  from iceberg_scan('${PWD}/testdata/iceberg/tables/lineitem_versioned')
+  from iceberg_scan('./testdata/iceberg/tables/lineitem_versioned')
   group by l_shipmode
   order by l_shipmode;
 ----
@@ -99,6 +99,6 @@ TRUCK      264
 # See: https://github.com/GlareDB/glaredb/issues/2277
 query T
 select count(*) = 1000
-  from iceberg_scan('${PWD}/testdata/iceberg/tables/lineitem_simple_longversion');
+  from iceberg_scan('./testdata/iceberg/tables/lineitem_simple_longversion');
 ----
 t

@@ -8,12 +8,12 @@
 # partition).
 statement ok
 select *
-  from parquet_scan('${PWD}/testdata/parquet/userdata1.parquet') p
+  from parquet_scan('./testdata/parquet/userdata1.parquet') p
   inner join (select 'Sweden') c(country2) on p.country = country2
 
 query I
 select count(*)
-  from parquet_scan('${PWD}/testdata/parquet/userdata1.parquet') p
+  from parquet_scan('./testdata/parquet/userdata1.parquet') p
   inner join (select 'Sweden') c(country2) on p.country = country2
 ----
 25
@@ -21,7 +21,7 @@ select count(*)
 # Ensure projection works (#1597 and #1602)
 query T
 select first_name
-  from parquet_scan('${PWD}/testdata/parquet/userdata1.parquet')
+  from parquet_scan('./testdata/parquet/userdata1.parquet')
   order by id
   limit 3
 ----
@@ -31,7 +31,7 @@ Evelyn
 
 query T
 select p.first_name
-  from parquet_scan('${PWD}/testdata/parquet/userdata1.parquet') p
+  from parquet_scan('./testdata/parquet/userdata1.parquet') p
   order by p.id
   limit 3
 ----
@@ -41,7 +41,7 @@ Evelyn
 
 query TT
 select p.first_name, country2
-  from parquet_scan('${PWD}/testdata/parquet/userdata1.parquet') p
+  from parquet_scan('./testdata/parquet/userdata1.parquet') p
   inner join (select 'Sweden') c(country2) on p.country = country2
   order by p.id
   limit 3;

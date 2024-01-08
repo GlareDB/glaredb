@@ -64,7 +64,7 @@ doc-tests: protoc
 
 # Run SQL Logic Tests.
 sql-logic-tests *args: protoc
-  just test --test sqllogictests -- {{args}}
+  cargo run --bin slt -- {{args}}
 
 # Run SQL Logic Tests over RPC
 rpc-tests:

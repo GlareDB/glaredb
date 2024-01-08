@@ -23,20 +23,20 @@ select count(*), status from bikeshare_stations group by status order by status;
 # Empty column name (#1750)
 
 query ITT rowsort
-select * from '${PWD}/testdata/csv/empty_col.csv'
+select * from './testdata/csv/empty_col.csv'
 ----
 0 a hello
 1 b world
 
 query T rowsort
-select col1 from '${PWD}/testdata/csv/empty_col.csv'
+select col1 from './testdata/csv/empty_col.csv'
 ----
 a
 b
 
 # Weird, but it works
 query T rowsort
-select "" from '${PWD}/testdata/csv/empty_col.csv'
+select "" from './testdata/csv/empty_col.csv'
 ----
 0
 1

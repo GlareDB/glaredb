@@ -54,5 +54,5 @@ select
 from glare_catalog.functions
 where function_name = 'read_parquet';
 ----
-read_parquet table Utf8/List<Utf8> t SELECT * FROM read_parquet('./my_data.parquet') Returns a table by scanning the given Parquet file(s).
-read_parquet table Utf8/List<Utf8> t SELECT * FROM read_parquet('./my_data.parquet') Returns a table by scanning the given Parquet file(s).
+read_parquet   table   Utf8/List<Utf8>   t   SELECT * FROM read_parquet('./my_data.parquet')   Returns a table by scanning the given Parquet file(s).
+read_parquet   table   Utf8/List<Utf8>   t   SELECT * FROM read_parquet('./my_data.parquet')   Returns a table by scanning the given Parquet file(s).
