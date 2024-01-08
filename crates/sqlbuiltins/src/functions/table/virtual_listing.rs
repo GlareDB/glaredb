@@ -21,9 +21,9 @@ use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection};
 use datasources::sqlserver::SqlServerAccess;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse, DatabaseOptionsMongoDb,
-    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
-    DatabaseOptionsSqlServer,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsCassandra, DatabaseOptionsClickhouse,
+    DatabaseOptionsMongoDb, DatabaseOptionsMysql, DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer,
 };
 
 use super::TableFunc;
@@ -349,6 +349,9 @@ pub(crate) async fn get_virtual_lister_for_external_db(
                 .await
                 .map_err(ExtensionError::access)?;
             Box::new(state)
+        }
+        DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host }) => {
+            todo!()
         }
         DatabaseOptions::Delta(_) => {
             return Err(ExtensionError::Unimplemented(

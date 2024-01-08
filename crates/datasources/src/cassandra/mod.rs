@@ -23,6 +23,8 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 pub use errors::*;
 use futures::Stream;
@@ -168,5 +170,73 @@ impl TableProvider for CassandraTableProvider {
         Err(DataFusionError::Execution(
             "inserts not yet supported for Cassandra".to_string(),
         ))
+    }
+}
+
+#[async_trait]
+impl VirtualLister for CassandraAccess {
+    /// List schemas for a data source.
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        let query = "SELECT keyspace_name FROM information_schema.schemata";
+        self.session
+            .query(query, &[])
+            .await
+            .map_err(CassandraError::from)
+            .and_then(|res| {
+                res.rows_or_empty()
+                    .into_iter()
+                    .map(|row| match row.columns[0] {
+                        Some(CqlValue::Text(ref s)) => Ok(s.clone()),
+                        _ => Err(CassandraError::String("invalid schema".to_string())),
+                    })
+                    .collect::<Result<Vec<String>>>()
+            })
+            .map_err(ExtensionError::access)
+    }
+
+    /// List tables for a data source.
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        let query = format!(
+            "SELECT table_name FROM system_schema.tables WHERE keyspace_name = '{}'",
+            schema
+        );
+        self.session
+            .query(query, &[])
+            .await
+            .map_err(CassandraError::from)
+            .and_then(|res| {
+                res.rows_or_empty()
+                    .into_iter()
+                    .map(|row| match row.columns[0] {
+                        Some(CqlValue::Text(ref s)) => Ok(s.clone()),
+                        _ => Err(CassandraError::String("invalid table".to_string())),
+                    })
+                    .collect::<Result<Vec<String>>>()
+            })
+            .map_err(ExtensionError::access)
+    }
+
+    /// List columns for a specific table in the datasource.
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
+        let query = format!(
+            "SELECT column_name, type FROM system_schema.columns WHERE keyspace_name = '{}' AND table_name = '{}'",
+            schema, table
+        );
+        self.session
+            .query(query, &[])
+            .await
+            .map_err(CassandraError::from)
+            .and_then(|res| {
+                res.col_specs
+                    .into_iter()
+                    .map(|c| {
+                        let name = c.name;
+                        let ty = c.typ;
+                        let dtype = try_convert_dtype(&ty)?;
+                        Ok(Field::new(name, dtype, true))
+                    })
+                    .collect::<Result<_>>()
+            })
+            .map_err(ExtensionError::access)
     }
 }
