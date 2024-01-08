@@ -53,7 +53,7 @@ select
 from glare_catalog.functions
 where function_name = 'read_parquet';
 ----
-read_parquet   table   Utf8/List<Utf8>   t   SELECT * FROM read_parquet('./my_data.parquet')   Returns a table by scanning the given Parquet file(s).
+read_parquet   table   Utf8,Utf8, ,List<Utf8>,List<Utf8>,    t   SELECT * FROM read_parquet('./my_data.parquet')   Returns a table by scanning the given Parquet file(s).
 
 # Assert an arbitrary glaredb table function exists (using an alias).
 query TTTTTT
@@ -67,7 +67,7 @@ select
 from glare_catalog.functions
 where function_name = 'parquet_scan';
 ----
-parquet_scan   table   Utf8/List<Utf8>   t   SELECT * FROM read_parquet('./my_data.parquet')   Returns a table by scanning the given Parquet file(s).
+parquet_scan   table   Utf8,Utf8, ,List<Utf8>,List<Utf8>,   t   SELECT * FROM read_parquet('./my_data.parquet')   Returns a table by scanning the given Parquet file(s).
 
 # 'array_to_string' is a tricky one since we're aliasing 'array_to_string' to
 # 'pg_catalog.array_to_string'. A more correct implementation would return two

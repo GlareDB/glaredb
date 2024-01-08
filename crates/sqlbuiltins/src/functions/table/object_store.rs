@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::{sync::Arc, vec};
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{DataType, Field};
+use datafusion::arrow::datatypes::{DataType, Field, Fields};
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
@@ -11,7 +11,7 @@ use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::object_store::ObjectStoreUrl;
-use datafusion::logical_expr::{Signature, Volatility};
+use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
 
@@ -37,6 +37,8 @@ pub struct ParquetOptionsReader;
 impl OptionReader for ParquetOptionsReader {
     type Format = ParquetFormat;
 
+    const OPTIONS: &'static [(&'static str, DataType)] = &[];
+
     fn read_options(_opts: &HashMap<String, FuncParamValue>) -> Result<Self::Format> {
         Ok(ParquetFormat::default())
     }
@@ -56,6 +58,13 @@ pub struct CsvOptionReader;
 impl OptionReader for CsvOptionReader {
     type Format = CsvFormat;
 
+    const OPTIONS: &'static [(&'static str, DataType)] = &[
+        // Specify delimiter between fields. Default: ','
+        ("delimiter", DataType::Utf8),
+        // Try to read a header. Default: true
+        ("header", DataType::Boolean),
+    ];
+
     fn read_options(opts: &HashMap<String, FuncParamValue>) -> Result<Self::Format> {
         let mut format = CsvFormat::default().with_schema_infer_max_rec(Some(20480));
 
@@ -69,6 +78,11 @@ impl OptionReader for CsvOptionReader {
             }
             let delimiter = bs[0];
             format = format.with_delimiter(delimiter);
+        }
+
+        if let Some(header) = opts.get("header") {
+            let header: bool = header.clone().try_into()?;
+            format = format.with_has_header(header);
         }
 
         Ok(format)
@@ -89,6 +103,8 @@ pub struct JsonOptionsReader;
 impl OptionReader for JsonOptionsReader {
     type Format = JsonFormat;
 
+    const OPTIONS: &'static [(&'static str, DataType)] = &[];
+
     fn read_options(_opts: &HashMap<String, FuncParamValue>) -> Result<Self::Format> {
         Ok(JsonFormat::default())
     }
@@ -104,6 +120,9 @@ pub const READ_JSON: ObjScanTableFunc<JsonOptionsReader> = ObjScanTableFunc {
 
 pub trait OptionReader: Sync + Send + Sized {
     type Format: FileFormat + WithCompression + 'static;
+
+    /// List of options and their expected data types.
+    const OPTIONS: &'static [(&'static str, DataType)];
 
     /// Read user provided options, and construct a file format usign those options.
     fn read_options(opts: &HashMap<String, FuncParamValue>) -> Result<Self::Format>;
@@ -174,11 +193,20 @@ impl<Opts: OptionReader> BuiltinFunction for ObjScanTableFunc<Opts> {
     }
 
     fn signature(&self) -> Option<Signature> {
-        Some(Signature::uniform(
-            1,
+        let opts: Fields = Opts::OPTIONS
+            .iter()
+            .map(|opt| Field::new(opt.0, opt.1.clone(), false))
+            .collect();
+
+        Some(Signature::one_of(
             vec![
-                DataType::Utf8,
-                DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))),
+                TypeSignature::Exact(vec![DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Struct(opts.clone())]),
+                TypeSignature::Exact(vec![DataType::new_list(DataType::Utf8, false)]),
+                TypeSignature::Exact(vec![
+                    DataType::new_list(DataType::Utf8, false),
+                    DataType::Struct(opts),
+                ]),
             ],
             Volatility::Stable,
         ))
