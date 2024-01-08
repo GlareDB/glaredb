@@ -1,5 +1,7 @@
 use async_trait::async_trait;
+use datafusion::arrow::datatypes::{DataType, Field, Fields};
 use datafusion::datasource::TableProvider;
+use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::common::url::DatasourceUrl;
@@ -8,6 +10,7 @@ use ioutil::resolve_path;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::field;
 
 use super::{table_location_and_opts, TableFunc};
 use crate::functions::ConstBuiltinFunction;
@@ -21,6 +24,22 @@ impl ConstBuiltinFunction for ExcelScan {
     const EXAMPLE: &'static str =
         "SELECT * FROM read_excel('file:///path/to/file.xlsx', sheet_name => 'Sheet1')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    fn signature(&self) -> Option<Signature> {
+        let options: Fields = vec![
+            Field::new("sheet_name", DataType::Utf8, true),
+            Field::new("infer_rows", DataType::UInt64, true),
+            Field::new("has_header", DataType::Boolean, true),
+        ]
+        .into_iter()
+        .collect();
+        Some(Signature::one_of(
+            vec![
+                TypeSignature::Exact(vec![DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Struct(options)]),
+            ],
+            Volatility::Stable,
+        ))
+    }
 }
 
 #[async_trait]
