@@ -12,6 +12,7 @@ use datafusion_ext::functions::{
     FuncParamValue, IdentValue, TableFuncContextProvider, VirtualLister,
 };
 use datasources::bigquery::BigQueryAccessor;
+use datasources::cassandra::CassandraAccess;
 use datasources::clickhouse::ClickhouseAccess;
 use datasources::debug::DebugVirtualLister;
 use datasources::mongodb::MongoDbAccessor;
@@ -21,9 +22,9 @@ use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection};
 use datasources::sqlserver::SqlServerAccess;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse, DatabaseOptionsMongoDb,
-    DatabaseOptionsMysql, DatabaseOptionsPostgres, DatabaseOptionsSnowflake,
-    DatabaseOptionsSqlServer,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsCassandra, DatabaseOptionsClickhouse,
+    DatabaseOptionsMongoDb, DatabaseOptionsMysql, DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer,
 };
 
 use super::TableFunc;
@@ -345,6 +346,13 @@ pub(crate) async fn get_virtual_lister_for_external_db(
         }
         DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string }) => {
             let state = ClickhouseAccess::new_from_connection_string(connection_string.clone())
+                .connect()
+                .await
+                .map_err(ExtensionError::access)?;
+            Box::new(state)
+        }
+        DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host }) => {
+            let state = CassandraAccess::new(host.to_string())
                 .connect()
                 .await
                 .map_err(ExtensionError::access)?;

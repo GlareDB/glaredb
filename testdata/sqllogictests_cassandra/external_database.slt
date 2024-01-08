@@ -1,0 +1,48 @@
+# Basic tests for external database.
+
+statement ok
+CREATE EXTERNAL DATABASE EXTERNAL_DB
+	FROM CASSANDRA
+	OPTIONS (
+		HOST = '127.0.0.1:9042',
+	);
+
+query I
+SELECT count(*) FROM external_db.test.bikeshare_stations;
+----
+102
+
+# Ensure we can query into the virtual schema.
+
+query T
+SELECT * FROM list_schemas(external_db) WHERE schema_name = 'test';
+----
+test
+
+query T
+SELECT table_name
+	FROM list_tables(external_db, test)
+	WHERE table_name = 'bikeshare_stations';
+----
+bikeshare_stations
+
+query TTT rowsort
+SELECT column_name, data_type, nullable
+	FROM list_columns(external_db, test, bikeshare_stations)
+	WHERE data_type = 'Int32';
+----
+city_asset_number		Int32 t
+council_district		Int32 t
+footprint_length		Int32 t
+number_of_docks			Int32	t
+station_id					Int32 t
+
+# TODO: Fix the error message:
+halt
+
+# Try to query non-existent table.
+statement error failed to find table: 'test.doesnotexist'
+SELECT * FROM external_db.test.doesnotexist
+
+statement ok
+DROP DATABASE external_db;

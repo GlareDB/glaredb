@@ -8,6 +8,8 @@ pub enum CassandraError {
     UnsupportedDataType(String),
     #[error("Table not found: {0}")]
     TableNotFound(String),
+    #[error("{0}")]
+    String(String),
 }
 
 pub type Result<T, E = CassandraError> = std::result::Result<T, E>;

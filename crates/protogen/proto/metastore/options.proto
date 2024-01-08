@@ -47,6 +47,7 @@ message DatabaseOptions {
     DatabaseOptionsDeltaLake delta = 8;
     DatabaseOptionsSqlServer sql_server = 9;
     DatabaseOptionsClickhouse clickhouse = 10;
+    DatabaseOptionsCassandra cassandra = 11;
   }
   // next: 11
 }
@@ -78,6 +79,10 @@ message DatabaseOptionsSqlServer {
 
 message DatabaseOptionsClickhouse {
   string connection_string = 1;
+}
+
+message DatabaseOptionsCassandra {
+  string host = 1;
 }
 
 message DatabaseOptionsSnowflake {
