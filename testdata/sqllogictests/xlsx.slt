@@ -20,15 +20,15 @@ select "Resources", "Cost", "Revenue" from read_excel(
 
 
 # https://github.com/GlareDB/glaredb/issues/2372
-statement ok
-select "HEADING" from read_excel('file://${PWD}/testdata/xlsx/multiple_sheets.xlsx', sheet => 'other', has_header => true)
----
+query T
+select "HEADING" from read_excel('file://${PWD}/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', has_header => true)
+----
 1
 2
 3
 
 # negatives are not allowed for infer_rows
 statement error
-select * from read_excel('file://${PWD}/testdata/xlsx/multiple_sheets.xlsx', sheet => 'other', infer_rows => -1)
+select * from read_excel('file://${PWD}/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', infer_rows => -1);
 
 
