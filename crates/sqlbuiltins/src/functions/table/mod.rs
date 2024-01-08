@@ -48,6 +48,7 @@ use self::sqlserver::ReadSqlServer;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
 
+use super::alias_map::AliasMap;
 use super::BuiltinFunction;
 
 /// A builtin table function.
@@ -74,7 +75,7 @@ pub trait TableFunc: BuiltinFunction {
 
 /// All builtin table functions.
 pub struct BuiltinTableFuncs {
-    pub funcs: HashMap<String, Arc<dyn TableFunc>>,
+    pub funcs: AliasMap<String, Arc<dyn TableFunc>>,
 }
 
 impl BuiltinTableFuncs {
@@ -111,27 +112,20 @@ impl BuiltinTableFuncs {
             Arc::new(CacheExternalDatabaseTables),
         ];
 
-        let funcs: HashMap<String, Arc<dyn TableFunc>> = funcs
+        let funcs: AliasMap<String, Arc<dyn TableFunc>> = funcs
             .into_iter()
-            .flat_map(|func| {
+            .map(|func| {
                 // Ensure function can be referenced through name or alias.
-                [func.aliases(), &[func.name()]]
+                let keys = [func.aliases(), &[func.name()]]
                     .concat()
                     .into_iter()
-                    .map(|name| (name.to_string(), func.clone()))
-                    .collect::<Vec<_>>()
+                    .map(|s| s.to_string())
+                    .collect();
+                (keys, func)
             })
             .collect();
 
         BuiltinTableFuncs { funcs }
-    }
-
-    pub fn find_function(&self, name: &str) -> Option<&Arc<dyn TableFunc>> {
-        self.funcs.get(name)
-    }
-
-    pub fn iter_funcs(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
-        self.funcs.values()
     }
 }
 
@@ -255,11 +249,12 @@ mod tests {
             "parquet_scan",
         ];
 
-        let funcs = BuiltinTableFuncs::new();
+        let builtin = BuiltinTableFuncs::new();
 
         for name in names_and_aliases {
-            funcs
-                .find_function(name)
+            builtin
+                .funcs
+                .get(name)
                 .expect(&format!("function with name '{name}' should exist"));
         }
     }
