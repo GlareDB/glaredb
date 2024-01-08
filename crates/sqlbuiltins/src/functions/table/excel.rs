@@ -1,5 +1,7 @@
 use async_trait::async_trait;
+use datafusion::arrow::datatypes::{DataType, Field, Fields};
 use datafusion::datasource::TableProvider;
+use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::common::url::DatasourceUrl;
@@ -21,6 +23,22 @@ impl ConstBuiltinFunction for ExcelScan {
     const EXAMPLE: &'static str =
         "SELECT * FROM read_excel('file:///path/to/file.xlsx', sheet_name => 'Sheet1')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    fn signature(&self) -> Option<Signature> {
+        let options: Fields = vec![
+            Field::new("sheet_name", DataType::Utf8, true),
+            Field::new("infer_rows", DataType::UInt64, true),
+            Field::new("has_header", DataType::Boolean, true),
+        ]
+        .into_iter()
+        .collect();
+        Some(Signature::one_of(
+            vec![
+                TypeSignature::Exact(vec![DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Struct(options)]),
+            ],
+            Volatility::Stable,
+        ))
+    }
 }
 
 #[async_trait]
