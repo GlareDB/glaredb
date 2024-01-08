@@ -31,11 +31,6 @@ datafusion_ext = { path = "../datafusion_ext" }
 metastore = { path = "../metastore" }
 rpcsrv = { path = "../rpcsrv" }
 
-[[test]]
-harness = false
-name = "sqllogictests"
-path = "tests/sqllogictests/main.rs"
-
 [[bin]]
 name = "slt"
 path = "src/main.rs"
