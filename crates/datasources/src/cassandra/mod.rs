@@ -100,7 +100,7 @@ fn try_convert_dtype_string(ty: &str) -> Result<DataType> {
         "uuid" => DataType::Utf8,
         "bigint" => DataType::Int64,
         // list<T>
-        lst if lst.contains("<") => {
+        lst if lst.contains('<') => {
             // get the inner type from "list<{inner}>"
             let inner = lst.split('<').nth(1).and_then(|s| s.split('>').next());
 
