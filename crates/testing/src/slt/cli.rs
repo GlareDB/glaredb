@@ -145,7 +145,8 @@ impl Cli {
         let mut tests: Vec<_> = if let Some(patterns) = &self.tests_pattern {
             let patterns = patterns
                 .iter()
-                .map(|p| glob::Pattern::new(p))
+                .map(|p| p.trim_end_matches(".slt"))
+                .map(glob::Pattern::new)
                 .collect::<Result<Vec<_>, _>>()?;
 
             tests

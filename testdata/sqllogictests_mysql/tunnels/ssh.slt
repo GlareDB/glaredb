@@ -1,5 +1,4 @@
 # SSH Tunnels test with MySQL
-
 statement ok
 CREATE EXTERNAL DATABASE test_db
 	FROM mysql
@@ -22,7 +21,6 @@ CREATE EXTERNAL TABLE basic
 include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti
 
 # Validate when tunnel is invalid.
-
 statement ok
 CREATE TUNNEL test_err_tunnel
 	FROM ssh
