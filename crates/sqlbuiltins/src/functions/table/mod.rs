@@ -127,14 +127,6 @@ impl BuiltinTableFuncs {
 
         BuiltinTableFuncs { funcs }
     }
-
-    pub fn find_function(&self, name: &str) -> Option<&Arc<dyn TableFunc>> {
-        self.funcs.get(name)
-    }
-
-    pub fn iter_funcs(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
-        self.funcs.values()
-    }
 }
 
 impl Default for BuiltinTableFuncs {
@@ -257,11 +249,12 @@ mod tests {
             "parquet_scan",
         ];
 
-        let funcs = BuiltinTableFuncs::new();
+        let builtin = BuiltinTableFuncs::new();
 
         for name in names_and_aliases {
-            funcs
-                .find_function(name)
+            builtin
+                .funcs
+                .get(name)
                 .expect(&format!("function with name '{name}' should exist"));
         }
     }

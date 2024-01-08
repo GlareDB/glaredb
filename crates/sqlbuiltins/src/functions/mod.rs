@@ -4,7 +4,6 @@ mod alias_map;
 mod scalars;
 mod table;
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
@@ -197,7 +196,6 @@ impl FunctionRegistry {
         let udfs = udfs
             .into_iter()
             .map(|f| {
-                let entry = (f.name().to_string(), f.clone());
                 // TODO: This is very weird to do here as this completely
                 // bypasses our schema resolution. It also results in duplicate
                 // function entries with the same name as the function's `name`
@@ -250,21 +248,29 @@ impl FunctionRegistry {
         self.udfs.get(name).cloned()
     }
 
+    pub fn get_table_func(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
+        self.table_funcs.funcs.get(name).cloned()
+    }
+
+    /// Iterate over all scalar funcs.
+    ///
+    /// A function will only be returned once, even if it has multiple aliases.
     pub fn scalar_funcs_iter(&self) -> impl Iterator<Item = &Arc<dyn BuiltinFunction>> {
         self.funcs.values()
     }
 
+    /// Iterate over all scalar udfs.
+    ///
+    /// A function will only be returned once, even if it has multiple aliases.
     pub fn scalar_udfs_iter(&self) -> impl Iterator<Item = &Arc<dyn BuiltinScalarUDF>> {
         self.udfs.values()
     }
 
-    /// Return an iterator over all builtin table functions.
+    /// Iterate over all table funcs.
+    ///
+    /// A function will only be returned once, even if it has multiple aliases.
     pub fn table_funcs_iter(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
-        self.table_funcs.iter_funcs()
-    }
-
-    pub fn get_table_func(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
-        self.table_funcs.find_function(name).cloned()
+        self.table_funcs.funcs.values()
     }
 
     /// Get a function description.
@@ -277,7 +283,7 @@ impl FunctionRegistry {
         if let Some(func) = self.udfs.get(name) {
             return func.description();
         }
-        if let Some(func) = self.table_funcs.find_function(name) {
+        if let Some(func) = self.table_funcs.funcs.get(name) {
             return func.description();
         }
         None
@@ -293,7 +299,7 @@ impl FunctionRegistry {
         if let Some(func) = self.udfs.get(name) {
             return func.sql_example();
         }
-        if let Some(func) = self.table_funcs.find_function(name) {
+        if let Some(func) = self.table_funcs.funcs.get(name) {
             return func.sql_example();
         }
         None
@@ -337,6 +343,7 @@ macro_rules! document {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn get_function_info() {
@@ -376,5 +383,34 @@ mod tests {
         functions
             .get_function_description("read_parquet")
             .expect("'read_parquet' should have description");
+    }
+
+    #[test]
+    fn func_iters_return_one_copy() {
+        // Assert that iterators only ever return a single reference to a
+        // function, even if it has multiple aliases. This is needed to keep our
+        // catalog clean.
+        let functions = FunctionRegistry::new();
+
+        fn find_duplicates(names: Vec<&str>) -> Vec<&str> {
+            let mut deduped: HashSet<_> = names.clone().into_iter().collect();
+            let diff: Vec<_> = names
+                .into_iter()
+                .filter(|name| {
+                    let was_present = deduped.remove(name);
+                    !was_present // We saw this value before, indicates a duplicated name.
+                })
+                .collect();
+            diff
+        }
+
+        let names: Vec<_> = functions.scalar_udfs_iter().map(|f| f.name()).collect();
+        assert_eq!(Vec::<&str>::new(), find_duplicates(names));
+
+        let names: Vec<_> = functions.scalar_funcs_iter().map(|f| f.name()).collect();
+        assert_eq!(Vec::<&str>::new(), find_duplicates(names));
+
+        let names: Vec<_> = functions.table_funcs_iter().map(|f| f.name()).collect();
+        assert_eq!(Vec::<&str>::new(), find_duplicates(names));
     }
 }
