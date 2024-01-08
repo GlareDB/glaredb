@@ -12,6 +12,8 @@ use once_cell::sync::Lazy;
 use protogen::metastore::types::catalog::FunctionType;
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
+#[cfg(feature = "jq")]
+use scalars::jq::JQ;
 use scalars::kdl::{KDLMatches, KDLSelect};
 use scalars::postgres::*;
 use scalars::{ConnectionId, Version};
@@ -179,9 +181,11 @@ impl FunctionRegistry {
             // System functions
             Arc::new(ConnectionId),
             Arc::new(Version),
-            // KDL functions
+            // Document functions
             Arc::new(KDLMatches),
             Arc::new(KDLSelect),
+            #[cfg(feature = "jq")]
+            Arc::new(JQ),
             // Hashing/Partitioning
             Arc::new(SipHash),
             Arc::new(FnvHash),

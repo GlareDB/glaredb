@@ -3,6 +3,8 @@ use memoize::memoize;
 
 use super::*;
 
+use crate::errors::BuiltinError;
+
 pub struct KDLSelect;
 
 impl ConstBuiltinFunction for KDLSelect {

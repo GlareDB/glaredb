@@ -29,6 +29,10 @@ pub enum BuiltinError {
     #[error(transparent)]
     KdlError(#[from] kdl::KdlError),
 
+    #[cfg(feature = "jq")]
+    #[error("jq execution error: {0}")]
+    JQError(String),
+
     #[error("DataFusionError: {0}")]
     DataFusionError(String),
 
