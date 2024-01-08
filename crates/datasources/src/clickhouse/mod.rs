@@ -5,6 +5,8 @@ mod stream;
 use clickhouse_rs::types::DateTimeType;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{ClickhouseError, Result};
 use parking_lot::Mutex;
@@ -12,7 +14,7 @@ use parking_lot::Mutex;
 use async_trait::async_trait;
 use clickhouse_rs::{ClientHandle, Options, Pool};
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -22,13 +24,15 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
-use futures::StreamExt;
 use std::any::Any;
-use std::fmt;
+use std::borrow::Cow;
+use std::fmt::{self, Display, Write};
 use std::sync::Arc;
+use std::time::Duration;
 use url::Url;
 
 use crate::clickhouse::stream::BlockStream;
+use crate::common::util;
 
 #[derive(Debug, Clone)]
 pub struct ClickhouseAccess {
@@ -50,14 +54,18 @@ impl ClickhouseAccess {
     }
 
     /// Validate that we have access to a specific table.
-    pub async fn validate_table_access(&self, table: &str) -> Result<()> {
+    pub async fn validate_table_access(&self, table_ref: ClickhouseTableRef<'_>) -> Result<()> {
         let state = ClickhouseAccessState::connect(&self.conn_string).await?;
-        let _schema = state.get_table_schema(table).await?;
+        let _schema = state.get_table_schema(table_ref).await?;
         Ok(())
+    }
+
+    pub async fn connect(&self) -> Result<ClickhouseAccessState> {
+        ClickhouseAccessState::connect(&self.conn_string).await
     }
 }
 
-struct ClickhouseAccessState {
+pub struct ClickhouseAccessState {
     // TODO: We currently limit the pool to 1 connection to have it behave
     // similarly to our other data sources. We will likely want to actually make
     // use of a connection pool to avoid creating connections on every query.
@@ -69,28 +77,99 @@ struct ClickhouseAccessState {
 
 impl ClickhouseAccessState {
     async fn connect(conn_str: &str) -> Result<Self> {
-        let pool = Pool::new(Options::new(Url::parse(conn_str)?).pool_min(1).pool_max(1));
+        let conn_str = Url::parse(conn_str)?;
+
+        // Verify that the conn_str has "clickhouse://" protocol.
+        if conn_str.scheme() != "clickhouse" {
+            return Err(ClickhouseError::String(format!(
+                "Expected url with scheme `clickhouse://`, got: `{}`",
+                conn_str.scheme()
+            )));
+        }
+
+        let mut secure = false;
+        for (key, _val) in conn_str.query_pairs() {
+            if key.as_ref() == "s" || key.as_ref() == "secure" {
+                secure = true;
+                break;
+            }
+        }
+
+        let addr = {
+            let port = if let Some(port) = conn_str.port() {
+                port
+            } else if secure {
+                9440
+            } else {
+                9000
+            };
+            if port == 9440 && !secure {
+                // We assume that if someone is trying to connect to port 9440,
+                // they are trying to connect to the Clickhouse Cloud on the
+                // TLS port. Due to a panic, we error early. In a rare scenario,
+                // this might be incorrect. So we should fix and push the fix
+                // upstream.
+                //
+                // Issue to track: https://github.com/GlareDB/glaredb/issues/2360
+                return Err(ClickhouseError::String(
+                    "Cannot connect to SSL/TLS port without secure parameter enabled.
+Enable secure param in connection string:
+    `clickhouse://<user>:<password>@<host>:<port>/?secure`"
+                        .to_string(),
+                ));
+            }
+            let mut addr = if let Some(host) = conn_str.host_str() {
+                format!("tcp://default@{host}").parse::<Url>()?
+            } else {
+                "tcp://default@127.0.0.1".parse::<Url>()?
+            };
+            addr.set_port(Some(port)).map_err(|_| {
+                ClickhouseError::String("unable to set port for clickhouse URL".to_string())
+            })?;
+            addr
+        };
+
+        // Clickhouse sets the service to "idle" when not queried for a while.
+        // Waking up the service can sometimes take from 20-30 seconds, hence
+        // setting the timeout accordingly.
+        let timeout = Duration::from_secs(30);
+
+        let mut opts = Options::new(addr)
+            .pool_min(1)
+            .pool_max(1)
+            .secure(secure)
+            .ping_timeout(timeout)
+            .connection_timeout(timeout);
+
+        if let Some(mut path) = conn_str.path_segments() {
+            if let Some(database) = path.next() {
+                opts = opts.database(database);
+            }
+        }
+
+        let user = conn_str.username();
+        if !user.is_empty() {
+            opts = opts.username(user);
+        }
+
+        if let Some(password) = conn_str.password() {
+            opts = opts.password(password);
+        }
+
+        let pool = Pool::new(opts);
         let mut client = pool.get_handle().await?;
         client.ping().await?;
 
         Ok(ClickhouseAccessState { pool })
     }
 
-    async fn get_table_schema(&self, name: &str) -> Result<ArrowSchema> {
+    async fn get_table_schema(&self, table_ref: ClickhouseTableRef<'_>) -> Result<ArrowSchema> {
         let mut client = self.pool.get_handle().await?;
-        // TODO: Does clickhouse actually return blocks for empty data sets?
-        let mut blocks = client
-            .query(format!("SELECT * FROM {name} LIMIT 1"))
-            .stream_blocks();
 
-        let block = match blocks.next().await {
-            Some(block) => block?,
-            None => {
-                return Err(ClickhouseError::String(
-                    "unable to determine schema for table, no blocks returned".to_string(),
-                ))
-            }
-        };
+        let block = client
+            .query(format!("SELECT * FROM {table_ref} LIMIT 0"))
+            .fetch_all()
+            .await?;
 
         let mut fields = Vec::with_capacity(block.columns().len());
         for col in block.columns() {
@@ -117,32 +196,18 @@ impl ClickhouseAccessState {
                     SqlType::Float64 => DataType::Float64,
                     SqlType::String | SqlType::FixedString(_) => DataType::Utf8,
                     // Clickhouse has both a 'Date' type (2 bytes) and a
-                    // 'Date32' type (4 bytes). I think they're both represented
-                    // with this one variant.
+                    // 'Date32' type (4 bytes). The library doesn't support
+                    // 'Date32' type yet.
+                    // TODO: Maybe upstream support for Date32?
                     SqlType::Date => DataType::Date32,
                     SqlType::DateTime(DateTimeType::DateTime32) => {
-                        DataType::Timestamp(TimeUnit::Second, None)
+                        DataType::Timestamp(TimeUnit::Nanosecond, None)
                     }
-                    SqlType::DateTime(DateTimeType::DateTime64(precision, tz)) => {
-                        // Precision represents the tick size, computed as
-                        // 10^precision seconds.
-                        //
-                        // <https://clickhouse.com/docs/en/sql-reference/data-types/datetime64>
-                        let unit = match *precision {
-                            0 => TimeUnit::Second,
-                            3 => TimeUnit::Millisecond,
-                            6 => TimeUnit::Microsecond,
-                            9 => TimeUnit::Nanosecond,
-                            other => {
-                                return Err(ClickhouseError::String(format!(
-                                    "unsupported time precision: {other}"
-                                )))
-                            }
-                        };
-
-                        let tz: Arc<str> = tz.to_string().into_boxed_str().into();
-
-                        DataType::Timestamp(unit, Some(tz))
+                    SqlType::DateTime(DateTimeType::DateTime64(_precision, tz)) => {
+                        // We store all timestamps in nanos, so the precision
+                        // here doesn't matter. clickhouse_rs crate handles this
+                        // for us.
+                        DataType::Timestamp(TimeUnit::Nanosecond, Some(tz.to_string().into()))
                     }
                     other => {
                         return Err(ClickhouseError::String(format!(
@@ -165,21 +230,79 @@ impl ClickhouseAccessState {
     }
 }
 
+#[async_trait]
+impl VirtualLister for ClickhouseAccessState {
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        let query = "SELECT schema_name FROM information_schema.schemata";
+
+        let mut client = self
+            .pool
+            .get_handle()
+            .await
+            .map_err(ExtensionError::access)?;
+
+        let block = client
+            .query(query)
+            .fetch_all()
+            .await
+            .map_err(ExtensionError::access)?;
+
+        block
+            .rows()
+            .map(|row| row.get::<String, usize>(0).map_err(ExtensionError::access))
+            .collect::<Result<Vec<_>, ExtensionError>>()
+    }
+
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        let query = format!(
+            "SELECT table_name FROM information_schema.tables
+WHERE table_schema = '{schema}'"
+        );
+
+        let mut client = self
+            .pool
+            .get_handle()
+            .await
+            .map_err(ExtensionError::access)?;
+
+        let block = client
+            .query(query)
+            .fetch_all()
+            .await
+            .map_err(ExtensionError::access)?;
+
+        block
+            .rows()
+            .map(|row| row.get::<String, usize>(0).map_err(ExtensionError::access))
+            .collect::<Result<Vec<_>, ExtensionError>>()
+    }
+
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
+        let table_ref = ClickhouseTableRef::new(Some(schema), table);
+        self.get_table_schema(table_ref)
+            .await
+            .map(|s| s.fields)
+            .map_err(ExtensionError::access)
+    }
+}
+
 pub struct ClickhouseTableProvider {
     state: Arc<ClickhouseAccessState>,
-    table: String,
+    table_ref: OwnedClickhouseTableRef,
     schema: Arc<ArrowSchema>,
 }
 
 impl ClickhouseTableProvider {
-    pub async fn try_new(access: ClickhouseAccess, table: impl Into<String>) -> Result<Self> {
-        let table = table.into();
+    pub async fn try_new(
+        access: ClickhouseAccess,
+        table_ref: OwnedClickhouseTableRef,
+    ) -> Result<Self> {
         let state = Arc::new(ClickhouseAccessState::connect(&access.conn_string).await?);
-        let schema = Arc::new(state.get_table_schema(&table).await?);
+        let schema = Arc::new(state.get_table_schema(table_ref.as_ref()).await?);
 
         Ok(ClickhouseTableProvider {
             state,
-            table,
+            table_ref,
             schema,
         })
     }
@@ -210,8 +333,8 @@ impl TableProvider for ClickhouseTableProvider {
         &self,
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
-        _limit: Option<usize>,
+        filters: &[Expr],
+        limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let projected_schema = match projection {
             Some(projection) => Arc::new(self.schema.project(projection)?),
@@ -227,9 +350,19 @@ impl TableProvider for ClickhouseTableProvider {
             .collect::<Vec<_>>()
             .join(",");
 
-        // TODO: Where, Limit
+        let mut query = format!("SELECT {} FROM {}", projection_string, self.table_ref);
 
-        let query = format!("SELECT {} FROM {};", projection_string, self.table);
+        let predicate_string = {
+            exprs_to_predicate_string(filters)
+                .map_err(|e| DataFusionError::External(Box::new(e)))?
+        };
+        if !predicate_string.is_empty() {
+            write!(&mut query, " WHERE {predicate_string}")?;
+        }
+
+        if let Some(limit) = limit {
+            write!(&mut query, " LIMIT {limit}")?;
+        }
 
         let client =
             self.state.pool.get_handle().await.map_err(|e| {
@@ -359,5 +492,112 @@ impl fmt::Debug for ClickhouseExec {
             .field("schema", &self.schema)
             .field("query", &self.query)
             .finish_non_exhaustive()
+    }
+}
+
+/// Convert filtering expressions to a predicate string usable with the
+/// generated Postgres query.
+fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
+    let mut ss = Vec::new();
+    let mut buf = String::new();
+    for expr in exprs {
+        if try_write_expr(expr, &mut buf)? {
+            ss.push(buf);
+            buf = String::new();
+        }
+    }
+
+    Ok(ss.join(" AND "))
+}
+
+/// Try to write the expression to the string, returning true if it was written.
+fn try_write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
+    match expr {
+        Expr::Column(col) => {
+            write!(buf, "{}", col)?;
+        }
+        Expr::Literal(val) => {
+            util::encode_literal_to_text(util::Datasource::Clickhouse, buf, val)?;
+        }
+        Expr::IsNull(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS NULL")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsNotNull(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS NOT NULL")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsTrue(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS TRUE")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsFalse(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS FALSE")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::BinaryExpr(binary) => {
+            if !try_write_expr(binary.left.as_ref(), buf)? {
+                return Ok(false);
+            }
+            write!(buf, " {} ", binary.op)?;
+            if !try_write_expr(binary.right.as_ref(), buf)? {
+                return Ok(false);
+            }
+        }
+        _ => {
+            // Unsupported.
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
+#[derive(Debug, Clone)]
+pub struct ClickhouseTableRef<'a> {
+    database: Option<Cow<'a, str>>,
+    table: Cow<'a, str>,
+}
+
+impl<'a> ClickhouseTableRef<'a> {
+    pub fn new<S, T>(database: Option<S>, table: T) -> Self
+    where
+        S: Into<Cow<'a, str>>,
+        T: Into<Cow<'a, str>>,
+    {
+        Self {
+            database: database.map(Into::into),
+            table: table.into(),
+        }
+    }
+
+    pub fn as_ref(&self) -> ClickhouseTableRef<'_> {
+        ClickhouseTableRef {
+            database: self.database.as_ref().map(|s| s.as_ref().into()),
+            table: self.table.as_ref().into(),
+        }
+    }
+}
+
+pub type OwnedClickhouseTableRef = ClickhouseTableRef<'static>;
+
+impl<'a> Display for ClickhouseTableRef<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(schema) = self.database.as_ref() {
+            write!(f, "{schema}.")?;
+        }
+        write!(f, "{}", self.table)
     }
 }

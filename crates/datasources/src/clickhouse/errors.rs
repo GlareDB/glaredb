@@ -6,6 +6,10 @@ pub enum ClickhouseError {
     UrlParse(#[from] url::ParseError),
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
+    #[error(transparent)]
+    DatasourceCommon(#[from] crate::common::errors::DatasourceCommonError),
+    #[error(transparent)]
+    Fmt(#[from] std::fmt::Error),
     #[error("{0}")]
     String(String),
 }

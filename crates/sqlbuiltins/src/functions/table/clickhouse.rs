@@ -4,10 +4,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::datasource::TableProvider;
-use datafusion::logical_expr::{Signature, Volatility};
+use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider};
+use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider, OwnedClickhouseTableRef};
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
 use super::TableFunc;
@@ -24,9 +24,11 @@ impl ConstBuiltinFunction for ReadClickhouse {
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 
     fn signature(&self) -> Option<Signature> {
-        Some(Signature::uniform(
-            2,
-            vec![DataType::Utf8],
+        Some(Signature::one_of(
+            vec![
+                TypeSignature::Uniform(2, vec![DataType::Utf8]),
+                TypeSignature::Uniform(3, vec![DataType::Utf8]),
+            ],
             Volatility::Stable,
         ))
     }
@@ -48,20 +50,30 @@ impl TableFunc for ReadClickhouse {
         args: Vec<FuncParamValue>,
         _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        match args.len() {
+        let total_args = args.len();
+        let mut args = args.into_iter();
+        let conn_string: String = args.next().unwrap().try_into()?;
+
+        let table_ref = match total_args {
             2 => {
-                let mut args = args.into_iter();
-                let conn_string: String = args.next().unwrap().try_into()?;
+                let schema: Option<String> = None;
                 let table: String = args.next().unwrap().try_into()?;
-
-                let access = ClickhouseAccess::new_from_connection_string(conn_string);
-                let prov = ClickhouseTableProvider::try_new(access, &table)
-                    .await
-                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
-
-                Ok(Arc::new(prov))
+                OwnedClickhouseTableRef::new(schema, table)
             }
-            _ => Err(ExtensionError::InvalidNumArgs),
-        }
+            3 => {
+                let schema: String = args.next().unwrap().try_into()?;
+                let table: String = args.next().unwrap().try_into()?;
+                OwnedClickhouseTableRef::new(Some(schema), table)
+            }
+            _ => return Err(ExtensionError::InvalidNumArgs),
+        };
+
+        let access = ClickhouseAccess::new_from_connection_string(conn_string);
+
+        let prov = ClickhouseTableProvider::try_new(access, table_ref)
+            .await
+            .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+
+        Ok(Arc::new(prov))
     }
 }
