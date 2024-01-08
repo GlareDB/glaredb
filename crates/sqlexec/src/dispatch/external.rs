@@ -13,6 +13,7 @@ use datafusion::prelude::SessionContext;
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::bson::table::bson_streaming_table;
+use datasources::cassandra::CassandraTableProvider;
 use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider, OwnedClickhouseTableRef};
 use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
@@ -36,10 +37,10 @@ use protogen::metastore::types::options::{
     DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsCassandra, DatabaseOptionsClickhouse,
     DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, TableOptions,
-    TableOptionsBigQuery, TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs,
-    TableOptionsInternal, TableOptionsLocal, TableOptionsMongoDb, TableOptionsMysql,
-    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
-    TableOptionsSqlServer, TunnelOptions,
+    TableOptionsBigQuery, TableOptionsCassandra, TableOptionsClickhouse, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongoDb,
+    TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3,
+    TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
@@ -503,6 +504,17 @@ impl<'a> ExternalDispatcher<'a> {
                     bson_streaming_table(store_access, schema_sample_size.to_owned(), source_url)
                         .await?,
                 )
+            }
+            TableOptions::Cassandra(TableOptionsCassandra {
+                host,
+                keyspace,
+                table,
+            }) => {
+                let table =
+                    CassandraTableProvider::try_new(host.clone(), keyspace.clone(), table.clone())
+                        .await?;
+
+                Ok(Arc::new(table))
             }
         }
     }
