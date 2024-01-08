@@ -12,6 +12,7 @@ use datafusion_ext::functions::{
     FuncParamValue, IdentValue, TableFuncContextProvider, VirtualLister,
 };
 use datasources::bigquery::BigQueryAccessor;
+use datasources::cassandra::CassandraAccess;
 use datasources::clickhouse::ClickhouseAccess;
 use datasources::debug::DebugVirtualLister;
 use datasources::mongodb::MongoDbAccessor;
@@ -351,7 +352,11 @@ pub(crate) async fn get_virtual_lister_for_external_db(
             Box::new(state)
         }
         DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host }) => {
-            todo!()
+            let state = CassandraAccess::new(host.to_string())
+                .connect()
+                .await
+                .map_err(ExtensionError::access)?;
+            Box::new(state)
         }
         DatabaseOptions::Delta(_) => {
             return Err(ExtensionError::Unimplemented(

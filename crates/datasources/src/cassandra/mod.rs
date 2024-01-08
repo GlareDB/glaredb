@@ -84,6 +84,34 @@ fn try_convert_dtype(ty: &ColumnType) -> Result<DataType> {
         _ => return Err(CassandraError::UnsupportedDataType(format!("{:?}", ty))),
     })
 }
+fn try_convert_dtype_string(ty: &str) -> Result<DataType> {
+    Ok(match ty {
+        "custom" => return Err(CassandraError::UnsupportedDataType(ty.to_string())),
+        "ascii" => DataType::Utf8,
+        "date" => DataType::Date64,
+        "double" => DataType::Float64,
+        "duration" => DataType::Duration(TimeUnit::Nanosecond),
+        "float" => DataType::Float32,
+        "int" => DataType::Int32,
+        "text" => DataType::Utf8,
+        "timestamp" => DataType::Timestamp(TimeUnit::Millisecond, None),
+        "smallint" => DataType::Int16,
+        "tinyint" => DataType::Int8,
+        "uuid" => DataType::Utf8,
+        "bigint" => DataType::Int64,
+        // list<T>
+        lst if lst.contains("<") => {
+            // get the inner type from "list<{inner}>"
+            let inner = lst.split('<').nth(1).and_then(|s| s.split('>').next());
+
+            match inner {
+                Some(inner) => DataType::new_list(try_convert_dtype_string(inner)?, true),
+                None => return Err(CassandraError::UnsupportedDataType(ty.to_string())),
+            }
+        }
+        _ => return Err(CassandraError::UnsupportedDataType(ty.to_string())),
+    })
+}
 
 impl CassandraAccessState {
     pub async fn try_new(host: impl AsRef<str>) -> Result<Self> {
@@ -212,7 +240,7 @@ impl TableProvider for CassandraTableProvider {
 impl VirtualLister for CassandraAccessState {
     /// List schemas for a data source.
     async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
-        let query = "SELECT keyspace_name FROM information_schema.schemata";
+        let query = "SELECT keyspace_name FROM system_schema.keyspaces";
         self.session
             .query(query, &[])
             .await
@@ -262,12 +290,19 @@ impl VirtualLister for CassandraAccessState {
             .await
             .map_err(CassandraError::from)
             .and_then(|res| {
-                res.col_specs
+                res.rows_or_empty()
                     .into_iter()
-                    .map(|c| {
-                        let name = c.name;
-                        let ty = c.typ;
-                        let dtype = try_convert_dtype(&ty)?;
+                    .map(|row| {
+                        let name = match row.columns[0] {
+                            Some(CqlValue::Text(ref s)) => s.clone(),
+                            _ => return Err(CassandraError::String("invalid column".to_string())),
+                        };
+                        let ty = match row.columns[1] {
+                            Some(CqlValue::Text(ref s)) => s.clone(),
+                            _ => return Err(CassandraError::String("invalid column".to_string())),
+                        };
+                        let dtype = try_convert_dtype_string(&ty)?;
+
                         Ok(Field::new(name, dtype, true))
                     })
                     .collect::<Result<_>>()

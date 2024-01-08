@@ -8,27 +8,27 @@ CREATE EXTERNAL DATABASE EXTERNAL_DB
 	);
 
 query I
-SELECT count(*) FROM external_db.default.bikeshare_stations;
+SELECT count(*) FROM external_db.test.bikeshare_stations;
 ----
 102
 
 # Ensure we can query into the virtual schema.
 
 query T
-SELECT * FROM list_schemas(external_db) WHERE schema_name = 'default';
+SELECT * FROM list_schemas(external_db) WHERE schema_name = 'test';
 ----
-default
+test
 
 query T
 SELECT table_name
-	FROM list_tables(external_db, default)
+	FROM list_tables(external_db, test)
 	WHERE table_name = 'bikeshare_stations';
 ----
 bikeshare_stations
 
 query TTT rowsort
 SELECT column_name, data_type, nullable
-	FROM list_columns(external_db, default, bikeshare_stations)
+	FROM list_columns(external_db, test, bikeshare_stations)
 	WHERE data_type = 'Int32';
 ----
 city_asset_number	Int32	t
@@ -41,8 +41,8 @@ station_id			Int32	f
 halt
 
 # Try to query non-existent table.
-statement error failed to find table: 'default.doesnotexist'
-SELECT * FROM external_db.default.doesnotexist
+statement error failed to find table: 'test.doesnotexist'
+SELECT * FROM external_db.test.doesnotexist
 
 statement ok
 DROP DATABASE external_db;

@@ -230,7 +230,13 @@ impl<'a> ExternalDispatcher<'a> {
                 Ok(Arc::new(table))
             }
             DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host }) => {
-                todo!()
+                let table = CassandraTableProvider::try_new(
+                    host.clone(),
+                    schema.to_string(),
+                    name.to_string(),
+                )
+                .await?;
+                Ok(Arc::new(table))
             }
         }
     }
