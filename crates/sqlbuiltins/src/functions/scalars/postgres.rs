@@ -6,7 +6,7 @@ use super::{df_scalars::array_to_string, *};
 
 const PG_CATALOG_NAMESPACE: FunctionNamespace = FunctionNamespace::Optional("pg_catalog");
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct PgGetUserById;
 
 impl ConstBuiltinFunction for PgGetUserById {
@@ -45,7 +45,7 @@ impl BuiltinScalarUDF for PgGetUserById {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct PgTableIsVisible;
 
 impl ConstBuiltinFunction for PgTableIsVisible {
@@ -91,7 +91,7 @@ impl BuiltinScalarUDF for PgTableIsVisible {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct PgEncodingToChar;
 
 impl ConstBuiltinFunction for PgEncodingToChar {
@@ -139,7 +139,7 @@ impl BuiltinScalarUDF for PgEncodingToChar {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct HasSchemaPrivilege;
 
 impl ConstBuiltinFunction for HasSchemaPrivilege {
@@ -179,7 +179,7 @@ impl BuiltinScalarUDF for HasSchemaPrivilege {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct HasDatabasePrivilege;
 
 impl ConstBuiltinFunction for HasDatabasePrivilege {
@@ -219,7 +219,7 @@ impl BuiltinScalarUDF for HasDatabasePrivilege {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct HasTablePrivilege;
 impl ConstBuiltinFunction for HasTablePrivilege {
     const NAME: &'static str = "has_table_privilege";
@@ -258,7 +258,7 @@ impl BuiltinScalarUDF for HasTablePrivilege {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct CurrentSchemas;
 
 impl ConstBuiltinFunction for CurrentSchemas {
@@ -300,7 +300,7 @@ impl BuiltinScalarUDF for CurrentSchemas {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct CurrentUser;
 
 impl ConstBuiltinFunction for CurrentUser {
@@ -321,7 +321,7 @@ impl BuiltinScalarUDF for CurrentUser {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct CurrentRole;
 
 impl ConstBuiltinFunction for CurrentRole {
@@ -347,7 +347,7 @@ impl BuiltinScalarUDF for CurrentRole {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct CurrentSchema;
 
 impl ConstBuiltinFunction for CurrentSchema {
@@ -373,7 +373,7 @@ impl BuiltinScalarUDF for CurrentSchema {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct CurrentDatabase;
 
 impl ConstBuiltinFunction for CurrentDatabase {
@@ -395,7 +395,7 @@ impl BuiltinScalarUDF for CurrentDatabase {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct CurrentCatalog;
 
 impl ConstBuiltinFunction for CurrentCatalog {
@@ -421,7 +421,7 @@ impl BuiltinScalarUDF for CurrentCatalog {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct User;
 
 impl ConstBuiltinFunction for User {
@@ -447,9 +447,10 @@ impl BuiltinScalarUDF for User {
     }
 }
 
-// this one is a bit different from the others as it's also handled via datafusion
-// So all we need to do is add it to the pg_catalog namespace and map it to the df implementation
-#[derive(Clone)]
+// This one is a bit different from the others as it's also handled via
+// datafusion. So all we need to do is add it to the pg_catalog namespace and
+// map it to the df implementation
+#[derive(Clone, Copy, Debug)]
 pub struct PgArrayToString;
 
 impl ConstBuiltinFunction for PgArrayToString {

@@ -93,12 +93,16 @@ pub enum FunctionNamespace {
 
 /// A custom builtin function provided by GlareDB.
 ///
-/// These are functions that are implemented directly in GlareDB.
-/// Unlike [`BuiltinFunction`], this contains an implementation of a UDF, and is not just a catalog entry for a DataFusion function.
+/// These are functions that are implemented directly in GlareDB. Unlike
+/// [`BuiltinFunction`], this contains an implementation of a UDF, and is not
+/// just a catalog entry for a DataFusion function.
 ///
-/// Note: upcoming release of DataFusion will have a similar trait that'll likely be used instead.
+/// Note: upcoming release of DataFusion will have a similar trait that'll
+/// likely be used instead.
 pub trait BuiltinScalarUDF: BuiltinFunction {
+    /// Builds an expression for the function using the provided arguments.
     fn as_expr(&self, args: Vec<Expr>) -> Expr;
+
     /// The namespace of the function.
     /// Defaults to global (None)
     fn namespace(&self) -> FunctionNamespace {
@@ -191,26 +195,25 @@ impl FunctionRegistry {
             .into_iter()
             .flat_map(|f| {
                 let entry = (f.name().to_string(), f.clone());
-                // match f.namespace() {
-                //     // we register the function under both the namespaced entry and the normal entry
-                //     // e.g. select foo.my_function() or select my_function()
-                //     FunctionNamespace::Optional(namespace) => {
-                //         let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
-                //         vec![entry, namespaced_entry]
-                //     }
-                //     // we only register the function under the namespaced entry
-                //     // e.g. select foo.my_function()
-                //     FunctionNamespace::Required(namespace) => {
-                //         let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
-                //         vec![namespaced_entry]
-                //     }
-                //     // we only register the function under the normal entry
-                //     // e.g. select my_function()
-                //     FunctionNamespace::None => {
-                //         vec![entry]
-                //     }
-                // }
-                [entry]
+                match f.namespace() {
+                    // we register the function under both the namespaced entry and the normal entry
+                    // e.g. select foo.my_function() or select my_function()
+                    FunctionNamespace::Optional(namespace) => {
+                        let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
+                        vec![entry, namespaced_entry]
+                    }
+                    // we only register the function under the namespaced entry
+                    // e.g. select foo.my_function()
+                    FunctionNamespace::Required(namespace) => {
+                        let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
+                        vec![namespaced_entry]
+                    }
+                    // we only register the function under the normal entry
+                    // e.g. select my_function()
+                    FunctionNamespace::None => {
+                        vec![entry]
+                    }
+                }
             })
             .collect::<HashMap<_, _>>();
 
@@ -244,8 +247,7 @@ impl FunctionRegistry {
 
     /// Return an iterator over all builtin table functions.
     pub fn table_funcs_iter(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
-        [].iter()
-        // BUILTIN_TABLE_FUNCS.iter_funcs()
+        BUILTIN_TABLE_FUNCS.iter_funcs()
     }
 
     pub fn get_table_func(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
