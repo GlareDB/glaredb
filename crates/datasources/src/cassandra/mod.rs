@@ -37,10 +37,11 @@ use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::Duration;
 
 use self::exec::CassandraExec;
 
-struct CassandraAccess {
+pub struct CassandraAccess {
     session: Session,
 }
 
@@ -67,8 +68,12 @@ fn try_convert_dtype(ty: &ColumnType) -> Result<DataType> {
 }
 
 impl CassandraAccess {
-    pub async fn try_new(conn_str: impl AsRef<str>) -> Result<Self> {
-        let session = SessionBuilder::new().known_node(conn_str).build().await?;
+    pub async fn try_new(host: impl AsRef<str>) -> Result<Self> {
+        let session = SessionBuilder::new()
+            .known_node(host)
+            .connection_timeout(Duration::from_secs(10))
+            .build()
+            .await?;
         Ok(Self { session })
     }
     async fn get_schema(&self, ks: &str, table: &str) -> Result<ArrowSchema> {
@@ -86,6 +91,17 @@ impl CassandraAccess {
             .collect::<Result<_>>()?;
         Ok(ArrowSchema::new(fields))
     }
+    pub async fn validate_table_access(&self, ks: &str, table: &str) -> Result<()> {
+        let query = format!("SELECT * FROM {ks}.{table} LIMIT 1");
+        let res = self.session.query(query, &[]).await?;
+        if res.col_specs.is_empty() {
+            return Err(CassandraError::TableNotFound(format!(
+                "table {} not found in keyspace {}",
+                table, ks
+            )));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -97,8 +113,8 @@ pub struct CassandraTableProvider {
 }
 
 impl CassandraTableProvider {
-    pub async fn try_new(conn_str: String, ks: String, table: String) -> Result<Self> {
-        let access = CassandraAccess::try_new(conn_str).await?;
+    pub async fn try_new(host: String, ks: String, table: String) -> Result<Self> {
+        let access = CassandraAccess::try_new(host).await?;
         let schema = access.get_schema(&ks, &table).await?;
         Ok(Self {
             schema: Arc::new(schema),
@@ -135,7 +151,7 @@ impl TableProvider for CassandraTableProvider {
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
         _filters: &[Expr],
-        _limit: Option<usize>,
+        limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let projected_schema = match projection {
             Some(projection) => Arc::new(self.schema.project(projection)?),
@@ -150,10 +166,13 @@ impl TableProvider for CassandraTableProvider {
             .map(|f| f.name().clone())
             .collect::<Vec<_>>()
             .join(",");
-        let query = format!(
+        let mut query = format!(
             "SELECT {} FROM {}.{}",
             projection_string, self.ks, self.table
         );
+        if let Some(limit) = limit {
+            query.push_str(&format!(" LIMIT {}", limit));
+        }
 
         let exec = CassandraExec::new(projected_schema, query, self.session.clone());
         Ok(Arc::new(exec))
