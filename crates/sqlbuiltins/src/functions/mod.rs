@@ -1,5 +1,6 @@
 //! Builtin functions.
 mod aggregates;
+mod alias_map;
 mod scalars;
 mod table;
 
@@ -16,6 +17,8 @@ use scalars::kdl::{KDLMatches, KDLSelect};
 use scalars::postgres::*;
 use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
+
+use self::alias_map::AliasMap;
 
 /// All builtin functions available for all sessions.
 pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
@@ -135,8 +138,8 @@ where
 pub struct FunctionRegistry {
     // TODO: What's the difference between `BuiltinFunction` and
     // `BuiltinScalarUDF`? Still confused.
-    funcs: HashMap<String, Arc<dyn BuiltinFunction>>,
-    udfs: HashMap<String, Arc<dyn BuiltinScalarUDF>>,
+    funcs: AliasMap<String, Arc<dyn BuiltinFunction>>,
+    udfs: AliasMap<String, Arc<dyn BuiltinScalarUDF>>,
 
     // Table functions.
     table_funcs: BuiltinTableFuncs,
@@ -148,19 +151,19 @@ impl FunctionRegistry {
         let scalars = BuiltinScalarFunction::iter().map(|f| {
             let key = f.to_string().to_lowercase(); // Display impl is already lowercase for scalars, but lowercase here just to be sure.
             let value: Arc<dyn BuiltinFunction> = Arc::new(f);
-            (key, value)
+            (vec![key], value)
         });
         let aggregates = AggregateFunction::iter().map(|f| {
             let key = f.to_string().to_lowercase(); // Display impl is uppercase for aggregates. Lowercase it to be consistent.
             let value: Arc<dyn BuiltinFunction> = Arc::new(f);
-            (key, value)
+            (vec![key], value)
         });
 
         // The arrow cast function has special handling in datafusion due to the
         // dynamic return type. So it isn't a 'scalar_udf' and needs to be
         // handled a bit differently.
         let arrow_cast: Arc<dyn BuiltinFunction> = Arc::new(ArrowCastFunction);
-        let arrow_cast = (arrow_cast.name().to_string(), arrow_cast);
+        let arrow_cast = (vec![arrow_cast.name().to_string()], arrow_cast);
         let arrow_cast = std::iter::once(arrow_cast);
 
         // GlareDB specific functions
@@ -193,35 +196,37 @@ impl FunctionRegistry {
         ];
         let udfs = udfs
             .into_iter()
-            .flat_map(|f| {
+            .map(|f| {
                 let entry = (f.name().to_string(), f.clone());
                 // TODO: This is very weird to do here as this completely
                 // bypasses our schema resolution. It also results in duplicate
                 // function entries with the same name as the function's `name`
                 // argument is not aware of the namespace being added here.
-                match f.namespace() {
+                let keys = match f.namespace() {
                     // we register the function under both the namespaced entry and the normal entry
                     // e.g. select foo.my_function() or select my_function()
                     FunctionNamespace::Optional(namespace) => {
-                        let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
-                        vec![entry, namespaced_entry]
+                        let namespaced_entry = format!("{}.{}", namespace, f.name());
+                        vec![f.name().to_string(), namespaced_entry]
                     }
                     // we only register the function under the namespaced entry
                     // e.g. select foo.my_function()
                     FunctionNamespace::Required(namespace) => {
-                        let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
+                        let namespaced_entry = format!("{}.{}", namespace, f.name());
                         vec![namespaced_entry]
                     }
                     // we only register the function under the normal entry
                     // e.g. select my_function()
                     FunctionNamespace::None => {
-                        vec![entry]
+                        vec![f.name().to_string()]
                     }
-                }
-            })
-            .collect::<HashMap<_, _>>();
+                };
 
-        let funcs: HashMap<String, Arc<dyn BuiltinFunction>> =
+                (keys, f)
+            })
+            .collect::<AliasMap<_, _>>();
+
+        let funcs: AliasMap<String, Arc<dyn BuiltinFunction>> =
             scalars.chain(aggregates).chain(arrow_cast).collect();
 
         FunctionRegistry {
@@ -233,9 +238,9 @@ impl FunctionRegistry {
 
     /// Checks if a function with the the given name exists.
     pub fn contains(&self, name: &str) -> bool {
-        self.funcs.contains_key(name)
-            || self.udfs.contains_key(name)
-            || self.table_funcs.funcs.contains_key(name)
+        self.funcs.get(name).is_some()
+            || self.udfs.get(name).is_some()
+            || self.table_funcs.funcs.get(name).is_some()
     }
 
     /// Find a scalar UDF by name
