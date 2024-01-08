@@ -14,7 +14,7 @@ use datafusion::sql::TableReference;
 use datafusion_ext::planner::SqlQueryPlanner;
 use datafusion_ext::AsyncContextProvider;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasources::cassandra::CassandraAccess;
+use datasources::cassandra::{CassandraAccess, CassandraAccessState};
 use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableRef};
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
@@ -43,14 +43,15 @@ use protogen::metastore::types::options::{
     CopyToDestinationOptionsLocal, CopyToDestinationOptionsS3, CopyToFormatOptions,
     CopyToFormatOptionsCsv, CopyToFormatOptionsJson, CopyToFormatOptionsParquet,
     CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsAzure, CredentialsOptionsDebug,
-    CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse,
-    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog,
-    DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery,
-    TableOptionsCassandra, TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs,
-    TableOptionsLocal, TableOptionsMongoDb, TableOptionsMysql, TableOptionsObjectStore,
-    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer,
-    TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
+    CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsCassandra,
+    DatabaseOptionsClickhouse, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
+    DatabaseOptionsMongoDb, DatabaseOptionsMysql, DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog, DeltaLakeUnityCatalog,
+    StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsCassandra,
+    TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
+    TableOptionsMongoDb, TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres,
+    TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
+    TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
@@ -318,6 +319,14 @@ impl<'a> SessionPlanner<'a> {
 
                 DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string })
             }
+            DatabaseOptions::CASSANDRA => {
+                let host: String = m.remove_required("host")?;
+
+                let access = CassandraAccess::new(host.clone());
+                access.validate_access().await?;
+
+                DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host })
+            }
             DatabaseOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
                 DatabaseOptions::Debug(DatabaseOptionsDebug {})
@@ -538,7 +547,7 @@ impl<'a> SessionPlanner<'a> {
                 let host: String = m.remove_required("host")?;
                 let keyspace: String = m.remove_required("keyspace")?;
                 let table: String = m.remove_required("table")?;
-                let access = CassandraAccess::try_new(host.clone()).await?;
+                let access = CassandraAccessState::try_new(host.clone()).await?;
                 access.validate_table_access(&keyspace, &table).await?;
 
                 TableOptions::Cassandra(TableOptionsCassandra {

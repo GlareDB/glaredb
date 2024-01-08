@@ -34,8 +34,8 @@ use datasources::sqlserver::{
 };
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionEntry, TableEntry};
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse, DatabaseOptionsDebug,
-    DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsCassandra, DatabaseOptionsClickhouse,
+    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, TableOptions,
     TableOptionsBigQuery, TableOptionsCassandra, TableOptionsClickhouse, TableOptionsDebug,
     TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongoDb,
@@ -227,6 +227,15 @@ impl<'a> ExternalDispatcher<'a> {
                 let table_ref =
                     OwnedClickhouseTableRef::new(Some(schema.to_owned()), name.to_owned());
                 let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
+                Ok(Arc::new(table))
+            }
+            DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host }) => {
+                let table = CassandraTableProvider::try_new(
+                    host.clone(),
+                    schema.to_string(),
+                    name.to_string(),
+                )
+                .await?;
                 Ok(Arc::new(table))
             }
         }
