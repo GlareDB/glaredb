@@ -55,7 +55,7 @@ pub trait BuiltinFunction: Sync + Send {
         None
     }
 
-    // Returns the function type. 'aggregate', 'scalar', or 'table'
+    /// Returns the function type. 'aggregate', 'scalar', or 'table'
     fn function_type(&self) -> FunctionType;
 }
 
@@ -195,6 +195,10 @@ impl FunctionRegistry {
             .into_iter()
             .flat_map(|f| {
                 let entry = (f.name().to_string(), f.clone());
+                // TODO: This is very weird to do here as this completely
+                // bypasses our schema resolution. It also results in duplicate
+                // function entries with the same name as the function's `name`
+                // argument is not aware of the namespace being added here.
                 match f.namespace() {
                     // we register the function under both the namespaced entry and the normal entry
                     // e.g. select foo.my_function() or select my_function()

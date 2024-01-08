@@ -5,6 +5,8 @@ select arrow_cast(1, 'Utf8');
 ----
 1
 
-# Should not be able to use it as a table element.
+# Should not be able to use it as a table factor.
+#
+# Previously we were panicking here.
 statement error 'arrow_cast' cannot be used in the FROM clause of a query
 select * from arrow_cast(1, 'Utf8');
