@@ -42,7 +42,6 @@ where function_name = 'sum';
 sum   aggregate   Int8/Int16/Int32/Int64/UInt8/UInt16/UInt32/UInt64/Float32/Float64   t   sum(a)   Returns the sum of a column
 
 # Assert an arbitrary glaredb table function exists.
-# TODO: Why are there two? No clue.
 query TTTTTT
 select
     function_name,
@@ -55,4 +54,35 @@ from glare_catalog.functions
 where function_name = 'read_parquet';
 ----
 read_parquet   table   Utf8/List<Utf8>   t   SELECT * FROM read_parquet('./my_data.parquet')   Returns a table by scanning the given Parquet file(s).
-read_parquet   table   Utf8/List<Utf8>   t   SELECT * FROM read_parquet('./my_data.parquet')   Returns a table by scanning the given Parquet file(s).
+
+# Assert an arbitrary glaredb table function exists (using an alias).
+query TTTTTT
+select
+    function_name,
+    function_type,
+    parameters,
+    builtin,
+    example,
+    description
+from glare_catalog.functions
+where function_name = 'parquet_scan';
+----
+parquet_scan   table   Utf8/List<Utf8>   t   SELECT * FROM read_parquet('./my_data.parquet')   Returns a table by scanning the given Parquet file(s).
+
+# 'array_to_string' is a tricky one since we're aliasing 'array_to_string' to
+# 'pg_catalog.array_to_string'. A more correct implementation would return two
+# entries, one for the default schema, and one for pg_catalog.
+#
+# See https://github.com/GlareDB/glaredb/issues/2371
+query TTTTTT
+select
+    function_name,
+    function_type,
+    parameters,
+    builtin,
+    example,
+    description
+from glare_catalog.functions
+where function_name = 'array_to_string';
+----
+array_to_string   scalar   (empty)   t   array_to_string([1, 2, 3], ',')   Convert an array to a string with a separator
