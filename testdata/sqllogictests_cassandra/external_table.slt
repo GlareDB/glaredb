@@ -1,0 +1,19 @@
+# Basic tests for external tables.
+
+statement ok
+CREATE EXTERNAL TABLE external_table
+	FROM cassandra
+	OPTIONS (
+		host = '127.0.0.1:9042',
+		keyspace = 'test',
+		table = 'bikeshare_stations',
+	);
+
+query I
+SELECT count(*) FROM external_table;
+----
+102
+
+statement ok
+DROP TABLE external_table;
+

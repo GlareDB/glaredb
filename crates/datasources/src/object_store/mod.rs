@@ -403,7 +403,8 @@ pub fn init_session_registry<'a>(
             | TableOptions::MongoDb(_)
             | TableOptions::Snowflake(_)
             | TableOptions::SqlServer(_)
-            | TableOptions::Clickhouse(_) => continue,
+            | TableOptions::Clickhouse(_)
+            | TableOptions::Cassandra(_) => continue,
         };
 
         let base_url = access.base_url()?;

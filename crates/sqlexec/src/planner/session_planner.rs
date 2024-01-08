@@ -14,7 +14,8 @@ use datafusion::sql::TableReference;
 use datafusion_ext::planner::SqlQueryPlanner;
 use datafusion_ext::AsyncContextProvider;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasources::clickhouse::ClickhouseAccess;
+use datasources::cassandra::CassandraAccess;
+use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableRef};
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
@@ -46,10 +47,10 @@ use protogen::metastore::types::options::{
     DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
     DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog,
     DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery,
-    TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
-    TableOptionsMongoDb, TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres,
-    TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
-    TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
+    TableOptionsCassandra, TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs,
+    TableOptionsLocal, TableOptionsMongoDb, TableOptionsMysql, TableOptionsObjectStore,
+    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer,
+    TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
@@ -514,14 +515,36 @@ impl<'a> SessionPlanner<'a> {
                 let connection_string: String = m.remove_required("connection_string")?;
                 let table_name: String = m.remove_required("table")?;
 
+                // You can optionally provide a database name in clickhouse.
+                // This is similar to schema in other databases such as PG.
+                let database_name: Option<String> = m.remove_optional("database")?;
+
                 // Validate
                 let access =
                     ClickhouseAccess::new_from_connection_string(connection_string.clone());
-                access.validate_table_access(&table_name).await?;
+
+                let table_ref =
+                    ClickhouseTableRef::new(database_name.as_ref(), table_name.as_str());
+
+                access.validate_table_access(table_ref.as_ref()).await?;
 
                 TableOptions::Clickhouse(TableOptionsClickhouse {
                     connection_string,
                     table: table_name,
+                    database: database_name,
+                })
+            }
+            TableOptions::CASSANDRA => {
+                let host: String = m.remove_required("host")?;
+                let keyspace: String = m.remove_required("keyspace")?;
+                let table: String = m.remove_required("table")?;
+                let access = CassandraAccess::try_new(host.clone()).await?;
+                access.validate_table_access(&keyspace, &table).await?;
+
+                TableOptions::Cassandra(TableOptionsCassandra {
+                    host,
+                    keyspace,
+                    table,
                 })
             }
             TableOptions::LOCAL => {
