@@ -14,7 +14,7 @@ select count(*) from ndjson_scan('file://${PWD}/testdata/sqllogictests_datasourc
 
 # # Relative path
 query I
-select count(*) from ndjson_scan('../../testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson')
+select count(*) from ndjson_scan('./testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson')
 ----
 102
 

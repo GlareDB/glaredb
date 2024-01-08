@@ -131,37 +131,37 @@ CREATE TABLE invoice_items (
 # Insert test data
 
 statement ok
-insert into invoices select * from '../../testdata/prql_integration/invoices.csv'
+insert into invoices select * from './testdata/prql_integration/invoices.csv'
 
 statement ok
-insert into customers select * from '../../testdata/prql_integration/customers.csv'
+insert into customers select * from './testdata/prql_integration/customers.csv'
 
 statement ok
-insert into employees select * from '../../testdata/prql_integration/employees.csv'
+insert into employees select * from './testdata/prql_integration/employees.csv'
 
 statement ok
-insert into tracks select * from '../../testdata/prql_integration/tracks.csv'
+insert into tracks select * from './testdata/prql_integration/tracks.csv'
 
 statement ok
-insert into albums select * from '../../testdata/prql_integration/albums.csv'
+insert into albums select * from './testdata/prql_integration/albums.csv'
 
 statement ok
-insert into genres select * from '../../testdata/prql_integration/genres.csv'
+insert into genres select * from './testdata/prql_integration/genres.csv'
 
 statement ok
-insert into playlist_track select * from '../../testdata/prql_integration/playlist_track.csv'
+insert into playlist_track select * from './testdata/prql_integration/playlist_track.csv'
 
 statement ok
-insert into playlists select * from '../../testdata/prql_integration/playlists.csv'
+insert into playlists select * from './testdata/prql_integration/playlists.csv'
 
 statement ok
-insert into media_types select * from '../../testdata/prql_integration/media_types.csv'
+insert into media_types select * from './testdata/prql_integration/media_types.csv'
 
 statement ok
-insert into artists select * from '../../testdata/prql_integration/artists.csv'
+insert into artists select * from './testdata/prql_integration/artists.csv'
 
 statement ok
-insert into invoice_items select * from '../../testdata/prql_integration/invoice_items.csv'
+insert into invoice_items select * from './testdata/prql_integration/invoice_items.csv'
 
 # Enable prql dialect
 statement ok
@@ -859,7 +859,7 @@ Steve     Johnson   Nancy
 # filter genre_id >= 22
 
 query TTT
-from (read_csv '../../testdata/prql_integration/employees.csv')
+from (read_csv './testdata/prql_integration/employees.csv')
 sort employee_id
 select {employee_id, reports_to}
 take 1
