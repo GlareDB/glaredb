@@ -25,6 +25,7 @@ impl<K, V> AliasMap<K, V> {
     ///
     /// All aliases will be iterated over, and will result in a value being
     /// returned multiple times if it has multiple aliases.
+    #[allow(dead_code)]
     pub fn iter(&self) -> AliasMapIter<K, V> {
         AliasMapIter {
             values: &self.values,
@@ -63,7 +64,7 @@ impl<K: Hash + Eq, V> AliasMap<K, V> {
     }
 }
 
-impl<'a, K: Hash + Eq, V> FromIterator<(Vec<K>, V)> for AliasMap<K, V> {
+impl<K: Hash + Eq, V> FromIterator<(Vec<K>, V)> for AliasMap<K, V> {
     fn from_iter<T: IntoIterator<Item = (Vec<K>, V)>>(iter: T) -> Self {
         let mut m = AliasMap::new();
         for (keys, value) in iter {

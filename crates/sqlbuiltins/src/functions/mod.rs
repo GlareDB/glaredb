@@ -263,7 +263,15 @@ impl FunctionRegistry {
     ///
     /// A function will only be returned once, even if it has multiple aliases.
     pub fn scalar_udfs_iter(&self) -> impl Iterator<Item = &Arc<dyn BuiltinScalarUDF>> {
-        self.udfs.values()
+        self.udfs.values().filter(|func| {
+            // Currently we have two "array_to_string" entries, one provided by
+            // datafusion, and one "aliased" to "pg_catalog.array_to_string".
+            // However those exist in different maps, and so the current
+            // aliasing logic doesn't work well.
+            //
+            // See https://github.com/GlareDB/glaredb/issues/2371
+            func.name() != "array_to_string"
+        })
     }
 
     /// Iterate over all table funcs.
@@ -404,7 +412,12 @@ mod tests {
             diff
         }
 
-        let names: Vec<_> = functions.scalar_udfs_iter().map(|f| f.name()).collect();
+        // Each iterator is currently tested separately. When
+        // https://github.com/GlareDB/glaredb/issues/2371 is fixed, this should
+        // concat all iterators, and ensure uniqueness on (namespace,
+        // function_name) pairs.
+
+        let names = functions.scalar_udfs_iter().map(|f| f.name()).collect();
         assert_eq!(Vec::<&str>::new(), find_duplicates(names));
 
         let names: Vec<_> = functions.scalar_funcs_iter().map(|f| f.name()).collect();
