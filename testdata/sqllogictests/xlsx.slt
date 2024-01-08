@@ -13,7 +13,7 @@ select count(*) from read_excel(
 # https://github.com/GlareDB/glaredb/issues/2372
 # make sure multiple sheets work
 statement ok
-select "Resource", "Cost", "Revenue" from read_excel(
+select "Resources", "Cost", "Revenue" from read_excel(
   'file://${PWD}/testdata/xlsx/multiple_sheets.xlsx',
   has_header => true
 )
