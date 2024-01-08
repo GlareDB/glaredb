@@ -129,12 +129,17 @@ Enable secure param in connection string:
             addr
         };
 
+        // Clickhouse sets the service to "idle" when not queried for a while.
+        // Waking up the service can sometimes take from 20-30 seconds, hence
+        // setting the timeout accordingly.
+        let timeout = Duration::from_secs(30);
+
         let mut opts = Options::new(addr)
             .pool_min(1)
             .pool_max(1)
             .secure(secure)
-            .ping_timeout(Duration::from_secs(5))
-            .connection_timeout(Duration::from_secs(5));
+            .ping_timeout(timeout)
+            .connection_timeout(timeout);
 
         if let Some(mut path) = conn_str.path_segments() {
             if let Some(database) = path.next() {

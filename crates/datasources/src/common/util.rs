@@ -85,15 +85,15 @@ pub fn encode_literal_to_text(
             encode_utc_timestamp(buf, &naive, tz.is_some())?;
         }
         ScalarValue::TimestampMicrosecond(Some(v), tz) => {
-            let naive = Utc.timestamp_nanos(*v * 1_000).naive_utc();
+            let naive = Utc.timestamp_micros(*v).unwrap().naive_utc();
             encode_utc_timestamp(buf, &naive, tz.is_some())?;
         }
         ScalarValue::TimestampMillisecond(Some(v), tz) => {
-            let naive = Utc.timestamp_nanos(*v * 1_000_000).naive_utc();
+            let naive = Utc.timestamp_millis_opt(*v).unwrap().naive_utc();
             encode_utc_timestamp(buf, &naive, tz.is_some())?;
         }
         ScalarValue::TimestampSecond(Some(v), tz) => {
-            let naive = Utc.timestamp_nanos(*v * 1_000_000_000).naive_utc();
+            let naive = Utc.timestamp_opt(*v, 0).unwrap().naive_utc();
             encode_utc_timestamp(buf, &naive, tz.is_some())?;
         }
         ScalarValue::Time64Nanosecond(Some(v)) => {
@@ -101,7 +101,7 @@ pub fn encode_literal_to_text(
             encode_time(buf, &naive, /* tz = */ false)?;
         }
         ScalarValue::Time64Microsecond(Some(v)) => {
-            let naive = Utc.timestamp_nanos(*v * 1_000).naive_utc().time();
+            let naive = Utc.timestamp_micros(*v).unwrap().naive_utc().time();
             encode_time(buf, &naive, /* tz = */ false)?;
         }
         ScalarValue::Date32(Some(v)) => {
