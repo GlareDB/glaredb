@@ -200,9 +200,13 @@ impl<Opts: OptionReader> BuiltinFunction for ObjScanTableFunc<Opts> {
 
         Some(Signature::one_of(
             vec![
+                // read_csv('path')
                 TypeSignature::Exact(vec![DataType::Utf8]),
+                // read_csv('path', ...options)
                 TypeSignature::Exact(vec![DataType::Utf8, DataType::Struct(opts.clone())]),
+                // read_csv(['path1', 'path2'])
                 TypeSignature::Exact(vec![DataType::new_list(DataType::Utf8, false)]),
+                // read_csv(['path1', 'path2'], options)
                 TypeSignature::Exact(vec![
                     DataType::new_list(DataType::Utf8, false),
                     DataType::Struct(opts),
