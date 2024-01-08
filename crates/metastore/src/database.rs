@@ -1406,6 +1406,30 @@ mod tests {
         BuiltinCatalog::new().unwrap();
     }
 
+    #[test]
+    fn builtin_catalog_no_function_name_duplicates() {
+        let catalog = BuiltinCatalog::new().unwrap();
+        let names: Vec<_> = catalog
+            .entries
+            .values()
+            .filter_map(|ent| match ent {
+                CatalogEntry::Function(ent) => Some(&ent.meta.name),
+                _ => None,
+            })
+            .collect();
+
+        let mut deduped: HashSet<_> = names.clone().into_iter().collect();
+        let diff: Vec<_> = names
+            .into_iter()
+            .filter(|name| {
+                let was_present = deduped.remove(name);
+                !was_present // We saw this value before, indicates a duplicated name.
+            })
+            .collect();
+
+        assert_eq!(Vec::<&String>::new(), diff);
+    }
+
     #[tokio::test]
     async fn drop_missing_schema() {
         let db = new_catalog().await;

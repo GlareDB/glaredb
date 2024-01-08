@@ -5,8 +5,10 @@ use crate::functions::FunctionNamespace;
 use super::{df_scalars::array_to_string, *};
 
 const PG_CATALOG_NAMESPACE: FunctionNamespace = FunctionNamespace::Optional("pg_catalog");
+
 #[derive(Clone)]
 pub struct PgGetUserById;
+
 impl ConstBuiltinFunction for PgGetUserById {
     const NAME: &'static str = "pg_get_userbyid";
     const DESCRIPTION: &'static str = "Postgres `pg_get_userbyid` function";
@@ -37,12 +39,15 @@ impl BuiltinScalarUDF for PgGetUserById {
             args,
         ))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
+
 #[derive(Clone)]
 pub struct PgTableIsVisible;
+
 impl ConstBuiltinFunction for PgTableIsVisible {
     const NAME: &'static str = "pg_table_is_visible";
     const DESCRIPTION: &'static str = "Postgres `pg_table_is_visible` function";
@@ -55,6 +60,7 @@ impl ConstBuiltinFunction for PgTableIsVisible {
         ))
     }
 }
+
 impl BuiltinScalarUDF for PgTableIsVisible {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
@@ -79,6 +85,7 @@ impl BuiltinScalarUDF for PgTableIsVisible {
             args,
         ))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
@@ -86,6 +93,7 @@ impl BuiltinScalarUDF for PgTableIsVisible {
 
 #[derive(Clone)]
 pub struct PgEncodingToChar;
+
 impl ConstBuiltinFunction for PgEncodingToChar {
     const NAME: &'static str = "pg_encoding_to_char";
     const DESCRIPTION: &'static str = "Postgres `pg_encoding_to_char` function";
@@ -125,12 +133,15 @@ impl BuiltinScalarUDF for PgEncodingToChar {
             args,
         ))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
+
 #[derive(Clone)]
 pub struct HasSchemaPrivilege;
+
 impl ConstBuiltinFunction for HasSchemaPrivilege {
     const NAME: &'static str = "has_schema_privilege";
     const DESCRIPTION: &'static str = "Returns true if user have privilege for schema";
@@ -146,6 +157,7 @@ impl ConstBuiltinFunction for HasSchemaPrivilege {
         ))
     }
 }
+
 impl BuiltinScalarUDF for HasSchemaPrivilege {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
@@ -161,12 +173,15 @@ impl BuiltinScalarUDF for HasSchemaPrivilege {
             args,
         ))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
+
 #[derive(Clone)]
 pub struct HasDatabasePrivilege;
+
 impl ConstBuiltinFunction for HasDatabasePrivilege {
     const NAME: &'static str = "has_database_privilege";
     const DESCRIPTION: &'static str = "Returns true if user have privilege for database";
@@ -182,6 +197,7 @@ impl ConstBuiltinFunction for HasDatabasePrivilege {
         ))
     }
 }
+
 impl BuiltinScalarUDF for HasDatabasePrivilege {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
@@ -197,6 +213,7 @@ impl BuiltinScalarUDF for HasDatabasePrivilege {
             args,
         ))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
@@ -219,6 +236,7 @@ impl ConstBuiltinFunction for HasTablePrivilege {
         ))
     }
 }
+
 impl BuiltinScalarUDF for HasTablePrivilege {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
@@ -234,6 +252,7 @@ impl BuiltinScalarUDF for HasTablePrivilege {
             args,
         ))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
@@ -241,6 +260,7 @@ impl BuiltinScalarUDF for HasTablePrivilege {
 
 #[derive(Clone)]
 pub struct CurrentSchemas;
+
 impl ConstBuiltinFunction for CurrentSchemas {
     const NAME: &'static str = "current_schemas";
     const DESCRIPTION: &'static str = "Returns current schemas";
@@ -256,6 +276,7 @@ impl ConstBuiltinFunction for CurrentSchemas {
         ))
     }
 }
+
 impl BuiltinScalarUDF for CurrentSchemas {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
         // There's no good way to handle the `include_implicit` argument,
@@ -273,12 +294,15 @@ impl BuiltinScalarUDF for CurrentSchemas {
         )
         .alias("current_schemas")
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
+
 #[derive(Clone)]
 pub struct CurrentUser;
+
 impl ConstBuiltinFunction for CurrentUser {
     const NAME: &'static str = "current_user";
     const DESCRIPTION: &'static str = "Returns current user";
@@ -299,6 +323,7 @@ impl BuiltinScalarUDF for CurrentUser {
 
 #[derive(Clone)]
 pub struct CurrentRole;
+
 impl ConstBuiltinFunction for CurrentRole {
     const NAME: &'static str = "current_role";
     const DESCRIPTION: &'static str = "Returns current role";
@@ -311,10 +336,12 @@ impl ConstBuiltinFunction for CurrentRole {
         ))
     }
 }
+
 impl BuiltinScalarUDF for CurrentRole {
     fn as_expr(&self, _: Vec<Expr>) -> Expr {
         session_var("current_role")
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
@@ -322,6 +349,7 @@ impl BuiltinScalarUDF for CurrentRole {
 
 #[derive(Clone)]
 pub struct CurrentSchema;
+
 impl ConstBuiltinFunction for CurrentSchema {
     const NAME: &'static str = "current_schema";
     const DESCRIPTION: &'static str = "Returns current schema";
@@ -334,16 +362,20 @@ impl ConstBuiltinFunction for CurrentSchema {
         ))
     }
 }
+
 impl BuiltinScalarUDF for CurrentSchema {
     fn as_expr(&self, _: Vec<Expr>) -> Expr {
         session_var("current_schema")
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
+
 #[derive(Clone)]
 pub struct CurrentDatabase;
+
 impl ConstBuiltinFunction for CurrentDatabase {
     const NAME: &'static str = "current_database";
     const DESCRIPTION: &'static str = "Returns current database";
@@ -356,13 +388,16 @@ impl ConstBuiltinFunction for CurrentDatabase {
         ))
     }
 }
+
 impl BuiltinScalarUDF for CurrentDatabase {
     fn as_expr(&self, _: Vec<Expr>) -> Expr {
         session_var("current_database")
     }
 }
+
 #[derive(Clone)]
 pub struct CurrentCatalog;
+
 impl ConstBuiltinFunction for CurrentCatalog {
     const NAME: &'static str = "current_catalog";
     const DESCRIPTION: &'static str = "Returns current catalog";
@@ -375,10 +410,12 @@ impl ConstBuiltinFunction for CurrentCatalog {
         ))
     }
 }
+
 impl BuiltinScalarUDF for CurrentCatalog {
     fn as_expr(&self, _: Vec<Expr>) -> Expr {
         session_var("current_catalog")
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
@@ -399,18 +436,20 @@ impl ConstBuiltinFunction for User {
         ))
     }
 }
+
 impl BuiltinScalarUDF for User {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
         CurrentUser.as_expr(args).alias("user")
     }
+
     fn namespace(&self) -> FunctionNamespace {
         CurrentUser.namespace()
     }
 }
 
-#[derive(Clone)]
 // this one is a bit different from the others as it's also handled via datafusion
 // So all we need to do is add it to the pg_catalog namespace and map it to the df implementation
+#[derive(Clone)]
 pub struct PgArrayToString;
 
 impl ConstBuiltinFunction for PgArrayToString {
@@ -430,6 +469,7 @@ impl BuiltinScalarUDF for PgArrayToString {
             args,
         ))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         FunctionNamespace::Required("pg_catalog")
     }

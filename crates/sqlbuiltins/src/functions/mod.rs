@@ -142,12 +142,12 @@ impl FunctionRegistry {
     pub fn new() -> Self {
         use strum::IntoEnumIterator;
         let scalars = BuiltinScalarFunction::iter().map(|f| {
-            let key = f.to_string();
+            let key = f.to_string().to_lowercase(); // Display impl is already lowercase for scalars, but lowercase here just to be sure.
             let value: Arc<dyn BuiltinFunction> = Arc::new(f);
             (key, value)
         });
         let aggregates = AggregateFunction::iter().map(|f| {
-            let key = f.to_string();
+            let key = f.to_string().to_lowercase(); // Display impl is uppercase for aggregates. Lowercase it to be consistent.
             let value: Arc<dyn BuiltinFunction> = Arc::new(f);
             (key, value)
         });
@@ -191,25 +191,26 @@ impl FunctionRegistry {
             .into_iter()
             .flat_map(|f| {
                 let entry = (f.name().to_string(), f.clone());
-                match f.namespace() {
-                    // we register the function under both the namespaced entry and the normal entry
-                    // e.g. select foo.my_function() or select my_function()
-                    FunctionNamespace::Optional(namespace) => {
-                        let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
-                        vec![entry, namespaced_entry]
-                    }
-                    // we only register the function under the namespaced entry
-                    // e.g. select foo.my_function()
-                    FunctionNamespace::Required(namespace) => {
-                        let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
-                        vec![namespaced_entry]
-                    }
-                    // we only register the function under the normal entry
-                    // e.g. select my_function()
-                    FunctionNamespace::None => {
-                        vec![entry]
-                    }
-                }
+                // match f.namespace() {
+                //     // we register the function under both the namespaced entry and the normal entry
+                //     // e.g. select foo.my_function() or select my_function()
+                //     FunctionNamespace::Optional(namespace) => {
+                //         let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
+                //         vec![entry, namespaced_entry]
+                //     }
+                //     // we only register the function under the namespaced entry
+                //     // e.g. select foo.my_function()
+                //     FunctionNamespace::Required(namespace) => {
+                //         let namespaced_entry = (format!("{}.{}", namespace, f.name()), f.clone());
+                //         vec![namespaced_entry]
+                //     }
+                //     // we only register the function under the normal entry
+                //     // e.g. select my_function()
+                //     FunctionNamespace::None => {
+                //         vec![entry]
+                //     }
+                // }
+                [entry]
             })
             .collect::<HashMap<_, _>>();
 
@@ -243,7 +244,8 @@ impl FunctionRegistry {
 
     /// Return an iterator over all builtin table functions.
     pub fn table_funcs_iter(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
-        BUILTIN_TABLE_FUNCS.iter_funcs()
+        [].iter()
+        // BUILTIN_TABLE_FUNCS.iter_funcs()
     }
 
     pub fn get_table_func(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
@@ -315,4 +317,49 @@ macro_rules! document {
             pub const NAME: &'static str = $name;
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_function_info() {
+        // Ensure we're able to get descriptions and examples using the lower
+        // case function name.
+
+        let functions = FunctionRegistry::new();
+
+        // Arbitrary DF scalar
+        functions
+            .get_function_example("repeat")
+            .expect("'repeat' should have example");
+        functions
+            .get_function_description("repeat")
+            .expect("'repeat' should have description");
+
+        // Arbitrary DF aggregate
+        functions
+            .get_function_example("sum")
+            .expect("'sum' should have example");
+        functions
+            .get_function_description("sum")
+            .expect("'sum' should have description");
+
+        // Arbitrary custom scalar
+        functions
+            .get_function_example("version")
+            .expect("'version' should have example");
+        functions
+            .get_function_description("version")
+            .expect("'version' should have description");
+
+        // Arbitrary table function
+        functions
+            .get_function_example("read_parquet")
+            .expect("'read_parquet' should have example");
+        functions
+            .get_function_description("read_parquet")
+            .expect("'read_parquet' should have description");
+    }
 }

@@ -45,6 +45,8 @@ impl OptionReader for ParquetOptionsReader {
 pub const READ_PARQUET: ObjScanTableFunc<ParquetOptionsReader> = ObjScanTableFunc {
     name: "read_parquet",
     aliases: &["parquet_scan"],
+    description: "Returns a table by scanning the given Parquet file(s).",
+    example: "SELECT * FROM read_parquet('./my_data.parquet')",
     phantom: PhantomData,
 };
 
@@ -76,6 +78,8 @@ impl OptionReader for CsvOptionReader {
 pub const READ_CSV: ObjScanTableFunc<CsvOptionReader> = ObjScanTableFunc {
     name: "read_csv",
     aliases: &["csv_scan"],
+    description: "Returns a table by scanning the given CSV file(s).",
+    example: "SELECT * FROM read_csv('./my_data.csv')",
     phantom: PhantomData,
 };
 
@@ -93,6 +97,8 @@ impl OptionReader for JsonOptionsReader {
 pub const READ_JSON: ObjScanTableFunc<JsonOptionsReader> = ObjScanTableFunc {
     name: "read_ndjson",
     aliases: &["ndjson_scan"],
+    description: "Returns a table by scanning the given JSON file(s).",
+    example: "SELECT * FROM read_ndjson('./my_data.json')",
     phantom: PhantomData,
 };
 
@@ -140,6 +146,9 @@ pub struct ObjScanTableFunc<Opts> {
     /// Additional aliases for this function.
     aliases: &'static [&'static str],
 
+    description: &'static str,
+    example: &'static str,
+
     phantom: PhantomData<Opts>,
 }
 
@@ -157,13 +166,11 @@ impl<Opts: OptionReader> BuiltinFunction for ObjScanTableFunc<Opts> {
     }
 
     fn sql_example(&self) -> Option<&str> {
-        // TODO: Sean will add this back.
-        None
+        Some(self.example)
     }
 
     fn description(&self) -> Option<&str> {
-        // TODO: Sean will add this back.
-        None
+        Some(self.description)
     }
 
     fn signature(&self) -> Option<Signature> {
