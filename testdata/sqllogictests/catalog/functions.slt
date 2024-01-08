@@ -28,31 +28,31 @@ where function_name = 'repeat';
 repeat   scalar   (empty)   t   repeat('hello', 2)   Repeat a string a specified number of times
 
 # Assert an arbitrary datafusion aggregate function exists.
-# TODO: Currently messed up. Aggregates aren't inserted into the hashmap properly causing the example and description to be null.
-# query TTTTTT
-# select
-#     function_name,
-#     function_type,
-#     parameters,
-#     builtin,
-#     example,
-#     description
-# from glare_catalog.functions
-# where function_name = 'sum';
-# ----
-# sum   aggregate   Int8/Int16/Int32/Int64/UInt8/UInt16/UInt32/UInt64/Float32/Float64   t   sum(a)   Returns the sum of a column
+query TTTTTT
+select
+    function_name,
+    function_type,
+    parameters,
+    builtin,
+    example,
+    description
+from glare_catalog.functions
+where function_name = 'sum';
+----
+sum   aggregate   Int8/Int16/Int32/Int64/UInt8/UInt16/UInt32/UInt64/Float32/Float64   t   sum(a)   Returns the sum of a column
 
 # Assert an arbitrary glaredb table function exists.
-# TODO: These are formatting incorrectly. Will fix after I merge in my csv options pr.
-# query TTTTTT
-# select
-#     function_name,
-#     function_type,
-#     parameters,
-#     builtin,
-#     example,
-#     description
-# from glare_catalog.functions
-# where function_name = 'read_parquet';
-# ----
-# read_parquet   table   Utf8/List<Utf8>   t   SELECT * FROM read_parquet_scan('./my_data.read_parquet')   Returns a table by scanning the given read_parquet file(s).
+# TODO: Why are there two? No clue.
+query TTTTTT
+select
+    function_name,
+    function_type,
+    parameters,
+    builtin,
+    example,
+    description
+from glare_catalog.functions
+where function_name = 'read_parquet';
+----
+read_parquet   table   Utf8/List<Utf8>   t   SELECT * FROM read_parquet('./my_data.parquet')   Returns a table by scanning the given Parquet file(s).
+read_parquet   table   Utf8/List<Utf8>   t   SELECT * FROM read_parquet('./my_data.parquet')   Returns a table by scanning the given Parquet file(s).

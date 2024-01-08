@@ -17,9 +17,6 @@ use scalars::postgres::*;
 use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
 
-/// Builtin table returning functions available for all sessions.
-static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
-
 /// All builtin functions available for all sessions.
 pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
 
@@ -58,7 +55,7 @@ pub trait BuiltinFunction: Sync + Send {
         None
     }
 
-    // Returns the function type. 'aggregate', 'scalar', or 'table'
+    /// Returns the function type. 'aggregate', 'scalar', or 'table'
     fn function_type(&self) -> FunctionType;
 }
 
@@ -93,12 +90,16 @@ pub enum FunctionNamespace {
 
 /// A custom builtin function provided by GlareDB.
 ///
-/// These are functions that are implemented directly in GlareDB.
-/// Unlike [`BuiltinFunction`], this contains an implementation of a UDF, and is not just a catalog entry for a DataFusion function.
+/// These are functions that are implemented directly in GlareDB. Unlike
+/// [`BuiltinFunction`], this contains an implementation of a UDF, and is not
+/// just a catalog entry for a DataFusion function.
 ///
-/// Note: upcoming release of DataFusion will have a similar trait that'll likely be used instead.
+/// Note: upcoming release of DataFusion will have a similar trait that'll
+/// likely be used instead.
 pub trait BuiltinScalarUDF: BuiltinFunction {
+    /// Builds an expression for the function using the provided arguments.
     fn as_expr(&self, args: Vec<Expr>) -> Expr;
+
     /// The namespace of the function.
     /// Defaults to global (None)
     fn namespace(&self) -> FunctionNamespace {
@@ -133,21 +134,24 @@ where
 /// We also don't have any session specific functions (for now), so it makes more sense to have a const global.
 pub struct FunctionRegistry {
     // TODO: What's the difference between `BuiltinFunction` and
-    // `BuiltinScalarUDF`?
+    // `BuiltinScalarUDF`? Still confused.
     funcs: HashMap<String, Arc<dyn BuiltinFunction>>,
     udfs: HashMap<String, Arc<dyn BuiltinScalarUDF>>,
+
+    // Table functions.
+    table_funcs: BuiltinTableFuncs,
 }
 
 impl FunctionRegistry {
     pub fn new() -> Self {
         use strum::IntoEnumIterator;
         let scalars = BuiltinScalarFunction::iter().map(|f| {
-            let key = f.to_string();
+            let key = f.to_string().to_lowercase(); // Display impl is already lowercase for scalars, but lowercase here just to be sure.
             let value: Arc<dyn BuiltinFunction> = Arc::new(f);
             (key, value)
         });
         let aggregates = AggregateFunction::iter().map(|f| {
-            let key = f.to_string();
+            let key = f.to_string().to_lowercase(); // Display impl is uppercase for aggregates. Lowercase it to be consistent.
             let value: Arc<dyn BuiltinFunction> = Arc::new(f);
             (key, value)
         });
@@ -191,6 +195,10 @@ impl FunctionRegistry {
             .into_iter()
             .flat_map(|f| {
                 let entry = (f.name().to_string(), f.clone());
+                // TODO: This is very weird to do here as this completely
+                // bypasses our schema resolution. It also results in duplicate
+                // function entries with the same name as the function's `name`
+                // argument is not aware of the namespace being added here.
                 match f.namespace() {
                     // we register the function under both the namespaced entry and the normal entry
                     // e.g. select foo.my_function() or select my_function()
@@ -216,14 +224,18 @@ impl FunctionRegistry {
         let funcs: HashMap<String, Arc<dyn BuiltinFunction>> =
             scalars.chain(aggregates).chain(arrow_cast).collect();
 
-        FunctionRegistry { funcs, udfs }
+        FunctionRegistry {
+            funcs,
+            udfs,
+            table_funcs: BuiltinTableFuncs::new(),
+        }
     }
 
     /// Checks if a function with the the given name exists.
     pub fn contains(&self, name: &str) -> bool {
         self.funcs.contains_key(name)
             || self.udfs.contains_key(name)
-            || BUILTIN_TABLE_FUNCS.funcs.contains_key(name)
+            || self.table_funcs.funcs.contains_key(name)
     }
 
     /// Find a scalar UDF by name
@@ -243,11 +255,11 @@ impl FunctionRegistry {
 
     /// Return an iterator over all builtin table functions.
     pub fn table_funcs_iter(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
-        BUILTIN_TABLE_FUNCS.iter_funcs()
+        self.table_funcs.iter_funcs()
     }
 
     pub fn get_table_func(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
-        BUILTIN_TABLE_FUNCS.find_function(name).cloned()
+        self.table_funcs.find_function(name).cloned()
     }
 
     /// Get a function description.
@@ -260,7 +272,7 @@ impl FunctionRegistry {
         if let Some(func) = self.udfs.get(name) {
             return func.description();
         }
-        if let Some(func) = BUILTIN_TABLE_FUNCS.find_function(name) {
+        if let Some(func) = self.table_funcs.find_function(name) {
             return func.description();
         }
         None
@@ -276,7 +288,7 @@ impl FunctionRegistry {
         if let Some(func) = self.udfs.get(name) {
             return func.sql_example();
         }
-        if let Some(func) = BUILTIN_TABLE_FUNCS.find_function(name) {
+        if let Some(func) = self.table_funcs.find_function(name) {
             return func.sql_example();
         }
         None
@@ -315,4 +327,49 @@ macro_rules! document {
             pub const NAME: &'static str = $name;
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_function_info() {
+        // Ensure we're able to get descriptions and examples using the lower
+        // case function name.
+
+        let functions = FunctionRegistry::new();
+
+        // Arbitrary DF scalar
+        functions
+            .get_function_example("repeat")
+            .expect("'repeat' should have example");
+        functions
+            .get_function_description("repeat")
+            .expect("'repeat' should have description");
+
+        // Arbitrary DF aggregate
+        functions
+            .get_function_example("sum")
+            .expect("'sum' should have example");
+        functions
+            .get_function_description("sum")
+            .expect("'sum' should have description");
+
+        // Arbitrary custom scalar
+        functions
+            .get_function_example("version")
+            .expect("'version' should have example");
+        functions
+            .get_function_description("version")
+            .expect("'version' should have description");
+
+        // Arbitrary table function
+        functions
+            .get_function_example("read_parquet")
+            .expect("'read_parquet' should have example");
+        functions
+            .get_function_description("read_parquet")
+            .expect("'read_parquet' should have description");
+    }
 }
