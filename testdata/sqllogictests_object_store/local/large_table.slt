@@ -8,7 +8,7 @@ statement ok
 CREATE EXTERNAL TABLE large_table
     FROM local
     OPTIONS (
-        location = './testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv'
+        location = '${PWD}/testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv'
     );
 
-include ./testdata/sqllogictests_datasources_common/include/large_table.slti
+include ${PWD}/testdata/sqllogictests_datasources_common/include/large_table.slti

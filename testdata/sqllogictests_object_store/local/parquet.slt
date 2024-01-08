@@ -10,7 +10,7 @@ statement ok
 CREATE EXTERNAL TABLE userdata1
     FROM local
     OPTIONS (
-        location = './testdata/parquet/userdata1.parquet'
+        location = '${PWD}/testdata/parquet/userdata1.parquet'
     );
 
 statement ok
