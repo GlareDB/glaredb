@@ -1004,6 +1004,7 @@ impl From<TableOptionsSqlServer> for options::TableOptionsSqlServer {
 pub struct TableOptionsClickhouse {
     pub connection_string: String,
     pub table: String,
+    pub database: Option<String>,
 }
 
 impl TryFrom<options::TableOptionsClickhouse> for TableOptionsClickhouse {
@@ -1012,6 +1013,7 @@ impl TryFrom<options::TableOptionsClickhouse> for TableOptionsClickhouse {
         Ok(TableOptionsClickhouse {
             connection_string: value.connection_string,
             table: value.table,
+            database: value.database,
         })
     }
 }
@@ -1021,6 +1023,7 @@ impl From<TableOptionsClickhouse> for options::TableOptionsClickhouse {
         options::TableOptionsClickhouse {
             connection_string: value.connection_string,
             table: value.table,
+            database: value.database,
         }
     }
 }
