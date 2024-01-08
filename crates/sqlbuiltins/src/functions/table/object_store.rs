@@ -1,9 +1,9 @@
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::{sync::Arc, vec};
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field};
-use datafusion::common::FileType;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
@@ -31,39 +31,146 @@ use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 use super::TableFunc;
 use crate::functions::BuiltinFunction;
 
-pub const PARQUET_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "parquet_scan");
-pub const READ_PARQUET: ObjScanTableFunc = ObjScanTableFunc(FileType::PARQUET, "read_parquet");
+#[derive(Debug, Clone, Copy)]
+pub struct ParquetOptionsReader;
 
-pub const CSV_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "csv_scan");
-pub const READ_CSV: ObjScanTableFunc = ObjScanTableFunc(FileType::CSV, "read_csv");
+impl OptionReader for ParquetOptionsReader {
+    type Format = ParquetFormat;
 
-pub const JSON_SCAN: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "ndjson_scan");
-pub const READ_JSON: ObjScanTableFunc = ObjScanTableFunc(FileType::JSON, "read_ndjson");
-
-#[derive(Debug, Clone)]
-pub struct ObjScanTableFunc(FileType, &'static str);
-
-impl BuiltinFunction for ObjScanTableFunc {
-    fn name(&self) -> &'static str {
-        self.1
+    fn read_options(_opts: &HashMap<String, FuncParamValue>) -> Result<Self::Format> {
+        Ok(ParquetFormat::default())
     }
+}
+
+pub const READ_PARQUET: ObjScanTableFunc<ParquetOptionsReader> = ObjScanTableFunc {
+    name: "read_parquet",
+    aliases: &["parquet_scan"],
+    description: "Returns a table by scanning the given Parquet file(s).",
+    example: "SELECT * FROM read_parquet('./my_data.parquet')",
+    phantom: PhantomData,
+};
+
+#[derive(Debug, Clone, Copy)]
+pub struct CsvOptionReader;
+
+impl OptionReader for CsvOptionReader {
+    type Format = CsvFormat;
+
+    fn read_options(opts: &HashMap<String, FuncParamValue>) -> Result<Self::Format> {
+        let mut format = CsvFormat::default().with_schema_infer_max_rec(Some(20480));
+
+        if let Some(delimiter) = opts.get("delimiter") {
+            let delimiter: String = delimiter.clone().try_into()?;
+            let bs = delimiter.as_bytes();
+            if bs.len() != 1 {
+                return Err(ExtensionError::String(
+                    "delimiters for CSV must fit in one byte (e.g. ',')".to_string(),
+                ));
+            }
+            let delimiter = bs[0];
+            format = format.with_delimiter(delimiter);
+        }
+
+        Ok(format)
+    }
+}
+
+pub const READ_CSV: ObjScanTableFunc<CsvOptionReader> = ObjScanTableFunc {
+    name: "read_csv",
+    aliases: &["csv_scan"],
+    description: "Returns a table by scanning the given CSV file(s).",
+    example: "SELECT * FROM read_csv('./my_data.csv')",
+    phantom: PhantomData,
+};
+
+#[derive(Debug, Clone, Copy)]
+pub struct JsonOptionsReader;
+
+impl OptionReader for JsonOptionsReader {
+    type Format = JsonFormat;
+
+    fn read_options(_opts: &HashMap<String, FuncParamValue>) -> Result<Self::Format> {
+        Ok(JsonFormat::default())
+    }
+}
+
+pub const READ_JSON: ObjScanTableFunc<JsonOptionsReader> = ObjScanTableFunc {
+    name: "read_ndjson",
+    aliases: &["ndjson_scan"],
+    description: "Returns a table by scanning the given JSON file(s).",
+    example: "SELECT * FROM read_ndjson('./my_data.json')",
+    phantom: PhantomData,
+};
+
+pub trait OptionReader: Sync + Send + Sized {
+    type Format: FileFormat + WithCompression + 'static;
+
+    /// Read user provided options, and construct a file format usign those options.
+    fn read_options(opts: &HashMap<String, FuncParamValue>) -> Result<Self::Format>;
+}
+
+/// Helper trait for adding the compression option to file formats.
+pub trait WithCompression: Sized {
+    fn with_compression(self, compression: FileCompressionType) -> Result<Self>;
+}
+
+impl WithCompression for CsvFormat {
+    fn with_compression(self, compression: FileCompressionType) -> Result<Self> {
+        Ok(CsvFormat::with_file_compression_type(self, compression))
+    }
+}
+
+impl WithCompression for JsonFormat {
+    fn with_compression(self, compression: FileCompressionType) -> Result<Self> {
+        Ok(JsonFormat::with_file_compression_type(self, compression))
+    }
+}
+
+impl WithCompression for ParquetFormat {
+    fn with_compression(self, _compression: FileCompressionType) -> Result<Self> {
+        // TODO: Snappy is a common compression algo to use parquet. If we want
+        // to support it, we'd need to extend the file compression enum with our
+        // own version.
+        Err(ExtensionError::String(
+            "compression not supported for parquet".to_string(),
+        ))
+    }
+}
+
+/// Generic file scan for different file types.
+#[derive(Debug, Clone)]
+pub struct ObjScanTableFunc<Opts> {
+    /// Primary name for the function.
+    name: &'static str,
+
+    /// Additional aliases for this function.
+    aliases: &'static [&'static str],
+
+    description: &'static str,
+    example: &'static str,
+
+    phantom: PhantomData<Opts>,
+}
+
+impl<Opts: OptionReader> BuiltinFunction for ObjScanTableFunc<Opts> {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn aliases(&self) -> &'static [&'static str] {
+        self.aliases
+    }
+
     fn function_type(&self) -> FunctionType {
         FunctionType::TableReturning
     }
-    fn sql_example(&self) -> Option<String> {
-        fn build_example(extension: &str) -> String {
-            format!(
-                "SELECT * FROM {ext}_scan('./my_data.{ext}')",
-                ext = extension
-            )
-        }
-        Some(build_example(self.0.to_string().as_str()))
+
+    fn sql_example(&self) -> Option<&str> {
+        Some(self.example)
     }
-    fn description(&self) -> Option<String> {
-        Some(format!(
-            "Returns a table by scanning the given {ext} file(s).",
-            ext = self.0.to_string().to_lowercase()
-        ))
+
+    fn description(&self) -> Option<&str> {
+        Some(self.description)
     }
 
     fn signature(&self) -> Option<Signature> {
@@ -79,7 +186,7 @@ impl BuiltinFunction for ObjScanTableFunc {
 }
 
 #[async_trait]
-impl TableFunc for ObjScanTableFunc {
+impl<Opts: OptionReader> TableFunc for ObjScanTableFunc<Opts> {
     fn detect_runtime(
         &self,
         args: &[FuncParamValue],
@@ -137,10 +244,15 @@ impl TableFunc for ObjScanTableFunc {
             ));
         }
 
-        let file_compression = match opts.remove("compression") {
+        // Read in user provided options and use them to construct the format.
+        let mut format = Opts::read_options(&opts)?;
+
+        // Read in compression is provided by the user, or try to infer it from
+        // the file extension.
+        let compression: Option<FileCompressionType> = match opts.remove("compression") {
             Some(cmp) => {
                 let cmp: String = cmp.try_into()?;
-                cmp.parse::<FileCompressionType>()?
+                Some(cmp.parse::<FileCompressionType>()?)
             }
             None => {
                 let path = urls
@@ -150,27 +262,12 @@ impl TableFunc for ObjScanTableFunc {
                 let path = std::path::Path::new(path.as_ref());
                 path.extension()
                     .and_then(|ext| ext.to_string_lossy().as_ref().parse().ok())
-                    .unwrap_or(FileCompressionType::UNCOMPRESSED)
             }
         };
 
-        let Self(ft, _) = self;
-        let ft: Arc<dyn FileFormat> = match ft {
-            FileType::CSV => Arc::new(
-                CsvFormat::default()
-                    .with_file_compression_type(file_compression)
-                    .with_schema_infer_max_rec(Some(20480)),
-            ),
-            FileType::PARQUET => Arc::new(ParquetFormat::default()),
-            FileType::JSON => {
-                Arc::new(JsonFormat::default().with_file_compression_type(file_compression))
-            }
-            ft => {
-                return Err(ExtensionError::String(format!(
-                    "Unsuppored file type: {ft:?}"
-                )))
-            }
-        };
+        if let Some(compression) = compression {
+            format = format.with_compression(compression)?;
+        }
 
         // Optimize creating a table provider for objects by clubbing the same
         // store together.
@@ -194,10 +291,12 @@ impl TableFunc for ObjScanTableFunc {
         // Now that we have all urls (grouped by their access), we try and get
         // all the objects and turn this into a table provider.
 
-        let o = fn_registry
+        let format: Arc<dyn FileFormat> = Arc::new(format);
+        let table = fn_registry
             .into_values()
             .map(|(access, locations)| {
-                let provider = get_table_provider(ctx, ft.clone(), access, locations.into_iter());
+                let provider =
+                    get_table_provider(ctx, format.clone(), access, locations.into_iter());
                 provider
             })
             .collect::<futures::stream::FuturesUnordered<_>>()
@@ -205,7 +304,7 @@ impl TableFunc for ObjScanTableFunc {
             .await
             .map(|providers| Arc::new(MultiSourceTableProvider::new(providers)) as _)?;
 
-        Ok(o)
+        Ok(table)
     }
 }
 

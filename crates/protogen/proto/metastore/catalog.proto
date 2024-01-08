@@ -73,6 +73,8 @@ message CatalogEntry {
 }
 
 // Metadata for every entry in the catalog.
+//
+// Keep this small.
 message EntryMeta {
   // Possible entry types in the catalog.
   //
@@ -128,10 +130,9 @@ message EntryMeta {
   // Temp objects should never be persisted.
   bool is_temp = 7;
 
-  // Optional sql example string.
-  optional string sql_example = 8;
-  // Optional description string
-  optional string description = 9;
+  reserved 8;  // Was `sql_example`.
+  reserved 9;  // Was `description`.
+
   // next: 10
 }
 
@@ -251,13 +252,22 @@ message VariadicSignature {
 }
 
 message VariadicEqualSignature {}
+
 message VariadicAnySignature {}
+
 message UniformSignature {
   uint32 num_args = 1;
   repeated common.arrow.ArrowType args = 2;
 }
 
-message ExactSignature { repeated common.arrow.ArrowType args = 1; }
-message AnySignature { uint32 num_args = 1; }
+message ExactSignature {
+  repeated common.arrow.ArrowType args = 1;
+}
 
-message OneOfSignature { repeated TypeSignature args = 1; }
+message AnySignature {
+  uint32 num_args = 1;
+}
+
+message OneOfSignature {
+  repeated TypeSignature args = 1;
+}
