@@ -17,9 +17,6 @@ use scalars::postgres::*;
 use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
 
-/// Builtin table returning functions available for all sessions.
-static BUILTIN_TABLE_FUNCS: Lazy<BuiltinTableFuncs> = Lazy::new(BuiltinTableFuncs::new);
-
 /// All builtin functions available for all sessions.
 pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
 
@@ -137,9 +134,12 @@ where
 /// We also don't have any session specific functions (for now), so it makes more sense to have a const global.
 pub struct FunctionRegistry {
     // TODO: What's the difference between `BuiltinFunction` and
-    // `BuiltinScalarUDF`?
+    // `BuiltinScalarUDF`? Still confused.
     funcs: HashMap<String, Arc<dyn BuiltinFunction>>,
     udfs: HashMap<String, Arc<dyn BuiltinScalarUDF>>,
+
+    // Table functions.
+    table_funcs: BuiltinTableFuncs,
 }
 
 impl FunctionRegistry {
@@ -220,14 +220,18 @@ impl FunctionRegistry {
         let funcs: HashMap<String, Arc<dyn BuiltinFunction>> =
             scalars.chain(aggregates).chain(arrow_cast).collect();
 
-        FunctionRegistry { funcs, udfs }
+        FunctionRegistry {
+            funcs,
+            udfs,
+            table_funcs: BuiltinTableFuncs::new(),
+        }
     }
 
     /// Checks if a function with the the given name exists.
     pub fn contains(&self, name: &str) -> bool {
         self.funcs.contains_key(name)
             || self.udfs.contains_key(name)
-            || BUILTIN_TABLE_FUNCS.funcs.contains_key(name)
+            || self.table_funcs.funcs.contains_key(name)
     }
 
     /// Find a scalar UDF by name
@@ -247,11 +251,11 @@ impl FunctionRegistry {
 
     /// Return an iterator over all builtin table functions.
     pub fn table_funcs_iter(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
-        BUILTIN_TABLE_FUNCS.iter_funcs()
+        self.table_funcs.iter_funcs()
     }
 
     pub fn get_table_func(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
-        BUILTIN_TABLE_FUNCS.find_function(name).cloned()
+        self.table_funcs.find_function(name).cloned()
     }
 
     /// Get a function description.
@@ -264,7 +268,7 @@ impl FunctionRegistry {
         if let Some(func) = self.udfs.get(name) {
             return func.description();
         }
-        if let Some(func) = BUILTIN_TABLE_FUNCS.find_function(name) {
+        if let Some(func) = self.table_funcs.find_function(name) {
             return func.description();
         }
         None
@@ -280,7 +284,7 @@ impl FunctionRegistry {
         if let Some(func) = self.udfs.get(name) {
             return func.sql_example();
         }
-        if let Some(func) = BUILTIN_TABLE_FUNCS.find_function(name) {
+        if let Some(func) = self.table_funcs.find_function(name) {
             return func.sql_example();
         }
         None
