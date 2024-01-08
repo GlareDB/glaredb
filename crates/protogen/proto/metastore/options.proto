@@ -228,6 +228,7 @@ message TableOptionsSqlServer {
 message TableOptionsClickhouse {
   string connection_string = 1;
   string table = 2;
+  optional string database = 3;
 }
 
 message TableOptionsCassandra {

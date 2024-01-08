@@ -15,6 +15,7 @@ use sqlbuiltins::builtins::{
     GLARE_CREDENTIALS, GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA, GLARE_FUNCTIONS, GLARE_SCHEMAS,
     GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
 };
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
 
 use super::{DispatchError, Result};
 
@@ -475,8 +476,8 @@ impl<'a> SystemTableDispatcher<'a> {
             schema_oid.append_value(ent.meta.parent);
             function_name.append_value(&ent.meta.name);
             function_type.append_value(ent.func_type.as_str());
-            sql_examples.append_option(ent.meta.sql_example.as_ref());
-            descriptions.append_option(ent.meta.description.as_ref());
+            sql_examples.append_option(FUNCTION_REGISTRY.get_function_example(&ent.meta.name));
+            descriptions.append_option(FUNCTION_REGISTRY.get_function_description(&ent.meta.name));
 
             const EMPTY: [Option<&'static str>; 0] = [];
             if let Some(sig) = &ent.signature {

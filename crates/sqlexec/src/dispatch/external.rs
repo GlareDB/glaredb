@@ -14,7 +14,7 @@ use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::bson::table::bson_streaming_table;
 use datasources::cassandra::CassandraTableProvider;
-use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider};
+use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider, OwnedClickhouseTableRef};
 use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
@@ -224,7 +224,9 @@ impl<'a> ExternalDispatcher<'a> {
             DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string }) => {
                 let access =
                     ClickhouseAccess::new_from_connection_string(connection_string.clone());
-                let table = ClickhouseTableProvider::try_new(access, name).await?;
+                let table_ref =
+                    OwnedClickhouseTableRef::new(Some(schema.to_owned()), name.to_owned());
+                let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
                 Ok(Arc::new(table))
             }
         }
@@ -467,11 +469,13 @@ impl<'a> ExternalDispatcher<'a> {
             }
             TableOptions::Clickhouse(TableOptionsClickhouse {
                 connection_string,
+                database,
                 table,
             }) => {
                 let access =
                     ClickhouseAccess::new_from_connection_string(connection_string.clone());
-                let table = ClickhouseTableProvider::try_new(access, table).await?;
+                let table_ref = OwnedClickhouseTableRef::new(database.clone(), table.to_owned());
+                let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
                 Ok(Arc::new(table))
             }
             TableOptions::Lance(TableOptionsObjectStore {

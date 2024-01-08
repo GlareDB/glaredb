@@ -99,6 +99,9 @@ pub enum DispatchError {
     ExtensionError(#[from] datafusion_ext::errors::ExtensionError),
     #[error(transparent)]
     CassandraDatasource(#[from] datasources::cassandra::CassandraError),
+
+    #[error("{0}")]
+    String(String),
 }
 
 impl DispatchError {
@@ -254,20 +257,23 @@ impl<'a> Dispatcher<'a> {
         Ok(Arc::new(ViewTable::try_new(plan, None)?))
     }
 
-    pub async fn dispatch_function(
+    pub async fn dispatch_table_function(
         &self,
         func: &FunctionEntry,
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        let resolve_func = if func.meta.builtin {
-            FUNCTION_REGISTRY.get_table_func(&func.meta.name)
-        } else {
-            // We only have builtin functions right now.
-            None
+        let func = match FUNCTION_REGISTRY.get_table_func(&func.meta.name) {
+            Some(func) => func,
+            None => {
+                return Err(DispatchError::String(format!(
+                    "'{}' cannot be used in the FROM clause of a query.",
+                    func.meta.name
+                )))
+            }
         };
-        let prov = resolve_func
-            .unwrap()
+
+        let prov = func
             .create_provider(
                 &DefaultTableContextProvider::new(self.catalog, self.df_ctx),
                 args,

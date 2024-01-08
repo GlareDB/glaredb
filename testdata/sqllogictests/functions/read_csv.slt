@@ -62,3 +62,15 @@ statement error Note that globbing is not supported for HTTP.
 select * from read_csv(
   'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/*.csv'
 );
+
+# Alternative delimiters
+
+query ITR
+select * from read_csv('../../testdata/csv/delimiter.csv', delimiter => ';');
+----
+1   hello, world   3.9
+2   HELLO, WORLD   4.9
+
+# Invalid delimiter (longer than one byte)
+statement error delimiters for CSV must fit in one byte \(e.g. ','\)
+select * from read_csv('../../testdata/csv/delimiter.csv', delimiter => ';;');
