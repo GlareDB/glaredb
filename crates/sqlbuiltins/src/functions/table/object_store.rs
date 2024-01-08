@@ -62,7 +62,7 @@ impl OptionReader for CsvOptionReader {
         // Specify delimiter between fields. Default: ','
         ("delimiter", DataType::Utf8),
         // Try to read a header. Default: true
-        ("header", DataType::Boolean),
+        ("has_header", DataType::Boolean),
     ];
 
     fn read_options(opts: &HashMap<String, FuncParamValue>) -> Result<Self::Format> {
@@ -80,9 +80,9 @@ impl OptionReader for CsvOptionReader {
             format = format.with_delimiter(delimiter);
         }
 
-        if let Some(header) = opts.get("header") {
-            let header: bool = header.clone().try_into()?;
-            format = format.with_has_header(header);
+        if let Some(header) = opts.get("has_header") {
+            let has_header: bool = header.clone().try_into()?;
+            format = format.with_has_header(has_header);
         }
 
         Ok(format)

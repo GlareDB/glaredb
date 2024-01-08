@@ -4,7 +4,7 @@
 query T
 select parameters from glare_catalog.functions where function_name = 'read_csv';
 ----
-Utf8,Utf8, delimiter: Utf8, header: Boolean,List<Utf8>,List<Utf8>, delimiter: Utf8, header: Boolean
+Utf8,Utf8, delimiter: Utf8, has_header: Boolean,List<Utf8>,List<Utf8>, delimiter: Utf8, has_header: Boolean
 
 # Absolute path
 query I
@@ -84,22 +84,22 @@ select * from read_csv('./testdata/csv/delimiter.csv', delimiter => ';;');
 # Headers
 
 query ITTR rowsort
-select * from read_csv('./testdata/csv/headerless.csv', header => false);
+select * from read_csv('./testdata/csv/headerless.csv', has_header => false);
 ----
 1   hello   world   3.9
 2   HELLO   WORLD   4.9
 
 query ITTR rowsort
-select * from read_csv('./testdata/csv/headerless.csv', header => 'false');
+select * from read_csv('./testdata/csv/headerless.csv', has_header => 'false');
 ----
 1   hello   world   3.9
 2   HELLO   WORLD   4.9
 
 statement error Invalid parameter value hello, expected a boolean
-select * from read_csv('./testdata/csv/headerless.csv', header => 'hello');
+select * from read_csv('./testdata/csv/headerless.csv', has_header => 'hello');
 
 query I
-select count(*) from read_csv('./testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv', header => true)
+select count(*) from read_csv('./testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv', has_header => true)
 ----
 102
 
