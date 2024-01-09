@@ -1,6 +1,8 @@
+import sys
 import pathlib
 import subprocess
 
+import pytest
 import psycopg2
 
 from fixtures.glaredb import glaredb_connection, release_path, debug_path
@@ -24,3 +26,32 @@ def test_start(
 ):
     with glaredb_connection.cursor() as cur:
         cur.execute("SELECT 1;")
+
+
+@pytest.mark.skipif(sys.platform == "darwin", reason="linux version of the test")
+def test_expected_linking_linux(debug_path: pathlib.Path):
+    out = [
+        ll
+        for cell in [
+            item
+            for item in [
+                line.split(" ")
+                for line in str(subprocess.check_output(["ldd", debug_path.absolute()], text=True))
+                .replace("\t", "")
+                .split("\n")
+            ]
+        ]
+        for ll in cell
+        if not (ll == "=>" or ll.startswith("(0x00") or ll.startswith("/usr/lib"))
+    ]
+
+    # this is hella gross, but this number will change any time we add
+    # a new library, this assertion will fail.
+    assert len(out) == 10, "unexpected library in:\n" + "\n".join(out)
+    # currently we link (open) libssl, which means the first time it
+    # changes uncomment the first assertion in the loop below
+
+    for lib in out:
+        # assert not ("ssl" in lib)
+        assert not ("libc++" in lib)
+        assert not ("libstdc++" in lib)
