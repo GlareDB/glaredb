@@ -3,6 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use datafusion::arrow::record_batch::RecordBatchIterator;
 use datafusion::common::Result as DfResult;
 use datafusion::error::DataFusionError;
 use datafusion::execution::TaskContext;
@@ -10,8 +11,9 @@ use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::DisplayAs;
 use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
+use lance::dataset::{WriteMode, WriteParams};
 use lance::io::writer::FileWriterOptions;
-use lance::io::FileWriter;
+use lance::Dataset;
 use object_store::{path::Path as ObjectPath, ObjectStore};
 
 #[derive(Debug, Clone)]
@@ -19,6 +21,7 @@ pub struct LanceSinkOpts {
     pub disable_all_column_stats: Option<bool>,
     pub collect_all_column_stats: Option<bool>,
     pub column_stats: Option<Vec<String>>,
+    pub url: Option<url::Url>,
 }
 
 /// Writes lance files to object storage.
@@ -35,27 +38,8 @@ impl Default for LanceSinkOpts {
             collect_all_column_stats: Some(true),
             column_stats: None,
             disable_all_column_stats: None,
+            url: None,
         }
-    }
-}
-
-impl LanceSinkOpts {
-    fn no_column_stats_specified(&self) -> bool {
-        self.column_stats.is_none()
-            && self.disable_all_column_stats.is_none()
-            && self.collect_all_column_stats.is_none()
-    }
-    fn conflicting_user_specified_stats(&self) -> bool {
-        self.column_stats.is_some()
-            && (self.disable_all_column_stats.is_some() || self.collect_all_column_stats.is_some())
-    }
-    fn conflicting_stats_options(&self) -> bool {
-        self.disable_all_column_stats.is_some() && self.collect_all_column_stats.is_some()
-    }
-    fn is_invalid(&self) -> bool {
-        self.no_column_stats_specified()
-            || self.conflicting_stats_options()
-            || self.conflicting_user_specified_stats()
     }
 }
 
@@ -80,27 +64,21 @@ impl LanceSink {
         loc: impl Into<ObjectPath>,
         opts: Option<LanceSinkOpts>,
     ) -> Result<Self, DataFusionError> {
-        let opts = match opts {
-            Some(o) => {
-                if o.is_invalid() {
-                    return Err(DataFusionError::Execution(
-                        "impossible lance configuration".to_string(),
-                    ));
-                } else {
-                    o
-                }
-            }
-            None => LanceSinkOpts::default(),
-        };
-
         Ok(LanceSink {
             store,
             loc: loc.into(),
-            opts,
+            opts: match opts {
+                Some(o) => o,
+                None => LanceSinkOpts::default(),
+            },
         })
     }
 
-    async fn stream_into_inner(&self, mut stream: SendableRecordBatchStream) -> DfResult<usize> {
+    async fn stream_into_inner(
+        &self,
+        stream: SendableRecordBatchStream,
+        mut ds: Option<Dataset>,
+    ) -> DfResult<Option<Dataset>> {
         let mut opts = FileWriterOptions::default();
         if self.opts.collect_all_column_stats.is_some_and(|val| val) {
             opts.collect_stats_for_fields = stream
@@ -127,19 +105,42 @@ impl LanceSink {
                 .map(|v| v.0 as i32)
                 .collect();
         }
+        let table = if self.opts.url.is_some() {
+            self.opts
+                .url
+                .clone()
+                .unwrap()
+                .join(self.loc.as_ref())
+                .unwrap()
+        } else {
+            url::Url::parse(self.loc.as_ref()).unwrap()
+        };
 
-        let mut writer = FileWriter::with_object_writer(
-            lance::io::ObjectWriter::new(self.store.as_ref(), &self.loc).await?,
-            lance::datatypes::Schema::try_from(stream.schema().as_ref())?,
-            &opts,
-        )?;
+        let schema = stream.schema().clone();
+        let mut chunks = stream.chunks(32);
+        let mut write_opts = WriteParams::default();
+        write_opts.mode = WriteMode::Create;
+        while let Some(batches) = chunks.next().await {
+            let batch_iter =
+                RecordBatchIterator::new(batches.into_iter().map(|item| Ok(item?)), schema.clone());
 
-        while let Some(batch) = stream.next().await {
-            let batch = batch?;
-            writer.write(&[batch]).await?;
+            match ds.clone() {
+                Some(mut d) => {
+                    d.append(batch_iter, Some(write_opts.clone()))
+                        .await
+                        .unwrap();
+                }
+                None => {
+                    ds.replace(
+                        Dataset::write(batch_iter, table.as_str(), Some(write_opts.clone()))
+                            .await
+                            .unwrap(),
+                    );
+                }
+            }
         }
 
-        writer.finish().await.map_err(|e| e.into())
+        Ok(ds)
     }
 }
 
@@ -150,10 +151,13 @@ impl DataSink for LanceSink {
         data: Vec<SendableRecordBatchStream>,
         _context: &Arc<TaskContext>,
     ) -> DfResult<u64> {
-        let mut count = 0;
+        let mut ds: Option<Dataset> = None;
         for stream in data {
-            count += self.stream_into_inner(stream).await.map(|x| x as u64)?;
+            ds = self.stream_into_inner(stream, ds).await?;
         }
-        Ok(count)
+        match ds {
+            Some(ds) => Ok(ds.count_rows().await? as u64),
+            None => Ok(0),
+        }
     }
 }

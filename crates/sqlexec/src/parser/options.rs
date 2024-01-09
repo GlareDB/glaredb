@@ -58,6 +58,17 @@ impl ParseOptionValue<String> for OptionValue {
     }
 }
 
+impl ParseOptionValue<Vec<String>> for OptionValue {
+    fn parse_opt(self) -> Result<Vec<String>, ParserError> {
+        match self {
+            Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => {
+                Ok(s.split(",").map(|s| s.to_string()).collect())
+            }
+            o => Err(unexpected_type_err!("string slice", o)),
+        }
+    }
+}
+
 impl ParseOptionValue<bool> for OptionValue {
     fn parse_opt(self) -> Result<bool, ParserError> {
         let opt = match self {

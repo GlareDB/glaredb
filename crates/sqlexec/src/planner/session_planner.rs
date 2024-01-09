@@ -40,16 +40,17 @@ use protogen::metastore::types::catalog::{
 use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToDestinationOptionsAzure, CopyToDestinationOptionsGcs,
     CopyToDestinationOptionsLocal, CopyToDestinationOptionsS3, CopyToFormatOptions,
-    CopyToFormatOptionsCsv, CopyToFormatOptionsJson, CopyToFormatOptionsParquet,
-    CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsAzure, CredentialsOptionsDebug,
-    CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse,
-    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog,
-    DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery,
-    TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
-    TableOptionsMongoDb, TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres,
-    TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
-    TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
+    CopyToFormatOptionsCsv, CopyToFormatOptionsJson, CopyToFormatOptionsLance,
+    CopyToFormatOptionsParquet, CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsAzure,
+    CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery,
+    DatabaseOptionsClickhouse, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
+    DatabaseOptionsMongoDb, DatabaseOptionsMysql, DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog, DeltaLakeUnityCatalog,
+    StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsClickhouse, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsLocal, TableOptionsMongoDb, TableOptionsMysql,
+    TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake,
+    TableOptionsSqlServer, TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal,
+    TunnelOptionsSsh,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
@@ -1758,6 +1759,13 @@ impl<'a> SessionPlanner<'a> {
                 CopyToFormatOptions::Json(CopyToFormatOptionsJson { array })
             }
             Some(CopyToFormatOptions::BSON) => CopyToFormatOptions::Bson {},
+            Some(CopyToFormatOptions::LANCE) => {
+                CopyToFormatOptions::Lance(CopyToFormatOptionsLance {
+                    disable_all_column_stats: m.remove_optional("disable_all_column_stats")?,
+                    collect_all_column_stats: m.remove_optional("collect_all_column_stats")?,
+                    collect_column_stats: m.remove_optional("collect_column_stats")?,
+                })
+            }
             Some(other) => return Err(internal!("unsupported output format: {other}")),
         };
 

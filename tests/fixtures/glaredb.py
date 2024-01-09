@@ -40,6 +40,7 @@ def glaredb_connection(
         ],
         cwd=tmp_path_factory.mktemp("cwd").absolute(),
         close_fds="posix" in sys.builtin_module_names,
+        env={"RUST_BACKTRACE": "1"},
     ) as p:
         time.sleep(0.5)
         assert not p.poll(), p.stdout.read().decode("utf-8")
