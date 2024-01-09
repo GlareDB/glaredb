@@ -64,11 +64,11 @@ doc-tests: protoc
 
 # Run SQL Logic Tests.
 sql-logic-tests *args: protoc
-  just test --test sqllogictests -- {{args}}
+  cargo run --bin slt -- {{args}}
 
 # Run SQL Logic Tests over RPC
-rpc-tests: protoc
-  just sql-logic-tests --protocol=rpc \
+rpc-tests:
+  just slt-bin --protocol=rpc \
     'sqllogictests/cast/*' \
     'sqllogictests/cte/*' \
     'sqllogictests/functions/delta_scan' \
@@ -112,6 +112,14 @@ rpc-tests: protoc
     'sqllogictests/prql' \
     'sqllogictests/describe_rpc' \
     'sqllogictests/allowed_operations'
+
+# Build a pre-compiled slt runner
+build-slt *args:
+  cargo build --bin slt -- {{args}}
+
+# Run SQL Logic Tests with a pre-compiled slt runner
+slt-bin *args:
+  ./target/debug/slt {{args}}
 
 #  Check formatting.
 fmt-check: protoc

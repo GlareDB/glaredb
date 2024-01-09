@@ -93,6 +93,7 @@ pub enum DatabaseOptions {
     Delta(DatabaseOptionsDeltaLake),
     SqlServer(DatabaseOptionsSqlServer),
     Clickhouse(DatabaseOptionsClickhouse),
+    Cassandra(DatabaseOptionsCassandra),
 }
 
 impl DatabaseOptions {
@@ -106,6 +107,7 @@ impl DatabaseOptions {
     pub const DELTA: &'static str = "delta";
     pub const SQL_SERVER: &'static str = "sql_server";
     pub const CLICKHOUSE: &'static str = "clickhouse";
+    pub const CASSANDRA: &'static str = "cassandra";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -119,6 +121,7 @@ impl DatabaseOptions {
             DatabaseOptions::Delta(_) => Self::DELTA,
             DatabaseOptions::SqlServer(_) => Self::SQL_SERVER,
             DatabaseOptions::Clickhouse(_) => Self::CLICKHOUSE,
+            DatabaseOptions::Cassandra(_) => Self::CASSANDRA,
         }
     }
 }
@@ -157,6 +160,9 @@ impl TryFrom<options::database_options::Options> for DatabaseOptions {
             options::database_options::Options::Clickhouse(v) => {
                 DatabaseOptions::Clickhouse(v.try_into()?)
             }
+            options::database_options::Options::Cassandra(v) => {
+                DatabaseOptions::Cassandra(v.try_into()?)
+            }
         })
     }
 }
@@ -186,6 +192,9 @@ impl From<DatabaseOptions> for options::database_options::Options {
             }
             DatabaseOptions::Clickhouse(v) => {
                 options::database_options::Options::Clickhouse(v.into())
+            }
+            DatabaseOptions::Cassandra(v) => {
+                options::database_options::Options::Cassandra(v.into())
             }
         }
     }
@@ -363,6 +372,23 @@ impl From<DatabaseOptionsClickhouse> for options::DatabaseOptionsClickhouse {
         options::DatabaseOptionsClickhouse {
             connection_string: value.connection_string,
         }
+    }
+}
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct DatabaseOptionsCassandra {
+    pub host: String,
+}
+
+impl TryFrom<options::DatabaseOptionsCassandra> for DatabaseOptionsCassandra {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DatabaseOptionsCassandra) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsCassandra { host: value.host })
+    }
+}
+
+impl From<DatabaseOptionsCassandra> for options::DatabaseOptionsCassandra {
+    fn from(value: DatabaseOptionsCassandra) -> Self {
+        options::DatabaseOptionsCassandra { host: value.host }
     }
 }
 
@@ -549,6 +575,7 @@ pub enum TableOptions {
     Lance(TableOptionsObjectStore),
     Bson(TableOptionsObjectStore),
     Clickhouse(TableOptionsClickhouse),
+    Cassandra(TableOptionsCassandra),
 }
 
 impl TableOptions {
@@ -569,6 +596,7 @@ impl TableOptions {
     pub const LANCE: &'static str = "lance";
     pub const BSON: &'static str = "bson";
     pub const CLICKHOUSE: &'static str = "clickhouse";
+    pub const CASSANDRA: &'static str = "cassandra";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -593,6 +621,7 @@ impl TableOptions {
             TableOptions::Lance(_) => Self::LANCE,
             TableOptions::Bson(_) => Self::BSON,
             TableOptions::Clickhouse(_) => Self::CLICKHOUSE,
+            TableOptions::Cassandra(_) => Self::CASSANDRA,
         }
     }
 }
@@ -626,6 +655,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             options::table_options::Options::Clickhouse(v) => {
                 TableOptions::Clickhouse(v.try_into()?)
             }
+            options::table_options::Options::Cassandra(v) => TableOptions::Cassandra(v.try_into()?),
         })
     }
 }
@@ -658,6 +688,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Lance(v) => options::table_options::Options::Lance(v.into()),
             TableOptions::Bson(v) => options::table_options::Options::Bson(v.into()),
             TableOptions::Clickhouse(v) => options::table_options::Options::Clickhouse(v.into()),
+            TableOptions::Cassandra(v) => options::table_options::Options::Cassandra(v.into()),
         })
     }
 }
@@ -1024,6 +1055,34 @@ impl From<TableOptionsClickhouse> for options::TableOptionsClickhouse {
             connection_string: value.connection_string,
             table: value.table,
             database: value.database,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct TableOptionsCassandra {
+    pub host: String,
+    pub keyspace: String,
+    pub table: String,
+}
+
+impl TryFrom<options::TableOptionsCassandra> for TableOptionsCassandra {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsCassandra) -> Result<Self, Self::Error> {
+        Ok(TableOptionsCassandra {
+            host: value.host,
+            keyspace: value.keyspace,
+            table: value.table,
+        })
+    }
+}
+
+impl From<TableOptionsCassandra> for options::TableOptionsCassandra {
+    fn from(value: TableOptionsCassandra) -> Self {
+        options::TableOptionsCassandra {
+            host: value.host,
+            keyspace: value.keyspace,
+            table: value.table,
         }
     }
 }
