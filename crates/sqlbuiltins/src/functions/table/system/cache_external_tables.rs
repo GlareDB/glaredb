@@ -1,5 +1,7 @@
 use crate::functions::table::TableFunc;
 use crate::functions::ConstBuiltinFunction;
+use crate::tables::glare_catalog::GlareCachedExternalDatabaseTables;
+use crate::tables::BuiltinTable;
 use async_trait::async_trait;
 use datafusion::arrow::array::{StringBuilder, UInt32Builder};
 use datafusion::arrow::datatypes::Schema;
@@ -26,7 +28,6 @@ use std::sync::Arc;
 use tracing::warn;
 
 use super::{SystemOperation, SystemOperationTableProvider};
-use crate::builtins::GLARE_CACHED_EXTERNAL_DATABASE_TABLES;
 use crate::functions::table::virtual_listing::get_virtual_lister_for_external_db;
 
 #[derive(Debug, Clone, Copy)]
@@ -90,15 +91,15 @@ impl TableFunc for CacheExternalDatabaseTables {
 
         let table = match context
             .get_session_catalog()
-            .get_by_oid(GLARE_CACHED_EXTERNAL_DATABASE_TABLES.oid)
+            .get_by_oid(GlareCachedExternalDatabaseTables.oid())
             .ok_or_else(|| ExtensionError::MissingObject {
                 obj_typ: "table",
-                name: GLARE_CACHED_EXTERNAL_DATABASE_TABLES.name.to_string(),
+                name: GlareCachedExternalDatabaseTables.name().to_string(),
             })? {
             CatalogEntry::Table(ent) => ent.clone(),
             other => panic!(
                 "Unexpected entry type for builtin table: {}, got: {other:?}",
-                GLARE_CACHED_EXTERNAL_DATABASE_TABLES.name
+                GlareCachedExternalDatabaseTables.name()
             ),
         };
 
@@ -174,7 +175,7 @@ impl ExecutionPlan for StreamingListerExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        Arc::new(GLARE_CACHED_EXTERNAL_DATABASE_TABLES.arrow_schema())
+        Arc::new(GlareCachedExternalDatabaseTables.arrow_schema())
     }
 
     fn output_partitioning(&self) -> Partitioning {

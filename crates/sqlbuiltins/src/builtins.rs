@@ -13,11 +13,9 @@
 //! database node will be able to see it, but will not be able to execute
 //! appropriately. We can revisit this if this isn't acceptable long-term.
 
-use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
+pub use crate::tables::*;
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_GLAREDB_BUILTIN_ID;
-use protogen::metastore::types::options::InternalColumnDefinition;
-use std::sync::Arc;
 
 /// The default catalog that exists in all GlareDB databases.
 pub const DEFAULT_CATALOG: &str = "default";
@@ -76,214 +74,6 @@ pub static DATABASE_DEFAULT: Lazy<BuiltinDatabase> = Lazy::new(|| BuiltinDatabas
 impl BuiltinDatabase {
     pub fn builtins() -> Vec<&'static BuiltinDatabase> {
         vec![&DATABASE_DEFAULT]
-    }
-}
-
-/// A builtin table.
-// TODO: Do we want something to indicate if a table is persisted in delta?
-#[derive(Debug, Clone)]
-pub struct BuiltinTable {
-    pub schema: &'static str,
-    pub name: &'static str,
-    pub columns: Vec<InternalColumnDefinition>,
-    pub oid: u32,
-}
-
-pub static GLARE_DATABASES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "databases",
-    columns: InternalColumnDefinition::from_tuples([
-        ("oid", DataType::UInt32, false),
-        ("database_name", DataType::Utf8, false),
-        ("builtin", DataType::Boolean, false),
-        ("external", DataType::Boolean, false),
-        ("datasource", DataType::Utf8, false),
-        ("access_mode", DataType::Utf8, false), // `SourceAccessMode::as_str()`
-    ]),
-    oid: 16401,
-});
-
-pub static GLARE_TUNNELS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "tunnels",
-    columns: InternalColumnDefinition::from_tuples([
-        ("oid", DataType::UInt32, false),
-        ("tunnel_name", DataType::Utf8, false),
-        ("builtin", DataType::Boolean, false),
-        ("tunnel_type", DataType::Utf8, false),
-    ]),
-    oid: 16402,
-});
-
-pub static GLARE_CREDENTIALS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "credentials",
-    columns: InternalColumnDefinition::from_tuples([
-        ("oid", DataType::UInt32, false),
-        ("credentials_name", DataType::Utf8, false),
-        ("builtin", DataType::Boolean, false),
-        ("provider", DataType::Utf8, false),
-        ("comment", DataType::Utf8, false),
-    ]),
-    oid: 16403,
-});
-
-pub static GLARE_SCHEMAS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "schemas",
-    columns: InternalColumnDefinition::from_tuples([
-        ("oid", DataType::UInt32, false),
-        ("database_oid", DataType::UInt32, false),
-        ("database_name", DataType::Utf8, false),
-        ("schema_name", DataType::Utf8, false),
-        ("builtin", DataType::Boolean, false),
-    ]),
-    oid: 16404,
-});
-
-pub static GLARE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "tables",
-    columns: InternalColumnDefinition::from_tuples([
-        ("oid", DataType::UInt32, false),
-        ("database_oid", DataType::UInt32, false),
-        ("schema_oid", DataType::UInt32, false),
-        ("schema_name", DataType::Utf8, false),
-        ("table_name", DataType::Utf8, false),
-        ("builtin", DataType::Boolean, false),
-        ("external", DataType::Boolean, false),
-        ("datasource", DataType::Utf8, false),
-        ("access_mode", DataType::Utf8, false), // `SourceAccessMode::as_str()`
-    ]),
-    oid: 16405,
-});
-
-pub static GLARE_VIEWS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "views",
-    columns: InternalColumnDefinition::from_tuples([
-        ("oid", DataType::UInt32, false),
-        ("database_oid", DataType::UInt32, false),
-        ("schema_oid", DataType::UInt32, false),
-        ("schema_name", DataType::Utf8, false),
-        ("view_name", DataType::Utf8, false),
-        ("builtin", DataType::Boolean, false),
-        ("sql", DataType::Utf8, false),
-    ]),
-    oid: 16406,
-});
-
-pub static GLARE_COLUMNS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "columns",
-    columns: InternalColumnDefinition::from_tuples([
-        ("schema_oid", DataType::UInt32, false),
-        ("table_oid", DataType::UInt32, false),
-        ("table_name", DataType::Utf8, false),
-        ("column_name", DataType::Utf8, false),
-        ("column_ordinal", DataType::UInt32, false),
-        ("data_type", DataType::Utf8, false),
-        ("is_nullable", DataType::Boolean, false),
-    ]),
-    oid: 16407,
-});
-
-pub static GLARE_FUNCTIONS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "functions",
-    columns: InternalColumnDefinition::from_tuples([
-        ("oid", DataType::UInt32, false),
-        ("schema_oid", DataType::UInt32, false),
-        ("function_name", DataType::Utf8, false),
-        ("function_type", DataType::Utf8, false), // table, scalar, aggregate
-        (
-            "parameters",
-            DataType::List(Arc::new(ArrowField::new("item", DataType::Utf8, true))),
-            false,
-        ),
-        ("builtin", DataType::Boolean, false),
-        ("example", DataType::Utf8, true),
-        ("description", DataType::Utf8, true),
-    ]),
-    oid: 16408,
-});
-
-pub static GLARE_SSH_KEYS: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "ssh_keys",
-    columns: InternalColumnDefinition::from_tuples([
-        ("ssh_tunnel_oid", DataType::UInt32, false),
-        ("ssh_tunnel_name", DataType::Utf8, false),
-        ("public_key", DataType::Utf8, false),
-    ]),
-    oid: 16409,
-});
-
-pub static GLARE_DEPLOYMENT_METADATA: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "deployment_metadata",
-    columns: InternalColumnDefinition::from_tuples([
-        ("key", DataType::Utf8, false),
-        ("value", DataType::Utf8, false),
-    ]),
-    oid: 16410,
-});
-
-/// Cached table metadata for external databases.
-///
-/// This stores information for all tables, and all columns for each table.
-///
-/// The cached data lives in an on-disk (delta) table alongside user table data.
-///
-// TODO: Do we want to store columns in a separate table?
-pub static GLARE_CACHED_EXTERNAL_DATABASE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
-    schema: INTERNAL_SCHEMA,
-    name: "cached_external_database_tables",
-    columns: InternalColumnDefinition::from_tuples([
-        // External database this entry is for.
-        ("database_oid", DataType::UInt32, false),
-        // Schema name (in external database).
-        ("schema_name", DataType::Utf8, false),
-        // Table name (in external database).
-        ("table_name", DataType::Utf8, false),
-        // Column name (in external database).
-        ("column_name", DataType::Utf8, false),
-        ("data_type", DataType::Utf8, false),
-    ]),
-    oid: 16411,
-});
-
-impl BuiltinTable {
-    /// Check if this table matches the provided schema and name.
-    pub fn matches(&self, schema: &str, name: &str) -> bool {
-        self.schema == schema && self.name == name
-    }
-
-    /// Get the arrow schema for the builtin table.
-    pub fn arrow_schema(&self) -> ArrowSchema {
-        ArrowSchema::new(
-            self.columns
-                .iter()
-                .map(|col| ArrowField::new(&col.name, col.arrow_type.clone(), col.nullable))
-                .collect::<Vec<_>>(),
-        )
-    }
-
-    /// Return a vector of all builtin tables.
-    pub fn builtins() -> Vec<&'static BuiltinTable> {
-        vec![
-            &GLARE_DATABASES,
-            &GLARE_TUNNELS,
-            &GLARE_CREDENTIALS,
-            &GLARE_SCHEMAS,
-            &GLARE_VIEWS,
-            &GLARE_TABLES,
-            &GLARE_COLUMNS,
-            &GLARE_FUNCTIONS,
-            &GLARE_SSH_KEYS,
-            &GLARE_DEPLOYMENT_METADATA,
-            &GLARE_CACHED_EXTERNAL_DATABASE_TABLES,
-        ]
     }
 }
 
@@ -664,6 +454,7 @@ impl BuiltinView {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use std::collections::HashSet;
 
@@ -680,10 +471,10 @@ mod tests {
     #[test]
     fn builtin_table_oid_range() {
         let mut oids = HashSet::new();
-        for schema in BuiltinTable::builtins() {
-            assert!(schema.oid < FIRST_NON_STATIC_OID);
-            assert!(schema.oid >= FIRST_GLAREDB_BUILTIN_ID);
-            assert!(oids.insert(schema.oid), "duplicate oid: {}", schema.oid);
+        for table in TABLE_REGISTRY.tables_iter() {
+            assert!(table.oid() < FIRST_NON_STATIC_OID);
+            assert!(table.oid() >= FIRST_GLAREDB_BUILTIN_ID);
+            assert!(oids.insert(table.oid()), "duplicate oid: {}", table.oid());
         }
     }
 
@@ -707,8 +498,8 @@ mod tests {
     #[test]
     fn builtin_unique_table_names() {
         let mut names = HashSet::new();
-        for builtin in BuiltinTable::builtins() {
-            let name = format!("{}.{}", builtin.schema, builtin.name);
+        for builtin in TABLE_REGISTRY.tables_iter() {
+            let name = format!("{}.{}", builtin.schema(), builtin.name());
             assert!(names.insert(name.clone()), "duplicate name: {}", name);
         }
     }

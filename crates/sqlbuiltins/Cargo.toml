@@ -14,6 +14,8 @@ datafusion_ext = { path = "../datafusion_ext" }
 telemetry = { path = "../telemetry" }
 datasources = { path = "../datasources" }
 decimal = { path = "../decimal" }
+catalog = { path = "../catalog" }
+arrow_util = { path = "../arrow_util" }
 thiserror.workspace = true
 tokio = { workspace = true  }
 serde = { workspace = true }

@@ -13,10 +13,11 @@ use protogen::metastore::types::options::{
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
 use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
-    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
+    BuiltinDatabase, BuiltinSchema, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
     FIRST_NON_STATIC_OID,
 };
 use sqlbuiltins::functions::{BuiltinFunction, FUNCTION_REGISTRY};
+use sqlbuiltins::tables::TABLE_REGISTRY;
 use sqlbuiltins::validation::{
     validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
 };
@@ -1213,23 +1214,27 @@ impl BuiltinCatalog {
             )?;
         }
 
-        for table in BuiltinTable::builtins() {
+        for table in TABLE_REGISTRY.tables_iter() {
+            let schema = table.schema();
+            let oid = table.oid();
+            let name = table.name();
+            let columns = table.columns();
             let schema_id = schema_names
-                .get(table.schema)
-                .ok_or_else(|| MetastoreError::MissingNamedSchema(table.schema.to_string()))?;
+                .get(schema)
+                .ok_or_else(|| MetastoreError::MissingNamedSchema(schema.to_string()))?;
             insert_entry(
-                table.oid,
+                table.oid(),
                 CatalogEntry::Table(TableEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Table,
-                        id: table.oid,
+                        id: oid,
                         parent: *schema_id,
-                        name: table.name.to_string(),
+                        name: name.to_string(),
                         builtin: true,
                         external: false,
                         is_temp: false,
                     },
-                    options: TableOptions::new_internal(table.columns.clone()),
+                    options: TableOptions::new_internal(columns.clone()),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadOnly,
                 }),
@@ -1238,7 +1243,7 @@ impl BuiltinCatalog {
                 .get_mut(schema_id)
                 .unwrap()
                 .tables
-                .insert(table.name.to_string(), table.oid);
+                .insert(name.to_string(), oid);
         }
 
         // All the below items don't have stable ids.

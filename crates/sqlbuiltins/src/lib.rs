@@ -7,4 +7,5 @@
 pub mod builtins;
 pub mod errors;
 pub mod functions;
+pub mod tables;
 pub mod validation;

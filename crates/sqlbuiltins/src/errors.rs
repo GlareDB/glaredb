@@ -37,6 +37,8 @@ pub enum BuiltinError {
 
     #[error("DataFusionExtension: {0}")]
     DataFusionExtension(String),
+    #[error("Internal: {0}")]
+    Internal(String),
 }
 
 pub type Result<T, E = BuiltinError> = std::result::Result<T, E>;
