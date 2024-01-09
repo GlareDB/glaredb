@@ -28,7 +28,7 @@ def test_start(
         cur.execute("SELECT 1;")
 
 
-@pytest.mark.skipif(sys.platform == "darwin", reason="linux version of the test")
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="linux version of the test")
 def test_expected_linking_linux(debug_path: pathlib.Path):
     out = [
         ll
@@ -48,8 +48,10 @@ def test_expected_linking_linux(debug_path: pathlib.Path):
     # this is hella gross, but this number will change any time we add
     # a new library, this assertion will fail.
     assert len(out) == 10, "unexpected library in:\n" + "\n".join(out)
-    # currently we link (open) libssl, which means the first time it
-    # changes uncomment the first assertion in the loop below
+
+    # TODO: currently we link (open) libssl, which means the first time it
+    # changes uncomment the first assertion in the loop below and
+    # remove this comment:
 
     for lib in out:
         # assert not ("ssl" in lib)
