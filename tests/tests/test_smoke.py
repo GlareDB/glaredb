@@ -52,6 +52,10 @@ def test_expected_linking_linux(debug_path: pathlib.Path):
 
     # this is hella gross, but this number will change any time we add
     # a new library, this assertion will fail.
+    #
+    # it's two numbers because this is different on different distros;
+    # as long as we don't have two numbers next to eachother this is fine;
+    # presently: (ubuntu2004, archlinux)
     assert len(out) in (7, 9), "unexpected library in:\n" + "\n".join(out)
 
     # TODO: currently we link (open) libssl, which means the first time it
