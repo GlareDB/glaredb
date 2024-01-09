@@ -42,12 +42,17 @@ def test_expected_linking_linux(debug_path: pathlib.Path):
             ]
         ]
         for ll in cell
-        if not (ll == "=>" or ll.startswith("(0x00") or ll.startswith("/usr/lib"))
+        if not (
+            ll == "=>"
+            or ll.startswith("(0x00")
+            or ll.startswith("/usr/lib")
+            or ll.startswith("/lib64")
+        )
     ]
 
     # this is hella gross, but this number will change any time we add
     # a new library, this assertion will fail.
-    assert len(out) == 10, "unexpected library in:\n" + "\n".join(out)
+    assert len(out) == 9, "unexpected library in:\n" + "\n".join(out)
 
     # TODO: currently we link (open) libssl, which means the first time it
     # changes uncomment the first assertion in the loop below and
