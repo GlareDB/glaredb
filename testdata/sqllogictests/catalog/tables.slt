@@ -6,6 +6,23 @@ create schema builtin_tables_test;
 statement ok
 set search_path = builtin_tables_test;
 
+# Builtin tables must have stable OIDs. If we end up doing refactoring, this
+# just gives us confidence nothing broke.
+query IIITTTTTT rowsort
+select * from glare_catalog.tables;
+----
+16401 16384 16385 glare_catalog databases                       t f internal READ_ONLY
+16402 16384 16385 glare_catalog tunnels                         t f internal READ_ONLY
+16403 16384 16385 glare_catalog credentials                     t f internal READ_ONLY
+16404 16384 16385 glare_catalog schemas                         t f internal READ_ONLY
+16405 16384 16385 glare_catalog tables                          t f internal READ_ONLY
+16406 16384 16385 glare_catalog views                           t f internal READ_ONLY
+16407 16384 16385 glare_catalog columns                         t f internal READ_ONLY
+16408 16384 16385 glare_catalog functions                       t f internal READ_ONLY
+16409 16384 16385 glare_catalog ssh_keys                        t f internal READ_ONLY
+16410 16384 16385 glare_catalog deployment_metadata             t f internal READ_ONLY
+16411 16384 16385 glare_catalog cached_external_database_tables t f internal READ_ONLY
+
 statement ok
 set enable_debug_datasources to t;
 
