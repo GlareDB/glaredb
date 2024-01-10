@@ -737,6 +737,7 @@ impl Session {
     /// Create a logical plan from a SQL query.
     /// if the query doesn't contain exactly one statement, an error is returned.
     pub async fn create_logical_plan(&mut self, query: &str) -> Result<LogicalPlan> {
+        println!("create_logical_plan {query}");
         self.ctx.maybe_refresh_state().await?;
         let mut statements = self.parse_query(query)?;
         match statements.len() {

@@ -642,7 +642,51 @@ SELECT
 FROM glare_catalog.views;
 ",
 });
+pub static PG_TYPE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_type",
+    sql: "
+SELECT 
 
+null as typacl,
+0 as typndims,
+0 as typcollation,
+0 as oid,
+0 as typnamespace,
+0 as typowner,
+0 as typlen,
+false as typbyval,
+'a' as typtype,
+'a' as typcategory,
+false as typispreferred,
+false as typisdefined,
+' ' as typdelim,
+0 as typrelid,
+0 as typsubscript,
+0 as typelem,
+0 as typarray,
+0 as typinput,
+0 as typoutput,
+0 as typreceive,
+0 as typsend,
+0 as typmodin,
+0 as typmodout,
+0 as typanalyze,
+' ' as typalign,
+' ' as typstorage,
+false as typnotnull,
+0 as typbasetype,
+0 as typtypmod,
+' ' as typname,
+null as typdefault,
+null as typdefaultbin
+FROM (VALUES (NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL)) WHERE false",
+});
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
@@ -658,6 +702,7 @@ impl BuiltinView {
             &PG_DATABASE,
             &PG_TABLE,
             &PG_VIEWS,
+            &PG_TYPE,
         ]
     }
 }

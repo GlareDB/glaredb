@@ -137,6 +137,7 @@ pub trait ViewPlanner: Send + Sync {
 #[async_trait]
 impl ViewPlanner for LocalSessionContext {
     async fn plan_view(&self, sql: &str, col_aliases: &[String]) -> Result<LogicalPlan, PlanError> {
+        println!("plan_view: sql: {}", sql);
         // TODO: Instead of doing late planning, we should instead try to insert
         // the contents of the view into the parent query prior to any planning.
         let mut statements = CustomParser::parse_sql(sql)?;
@@ -161,7 +162,6 @@ impl ViewPlanner for LocalSessionContext {
                 }))?
                 .build()?;
         }
-
         Ok(df_plan)
     }
 }
