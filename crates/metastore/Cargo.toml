@@ -17,7 +17,7 @@ prost = { workspace = true }
 prost-types = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
-tracing = "0.1"
+tracing = { workspace = true }
 async-trait = { workspace = true }
 datafusion = { workspace = true }
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }

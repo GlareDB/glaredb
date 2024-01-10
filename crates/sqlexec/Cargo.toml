@@ -28,7 +28,7 @@ datafusion = { workspace = true }
 datafusion-proto = { workspace = true }
 bytes = "1.4.0"
 futures = { workspace = true }
-tracing = "0.1"
+tracing = { workspace = true }
 object_store = { workspace = true }
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 regex = "1.8"

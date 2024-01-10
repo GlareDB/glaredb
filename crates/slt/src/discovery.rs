@@ -1,11 +1,11 @@
+use std::collections::BTreeMap;
+use std::path::Path;
+
 use anyhow::{anyhow, Result};
 use glob::Pattern;
-use std::{collections::BTreeMap, path::Path};
 use walkdir::WalkDir;
 
-use crate::test::{Test, TestHooks};
-
-pub use crate::test::{FnTest, Hook, TestClient, TestHook};
+use crate::test::{FnTest, Test, TestHook, TestHooks};
 
 #[derive(Default)]
 pub struct SltDiscovery {

@@ -1,10 +1,20 @@
+use std::ops::Deref;
+use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    path::{Path, PathBuf},
+    time::Duration,
+};
+
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use clap::builder::PossibleValue;
 use clap::ValueEnum;
-use datafusion_ext::vars::SessionVars;
 use futures::StreamExt;
 use glob::Pattern;
+
+use datafusion_ext::vars::SessionVars;
 use metastore::util::MetastoreClientMode;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
@@ -19,17 +29,11 @@ use sqlexec::engine::{Engine, EngineStorageConfig, SessionStorageConfig, Tracked
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClient;
 use sqlexec::session::ExecutionResult;
+
 use sqllogictest::{
     parse_with_name, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,
 };
-use std::ops::Deref;
-use std::sync::Arc;
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    path::{Path, PathBuf},
-    time::Duration,
-};
+
 use telemetry::Tracker;
 use tokio::sync::{oneshot, Mutex};
 use tokio_postgres::types::private::BytesMut;

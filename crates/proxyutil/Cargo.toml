@@ -8,7 +8,7 @@ edition.workspace = true
 [dependencies]
 serde = { workspace = true }
 thiserror = { workspace = true }
-tracing = "0.1"
+tracing = { workspace = true }
 futures = { workspace = true }
 reqwest = { workspace = true }
 async-trait = { workspace = true }
