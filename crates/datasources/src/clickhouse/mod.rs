@@ -148,8 +148,9 @@ Enable secure param in connection string:
             // TODO: Some of this stuff might be useful to pull out into a
             // common tls module.
             //
-            // TODO: Get this working. Currently getting 'Error: protocol error:
-            // failed to receive blocks from upstream: channel closed'
+            // TODO: Provide a better error when connecting fails (e.g.
+            // authentication failure). Currently the error is 'Error: protocol
+            // error: failed to receive blocks from upstream: channel closed'
             let mut root_store = rustls::RootCertStore::empty();
 
             root_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| {
@@ -173,10 +174,6 @@ Enable secure param in connection string:
                         "failed to create server name for {conn_str}: {e}"
                     ))
                 })?;
-
-            println!("servername: {server_name:?}");
-            println!("host: {host}");
-            println!("options: {opts:?}");
 
             Client::connect_tls(host, opts, server_name, &TlsConnector::from(config)).await?
         } else {
