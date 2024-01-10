@@ -285,8 +285,8 @@ fn build_runtime(thread_label: &'static str) -> Result<Runtime> {
 
     // Bump the stack from the default 2MB.
     //
-    // We reach the limit when planning a query 
-    // with nested views. 
+    // We reach the limit when planning a query
+    // with nested views.
     //
     // Note that Sean observed the stack size only reaching ~300KB when
     // running in release mode, and so we don't need to bump this
@@ -295,7 +295,6 @@ fn build_runtime(thread_label: &'static str) -> Result<Runtime> {
     // see <https://github.com/GlareDB/glaredb/issues/2390>
     #[cfg(not(release))]
     builder.thread_stack_size(4 * 1024 * 1024);
-    
 
     let runtime = builder
         .thread_name_fn(move || {
