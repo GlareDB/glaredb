@@ -17,12 +17,12 @@ bitvec = "1"
 bytes = "1.4.0"
 chrono = { workspace = true }
 chrono-tz = "0.8.5"
-clickhouse-rs = { version = "1.1.0-alpha.1", features = ["tls"] }
 datafusion = { workspace = true }
 decimal = { path = "../decimal" }
 deltalake = { workspace = true }
 futures = { workspace = true }
 gcp-bigquery-client = "0.18.0"
+klickhouse = { version = "0.10.2", features = ["tls"] }
 logutil = { path = "../logutil" }
 protogen = { path = "../protogen" }
 datafusion_ext = { path = "../datafusion_ext" }
