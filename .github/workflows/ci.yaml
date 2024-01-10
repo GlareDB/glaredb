@@ -453,10 +453,16 @@ jobs:
       - name: run tests (slt)
         run: |
           ${{matrix.settings.prepare}}
-          just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
-          just slt-bin --protocol=flightsql --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
+
           just slt-bin ${{matrix.settings.path}}
-      
+          just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
+
+          # Run flight SLTs for everything except clickhouse.
+          #
+          # <https://github.com/GlareDB/glaredb/issues/2389>
+          if [[ "${{ matrix.settings.name }}" != 'Clickhouse' ]]; then
+             just slt-bin --protocol=flightsql --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
+          fi
               
   service-integration-tests-snowflake:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
