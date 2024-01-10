@@ -63,6 +63,8 @@ impl OptionReader for CsvOptionReader {
         ("delimiter", DataType::Utf8),
         // Try to read a header. Default: true
         ("has_header", DataType::Boolean),
+        // Skip this many rows before reading. Default: 0
+        ("skip_rows", DataType::Int64),
     ];
 
     fn read_options(opts: &HashMap<String, FuncParamValue>) -> Result<Self::Format> {
@@ -83,6 +85,10 @@ impl OptionReader for CsvOptionReader {
         if let Some(header) = opts.get("has_header") {
             let has_header: bool = header.clone().try_into()?;
             format = format.with_has_header(has_header);
+        }
+        if let Some(skip_rows) = opts.get("skip_rows") {
+            let skip_rows: i64 = skip_rows.clone().try_into()?;
+            format = format.
         }
 
         Ok(format)

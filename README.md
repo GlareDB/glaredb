@@ -44,6 +44,41 @@ example, `~/.local/bin`.
 If you prefer manual installation, download, extract and run the GlareDB binary
 from a release in our [releases page].
 
+## Supported data sources
+
+| Source                 | Read | Write | Table Function | External Table | External Database | Supported Object Stores             |
+| ---------------------- | :--: | :---: | :------------: | :------------: | ----------------- | ----------------------------------- |
+| **Databases**          |  --  |  --   |       --       |       --       | --                | --                                  |
+| MySQL                  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
+| PostgreSQL             |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
+| Microsoft SQL Server   |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
+| MongoDB                |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
+| Snowflake              |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
+| BigQuery               |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
+| Cassandra/ScyllaDB     |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
+| Clickhouse             |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
+| MariaDB (_via mysql)_  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
+| DuckDB                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
+| Oracle                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
+| SQLite                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
+| **File Formats**       |  --  |  --   |       --       |       --       | --                | --                                  |
+| CSV                    |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
+| Newline Delimited JSON |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
+| Apache Parquet         |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
+| Apache Arrow           |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
+| Delta                  |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
+| BSON                   |  ✅  |  🚧   |       ✅       |       ✅       | ➖                | Local File                          |
+| Iceberg                |  ✅  |  🚧   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
+| Lance                  |  ✅  |  🚧   |       ✅       |       🚧       | ➖                | HTTP, S3, Google, Azure, Local File |
+| Excel                  |  ✅  |  🚧   |       ✅       |       🚧       | ➖                | Local File                          |
+| JSON                   |  🚧  |  🚧   |       🚧       |       🚧       | ➖                | 🚧                                  |
+| Apache Avro            |  🚧  |  🚧   |       🚧       |       🚧       | ➖                | 🚧                                  |
+| Apache ORC             |  🚧  |  🚧   |       🚧       |       🚧       | ➖                | 🚧                                  |
+
+✅ = Supported
+➖ = Not Applicable
+🚧 = Not Yet Supported
+
 ## Getting started
 
 After [Installing](#install), get up and running with:
@@ -94,17 +129,17 @@ Read our [announcement on Hybrid Execution] for more information.
 
 1. Install the official [GlareDB Python library]
 
-     ```shell
-     pip install glaredb
-     ```
+   ```shell
+   pip install glaredb
+   ```
 
 2. Import and use `glaredb`.
 
-     ```python
-     import glaredb
-     con = glaredb.connect()
-     con.sql("select 'hello world';").show()
-     ```
+   ```python
+   import glaredb
+   con = glaredb.connect()
+   con.sql("select 'hello world';").show()
+   ```
 
 To use **Hybrid Execution**, sign up at <https://console.glaredb.com> and
 use the connection string for your deployment. For example:
