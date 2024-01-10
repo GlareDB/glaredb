@@ -86,16 +86,10 @@ pub struct SltArgs {
 }
 
 impl SltArgs {
-    pub fn run(self) -> Result<()> {
-        Ok(())
-    }
+    pub fn run(&self) -> Result<()> {
+        let tests = self.collect_tests(tests)?;
 
-    pub fn run_internal(&self, tests: BTreeMap<String, Test>, hooks: TestHooks) -> Result<()> {
-        let cli = Self::parse();
-
-        let tests = cli.collect_tests(tests)?;
-
-        if cli.list {
+        if self.list {
             for (test_name, _) in tests {
                 println!("{test_name}");
             }
@@ -105,14 +99,6 @@ impl SltArgs {
         if tests.is_empty() {
             return Err(anyhow!("No tests to run. Exiting..."));
         }
-        let verbosity: Verbosity = cli.verbose.into();
-
-        let log_mode = match verbosity {
-            Verbosity::Info => LoggingMode::Compact,
-            Verbosity::Debug => LoggingMode::Full,
-            Verbosity::Trace => LoggingMode::Full,
-        };
-        logutil::init(cli.verbose, log_mode, None);
 
         // Abort the program on panic. This will ensure that slt tests will
         // never pass if there's a panic somewhere.
@@ -138,7 +124,7 @@ impl SltArgs {
             .block_on(async move {
                 let batch_size = num_cpus::get();
                 tracing::trace!(%batch_size, "test batch size");
-                cli.run_tests_batched(batch_size, tests, hooks).await
+                self.run_tests_batched(batch_size, tests, hooks).await
             })
     }
 
