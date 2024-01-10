@@ -1,5 +1,3 @@
-use logutil::{LoggingMode, Verbosity};
-use pgsrv::auth::SingleUserAuthenticator;
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
@@ -10,22 +8,21 @@ use tracing::info;
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use glaredb::args::StorageConfigArgs;
-use glaredb::server::ComputeServer;
 use tokio::{net::TcpListener, runtime::Builder, sync::mpsc, time::Instant};
 use tokio_postgres::config::Config as ClientConfig;
 use uuid::Uuid;
 
-use crate::slt::test::{
-    FlightSqlTestClient, PgTestClient, RpcTestClient, Test, TestClient, TestHooks,
-};
-
-use super::test::ClientProtocol;
+use crate::args::StorageConfigArgs;
+use crate::server::ComputeServer;
+use logutil::{LoggingMode, Verbosity};
+use pgsrv::auth::SingleUserAuthenticator;
+use slt::test::ClientProtocol;
+use slt::test::{FlightSqlTestClient, PgTestClient, RpcTestClient, Test, TestClient, TestHooks};
 
 #[derive(Parser)]
 #[clap(name = "slt-runner")]
 #[clap(about = "Run sqllogictests against a GlareDB server", long_about = None)]
-pub struct Cli {
+pub struct SltArgs {
     #[clap(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
 
@@ -88,8 +85,12 @@ pub struct Cli {
     tests_pattern: Option<Vec<String>>,
 }
 
-impl Cli {
-    pub fn run(tests: BTreeMap<String, Test>, hooks: TestHooks) -> Result<()> {
+impl SltArgs {
+    pub fn run(self) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn run_internal(&self, tests: BTreeMap<String, Test>, hooks: TestHooks) -> Result<()> {
         let cli = Self::parse();
 
         let tests = cli.collect_tests(tests)?;

@@ -1,5 +1,5 @@
 use crate::args::server::ServerArgs;
-use crate::args::{LocalArgs, MetastoreArgs, PgProxyArgs, RpcProxyArgs};
+use crate::args::{LocalArgs, MetastoreArgs, PgProxyArgs, RpcProxyArgs, SltArgs};
 use crate::local::LocalSession;
 use crate::metastore::Metastore;
 use crate::proxy::{PgProxy, RpcProxy};
@@ -32,6 +32,9 @@ pub enum Commands {
     /// Starts an instance of the Metastore.
     #[clap(hide = true)]
     Metastore(MetastoreArgs),
+    /// Runs SQL Logic Tests
+    #[clap(hide = true)]
+    SqlLogicTests(SltArgs),
 }
 
 impl Commands {
@@ -42,6 +45,7 @@ impl Commands {
             Commands::PgProxy(pg_proxy) => pg_proxy.run(),
             Commands::RpcProxy(rpc_proxy) => rpc_proxy.run(),
             Commands::Metastore(metastore) => metastore.run(),
+            Commands::SqlLogicTests(slt) => slt.run(),
         }
     }
 }

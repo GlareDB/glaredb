@@ -17,6 +17,7 @@ strip = true
 anyhow = "1.0.79"
 async-trait = "0.1.77"
 chrono = "0.4.31"
+clap = { version = "4.4.13", features = ["derive"] }
 datafusion = { version = "32.0", features = ["avro"] }
 datafusion-proto = { version = "32.0" }
 futures = "0.3.30"

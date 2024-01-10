@@ -3,12 +3,9 @@ use glob::Pattern;
 use std::{collections::BTreeMap, path::Path};
 use walkdir::WalkDir;
 
-use crate::slt::{
-    cli::Cli,
-    test::{Test, TestHooks},
-};
+use crate::test::{Test, TestHooks};
 
-pub use crate::slt::test::{FnTest, Hook, TestClient, TestHook};
+pub use crate::test::{FnTest, Hook, TestClient, TestHook};
 
 #[derive(Default)]
 pub struct SltRunner {
@@ -92,10 +89,6 @@ impl SltRunner {
         let pattern = Pattern::new(regx.as_ref())?;
         self.hooks.push((pattern, hook));
         Ok(self)
-    }
-
-    pub fn run(self) -> Result<()> {
-        Cli::run(self.tests, self.hooks)
     }
 }
 

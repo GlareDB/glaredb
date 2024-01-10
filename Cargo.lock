@@ -3252,10 +3252,12 @@ dependencies = [
  "datafusion",
  "datafusion_ext",
  "futures",
+ "glob",
  "ioutil",
  "logutil",
  "metastore",
  "nu-ansi-term 0.49.0",
+ "num_cpus",
  "object_store",
  "object_store_util",
  "once_cell",
@@ -3266,6 +3268,7 @@ dependencies = [
  "proxyutil",
  "reedline",
  "rpcsrv",
+ "slt",
  "sqlbuiltins",
  "sqlexec",
  "telemetry",
@@ -7120,6 +7123,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "slt"
+version = "0.7.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap",
+ "datafusion_ext",
+ "futures",
+ "glob",
+ "ioutil",
+ "logutil",
+ "metastore",
+ "object_store",
+ "openssh",
+ "pgrepr",
+ "pgsrv",
+ "regex",
+ "rpcsrv",
+ "sqlexec",
+ "sqllogictest",
+ "telemetry",
+ "tempfile",
+ "tokio",
+ "tokio-postgres",
+ "tracing",
+ "uuid",
+ "walkdir",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7633,38 +7666,6 @@ name = "termtree"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
-
-[[package]]
-name = "testing"
-version = "0.7.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "clap",
- "datafusion_ext",
- "futures",
- "glaredb",
- "glob",
- "ioutil",
- "logutil",
- "metastore",
- "num_cpus",
- "object_store",
- "openssh",
- "pgrepr",
- "pgsrv",
- "regex",
- "rpcsrv",
- "sqlexec",
- "sqllogictest",
- "telemetry",
- "tempfile",
- "tokio",
- "tokio-postgres",
- "tracing",
- "uuid",
- "walkdir",
-]
 
 [[package]]
 name = "textwrap"
