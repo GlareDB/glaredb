@@ -13,9 +13,7 @@ use klickhouse::block::Block;
 use parking_lot::Mutex;
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{
-    Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
-};
+use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
@@ -28,7 +26,6 @@ use klickhouse::{Client, ClientOptions, KlickhouseError};
 use std::any::Any;
 use std::borrow::Cow;
 use std::fmt::{self, Display, Write};
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpStream;
@@ -174,59 +171,60 @@ Enable secure param in connection string:
 #[async_trait]
 impl VirtualLister for ClickhouseAccessState {
     async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
-        unimplemented!()
-        // let query = "SELECT schema_name FROM information_schema.schemata";
+        let query = "SELECT schema_name FROM information_schema.schemata";
 
-        // let mut client = self
-        //     .pool
-        //     .get_handle()
-        //     .await
-        //     .map_err(ExtensionError::access)?;
+        #[derive(Debug, klickhouse::Row)]
+        struct SchemaInfo {
+            schema_name: String,
+        }
 
-        // let block = client
-        //     .query(query)
-        //     .fetch_all()
-        //     .await
-        //     .map_err(ExtensionError::access)?;
+        let names = self
+            .client
+            .query(query)
+            .await
+            .map_err(ExtensionError::access)?
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .map(|result| result.map(|info: SchemaInfo| info.schema_name))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(ExtensionError::access)?;
 
-        // block
-        //     .rows()
-        //     .map(|row| row.get::<String, usize>(0).map_err(ExtensionError::access))
-        //     .collect::<Result<Vec<_>, ExtensionError>>()
+        Ok(names)
     }
 
     async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
-        unimplemented!()
-        //         let query = format!(
-        //             "SELECT table_name FROM information_schema.tables
-        // WHERE table_schema = '{schema}'"
-        //         );
+        let query = format!(
+            "SELECT table_name FROM information_schema.tables
+        WHERE table_schema = '{schema}'"
+        );
 
-        //         let mut client = self
-        //             .pool
-        //             .get_handle()
-        //             .await
-        //             .map_err(ExtensionError::access)?;
+        #[derive(Debug, klickhouse::Row)]
+        struct TableInfo {
+            table_name: String,
+        }
 
-        //         let block = client
-        //             .query(query)
-        //             .fetch_all()
-        //             .await
-        //             .map_err(ExtensionError::access)?;
+        let names = self
+            .client
+            .query(query)
+            .await
+            .map_err(ExtensionError::access)?
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .map(|result| result.map(|info: TableInfo| info.table_name))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(ExtensionError::access)?;
 
-        //         block
-        //             .rows()
-        //             .map(|row| row.get::<String, usize>(0).map_err(ExtensionError::access))
-        //             .collect::<Result<Vec<_>, ExtensionError>>()
+        Ok(names)
     }
 
     async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
-        unimplemented!()
-        // let table_ref = ClickhouseTableRef::new(Some(schema), table);
-        // self.get_table_schema(table_ref)
-        //     .await
-        //     .map(|s| s.fields)
-        //     .map_err(ExtensionError::access)
+        let table_ref = ClickhouseTableRef::new(Some(schema), table);
+        self.get_table_schema(table_ref)
+            .await
+            .map(|s| s.fields)
+            .map_err(ExtensionError::access)
     }
 }
 
@@ -316,7 +314,7 @@ impl TableProvider for ClickhouseTableProvider {
             .await
             .map_err(|e| DataFusionError::Execution(e.to_string()))?;
 
-        Ok(Arc::new(ClickhouseExec::new(self.schema(), stream)))
+        Ok(Arc::new(ClickhouseExec::new(projected_schema, stream)))
     }
 
     async fn insert_into(

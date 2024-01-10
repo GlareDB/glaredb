@@ -7,17 +7,17 @@ use datafusion::{
 use datafusion::{
     arrow::{
         array::{
-            Array, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
-            Int8Array, StringArray, TimestampNanosecondArray, UInt16Array, UInt32Array,
-            UInt64Array, UInt8Array,
+            Array, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
+            StringArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
+            UInt8Array,
         },
         datatypes::{DataType, Schema, TimeUnit},
         record_batch::RecordBatch,
     },
     physical_plan::RecordBatchStream,
 };
-use futures::{Future, Stream, StreamExt};
-use klickhouse::{block::Block, Date, KlickhouseError, Type, Value};
+use futures::{Stream, StreamExt};
+use klickhouse::{block::Block, KlickhouseError, Type, Value};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -36,16 +36,26 @@ impl Stream for ConvertStream {
     type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.inner.poll_next_unpin(cx) {
-            Poll::Ready(Some(Ok(block))) => Poll::Ready(Some(
-                block_to_batch(self.schema.clone(), block)
-                    .map_err(|e| DataFusionError::Execution(e.to_string())),
-            )),
-            Poll::Ready(Some(Err(e))) => {
-                Poll::Ready(Some(Err(DataFusionError::Execution(e.to_string()))))
+        loop {
+            match self.inner.poll_next_unpin(cx) {
+                Poll::Ready(Some(Ok(block))) => {
+                    // Clickhouse can return empty blocks. Try polling for the
+                    // next block in that case.
+                    if block.rows == 0 {
+                        continue;
+                    }
+
+                    return Poll::Ready(Some(
+                        block_to_batch(self.schema.clone(), block)
+                            .map_err(|e| DataFusionError::Execution(e.to_string())),
+                    ));
+                }
+                Poll::Ready(Some(Err(e))) => {
+                    return Poll::Ready(Some(Err(DataFusionError::Execution(e.to_string()))))
+                }
+                Poll::Ready(None) => return Poll::Ready(None),
+                Poll::Pending => return Poll::Pending,
             }
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
         }
     }
 }
@@ -63,7 +73,7 @@ pub fn block_to_schema(block: Block) -> Result<Schema> {
     for (name, col_type) in block.column_types.iter() {
         let (arrow_typ, nullable) = match col_type {
             Type::Nullable(typ) => (type_to_datatype(typ)?, true),
-            typ => (type_to_datatype(&typ)?, false),
+            typ => (type_to_datatype(typ)?, false),
         };
 
         let field = Field::new(name, arrow_typ, nullable);
@@ -112,6 +122,14 @@ fn type_to_datatype(typ: &Type) -> Result<DataType> {
 
 /// Convert a block to a record batch.
 fn block_to_batch(schema: Arc<Schema>, block: Block) -> Result<RecordBatch> {
+    if schema.fields.len() != block.column_data.len() {
+        return Err(ClickhouseError::String(format!(
+            "expected {} columns, got {}",
+            schema.fields.len(),
+            block.column_data.len()
+        )));
+    }
+
     let mut arrs = Vec::with_capacity(schema.fields.len());
 
     for (field, col) in schema.fields.iter().zip(block.column_data.into_values()) {
@@ -257,6 +275,9 @@ fn column_to_array(
                         Value::DateTime(v) => vals.push(Some(
                             v.try_into().map_err(ClickhouseError::DateTimeConvert)?,
                         )),
+                        Value::DateTime64(v) => vals.push(Some(
+                            v.try_into().map_err(ClickhouseError::DateTimeConvert)?,
+                        )),
                         Value::Null if nullable => vals.push(None),
                         other => {
                             return Err(ClickhouseError::String(format!(
@@ -278,6 +299,9 @@ fn column_to_array(
                 for val in column {
                     match val {
                         Value::DateTime(v) => {
+                            vals.push(v.try_into().map_err(ClickhouseError::DateTimeConvert)?)
+                        }
+                        Value::DateTime64(v) => {
                             vals.push(v.try_into().map_err(ClickhouseError::DateTimeConvert)?)
                         }
                         other => {
