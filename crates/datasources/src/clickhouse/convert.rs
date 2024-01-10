@@ -53,7 +53,9 @@ impl Stream for ConvertStream {
                 Poll::Ready(Some(Err(e))) => {
                     return Poll::Ready(Some(Err(DataFusionError::Execution(e.to_string()))))
                 }
-                Poll::Ready(None) => return Poll::Ready(None),
+                Poll::Ready(None) => {
+                    return Poll::Ready(None);
+                }
                 Poll::Pending => return Poll::Pending,
             }
         }

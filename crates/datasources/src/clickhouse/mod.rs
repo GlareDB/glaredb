@@ -23,12 +23,13 @@ use datafusion::physical_plan::{
     Statistics,
 };
 use klickhouse::{Client, ClientOptions, KlickhouseError};
+use rustls::ServerName;
 use std::any::Any;
 use std::borrow::Cow;
 use std::fmt::{self, Display, Write};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::net::TcpStream;
+use tokio_rustls::TlsConnector;
 use url::Url;
 
 use crate::common::util;
@@ -140,11 +141,47 @@ Enable secure param in connection string:
         }
 
         if let Some(password) = conn_str.password() {
-            opts.username = password.to_string();
+            opts.password = password.to_string();
         }
 
-        let (read, write) = TcpStream::connect(host).await?.into_split();
-        let client = Client::connect_stream(read, write, opts).await?;
+        let client = if secure {
+            // TODO: Some of this stuff might be useful to pull out into a
+            // common tls module.
+            //
+            // TODO: Get this working. Currently getting 'Error: protocol error:
+            // failed to receive blocks from upstream: channel closed'
+            let mut root_store = rustls::RootCertStore::empty();
+
+            root_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| {
+                rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
+                    r.subject.to_vec(),
+                    r.subject_public_key_info.to_vec(),
+                    r.name_constraints.clone().map(|f| f.to_vec()),
+                )
+            }));
+
+            let config = Arc::new(
+                rustls::ClientConfig::builder()
+                    .with_safe_defaults()
+                    .with_root_certificates(root_store)
+                    .with_no_client_auth(),
+            );
+
+            let server_name = ServerName::try_from(conn_str.host_str().unwrap_or_default())
+                .map_err(|e| {
+                    ClickhouseError::String(format!(
+                        "failed to create server name for {conn_str}: {e}"
+                    ))
+                })?;
+
+            println!("servername: {server_name:?}");
+            println!("host: {host}");
+            println!("options: {opts:?}");
+
+            Client::connect_tls(host, opts, server_name, &TlsConnector::from(config)).await?
+        } else {
+            Client::connect(host, opts).await?
+        };
 
         Ok(ClickhouseAccessState { client })
     }
