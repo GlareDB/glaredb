@@ -1,21 +1,19 @@
 pub mod errors;
 
-mod stream;
+mod convert;
 
-use clickhouse_rs::types::DateTimeType;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{ClickhouseError, Result};
+use futures::{Stream, StreamExt};
+use klickhouse::block::Block;
 use parking_lot::Mutex;
 
 use async_trait::async_trait;
-use clickhouse_rs::{ClientHandle, Options, Pool};
-use datafusion::arrow::datatypes::{
-    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
-};
+use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
@@ -24,15 +22,19 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
+use klickhouse::{Client, ClientOptions, KlickhouseError};
+use rustls::ServerName;
 use std::any::Any;
 use std::borrow::Cow;
 use std::fmt::{self, Display, Write};
 use std::sync::Arc;
 use std::time::Duration;
+use tokio_rustls::TlsConnector;
 use url::Url;
 
-use crate::clickhouse::stream::BlockStream;
 use crate::common::util;
+
+use self::convert::ConvertStream;
 
 #[derive(Debug, Clone)]
 pub struct ClickhouseAccess {
@@ -66,23 +68,18 @@ impl ClickhouseAccess {
 }
 
 pub struct ClickhouseAccessState {
-    // TODO: We currently limit the pool to 1 connection to have it behave
-    // similarly to our other data sources. We will likely want to actually make
-    // use of a connection pool to avoid creating connections on every query.
-    //
-    // A depreceted `connect` method does return us a client direction, unsure
-    // if we want to use that or not.
-    pool: Pool,
+    client: Client,
 }
 
 impl ClickhouseAccessState {
     async fn connect(conn_str: &str) -> Result<Self> {
         let conn_str = Url::parse(conn_str)?;
 
-        // Verify that the conn_str has "clickhouse://" protocol.
-        if conn_str.scheme() != "clickhouse" {
+        // Verify that the conn_str has "clickhouse://" or "tcp://" protocol.
+        let scheme = conn_str.scheme();
+        if scheme != "clickhouse" && scheme != "tcp" {
             return Err(ClickhouseError::String(format!(
-                "Expected url with scheme `clickhouse://`, got: `{}`",
+                "Expected url with scheme 'clickhouse://' or 'tcp://', got: `{}`",
                 conn_str.scheme()
             )));
         }
@@ -95,7 +92,7 @@ impl ClickhouseAccessState {
             }
         }
 
-        let addr = {
+        let host = {
             let port = if let Some(port) = conn_str.port() {
                 port
             } else if secure {
@@ -118,115 +115,90 @@ Enable secure param in connection string:
                         .to_string(),
                 ));
             }
-            let mut addr = if let Some(host) = conn_str.host_str() {
-                format!("tcp://default@{host}").parse::<Url>()?
-            } else {
-                "tcp://default@127.0.0.1".parse::<Url>()?
-            };
-            addr.set_port(Some(port)).map_err(|_| {
-                ClickhouseError::String("unable to set port for clickhouse URL".to_string())
-            })?;
-            addr
+
+            let host = conn_str.host_str().unwrap_or("127.0.0.1");
+            format!("{host}:{port}")
         };
 
         // Clickhouse sets the service to "idle" when not queried for a while.
         // Waking up the service can sometimes take from 20-30 seconds, hence
         // setting the timeout accordingly.
-        let timeout = Duration::from_secs(30);
+        //
+        // TODO: Actually use this (made unused with the switch to klickhouse).
+        let _timeout = Duration::from_secs(30);
 
-        let mut opts = Options::new(addr)
-            .pool_min(1)
-            .pool_max(1)
-            .secure(secure)
-            .ping_timeout(timeout)
-            .connection_timeout(timeout);
+        let mut opts = ClientOptions::default();
 
         if let Some(mut path) = conn_str.path_segments() {
             if let Some(database) = path.next() {
-                opts = opts.database(database);
+                opts.default_database = database.to_string();
             }
         }
 
         let user = conn_str.username();
         if !user.is_empty() {
-            opts = opts.username(user);
+            opts.username = user.to_string();
         }
 
         if let Some(password) = conn_str.password() {
-            opts = opts.password(password);
+            opts.password = password.to_string();
         }
 
-        let pool = Pool::new(opts);
-        let mut client = pool.get_handle().await?;
-        client.ping().await?;
+        let client = if secure {
+            // TODO: Some of this stuff might be useful to pull out into a
+            // common tls module.
+            //
+            // TODO: Provide a better error when connecting fails (e.g.
+            // authentication failure). Currently the error is 'Error: protocol
+            // error: failed to receive blocks from upstream: channel closed'
+            let mut root_store = rustls::RootCertStore::empty();
 
-        Ok(ClickhouseAccessState { pool })
+            root_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| {
+                rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
+                    r.subject.to_vec(),
+                    r.subject_public_key_info.to_vec(),
+                    r.name_constraints.clone().map(|f| f.to_vec()),
+                )
+            }));
+
+            let config = Arc::new(
+                rustls::ClientConfig::builder()
+                    .with_safe_defaults()
+                    .with_root_certificates(root_store)
+                    .with_no_client_auth(),
+            );
+
+            let server_name = ServerName::try_from(conn_str.host_str().unwrap_or_default())
+                .map_err(|e| {
+                    ClickhouseError::String(format!(
+                        "failed to create server name for {conn_str}: {e}"
+                    ))
+                })?;
+
+            Client::connect_tls(host, opts, server_name, &TlsConnector::from(config)).await?
+        } else {
+            Client::connect(host, opts).await?
+        };
+
+        Ok(ClickhouseAccessState { client })
     }
 
     async fn get_table_schema(&self, table_ref: ClickhouseTableRef<'_>) -> Result<ArrowSchema> {
-        let mut client = self.pool.get_handle().await?;
-
-        let block = client
-            .query(format!("SELECT * FROM {table_ref} LIMIT 0"))
-            .fetch_all()
+        let mut stream = self
+            .client
+            .query_raw(format!("SELECT * FROM {table_ref} LIMIT 0"))
             .await?;
 
-        let mut fields = Vec::with_capacity(block.columns().len());
-        for col in block.columns() {
-            use clickhouse_rs::types::SqlType;
-
-            /// Convert a clickhouse sql type to an arrow data type.
-            ///
-            /// Clickhouse type reference: <https://clickhouse.com/docs/en/sql-reference/data-types>
-            ///
-            /// TODO: Support more types. Note that adding a type here requires
-            /// implementing the appropriate conversion in `BlockStream`.
-            fn to_data_type(sql_type: &SqlType) -> Result<DataType> {
-                Ok(match sql_type {
-                    SqlType::Bool => DataType::Boolean,
-                    SqlType::UInt8 => DataType::UInt8,
-                    SqlType::UInt16 => DataType::UInt16,
-                    SqlType::UInt32 => DataType::UInt32,
-                    SqlType::UInt64 => DataType::UInt64,
-                    SqlType::Int8 => DataType::Int8,
-                    SqlType::Int16 => DataType::Int16,
-                    SqlType::Int32 => DataType::Int32,
-                    SqlType::Int64 => DataType::Int64,
-                    SqlType::Float32 => DataType::Float32,
-                    SqlType::Float64 => DataType::Float64,
-                    SqlType::String | SqlType::FixedString(_) => DataType::Utf8,
-                    // Clickhouse has both a 'Date' type (2 bytes) and a
-                    // 'Date32' type (4 bytes). The library doesn't support
-                    // 'Date32' type yet.
-                    // TODO: Maybe upstream support for Date32?
-                    SqlType::Date => DataType::Date32,
-                    SqlType::DateTime(DateTimeType::DateTime32) => {
-                        DataType::Timestamp(TimeUnit::Nanosecond, None)
-                    }
-                    SqlType::DateTime(DateTimeType::DateTime64(_precision, tz)) => {
-                        // We store all timestamps in nanos, so the precision
-                        // here doesn't matter. clickhouse_rs crate handles this
-                        // for us.
-                        DataType::Timestamp(TimeUnit::Nanosecond, Some(tz.to_string().into()))
-                    }
-                    other => {
-                        return Err(ClickhouseError::String(format!(
-                            "unsupported Clickhouse type: {other:?}"
-                        )))
-                    }
-                })
+        let block = match stream.next().await {
+            Some(block) => block?,
+            None => {
+                return Err(ClickhouseError::String(format!(
+                    "query for '{table_ref}' returned no blocks"
+                )))
             }
+        };
 
-            let (arrow_typ, nullable) = match col.sql_type() {
-                SqlType::Nullable(typ) => (to_data_type(typ)?, true),
-                typ => (to_data_type(&typ)?, false),
-            };
-
-            let field = Field::new(col.name(), arrow_typ, nullable);
-            fields.push(field);
-        }
-
-        Ok(ArrowSchema::new(fields))
+        convert::block_to_schema(block)
     }
 }
 
@@ -235,46 +207,50 @@ impl VirtualLister for ClickhouseAccessState {
     async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
         let query = "SELECT schema_name FROM information_schema.schemata";
 
-        let mut client = self
-            .pool
-            .get_handle()
-            .await
-            .map_err(ExtensionError::access)?;
+        #[derive(Debug, klickhouse::Row)]
+        struct SchemaInfo {
+            schema_name: String,
+        }
 
-        let block = client
+        let names = self
+            .client
             .query(query)
-            .fetch_all()
             .await
+            .map_err(ExtensionError::access)?
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .map(|result| result.map(|info: SchemaInfo| info.schema_name))
+            .collect::<Result<Vec<_>, _>>()
             .map_err(ExtensionError::access)?;
 
-        block
-            .rows()
-            .map(|row| row.get::<String, usize>(0).map_err(ExtensionError::access))
-            .collect::<Result<Vec<_>, ExtensionError>>()
+        Ok(names)
     }
 
     async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
         let query = format!(
             "SELECT table_name FROM information_schema.tables
-WHERE table_schema = '{schema}'"
+        WHERE table_schema = '{schema}'"
         );
 
-        let mut client = self
-            .pool
-            .get_handle()
-            .await
-            .map_err(ExtensionError::access)?;
+        #[derive(Debug, klickhouse::Row)]
+        struct TableInfo {
+            table_name: String,
+        }
 
-        let block = client
+        let names = self
+            .client
             .query(query)
-            .fetch_all()
             .await
+            .map_err(ExtensionError::access)?
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .map(|result| result.map(|info: TableInfo| info.table_name))
+            .collect::<Result<Vec<_>, _>>()
             .map_err(ExtensionError::access)?;
 
-        block
-            .rows()
-            .map(|row| row.get::<String, usize>(0).map_err(ExtensionError::access))
-            .collect::<Result<Vec<_>, ExtensionError>>()
+        Ok(names)
     }
 
     async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
@@ -364,16 +340,15 @@ impl TableProvider for ClickhouseTableProvider {
             write!(&mut query, " LIMIT {limit}")?;
         }
 
-        let client =
-            self.state.pool.get_handle().await.map_err(|e| {
-                DataFusionError::Execution(format!("failed to get client handle: {e}"))
-            })?;
+        // TODO: This should be happening in the exec.
+        let stream = self
+            .state
+            .client
+            .query_raw(query)
+            .await
+            .map_err(|e| DataFusionError::Execution(e.to_string()))?;
 
-        Ok(Arc::new(ClickhouseExec::new(
-            projected_schema,
-            query,
-            client,
-        )))
+        Ok(Arc::new(ClickhouseExec::new(projected_schema, stream)))
     }
 
     async fn insert_into(
@@ -391,20 +366,23 @@ impl TableProvider for ClickhouseTableProvider {
 struct ClickhouseExec {
     /// Output schema.
     schema: ArrowSchemaRef,
-    /// A single-use client handle to clickhouse.
-    handle: Mutex<Option<ClientHandle>>,
-    /// Query to run against clickhouse.
-    query: String,
+    /// Stream we're pulling from.
+    stream: Mutex<Option<ConvertStream>>,
     /// Execution metrics.
     metrics: ExecutionPlanMetricsSet,
 }
 
 impl ClickhouseExec {
-    fn new(schema: ArrowSchemaRef, query: String, handle: ClientHandle) -> ClickhouseExec {
+    fn new(
+        schema: ArrowSchemaRef,
+        stream: impl Stream<Item = Result<Block, KlickhouseError>> + Send + 'static,
+    ) -> Self {
         ClickhouseExec {
-            schema,
-            handle: Mutex::new(Some(handle)),
-            query,
+            schema: schema.clone(),
+            stream: Mutex::new(Some(ConvertStream {
+                schema,
+                inner: Box::pin(stream),
+            })),
             metrics: ExecutionPlanMetricsSet::new(),
         }
     }
@@ -452,17 +430,15 @@ impl ExecutionPlan for ClickhouseExec {
         }
 
         // This would need to be updated for if/when we do multiple partitions
-        // (1 client handle per partition).
-        let client = match self.handle.lock().take() {
-            Some(client) => client,
+        // (1 convert stream per partition).
+        let stream = match self.stream.lock().take() {
+            Some(stream) => stream,
             None => {
                 return Err(DataFusionError::Execution(
-                    "client handle already taken".to_string(),
+                    "stream already taken".to_string(),
                 ))
             }
         };
-
-        let stream = BlockStream::execute(client, self.query.clone(), self.schema());
 
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
             stream,
@@ -490,7 +466,6 @@ impl fmt::Debug for ClickhouseExec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ClickhouseExec")
             .field("schema", &self.schema)
-            .field("query", &self.query)
             .finish_non_exhaustive()
     }
 }
