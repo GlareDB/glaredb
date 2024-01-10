@@ -1,23 +1,35 @@
-name: nodejs-release
+# Build and publish nodejs bindings.
+#
+# Publishing only happens for tag pushes with the tag beginning with 'v'.
+name: nodejs release
+
+on:
+  schedule:
+    # Run every Monday at 12:00
+    - cron: 0 12 * * 1
+  push:
+    tags:
+      - "*"
+      - "sean/schedule-ci"
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: bindings/nodejs
+
+concurrency:
+  group: nodejs-release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  id-token: write
+
 env:
   DEBUG: napi:*
   APP_NAME: "glaredb"
   MACOSX_DEPLOYMENT_TARGET: "10.13"
   PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
-permissions:
-  contents: write
-  id-token: write
-on:
-  push:
-    tags:
-      - "*"
-  workflow_dispatch:
-defaults:
-  run:
-    working-directory: bindings/nodejs
-concurrency:
-  group: nodejs-release-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build:
@@ -127,6 +139,7 @@ jobs:
 
   publish:
     name: Publish
+    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
     runs-on: ubuntu-2004-8-cores
     needs:
       - build
