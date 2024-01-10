@@ -2402,6 +2402,7 @@ dependencies = [
  "deltalake",
  "futures",
  "gcp-bigquery-client",
+ "glob",
  "ioutil",
  "lance",
  "logutil",

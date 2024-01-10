@@ -15,18 +15,11 @@ use uuid::Uuid;
 use crate::args::StorageConfigArgs;
 use crate::server::ComputeServer;
 use pgsrv::auth::SingleUserAuthenticator;
-use slt::{
-    discovery::SltDiscovery,
-    hooks::{AllTestsHook, SshTunnelHook},
-    test::{
-        ClientProtocol, FlightSqlTestClient, PgTestClient, RpcTestClient, Test, TestClient,
-        TestHooks,
-    },
-    tests::{PgBinaryEncoding, SshKeysTest},
+use slt::test::{
+    ClientProtocol, FlightSqlTestClient, PgTestClient, RpcTestClient, Test, TestClient, TestHooks,
 };
 
 #[derive(Parser)]
-#[clap(name = "slt-runner")]
 #[clap(about = "Run sqllogictests against a GlareDB server", long_about = None)]
 pub struct SltArgs {
     /// TCP address to bind to for the GlareDB server.
@@ -89,18 +82,8 @@ pub struct SltArgs {
 }
 
 impl SltArgs {
-    pub fn run(&self) -> Result<()> {
-        let disco = SltDiscovery::new()
-            .test_files_dir("testdata")?
-            // Rust tests
-            .test("sqllogictests/ssh_keys", Box::new(SshKeysTest))?
-            .test("pgproto/binary_encoding", Box::new(PgBinaryEncoding))?
-            // Add hooks
-            .hook("*", Arc::new(AllTestsHook))?
-            // SSH Tunnels hook
-            .hook("*/tunnels/ssh", Arc::new(SshTunnelHook))?;
-
-        let tests = self.collect_tests(disco.tests)?;
+    pub fn execute(&self, tests: BTreeMap<String, Test>, hooks: TestHooks) -> Result<()> {
+        let tests = self.collect_tests(tests)?;
 
         if self.list {
             for (test_name, _) in tests {
@@ -109,14 +92,6 @@ impl SltArgs {
             return Ok(());
         }
 
-        if tests.is_empty() {
-            return Err(anyhow!("No tests to run. Exiting..."));
-        }
-
-        self.execute(tests, disco.hooks)
-    }
-
-    pub fn execute(&self, tests: Vec<(String, Test)>, hooks: TestHooks) -> Result<()> {
         // Abort the program on panic. This will ensure that slt tests will
         // never pass if there's a panic somewhere.
         std::panic::set_hook(Box::new(|info| {
@@ -166,6 +141,11 @@ impl SltArgs {
                 .map_err(|e| anyhow!("Invalid glob pattern `{pattern}`: {e}"))?;
             tests.retain(|(k, _v)| !pattern.matches(k));
         }
+
+        if tests.is_empty() {
+            return Err(anyhow!("No tests to run. Exiting..."));
+        }
+
         Ok(tests)
     }
 
