@@ -8,12 +8,12 @@ use crate::test::{Test, TestHooks};
 pub use crate::test::{FnTest, Hook, TestClient, TestHook};
 
 #[derive(Default)]
-pub struct SltRunner {
-    tests: BTreeMap<String, Test>,
-    hooks: TestHooks,
+pub struct SltDiscovery {
+    pub tests: BTreeMap<String, Test>,
+    pub hooks: TestHooks,
 }
 
-impl SltRunner {
+impl SltDiscovery {
     pub fn new() -> Self {
         Default::default()
     }

@@ -14,18 +14,21 @@ use uuid::Uuid;
 
 use crate::args::StorageConfigArgs;
 use crate::server::ComputeServer;
-use logutil::{LoggingMode, Verbosity};
 use pgsrv::auth::SingleUserAuthenticator;
-use slt::test::ClientProtocol;
-use slt::test::{FlightSqlTestClient, PgTestClient, RpcTestClient, Test, TestClient, TestHooks};
+use slt::{
+    discovery::SltDiscovery,
+    hooks::{AllTestsHook, SshTunnelHook},
+    test::{
+        ClientProtocol, FlightSqlTestClient, PgTestClient, RpcTestClient, Test, TestClient,
+        TestHooks,
+    },
+    tests::{PgBinaryEncoding, SshKeysTest},
+};
 
 #[derive(Parser)]
 #[clap(name = "slt-runner")]
 #[clap(about = "Run sqllogictests against a GlareDB server", long_about = None)]
 pub struct SltArgs {
-    #[clap(short, long, action = clap::ArgAction::Count)]
-    verbose: u8,
-
     /// TCP address to bind to for the GlareDB server.
     ///
     /// Omitting this will attempt to bind to any available port.
@@ -87,7 +90,17 @@ pub struct SltArgs {
 
 impl SltArgs {
     pub fn run(&self) -> Result<()> {
-        let tests = self.collect_tests(tests)?;
+        let disco = SltDiscovery::new()
+            .test_files_dir("testdata")?
+            // Rust tests
+            .test("sqllogictests/ssh_keys", Box::new(SshKeysTest))?
+            .test("pgproto/binary_encoding", Box::new(PgBinaryEncoding))?
+            // Add hooks
+            .hook("*", Arc::new(AllTestsHook))?
+            // SSH Tunnels hook
+            .hook("*/tunnels/ssh", Arc::new(SshTunnelHook))?;
+
+        let tests = self.collect_tests(disco.tests)?;
 
         if self.list {
             for (test_name, _) in tests {
@@ -100,6 +113,10 @@ impl SltArgs {
             return Err(anyhow!("No tests to run. Exiting..."));
         }
 
+        self.execute(tests, disco.hooks)
+    }
+
+    pub fn execute(&self, tests: Vec<(String, Test)>, hooks: TestHooks) -> Result<()> {
         // Abort the program on panic. This will ensure that slt tests will
         // never pass if there's a panic somewhere.
         std::panic::set_hook(Box::new(|info| {
@@ -157,7 +174,7 @@ impl SltArgs {
     /// Batches will be ran sequentially, and an error resulting from a batch
     /// will halt further execution.
     async fn run_tests_batched(
-        self,
+        &self,
         batch_size: usize,
         mut tests: Vec<(String, Test)>,
         hooks: TestHooks,
