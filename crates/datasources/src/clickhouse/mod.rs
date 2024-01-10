@@ -2,7 +2,6 @@ pub mod errors;
 
 mod convert;
 
-use clickhouse_rs::types::DateTimeType;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion_ext::errors::ExtensionError;
@@ -14,9 +13,8 @@ use klickhouse::block::Block;
 use parking_lot::Mutex;
 
 use async_trait::async_trait;
-use clickhouse_rs::{ClientHandle, Options, Pool};
 use datafusion::arrow::datatypes::{
-    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -77,19 +75,16 @@ pub struct ClickhouseAccessState {
 
 impl ClickhouseAccessState {
     async fn connect(conn_str: &str) -> Result<Self> {
-        let mut conn_str = Url::parse(conn_str)?;
+        let conn_str = Url::parse(conn_str)?;
 
-        // Verify that the conn_str has "clickhouse://" protocol.
-        if conn_str.scheme() != "clickhouse" {
+        // Verify that the conn_str has "clickhouse://" or "tcp://" protocol.
+        let scheme = conn_str.scheme();
+        if scheme != "clickhouse" && scheme != "tcp" {
             return Err(ClickhouseError::String(format!(
-                "Expected url with scheme `clickhouse://`, got: `{}`",
+                "Expected url with scheme 'clickhouse://' or 'tcp://', got: `{}`",
                 conn_str.scheme()
             )));
         }
-
-        conn_str
-            .set_scheme("tcp")
-            .expect("tcp should be valid scheme to set");
 
         let mut secure = false;
         for (key, _val) in conn_str.query_pairs() {
@@ -99,7 +94,7 @@ impl ClickhouseAccessState {
             }
         }
 
-        let addr = {
+        let host = {
             let port = if let Some(port) = conn_str.port() {
                 port
             } else if secure {
@@ -122,15 +117,9 @@ Enable secure param in connection string:
                         .to_string(),
                 ));
             }
-            let mut addr = if let Some(host) = conn_str.host_str() {
-                format!("tcp://default@{host}").parse::<Url>()?
-            } else {
-                "tcp://default@127.0.0.1".parse::<Url>()?
-            };
-            addr.set_port(Some(port)).map_err(|_| {
-                ClickhouseError::String("unable to set port for clickhouse URL".to_string())
-            })?;
-            addr
+
+            let host = conn_str.host_str().unwrap_or("127.0.0.1");
+            format!("{host}:{port}")
         };
 
         // Clickhouse sets the service to "idle" when not queried for a while.
@@ -157,7 +146,7 @@ Enable secure param in connection string:
             opts.username = password.to_string();
         }
 
-        let (read, write) = TcpStream::connect(addr.to_string()).await?.into_split();
+        let (read, write) = TcpStream::connect(host).await?.into_split();
         let client = Client::connect_stream(read, write, opts).await?;
 
         Ok(ClickhouseAccessState { client })

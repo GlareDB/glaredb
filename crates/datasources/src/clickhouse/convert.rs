@@ -1,9 +1,5 @@
 use chrono::{DateTime, NaiveDate};
 use chrono_tz::Tz;
-use clickhouse_rs::{
-    types::{column::iter::Iterable, Column, Simple},
-    ClientHandle,
-};
 use datafusion::{
     arrow::{array::Date32Array, datatypes::Field},
     error::DataFusionError,
@@ -21,13 +17,10 @@ use datafusion::{
     physical_plan::RecordBatchStream,
 };
 use futures::{Future, Stream, StreamExt};
-use klickhouse::{block::Block, KlickhouseError, Type, Value};
+use klickhouse::{block::Block, Date, KlickhouseError, Type, Value};
 use std::pin::Pin;
-use std::str;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::sync::mpsc;
-use tracing::trace;
 
 use crate::clickhouse::errors::ClickhouseError;
 
@@ -151,7 +144,7 @@ fn column_to_array(
                         Value::Null if nullable => vals.push(None),
                         other => {
                             return Err(ClickhouseError::String(format!(
-                                "unexpect value type: {other}"
+                                "unexpected value type: {other}"
                             )))
                         }
                     }
@@ -164,7 +157,7 @@ fn column_to_array(
                         Value::$value_variant(v) => vals.push(v),
                         other => {
                             return Err(ClickhouseError::String(format!(
-                                "unexpect value type: {other}"
+                                "unexpected value type: {other}"
                             )))
                         }
                     }
@@ -194,7 +187,7 @@ fn column_to_array(
                         Value::Null if nullable => vals.push(None),
                         other => {
                             return Err(ClickhouseError::String(format!(
-                                "unexpect value type: {other}"
+                                "unexpected value type: {other}"
                             )))
                         }
                     }
@@ -207,7 +200,7 @@ fn column_to_array(
                         Value::String(v) => vals.push(String::from_utf8(v)?),
                         other => {
                             return Err(ClickhouseError::String(format!(
-                                "unexpect value type: {other}"
+                                "unexpected value type: {other}"
                             )))
                         }
                     }
@@ -215,48 +208,95 @@ fn column_to_array(
                 Arc::new(StringArray::from(vals))
             }
         }
-        // DataType::Date32 => {
-        //     let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
-
-        //     if nullable {
-        //         let iter =
-        //             <Option<NaiveDate> as Iterable<Simple>>::iter(column, column.sql_type())?;
-        //         Arc::new(Date32Array::from(
-        //             iter.map(|date| {
-        //                 date.map(|date| date.signed_duration_since(epoch).num_days() as i32)
-        //             })
-        //             .collect::<Vec<_>>(),
-        //         ))
-        //     } else {
-        //         let iter = <NaiveDate>::iter(column, column.sql_type())?;
-        //         Arc::new(Date32Array::from(
-        //             iter.map(|date| date.signed_duration_since(epoch).num_days() as i32)
-        //                 .collect::<Vec<_>>(),
-        //         ))
-        //     }
-        // }
-        // DataType::Timestamp(TimeUnit::Nanosecond, tz) => {
-        //     if nullable {
-        //         let iter =
-        //             <Option<DateTime<Tz>> as Iterable<Simple>>::iter(column, column.sql_type())?;
-        //         Arc::new(
-        //             TimestampNanosecondArray::from(
-        //                 iter.map(|time| time.map(|time| time.timestamp_nanos_opt().unwrap()))
-        //                     .collect::<Vec<_>>(),
-        //             )
-        //             .with_timezone_opt(tz),
-        //         )
-        //     } else {
-        //         let iter = <DateTime<Tz>>::iter(column, column.sql_type())?;
-        //         Arc::new(
-        //             TimestampNanosecondArray::from(
-        //                 iter.map(|time| time.timestamp_nanos_opt().unwrap())
-        //                     .collect::<Vec<_>>(),
-        //             )
-        //             .with_timezone_opt(tz),
-        //         )
-        //     }
-        // }
+        DataType::Date32 => {
+            let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+            if nullable {
+                let mut vals: Vec<Option<NaiveDate>> = Vec::with_capacity(column.len());
+                for val in column {
+                    match val {
+                        Value::Date(v) => vals.push(Some(v.into())),
+                        Value::Null if nullable => vals.push(None),
+                        other => {
+                            return Err(ClickhouseError::String(format!(
+                                "unexpected value type: {other}"
+                            )))
+                        }
+                    }
+                }
+                Arc::new(Date32Array::from(
+                    vals.into_iter()
+                        .map(|date| {
+                            date.map(|date| date.signed_duration_since(epoch).num_days() as i32)
+                        })
+                        .collect::<Vec<_>>(),
+                ))
+            } else {
+                let mut vals: Vec<NaiveDate> = Vec::with_capacity(column.len());
+                for val in column {
+                    match val {
+                        Value::Date(v) => vals.push(v.into()),
+                        other => {
+                            return Err(ClickhouseError::String(format!(
+                                "unexpected value type: {other}"
+                            )))
+                        }
+                    }
+                }
+                Arc::new(Date32Array::from(
+                    vals.into_iter()
+                        .map(|date| date.signed_duration_since(epoch).num_days() as i32)
+                        .collect::<Vec<_>>(),
+                ))
+            }
+        }
+        DataType::Timestamp(TimeUnit::Nanosecond, tz) => {
+            if nullable {
+                let mut vals: Vec<Option<DateTime<Tz>>> = Vec::with_capacity(column.len());
+                for val in column {
+                    match val {
+                        Value::DateTime(v) => vals.push(Some(
+                            v.try_into().map_err(ClickhouseError::DateTimeConvert)?,
+                        )),
+                        Value::Null if nullable => vals.push(None),
+                        other => {
+                            return Err(ClickhouseError::String(format!(
+                                "unexpected value type: {other}"
+                            )))
+                        }
+                    }
+                }
+                Arc::new(
+                    TimestampNanosecondArray::from(
+                        vals.into_iter()
+                            .map(|time| time.map(|time| time.timestamp_nanos_opt().unwrap()))
+                            .collect::<Vec<_>>(),
+                    )
+                    .with_timezone_opt(tz),
+                )
+            } else {
+                let mut vals: Vec<DateTime<Tz>> = Vec::with_capacity(column.len());
+                for val in column {
+                    match val {
+                        Value::DateTime(v) => {
+                            vals.push(v.try_into().map_err(ClickhouseError::DateTimeConvert)?)
+                        }
+                        other => {
+                            return Err(ClickhouseError::String(format!(
+                                "unexpected value type: {other}"
+                            )))
+                        }
+                    }
+                }
+                Arc::new(
+                    TimestampNanosecondArray::from(
+                        vals.into_iter()
+                            .map(|time| time.timestamp_nanos_opt().unwrap())
+                            .collect::<Vec<_>>(),
+                    )
+                    .with_timezone_opt(tz),
+                )
+            }
+        }
         other => {
             return Err(ClickhouseError::String(format!(
                 "unhandled data type trying to convert to arrow array: {other}"
