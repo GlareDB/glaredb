@@ -213,6 +213,8 @@ DROP DATABASE my_pg;
 | DuckDB                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
 | Oracle                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
 | SQLite                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
+| ADBC                   |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
+| ODBC                   |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
 | **File Formats**       |  --  |  --   |       --       |       --       | --                | --                                  |
 | CSV                    |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
 | Newline Delimited JSON |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
