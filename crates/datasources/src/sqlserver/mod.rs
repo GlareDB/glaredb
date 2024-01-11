@@ -315,7 +315,7 @@ impl TableProvider for SqlServerTableProvider {
             .join(",");
 
         let limit_string = match limit {
-            Some(limit) => format!("LIMIT {}", limit),
+            Some(limit) => format!("TOP {}", limit),
             None => String::new(),
         };
 
@@ -329,9 +329,11 @@ impl TableProvider for SqlServerTableProvider {
         };
 
         let query = format!(
-            "SELECT {projection_string} FROM {}.{} {predicate_string} {limit_string}",
+            "SELECT {limit_string} {projection_string} FROM {}.{} {predicate_string}",
             self.schema, self.table
         );
+
+        eprintln!("query = {query:?}");
 
         Ok(Arc::new(SqlServerExec {
             query,
