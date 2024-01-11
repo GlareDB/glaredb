@@ -13,7 +13,9 @@ use klickhouse::block::Block;
 use parking_lot::Mutex;
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
+use datafusion::arrow::datatypes::{
+    Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
+};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
@@ -69,6 +71,7 @@ impl ClickhouseAccess {
 
 pub struct ClickhouseAccessState {
     client: Client,
+    database: String,
 }
 
 impl ClickhouseAccessState {
@@ -100,22 +103,6 @@ impl ClickhouseAccessState {
             } else {
                 9000
             };
-            if port == 9440 && !secure {
-                // We assume that if someone is trying to connect to port 9440,
-                // they are trying to connect to the Clickhouse Cloud on the
-                // TLS port. Due to a panic, we error early. In a rare scenario,
-                // this might be incorrect. So we should fix and push the fix
-                // upstream.
-                //
-                // Issue to track: https://github.com/GlareDB/glaredb/issues/2360
-                return Err(ClickhouseError::String(
-                    "Cannot connect to SSL/TLS port without secure parameter enabled.
-Enable secure param in connection string:
-    `clickhouse://<user>:<password>@<host>:<port>/?secure`"
-                        .to_string(),
-                ));
-            }
-
             let host = conn_str.host_str().unwrap_or("127.0.0.1");
             format!("{host}:{port}")
         };
@@ -127,13 +114,20 @@ Enable secure param in connection string:
         // TODO: Actually use this (made unused with the switch to klickhouse).
         let _timeout = Duration::from_secs(30);
 
-        let mut opts = ClientOptions::default();
+        let mut opts = ClientOptions {
+            // Set the default database to "default" if not provided (since
+            // `ClientOptions::default` sets it to an empty string).
+            default_database: "default".to_string(),
+            ..Default::default()
+        };
 
         if let Some(mut path) = conn_str.path_segments() {
             if let Some(database) = path.next() {
                 opts.default_database = database.to_string();
             }
         }
+
+        let database = opts.default_database.clone();
 
         let user = conn_str.username();
         if !user.is_empty() {
@@ -180,25 +174,45 @@ Enable secure param in connection string:
             Client::connect(host, opts).await?
         };
 
-        Ok(ClickhouseAccessState { client })
+        Ok(ClickhouseAccessState { client, database })
     }
 
     async fn get_table_schema(&self, table_ref: ClickhouseTableRef<'_>) -> Result<ArrowSchema> {
-        let mut stream = self
+        #[derive(Debug, klickhouse::Row)]
+        struct ColumnInfo {
+            column_name: String,
+            data_type: String,
+        }
+
+        let table: &str = table_ref.table.as_ref();
+        let database = table_ref
+            .database
+            .as_deref()
+            .unwrap_or(self.database.as_str());
+
+        let infos = self
             .client
-            .query_raw(format!("SELECT * FROM {table_ref} LIMIT 0"))
+            .query_collect::<ColumnInfo>(format!(
+                "SELECT column_name, data_type FROM information_schema.columns
+                WHERE table_name = '{table}' AND table_catalog = '{database}'",
+            ))
             .await?;
 
-        let block = match stream.next().await {
-            Some(block) => block?,
-            None => {
-                return Err(ClickhouseError::String(format!(
-                    "query for '{table_ref}' returned no blocks"
-                )))
-            }
-        };
+        if infos.is_empty() {
+            return Err(ClickhouseError::String(format!(
+                "unable to fetch schema: {table_ref} does not exist"
+            )));
+        }
 
-        convert::block_to_schema(block)
+        let fields = infos
+            .into_iter()
+            .map(|info| {
+                let dt = convert::clickhouse_type_to_arrow_type(&info.data_type)?;
+                Ok(Field::new(info.column_name, dt.inner, dt.nullable))
+            })
+            .collect::<Result<Fields, KlickhouseError>>()?;
+
+        Ok(ArrowSchema::new(fields))
     }
 }
 
