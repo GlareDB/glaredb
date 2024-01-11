@@ -197,36 +197,36 @@ DROP DATABASE my_pg;
 
 ## Supported data sources
 
-| Source                 | Read | Write | Table Function | External Table | External Database | Supported Object Stores             |
-| ---------------------- | :--: | :---: | :------------: | :------------: | ----------------- | ----------------------------------- |
-| **Databases**          |  --  |  --   |       --       |       --       | --                | --                                  |
-| MySQL                  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
-| PostgreSQL             |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
-| MariaDB _(via mysql)_  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
-| Microsoft SQL Server   |  ✅  |  🚧   |       ✅       |       ✅       | ✅                | ➖                                  |
-| MongoDB                |  ✅  |  🚧   |       ✅       |       ✅       | ✅                | ➖                                  |
-| Snowflake              |  ✅  |  🚧   |       ✅       |       ✅       | ✅                | ➖                                  |
-| BigQuery               |  ✅  |  🚧   |       ✅       |       ✅       | ✅                | ➖                                  |
-| Cassandra/ScyllaDB     |  ✅  |  🚧   |       ✅       |       ✅       | ✅                | ➖                                  |
-| ClickHouse             |  ✅  |  🚧   |       ✅       |       ✅       | ✅                | ➖                                  |
-| DuckDB                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
-| Oracle                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
-| SQLite                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
-| ADBC                   |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
-| ODBC                   |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
-| **File Formats**       |  --  |  --   |       --       |       --       | --                | --                                  |
-| CSV                    |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
-| Newline Delimited JSON |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
-| Apache Parquet         |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
-| Apache Arrow           |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
-| Delta                  |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
-| BSON                   |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
-| Iceberg                |  ✅  |  🚧   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
-| Lance                  |  ✅  |  🚧   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
-| Microsoft Excel        |  ✅  |  🚧   |       ✅       |       🚧       | ➖                | Local File                          |
-| JSON                   |  🚧  |  🚧   |       🚧       |       🚧       | ➖                | 🚧                                  |
-| Apache Avro            |  🚧  |  🚧   |       🚧       |       🚧       | ➖                | 🚧                                  |
-| Apache ORC             |  🚧  |  🚧   |       🚧       |       🚧       | ➖                | 🚧                                  |
+| Source                 | Read | Write[^1] | Table Function | External Table | External Database | Supported Object Stores[^2] |
+| ---------------------- | :--: | :-------: | :------------: | :------------: | ----------------- | --------------------------- |
+| **Databases**          |  --  |           |       --       |       --       | --                |                             |
+| MySQL                  |  ✅  |   ✅✅    |       ✅       |       ✅       | ✅                | ➖                          |
+| PostgreSQL             |  ✅  |   ✅✅    |       ✅       |       ✅       | ✅                | ➖                          |
+| MariaDB _(via mysql)_  |  ✅  |   ✅✅    |       ✅       |       ✅       | ✅                | ➖                          |
+| Microsoft SQL Server   |  ✅  |   🚧🚧    |       ✅       |       ✅       | ✅                | ➖                          |
+| MongoDB                |  ✅  |   🚧🚧    |       ✅       |       ✅       | ✅                | ➖                          |
+| Snowflake              |  ✅  |   🚧🚧    |       ✅       |       ✅       | ✅                | ➖                          |
+| BigQuery               |  ✅  |   🚧🚧    |       ✅       |       ✅       | ✅                | ➖                          |
+| Cassandra/ScyllaDB     |  ✅  |   🚧🚧    |       ✅       |       ✅       | ✅                | ➖                          |
+| ClickHouse             |  ✅  |   🚧🚧    |       ✅       |       ✅       | ✅                | ➖                          |
+| DuckDB                 |  🚧  |   🚧🚧    |       🚧       |       🚧       | 🚧                | ➖                          |
+| Oracle                 |  🚧  |   🚧🚧    |       🚧       |       🚧       | 🚧                | ➖                          |
+| SQLite                 |  🚧  |   🚧🚧    |       🚧       |       🚧       | 🚧                | ➖                          |
+| ADBC                   |  🚧  |   🚧🚧    |       🚧       |       🚧       | 🚧                | ➖                          |
+| ODBC                   |  🚧  |   🚧🚧    |       🚧       |       🚧       | 🚧                | ➖                          |
+| **File Formats**       |  --  |    --     |       --       |       --       | --                |                             |
+| Apache Arrow           |  ✅  |   ✅✅    |       ✅       |       ✅       | ➖                | ✅✅✅✅✅                  |
+| Delta                  |  ✅  |   ✅✅    |       ✅       |       ✅       | ➖                | ✅✅✅✅✅                  |
+| CSV                    |  ✅  |   ✅🚧    |       ✅       |       ✅       | ➖                | ✅✅✅✅✅                  |
+| Newline Delimited JSON |  ✅  |   ✅🚧    |       ✅       |       ✅       | ➖                | ✅✅✅✅✅                  |
+| Apache Parquet         |  ✅  |   ✅🚧    |       ✅       |       ✅       | ➖                | ✅✅✅✅✅                  |
+| BSON                   |  ✅  |   ✅🚧    |       ✅       |       ✅       | ➖                | ✅✅✅✅✅                  |
+| Iceberg                |  ✅  |    🚧     |       ✅       |       ✅       | ➖                | ✅✅✅✅✅                  |
+| Lance                  |  ✅  |    🚧     |       ✅       |       ✅       | ➖                | ✅✅✅✅✅                  |
+| Microsoft Excel        |  ✅  |    🚧     |       ✅       |       🚧       | ➖                | ✅🚧🚧🚧🚧                  |
+| JSON                   |  🚧  |    🚧     |       🚧       |       🚧       | ➖                | 🚧🚧🚧🚧🚧                  |
+| Apache Avro            |  🚧  |    🚧     |       🚧       |       🚧       | ➖                | 🚧🚧🚧🚧🚧                  |
+| Apache ORC             |  🚧  |    🚧     |       🚧       |       🚧       | ➖                | 🚧🚧🚧🚧🚧                  |
 
 ✅ = Supported
 ➖ = Not Applicable
@@ -271,3 +271,6 @@ GlareDB is proudly powered by [Apache Datafusion](https://arrow.apache.org/dataf
 [Pandas]: https://github.com/pandas-dev/pandas
 [Polars]: https://github.com/pola-rs/polars
 [supported data sources]: https://docs.glaredb.com/docs/data-sources/supported/
+
+[^1]: Supported write modes are `COPY TO` and `INSERT INTO`.
+[^2]: Supported object stores are: Local File, HTTP (GET), Amazon S3, Google Cloud Storage, Azure Blob Storage.
