@@ -1,9 +1,9 @@
 pub mod executor;
+pub mod pipeline;
 pub mod scheduler;
 pub mod stream;
 
 mod adapter;
-mod pipeline;
 mod repartition;
 
 #[derive(Debug, thiserror::Error)]

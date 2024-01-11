@@ -2,7 +2,7 @@
 mod aggregates;
 mod alias_map;
 mod scalars;
-mod table;
+pub mod table;
 
 use std::sync::Arc;
 

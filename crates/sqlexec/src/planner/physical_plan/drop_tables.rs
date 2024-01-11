@@ -1,4 +1,8 @@
+use crate::distexec::pipeline::LogSink;
+use crate::distexec::scheduler::{OutputSink, Scheduler};
 use crate::planner::logical_plan::OwnedFullObjectReference;
+
+use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 use catalog::mutator::CatalogMutator;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -10,17 +14,19 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use futures::stream;
+use protogen::metastore::types::catalog::TableEntry;
 use protogen::metastore::types::service::{self, Mutation};
+use sqlbuiltins::functions::table::system::remove_delta_tables::DeleteDeltaTablesOperation;
+use sqlbuiltins::functions::table::system::{SystemOperation, SystemOperationExec};
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
-
-use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 
 #[derive(Debug, Clone)]
 pub struct DropTablesExec {
     pub catalog_version: u64,
     pub tbl_references: Vec<OwnedFullObjectReference>,
+    pub tbl_entries: Vec<TableEntry>,
     pub if_exists: bool,
 }
 
@@ -69,6 +75,28 @@ impl ExecutionPlan for DropTablesExec {
             .session_config()
             .get_extension::<CatalogMutator>()
             .expect("context should have catalog mutator");
+
+        let scheduler = context
+            .session_config()
+            .get_extension::<Scheduler>()
+            .expect("context should have scheduler");
+
+        let sys_exec = SystemOperationExec::new(SystemOperation::DeleteDeltaTables(
+            DeleteDeltaTablesOperation {
+                entries: self.tbl_entries.clone(),
+            },
+        ));
+
+        scheduler
+            .schedule(
+                Arc::new(sys_exec),
+                context.clone(),
+                OutputSink {
+                    batches: Arc::new(LogSink),
+                    errors: Arc::new(LogSink),
+                },
+            )
+            .unwrap();
 
         let stream = stream::once(drop_tables(mutator, self.clone()));
 

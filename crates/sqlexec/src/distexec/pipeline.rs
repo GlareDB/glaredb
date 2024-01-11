@@ -41,6 +41,37 @@ pub trait Sink: Send + Sync + Debug {
     fn finish(&self, child: usize, partition: usize) -> Result<()>;
 }
 
+#[derive(Debug)]
+// NOOP that just logs the input
+pub struct LogSink;
+
+impl Sink for LogSink {
+    fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()> {
+        tracing::debug!(
+            "DebugSink: child={}, partition={}, batch={:?}",
+            child,
+            partition,
+            input
+        );
+        Ok(())
+    }
+
+    fn finish(&self, child: usize, partition: usize) -> Result<()> {
+        tracing::debug!(
+            "DebugSink: child={}, partition={} finished",
+            child,
+            partition
+        );
+        Ok(())
+    }
+}
+impl ErrorSink for LogSink {
+    fn push_error(&self, err: DistExecError, partition: usize) -> Result<()> {
+        tracing::error!("DebugSink: partition={} error={:?}", partition, err);
+        Ok(())
+    }
+}
+
 pub trait ErrorSink: Send + Sync + Debug {
     fn push_error(&self, err: DistExecError, partition: usize) -> Result<()>;
 }

@@ -225,17 +225,18 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::DropTables => {
                 let plan = require_downcast_lp::<DropTables>(node);
                 let mut drops = Vec::with_capacity(plan.tbl_references.len());
+                let mut tbl_entries = Vec::with_capacity(plan.tbl_references.len());
                 let mut temp_table_drops = Vec::with_capacity(plan.tbl_references.len());
 
                 for r in &plan.tbl_references {
                     if self.catalog.get_temp_catalog().contains_table(&r.name) {
                         temp_table_drops.push(r.clone());
-                    } else if self
-                        .catalog
-                        .resolve_table(&r.database, &r.schema, &r.name)
-                        .is_some()
-                        || plan.if_exists
+                    } else if let Some(entry) =
+                        self.catalog.resolve_table(&r.database, &r.schema, &r.name)
                     {
+                        drops.push(r.clone());
+                        tbl_entries.push(entry.clone());
+                    } else if plan.if_exists {
                         drops.push(r.clone());
                     } else {
                         return Err(DataFusionError::Plan(format!(
@@ -263,6 +264,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                         let exec = Arc::new(DropTablesExec {
                             catalog_version: self.catalog.version(),
                             tbl_references: drops,
+                            tbl_entries,
                             if_exists: plan.if_exists,
                         });
                         RuntimeGroupExec::new(RuntimePreference::Remote, exec)
