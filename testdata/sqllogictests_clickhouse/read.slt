@@ -16,7 +16,7 @@ SELECT count(*) FROM read_clickhouse(
 102
 
 # Verifying above by providing wrong schema name.
-statement error Database doesnotexist does not exist
+statement error doesnotexist.bikeshare_stations does not exist
 SELECT count(*) FROM read_clickhouse(
   '${CLICKHOUSE_CONN_STRING}',
   'doesnotexist',
@@ -44,7 +44,7 @@ SELECT count(*) FROM read_clickhouse(
 102
 
 # Verifying above by omitting the schema name.
-statement error Table information_schema.bikeshare_stations does not exist
+statement error bikeshare_stations does not exist
 SELECT count(*) FROM read_clickhouse(
     '${CLICKHOUSE_CONN_STRING}/information_schema',
     'bikeshare_stations'
