@@ -406,18 +406,18 @@ impl SltArgs {
         // Run the pre-test hooks
         for (pattern, hook) in hooks.clone() {
             tracing::debug!(%pattern, %test_name, "Running pre hook for test");
-            hook.pre(&client_config, client.clone(), &mut local_vars)
+            hook.pre(client_config, client.clone(), &mut local_vars)
                 .await?;
         }
 
         // Run the actual test
-        test.execute(&client_config, client.clone(), &mut local_vars)
+        test.execute(client_config, client.clone(), &mut local_vars)
             .await?;
 
         // Run the post-test hooks
         for (pattern, hook) in hooks {
             tracing::debug!(%pattern, %test_name, "Running post hook for test");
-            hook.post(&client_config, client.clone(), &local_vars)
+            hook.post(client_config, client.clone(), &local_vars)
                 .await?;
         }
 
