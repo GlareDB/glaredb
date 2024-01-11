@@ -1,3 +1,5 @@
+use logutil::LoggingMode;
+use pgsrv::auth::SingleUserAuthenticator;
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
