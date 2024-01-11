@@ -16,7 +16,7 @@ select * from delta_scan('file://${PWD}/testdata/delta/table1') order by a;
 
 # Relative path
 query IT
-select * from delta_scan('../../testdata/delta/table1/') order by a;
+select * from delta_scan('./testdata/delta/table1/') order by a;
 ----
 1   hello
 2   world

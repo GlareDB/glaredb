@@ -1,5 +1,7 @@
 //! Utility to run SQL Logic Tests.
 
-mod cli;
+pub mod cli;
+pub mod hooks;
 pub mod runner;
 mod test;
+pub mod tests;

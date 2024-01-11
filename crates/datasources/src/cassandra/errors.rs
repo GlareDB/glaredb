@@ -6,6 +6,10 @@ pub enum CassandraError {
     QueryError(#[from] scylla::transport::errors::QueryError),
     #[error("Unsupported DataType: {0}")]
     UnsupportedDataType(String),
+    #[error("Table not found: {0}")]
+    TableNotFound(String),
+    #[error("{0}")]
+    String(String),
 }
 
 pub type Result<T, E = CassandraError> = std::result::Result<T, E>;

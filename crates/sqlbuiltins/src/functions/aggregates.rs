@@ -204,6 +204,7 @@ impl BuiltinFunction for AggregateFunction {
     fn function_type(&self) -> FunctionType {
         FunctionType::Aggregate
     }
+
     fn name(&self) -> &'static str {
         use AggregateFunction::*;
         match self {
@@ -248,90 +249,86 @@ impl BuiltinFunction for AggregateFunction {
     fn signature(&self) -> Option<datafusion::logical_expr::Signature> {
         Some(AggregateFunction::signature(self))
     }
-    fn sql_example(&self) -> Option<String> {
+
+    fn sql_example(&self) -> Option<&str> {
         use AggregateFunction::*;
-        Some(
-            match self {
-                ApproxDistinct => approx_distinct::EXAMPLE,
-                ApproxMedian => approx_median::EXAMPLE,
-                ApproxPercentileCont => approx_percentile_cont::EXAMPLE,
-                ApproxPercentileContWithWeight => approx_percentile_cont_with_weight::EXAMPLE,
-                ArrayAgg => array_agg::EXAMPLE,
-                Avg => avg::EXAMPLE,
-                BitAnd => bit_and::EXAMPLE,
-                BitOr => bit_or::EXAMPLE,
-                BitXor => bit_xor::EXAMPLE,
-                BoolAnd => bool_and::EXAMPLE,
-                BoolOr => bool_or::EXAMPLE,
-                Correlation => correlation::EXAMPLE,
-                Count => count::EXAMPLE,
-                Covariance => covariance::EXAMPLE,
-                CovariancePop => covariance_pop::EXAMPLE,
-                FirstValue => first_value::EXAMPLE,
-                Grouping => grouping::EXAMPLE,
-                LastValue => last_value::EXAMPLE,
-                Max => max::EXAMPLE,
-                Median => median::EXAMPLE,
-                Min => min::EXAMPLE,
-                RegrAvgx => regr_avgx::EXAMPLE,
-                RegrAvgy => regr_avgy::EXAMPLE,
-                RegrCount => regr_count::EXAMPLE,
-                RegrIntercept => regr_intercept::EXAMPLE,
-                RegrR2 => regr_r2::EXAMPLE,
-                RegrSlope => regr_slope::EXAMPLE,
-                RegrSXX => regr_sxx::EXAMPLE,
-                RegrSXY => regr_sxy::EXAMPLE,
-                RegrSYY => regr_syy::EXAMPLE,
-                Stddev => stddev::EXAMPLE,
-                StddevPop => stddev_pop::EXAMPLE,
-                Sum => sum::EXAMPLE,
-                Variance => variance::EXAMPLE,
-                VariancePop => variance_pop::EXAMPLE,
-            }
-            .to_string(),
-        )
+        Some(match self {
+            ApproxDistinct => approx_distinct::EXAMPLE,
+            ApproxMedian => approx_median::EXAMPLE,
+            ApproxPercentileCont => approx_percentile_cont::EXAMPLE,
+            ApproxPercentileContWithWeight => approx_percentile_cont_with_weight::EXAMPLE,
+            ArrayAgg => array_agg::EXAMPLE,
+            Avg => avg::EXAMPLE,
+            BitAnd => bit_and::EXAMPLE,
+            BitOr => bit_or::EXAMPLE,
+            BitXor => bit_xor::EXAMPLE,
+            BoolAnd => bool_and::EXAMPLE,
+            BoolOr => bool_or::EXAMPLE,
+            Correlation => correlation::EXAMPLE,
+            Count => count::EXAMPLE,
+            Covariance => covariance::EXAMPLE,
+            CovariancePop => covariance_pop::EXAMPLE,
+            FirstValue => first_value::EXAMPLE,
+            Grouping => grouping::EXAMPLE,
+            LastValue => last_value::EXAMPLE,
+            Max => max::EXAMPLE,
+            Median => median::EXAMPLE,
+            Min => min::EXAMPLE,
+            RegrAvgx => regr_avgx::EXAMPLE,
+            RegrAvgy => regr_avgy::EXAMPLE,
+            RegrCount => regr_count::EXAMPLE,
+            RegrIntercept => regr_intercept::EXAMPLE,
+            RegrR2 => regr_r2::EXAMPLE,
+            RegrSlope => regr_slope::EXAMPLE,
+            RegrSXX => regr_sxx::EXAMPLE,
+            RegrSXY => regr_sxy::EXAMPLE,
+            RegrSYY => regr_syy::EXAMPLE,
+            Stddev => stddev::EXAMPLE,
+            StddevPop => stddev_pop::EXAMPLE,
+            Sum => sum::EXAMPLE,
+            Variance => variance::EXAMPLE,
+            VariancePop => variance_pop::EXAMPLE,
+        })
     }
-    fn description(&self) -> Option<String> {
+
+    fn description(&self) -> Option<&str> {
         use AggregateFunction::*;
-        Some(
-            match self {
-                ApproxDistinct => approx_distinct::DESCRIPTION,
-                ApproxMedian => approx_median::DESCRIPTION,
-                ApproxPercentileCont => approx_percentile_cont::DESCRIPTION,
-                ApproxPercentileContWithWeight => approx_percentile_cont_with_weight::DESCRIPTION,
-                ArrayAgg => array_agg::DESCRIPTION,
-                Avg => avg::DESCRIPTION,
-                BitAnd => bit_and::DESCRIPTION,
-                BitOr => bit_or::DESCRIPTION,
-                BitXor => bit_xor::DESCRIPTION,
-                BoolAnd => bool_and::DESCRIPTION,
-                BoolOr => bool_or::DESCRIPTION,
-                Correlation => correlation::DESCRIPTION,
-                Count => count::DESCRIPTION,
-                Covariance => covariance::DESCRIPTION,
-                CovariancePop => covariance_pop::DESCRIPTION,
-                FirstValue => first_value::DESCRIPTION,
-                Grouping => grouping::DESCRIPTION,
-                LastValue => last_value::DESCRIPTION,
-                Max => max::DESCRIPTION,
-                Median => median::DESCRIPTION,
-                Min => min::DESCRIPTION,
-                RegrAvgx => regr_avgx::DESCRIPTION,
-                RegrAvgy => regr_avgy::DESCRIPTION,
-                RegrCount => regr_count::DESCRIPTION,
-                RegrIntercept => regr_intercept::DESCRIPTION,
-                RegrR2 => regr_r2::DESCRIPTION,
-                RegrSlope => regr_slope::DESCRIPTION,
-                RegrSXX => regr_sxx::DESCRIPTION,
-                RegrSXY => regr_sxy::DESCRIPTION,
-                RegrSYY => regr_syy::DESCRIPTION,
-                Stddev => stddev::DESCRIPTION,
-                StddevPop => stddev_pop::DESCRIPTION,
-                Sum => sum::DESCRIPTION,
-                Variance => variance::DESCRIPTION,
-                VariancePop => variance_pop::DESCRIPTION,
-            }
-            .to_string(),
-        )
+        Some(match self {
+            ApproxDistinct => approx_distinct::DESCRIPTION,
+            ApproxMedian => approx_median::DESCRIPTION,
+            ApproxPercentileCont => approx_percentile_cont::DESCRIPTION,
+            ApproxPercentileContWithWeight => approx_percentile_cont_with_weight::DESCRIPTION,
+            ArrayAgg => array_agg::DESCRIPTION,
+            Avg => avg::DESCRIPTION,
+            BitAnd => bit_and::DESCRIPTION,
+            BitOr => bit_or::DESCRIPTION,
+            BitXor => bit_xor::DESCRIPTION,
+            BoolAnd => bool_and::DESCRIPTION,
+            BoolOr => bool_or::DESCRIPTION,
+            Correlation => correlation::DESCRIPTION,
+            Count => count::DESCRIPTION,
+            Covariance => covariance::DESCRIPTION,
+            CovariancePop => covariance_pop::DESCRIPTION,
+            FirstValue => first_value::DESCRIPTION,
+            Grouping => grouping::DESCRIPTION,
+            LastValue => last_value::DESCRIPTION,
+            Max => max::DESCRIPTION,
+            Median => median::DESCRIPTION,
+            Min => min::DESCRIPTION,
+            RegrAvgx => regr_avgx::DESCRIPTION,
+            RegrAvgy => regr_avgy::DESCRIPTION,
+            RegrCount => regr_count::DESCRIPTION,
+            RegrIntercept => regr_intercept::DESCRIPTION,
+            RegrR2 => regr_r2::DESCRIPTION,
+            RegrSlope => regr_slope::DESCRIPTION,
+            RegrSXX => regr_sxx::DESCRIPTION,
+            RegrSXY => regr_sxy::DESCRIPTION,
+            RegrSYY => regr_syy::DESCRIPTION,
+            Stddev => stddev::DESCRIPTION,
+            StddevPop => stddev_pop::DESCRIPTION,
+            Sum => sum::DESCRIPTION,
+            Variance => variance::DESCRIPTION,
+            VariancePop => variance_pop::DESCRIPTION,
+        })
     }
 }

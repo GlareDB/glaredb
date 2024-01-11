@@ -4,3 +4,48 @@ query I
 SELECT count(*) FROM read_clickhouse('${CLICKHOUSE_CONN_STRING}', 'bikeshare_stations');
 ----
 102
+
+# Check if providing "schema" (clickhouse database) works.
+query I
+SELECT count(*) FROM read_clickhouse(
+  '${CLICKHOUSE_CONN_STRING}',
+  'default',
+  'bikeshare_stations'
+);
+----
+102
+
+# Verifying above by providing wrong schema name.
+statement error doesnotexist.bikeshare_stations does not exist
+SELECT count(*) FROM read_clickhouse(
+  '${CLICKHOUSE_CONN_STRING}',
+  'doesnotexist',
+  'bikeshare_stations'
+);
+
+# Providing default db in connection string works.
+query T
+SELECT table_name FROM read_clickhouse(
+    '${CLICKHOUSE_CONN_STRING}/information_schema',
+    'tables'
+  )
+  WHERE table_name = 'bikeshare_stations';
+----
+bikeshare_stations
+
+# But we can override by providing the "schema" (db) name.
+query I
+SELECT count(*) FROM read_clickhouse(
+    '${CLICKHOUSE_CONN_STRING}/information_schema',
+	'default',
+    'bikeshare_stations'
+);
+----
+102
+
+# Verifying above by omitting the schema name.
+statement error bikeshare_stations does not exist
+SELECT count(*) FROM read_clickhouse(
+    '${CLICKHOUSE_CONN_STRING}/information_schema',
+    'bikeshare_stations'
+);

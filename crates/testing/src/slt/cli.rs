@@ -1,4 +1,4 @@
-use logutil::{LoggingMode, Verbosity};
+use logutil::LoggingMode;
 use pgsrv::auth::SingleUserAuthenticator;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -104,14 +104,7 @@ impl Cli {
         if tests.is_empty() {
             return Err(anyhow!("No tests to run. Exiting..."));
         }
-        let verbosity: Verbosity = cli.verbose.into();
-
-        let log_mode = match verbosity {
-            Verbosity::Info => LoggingMode::Compact,
-            Verbosity::Debug => LoggingMode::Full,
-            Verbosity::Trace => LoggingMode::Full,
-        };
-        logutil::init(cli.verbose, log_mode, None);
+        logutil::init(cli.verbose, LoggingMode::Compact, None);
 
         // Abort the program on panic. This will ensure that slt tests will
         // never pass if there's a panic somewhere.
@@ -145,7 +138,8 @@ impl Cli {
         let mut tests: Vec<_> = if let Some(patterns) = &self.tests_pattern {
             let patterns = patterns
                 .iter()
-                .map(|p| glob::Pattern::new(p))
+                .map(|p| p.trim_end_matches(".slt"))
+                .map(glob::Pattern::new)
                 .collect::<Result<Vec<_>, _>>()?;
 
             tests
