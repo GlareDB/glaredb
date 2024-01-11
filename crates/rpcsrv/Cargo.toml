@@ -12,7 +12,6 @@ datafusion = { workspace = true }
 datafusion-proto = { workspace = true }
 futures = { workspace = true }
 prost = { workspace = true }
-serde = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }

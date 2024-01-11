@@ -2377,14 +2377,12 @@ dependencies = [
  "async-stream",
  "async-trait",
  "bigquery-storage",
- "bitflags 2.4.1",
  "bitvec",
  "bson",
  "bytes",
  "calamine",
  "chrono",
  "chrono-tz",
- "dashmap",
  "datafusion",
  "datafusion_ext",
  "decimal",
@@ -2414,7 +2412,6 @@ dependencies = [
  "rustls 0.21.10",
  "scylla",
  "serde",
- "serde_bytes",
  "serde_json",
  "serde_with 3.4.0",
  "snowflake_connector",
@@ -3249,7 +3246,6 @@ dependencies = [
  "num_cpus",
  "object_store",
  "object_store_util",
- "once_cell",
  "pgrepr",
  "pgsrv",
  "predicates",
@@ -3692,15 +3688,6 @@ name = "itertools"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25db6b064527c5d482d0423354fcd07a89a2dfe07b67892e62411946db7f07b0"
 dependencies = [
  "either",
 ]
@@ -6296,7 +6283,6 @@ dependencies = [
  "prost",
  "protogen",
  "proxyutil",
- "serde",
  "sqlexec",
  "telemetry",
  "thiserror",
@@ -7287,8 +7273,6 @@ name = "sqlbuiltins"
 version = "0.8.0"
 dependencies = [
  "async-trait",
- "bson",
- "bytes",
  "datafusion",
  "datafusion_ext",
  "datasources",
@@ -7304,19 +7288,11 @@ dependencies = [
  "once_cell",
  "pgrepr",
  "protogen",
- "regex",
- "serde",
- "serde_json",
  "siphasher 1.0.0",
  "strum 0.25.0",
  "telemetry",
  "thiserror",
- "tokio",
- "tokio-postgres",
- "tokio-util",
- "tonic",
  "tracing",
- "url",
  "uuid",
 ]
 
@@ -7336,7 +7312,6 @@ dependencies = [
  "datasources",
  "futures",
  "ioutil",
- "itertools 0.12.0",
  "logutil",
  "metastore",
  "num_cpus",
@@ -7349,10 +7324,8 @@ dependencies = [
  "protogen",
  "proxyutil",
  "prql-compiler",
- "regex",
  "reqwest",
  "serde",
- "serde_json",
  "sqlbuiltins",
  "telemetry",
  "tempfile",

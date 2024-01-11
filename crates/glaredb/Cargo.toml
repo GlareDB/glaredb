@@ -9,7 +9,6 @@ path = "src/bin/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
-arrow_util = { path = "../arrow_util" }
 clap = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
@@ -34,9 +33,9 @@ slt = { path = "../slt" }
 sqlexec = { path = "../sqlexec" }
 telemetry = { path = "../telemetry" }
 sqlbuiltins = { path = "../sqlbuiltins" }
+arrow_util = { path = "../arrow_util" }
 
 num_cpus = "1.16.0"
-once_cell = "1.19.0"
 colored = "2.1.0"
 reedline = "0.27.1"
 nu-ansi-term = "0.49.0"
