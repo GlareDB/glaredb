@@ -1,17 +1,15 @@
-use logutil::LoggingMode;
-use pgsrv::auth::SingleUserAuthenticator;
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
-use tracing::info;
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use tokio::{net::TcpListener, runtime::Builder, sync::mpsc, time::Instant};
 use tokio_postgres::config::Config as ClientConfig;
+use tracing::info;
 use uuid::Uuid;
 
 use crate::args::StorageConfigArgs;
