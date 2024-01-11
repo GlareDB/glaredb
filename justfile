@@ -67,6 +67,8 @@ sql-logic-tests *args: build
 
 slt-bin *args:
   ./target/debug/glaredb sql-logic-tests {{args}}
+slt-bin-debug *args:
+  ./target/debug/glaredb -v sql-logic-tests {{args}}
 
 # Run SQL Logic Tests over RPC
 rpc-tests:
