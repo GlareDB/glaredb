@@ -200,7 +200,7 @@ impl ClickhouseAccessState {
 
         if infos.is_empty() {
             return Err(ClickhouseError::String(format!(
-                "unable to fetch schema for {table_ref}"
+                "unable to fetch schema: {table_ref} does not exist"
             )));
         }
 
