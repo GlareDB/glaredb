@@ -203,7 +203,7 @@ jobs:
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
 
       - name: pg protocol tests (slt runner)
-        run: just slt-bin -v 'pgproto/*'
+        run: just slt-bin 'pgproto/*'
 
   sql-logic-tests:
     name: SQL Logic Tests
