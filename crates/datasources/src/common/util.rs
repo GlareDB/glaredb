@@ -25,6 +25,7 @@ pub enum Datasource {
     BigQuery,
     Snowflake,
     Clickhouse,
+    SqlServer,
 }
 
 /// Returns true if the literal expression encoding should be wrapped inside
