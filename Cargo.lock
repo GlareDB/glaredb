@@ -6294,7 +6294,6 @@ dependencies = [
  "logutil",
  "once_cell",
  "prost",
- "prost-types",
  "protogen",
  "proxyutil",
  "serde",

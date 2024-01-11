@@ -11,12 +11,11 @@ async-trait = { workspace = true }
 datafusion = { workspace = true }
 tokio = { workspace = true }
 reqwest = { workspace = true }
-tokio-postgres = "0.7.8"
 thiserror = { workspace = true }
 tracing = { workspace = true }
+serde = { workspace = true }
 sqlexec = {path = "../sqlexec"}
 proxyutil = {path = "../proxyutil"}
-serde = { workspace = true }
 bytesutil = {path = "../bytesutil"}
 pgrepr = {path = "../pgrepr"}
 datafusion_ext = {path = "../datafusion_ext"}
@@ -26,6 +25,7 @@ webpki-roots = "0.26.0"
 tokio-rustls = "0.24.1"
 rustls-pemfile = "2.0.0"
 tokio-util = { version = "0.7.10", features = ["codec"] }
+tokio-postgres = "0.7.8"
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 
 [dev-dependencies]

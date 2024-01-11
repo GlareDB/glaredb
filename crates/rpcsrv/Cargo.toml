@@ -12,13 +12,11 @@ datafusion = { workspace = true }
 datafusion-proto = { workspace = true }
 futures = { workspace = true }
 prost = { workspace = true }
-prost-types = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
 tracing = { workspace = true }
-
 datafusion_ext = { path = "../datafusion_ext" }
 logutil = { path = "../logutil" }
 protogen = { path = "../protogen" }
