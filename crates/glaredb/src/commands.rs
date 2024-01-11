@@ -21,6 +21,7 @@ use slt::{
 
 use crate::args::server::ServerArgs;
 use crate::args::{LocalArgs, MetastoreArgs, PgProxyArgs, RpcProxyArgs, SltArgs};
+use crate::built_info;
 use crate::local::LocalSession;
 use crate::metastore::Metastore;
 use crate::proxy::{PgProxy, RpcProxy};
@@ -130,7 +131,12 @@ impl RunCommand for LocalArgs {
             };
 
             if query.is_none() {
-                println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
+                // git should always be present, but just in case, we'll fall back to the version
+                if let Some(git_version) = built_info::GIT_VERSION {
+                    println!("GlareDB ({git_version})",);
+                } else {
+                    println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
+                }
             }
 
             let local = LocalSession::connect(self.opts).await?;
