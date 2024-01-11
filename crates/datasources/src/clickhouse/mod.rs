@@ -103,22 +103,6 @@ impl ClickhouseAccessState {
             } else {
                 9000
             };
-            if port == 9440 && !secure {
-                // We assume that if someone is trying to connect to port 9440,
-                // they are trying to connect to the Clickhouse Cloud on the
-                // TLS port. Due to a panic, we error early. In a rare scenario,
-                // this might be incorrect. So we should fix and push the fix
-                // upstream.
-                //
-                // Issue to track: https://github.com/GlareDB/glaredb/issues/2360
-                return Err(ClickhouseError::String(
-                    "Cannot connect to SSL/TLS port without secure parameter enabled.
-Enable secure param in connection string:
-    `clickhouse://<user>:<password>@<host>:<port>/?secure`"
-                        .to_string(),
-                ));
-            }
-
             let host = conn_str.host_str().unwrap_or("127.0.0.1");
             format!("{host}:{port}")
         };
@@ -130,10 +114,12 @@ Enable secure param in connection string:
         // TODO: Actually use this (made unused with the switch to klickhouse).
         let _timeout = Duration::from_secs(30);
 
-        let mut opts = ClientOptions::default();
-        // Set the default database to "default" if not provided (since
-        // `ClientOptions::default` sets it to an empty string).
-        opts.default_database = "default".to_string();
+        let mut opts = ClientOptions {
+            // Set the default database to "default" if not provided (since
+            // `ClientOptions::default` sets it to an empty string).
+            default_database: "default".to_string(),
+            ..Default::default()
+        };
 
         if let Some(mut path) = conn_str.path_segments() {
             if let Some(database) = path.next() {
