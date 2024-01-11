@@ -13,7 +13,9 @@ use klickhouse::block::Block;
 use parking_lot::Mutex;
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
+use datafusion::arrow::datatypes::{
+    Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
+};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
@@ -68,6 +70,7 @@ impl ClickhouseAccess {
 
 pub struct ClickhouseAccessState {
     client: Client,
+    database: String,
 }
 
 impl ClickhouseAccessState {
@@ -127,12 +130,17 @@ Enable secure param in connection string:
         let _timeout = Duration::from_secs(30);
 
         let mut opts = ClientOptions::default();
+        // Set the default database to "default" if not provided (since
+        // `ClientOptions::default` sets it to an empty string).
+        opts.default_database = "default".to_string();
 
         if let Some(mut path) = conn_str.path_segments() {
             if let Some(database) = path.next() {
                 opts.default_database = database.to_string();
             }
         }
+
+        let database = opts.default_database.clone();
 
         let user = conn_str.username();
         if !user.is_empty() {
@@ -146,25 +154,45 @@ Enable secure param in connection string:
         let (read, write) = TcpStream::connect(host).await?.into_split();
         let client = Client::connect_stream(read, write, opts).await?;
 
-        Ok(ClickhouseAccessState { client })
+        Ok(ClickhouseAccessState { client, database })
     }
 
     async fn get_table_schema(&self, table_ref: ClickhouseTableRef<'_>) -> Result<ArrowSchema> {
-        let mut stream = self
+        #[derive(Debug, klickhouse::Row)]
+        struct ColumnInfo {
+            column_name: String,
+            data_type: String,
+        }
+
+        let table: &str = table_ref.table.as_ref();
+        let database = table_ref
+            .database
+            .as_deref()
+            .unwrap_or(self.database.as_str());
+
+        let infos = self
             .client
-            .query_raw(format!("SELECT * FROM {table_ref} LIMIT 0"))
+            .query_collect::<ColumnInfo>(format!(
+                "SELECT column_name, data_type FROM information_schema.columns
+                WHERE table_name = '{table}' AND table_catalog = '{database}'",
+            ))
             .await?;
 
-        let block = match stream.next().await {
-            Some(block) => block?,
-            None => {
-                return Err(ClickhouseError::String(format!(
-                    "query for '{table_ref}' returned no blocks"
-                )))
-            }
-        };
+        if infos.is_empty() {
+            return Err(ClickhouseError::String(format!(
+                "unable to fetch schema for {table_ref}"
+            )));
+        }
 
-        convert::block_to_schema(block)
+        let fields = infos
+            .into_iter()
+            .map(|info| {
+                let dt = convert::clickhouse_type_to_arrow_type(&info.data_type)?;
+                Ok(Field::new(info.column_name, dt.inner, dt.nullable))
+            })
+            .collect::<Result<Fields, KlickhouseError>>()?;
+
+        Ok(ArrowSchema::new(fields))
     }
 }
 
