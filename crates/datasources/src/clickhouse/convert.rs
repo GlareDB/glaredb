@@ -642,6 +642,13 @@ pub fn clickhouse_type_to_arrow_type(
             ))
         }
         "Date" => DataType::Date32.into(),
+        "Date32" => {
+            // Unlike Boolean, klickhouse doesn't parse Date32 values and
+            // returns empty batches (basically returning no data at all :/).
+            return Err(KlickhouseError::TypeParseError(
+                "unsupported Date32 type".to_string(),
+            ));
+        }
         "DateTime" => DataType::Timestamp(TimeUnit::Nanosecond, None).into(),
         "IPv4" => {
             return Err(KlickhouseError::TypeParseError(
