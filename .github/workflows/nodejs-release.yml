@@ -10,8 +10,6 @@ on:
   push:
     tags:
       - "*"
-    branches:
-      - "sean/schedule-ci"
   workflow_dispatch:
 
 defaults:
