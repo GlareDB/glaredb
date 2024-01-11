@@ -35,6 +35,7 @@ use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tracing::warn;
 
 use std::any::Any;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -118,8 +119,12 @@ impl SqlServerAccessState {
         })
     }
 
-    /// Get the arrow schema for a table.
-    async fn get_table_schema(&self, schema: &str, name: &str) -> Result<ArrowSchema> {
+    /// Get the arrow schema and sql server schema for a table.
+    async fn get_table_schema(
+        &self,
+        schema: &str,
+        name: &str,
+    ) -> Result<(ArrowSchema, Vec<tiberius::Column>)> {
         let mut query = self
             .client
             .query(format!("SELECT * FROM {schema}.{name} WHERE 1=0"))
@@ -136,6 +141,7 @@ impl SqlServerAccessState {
         };
 
         let mut fields = Vec::with_capacity(cols.len());
+
         for col in cols {
             use tiberius::ColumnType;
 
@@ -182,7 +188,7 @@ impl SqlServerAccessState {
             fields.push(field);
         }
 
-        Ok(ArrowSchema::new(fields))
+        Ok((ArrowSchema::new(fields), cols.to_vec()))
     }
 }
 
@@ -235,7 +241,7 @@ impl VirtualLister for SqlServerAccessState {
     async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
         use ExtensionError::ListingErrBoxed;
 
-        let schema = self
+        let (schema, _) = self
             .get_table_schema(schema, table)
             .await
             .map_err(|e| ListingErrBoxed(Box::new(e)))?;
@@ -255,18 +261,21 @@ pub struct SqlServerTableProvider {
     table: String,
     state: Arc<SqlServerAccessState>,
     arrow_schema: ArrowSchemaRef,
+    sql_server_schema: Vec<tiberius::Column>,
 }
 
 impl SqlServerTableProvider {
     pub async fn try_new(conf: SqlServerTableProviderConfig) -> Result<Self> {
         let state = SqlServerAccessState::connect(conf.access.config).await?;
-        let arrow_schema = state.get_table_schema(&conf.schema, &conf.table).await?;
+        let (arrow_schema, sql_server_schema) =
+            state.get_table_schema(&conf.schema, &conf.table).await?;
 
         Ok(Self {
             schema: conf.schema,
             table: conf.table,
             state: Arc::new(state),
             arrow_schema: Arc::new(arrow_schema),
+            sql_server_schema,
         })
     }
 }
@@ -319,7 +328,7 @@ impl TableProvider for SqlServerTableProvider {
             None => String::new(),
         };
 
-        let predicate_string = exprs_to_predicate_string(filters)
+        let predicate_string = exprs_to_predicate_string(filters, &self.sql_server_schema)
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
         let predicate_string = if predicate_string.is_empty() {
@@ -357,11 +366,20 @@ impl TableProvider for SqlServerTableProvider {
 
 /// Convert filtering expressions to a predicate string usable with the
 /// generated SQL Server query.
-fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
+fn exprs_to_predicate_string(
+    exprs: &[Expr],
+    sql_server_schema: &[tiberius::Column],
+) -> Result<String> {
     let mut ss = Vec::new();
     let mut buf = String::new();
+
+    let dt_map: HashMap<_, _> = sql_server_schema
+        .iter()
+        .map(|col| (col.name(), col.column_type()))
+        .collect();
+
     for expr in exprs {
-        if try_write_expr(expr, &mut buf)? {
+        if try_write_expr(expr, &dt_map, &mut buf)? {
             ss.push(buf);
             buf = String::new();
         }
@@ -371,7 +389,11 @@ fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
 }
 
 /// Try to write the expression to the string, returning true if it was written.
-fn try_write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
+fn try_write_expr(
+    expr: &Expr,
+    dt_map: &HashMap<&str, tiberius::ColumnType>,
+    buf: &mut String,
+) -> Result<bool> {
     match expr {
         Expr::Column(col) => {
             write!(buf, "{}", col)?;
@@ -380,43 +402,43 @@ fn try_write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
             util::encode_literal_to_text(util::Datasource::SqlServer, buf, val)?;
         }
         Expr::IsNull(expr) => {
-            if try_write_expr(expr, buf)? {
+            if try_write_expr(expr, dt_map, buf)? {
                 write!(buf, " IS NULL")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsNotNull(expr) => {
-            if try_write_expr(expr, buf)? {
+            if try_write_expr(expr, dt_map, buf)? {
                 write!(buf, " IS NOT NULL")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsTrue(expr) => {
-            if try_write_expr(expr, buf)? {
+            if try_write_expr(expr, dt_map, buf)? {
                 write!(buf, " = 1")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsFalse(expr) => {
-            if try_write_expr(expr, buf)? {
+            if try_write_expr(expr, dt_map, buf)? {
                 write!(buf, " = 0")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::BinaryExpr(binary) => {
-            if should_skip_binary_expr(binary) {
+            if should_skip_binary_expr(binary, dt_map)? {
                 return Ok(false);
             }
 
-            if !try_write_expr(binary.left.as_ref(), buf)? {
+            if !try_write_expr(binary.left.as_ref(), dt_map, buf)? {
                 return Ok(false);
             }
             write!(buf, " {} ", binary.op)?;
-            if !try_write_expr(binary.right.as_ref(), buf)? {
+            if !try_write_expr(binary.right.as_ref(), dt_map, buf)? {
                 return Ok(false);
             }
         }
@@ -429,14 +451,25 @@ fn try_write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
     Ok(true)
 }
 
-fn should_skip_binary_expr(expr: &BinaryExpr) -> bool {
-    #[inline]
-    fn is_utf8_lit(expr: &Expr) -> bool {
-        matches!(expr, Expr::Literal(ScalarValue::Utf8(_)))
+fn should_skip_binary_expr(
+    expr: &BinaryExpr,
+    dt_map: &HashMap<&str, tiberius::ColumnType>,
+) -> Result<bool> {
+    fn is_text_col(expr: &Expr, dt_map: &HashMap<&str, tiberius::ColumnType>) -> Result<bool> {
+        match expr {
+            Expr::Column(col) => {
+                let sql_type = dt_map.get(col.name.as_str()).ok_or_else(|| {
+                    SqlServerError::String(format!("invalid column `{}`", col.name))
+                })?;
+                use tiberius::ColumnType;
+                Ok(matches!(sql_type, ColumnType::Text | ColumnType::NText))
+            }
+            _ => Ok(false),
+        }
     }
 
-    // TODO: Only skip if "left" or "right" is of TEXT type.
-    is_utf8_lit(&expr.left) || is_utf8_lit(&expr.right)
+    // Skip if we're trying to do any kind of binary op with text column
+    Ok(is_text_col(&expr.left, dt_map)? || is_text_col(&expr.right, dt_map)?)
 }
 
 /// Execution plan for reading from SQL Server.
