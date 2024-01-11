@@ -203,7 +203,7 @@ jobs:
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
 
       - name: pg protocol tests (slt runner)
-        run: just slt-bin 'pgproto/*'
+        run: just slt-bin -v 'pgproto/*'
 
   sql-logic-tests:
     name: SQL Logic Tests
@@ -227,7 +227,7 @@ jobs:
           if [[ "${{ matrix.protocol }}" == "rpc" ]]; then
             just rpc-tests
           else
-            just slt-bin --protocol=${{ matrix.protocol }} 'sqllogictests/*'
+            just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
           fi
       - name: public sql logic tests
         if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
@@ -235,7 +235,7 @@ jobs:
           if [[ "${{ matrix.protocol }}" == "rpc" ]]; then
             just rpc-tests
           else
-            just slt-bin --protocol=${{ matrix.protocol }} 'sqllogictests/*'
+            just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
           fi
 
   process-integration-tests:
