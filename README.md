@@ -44,8 +44,6 @@ example, `~/.local/bin`.
 If you prefer manual installation, download, extract and run the GlareDB binary
 from a release in our [releases page].
 
-
-
 ## Getting started
 
 After [Installing](#install), get up and running with:
@@ -196,6 +194,7 @@ Done with this data source? Remove it with the following command:
 ```sql
 DROP DATABASE my_pg;
 ```
+
 ## Supported data sources
 
 | Source                 | Read | Write | Table Function | External Table | External Database | Supported Object Stores             |
@@ -203,13 +202,13 @@ DROP DATABASE my_pg;
 | **Databases**          |  --  |  --   |       --       |       --       | --                | --                                  |
 | MySQL                  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
 | PostgreSQL             |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
-| Microsoft SQL Server   |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
-| MongoDB                |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
-| Snowflake              |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
-| BigQuery               |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
-| Cassandra/ScyllaDB     |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
-| ClickHouse             |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
-| MariaDB (_via mysql)_  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
+| MariaDB _(via mysql)_  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                | ➖                                  |
+| Microsoft SQL Server   |  ✅  |  🚧   |       ✅       |       ✅       | ✅                | ➖                                  |
+| MongoDB                |  ✅  |  🚧   |       ✅       |       ✅       | ✅                | ➖                                  |
+| Snowflake              |  ✅  |  🚧   |       ✅       |       ✅       | ✅                | ➖                                  |
+| BigQuery               |  ✅  |  🚧   |       ✅       |       ✅       | ✅                | ➖                                  |
+| Cassandra/ScyllaDB     |  ✅  |  🚧   |       ✅       |       ✅       | ✅                | ➖                                  |
+| ClickHouse             |  ✅  |  🚧   |       ✅       |       ✅       | ✅                | ➖                                  |
 | DuckDB                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
 | Oracle                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
 | SQLite                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                | ➖                                  |
@@ -221,9 +220,9 @@ DROP DATABASE my_pg;
 | Apache Parquet         |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
 | Apache Arrow           |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
 | Delta                  |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
-| BSON                   |  ✅  |  🚧   |       ✅       |       ✅       | ➖                | Local File                          |
+| BSON                   |  ✅  |  ✅   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
 | Iceberg                |  ✅  |  🚧   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
-| Lance                  |  ✅  |  🚧   |       ✅       |       🚧       | ➖                | HTTP, S3, Google, Azure, Local File |
+| Lance                  |  ✅  |  🚧   |       ✅       |       ✅       | ➖                | HTTP, S3, Google, Azure, Local File |
 | Microsoft Excel        |  ✅  |  🚧   |       ✅       |       🚧       | ➖                | Local File                          |
 | JSON                   |  🚧  |  🚧   |       🚧       |       🚧       | ➖                | 🚧                                  |
 | Apache Avro            |  🚧  |  🚧   |       🚧       |       🚧       | ➖                | 🚧                                  |
@@ -232,6 +231,7 @@ DROP DATABASE my_pg;
 ✅ = Supported
 ➖ = Not Applicable
 🚧 = Not Yet Supported
+
 ## Building from source
 
 Building GlareDB requires Rust/Cargo to be installed. Check out [rustup](https://rustup.rs/) for
