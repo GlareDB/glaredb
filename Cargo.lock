@@ -7111,8 +7111,10 @@ name = "slt"
 version = "0.8.0"
 dependencies = [
  "anyhow",
+ "arrow-flight",
  "async-trait",
  "clap",
+ "datafusion",
  "datafusion_ext",
  "futures",
  "glob",
@@ -7131,6 +7133,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-postgres",
+ "tonic",
  "tracing",
  "uuid",
  "walkdir",
@@ -7296,6 +7299,7 @@ dependencies = [
  "once_cell",
  "parking_lot",
  "pgrepr",
+ "prost",
  "protogen",
  "proxyutil",
  "prql-compiler",

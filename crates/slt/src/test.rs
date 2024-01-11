@@ -8,11 +8,15 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use arrow_flight::sql::client::FlightSqlServiceClient;
+use arrow_flight::utils::flight_data_to_arrow_batch;
 use async_trait::async_trait;
 use clap::builder::PossibleValue;
 use clap::ValueEnum;
+use datafusion::arrow::datatypes::Schema;
 use futures::StreamExt;
 use glob::Pattern;
+use tonic::transport::{Channel, Endpoint};
 
 use datafusion_ext::vars::SessionVars;
 use metastore::util::MetastoreClientMode;
@@ -20,10 +24,6 @@ use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use pgrepr::types::arrow_to_pg_type;
 use regex::{Captures, Regex};
-use rpcsrv::export::arrow_flight::sql::client::FlightSqlServiceClient;
-use rpcsrv::export::arrow_flight::utils::flight_data_to_arrow_batch;
-use rpcsrv::export::tonic::transport::{Channel, Endpoint};
-use rpcsrv::export::Schema;
 use rpcsrv::flight::handler::FLIGHTSQL_DATABASE_HEADER;
 use sqlexec::engine::{Engine, EngineStorageConfig, SessionStorageConfig, TrackedSession};
 use sqlexec::errors::ExecError;

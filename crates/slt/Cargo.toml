@@ -12,6 +12,9 @@ futures = { workspace = true }
 tempfile = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
+tonic = { workspace = true }
+datafusion = { workspace = true } 
+arrow-flight = { workspace = true }
 datafusion_ext = { path = "../datafusion_ext" }
 ioutil = { path = "../ioutil" }
 logutil = { path = "../logutil" }
