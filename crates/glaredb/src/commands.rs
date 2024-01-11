@@ -43,7 +43,7 @@ pub enum Commands {
     #[clap(hide = true)]
     Metastore(MetastoreArgs),
     /// Runs SQL Logic Tests
-    #[clap(hide = true)]
+    #[clap(hide = true, alias="slt")]
     SqlLogicTests(SltArgs),
 }
 
