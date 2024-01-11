@@ -14,7 +14,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::context::TaskContext;
-use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
+use datafusion::logical_expr::{BinaryExpr, Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion::physical_plan::metrics::MetricsSet;
@@ -22,6 +22,7 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
     SendableRecordBatchStream, Statistics,
 };
+use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
@@ -392,19 +393,23 @@ fn try_write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
         }
         Expr::IsTrue(expr) => {
             if try_write_expr(expr, buf)? {
-                write!(buf, " IS TRUE")?;
+                write!(buf, " = 1")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsFalse(expr) => {
             if try_write_expr(expr, buf)? {
-                write!(buf, " IS FALSE")?;
+                write!(buf, " = 0")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::BinaryExpr(binary) => {
+            if should_skip_binary_expr(binary) {
+                return Ok(false);
+            }
+
             if !try_write_expr(binary.left.as_ref(), buf)? {
                 return Ok(false);
             }
@@ -420,6 +425,16 @@ fn try_write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
     }
 
     Ok(true)
+}
+
+fn should_skip_binary_expr(expr: &BinaryExpr) -> bool {
+    #[inline]
+    fn is_utf8_lit(expr: &Expr) -> bool {
+        matches!(expr, Expr::Literal(ScalarValue::Utf8(_)))
+    }
+
+    // TODO: Only skip if "left" or "right" is of TEXT type.
+    is_utf8_lit(&expr.left) || is_utf8_lit(&expr.right)
 }
 
 /// Execution plan for reading from SQL Server.
