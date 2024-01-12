@@ -4496,7 +4496,7 @@ dependencies = [
  "crossbeam-utils",
  "once_cell",
  "parking_lot",
- "quanta",
+ "quanta 0.11.1",
  "rustc_version 0.4.0",
  "scheduled-thread-pool",
  "skeptic",
@@ -4509,9 +4509,9 @@ dependencies = [
 
 [[package]]
 name = "moka"
-version = "0.12.2"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f353abec74660d4b8533c2516c86eb062f1ec8ca49a2758f4f2b1b60b06b0c6e"
+checksum = "2cebde309854872ea4fcaf4d7c870ad8d5873091c6bfb7ce91fd08ea648f20b0"
 dependencies = [
  "async-lock",
  "async-trait",
@@ -4521,7 +4521,7 @@ dependencies = [
  "futures-util",
  "once_cell",
  "parking_lot",
- "quanta",
+ "quanta 0.12.2",
  "rustc_version 0.4.0",
  "skeptic",
  "smallvec",
@@ -4974,7 +4974,7 @@ dependencies = [
  "bytes",
  "futures",
  "logutil",
- "moka 0.12.2",
+ "moka 0.12.3",
  "object_store",
  "once_cell",
  "tempfile",
@@ -5889,7 +5889,22 @@ dependencies = [
  "libc",
  "mach2",
  "once_cell",
- "raw-cpuid",
+ "raw-cpuid 10.7.0",
+ "wasi",
+ "web-sys",
+ "winapi",
+]
+
+[[package]]
+name = "quanta"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ca0b7bac0b97248c40bb77288fc52029cf1459c0461ea1b05ee32ccf011de2c"
+dependencies = [
+ "crossbeam-utils",
+ "libc",
+ "once_cell",
+ "raw-cpuid 11.0.1",
  "wasi",
  "web-sys",
  "winapi",
@@ -6000,6 +6015,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c297679cb867470fa8c9f67dbba74a78d78e3e98d7cf2b08d6d71540f797332"
 dependencies = [
  "bitflags 1.3.2",
+]
+
+[[package]]
+name = "raw-cpuid"
+version = "11.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d86a7c4638d42c44551f4791a20e687dbb4c3de1f33c43dd71e355cd429def1"
+dependencies = [
+ "bitflags 2.4.1",
 ]
 
 [[package]]
