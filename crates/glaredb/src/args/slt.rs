@@ -77,7 +77,7 @@ pub struct SltArgs {
     ///
     /// Provide glob like regexes for test names. If omitted, runs all the
     /// tests. This is similar to providing parameter as `*`.
-    #[arg(long, value_parser)]
+    #[arg(value_parser)]
     tests_pattern: Option<Vec<String>>,
 }
 
