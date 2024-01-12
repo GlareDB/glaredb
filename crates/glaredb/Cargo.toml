@@ -41,7 +41,7 @@ console-subscriber = "0.2.0"
 
 [dev-dependencies]
 predicates = "3.0.4"
-assert_cmd = "2.0.12"
+assert_cmd = "2.0.13"
 tokio-postgres = "0.7.8"
 tempfile = { workspace = true }
 
