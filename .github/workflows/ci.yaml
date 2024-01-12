@@ -46,9 +46,6 @@ jobs:
       - name: build
         run: just build
 
-      - name: build slt
-        run: just build-slt
-
   static-analysis:
     name: Lint and Format
     runs-on: ubuntu-latest-8-cores
