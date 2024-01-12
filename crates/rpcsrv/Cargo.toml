@@ -28,4 +28,4 @@ bytes = "1.4"
 futures = { workspace = true }
 dashmap = "5.5.0"
 arrow-flight = { version = "47.0.0", features = ["flight-sql-experimental"] }
-base64 = "0.21.5"
+base64 = "0.21.7"
