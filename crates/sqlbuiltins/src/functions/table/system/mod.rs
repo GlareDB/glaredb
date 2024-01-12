@@ -123,14 +123,6 @@ impl SystemOperationExec {
             projection: None,
         }
     }
-
-    /// Create a new system operation exec with a projection.
-    pub fn new_with_projection(operation: SystemOperation, projection: Vec<usize>) -> Self {
-        Self {
-            operation,
-            projection: Some(projection),
-        }
-    }
 }
 
 impl ExecutionPlan for SystemOperationExec {

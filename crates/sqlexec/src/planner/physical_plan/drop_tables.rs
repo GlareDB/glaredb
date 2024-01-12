@@ -17,7 +17,7 @@ use futures::stream;
 use protogen::metastore::types::catalog::TableEntry;
 use protogen::metastore::types::service::{self, Mutation};
 use sqlbuiltins::functions::table::system::remove_delta_tables::DeleteDeltaTablesOperation;
-use sqlbuiltins::functions::table::system::{SystemOperation, SystemOperationExec};
+use sqlbuiltins::functions::table::system::SystemOperationExec;
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
@@ -71,34 +71,7 @@ impl ExecutionPlan for DropTablesExec {
             ));
         }
 
-        let mutator = context
-            .session_config()
-            .get_extension::<CatalogMutator>()
-            .expect("context should have catalog mutator");
-
-        let scheduler = context
-            .session_config()
-            .get_extension::<Scheduler>()
-            .expect("context should have scheduler");
-
-        let sys_exec = SystemOperationExec::new(SystemOperation::DeleteDeltaTables(
-            DeleteDeltaTablesOperation {
-                entries: self.tbl_entries.clone(),
-            },
-        ));
-
-        scheduler
-            .schedule(
-                Arc::new(sys_exec),
-                context.clone(),
-                OutputSink {
-                    batches: Arc::new(LogSink),
-                    errors: Arc::new(LogSink),
-                },
-            )
-            .unwrap();
-
-        let stream = stream::once(drop_tables(mutator, self.clone()));
+        let stream = stream::once(drop_tables(context, self.clone()));
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
@@ -118,9 +91,20 @@ impl DisplayAs for DropTablesExec {
 }
 
 async fn drop_tables(
-    mutator: Arc<CatalogMutator>,
+    context: Arc<TaskContext>,
     plan: DropTablesExec,
 ) -> DataFusionResult<RecordBatch> {
+    println!("Executing DropTablesExec");
+    let mutator = context
+        .session_config()
+        .get_extension::<CatalogMutator>()
+        .expect("context should have catalog mutator");
+
+    let scheduler = context
+        .session_config()
+        .get_extension::<Scheduler>()
+        .expect("context should have scheduler");
+
     let drops = plan.tbl_references.into_iter().map(|r| {
         Mutation::DropObject(service::DropObject {
             schema: r.schema.into_owned(),
@@ -129,16 +113,27 @@ async fn drop_tables(
         })
     });
 
+    // we want to make sure that the catalog is updated before we delete the delta tables
     mutator
         .mutate(plan.catalog_version, drops)
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to drop tables: {e}")))?;
 
-    // // Run background jobs _after_ tables get removed from the catalog.
-    // //
-    // // TODO: If/when we have transactions, background jobs should be stored
-    // // on the session until transaction commit.
-    // self.background_jobs.add_many(jobs)?;
+    // only after the catalog is updated, we can delete the delta tables
+    // we don't do this immediately as to not block the client, so we schedule it
+    let sys_exec =
+        SystemOperationExec::new(DeleteDeltaTablesOperation::new(plan.tbl_entries.clone()).into());
+
+    scheduler
+        .schedule(
+            Arc::new(sys_exec),
+            context.clone(),
+            OutputSink {
+                batches: Arc::new(LogSink),
+                errors: Arc::new(LogSink),
+            },
+        )
+        .unwrap();
 
     Ok(new_operation_batch("drop_tables"))
 }
