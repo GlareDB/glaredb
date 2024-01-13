@@ -148,6 +148,9 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 | Keyword::END
                 | Keyword::UPDATE
                 | Keyword::SET
+                | Keyword::SORT
+                | Keyword::FILTER
+                | Keyword::WINDOW
                 | Keyword::DELETE
                 | Keyword::VIEW
                 | Keyword::EXCEPT
@@ -185,7 +188,7 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 }
                 // Custom Keywords
                 Keyword::NoKeyword => match w.value.to_uppercase().as_str() {
-                    "TUNNEL" | "PROVIDER" | "CREDENTIAL" => {
+                    "TUNNEL" | "PROVIDER" | "CREDENTIAL" | "AGGREGATE" | "TAKE" | "DERIVE" => {
                         st.push((new_style().fg(Color::LightGreen), format!("{w}")))
                     }
                     // Functions

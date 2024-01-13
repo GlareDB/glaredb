@@ -18,6 +18,7 @@ public
 
 skipif glaredb_flight
 query T
+
 select current_user;
 ----
 glaredb

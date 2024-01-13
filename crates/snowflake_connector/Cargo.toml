@@ -15,7 +15,7 @@ chrono = { workspace = true }
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 datafusion = { workspace = true }
 hex = "0.4.3"
-base64 = "0.21.5"
+base64 = "0.21.7"
 bytes = "1.4.0"
 flate2 = "1.0.28"
 decimal = { path = "../decimal" }
