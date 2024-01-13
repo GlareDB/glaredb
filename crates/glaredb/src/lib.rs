@@ -5,7 +5,6 @@ pub mod local;
 pub mod metastore;
 mod prompt;
 pub mod proxy;
-
 pub mod server;
 
 pub mod built_info {
