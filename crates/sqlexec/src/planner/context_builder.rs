@@ -81,7 +81,7 @@ impl<'a> PartialContextProvider<'a> {
         Ok(RuntimeAwareTableProvider::new(
             RuntimePreference::Local,
             self.new_dispatcher()
-                .dispatch_function(func, args, opts)
+                .dispatch_table_function(func, args, opts)
                 .await?,
         ))
     }

@@ -49,7 +49,7 @@ select * from ctas1;
 1
 
 statement ok
-create table ctas2 as select * from '../../testdata/parquet/userdata1.parquet';
+create table ctas2 as select * from './testdata/parquet/userdata1.parquet';
 
 query I
 select id from ctas2 order by id limit 1;
@@ -82,16 +82,16 @@ select count(*) from glare_catalog.tables where builtin = false and table_name =
 
 #2034 case sensitive table names
 statement ok 
-create table case_sensitive as select * from '../../testdata/csv/case_sensitive_columns.csv';
+create table case_sensitive as select * from './testdata/csv/case_sensitive_columns.csv';
 
 statement error Duplicate name: case_sensitive
-create table "case_sensitive" as select * from '../../testdata/csv/case_sensitive_columns.csv';
+create table "case_sensitive" as select * from './testdata/csv/case_sensitive_columns.csv';
 
 statement ok
-create table "Case_Sensitive" as select * from '../../testdata/csv/case_sensitive_columns.csv';
+create table "Case_Sensitive" as select * from './testdata/csv/case_sensitive_columns.csv';
 
 statement ok
-create table "Case Sensitive" as select * from '../../testdata/csv/case_sensitive_columns.csv';
+create table "Case Sensitive" as select * from './testdata/csv/case_sensitive_columns.csv';
 
 query I rowsort
 select name from case_sensitive

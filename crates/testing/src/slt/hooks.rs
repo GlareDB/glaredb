@@ -2,7 +2,6 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use testing::slt::runner::{Hook, TestClient};
 use tokio::{
     net::TcpListener,
     process::Command,
@@ -10,6 +9,8 @@ use tokio::{
 };
 use tokio_postgres::{Client, Config};
 use tracing::warn;
+
+use super::test::{Hook, TestClient};
 
 /// This [`Hook`] is used to set some local variables that might change for
 /// each test.

@@ -1,19 +1,27 @@
+# Build and publish python bindings.
+#
+# Publishing only happens for tag pushes with the tag beginning with 'v'.
 name: python release
 
 on:
   push:
     tags:
       - "*"
+  schedule:
+    # Run every Monday at 12:00
+    - cron: 0 12 * * 1
   workflow_dispatch:
 
 permissions:
   contents: read
+
 env:
-  PYTHON_VERSION: '3.7'
-  MATURIN_VERSION: '1.0.1'
+  PYTHON_VERSION: "3.7"
+  MATURIN_VERSION: "1.0.1"
   MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-  MATURIN_USERNAME: 'seanglaredb' 
+  MATURIN_USERNAME: "seanglaredb"
   PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
+
 jobs:
   linux:
     runs-on: ubuntu-2004-8-cores
@@ -35,10 +43,10 @@ jobs:
           manylinux: "auto"
           docker-options: "--env PROTOC=${{ env.PROTOC }}"
           target: ${{ matrix.target }}
-          args:  --release --out dist -m bindings/python/Cargo.toml
-          sccache: 'true'
+          args: --release --out dist -m bindings/python/Cargo.toml
+          sccache: "true"
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: wheels
           path: dist
@@ -66,10 +74,10 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist
           working-directory: bindings/python
-          sccache: 'true'
-          container: 'off'
+          sccache: "true"
+          container: "off"
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: wheels
           path: bindings/python/dist
@@ -94,20 +102,21 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist
           working-directory: bindings/python
-          sccache: 'true'
-          container: 'off'
+          sccache: "true"
+          container: "off"
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: wheels
           path: bindings/python/dist
 
   release:
     name: Release
+    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     needs: [linux, macos, windows]
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v3
         with:
           name: wheels
       - name: Publish to PyPI

@@ -114,7 +114,7 @@ fn try_from_u64_scalar(scalar: ScalarValue) -> Result<u64, BuiltinError> {
     }
 }
 
-#[allow(dead_code)] // just for merging order
+#[allow(dead_code)] // just for merging order // TODO: What?
 fn safe_up_cast_integer_scalar(value: i64) -> Result<u64, BuiltinError> {
     if value < 0 {
         Err(BuiltinError::ParseError(
