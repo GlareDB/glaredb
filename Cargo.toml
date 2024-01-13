@@ -7,12 +7,6 @@ resolver = "2"
 version = "0.8.0"
 edition = "2021"
 
-[profile.release]
-lto = "thin"
-opt-level = 3
-codegen-units = 1
-strip = true
-
 [workspace.dependencies]
 anyhow = "1.0.79"
 async-trait = "0.1.77"
@@ -32,8 +26,14 @@ thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 url = "2.5.0"
+deltalake = { git = "https://github.com/delta-io/delta-rs.git", rev = "5c324ccd0a8738251a9aea9452d7323400e5e8c6", features = ["s3", "gcs", "azure", "datafusion", "arrow"] }
 
-[workspace.dependencies.deltalake]
-git = "https://github.com/delta-io/delta-rs.git"
-rev = "5c324ccd0a8738251a9aea9452d7323400e5e8c6"
-features = ["s3", "gcs", "azure", "datafusion", "arrow"]
+[profile.release]
+lto = "thin"
+opt-level = 3
+codegen-units = 1
+strip = true
+
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+ar = "aarch64-linux-gnu-ar"
