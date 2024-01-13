@@ -4,10 +4,11 @@ pub mod errors;
 mod exec;
 mod infer;
 
+use bson::RawBson;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
-use errors::{MongoError, Result};
-use exec::MongoBsonExec;
+use errors::{MongoDbError, Result};
+use exec::MongoDbBsonExec;
 use infer::TableSampler;
 
 use async_trait::async_trait;
@@ -35,36 +36,36 @@ use tracing::debug;
 const ID_FIELD_NAME: &str = "_id";
 
 #[derive(Debug)]
-pub enum MongoProtocol {
+pub enum MongoDbProtocol {
     MongoDb,
     MongoDbSrv,
 }
 
-impl Default for MongoProtocol {
+impl Default for MongoDbProtocol {
     fn default() -> Self {
         Self::MongoDb
     }
 }
 
-impl MongoProtocol {
+impl MongoDbProtocol {
     const MONGODB: &'static str = "mongodb";
     const MONGODB_SRV: &'static str = "mongodb+srv";
 }
 
-impl FromStr for MongoProtocol {
-    type Err = MongoError;
+impl FromStr for MongoDbProtocol {
+    type Err = MongoDbError;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let proto = match s {
             Self::MONGODB => Self::MongoDb,
             Self::MONGODB_SRV => Self::MongoDbSrv,
-            s => return Err(MongoError::InvalidProtocol(s.to_owned())),
+            s => return Err(MongoDbError::InvalidProtocol(s.to_owned())),
         };
         Ok(proto)
     }
 }
 
-impl Display for MongoProtocol {
+impl Display for MongoDbProtocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Self::MongoDb => Self::MONGODB,
@@ -78,7 +79,7 @@ impl Display for MongoProtocol {
 pub enum MongoDbConnection {
     ConnectionString(String),
     Parameters {
-        protocol: MongoProtocol,
+        protocol: MongoDbProtocol,
         host: String,
         port: Option<u16>,
         user: String,
@@ -107,7 +108,7 @@ impl MongoDbConnection {
                 }
                 // Address
                 write!(&mut conn_str, "@{host}").unwrap();
-                if matches!(protocol, MongoProtocol::MongoDb) {
+                if matches!(protocol, MongoDbProtocol::MongoDb) {
                     // Only attempt to write port if the protocol is "mongodb"
                     if let Some(port) = port {
                         write!(&mut conn_str, ":{port}").unwrap();
@@ -120,17 +121,17 @@ impl MongoDbConnection {
 }
 
 #[derive(Debug, Clone)]
-pub struct MongoAccessor {
+pub struct MongoDbAccessor {
     client: Client,
 }
 
-impl MongoAccessor {
-    pub async fn connect(connection_string: &str) -> Result<MongoAccessor> {
+impl MongoDbAccessor {
+    pub async fn connect(connection_string: &str) -> Result<MongoDbAccessor> {
         let mut opts = ClientOptions::parse(connection_string).await?;
         opts.app_name = Some("GlareDB (MongoDB Data source)".to_string());
         let client = Client::with_options(opts)?;
 
-        Ok(MongoAccessor { client })
+        Ok(MongoDbAccessor { client })
     }
 
     pub async fn validate_external_database(connection_string: &str) -> Result<()> {
@@ -144,8 +145,8 @@ impl MongoAccessor {
         Ok(())
     }
 
-    pub fn into_table_accessor(self, info: MongoTableAccessInfo) -> MongoTableAccessor {
-        MongoTableAccessor {
+    pub fn into_table_accessor(self, info: MongoDbTableAccessInfo) -> MongoDbTableAccessor {
+        MongoDbTableAccessor {
             info,
             client: self.client,
         }
@@ -153,7 +154,7 @@ impl MongoAccessor {
 }
 
 #[async_trait]
-impl VirtualLister for MongoAccessor {
+impl VirtualLister for MongoDbAccessor {
     async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
         use ExtensionError::ListingErrBoxed;
 
@@ -198,18 +199,18 @@ impl VirtualLister for MongoAccessor {
 }
 
 #[derive(Debug, Clone)]
-pub struct MongoTableAccessInfo {
+pub struct MongoDbTableAccessInfo {
     pub database: String, // "Schema"
     pub collection: String,
 }
 
 #[derive(Debug, Clone)]
-pub struct MongoTableAccessor {
-    info: MongoTableAccessInfo,
+pub struct MongoDbTableAccessor {
+    info: MongoDbTableAccessInfo,
     client: Client,
 }
 
-impl MongoTableAccessor {
+impl MongoDbTableAccessor {
     /// Validate that we can access the table.
     pub async fn validate(&self) -> Result<()> {
         let _ = self
@@ -222,7 +223,7 @@ impl MongoTableAccessor {
         Ok(())
     }
 
-    pub async fn into_table_provider(self) -> Result<MongoTableProvider> {
+    pub async fn into_table_provider(self) -> Result<MongoDbTableProvider> {
         let collection = self
             .client
             .database(&self.info.database)
@@ -231,7 +232,7 @@ impl MongoTableAccessor {
 
         let schema = sampler.infer_schema_from_sample().await?;
 
-        Ok(MongoTableProvider {
+        Ok(MongoDbTableProvider {
             schema: Arc::new(schema),
             collection: self
                 .client
@@ -241,13 +242,13 @@ impl MongoTableAccessor {
     }
 }
 
-pub struct MongoTableProvider {
+pub struct MongoDbTableProvider {
     schema: Arc<ArrowSchema>,
     collection: Collection<RawDocumentBuf>,
 }
 
 #[async_trait]
-impl TableProvider for MongoTableProvider {
+impl TableProvider for MongoDbTableProvider {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -317,7 +318,7 @@ impl TableProvider for MongoTableProvider {
                 .await
                 .map_err(|e| DataFusionError::External(Box::new(e)))?,
         ));
-        Ok(Arc::new(MongoBsonExec::new(cursor, schema, limit)))
+        Ok(Arc::new(MongoDbBsonExec::new(cursor, schema, limit)))
     }
 }
 
@@ -406,9 +407,34 @@ fn df_to_bson(val: ScalarValue) -> Result<Bson, ExtensionError> {
         ScalarValue::UInt64(v) => Ok(Bson::Int64(i64::try_from(v.unwrap_or_default()).unwrap())),
         ScalarValue::Float32(v) => Ok(Bson::Double(f64::from(v.unwrap_or_default()))),
         ScalarValue::Float64(v) => Ok(Bson::Double(v.unwrap_or_default())),
+        ScalarValue::Struct(v, f) => {
+            let mut doc = RawDocumentBuf::new();
+            for (key, value) in f.into_iter().zip(v.unwrap_or_default().into_iter()) {
+                doc.append(
+                    key.name(),
+                    RawBson::try_from(df_to_bson(value)?)
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?,
+                );
+            }
+            Ok(Bson::Document(
+                doc.to_document()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?,
+            ))
+        }
+        ScalarValue::List(v, _) => {
+            if let Some(val) = v {
+                let mut out = Vec::with_capacity(val.len());
+                for elem in val.into_iter() {
+                    out.push(df_to_bson(elem)?);
+                }
+                Ok(Bson::Array(out))
+            } else {
+                Ok(Bson::Array(Vec::new()))
+            }
+        }
         ScalarValue::Null => Ok(Bson::Null),
         _ => Err(ExtensionError::String(format!(
-            "{} conversion undefined",
+            "{} conversion undefined/unspuported",
             val
         ))),
     }
@@ -427,7 +453,7 @@ mod tests {
         assert_eq!(&conn_str, "mongodb://prod:password123@127.0.0.1:5432");
 
         let conn_str = MongoDbConnection::Parameters {
-            protocol: MongoProtocol::MongoDb,
+            protocol: MongoDbProtocol::MongoDb,
             host: "127.0.0.1".to_string(),
             port: Some(5432),
             user: "prod".to_string(),
@@ -437,7 +463,7 @@ mod tests {
         assert_eq!(&conn_str, "mongodb://prod:password123@127.0.0.1:5432");
 
         let conn_str = MongoDbConnection::Parameters {
-            protocol: MongoProtocol::MongoDbSrv,
+            protocol: MongoDbProtocol::MongoDbSrv,
             host: "127.0.0.1".to_string(),
             port: Some(5432),
             user: "prod".to_string(),

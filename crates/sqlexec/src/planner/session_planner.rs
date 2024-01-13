@@ -14,14 +14,15 @@ use datafusion::sql::TableReference;
 use datafusion_ext::planner::SqlQueryPlanner;
 use datafusion_ext::AsyncContextProvider;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasources::clickhouse::ClickhouseAccess;
+use datasources::cassandra::{CassandraAccess, CassandraAccessState};
+use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableRef};
 use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lance::scan_lance_table;
-use datasources::mongodb::{MongoAccessor, MongoDbConnection};
+use datasources::mongodb::{MongoDbAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::generic::GenericStoreAccess;
@@ -42,12 +43,13 @@ use protogen::metastore::types::options::{
     CopyToDestinationOptionsLocal, CopyToDestinationOptionsS3, CopyToFormatOptions,
     CopyToFormatOptionsCsv, CopyToFormatOptionsJson, CopyToFormatOptionsParquet,
     CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsAzure, CredentialsOptionsDebug,
-    CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsClickhouse,
-    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongo, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog,
-    DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery,
+    CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsCassandra,
+    DatabaseOptionsClickhouse, DatabaseOptionsDebug, DatabaseOptionsDeltaLake,
+    DatabaseOptionsMongoDb, DatabaseOptionsMysql, DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog, DeltaLakeUnityCatalog,
+    StorageOptions, TableOptions, TableOptionsBigQuery, TableOptionsCassandra,
     TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs, TableOptionsLocal,
-    TableOptionsMongo, TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres,
+    TableOptionsMongoDb, TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres,
     TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
     TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
 };
@@ -233,15 +235,15 @@ impl<'a> SessionPlanner<'a> {
                     })?;
                 DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string })
             }
-            DatabaseOptions::MONGO => {
-                let connection_string = get_mongo_conn_str(m)?;
+            DatabaseOptions::MONGODB => {
+                let connection_string = get_mongodb_conn_str(m)?;
                 // Validate the accessor
-                MongoAccessor::validate_external_database(connection_string.as_str())
+                MongoDbAccessor::validate_external_database(connection_string.as_str())
                     .await
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
                     })?;
-                DatabaseOptions::Mongo(DatabaseOptionsMongo { connection_string })
+                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string })
             }
             DatabaseOptions::SNOWFLAKE => {
                 let account_name: String = m.remove_required("account")?;
@@ -316,6 +318,14 @@ impl<'a> SessionPlanner<'a> {
                 access.validate_access().await?;
 
                 DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string })
+            }
+            DatabaseOptions::CASSANDRA => {
+                let host: String = m.remove_required("host")?;
+
+                let access = CassandraAccess::new(host.clone());
+                access.validate_access().await?;
+
+                DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host })
             }
             DatabaseOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
@@ -439,14 +449,14 @@ impl<'a> SessionPlanner<'a> {
                     table: access.name,
                 })
             }
-            TableOptions::MONGO => {
-                let connection_string = get_mongo_conn_str(m)?;
+            TableOptions::MONGODB => {
+                let connection_string = get_mongodb_conn_str(m)?;
                 let database = m.remove_required("database")?;
                 let collection = m.remove_required("collection")?;
 
                 // TODO: Validate
 
-                TableOptions::Mongo(TableOptionsMongo {
+                TableOptions::MongoDb(TableOptionsMongoDb {
                     connection_string,
                     database,
                     collection,
@@ -514,14 +524,36 @@ impl<'a> SessionPlanner<'a> {
                 let connection_string: String = m.remove_required("connection_string")?;
                 let table_name: String = m.remove_required("table")?;
 
+                // You can optionally provide a database name in clickhouse.
+                // This is similar to schema in other databases such as PG.
+                let database_name: Option<String> = m.remove_optional("database")?;
+
                 // Validate
                 let access =
                     ClickhouseAccess::new_from_connection_string(connection_string.clone());
-                access.validate_table_access(&table_name).await?;
+
+                let table_ref =
+                    ClickhouseTableRef::new(database_name.as_ref(), table_name.as_str());
+
+                access.validate_table_access(table_ref.as_ref()).await?;
 
                 TableOptions::Clickhouse(TableOptionsClickhouse {
                     connection_string,
                     table: table_name,
+                    database: database_name,
+                })
+            }
+            TableOptions::CASSANDRA => {
+                let host: String = m.remove_required("host")?;
+                let keyspace: String = m.remove_required("keyspace")?;
+                let table: String = m.remove_required("table")?;
+                let access = CassandraAccessState::try_new(host.clone()).await?;
+                access.validate_table_access(&keyspace, &table).await?;
+
+                TableOptions::Cassandra(TableOptionsCassandra {
+                    host,
+                    keyspace,
+                    table,
                 })
             }
             TableOptions::LOCAL => {
@@ -2095,7 +2127,7 @@ fn get_mysql_conn_str(m: &mut StmtOptions) -> Result<String> {
     Ok(conn.connection_string())
 }
 
-fn get_mongo_conn_str(m: &mut StmtOptions) -> Result<String> {
+fn get_mongodb_conn_str(m: &mut StmtOptions) -> Result<String> {
     let conn = match m.remove_optional("connection_string")? {
         Some(conn_str) => MongoDbConnection::ConnectionString(conn_str),
         None => {

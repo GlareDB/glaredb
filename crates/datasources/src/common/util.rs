@@ -24,6 +24,8 @@ pub enum Datasource {
     MySql,
     BigQuery,
     Snowflake,
+    Clickhouse,
+    SqlServer,
 }
 
 /// Returns true if the literal expression encoding should be wrapped inside
@@ -84,7 +86,15 @@ pub fn encode_literal_to_text(
             encode_utc_timestamp(buf, &naive, tz.is_some())?;
         }
         ScalarValue::TimestampMicrosecond(Some(v), tz) => {
-            let naive = Utc.timestamp_nanos(*v * 1_000).naive_utc();
+            let naive = Utc.timestamp_micros(*v).unwrap().naive_utc();
+            encode_utc_timestamp(buf, &naive, tz.is_some())?;
+        }
+        ScalarValue::TimestampMillisecond(Some(v), tz) => {
+            let naive = Utc.timestamp_millis_opt(*v).unwrap().naive_utc();
+            encode_utc_timestamp(buf, &naive, tz.is_some())?;
+        }
+        ScalarValue::TimestampSecond(Some(v), tz) => {
+            let naive = Utc.timestamp_opt(*v, 0).unwrap().naive_utc();
             encode_utc_timestamp(buf, &naive, tz.is_some())?;
         }
         ScalarValue::Time64Nanosecond(Some(v)) => {
@@ -92,7 +102,7 @@ pub fn encode_literal_to_text(
             encode_time(buf, &naive, /* tz = */ false)?;
         }
         ScalarValue::Time64Microsecond(Some(v)) => {
-            let naive = Utc.timestamp_nanos(*v * 1_000).naive_utc().time();
+            let naive = Utc.timestamp_micros(*v).unwrap().naive_utc().time();
             encode_time(buf, &naive, /* tz = */ false)?;
         }
         ScalarValue::Date32(Some(v)) => {
@@ -127,10 +137,14 @@ static DEFAULT_CAST_OPTIONS: Lazy<CastOptions> = Lazy::new(|| CastOptions {
 
 fn normalize_column(column: &ArrayRef) -> Result<ArrayRef, ArrowError> {
     let dt = match column.data_type() {
-        DataType::Timestamp(TimeUnit::Microsecond, tz) => {
+        DataType::Timestamp(TimeUnit::Second, tz)
+        | DataType::Timestamp(TimeUnit::Millisecond, tz)
+        | DataType::Timestamp(TimeUnit::Microsecond, tz) => {
             DataType::Timestamp(TimeUnit::Nanosecond, tz.clone())
         }
-        DataType::Time64(TimeUnit::Microsecond) => DataType::Time64(TimeUnit::Nanosecond),
+        DataType::Time64(TimeUnit::Second)
+        | DataType::Time64(TimeUnit::Millisecond)
+        | DataType::Time64(TimeUnit::Microsecond) => DataType::Time64(TimeUnit::Nanosecond),
         _ => return Ok(Arc::clone(column)), // No need of any conversion
     };
 

@@ -329,6 +329,33 @@ impl TryFrom<FuncParamValue> for IdentValue {
     }
 }
 
+impl TryFrom<FuncParamValue> for usize {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Scalar(s) => match s {
+                ScalarValue::Int8(Some(v)) if v >= 0 => Ok(v as usize),
+                ScalarValue::Int16(Some(v)) if v >= 0 => Ok(v as usize),
+                ScalarValue::Int32(Some(v)) if v >= 0 => Ok(v as usize),
+                ScalarValue::Int64(Some(v)) if v >= 0 => Ok(v as usize),
+                ScalarValue::UInt8(Some(v)) => Ok(v as usize),
+                ScalarValue::UInt16(Some(v)) => Ok(v as usize),
+                ScalarValue::UInt32(Some(v)) => Ok(v as usize),
+                ScalarValue::UInt64(Some(v)) => Ok(v as usize),
+                other => Err(ExtensionError::InvalidParamValue {
+                    param: other.to_string(),
+                    expected: "integer",
+                }),
+            },
+            other => Err(ExtensionError::InvalidParamValue {
+                param: other.to_string(),
+                expected: "unsigned integer",
+            }),
+        }
+    }
+}
+
 impl TryFrom<FuncParamValue> for i64 {
     type Error = ExtensionError;
 

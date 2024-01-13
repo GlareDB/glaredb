@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use testing::slt::runner::{FnTest, TestClient};
 use tokio_postgres::Config;
 use tracing::warn;
+
+use crate::test::{FnTest, TestClient};
 
 macro_rules! test_assert {
     ($e:expr, $err:expr) => {

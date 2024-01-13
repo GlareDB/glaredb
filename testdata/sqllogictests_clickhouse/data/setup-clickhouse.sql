@@ -1,3 +1,40 @@
+-- datatypes table for testing supported datatypes.
+CREATE OR REPLACE TABLE datatypes (
+    _id Int32,
+
+    -- Boolean
+    c1 Nullable(Bool),
+
+    -- Integers (unsigned)
+    c2 Nullable(UInt8),
+    c3 Nullable(UInt16),
+    c4 Nullable(UInt32),
+    c5 Nullable(UInt64),
+    -- Integers (signed)
+    c6 Nullable(Int8),
+    c7 Nullable(Int16),
+    c8 Nullable(Int32),
+    c9 Nullable(Int64),
+
+    -- Floats
+    c10 Nullable(Float32),
+    c11 Nullable(Float64),
+
+    -- String
+    c12 Nullable(String),
+    c13 Nullable(FixedString(3)),
+
+    -- Dates and times
+    c14 Nullable(Date),
+    -- c15 Nullable(Date32),
+    c16 Nullable(DateTime),
+    c17 Nullable(DateTime64(6)),
+    -- with timezones
+    c18 Nullable(DateTime('Asia/Kolkata')),
+    c19 Nullable(DateTime64(6, 'Asia/Kolkata'))
+) ENGINE MergeTree
+  ORDER BY _id;
+
 -- bikeshare_stations table for testing datasources.
 CREATE OR REPLACE TABLE bikeshare_stations (
     station_id        Int32,
@@ -30,4 +67,3 @@ CREATE OR REPLACE TABLE bikeshare_trips (
     duration_minutes   Nullable(Int32)
 ) ENGINE MergeTree
   ORDER BY trip_id;
-

@@ -14,7 +14,7 @@ statement ok
 CREATE OR REPLACE EXTERNAL TABLE T1 FROM DEBUG OPTIONS (TABLE_TYPE = 'never_ending');
 
 statement ok
-CrEaTe ExTeRnAl TaBlE if not exists SuppLIER fRoM lOcAl (LoCaTiOn '../../testdata/parquet/userdata1.parquet');
+CrEaTe ExTeRnAl TaBlE if not exists SuppLIER fRoM lOcAl (LoCaTiOn '${PWD}/testdata/parquet/userdata1.parquet');
 
 statement ok
 drop table supplier;

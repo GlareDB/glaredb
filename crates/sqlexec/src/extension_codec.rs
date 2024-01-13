@@ -16,11 +16,9 @@ use datafusion::prelude::Expr;
 use datafusion_ext::metrics::{
     ReadOnlyDataSourceMetricsExecAdapter, WriteOnlyDataSourceMetricsExecAdapter,
 };
-use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use datafusion_proto::logical_plan::from_proto::parse_expr;
 use datafusion_proto::physical_plan::PhysicalExtensionCodec;
-use protogen::export::prost::Message;
-use protogen::metastore::types::catalog::RuntimePreference;
+use prost::Message;
 use uuid::Uuid;
 
 use crate::planner::physical_plan::alter_database::AlterDatabaseExec;
@@ -54,6 +52,8 @@ use crate::planner::physical_plan::{
     client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
 };
 use crate::remote::provider_cache::ProviderCache;
+use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
+use protogen::metastore::types::catalog::RuntimePreference;
 
 pub struct GlareDBExtensionCodec<'a> {
     table_providers: Option<&'a ProviderCache>,

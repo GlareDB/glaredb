@@ -6,6 +6,11 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 
 use crate::bson::errors::{BsonError, Result, RECURSION_LIMIT};
 
+/// Recursion limit for inferring the schema for nested documents.
+///
+/// The MongoDB kernel rejects nesting of greater than 100.
+const RECURSION_LIMIT: usize = 100;
+
 pub fn schema_from_document(doc: &RawDocumentBuf) -> Result<Schema> {
     Ok(Schema::new(fields_from_document(
         0,

@@ -45,9 +45,51 @@ done
 clickhouse client --multiquery < ./testdata/sqllogictests_clickhouse/data/setup-clickhouse.sql
 
 # Load data into tables.
+
+# Datatypes
+clickhouse client \
+  --query "INSERT INTO datatypes VALUES (
+      1,
+
+      -- Boolean
+      true,
+
+      -- Integers (unsigned)
+      1,
+      12,
+      1234,
+      12345678,
+      -- Integers (signed)
+      -1,
+      -12,
+      -1234,
+      -12345678,
+
+      -- Floats
+      1.25,
+      -34.625,
+
+      -- Strings
+      'abc',
+      'def',
+
+      -- Dates and times
+      '1999-09-30',
+      -- '1999-09-30', -- Date32
+      '1999-09-30 16:32:34',
+      '1999-09-30 16:32:34.123456',
+      -- with timezones
+      '1999-09-30 16:32:34',
+      '1999-09-30 16:32:34.123456'
+  )"
+# Nulls
+clickhouse client \
+  --query "INSERT INTO datatypes(_id) VALUES (2)"
+
 clickhouse client \
     --query="INSERT INTO bikeshare_stations FORMAT CSVWithNames" < ./testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv
 clickhouse client \
     --query="INSERT INTO bikeshare_trips FORMAT CSVWithNames" < ./testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv
 
-echo "clickhouse://localhost:9000/default"
+# Leaving out database names so we can append it in tests.
+echo "clickhouse://localhost:9000"
