@@ -6,7 +6,7 @@ edition = {workspace = true}
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tracing = "0.1"
+tracing = { workspace = true }
 segment = "0.2.3"
 tokio = { workspace = true }
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }

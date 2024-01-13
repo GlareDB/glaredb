@@ -94,17 +94,17 @@ Read our [announcement on Hybrid Execution] for more information.
 
 1. Install the official [GlareDB Python library]
 
-     ```shell
-     pip install glaredb
-     ```
+   ```shell
+   pip install glaredb
+   ```
 
 2. Import and use `glaredb`.
 
-     ```python
-     import glaredb
-     con = glaredb.connect()
-     con.sql("select 'hello world';").show()
-     ```
+   ```python
+   import glaredb
+   con = glaredb.connect()
+   con.sql("select 'hello world';").show()
+   ```
 
 To use **Hybrid Execution**, sign up at <https://console.glaredb.com> and
 use the connection string for your deployment. For example:
@@ -194,6 +194,45 @@ Done with this data source? Remove it with the following command:
 ```sql
 DROP DATABASE my_pg;
 ```
+
+## Supported data sources
+
+| Source                 | Read | Write | Table Function | External Table | External Database |
+| ---------------------- | :--: | :---: | :------------: | :------------: | ----------------- |
+| **Databases**          |  --  |       |       --       |       --       | --                |
+| MySQL                  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
+| PostgreSQL             |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
+| MariaDB _(via mysql)_  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
+| Microsoft SQL Server   |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
+| MongoDB                |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
+| Snowflake              |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
+| BigQuery               |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
+| Cassandra/ScyllaDB     |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
+| ClickHouse             |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
+| DuckDB                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
+| Oracle                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
+| SQLite                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
+| ADBC                   |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
+| ODBC                   |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
+| **File Formats**       |  --  |  --   |       --       |       --       | --                |
+| Apache Arrow           |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
+| CSV                    |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
+| Newline Delimited JSON |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
+| Apache Parquet         |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
+| BSON                   |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
+| Delta                  |  ✅  |  🚧   |       ✅       |       ✅       | ➖                |
+| Iceberg                |  ✅  |  🚧   |       ✅       |       ✅       | ➖                |
+| Lance                  |  ✅  |  🚧   |       ✅       |       ✅       | ➖                |
+| Microsoft Excel        |  ✅  |  🚧   |       ✅       |       🚧       | ➖                |
+| JSON                   |  🚧  |  🚧   |       🚧       |       🚧       | ➖                |
+| Apache Avro            |  🚧  |  🚧   |       🚧       |       🚧       | ➖                |
+| Apache ORC             |  🚧  |  🚧   |       🚧       |       🚧       | ➖                |
+
+✅ = Supported
+➖ = Not Applicable
+🚧 = Not Yet Supported
+
+\* `COPY TO` support only
 
 ## Building from source
 

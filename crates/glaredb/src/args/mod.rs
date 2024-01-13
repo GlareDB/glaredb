@@ -8,8 +8,8 @@ use url::Url;
 use crate::proxy::TLSMode;
 pub mod local;
 pub mod server;
-
-pub use {local::*, server::*};
+pub mod slt;
+pub use {local::*, server::*, slt::*};
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum OutputMode {

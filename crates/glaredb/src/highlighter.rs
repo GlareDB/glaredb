@@ -3,11 +3,11 @@ use std::io::{self};
 use nu_ansi_term::{Color, Style};
 
 use crate::local::is_client_cmd;
+use datafusion::sql::sqlparser::dialect::GenericDialect;
+use datafusion::sql::sqlparser::keywords::Keyword;
+use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
 use reedline::{Highlighter, Hinter, SearchQuery, StyledText, ValidationResult, Validator};
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
-use sqlexec::export::sqlparser::dialect::GenericDialect;
-use sqlexec::export::sqlparser::keywords::Keyword;
-use sqlexec::export::sqlparser::tokenizer::{Token, Tokenizer};
 
 pub(crate) struct SQLHighlighter;
 pub(crate) struct SQLValidator;
@@ -148,6 +148,9 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 | Keyword::END
                 | Keyword::UPDATE
                 | Keyword::SET
+                | Keyword::SORT
+                | Keyword::FILTER
+                | Keyword::WINDOW
                 | Keyword::DELETE
                 | Keyword::VIEW
                 | Keyword::EXCEPT
@@ -185,7 +188,7 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 }
                 // Custom Keywords
                 Keyword::NoKeyword => match w.value.to_uppercase().as_str() {
-                    "TUNNEL" | "PROVIDER" | "CREDENTIAL" => {
+                    "TUNNEL" | "PROVIDER" | "CREDENTIAL" | "AGGREGATE" | "TAKE" | "DERIVE" => {
                         st.push((new_style().fg(Color::LightGreen), format!("{w}")))
                     }
                     // Functions

@@ -1,22 +1,19 @@
+use std::collections::BTreeMap;
+use std::path::Path;
+
 use anyhow::{anyhow, Result};
 use glob::Pattern;
-use std::{collections::BTreeMap, path::Path};
 use walkdir::WalkDir;
 
-use crate::slt::{
-    cli::Cli,
-    test::{Test, TestHooks},
-};
-
-pub use crate::slt::test::{FnTest, Hook, TestClient, TestHook};
+use crate::test::{FnTest, Test, TestHook, TestHooks};
 
 #[derive(Default)]
-pub struct SltRunner {
-    tests: BTreeMap<String, Test>,
-    hooks: TestHooks,
+pub struct SltDiscovery {
+    pub tests: BTreeMap<String, Test>,
+    pub hooks: TestHooks,
 }
 
-impl SltRunner {
+impl SltDiscovery {
     pub fn new() -> Self {
         Default::default()
     }
@@ -92,10 +89,6 @@ impl SltRunner {
         let pattern = Pattern::new(regx.as_ref())?;
         self.hooks.push((pattern, hook));
         Ok(self)
-    }
-
-    pub fn run(self) -> Result<()> {
-        Cli::run(self.tests, self.hooks)
     }
 }
 
