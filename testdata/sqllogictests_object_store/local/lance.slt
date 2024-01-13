@@ -20,10 +20,10 @@ options (
 );
 
 statement ok
-copy (select * from lance_tbl) to '${TMP}/lance-copy' format lance;
+copy (select * from lance_tbl) to 'file://${TMP}/lance-copy' format lance;
 
 query IT
-select * from lance_scan('${TMP}/lance-copy') order by point.lat;
+select * from lance_scan('file://${TMP}/lance-copy') order by point.lat;
 ----
 0.2,1.8 {lat:42.1,long:-74.1}
 1.1,1.2 {lat:45.5,long:-122.7}
