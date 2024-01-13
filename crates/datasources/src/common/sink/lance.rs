@@ -118,8 +118,10 @@ impl LanceSink {
 
         let schema = stream.schema().clone();
         let mut chunks = stream.chunks(32);
-        let mut write_opts = WriteParams::default();
-        write_opts.mode = WriteMode::Create;
+        let write_opts = WriteParams {
+            mode: WriteMode::Create,
+            ..Default::default()
+        };
         while let Some(batches) = chunks.next().await {
             let batch_iter =
                 RecordBatchIterator::new(batches.into_iter().map(|item| Ok(item?)), schema.clone());
