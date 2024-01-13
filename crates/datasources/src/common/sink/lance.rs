@@ -79,7 +79,6 @@ impl LanceSink {
         stream: SendableRecordBatchStream,
         mut ds: Option<Dataset>,
     ) -> DfResult<Option<Dataset>> {
-        panic!("at least it gets here");
         let mut opts = FileWriterOptions::default();
         if self.opts.collect_all_column_stats.is_some_and(|val| val) {
             opts.collect_stats_for_fields = stream
@@ -92,6 +91,7 @@ impl LanceSink {
         } else if self.opts.column_stats.is_some() {
             let colls: &Vec<String> = self.opts.column_stats.as_ref().unwrap();
             let mut set = HashSet::with_capacity(colls.len());
+
             for c in colls.iter() {
                 set.replace(c);
             }
@@ -112,9 +112,10 @@ impl LanceSink {
                 .clone()
                 .unwrap()
                 .join(self.loc.as_ref())
-                .unwrap()
+                .map_err(|e| DataFusionError::External(Box::new(e)))?
         } else {
-            url::Url::parse(self.loc.as_ref()).unwrap()
+            url::Url::parse(self.loc.as_ref())
+                .map_err(|e| DataFusionError::External(Box::new(e)))?
         };
 
         let schema = stream.schema().clone();
@@ -129,15 +130,12 @@ impl LanceSink {
 
             match ds.clone() {
                 Some(mut d) => {
-                    d.append(batch_iter, Some(write_opts.clone()))
-                        .await
-                        .unwrap();
+                    d.append(batch_iter, Some(write_opts.clone())).await?;
                 }
                 None => {
                     ds.replace(
                         Dataset::write(batch_iter, table.as_str(), Some(write_opts.clone()))
-                            .await
-                            .unwrap(),
+                            .await?,
                     );
                 }
             }

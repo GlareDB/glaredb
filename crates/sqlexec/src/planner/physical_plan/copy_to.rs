@@ -107,6 +107,13 @@ impl DisplayAs for CopyToExec {
 impl CopyToExec {
     async fn copy_to(self, context: Arc<TaskContext>) -> DataFusionResult<RecordBatch> {
         let sink = match (self.dest, self.format) {
+            (CopyToDestinationOptions::Local(local_options), CopyToFormatOptions::Lance(opts)) => {
+                get_sink_for_obj(
+                    CopyToFormatOptions::Lance(opts),
+                    &LocalStoreAccess {},
+                    &local_options.location,
+                )?
+            }
             (CopyToDestinationOptions::Local(local_options), format) => {
                 {
                     // Create the path if it doesn't exist (for local).
@@ -178,6 +185,7 @@ fn get_sink_for_obj(
     let store = access
         .create_store()
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
     let path = access
         .path(location)
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
