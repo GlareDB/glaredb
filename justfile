@@ -4,7 +4,6 @@ export CARGO_TERM_COLOR := "always"
 export PROTOC := justfile_directory() + "/deps/protoc/bin/protoc"
 alias py := python
 alias js := javascript
-
 alias slt := sql-logic-tests
 
 os_arch := os() + '-' + arch()
@@ -63,12 +62,17 @@ doc-tests: protoc
   just test --doc
 
 # Run SQL Logic Tests.
-sql-logic-tests *args: protoc
-  cargo run --bin slt -- {{args}}
+sql-logic-tests *args: build 
+  just slt-bin {{args}}
+
+slt-bin *args:
+  ./target/debug/glaredb sql-logic-tests {{args}}
+slt-bin-debug *args:
+  ./target/debug/glaredb -v sql-logic-tests {{args}}
 
 # Run SQL Logic Tests over RPC
 rpc-tests:
-  just slt-bin --protocol=rpc \
+  just slt --protocol=rpc \
     'sqllogictests/cast/*' \
     'sqllogictests/cte/*' \
     'sqllogictests/functions/delta_scan' \
@@ -112,14 +116,6 @@ rpc-tests:
     'sqllogictests/prql' \
     'sqllogictests/describe_rpc' \
     'sqllogictests/allowed_operations'
-
-# Build a pre-compiled slt runner
-build-slt *args:
-  cargo build --bin slt -- {{args}}
-
-# Run SQL Logic Tests with a pre-compiled slt runner
-slt-bin *args:
-  ./target/debug/slt {{args}}
 
 #  Check formatting.
 fmt-check: protoc

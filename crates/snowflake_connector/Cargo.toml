@@ -10,7 +10,7 @@ thiserror.workspace = true
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tracing = "0.1"
+tracing = { workspace = true }
 chrono = { workspace = true }
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 datafusion = { workspace = true }

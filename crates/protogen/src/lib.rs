@@ -10,9 +10,6 @@ pub mod metastore;
 pub mod sqlexec;
 
 pub mod rpcsrv;
-pub mod export {
-    pub use prost;
-}
 pub use errors::ProtoConvError;
 
 pub mod errors {

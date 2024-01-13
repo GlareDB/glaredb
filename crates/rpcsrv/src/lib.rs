@@ -6,9 +6,3 @@ pub mod simple;
 
 mod session;
 mod util;
-
-pub mod export {
-    pub use arrow_flight;
-    pub use datafusion::arrow::datatypes::Schema;
-    pub use tonic;
-}
