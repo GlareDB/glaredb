@@ -37,6 +37,7 @@ opt-level = 3
 codegen-units = 1
 strip = true
 
-[target.aarch64-unknown-linux-gnu]
+[workspace.target.aarch64-unknown-linux-gnu]
 linker = "aarch64-linux-gnu-gcc"
 ar = "aarch64-linux-gnu-ar"
+
