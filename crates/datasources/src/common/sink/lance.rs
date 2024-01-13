@@ -79,7 +79,7 @@ impl LanceSink {
         stream: SendableRecordBatchStream,
         mut ds: Option<Dataset>,
     ) -> DfResult<Option<Dataset>> {
-        panic!("at least it gets here")
+        panic!("at least it gets here");
         let mut opts = FileWriterOptions::default();
         if self.opts.collect_all_column_stats.is_some_and(|val| val) {
             opts.collect_stats_for_fields = stream
