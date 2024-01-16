@@ -6,8 +6,15 @@ on:
     - cron: 0 12 * * 1
   workflow_dispatch:
   push:
+    branches:
+      - "sean/slack"
     tags:
       - "*"
+
+env:
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
 jobs:
   dist:
     strategy:
@@ -79,3 +86,12 @@ jobs:
         with:
           name: releases
           path: ./dist
+
+      - name: Post to slack
+        uses: slackapi/slack-github-action@v1.24.0
+        if: ${{ always() }}
+        with:
+          payload: |
+            {
+              "text": "Release binary build result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+            }

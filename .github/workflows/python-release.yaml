@@ -5,6 +5,8 @@ name: python release
 
 on:
   push:
+    branches:
+      - "sean/slack"
     tags:
       - "*"
   schedule:
@@ -21,6 +23,8 @@ env:
   MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
   MATURIN_USERNAME: "seanglaredb"
   PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
 jobs:
   linux:
@@ -50,6 +54,15 @@ jobs:
         with:
           name: wheels
           path: dist
+
+      - name: Post to slack
+        uses: slackapi/slack-github-action@v1.24.0
+        if: ${{ always() }}
+        with:
+          payload: |
+            {
+              "text": "Python bindings build result (linux): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+            }
 
   windows:
     runs-on: windows-latest-8-cores
@@ -82,6 +95,16 @@ jobs:
           name: wheels
           path: bindings/python/dist
 
+      - name: Post to slack
+        uses: slackapi/slack-github-action@v1.24.0
+        if: ${{ always() }}
+        with:
+          payload: |
+            {
+              "text": "Python bindings build result (windows): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+            }
+
+
   macos:
     runs-on: macos-12-xl
     strategy:
@@ -110,6 +133,15 @@ jobs:
           name: wheels
           path: bindings/python/dist
 
+      - name: Post to slack
+        uses: slackapi/slack-github-action@v1.24.0
+        if: ${{ always() }}
+        with:
+          payload: |
+            {
+              "text": "Python bindings build result (macos): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+            }
+
   release:
     name: Release
     if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
@@ -126,3 +158,13 @@ jobs:
         with:
           command: upload
           args: --skip-existing *
+
+      - name: Post to slack
+        uses: slackapi/slack-github-action@v1.24.0
+        if: ${{ always() }}
+        with:
+          payload: |
+            {
+              "text": "Python bindings publish result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+            }
+
