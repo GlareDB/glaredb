@@ -27,6 +27,9 @@ pub enum PostgresError {
     #[error("Unsupported tunnel '{0}' for Postgres")]
     UnsupportedTunnel(String),
 
+    #[error("Overflow converting '{0}' to {1}")]
+    DataOverflow(String, datafusion::arrow::datatypes::DataType),
+
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
 
