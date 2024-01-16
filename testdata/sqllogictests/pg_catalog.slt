@@ -80,3 +80,7 @@ query TT
 select schema_name, table_name from glare_catalog.tables where table_name = 'pg_description' and schema_name = 'pg_catalog_test';
 ----
 pg_catalog_test  pg_description
+
+
+statement ok
+select * from pg_catalog.pg_type;
