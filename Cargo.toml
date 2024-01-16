@@ -15,9 +15,9 @@ strip = true
 
 [workspace.dependencies]
 clap = { version = "4.4.18", features = ["derive"] }
-datafusion = { version = "32.0", features = ["avro"] }
-arrow-flight = { version = "47.0.0", features = ["flight-sql-experimental"] }
-datafusion-proto = { version = "32.0" }
+datafusion = { version = "34.0", features = ["avro"] }
+arrow-flight = { version = "49.0.0", features = ["flight-sql-experimental"] }
+datafusion-proto = { version = "34.0" }
 reqwest = { version = "0.11.23", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
@@ -26,7 +26,7 @@ anyhow = "1.0.79"
 async-trait = "0.1.77"
 chrono = "0.4.31"
 futures = "0.3.30"
-object_store = "0.7"
+object_store = "0.8"
 prost = "0.12"
 prost-build = "0.12"
 prost-types = "0.12"
@@ -37,6 +37,6 @@ tracing = "0.1"
 url = "2.5.0"
 
 [workspace.dependencies.deltalake]
-git = "https://github.com/delta-io/delta-rs.git"
-rev = "5c324ccd0a8738251a9aea9452d7323400e5e8c6"
+git = "https://github.com/GlareDB/delta-rs.git"
+rev = "3832c51f30724971a0d794142a3e85f3ae89a45e"
 features = ["s3", "gcs", "azure", "datafusion", "arrow"]

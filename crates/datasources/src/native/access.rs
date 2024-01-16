@@ -11,10 +11,11 @@ use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
+use deltalake::logstore::{default_logstore, LogStore};
 use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::delete::DeleteBuilder;
 use deltalake::operations::update::UpdateBuilder;
-use deltalake::storage::DeltaObjectStore;
+use deltalake::storage::StorageOptions;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use futures::StreamExt;
 use object_store::path::Path as ObjectStorePath;
@@ -77,7 +78,7 @@ impl NativeTableStorage {
     /// bytes.
     pub async fn calculate_db_size(&self) -> Result<usize> {
         let prefix: ObjectStorePath = format!("databases/{}/", self.db_id).into();
-        let mut objects = self.store.list(Some(&prefix)).await?;
+        let mut objects = self.store.list(Some(&prefix));
 
         let mut total_size = 0;
         while let Some(meta) = objects.next().await {
@@ -93,13 +94,13 @@ impl NativeTableStorage {
         table: &TableEntry,
         save_mode: SaveMode,
     ) -> Result<NativeTable> {
-        let delta_store = self.create_delta_store_for_table(table).await?;
+        let delta_store = self.create_delta_store_for_table(table);
         let opts = Self::opts_from_ent(table)?;
         let tbl = {
             let mut builder = CreateBuilder::new()
+                .with_save_mode(save_mode)
                 .with_table_name(&table.meta.name)
-                .with_object_store(delta_store)
-                .with_save_mode(save_mode);
+                .with_log_store(delta_store);
 
             for col in &opts.columns {
                 let column = match &col.arrow_type {
@@ -131,7 +132,7 @@ impl NativeTableStorage {
     pub async fn load_table(&self, table: &TableEntry) -> Result<NativeTable> {
         let _ = Self::opts_from_ent(table)?; // Check that this is the correct table type.
 
-        let delta_store = self.create_delta_store_for_table(table).await?;
+        let delta_store = self.create_delta_store_for_table(table);
         let mut table = DeltaTable::new(delta_store, DeltaTableConfig::default());
 
         table.load().await?;
@@ -141,7 +142,7 @@ impl NativeTableStorage {
 
     pub async fn delete_table(&self, table: &TableEntry) -> Result<()> {
         let prefix = self.table_prefix(table.meta.id);
-        let mut x = self.store.list(Some(&prefix.into())).await?;
+        let mut x = self.store.list(Some(&prefix.into()));
         while let Some(meta) = x.next().await {
             let meta = meta?;
             self.store.delete(&meta.location).await?
@@ -151,7 +152,7 @@ impl NativeTableStorage {
 
     pub async fn table_exists(&self, table: &TableEntry) -> Result<bool> {
         let path = self.table_prefix(table.meta.id).into();
-        let mut x = self.store.list(Some(&path)).await?;
+        let mut x = self.store.list(Some(&path));
         Ok(x.next().await.is_some())
     }
 
@@ -163,18 +164,17 @@ impl NativeTableStorage {
         Ok(opts)
     }
 
-    async fn create_delta_store_for_table(
-        &self,
-        table: &TableEntry,
-    ) -> Result<Arc<DeltaObjectStore>> {
+    fn create_delta_store_for_table(&self, table: &TableEntry) -> Arc<dyn LogStore> {
         let prefix = self.table_prefix(table.meta.id);
 
         // Add the table prefix to the shared store and the root URL
         let prefixed = PrefixStore::new(self.store.clone(), prefix.clone());
-        let url = self.root_url.join(&prefix)?;
 
-        let delta_store = DeltaObjectStore::new(Arc::new(prefixed), url);
-        Ok(Arc::new(delta_store))
+        default_logstore(
+            Arc::new(prefixed),
+            &self.root_url,
+            &StorageOptions::default(),
+        )
     }
 
     pub async fn delete_rows_where(
@@ -184,7 +184,7 @@ impl NativeTableStorage {
     ) -> Result<usize> {
         let table = self.load_table(table_entry).await?;
         if let Some(where_expr) = where_expr {
-            let deleted_rows = DeleteBuilder::new(table.delta.object_store(), table.delta.state)
+            let deleted_rows = DeleteBuilder::new(table.delta.log_store(), table.delta.state)
                 .with_predicate(where_expr)
                 .await?
                 .1
@@ -194,12 +194,12 @@ impl NativeTableStorage {
             let mut records: usize = 0;
             let stats = table.statistics();
             if let Some(stats) = stats {
-                let num_rows = stats.num_rows;
+                let num_rows = stats.num_rows.get_value();
                 if let Some(num_rows) = num_rows {
-                    records = num_rows;
+                    records = *num_rows;
                 }
             }
-            DeleteBuilder::new(table.delta.object_store(), table.delta.state).await?;
+            DeleteBuilder::new(table.delta.log_store(), table.delta.state).await?;
             Ok(records)
         }
     }
@@ -211,7 +211,7 @@ impl NativeTableStorage {
         where_expr: Option<Expr>,
     ) -> Result<usize> {
         let table = self.load_table(table).await?;
-        let mut builder = UpdateBuilder::new(table.delta.object_store(), table.delta.state);
+        let mut builder = UpdateBuilder::new(table.delta.log_store(), table.delta.state);
         for update in updates.into_iter() {
             builder = builder.with_update(update.0, update.1);
         }
@@ -252,7 +252,7 @@ impl NativeTable {
         } else {
             SaveMode::Append
         };
-        let store = self.delta.object_store();
+        let store = self.delta.log_store();
         let snapshot = self.delta.state.clone();
         Arc::new(NativeTableInsertExec::new(
             input, store, snapshot, save_mode,
@@ -289,14 +289,15 @@ impl TableProvider for NativeTable {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        let stats = self
-            .statistics()
-            .unwrap_or_default()
-            .num_rows
-            .unwrap_or_default();
-        if stats == 0 {
+        let num_rows = if let Some(stats) = self.statistics() {
+            stats.num_rows.get_value().copied().unwrap_or_default()
+        } else {
+            usize::default()
+        };
+
+        if num_rows == 0 {
             let schema = TableProvider::schema(&self.delta);
-            Ok(Arc::new(EmptyExec::new(false, schema)))
+            Ok(Arc::new(EmptyExec::new(schema)))
         } else {
             let plan = self.delta.scan(session, projection, filters, limit).await?;
             Ok(Arc::new(ReadOnlyDataSourceMetricsExecAdapter::new(plan)))

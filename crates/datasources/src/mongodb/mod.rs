@@ -421,16 +421,15 @@ fn df_to_bson(val: ScalarValue) -> Result<Bson, ExtensionError> {
                     .map_err(|e| DataFusionError::External(Box::new(e)))?,
             ))
         }
-        ScalarValue::List(v, _) => {
-            if let Some(val) = v {
-                let mut out = Vec::with_capacity(val.len());
-                for elem in val.into_iter() {
-                    out.push(df_to_bson(elem)?);
-                }
-                Ok(Bson::Array(out))
-            } else {
-                Ok(Bson::Array(Vec::new()))
-            }
+        ScalarValue::List(arr) => {
+            let out = (0..arr.len())
+                .map(|idx| {
+                    let s = ScalarValue::try_from_array(arr.as_ref(), idx)?;
+                    df_to_bson(s).map_err(ExtensionError::access)
+                })
+                .collect::<Result<Vec<_>, ExtensionError>>()?;
+
+            Ok(Bson::Array(out))
         }
         ScalarValue::Null => Ok(Bson::Null),
         _ => Err(ExtensionError::String(format!(

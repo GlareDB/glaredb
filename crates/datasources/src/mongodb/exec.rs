@@ -105,8 +105,8 @@ impl ExecutionPlan for MongoDbBsonExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DatafusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 
     fn metrics(&self) -> Option<MetricsSet> {

@@ -190,8 +190,8 @@ impl ExecutionPlan for SystemOperationExec {
         Ok(Box::pin(RecordBatchStreamAdapter::new(self.schema(), out)))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

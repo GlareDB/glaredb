@@ -5,7 +5,7 @@ use std::sync::Arc;
 use datafusion::common::ToDFSchema;
 use datafusion::error::Result;
 use datafusion::{
-    arrow::datatypes::Schema, execution::context::SessionState, optimizer::utils::conjunction,
+    arrow::datatypes::Schema, execution::context::SessionState, logical_expr::utils::conjunction,
     physical_expr::create_physical_expr, physical_plan::PhysicalExpr, prelude::Expr,
 };
 

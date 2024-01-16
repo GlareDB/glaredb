@@ -418,6 +418,11 @@ document! {
     name => to_timestamp_micros
 }
 document! {
+    doc => "Converts a string to a timestamp with nanosecond precision (Timestamp<µs, UTC>)",
+    example => "to_timestamp_nanos('2020-09-08T12:00:00+00:00')",
+    name => to_timestamp_nanos
+}
+document! {
     doc => "Converts a string to a timestamp with second precision (Timestamp<s, UTC>)",
     example => "to_timestamp_seconds('2020-09-08T12:00:00+00:00')",
     name => to_timestamp_seconds
@@ -593,6 +598,41 @@ document! {
     name => array_to_string
 }
 document! {
+    doc => "Returns a sorted array",
+    example => "array_sort([1, 2, 3])",
+    name => array_sort
+}
+document! {
+    doc => "Pop the first element from the array",
+    example => "array_pop_front([1, 2, 3])",
+    name => array_pop_front
+}
+document! {
+    doc => "Returns a new array that contains only the distinct elements from the input",
+    example => "array_distinct([1, 1, 2, 1])",
+    name => array_distinct
+}
+document! {
+    doc => "Returns an array that contains the matching elements in the two input arrays",
+    example => "array_intersect([1, 2, 3], [2, 3])",
+    name => array_intersect
+}
+document! {
+    doc => "Returns an array of the elements in the union of both arrays",
+    example => "array_union([1, 2], [3, 4])",
+    name => array_union
+}
+document! {
+    doc => "Returns a new array that contains the elements from one input that are not in the other",
+    example => "array_except([1, 2, 3], [2, 3])",
+    name => array_except
+}
+document! {
+    doc => "Returns an array of numbers in the given range with optional step",
+    example => "range(1, 10, 2)",
+    name => range
+}
+document! {
     doc => "Returns the number of elements in an array",
     example => "cardinality([1, 2, 3])",
     name => cardinality
@@ -601,6 +641,26 @@ document! {
     doc => "Create an array from a list of elements",
     example => "make_array(1, 2, 3)",
     name => make_array
+}
+document! {
+    doc => "Replaces input with replace that starts at pos and is of length len",
+    example => "overlay('Glare SQL', 'DB ', 6, 0)",
+    name => overlay
+}
+document! {
+    doc => "Returns the Levenshtein distance between the strings str1 and str2",
+    example => "levenshtein('kitten', 'sitting')",
+    name => levenshtein
+}
+document! {
+    doc => "Returns the substring from str before count occurrences of the delimiter",
+    example => "substr_index('hello, world', ',', 1)",
+    name => substr_index
+}
+document! {
+    doc => "Returns a value in the range of 1 to N if the string str is in the string list strlist consisting of N substrings",
+    example => "find_in_set('a', 's,q,l')",
+    name => find_in_set
 }
 document! {
     doc => "Create a struct from a list of elements. The field names will always be `cN` where N is the index of the element",
@@ -697,6 +757,7 @@ impl BuiltinFunction for BuiltinScalarFunction {
             ToTimestampMillis => to_timestamp_millis::NAME,
             ToTimestampMicros => to_timestamp_micros::NAME,
             ToTimestampSeconds => to_timestamp_seconds::NAME,
+            ToTimestampNanos => to_timestamp_nanos::NAME,
             FromUnixtime => from_unixtime::NAME,
             Digest => digest::NAME,
             MD5 => md5::NAME,
@@ -731,8 +792,19 @@ impl BuiltinFunction for BuiltinScalarFunction {
             ArrayReplaceAll => array_replace_all::NAME,
             ArraySlice => array_slice::NAME,
             ArrayToString => array_to_string::NAME,
+            ArraySort => array_sort::NAME,
+            ArrayPopFront => array_pop_front::NAME,
+            ArrayDistinct => array_distinct::NAME,
+            ArrayIntersect => array_intersect::NAME,
+            ArrayUnion => array_union::NAME,
+            ArrayExcept => array_except::NAME,
+            Range => range::NAME,
             Cardinality => cardinality::NAME,
             MakeArray => make_array::NAME,
+            OverLay => overlay::NAME,
+            Levenshtein => levenshtein::NAME,
+            SubstrIndex => substr_index::NAME,
+            FindInSet => find_in_set::NAME,
             Struct => struct_::NAME,
         }
     }
@@ -821,6 +893,7 @@ impl BuiltinFunction for BuiltinScalarFunction {
             ToTimestampMillis => to_timestamp_millis::EXAMPLE,
             ToTimestampMicros => to_timestamp_micros::EXAMPLE,
             ToTimestampSeconds => to_timestamp_seconds::EXAMPLE,
+            ToTimestampNanos => to_timestamp_nanos::EXAMPLE,
             FromUnixtime => from_unixtime::EXAMPLE,
             Digest => digest::EXAMPLE,
             MD5 => md5::EXAMPLE,
@@ -855,8 +928,19 @@ impl BuiltinFunction for BuiltinScalarFunction {
             ArrayReplaceAll => array_replace_all::EXAMPLE,
             ArraySlice => array_slice::EXAMPLE,
             ArrayToString => array_to_string::EXAMPLE,
+            ArraySort => array_sort::EXAMPLE,
+            ArrayPopFront => array_pop_front::EXAMPLE,
+            ArrayDistinct => array_distinct::EXAMPLE,
+            ArrayIntersect => array_intersect::EXAMPLE,
+            ArrayUnion => array_union::EXAMPLE,
+            ArrayExcept => array_except::EXAMPLE,
+            Range => range::EXAMPLE,
             Cardinality => cardinality::EXAMPLE,
             MakeArray => make_array::EXAMPLE,
+            OverLay => overlay::EXAMPLE,
+            Levenshtein => levenshtein::EXAMPLE,
+            SubstrIndex => substr_index::EXAMPLE,
+            FindInSet => find_in_set::EXAMPLE,
             Struct => struct_::EXAMPLE,
         })
     }
@@ -945,6 +1029,7 @@ impl BuiltinFunction for BuiltinScalarFunction {
             ToTimestampMillis => to_timestamp_millis::DESCRIPTION,
             ToTimestampMicros => to_timestamp_micros::DESCRIPTION,
             ToTimestampSeconds => to_timestamp_seconds::DESCRIPTION,
+            ToTimestampNanos => to_timestamp_nanos::DESCRIPTION,
             FromUnixtime => from_unixtime::DESCRIPTION,
             Digest => digest::DESCRIPTION,
             MD5 => md5::DESCRIPTION,
@@ -979,8 +1064,19 @@ impl BuiltinFunction for BuiltinScalarFunction {
             ArrayReplaceAll => array_replace_all::DESCRIPTION,
             ArraySlice => array_slice::DESCRIPTION,
             ArrayToString => array_to_string::DESCRIPTION,
+            ArraySort => array_sort::DESCRIPTION,
+            ArrayPopFront => array_pop_front::DESCRIPTION,
+            ArrayDistinct => array_distinct::DESCRIPTION,
+            ArrayIntersect => array_intersect::DESCRIPTION,
+            ArrayUnion => array_union::DESCRIPTION,
+            ArrayExcept => array_except::DESCRIPTION,
+            Range => range::DESCRIPTION,
             Cardinality => cardinality::DESCRIPTION,
             MakeArray => make_array::DESCRIPTION,
+            OverLay => overlay::DESCRIPTION,
+            Levenshtein => levenshtein::DESCRIPTION,
+            SubstrIndex => substr_index::DESCRIPTION,
+            FindInSet => find_in_set::DESCRIPTION,
             Struct => struct_::DESCRIPTION,
         })
     }

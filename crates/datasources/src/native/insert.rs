@@ -10,9 +10,9 @@ use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, Distribution, ExecutionPlan, Partitioning,
     SendableRecordBatchStream, Statistics,
 };
+use deltalake::logstore::LogStore;
 use deltalake::operations::write::WriteBuilder;
 use deltalake::protocol::SaveMode;
-use deltalake::storage::DeltaObjectStore;
 use deltalake::table::state::DeltaTableState;
 use futures::StreamExt;
 use std::any::Any;
@@ -22,7 +22,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct NativeTableInsertExec {
     input: Arc<dyn ExecutionPlan>,
-    store: Arc<DeltaObjectStore>,
+    store: Arc<dyn LogStore>,
     snapshot: DeltaTableState,
     save_mode: SaveMode,
 }
@@ -30,7 +30,7 @@ pub struct NativeTableInsertExec {
 impl NativeTableInsertExec {
     pub fn new(
         input: Arc<dyn ExecutionPlan>,
-        store: Arc<DeltaObjectStore>,
+        store: Arc<dyn LogStore>,
         snapshot: DeltaTableState,
         save_mode: SaveMode,
     ) -> Self {
@@ -142,8 +142,8 @@ impl ExecutionPlan for NativeTableInsertExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

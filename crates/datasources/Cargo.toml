@@ -68,7 +68,7 @@ tiberius = { version = "0.12.2", default-features = false, features = [
   "rustls",
   "chrono",
 ] }
-lance = { git = "https://github.com/universalmind303/lance", rev = "81158eb540ff88ab5b4fce3a1170447760137412" }
+lance = { git = "https://github.com/universalmind303/lance", rev = "ffd4ac6ee2c61b3792a904b2e12152b246e837e6" }
 bson = "2.7.0"
 scylla = { version = "0.11.1" }
 glob = "0.3.1"

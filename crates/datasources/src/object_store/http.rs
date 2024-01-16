@@ -100,6 +100,7 @@ impl ObjStoreAccess for HttpStoreAccess {
             last_modified: Utc::now(),
             size: len as usize,
             e_tag: None,
+            version: None,
         })
     }
 
