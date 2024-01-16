@@ -3,7 +3,6 @@ use clap::Args;
 use super::*;
 
 #[derive(Args)]
-
 pub struct ServerArgs {
     /// TCP address to bind to for the Postgres interface.
     #[arg(

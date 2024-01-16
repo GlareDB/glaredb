@@ -74,7 +74,7 @@ def test_read_bson(
             f"create external table bson_beatles from bson options ( location='{data_path}', file_type='bson')"
         )
 
-    for from_clause in ["bson_beatles", f"read_bson('{data_path}')"]:
+    for from_clause in ["bson_beatles", f"read_bson('{data_path}')", f"'{data_path}'"]:
         with glaredb_connection.cursor() as curr:
             curr.execute(f"select count(*) from {from_clause}")
             r = curr.fetchone()

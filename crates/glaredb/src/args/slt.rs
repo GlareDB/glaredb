@@ -1,44 +1,36 @@
-use logutil::LoggingMode;
-use pgsrv::auth::SingleUserAuthenticator;
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
-use tracing::info;
 
 use anyhow::{anyhow, Result};
-use clap::Parser;
-use glaredb::args::StorageConfigArgs;
-use glaredb::server::ComputeServer;
+use clap::Args;
 use tokio::{net::TcpListener, runtime::Builder, sync::mpsc, time::Instant};
 use tokio_postgres::config::Config as ClientConfig;
+use tracing::info;
 use uuid::Uuid;
 
-use crate::slt::test::{
-    FlightSqlTestClient, PgTestClient, RpcTestClient, Test, TestClient, TestHooks,
+use crate::args::StorageConfigArgs;
+use crate::server::ComputeServer;
+use pgsrv::auth::SingleUserAuthenticator;
+use slt::test::{
+    ClientProtocol, FlightSqlTestClient, PgTestClient, RpcTestClient, Test, TestClient, TestHooks,
 };
 
-use super::test::ClientProtocol;
-
-#[derive(Parser)]
-#[clap(name = "slt-runner")]
-#[clap(about = "Run sqllogictests against a GlareDB server", long_about = None)]
-pub struct Cli {
-    #[clap(short, long, action = clap::ArgAction::Count)]
-    verbose: u8,
-
+#[derive(Args)]
+pub struct SltArgs {
     /// TCP address to bind to for the GlareDB server.
     ///
     /// Omitting this will attempt to bind to any available port.
-    #[clap(long, value_parser)]
+    #[arg(long, value_parser)]
     bind_embedded: Option<String>,
 
     /// Address of metastore to use.
     ///
     /// If not provided, a Metastore will be spun up automatically.
-    #[clap(long, value_parser)]
+    #[arg(long, value_parser)]
     metastore_addr: Option<String>,
 
     /// Whether or not to keep the embedded GlareDB server running after a
@@ -46,65 +38,59 @@ pub struct Cli {
     ///
     /// This allow for an external client to connect to allow for additional
     /// debugging.
-    #[clap(long, value_parser)]
+    #[arg(long, value_parser)]
     keep_running: bool,
 
     /// Connection string to use for connecting to the database.
     ///
     /// If provided, an embedded server won't be started.
-    #[clap(short, long, value_parser)]
+    #[arg(short, long, value_parser)]
     connection_string: Option<String>,
 
     /// List all the tests for the pattern (Dry Run).
-    #[clap(long, value_parser)]
+    #[arg(long, value_parser)]
     list: bool,
 
     /// Number of jobs to run in parallel
     ///
     /// To run the max possible jobs, set it to 0. By default, this argument is
     /// set to 0 to run max possible jobs. Set it to `1` to run sequentially.
-    #[clap(short, long, value_parser, default_value_t = 0)]
+    #[arg(short, long, value_parser, default_value_t = 0)]
     jobs: u8,
 
     /// Timeout (exit) after this number of seconds.
-    #[clap(long, value_parser, default_value_t = 5 * 60)]
+    #[arg(long, value_parser, default_value_t = 5 * 60)]
     timeout: u64,
 
     /// Exclude these tests from the run.
-    #[clap(short, long, value_parser)]
+    #[arg(short, long, value_parser)]
     exclude: Vec<String>,
 
     /// Client protocol to use. (rpc, postgres, flightsql)
     #[arg(long, short, value_enum, default_value_t=ClientProtocol::Postgres)]
     protocol: ClientProtocol,
 
-    #[clap(flatten)]
+    #[command(flatten)]
     storage_config: StorageConfigArgs,
 
     /// Tests to run.
     ///
     /// Provide glob like regexes for test names. If omitted, runs all the
     /// tests. This is similar to providing parameter as `*`.
+    #[arg(value_parser)]
     tests_pattern: Option<Vec<String>>,
 }
 
-impl Cli {
-    pub fn run(tests: BTreeMap<String, Test>, hooks: TestHooks) -> Result<()> {
-        let cli = Self::parse();
+impl SltArgs {
+    pub fn execute(&self, tests: BTreeMap<String, Test>, hooks: TestHooks) -> Result<()> {
+        let tests = self.collect_tests(tests)?;
 
-        let tests = cli.collect_tests(tests)?;
-
-        if cli.list {
+        if self.list {
             for (test_name, _) in tests {
                 println!("{test_name}");
             }
             return Ok(());
         }
-
-        if tests.is_empty() {
-            return Err(anyhow!("No tests to run. Exiting..."));
-        }
-        logutil::init(cli.verbose, LoggingMode::Compact, None);
 
         // Abort the program on panic. This will ensure that slt tests will
         // never pass if there's a panic somewhere.
@@ -130,7 +116,7 @@ impl Cli {
             .block_on(async move {
                 let batch_size = num_cpus::get();
                 tracing::trace!(%batch_size, "test batch size");
-                cli.run_tests_batched(batch_size, tests, hooks).await
+                self.run_tests_batched(batch_size, tests, hooks).await
             })
     }
 
@@ -155,6 +141,11 @@ impl Cli {
                 .map_err(|e| anyhow!("Invalid glob pattern `{pattern}`: {e}"))?;
             tests.retain(|(k, _v)| !pattern.matches(k));
         }
+
+        if tests.is_empty() {
+            return Err(anyhow!("No tests to run. Exiting..."));
+        }
+
         Ok(tests)
     }
 
@@ -163,7 +154,7 @@ impl Cli {
     /// Batches will be ran sequentially, and an error resulting from a batch
     /// will halt further execution.
     async fn run_tests_batched(
-        self,
+        &self,
         batch_size: usize,
         mut tests: Vec<(String, Test)>,
         hooks: TestHooks,
@@ -389,50 +380,50 @@ impl Cli {
             }
         };
 
-        async fn run_test_inner(
-            client: TestClient,
-            test_name: &str,
-            test: Test,
-            client_config: ClientConfig,
-            hooks: Arc<TestHooks>,
-        ) -> Result<()> {
-            let start = Instant::now();
-
-            let mut local_vars = HashMap::new();
-
-            // Run the actual test
-            let hooks = hooks
-                .iter()
-                .filter(|(pattern, _)| pattern.matches(test_name));
-
-            // Run the pre-test hooks
-            for (pattern, hook) in hooks.clone() {
-                tracing::debug!(%pattern, %test_name, "Running pre hook for test");
-                hook.pre(&client_config, client.clone(), &mut local_vars)
-                    .await?;
-            }
-
-            // Run the actual test
-            test.execute(&client_config, client.clone(), &mut local_vars)
-                .await?;
-
-            // Run the post-test hooks
-            for (pattern, hook) in hooks {
-                tracing::debug!(%pattern, %test_name, "Running post hook for test");
-                hook.post(&client_config, client.clone(), &local_vars)
-                    .await?;
-            }
-
-            let time_taken = Instant::now().duration_since(start);
-            tracing::debug!(?time_taken, %test_name, "Done executing");
-
-            Ok(())
-        }
-
-        let res = run_test_inner(client.clone(), test_name, test, client_config, hooks).await;
+        let res = Self::run_test_inner(&client, test_name, test, &client_config, hooks).await;
         // No need to wait for session's close handler since we don't wait for
         // sessions to end in integration testing mode while closing the server.
         let _ = client.close().await;
         res
+    }
+
+    async fn run_test_inner(
+        client: &TestClient,
+        test_name: &str,
+        test: Test,
+        client_config: &ClientConfig,
+        hooks: Arc<TestHooks>,
+    ) -> Result<()> {
+        let start = Instant::now();
+
+        let mut local_vars = HashMap::new();
+
+        // Run the actual test
+        let hooks = hooks
+            .iter()
+            .filter(|(pattern, _)| pattern.matches(test_name));
+
+        // Run the pre-test hooks
+        for (pattern, hook) in hooks.clone() {
+            tracing::debug!(%pattern, %test_name, "Running pre hook for test");
+            hook.pre(client_config, client.clone(), &mut local_vars)
+                .await?;
+        }
+
+        // Run the actual test
+        test.execute(client_config, client.clone(), &mut local_vars)
+            .await?;
+
+        // Run the post-test hooks
+        for (pattern, hook) in hooks {
+            tracing::debug!(%pattern, %test_name, "Running post hook for test");
+            hook.post(client_config, client.clone(), &local_vars)
+                .await?;
+        }
+
+        let time_taken = Instant::now().duration_since(start);
+        tracing::debug!(?time_taken, %test_name, "Done executing");
+
+        Ok(())
     }
 }

@@ -37,18 +37,14 @@ jobs:
           path: |
             target/
             !target/**/glaredb
-            !target/**/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache@v3
-        name: slt cache
+        name: glaredb cache
         with:
-          path: target/debug/slt
+          path: target/debug/glaredb
           key: ${{ github.run_id }}
       - name: build
         run: just build
-
-      - name: build slt
-        run: just build-slt
 
   static-analysis:
     name: Lint and Format
@@ -127,7 +123,6 @@ jobs:
           path: |
             target/
             !target/**/glaredb
-            !target/**/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: build python bindings
@@ -165,7 +160,6 @@ jobs:
           path: |
             target/
             !target/**/glaredb
-            !target/**/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: build node.js bindings
         run: just js build-debug
@@ -198,14 +192,13 @@ jobs:
           path: |
             target/
             !target/**/glaredb
-            !target/**/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: pg protocol test (script)
         run: |
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
 
       - name: pg protocol tests (slt runner)
-        run: just slt-bin -v 'pgproto/*'
+        run: just slt-bin-debug 'pgproto/*'
 
   sql-logic-tests:
     name: SQL Logic Tests
@@ -219,9 +212,9 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: slt cache
+        name: glaredb cache
         with:
-          path: target/debug/slt
+          path: target/debug/glaredb
           key: ${{ github.run_id }}
       - name: public sql logic tests DEBUG
         if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
@@ -229,7 +222,7 @@ jobs:
           if [[ "${{ matrix.protocol }}" == "rpc" ]]; then
             just rpc-tests
           else
-            just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
+            just slt-bin-debug --protocol=${{ matrix.protocol }} 'sqllogictests/*'
           fi
       - name: public sql logic tests
         if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
@@ -237,7 +230,7 @@ jobs:
           if [[ "${{ matrix.protocol }}" == "rpc" ]]; then
             just rpc-tests
           else
-            just slt-bin -v --protocol=${{ matrix.protocol }} 'sqllogictests/*'
+            just slt-bin-debug --protocol=${{ matrix.protocol }} 'sqllogictests/*'
           fi
 
   process-integration-tests:
@@ -274,8 +267,12 @@ jobs:
           path: |
             target/
             !target/**/glaredb
-            !target/**/slt
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache@v3
+        name: glaredb cache
+        with:
+          path: target/debug/glaredb
+          key: ${{ github.run_id }}
       - uses: actions/cache@v3
         name: py cache
         with:
@@ -297,9 +294,9 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: slt cache
+        name: glaredb cache
         with:
-          path: target/debug/slt
+          path: target/debug/glaredb
           key: ${{ github.run_id }}
 
       - name: GCP authenticate
@@ -446,9 +443,9 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: slt cache
+        name: glaredb cache
         with:
-          path: target/debug/slt
+          path: target/debug/glaredb
           key: ${{ github.run_id }}
       - name: run tests (slt)
         run: |
@@ -477,9 +474,9 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
       - uses: actions/cache@v3
-        name: slt cache
+        name: glaredb cache
         with:
-          path: target/debug/slt
+          path: target/debug/glaredb
           key: ${{ github.run_id }}
 
       - name: snowflake setup (SnowSQL)

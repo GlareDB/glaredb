@@ -1,22 +1,31 @@
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
+use anyhow::{anyhow, Result};
+use atty::Stream;
+use clap::Subcommand;
+use ioutil::ensure_dir;
+use tokio::net::TcpListener;
+use tokio::runtime::{Builder, Runtime};
+use tracing::info;
+
+use object_store_util::conf::StorageConfig;
+use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
+use slt::{
+    discovery::SltDiscovery,
+    hooks::{AllTestsHook, SshTunnelHook},
+    tests::{PgBinaryEncoding, SshKeysTest},
+};
+
 use crate::args::server::ServerArgs;
-use crate::args::{LocalArgs, MetastoreArgs, PgProxyArgs, RpcProxyArgs};
+use crate::args::{LocalArgs, MetastoreArgs, PgProxyArgs, RpcProxyArgs, SltArgs};
 use crate::built_info;
 use crate::local::LocalSession;
 use crate::metastore::Metastore;
 use crate::proxy::{PgProxy, RpcProxy};
 use crate::server::ComputeServer;
-use anyhow::{anyhow, Result};
-use atty::Stream;
-use clap::Subcommand;
-use ioutil::ensure_dir;
-use object_store_util::conf::StorageConfig;
-use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::net::TcpListener;
-use tokio::runtime::{Builder, Runtime};
-use tracing::info;
 
 #[derive(Subcommand)]
 pub enum Commands {
@@ -33,6 +42,9 @@ pub enum Commands {
     /// Starts an instance of the Metastore.
     #[clap(hide = true)]
     Metastore(MetastoreArgs),
+    /// Runs SQL Logic Tests
+    #[clap(hide = true, alias = "slt")]
+    SqlLogicTests(SltArgs),
 }
 
 impl Commands {
@@ -43,6 +55,7 @@ impl Commands {
             Commands::PgProxy(pg_proxy) => pg_proxy.run(),
             Commands::RpcProxy(rpc_proxy) => rpc_proxy.run(),
             Commands::Metastore(metastore) => metastore.run(),
+            Commands::SqlLogicTests(slt) => slt.run(),
         }
     }
 }
@@ -283,6 +296,22 @@ impl RunCommand for MetastoreArgs {
             let metastore = Metastore::new(store)?;
             metastore.serve(addr).await
         })
+    }
+}
+
+impl RunCommand for SltArgs {
+    fn run(self) -> Result<()> {
+        let disco = SltDiscovery::new()
+            .test_files_dir("testdata")?
+            // Rust tests
+            .test("sqllogictests/ssh_keys", Box::new(SshKeysTest))?
+            .test("pgproto/binary_encoding", Box::new(PgBinaryEncoding))?
+            // Add hooks
+            .hook("*", Arc::new(AllTestsHook))?
+            // SSH Tunnels hook
+            .hook("*/tunnels/ssh", Arc::new(SshTunnelHook))?;
+
+        self.execute(disco.tests, disco.hooks)
     }
 }
 
