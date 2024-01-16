@@ -7187,7 +7187,6 @@ dependencies = [
  "logutil",
  "metastore",
  "object_store",
- "openssh",
  "pgrepr",
  "pgsrv",
  "regex",

@@ -26,7 +26,6 @@ sqlexec = { path = "../sqlexec" }
 telemetry = { path = "../telemetry" }
 tokio-postgres = "0.7.8"
 glob = "0.3.1"
-openssh = "0.10.2"
 regex = "1.8.1"
 sqllogictest = "0.19.1"
 uuid = { version = "1.6", features = ["v4", "fast-rng", "macro-diagnostics"] }
