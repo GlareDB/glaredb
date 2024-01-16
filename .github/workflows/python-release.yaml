@@ -5,8 +5,6 @@ name: python release
 
 on:
   push:
-    branches:
-      - "sean/slack"
     tags:
       - "*"
   schedule:

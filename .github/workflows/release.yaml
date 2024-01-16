@@ -6,8 +6,6 @@ on:
     - cron: 0 12 * * 1
   workflow_dispatch:
   push:
-    branches:
-      - "sean/slack"
     tags:
       - "*"
 
