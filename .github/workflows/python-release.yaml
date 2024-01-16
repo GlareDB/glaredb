@@ -61,7 +61,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "Python bindings build result (linux): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+              "text": "Python bindings build result (linux): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
 
   windows:
@@ -101,7 +101,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "Python bindings build result (windows): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+              "text": "Python bindings build result (windows): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
 
 
@@ -139,7 +139,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "Python bindings build result (macos): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+              "text": "Python bindings build result (macos): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
 
   release:
@@ -165,6 +165,6 @@ jobs:
         with:
           payload: |
             {
-              "text": "Python bindings publish result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+              "text": "Python bindings publish result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
 
