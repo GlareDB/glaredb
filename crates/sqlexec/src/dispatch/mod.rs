@@ -161,7 +161,6 @@ impl ViewPlanner for LocalSessionContext {
                 }))?
                 .build()?;
         }
-
         Ok(df_plan)
     }
 }

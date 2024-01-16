@@ -494,32 +494,32 @@ pub static PG_ATTRIBUTE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     name: "pg_attribute",
     sql: "
 SELECT
-    c.table_oid AS attrelid,
-    c.column_name AS attname,
-    null AS atttypeid,
-    null AS attstattarget,
-    null AS attlen,
-    null AS attnum,
-    null AS attndims,
-    null AS attcacheoff,
-    null AS atttypmod,
-    null AS attbyval,
-    null AS attalign,
-    null AS attstorage,
-    null AS attcompression,
-    null AS attnotnull,
-    null AS atthasdef,
-    null AS atthasmissing,
-    null AS attidentity,
-    null AS attgenerated,
-    null AS attisdropped,
-    null AS attislocal,
-    null AS attinhcount,
-    null AS attcollation,
-    null AS attacl,
-    null AS attoptions,
-    null AS attfdwoptions,
-    null AS attmissingval
+    null           as attacl,
+    ' '            as attalign,
+    false          as attbyval,
+    0              as attcacheoff,
+    0              as attcollation,
+    ' '            as attcompression,
+    null           as attfdwoptions,
+    ' '            as attgenerated,
+    false          as atthasdef,
+    false          as atthasmissing,
+    ' '            as attidentity,
+    0              as attinhcount,
+    false          as attisdropped,
+    false          as attislocal,
+    0::smallint    as attlen,
+    null           as attmissingval,
+    ''             as attname,
+    0              as attndims,
+    false          as attnotnull,
+    0::smallint    as attnum,
+    null           as attoptions,
+    0              as attrelid,
+    0              as attstattarget,
+    ' '            as attstorage,
+    0              as atttypid,
+    0              as atttypmod
 FROM glare_catalog.columns c",
 });
 
@@ -642,7 +642,51 @@ SELECT
 FROM glare_catalog.views;
 ",
 });
+pub static PG_TYPE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_type",
+    sql: "
+SELECT 
 
+null as typacl,
+0 as typndims,
+0 as typcollation,
+0 as oid,
+0 as typnamespace,
+0 as typowner,
+0 as typlen,
+false as typbyval,
+'r' as typtype,
+'r' as typcategory,
+false as typispreferred,
+false as typisdefined,
+'r' as typdelim,
+0 as typrelid,
+0 as typsubscript,
+0 as typelem,
+0 as typarray,
+0 as typinput,
+0 as typoutput,
+0 as typreceive,
+0 as typsend,
+0 as typmodin,
+0 as typmodout,
+0 as typanalyze,
+'r' as typalign,
+'r' as typstorage,
+false as typnotnull,
+0 as typbasetype,
+0 as typtypmod,
+'r' as typname,
+null as typdefault,
+null as typdefaultbin
+FROM (VALUES (NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL)) WHERE false",
+});
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
@@ -658,6 +702,7 @@ impl BuiltinView {
             &PG_DATABASE,
             &PG_TABLE,
             &PG_VIEWS,
+            &PG_TYPE,
         ]
     }
 }
