@@ -1792,9 +1792,10 @@ impl<'a> SessionPlanner<'a> {
             Some(CopyToFormatOptions::BSON) => CopyToFormatOptions::Bson {},
             Some(CopyToFormatOptions::LANCE) => {
                 CopyToFormatOptions::Lance(CopyToFormatOptionsLance {
-                    disable_all_column_stats: m.remove_optional("disable_all_column_stats")?,
-                    collect_all_column_stats: m.remove_optional("collect_all_column_stats")?,
-                    collect_column_stats: m.remove_optional("collect_column_stats")?,
+                    max_rows_per_file: m.remove_optional("max_rows_per_file")?,
+                    max_rows_per_group: m.remove_optional("max_rows_per_group")?,
+                    max_bytes_per_file: m.remove_optional("max_bytes_per_file")?,
+                    input_batch_size: m.remove_optional("input_batch_size")?,
                 })
             }
             Some(other) => return Err(internal!("unsupported output format: {other}")),

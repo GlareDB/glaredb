@@ -1586,7 +1586,8 @@ pub struct CopyToFormatOptionsJson {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToFormatOptionsLance {
-    pub disable_all_column_stats: Option<bool>,
-    pub collect_all_column_stats: Option<bool>,
-    pub collect_column_stats: Option<Vec<String>>,
+    pub max_rows_per_file: Option<usize>,
+    pub max_rows_per_group: Option<usize>,
+    pub max_bytes_per_file: Option<usize>,
+    pub input_batch_size: Option<usize>,
 }

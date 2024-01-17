@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 
@@ -11,17 +10,19 @@ use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::DisplayAs;
 use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
-use lance::dataset::{WriteMode, WriteParams};
-use lance::io::writer::FileWriterOptions;
+use lance::dataset::WriteMode;
 use lance::Dataset;
 use object_store::{path::Path as ObjectPath, ObjectStore};
 
+pub type LanceWriteParams = lance::dataset::WriteParams;
+
 #[derive(Debug, Clone)]
 pub struct LanceSinkOpts {
-    pub disable_all_column_stats: Option<bool>,
-    pub collect_all_column_stats: Option<bool>,
-    pub column_stats: Option<Vec<String>>,
     pub url: Option<url::Url>,
+    pub max_rows_per_file: usize,
+    pub max_rows_per_group: usize,
+    pub max_bytes_per_file: usize,
+    pub input_batch_size: usize,
 }
 
 /// Writes lance files to object storage.
@@ -30,17 +31,6 @@ pub struct LanceSink {
     store: Arc<dyn ObjectStore>,
     loc: ObjectPath,
     opts: LanceSinkOpts,
-}
-
-impl Default for LanceSinkOpts {
-    fn default() -> Self {
-        LanceSinkOpts {
-            collect_all_column_stats: Some(true),
-            column_stats: None,
-            disable_all_column_stats: None,
-            url: None,
-        }
-    }
 }
 
 impl fmt::Display for LanceSink {
@@ -59,19 +49,16 @@ impl DisplayAs for LanceSink {
 }
 
 impl LanceSink {
-    pub fn try_from_obj_store(
+    pub fn from_obj_store(
         store: Arc<dyn ObjectStore>,
         loc: impl Into<ObjectPath>,
-        opts: Option<LanceSinkOpts>,
-    ) -> Result<Self, DataFusionError> {
-        Ok(LanceSink {
+        opts: LanceSinkOpts,
+    ) -> Self {
+        LanceSink {
             store,
             loc: loc.into(),
-            opts: match opts {
-                Some(o) => o,
-                None => LanceSinkOpts::default(),
-            },
-        })
+            opts,
+        }
     }
 
     async fn stream_into_inner(
@@ -79,51 +66,19 @@ impl LanceSink {
         stream: SendableRecordBatchStream,
         mut ds: Option<Dataset>,
     ) -> DfResult<Option<Dataset>> {
-        let mut opts = FileWriterOptions::default();
-        if self.opts.collect_all_column_stats.is_some_and(|val| val) {
-            opts.collect_stats_for_fields = stream
-                .schema()
-                .fields
-                .iter()
-                .enumerate()
-                .map(|v| v.0 as i32)
-                .collect();
-        } else if self.opts.column_stats.is_some() {
-            let colls: &Vec<String> = self.opts.column_stats.as_ref().unwrap();
-            let mut set = HashSet::with_capacity(colls.len());
-
-            for c in colls.iter() {
-                set.replace(c);
-            }
-
-            opts.collect_stats_for_fields = stream
-                .schema()
-                .fields
-                .iter()
-                .map(|f| f.name().to_owned())
-                .filter(|f| set.contains(f))
-                .enumerate()
-                .map(|v| v.0 as i32)
-                .collect();
+        let table = match self.opts.url.clone() {
+            Some(opts_url) => opts_url.join(self.loc.as_ref()),
+            None => url::Url::parse(self.loc.as_ref()),
         }
-        let table = if self.opts.url.is_some() {
-            self.opts
-                .url
-                .clone()
-                .unwrap()
-                .join(self.loc.as_ref())
-                .map_err(|e| DataFusionError::External(Box::new(e)))?
-        } else {
-            url::Url::parse(self.loc.as_ref())
-                .map_err(|e| DataFusionError::External(Box::new(e)))?
-        };
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
         let schema = stream.schema().clone();
         let mut chunks = stream.chunks(32);
-        let write_opts = WriteParams {
+        let write_opts = LanceWriteParams {
             mode: WriteMode::Overwrite,
             ..Default::default()
         };
+
         while let Some(batches) = chunks.next().await {
             let batch_iter =
                 RecordBatchIterator::new(batches.into_iter().map(|item| Ok(item?)), schema.clone());

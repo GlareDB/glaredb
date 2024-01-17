@@ -13,7 +13,7 @@ use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use datasources::common::sink::bson::BsonSink;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
-use datasources::common::sink::lance::{LanceSink, LanceSinkOpts};
+use datasources::common::sink::lance::{LanceSink, LanceSinkOpts, LanceWriteParams};
 use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
 use datasources::common::url::DatasourceUrl;
 use datasources::object_store::gcs::GcsStoreAccess;
@@ -206,16 +206,29 @@ fn get_sink_for_obj(
                 row_group_size: parquet_opts.row_group_size,
             },
         )),
-        CopyToFormatOptions::Lance(opts) => Box::new(LanceSink::try_from_obj_store(
-            store,
-            path,
-            Some(LanceSinkOpts {
-                disable_all_column_stats: opts.disable_all_column_stats,
-                collect_all_column_stats: opts.collect_all_column_stats,
-                column_stats: opts.collect_column_stats,
-                url: Some(url::Url::parse(access.base_url().unwrap().as_str()).unwrap()),
-            }),
-        )?),
+        CopyToFormatOptions::Lance(opts) => {
+            let wp = LanceWriteParams::default();
+
+            Box::new(LanceSink::from_obj_store(
+                store,
+                path,
+                LanceSinkOpts {
+                    url: Some(
+                        url::Url::parse(
+                            access
+                                .base_url()
+                                .map_err(|e| DataFusionError::External(Box::new(e)))?
+                                .as_str(),
+                        )
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?,
+                    ),
+                    max_rows_per_file: opts.max_rows_per_file.unwrap_or(wp.max_rows_per_file),
+                    max_rows_per_group: opts.max_rows_per_group.unwrap_or(wp.max_rows_per_group),
+                    max_bytes_per_file: opts.max_bytes_per_file.unwrap_or(wp.max_bytes_per_file),
+                    input_batch_size: opts.input_batch_size.unwrap_or(64),
+                },
+            ))
+        }
         CopyToFormatOptions::Json(json_opts) => Box::new(JsonSink::from_obj_store(
             store,
             path,
