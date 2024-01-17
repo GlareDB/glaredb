@@ -373,39 +373,90 @@ jobs:
           # in order to test the SSH tunnels (which is our aim).
           just slt-bin  --jobs=1 '*/tunnels/ssh' --exclude 'sqllogictests_mysql/*'
 
+          # TODO: move these into the datasource-integration-tests job
+          
           echo "-------------------------------- RPC TESTS --------------------------------"
+
+          echo "--------------------------  BigQuery -------------------------- "
           just slt-bin --protocol=rpc 'sqllogictests_bigquery/*'
+          echo "--------------------------  Iceberg -------------------------- "
           just slt-bin --protocol=rpc 'sqllogictests_iceberg/*'
+
+          echo "--------------------------  Native -------------------------- "
           just slt-bin --protocol=rpc 'sqllogictests_native/*'
+
+          echo "--------------------------  Object Store -------------------------- "
           just slt-bin --protocol=rpc 'sqllogictests_object_store/*'
-        
+
+          echo "--------------------------  Postgres -------------------------- "
           just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
 
-          echo "-------------------------- REMOTE DATA STORAGE TESTS --------------------------------"
-          # Test using a remote object store for storing databases and catalog
-          # MinIO (S3)
-          just slt-bin --location http://localhost:9100 \
-              --option access_key_id=$MINIO_ACCESS_KEY \
-              --option secret_access_key=$MINIO_SECRET_KEY \
-              --option bucket=$TEST_BUCKET \
-              'sqllogictests/*' \
-              'sqllogictests_native/*'
+          echo "--------------------------  Fake GCS server with a subdirectory -------------------------- "
+          just slt-bin -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
+          just slt-bin -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
 
-          # MinIO (S3) but with a sub-directory path
+  minio-integration-tests:
+    name: MinIO Integration Tests (SLT::MinIO)
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - uses: actions/cache@v3
+        name: glaredb cache
+        with:
+          path: target/debug/glaredb
+          key: ${{ github.run_id }}
+
+      - name: run tests (slt)
+        env:
+          MINIO_ACCESS_KEY: glaredb
+          MINIO_SECRET_KEY: glaredb_test
+          TEST_BUCKET: glaredb-test-bucket
+        run: |
+          # prepare testdata
+          ./scripts/prepare-testdata.sh
+
+          # Prepare SLT (MinIO)
+          ./scripts/create-test-minio-store.sh
+
+          echo "--------------------------  MinIO (S3) -------------------------- "
+
+          # PG protocol
+          just slt-bin --location http://localhost:9100 \
+            --option access_key_id=$MINIO_ACCESS_KEY \
+            --option secret_access_key=$MINIO_SECRET_KEY \
+            --option bucket=$TEST_BUCKET \
+            'sqllogictests/*' \
+            'sqllogictests_native/*'
+
+          # Flight protocol
+          just slt-bin --location http://localhost:9100 \
+            --option access_key_id=$MINIO_ACCESS_KEY \
+            --option secret_access_key=$MINIO_SECRET_KEY \
+            --option bucket=$TEST_BUCKET \
+            'sqllogictests/*' \
+            'sqllogictests_native/*' \
+            --protocol=flightsql
+
+          echo "--------------------------  MinIO (S3) With a sub-directory -------------------------- "
+          # PG protocol
           just slt-bin -l http://localhost:9100/$TEST_BUCKET/path/to/folder \
               -o access_key_id=$MINIO_ACCESS_KEY \
               -o secret_access_key=$MINIO_SECRET_KEY \
               'sqllogictests/*'
-
-          # Fake GCS server with a sub-directory path; run with two different folder paths to assert no conflicts arise
-          just slt-bin -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
-          just slt-bin -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
-
-
+          
+          # Flight protocol
+          just slt-bin -l http://localhost:9100/$TEST_BUCKET/path/to/folder \
+              -o access_key_id=$MINIO_ACCESS_KEY \
+              -o secret_access_key=$MINIO_SECRET_KEY \
+              'sqllogictests/*' \
+              --protocol=flightsql
 
   datasource-integration-tests:
     name: Datasource Integration (${{matrix.settings.name}})
-    strategy: 
+    strategy:
       matrix:
         settings:
           - name: Clickhouse
@@ -435,7 +486,7 @@ jobs:
             prepare: |
               ./scripts/prepare-testdata.sh
               export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
-    
+
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
@@ -460,7 +511,7 @@ jobs:
           if [[ "${{ matrix.settings.name }}" != 'Clickhouse' ]]; then
              just slt-bin --protocol=flightsql --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
           fi
-              
+
   service-integration-tests-snowflake:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
     name: Snowflake Service Integration Tests (SLT::Snowflake)

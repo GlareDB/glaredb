@@ -55,14 +55,14 @@ test *args: protoc
 
 # Run unit tests.
 unit-tests *args: protoc
-  just test --workspace --exclude testing {{args}}
+  just test --workspace {{args}}
 
 # Run doc tests.
 doc-tests: protoc
   just test --doc
 
 # Run SQL Logic Tests.
-sql-logic-tests *args: build 
+sql-logic-tests *args: build
   just slt-bin {{args}}
 
 slt-bin *args:

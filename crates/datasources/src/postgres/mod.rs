@@ -1133,11 +1133,17 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 }
                 Arc::new(arr.finish())
             }
-            DataType::Timestamp(TimeUnit::Nanosecond, None) => {
+            dt @ DataType::Timestamp(TimeUnit::Nanosecond, None) => {
                 let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> = row.try_get(col_idx)?;
-                    let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
+                    let val = val
+                        .map(|v| {
+                            v.timestamp_nanos_opt().ok_or_else(|| {
+                                PostgresError::DataOverflow(v.to_string(), dt.clone())
+                            })
+                        })
+                        .transpose()?;
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
@@ -1147,7 +1153,13 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                     .with_data_type(dt.clone());
                 for row in rows.iter() {
                     let val: Option<DateTime<Utc>> = row.try_get(col_idx)?;
-                    let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
+                    let val = val
+                        .map(|v| {
+                            v.timestamp_nanos_opt().ok_or_else(|| {
+                                PostgresError::DataOverflow(v.to_string(), dt.clone())
+                            })
+                        })
+                        .transpose()?;
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
