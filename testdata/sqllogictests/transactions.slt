@@ -3,14 +3,18 @@
 # While we don't support proper semantics yet, we should be allowing these
 # statements through.
 
+skipif glaredb_flight
 statement ok
 begin;
 
+skipif glaredb_flight
 statement ok
 commit;
 
+skipif glaredb_flight
 statement ok
 begin;
 
+skipif glaredb_flight
 statement ok
 rollback;
