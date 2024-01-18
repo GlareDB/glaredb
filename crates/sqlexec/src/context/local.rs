@@ -63,6 +63,8 @@ pub struct LocalSessionContext {
     env_reader: Option<Box<dyn EnvironmentReader>>,
     /// Task scheduler.
     task_scheduler: Scheduler,
+    /// Notices that should be sent to the user.
+    notices: Vec<Notice>,
 }
 
 impl LocalSessionContext {
@@ -106,6 +108,7 @@ impl LocalSessionContext {
             df_ctx,
             env_reader: None,
             task_scheduler,
+            notices: Vec::new(),
         })
     }
 
@@ -318,6 +321,11 @@ impl LocalSessionContext {
     /// Remove a portal.
     pub fn remove_portal(&mut self, name: &str) {
         self.portals.remove(name);
+    }
+
+    /// Drain all notices from the session.
+    pub(crate) fn drain_notices(&mut self) -> impl Iterator<Item = Notice> + '_ {
+        self.notices.drain(..)
     }
 
     /// Get a datafusion task context to use for physical plan execution.
@@ -548,4 +556,30 @@ impl<'a> Iterator for OutputFields<'a> {
             format,
         })
     }
+}
+
+/// Indicates severity of notice.
+///
+/// Additional severities should match severities specified in the postgres
+/// protocol.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoticeSeverity {
+    Warning,
+    Info,
+}
+
+/// What triggered the notice.
+///
+/// Additional conditions should map to a SQLSTATE error code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoticeCondition {
+    FeatureNotSupported,
+}
+
+/// A notice that should be displayed to the user.
+#[derive(Debug)]
+pub struct Notice {
+    pub severity: NoticeSeverity,
+    pub message: String,
+    pub condition: NoticeCondition,
 }

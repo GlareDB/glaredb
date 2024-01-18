@@ -426,6 +426,16 @@ where
     }
 
     async fn ready_for_query(&mut self) -> Result<()> {
+        // Display notice messages before indicating we're ready for the next
+        // query. The pg protocol does not presribe a specific flow for notice
+        // messages, and so frontends should be capable of handling notices at
+        // any point in the message flow.
+        for notice in self.session.drain_notices() {
+            self.conn
+                .send(BackendMessage::NoticeResponse(notice.into()))
+                .await?;
+        }
+
         // TODO: Proper status.
         self.conn
             .send(BackendMessage::ReadyForQuery(TransactionStatus::Idle))

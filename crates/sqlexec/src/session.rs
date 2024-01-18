@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
+use crate::context::local::{LocalSessionContext, Notice, Portal, PreparedStatement};
 use crate::distexec::scheduler::{OutputSink, Scheduler};
 use crate::distexec::stream::create_coalescing_adapter;
 use crate::environment::EnvironmentReader;
@@ -542,6 +542,10 @@ impl Session {
         self.ctx.remove_portal(name);
     }
 
+    pub fn drain_notices(&mut self) -> impl Iterator<Item = Notice> + '_ {
+        self.ctx.drain_notices()
+    }
+
     /// Bind the parameters of a prepared statement to the given values.
     ///
     /// If successful, the bound statement will create a portal which can be
@@ -570,9 +574,14 @@ impl Session {
         // try to open a transaction for some queries.
         match plan {
             LogicalPlan::Noop => Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery)),
-            LogicalPlan::Transaction(_plan) => {
-                Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery))
-            }
+            LogicalPlan::Transaction(plan) => Ok((
+                EMPTY_EXEC_PLAN.clone(),
+                match plan {
+                    TransactionPlan::Begin => ExecutionResult::Begin,
+                    TransactionPlan::Commit => ExecutionResult::Commit,
+                    TransactionPlan::Abort => ExecutionResult::Rollback,
+                },
+            )),
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan, op).await?;
                 let stream = self.execute_physical_plan(physical.clone()).await?;

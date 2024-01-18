@@ -214,6 +214,16 @@ impl SqlState {
     }
 }
 
+impl From<sqlexec::context::local::NoticeCondition> for SqlState {
+    fn from(value: sqlexec::context::local::NoticeCondition) -> Self {
+        match value {
+            sqlexec::context::local::NoticeCondition::FeatureNotSupported => {
+                SqlState::FeatureNotSupported
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct ErrorResponse {
     pub severity: ErrorSeverity,
@@ -289,6 +299,15 @@ impl NoticeSeverity {
     }
 }
 
+impl From<sqlexec::context::local::NoticeSeverity> for NoticeSeverity {
+    fn from(value: sqlexec::context::local::NoticeSeverity) -> Self {
+        match value {
+            sqlexec::context::local::NoticeSeverity::Warning => Self::Warning,
+            sqlexec::context::local::NoticeSeverity::Info => Self::Info,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct NoticeResponse {
     pub severity: NoticeSeverity,
@@ -302,6 +321,16 @@ impl NoticeResponse {
             severity: NoticeSeverity::Info,
             code: SqlState::Successful,
             message: msg.into(),
+        }
+    }
+}
+
+impl From<sqlexec::context::local::Notice> for NoticeResponse {
+    fn from(value: sqlexec::context::local::Notice) -> Self {
+        NoticeResponse {
+            severity: value.severity.into(),
+            code: value.condition.into(),
+            message: value.message,
         }
     }
 }
