@@ -25,6 +25,7 @@ tracing = { workspace = true }
 thiserror.workspace = true
 decimal = { path = "../decimal" }
 protogen = { path = "../protogen" }
+pgrepr = { path = "../pgrepr" }
 futures = { workspace = true }
 parking_lot = "0.12.1"
 bson = "2.7.0"

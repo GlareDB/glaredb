@@ -40,6 +40,7 @@ use datasources::native::access::NativeTableStorage;
 use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
 use pgrepr::format::Format;
+use pgrepr::notice::{Notice, NoticeSeverity, SqlState};
 use telemetry::Tracker;
 use uuid::Uuid;
 
@@ -542,6 +543,10 @@ impl Session {
         self.ctx.remove_portal(name);
     }
 
+    pub fn take_notices(&mut self) -> Vec<Notice> {
+        self.ctx.take_notices()
+    }
+
     /// Bind the parameters of a prepared statement to the given values.
     ///
     /// If successful, the bound statement will create a portal which can be
@@ -570,8 +575,23 @@ impl Session {
         // try to open a transaction for some queries.
         match plan {
             LogicalPlan::Noop => Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery)),
-            LogicalPlan::Transaction(_plan) => {
-                Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery))
+            LogicalPlan::Transaction(plan) => {
+                // Push a notice to let the user know about our current
+                // transaction handling.
+                self.ctx.push_notice(Notice{
+                    severity: NoticeSeverity::Warning,
+                    code: SqlState::FeatureNotSupported,
+                    message: "GlareDB does not support proper transactional semantics. Do not rely on transactions for correctness. Transactions are stubbed out to enable compatability with existing Postgres tools.".to_string(),
+                });
+
+                Ok((
+                    EMPTY_EXEC_PLAN.clone(),
+                    match plan {
+                        TransactionPlan::Begin => ExecutionResult::Begin,
+                        TransactionPlan::Commit => ExecutionResult::Commit,
+                        TransactionPlan::Abort => ExecutionResult::Rollback,
+                    },
+                ))
             }
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan, op).await?;

@@ -369,7 +369,16 @@ and asserts that we receive the appropriate backend messages. These tests ensure
 postgres protocol compatability as well as allowing us to assert the contents of
 error and notice messages.
 
-Test cases can be found in `./testdata/pgprototest`.
+Test cases can be found in `./testdata/pgprototest` and
+`./testdata/pgprototest_glaredb`.
+
+The `pgprototest` directory is for test cases to assert that GlareDB matches
+Postgres exactly, and the expected output should be generated from an actual
+Postgres instance.
+
+The `pgprototest_glaredb` directory contains test cases that do match Postgres
+output exactly either because of an incomplete feature, or differing behavior.
+The expected output for these tests need to be hand-crafted.
 
 Tests can be ran with the `pgprototest` command:
 
