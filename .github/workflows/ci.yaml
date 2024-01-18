@@ -255,6 +255,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - name: install poetry
         uses: snok/install-poetry@v1
       - name: install python
@@ -307,6 +309,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: glaredb cache
         with:
@@ -417,6 +421,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: glaredb cache
         with:
@@ -507,6 +513,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: glaredb cache
         with:
@@ -538,6 +546,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: glaredb cache
         with:
