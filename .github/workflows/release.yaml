@@ -45,7 +45,8 @@ jobs:
           targets: ${{ matrix.target }}
 
       - uses: extractions/setup-just@v1
-
+        with:
+          just-version: "1.23.0"
       - name: Build
         run: just dist
 

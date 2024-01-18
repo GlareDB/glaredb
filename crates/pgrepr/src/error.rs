@@ -32,6 +32,9 @@ pub enum PgReprError {
 
     #[error("Internal error: {0}")]
     InternalError(String),
+
+    #[error("{0}")]
+    String(String),
 }
 
 pub type Result<T, E = PgReprError> = std::result::Result<T, E>;

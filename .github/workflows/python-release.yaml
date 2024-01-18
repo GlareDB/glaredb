@@ -34,6 +34,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - name: install protoc
         run: just protoc
       - uses: actions/setup-python@v5
@@ -71,6 +73,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - name: install protoc
         run: just protoc
 
@@ -112,6 +116,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - name: install protoc
         run: just protoc
       - uses: actions/setup-python@v5
@@ -165,4 +171,3 @@ jobs:
             {
               "text": "Python bindings publish result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
-

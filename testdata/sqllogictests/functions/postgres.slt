@@ -10,7 +10,6 @@
 statement ok
 set search_path = public;
 
-
 query T
 select current_schema();
 ----
@@ -18,7 +17,6 @@ public
 
 skipif glaredb_flight
 query T
-
 select current_user;
 ----
 glaredb
