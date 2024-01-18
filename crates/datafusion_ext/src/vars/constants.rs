@@ -1,5 +1,7 @@
 use super::*;
 
+use pgrepr::notice::NoticeSeverity;
+
 // TODO: Decide proper postgres version to spoof/support
 pub(super) const SERVER_VERSION: ServerVar<str> = ServerVar {
     name: "server_version",
@@ -73,6 +75,14 @@ pub(super) static SEARCH_PATH: Lazy<ServerVar<[String]>> = Lazy::new(|| ServerVa
     user_configurable: true,
     description: "Search path for schemas",
 });
+
+pub(super) const CLIENT_MIN_MESSAGES: ServerVar<NoticeSeverity> = ServerVar {
+    name: "client_min_messages",
+    value: &NoticeSeverity::Notice,
+    group: "postgres",
+    user_configurable: true,
+    description: "Controls which messages are sent to the client, defaults NOTICE",
+};
 
 pub(super) static GLAREDB_VERSION_OWNED: Lazy<String> =
     Lazy::new(|| format!("v{}", env!("CARGO_PKG_VERSION")));

@@ -94,3 +94,18 @@ set timezone = 'UTC';
 
 statement ok
 set TIMEZONE = 'UTC';
+
+# client_min_messages
+
+query T
+show client_min_messages;
+----
+NOTICE
+
+statement ok
+set client_min_messages to WARNING;
+
+query T
+show client_min_messages;
+----
+WARNING
