@@ -4,6 +4,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::config::ConfigEntry;
 use datafusion::error::Result;
 use datafusion::variable::VarType;
+use pgrepr::notice::NoticeSeverity;
 use std::borrow::Borrow;
 
 use super::constants::*;
@@ -32,6 +33,7 @@ pub struct SessionVarsInner {
     pub datestyle: SessionVar<str>,
     pub transaction_isolation: SessionVar<str>,
     pub search_path: SessionVar<[String]>,
+    pub client_min_messages: SessionVar<NoticeSeverity>,
     pub enable_debug_datasources: SessionVar<bool>,
     pub force_catalog_refresh: SessionVar<bool>,
     pub glaredb_version: SessionVar<str>,
@@ -82,6 +84,8 @@ impl SessionVarsInner {
             Ok(&self.transaction_isolation)
         } else if name.eq_ignore_ascii_case(SEARCH_PATH.name) {
             Ok(&self.search_path)
+        } else if name.eq_ignore_ascii_case(CLIENT_MIN_MESSAGES.name) {
+            Ok(&self.client_min_messages)
         } else if name.eq_ignore_ascii_case(ENABLE_DEBUG_DATASOURCES.name) {
             Ok(&self.enable_debug_datasources)
         } else if name.eq_ignore_ascii_case(FORCE_CATALOG_REFRESH.name) {
@@ -139,6 +143,8 @@ impl SessionVarsInner {
             self.transaction_isolation.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(SEARCH_PATH.name) {
             self.search_path.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(CLIENT_MIN_MESSAGES.name) {
+            self.client_min_messages.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(ENABLE_DEBUG_DATASOURCES.name) {
             self.enable_debug_datasources.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(FORCE_CATALOG_REFRESH.name) {
@@ -214,6 +220,7 @@ impl Default for SessionVarsInner {
             datestyle: SessionVar::new(&DATESTYLE),
             transaction_isolation: SessionVar::new(&TRANSACTION_ISOLATION),
             search_path: SessionVar::new(&SEARCH_PATH),
+            client_min_messages: SessionVar::new(&CLIENT_MIN_MESSAGES),
             enable_debug_datasources: SessionVar::new(&ENABLE_DEBUG_DATASOURCES),
             force_catalog_refresh: SessionVar::new(&FORCE_CATALOG_REFRESH),
             glaredb_version: SessionVar::new(&GLAREDB_VERSION),

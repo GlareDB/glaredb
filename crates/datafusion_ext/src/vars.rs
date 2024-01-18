@@ -8,6 +8,7 @@ use constants::*;
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::config::{ConfigExtension, ExtensionOptions};
 use datafusion::scalar::ScalarValue;
+use pgrepr::notice::NoticeSeverity;
 use utils::*;
 
 use datafusion::variable::{VarProvider, VarType};
@@ -79,6 +80,7 @@ impl SessionVars {
      datestyle: String,
      transaction_isolation: String,
      search_path: Vec<String>,
+     client_min_messages: NoticeSeverity,
      enable_debug_datasources: bool,
      force_catalog_refresh: bool,
      glaredb_version: String,

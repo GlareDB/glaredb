@@ -5,9 +5,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::context::local::{
-    LocalSessionContext, Notice, NoticeCondition, NoticeSeverity, Portal, PreparedStatement,
-};
+use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
 use crate::distexec::scheduler::{OutputSink, Scheduler};
 use crate::distexec::stream::create_coalescing_adapter;
 use crate::environment::EnvironmentReader;
@@ -42,6 +40,7 @@ use datasources::native::access::NativeTableStorage;
 use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
 use pgrepr::format::Format;
+use pgrepr::notice::{Notice, NoticeSeverity, SqlState};
 use telemetry::Tracker;
 use uuid::Uuid;
 
@@ -544,7 +543,7 @@ impl Session {
         self.ctx.remove_portal(name);
     }
 
-    pub fn drain_notices(&mut self) -> impl Iterator<Item = Notice> + '_ {
+    pub fn drain_notices(&mut self) -> Vec<Notice> {
         self.ctx.drain_notices()
     }
 
@@ -581,7 +580,7 @@ impl Session {
                 // transaction handling.
                 self.ctx.push_notice(Notice{
                     severity: NoticeSeverity::Warning,
-                    condition: NoticeCondition::FeatureNotSupported,
+                    code: SqlState::FeatureNotSupported,
                     message: "GlareDB does not support proper transactional semantics. Do not rely on transactions for correctness. Transactions are stubbed out to enable compatability with existing Postgres tools.".to_string(),
                 });
 

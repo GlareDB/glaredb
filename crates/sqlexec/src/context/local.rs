@@ -18,6 +18,7 @@ use datafusion_ext::session_metrics::SessionMetricsHandler;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use pgrepr::format::Format;
+use pgrepr::notice::Notice;
 use pgrepr::types::arrow_to_pg_type;
 
 use datafusion::variable::VarType;
@@ -328,8 +329,21 @@ impl LocalSessionContext {
     }
 
     /// Drain all notices from the session.
-    pub(crate) fn drain_notices(&mut self) -> impl Iterator<Item = Notice> + '_ {
-        self.notices.drain(..)
+    ///
+    /// This will take into account the 'client_min_messages' session var to
+    /// filter out notices that shouldn't be sent to the client.
+    pub(crate) fn drain_notices(&mut self) -> Vec<Notice> {
+        // Behind an if since this is called every query, and session vars is behind  a lock :)
+        // Let's get rid of the lock.
+        if !self.notices.is_empty() {
+            let min = self.get_session_vars().client_min_messages();
+            self.notices
+                .drain(..)
+                .filter(|notice| notice.severity >= min)
+                .collect()
+        } else {
+            Vec::new()
+        }
     }
 
     /// Get a datafusion task context to use for physical plan execution.
@@ -560,30 +574,4 @@ impl<'a> Iterator for OutputFields<'a> {
             format,
         })
     }
-}
-
-/// Indicates severity of notice.
-///
-/// Additional severities should match severities specified in the postgres
-/// protocol.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NoticeSeverity {
-    Warning,
-    Info,
-}
-
-/// What triggered the notice.
-///
-/// Additional conditions should map to a SQLSTATE error code.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NoticeCondition {
-    FeatureNotSupported,
-}
-
-/// A notice that should be displayed to the user.
-#[derive(Debug)]
-pub struct Notice {
-    pub severity: NoticeSeverity,
-    pub message: String,
-    pub condition: NoticeCondition,
 }

@@ -28,6 +28,7 @@ sleep 5
 ret=0
 cargo run --bin pgprototest -- \
     --dir ./testdata/pgprototest \
+    --dir ./testdata/pgprototest_glaredb \
     --addr localhost:6543 \
     --user glaredb \
     --password dummy \

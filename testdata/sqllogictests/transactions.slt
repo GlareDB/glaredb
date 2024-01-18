@@ -1,0 +1,16 @@
+# Transaction statement support
+#
+# While we don't support proper semantics yet, we should be allowing these
+# statements through.
+
+statement ok
+begin;
+
+statement ok
+commit;
+
+statement ok
+begin;
+
+statement ok
+rollback;

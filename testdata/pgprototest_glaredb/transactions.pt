@@ -1,0 +1,43 @@
+# Check that we send back the proper notice about transaction support.
+#
+# These are hand-crafted as they don't align with what postgres would returns.
+#
+# Notable differences:
+# - Status is always 'I' for us (should be 'T' when inside a transaction)
+# - We return a notice (at the warning level) on transaction commands
+
+# Basic begin
+
+send
+Query {"query": "begin"}
+----
+
+until
+ReadyForQuery
+----
+CommandComplete {"tag":"BEGIN"}
+NoticeResponse {"fields":["WARNING","WARNING","0A000","GlareDB does not support proper transactional semantics. Do not rely on transactions for correctness. Transactions are stubbed out to enable compatability with existing Postgres tools."]}
+ReadyForQuery {"status":"I"}
+
+
+# Check that we can disable the warning message with 'client_min_messages'
+
+send
+Query {"query": "set client_min_messages to ERROR"}
+----
+
+until
+ReadyForQuery
+----
+CommandComplete {"tag":"SET"}
+ReadyForQuery {"status":"I"}
+
+send
+Query {"query": "begin"}
+----
+
+until
+ReadyForQuery
+----
+CommandComplete {"tag":"BEGIN"}
+ReadyForQuery {"status":"I"}
