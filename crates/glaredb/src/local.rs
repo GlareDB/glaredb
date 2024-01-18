@@ -14,6 +14,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use pgrepr::format::Format;
+use pgrepr::notice::NoticeSeverity;
 use reedline::{FileBackedHistory, Reedline, Signal};
 use std::collections::HashMap;
 
@@ -160,6 +161,25 @@ impl LocalSession {
                             Ok(_) => {}
                             Err(e) => println!("Error: {e}"),
                         };
+
+                        // Print out notices as needed.
+                        //
+                        // Note this isn't being called in the above `execute`
+                        // function since that can be called in a
+                        // non-interactive fashion which and having notice
+                        // messages interspersed with the output would be
+                        // annoying.
+                        for notice in self.sess.drain_notices() {
+                            println!(
+                                "{}: {}",
+                                match notice.severity {
+                                    s @ (NoticeSeverity::Warning | NoticeSeverity::Error) =>
+                                        s.to_string().red(),
+                                    other => other.to_string().blue(),
+                                },
+                                notice.message
+                            );
+                        }
                     }
                 },
                 Ok(Signal::CtrlD) => break,

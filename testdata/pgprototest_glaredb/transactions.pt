@@ -41,3 +41,34 @@ ReadyForQuery
 ----
 CommandComplete {"tag":"BEGIN"}
 ReadyForQuery {"status":"I"}
+
+
+# Sanity checks to ensure we send back correct tags for COMMIT and ROLLBACK.
+
+send
+Query {"query": "begin; select 1; commit"}
+----
+
+until
+ReadyForQuery
+----
+CommandComplete {"tag":"BEGIN"}
+RowDescription {"fields":[{"name":"Int64(1)"}]}
+DataRow {"fields":["1"]}
+CommandComplete {"tag":"SELECT 1"}
+CommandComplete {"tag":"COMMIT"}
+ReadyForQuery {"status":"I"}
+
+send
+Query {"query": "begin; select 1; rollback"}
+----
+
+until
+ReadyForQuery
+----
+CommandComplete {"tag":"BEGIN"}
+RowDescription {"fields":[{"name":"Int64(1)"}]}
+DataRow {"fields":["1"]}
+CommandComplete {"tag":"SELECT 1"}
+CommandComplete {"tag":"ROLLBACK"}
+ReadyForQuery {"status":"I"}

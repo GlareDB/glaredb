@@ -432,7 +432,7 @@ where
         // any point in the message flow.
         for notice in self.session.drain_notices() {
             self.conn
-                .send(BackendMessage::NoticeResponse(notice.into()))
+                .send(BackendMessage::NoticeResponse(notice))
                 .await?;
         }
 
