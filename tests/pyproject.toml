@@ -10,6 +10,8 @@ python = "^3.11"
 pytest = "^7.4.3"
 pymongo = "^4.6.1"
 psycopg2 = "^2.9.9"
+pyarrow = "^14.0.2"
+pylance = "^0.9.6"
 
 [build-system]
 requires = ["poetry-core"]
