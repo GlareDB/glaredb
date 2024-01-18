@@ -170,7 +170,7 @@ impl LocalSession {
                         // messages interspersed with the output would be
                         // annoying.
                         for notice in self.sess.drain_notices() {
-                            println!(
+                            eprintln!(
                                 "{}: {}",
                                 match notice.severity {
                                     s @ (NoticeSeverity::Warning | NoticeSeverity::Error) =>
