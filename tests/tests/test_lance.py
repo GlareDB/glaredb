@@ -8,6 +8,7 @@ import psycopg2.extras
 import pytest
 
 
+import tools
 from fixtures.glaredb import glaredb_connection, debug_path
 
 
@@ -47,16 +48,26 @@ def test_copy_to_round_trip(
         for i in range(10):
             curr.execute("insert into lance_test values (%s)", str(i))
 
-    output_path = tmp_path_factory.mktemp("lance")
+    output_path_abs = tmp_path_factory.mktemp("lance-abs")
 
     with glaredb_connection.cursor() as curr:
         curr.execute("select count(*) from lance_test;")
         res = curr.fetchone()
         assert res[0] == 10
 
-        curr.execute(f"COPY lance_test TO '{output_path}' FORMAT lance")
+        curr.execute(f"COPY lance_test TO '{output_path_abs}' FORMAT lance")
 
     with glaredb_connection.cursor() as curr:
-        curr.execute(f"select count(*) from lance_scan('{output_path}')")
+        curr.execute(f"select count(*) from lance_scan('{output_path_abs}')")
         res = curr.fetchone()
         assert res[0] == 10
+
+    output_path_rel = tmp_path_factory.mktemp("lance-rel")
+
+    with tools.cd(output_path_rel):
+        with glaredb_connection.cursor() as curr:
+            curr.execute("COPY lance_test TO './' FORMAT lance")
+
+            curr.execute("select count(*) from lance_scan('./')")
+            res = curr.fetchone()
+            assert res[0] == 10
