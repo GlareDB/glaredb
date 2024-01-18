@@ -19,6 +19,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: toolchain cache
         with:
@@ -54,6 +56,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: toolchain cache
         with:
@@ -81,6 +85,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: toolchain cache
         with:
@@ -105,6 +111,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: toolchain cache
         with:
@@ -142,6 +150,8 @@ jobs:
         with:
           node-version: 20
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: toolchain cache
         with:
@@ -174,6 +184,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: toolchain cache
         with:
@@ -211,6 +223,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: glaredb cache
         with:
@@ -241,6 +255,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - name: install poetry
         uses: snok/install-poetry@v1
       - name: install python
@@ -293,6 +309,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: glaredb cache
         with:
@@ -374,7 +392,7 @@ jobs:
           just slt-bin  --jobs=1 '*/tunnels/ssh' --exclude 'sqllogictests_mysql/*'
 
           # TODO: move these into the datasource-integration-tests job
-          
+
           echo "-------------------------------- RPC TESTS --------------------------------"
 
           echo "--------------------------  BigQuery -------------------------- "
@@ -403,6 +421,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: glaredb cache
         with:
@@ -446,7 +466,7 @@ jobs:
               -o access_key_id=$MINIO_ACCESS_KEY \
               -o secret_access_key=$MINIO_SECRET_KEY \
               'sqllogictests/*'
-          
+
           # Flight protocol
           just slt-bin -l http://localhost:9100/$TEST_BUCKET/path/to/folder \
               -o access_key_id=$MINIO_ACCESS_KEY \
@@ -493,6 +513,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: glaredb cache
         with:
@@ -524,6 +546,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
       - uses: actions/cache@v3
         name: glaredb cache
         with:
