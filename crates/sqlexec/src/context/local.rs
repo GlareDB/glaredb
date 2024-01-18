@@ -323,6 +323,10 @@ impl LocalSessionContext {
         self.portals.remove(name);
     }
 
+    pub(crate) fn push_notice(&mut self, notice: Notice) {
+        self.notices.push(notice)
+    }
+
     /// Drain all notices from the session.
     pub(crate) fn drain_notices(&mut self) -> impl Iterator<Item = Notice> + '_ {
         self.notices.drain(..)

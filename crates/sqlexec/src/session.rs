@@ -5,7 +5,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::context::local::{LocalSessionContext, Notice, Portal, PreparedStatement};
+use crate::context::local::{
+    LocalSessionContext, Notice, NoticeCondition, NoticeSeverity, Portal, PreparedStatement,
+};
 use crate::distexec::scheduler::{OutputSink, Scheduler};
 use crate::distexec::stream::create_coalescing_adapter;
 use crate::environment::EnvironmentReader;
@@ -574,14 +576,24 @@ impl Session {
         // try to open a transaction for some queries.
         match plan {
             LogicalPlan::Noop => Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery)),
-            LogicalPlan::Transaction(plan) => Ok((
-                EMPTY_EXEC_PLAN.clone(),
-                match plan {
-                    TransactionPlan::Begin => ExecutionResult::Begin,
-                    TransactionPlan::Commit => ExecutionResult::Commit,
-                    TransactionPlan::Abort => ExecutionResult::Rollback,
-                },
-            )),
+            LogicalPlan::Transaction(plan) => {
+                // Push a notice to let the user know about our current
+                // transaction handling.
+                self.ctx.push_notice(Notice{
+                    severity: NoticeSeverity::Warning,
+                    condition: NoticeCondition::FeatureNotSupported,
+                    message: "GlareDB does not support proper transactional semantics. Do not rely on transactions for correctness. Transactions are stubbed out to enable compatability with existing Postgres tools.".to_string(),
+                });
+
+                Ok((
+                    EMPTY_EXEC_PLAN.clone(),
+                    match plan {
+                        TransactionPlan::Begin => ExecutionResult::Begin,
+                        TransactionPlan::Commit => ExecutionResult::Commit,
+                        TransactionPlan::Abort => ExecutionResult::Rollback,
+                    },
+                ))
+            }
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan, op).await?;
                 let stream = self.execute_physical_plan(physical.clone()).await?;
