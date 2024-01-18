@@ -102,6 +102,13 @@ impl LanceSink {
 
 #[async_trait]
 impl DataSink for LanceSink {
+    // the dataset is the handle to the lance database.
+    //
+    // there's no way to construct an empty dataset except by writing
+    // to it, so we pass this optional wrapped dataset to this method,
+    // if it's none, we create a new one, and if it's not we use the
+    // dataset we constructed before from the optional, and return it,
+    // and pass it into the next call.
     async fn write_all(
         &self,
         data: Vec<SendableRecordBatchStream>,
