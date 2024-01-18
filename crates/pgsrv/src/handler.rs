@@ -430,7 +430,7 @@ where
         // query. The pg protocol does not presribe a specific flow for notice
         // messages, and so frontends should be capable of handling notices at
         // any point in the message flow.
-        for notice in self.session.drain_notices() {
+        for notice in self.session.take_notices() {
             self.conn
                 .send(BackendMessage::NoticeResponse(notice))
                 .await?;

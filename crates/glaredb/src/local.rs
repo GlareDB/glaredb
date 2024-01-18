@@ -169,7 +169,7 @@ impl LocalSession {
                         // non-interactive fashion which and having notice
                         // messages interspersed with the output would be
                         // annoying.
-                        for notice in self.sess.drain_notices() {
+                        for notice in self.sess.take_notices() {
                             eprintln!(
                                 "{}: {}",
                                 match notice.severity {

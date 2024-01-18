@@ -328,11 +328,11 @@ impl LocalSessionContext {
         self.notices.push(notice)
     }
 
-    /// Drain all notices from the session.
+    /// Take all notices from the session.
     ///
     /// This will take into account the 'client_min_messages' session var to
     /// filter out notices that shouldn't be sent to the client.
-    pub(crate) fn drain_notices(&mut self) -> Vec<Notice> {
+    pub(crate) fn take_notices(&mut self) -> Vec<Notice> {
         // Behind an if since this is called every query, and session vars is behind  a lock :)
         // Let's get rid of the lock.
         if !self.notices.is_empty() {

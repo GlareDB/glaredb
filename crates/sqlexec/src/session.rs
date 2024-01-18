@@ -543,8 +543,8 @@ impl Session {
         self.ctx.remove_portal(name);
     }
 
-    pub fn drain_notices(&mut self) -> Vec<Notice> {
-        self.ctx.drain_notices()
+    pub fn take_notices(&mut self) -> Vec<Notice> {
+        self.ctx.take_notices()
     }
 
     /// Bind the parameters of a prepared statement to the given values.
