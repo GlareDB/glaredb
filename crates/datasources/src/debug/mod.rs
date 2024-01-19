@@ -308,6 +308,7 @@ struct AlwaysErrorStream {
 
 impl Stream for AlwaysErrorStream {
     type Item = DatafusionResult<RecordBatch>;
+
     fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(Some(Err(DataFusionError::External(Box::new(
             DebugError::ExecutionError("always error"),
@@ -330,6 +331,7 @@ struct NeverEndingStream {
 
 impl Stream for NeverEndingStream {
     type Item = DatafusionResult<RecordBatch>;
+
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(limit) = self.limit {
             if self.curr_count > limit {

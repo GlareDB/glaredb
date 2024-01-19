@@ -67,6 +67,7 @@ pub enum ExtensionType {
 
 impl FromStr for ExtensionType {
     type Err = ExecError;
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             AlterDatabase::EXTENSION_NAME => Self::AlterDatabase,

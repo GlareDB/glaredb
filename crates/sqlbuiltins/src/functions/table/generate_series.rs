@@ -30,10 +30,11 @@ use crate::functions::ConstBuiltinFunction;
 pub struct GenerateSeries;
 
 impl ConstBuiltinFunction for GenerateSeries {
-    const NAME: &'static str = "generate_series";
     const DESCRIPTION: &'static str = "Generate a series of values";
     const EXAMPLE: &'static str = "SELECT * FROM generate_series(1, 10, 2)";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const NAME: &'static str = "generate_series";
+
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::OneOf(vec![
@@ -290,6 +291,7 @@ impl<T: GenerateSeriesType> GenerateSeriesStream<T> {
 
 impl<T: GenerateSeriesType> Stream for GenerateSeriesStream<T> {
     type Item = DataFusionResult<RecordBatch>;
+
     fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(self.get_mut().generate_next().map(Ok))
     }

@@ -42,10 +42,10 @@ use crate::functions::ConstBuiltinFunction;
 pub struct CacheExternalDatabaseTables;
 
 impl ConstBuiltinFunction for CacheExternalDatabaseTables {
-    const NAME: &'static str = "cache_external_database_tables";
     const DESCRIPTION: &'static str = "Cache tables from external databases.";
     const EXAMPLE: &'static str = "select * from cache_external_database_tables();";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const NAME: &'static str = "cache_external_database_tables";
 }
 
 #[async_trait]

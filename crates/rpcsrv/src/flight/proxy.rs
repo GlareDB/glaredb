@@ -116,13 +116,13 @@ impl CloudFlightProxyHandler {
 
 #[tonic::async_trait]
 impl FlightService for CloudFlightProxyHandler {
-    type HandshakeStream = BoxStream<'static, Result<HandshakeResponse, Status>>;
-    type ListFlightsStream = BoxStream<'static, Result<FlightInfo, Status>>;
+    type DoActionStream = BoxStream<'static, Result<arrow_flight::Result, Status>>;
+    type DoExchangeStream = BoxStream<'static, Result<FlightData, Status>>;
     type DoGetStream = BoxStream<'static, Result<FlightData, Status>>;
     type DoPutStream = BoxStream<'static, Result<PutResult, Status>>;
-    type DoActionStream = BoxStream<'static, Result<arrow_flight::Result, Status>>;
+    type HandshakeStream = BoxStream<'static, Result<HandshakeResponse, Status>>;
     type ListActionsStream = BoxStream<'static, Result<ActionType, Status>>;
-    type DoExchangeStream = BoxStream<'static, Result<FlightData, Status>>;
+    type ListFlightsStream = BoxStream<'static, Result<FlightInfo, Status>>;
 
     async fn handshake(
         &self,

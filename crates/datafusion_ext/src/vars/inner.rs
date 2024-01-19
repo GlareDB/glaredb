@@ -180,6 +180,7 @@ impl SessionVarsInner {
             Err(VarError::UnknownVariable(name.to_string()).into())
         }
     }
+
     pub(super) fn entries(&self) -> Vec<ConfigEntry> {
         vec![
             self.server_version.config_entry(),

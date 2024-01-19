@@ -138,72 +138,95 @@ impl SessionVars {
     pub fn set(&mut self, name: &str, val: &str, setter: VarType) -> datafusion::error::Result<()> {
         self.inner.write().set(name, val, setter)
     }
+
     pub fn with_server_version(self, value: String, setter: VarType) -> Self {
         with_property!(self, server_version, setter, value)
     }
+
     pub fn with_application_name(self, value: String, setter: VarType) -> Self {
         with_property!(self, application_name, setter, value)
     }
+
     pub fn with_client_encoding(self, value: String, setter: VarType) -> Self {
         with_property!(self, client_encoding, setter, value)
     }
+
     pub fn with_extra_floating_digits(self, value: i32, setter: VarType) -> Self {
         with_property!(self, extra_floating_digits, setter, value)
     }
+
     pub fn with_statement_timeout(self, value: i32, setter: VarType) -> Self {
         with_property!(self, statement_timeout, setter, value)
     }
+
     pub fn with_timezone(self, value: String, setter: VarType) -> Self {
         with_property!(self, timezone, setter, value)
     }
+
     pub fn with_datestyle(self, value: String, setter: VarType) -> Self {
         with_property!(self, datestyle, setter, value)
     }
+
     pub fn with_transaction_isolation(self, value: String, setter: VarType) -> Self {
         with_property!(self, transaction_isolation, setter, value)
     }
+
     pub fn with_search_path(self, value: Vec<String>, setter: VarType) -> Self {
         with_property!(self, search_path, setter, value)
     }
+
     pub fn with_enable_debug_datasources(self, value: bool, setter: VarType) -> Self {
         with_property!(self, enable_debug_datasources, setter, value)
     }
+
     pub fn with_force_catalog_refresh(self, value: bool, setter: VarType) -> Self {
         with_property!(self, force_catalog_refresh, setter, value)
     }
+
     pub fn with_glaredb_version(self, value: String, setter: VarType) -> Self {
         with_property!(self, glaredb_version, setter, value)
     }
+
     pub fn with_database_id(self, value: Uuid, setter: VarType) -> Self {
         with_property!(self, database_id, setter, value)
     }
+
     pub fn with_connection_id(self, value: Uuid, setter: VarType) -> Self {
         with_property!(self, connection_id, setter, value)
     }
+
     pub fn with_remote_session_id(self, value: Uuid, setter: VarType) -> Self {
         with_property!(self, remote_session_id, setter, Some(value))
     }
+
     pub fn with_user_id(self, value: Uuid, setter: VarType) -> Self {
         with_property!(self, user_id, setter, value)
     }
+
     pub fn with_user_name(self, value: impl AsRef<str>, setter: VarType) -> Self {
         with_property!(self, user_name, setter, value.as_ref())
     }
+
     pub fn with_database_name(self, value: impl AsRef<str>, setter: VarType) -> Self {
         with_property!(self, database_name, setter, value.as_ref())
     }
+
     pub fn with_max_datasource_count(self, value: usize, setter: VarType) -> Self {
         with_property!(self, max_datasource_count, setter, Some(value))
     }
+
     pub fn with_memory_limit_bytes(self, value: usize, setter: VarType) -> Self {
         with_property!(self, memory_limit_bytes, setter, Some(value))
     }
+
     pub fn with_max_tunnel_count(self, value: usize, setter: VarType) -> Self {
         with_property!(self, max_tunnel_count, setter, Some(value))
     }
+
     pub fn with_max_credentials_count(self, value: usize, setter: VarType) -> Self {
         with_property!(self, max_credentials_count, setter, Some(value))
     }
+
     pub fn with_is_cloud_instance(self, value: bool, setter: VarType) -> Self {
         with_property!(self, is_cloud_instance, setter, value)
     }

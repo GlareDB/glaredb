@@ -85,6 +85,7 @@ impl EngineStorageConfig {
             conf: StorageConfig::Local { path },
         })
     }
+
     pub fn try_from_options(location: &str, opts: HashMap<String, String>) -> Result<Self> {
         if location.starts_with("memory://") {
             return Ok(EngineStorageConfig {
@@ -508,6 +509,7 @@ pub struct TrackedSession {
 
 impl Deref for TrackedSession {
     type Target = Session;
+
     fn deref(&self) -> &Self::Target {
         &self.inner
     }

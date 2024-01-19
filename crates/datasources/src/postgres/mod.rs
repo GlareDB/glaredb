@@ -154,6 +154,7 @@ impl PostgresAccess {
 
 impl TryFrom<protogen::sqlexec::common::PostgresAccess> for PostgresAccess {
     type Error = ProtoConvError;
+
     fn try_from(
         value: protogen::sqlexec::common::PostgresAccess,
     ) -> std::result::Result<Self, Self::Error> {
@@ -519,6 +520,7 @@ impl TryFrom<protogen::sqlexec::table_provider::PostgresTableProviderConfig>
     for PostgresTableProviderConfig
 {
     type Error = ProtoConvError;
+
     fn try_from(
         value: protogen::sqlexec::table_provider::PostgresTableProviderConfig,
     ) -> std::result::Result<Self, Self::Error> {
@@ -743,6 +745,7 @@ pub enum BinaryCopyConfig {
 
 impl TryFrom<protogen::sqlexec::physical_plan::PostgresBinaryCopyConfig> for BinaryCopyConfig {
     type Error = ProtoConvError;
+
     fn try_from(
         value: protogen::sqlexec::physical_plan::PostgresBinaryCopyConfig,
     ) -> std::result::Result<Self, Self::Error> {
@@ -757,6 +760,7 @@ impl TryFrom<protogen::sqlexec::physical_plan::PostgresBinaryCopyConfig> for Bin
 
 impl TryFrom<BinaryCopyConfig> for protogen::sqlexec::physical_plan::PostgresBinaryCopyConfig {
     type Error = ProtoConvError;
+
     fn try_from(value: BinaryCopyConfig) -> std::result::Result<Self, Self::Error> {
         match value {
             BinaryCopyConfig::State { .. } => Err(ProtoConvError::UnsupportedSerialization(
