@@ -1,4 +1,10 @@
-use super::{builder::CqlValueArrayBuilder, *};
+use super::{
+    builder::CqlValueArrayBuilder, fmt, stream, Any, Arc, ArrowSchemaRef, Context, DataFusionError,
+    DataSourceMetricsStreamAdapter, DatafusionResult, DisplayAs, DisplayFormatType, ExecutionPlan,
+    ExecutionPlanMetricsSet, MetricsSet, Partitioning, PhysicalSortExpr, Pin, Poll, RecordBatch,
+    RecordBatchStream, Result, Row, SendableRecordBatchStream, Session, Statistics, Stream,
+    StreamExt, TaskContext,
+};
 use datafusion::arrow::array::ArrayBuilder;
 
 pub(super) struct CassandraExec {

@@ -1,4 +1,4 @@
-use crate::messages::*;
+use crate::messages::{Bind, ClosePortal, CloseStatement, Execute, Parse, Query, SerializedMessage};
 use anyhow::{anyhow, Result};
 use bytes::{BufMut, BytesMut};
 use postgres_protocol::message::{backend::Message, frontend};

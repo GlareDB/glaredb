@@ -5,7 +5,7 @@ pub mod stream;
 pub mod table;
 
 use datafusion::arrow::array::cast::as_string_array;
-use datafusion::arrow::array::{types::*, Array, ArrayRef, AsArray, StructArray};
+use datafusion::arrow::array::{types::{Date32Type, Date64Type, Decimal128Type, DurationMicrosecondType, DurationMillisecondType, DurationNanosecondType, DurationSecondType, Float16Type, Float32Type, Float64Type, GenericBinaryType, Int16Type, Int32Type, Int64Type, Int8Type, IntervalDayTimeType, IntervalYearMonthType, Time32MillisecondType, Time32SecondType, Time64MicrosecondType, Time64NanosecondType, TimestampMicrosecondType, TimestampMillisecondType, TimestampSecondType, UInt16Type, UInt32Type, UInt64Type, UInt8Type}, Array, ArrayRef, AsArray, StructArray};
 use datafusion::arrow::datatypes::{DataType, Fields, IntervalUnit, TimeUnit};
 use datafusion::arrow::error::ArrowError;
 
