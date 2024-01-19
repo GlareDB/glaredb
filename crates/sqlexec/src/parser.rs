@@ -826,15 +826,31 @@ impl<'a> CustomParser<'a> {
         self.parse_optional_ref("FORMAT")
     }
 
-    /// Parse options for a datasource.
+    /// Parse options block.
     fn parse_options(&mut self) -> Result<StmtOptions, ParserError> {
-        // Optional "OPTIONS" keyword
-        let _ = self.consume_token(&Token::make_keyword("OPTIONS"));
+        let has_options_keyword = self.consume_token(&Token::make_keyword("OPTIONS"));
+        let has_block_opening = self.parser.consume_token(&Token::LParen);
 
-        if !self.parser.consume_token(&Token::LParen) {
-            // If there's no "(" assume there's no options.
+        if !has_options_keyword && has_block_opening {
+            return self.expected("OPTIONS", Token::LParen);
+        };
+
+        if !has_options_keyword && !has_block_opening {
             return Ok(StmtOptions::new(BTreeMap::new()));
+        };
+
+        if has_options_keyword && !has_block_opening {
+            return self.expected("OPTIONS block ( )", Token::EOF);
         }
+
+        // reject options clause without options keyword, and options
+        // keyword with no parenthetical block.
+        //
+        // return empty option maps when no OPTIONS clause-and-block
+        // are provied
+        //
+        // CONSIDER: return error for `OPTIONS ( )` [no options
+        // specified], as this seems unlikely to be intentional.
 
         let mut options = BTreeMap::new();
         loop {
