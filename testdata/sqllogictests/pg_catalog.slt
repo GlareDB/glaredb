@@ -84,3 +84,34 @@ pg_catalog_test  pg_description
 
 statement ok
 select * from pg_catalog.pg_type;
+
+
+# This is one of the queries postgres uses for tab completion
+statement ok 
+SELECT 
+  c.relname, 
+  NULL::pg_catalog.text 
+FROM pg_catalog.pg_class c 
+WHERE c.relkind IN ('r', 'S', 'v', 'm', 'f', 'p') 
+AND (c.relname) LIKE '%' 
+AND pg_catalog.pg_table_is_visible(c.oid) 
+AND c.relnamespace <> ( SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'pg_catalog') UNION ALL 
+SELECT NULL::pg_catalog.text, n.nspname 
+FROM pg_catalog.pg_namespace n 
+WHERE n.nspname LIKE '%' 
+AND n.nspname NOT LIKE E'pg\\_%' 
+LIMIT 1000;
+
+# Another query postgres uses for tab completion
+statement ok
+SELECT 
+  c.relname, 
+  n.nspname 
+FROM 
+  pg_catalog.pg_class c, 
+  pg_catalog.pg_namespace n 
+WHERE c.relnamespace = n.oid 
+AND c.relkind IN ('r', 'S', 'v', 'm', 'f', 'p') 
+AND (c.relname) LIKE '%' 
+AND n.nspname = 'pg_catalog' 
+LIMIT 1000;
