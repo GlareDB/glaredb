@@ -9,3 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 wasm-bindgen = "0.2.90"
+wasm-bindgen-futures = "0.4.40"
+console_log = "1.0.0"
+sqlexec = { path = "../../crates/sqlexec" }
+getrandom = { version = "*", features = ["js"] }

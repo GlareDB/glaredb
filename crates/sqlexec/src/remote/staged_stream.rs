@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use crate::errors::{internal, Result};
 use parking_lot::Mutex;
-use tokio::sync::oneshot;
+// use tokio::sync::oneshot;
 use uuid::Uuid;
 
 use super::batch_stream::ExecutionBatchStream;
@@ -30,7 +30,7 @@ pub struct StagedStreams<S> {
 /// client actually starting to stream.
 enum PendingStream<S> {
     StreamArrivedFirst(S),
-    WaitingForStream(oneshot::Sender<S>),
+    // WaitingForStream(oneshot::Sender<S>),
 }
 
 impl<S> StagedStreams<S> {
@@ -42,12 +42,12 @@ impl<S> StagedStreams<S> {
         if let Some(pending) = streams.remove(&id) {
             match pending {
                 PendingStream::StreamArrivedFirst(_) => panic!("attempted to put stream twice"), // Programmer bug.
-                PendingStream::WaitingForStream(channel) => {
-                    // We don't care if the receiver dropped. Means it was
-                    // canceled on the "execution" side.
-                    let _ = channel.send(stream);
-                    return;
-                }
+                                                                                                 // PendingStream::WaitingForStream(channel) => {
+                                                                                                 //     // We don't care if the receiver dropped. Means it was
+                                                                                                 //     // canceled on the "execution" side.
+                                                                                                 //     let _ = channel.send(stream);
+                                                                                                 //     return;
+                                                                                                 // }
             }
         }
 
@@ -71,22 +71,23 @@ impl<S> StagedStreams<S> {
                 match pending {
                     PendingStream::StreamArrivedFirst(stream) => {
                         return ResolveStreamFut::Immediate(Some(stream))
-                    }
-                    PendingStream::WaitingForStream(_) => {
-                        // Programmer bug.
-                        panic!("attempted to resolve stream twice")
-                    }
+                    } // PendingStream::WaitingForStream(_) => {
+                      //     // Programmer bug.
+                      //     panic!("attempted to resolve stream twice")
+                      // }
                 }
             }
 
             // Handle case where we need to wait for the stream to arrive.
-            let (tx, rx) = oneshot::channel();
-            streams.insert(id, PendingStream::WaitingForStream(tx));
+            // let (tx, rx) = oneshot::channel();
+            // streams.insert(id, PendingStream::WaitingForStream(tx));
 
-            rx
+            // rx
+            unimplemented!()
         };
 
-        ResolveStreamFut::Await(rx)
+        unimplemented!()
+        // ResolveStreamFut::Await(rx)
     }
 }
 
@@ -104,8 +105,8 @@ pub type ResolveClientStreamFut = ResolveStreamFut<ExecutionBatchStream>;
 pub enum ResolveStreamFut<S> {
     /// Immediately resolve to the stream.
     Immediate(Option<S>),
-    /// Need to poll for the stream.
-    Await(oneshot::Receiver<S>),
+    // /// Need to poll for the stream.
+    // Await(oneshot::Receiver<S>),
 }
 
 impl<S: Unpin> Future for ResolveStreamFut<S> {
@@ -114,9 +115,9 @@ impl<S: Unpin> Future for ResolveStreamFut<S> {
         match &mut *self {
             Self::Immediate(s @ Some(_)) => Poll::Ready(Ok(s.take().unwrap())),
             Self::Immediate(None) => panic!("future polled twice"),
-            Self::Await(rx) => rx
-                .poll_unpin(cx)
-                .map_err(|_| internal!("stream sender dropped")),
+            // Self::Await(rx) => rx
+            //     .poll_unpin(cx)
+            //     .map_err(|_| internal!("stream sender dropped")),
         }
     }
 }
@@ -126,36 +127,36 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
-    #[tokio::test]
-    async fn client_puts_stream_first() {
-        let staged = StagedStreams::<usize>::default();
-        let id = Uuid::new_v4();
-        staged.put_stream(id, 8);
+    // #[tokio::test]
+    // async fn client_puts_stream_first() {
+    //     let staged = StagedStreams::<usize>::default();
+    //     let id = Uuid::new_v4();
+    //     staged.put_stream(id, 8);
 
-        let out = staged.resolve_pending_stream(id).await.unwrap();
-        assert_eq!(8, out);
-    }
+    //     let out = staged.resolve_pending_stream(id).await.unwrap();
+    //     assert_eq!(8, out);
+    // }
 
-    #[tokio::test]
-    async fn server_executes_first() {
-        let staged = Arc::new(StagedStreams::<usize>::default());
-        let id = Uuid::new_v4();
+    // #[tokio::test]
+    // async fn server_executes_first() {
+    //     let staged = Arc::new(StagedStreams::<usize>::default());
+    //     let id = Uuid::new_v4();
 
-        let cloned = staged.clone();
-        // Try to resolve first.
-        let handle = tokio::spawn(async move { cloned.resolve_pending_stream(id).await.unwrap() });
+    //     let cloned = staged.clone();
+    //     // Try to resolve first.
+    //     let handle = tokio::spawn(async move { cloned.resolve_pending_stream(id).await.unwrap() });
 
-        // Put in some other "streams" that isn't the one we want.
-        staged.put_stream(Uuid::new_v4(), 1);
-        staged.put_stream(Uuid::new_v4(), 2);
-        staged.put_stream(Uuid::new_v4(), 3);
+    //     // Put in some other "streams" that isn't the one we want.
+    //     staged.put_stream(Uuid::new_v4(), 1);
+    //     staged.put_stream(Uuid::new_v4(), 2);
+    //     staged.put_stream(Uuid::new_v4(), 3);
 
-        // Put in our client "stream".
-        staged.put_stream(id, 8);
+    //     // Put in our client "stream".
+    //     staged.put_stream(id, 8);
 
-        // We should now get our "stream" back.
-        let out = handle.await.unwrap();
+    //     // We should now get our "stream" back.
+    //     let out = handle.await.unwrap();
 
-        assert_eq!(8, out);
-    }
+    //     assert_eq!(8, out);
+    // }
 }

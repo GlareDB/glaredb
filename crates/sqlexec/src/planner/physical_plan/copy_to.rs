@@ -10,17 +10,17 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
-use datasources::common::sink::bson::BsonSink;
-use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
-use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
-use datasources::common::sink::lance::{LanceSink, LanceSinkOpts, LanceWriteParams};
-use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
-use datasources::common::url::DatasourceUrl;
-use datasources::object_store::gcs::GcsStoreAccess;
-use datasources::object_store::generic::GenericStoreAccess;
-use datasources::object_store::local::LocalStoreAccess;
-use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::ObjStoreAccess;
+// use datasources::common::sink::bson::BsonSink;
+// use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
+// use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
+// use datasources::common::sink::lance::{LanceSink, LanceSinkOpts, LanceWriteParams};
+// use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
+// use datasources::common::url::DatasourceUrl;
+// use datasources::object_store::gcs::GcsStoreAccess;
+// use datasources::object_store::generic::GenericStoreAccess;
+// use datasources::object_store::local::LocalStoreAccess;
+// use datasources::object_store::s3::S3StoreAccess;
+// use datasources::object_store::ObjStoreAccess;
 use futures::stream;
 use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::options::{
@@ -106,137 +106,138 @@ impl DisplayAs for CopyToExec {
 
 impl CopyToExec {
     async fn copy_to(self, context: Arc<TaskContext>) -> DataFusionResult<RecordBatch> {
-        let sink = match (self.dest, self.format) {
-            (CopyToDestinationOptions::Local(local_options), CopyToFormatOptions::Lance(opts)) => {
-                get_sink_for_obj(
-                    CopyToFormatOptions::Lance(opts),
-                    &LocalStoreAccess {},
-                    &local_options.location,
-                )?
-            }
-            (CopyToDestinationOptions::Local(local_options), format) => {
-                {
-                    // Create the path if it doesn't exist (for local).
-                    let _ = tokio::fs::File::create(&local_options.location).await?;
-                }
-                let access = LocalStoreAccess;
-                get_sink_for_obj(format, &access, &local_options.location)?
-            }
-            (CopyToDestinationOptions::Gcs(gcs_options), format) => {
-                let access = GcsStoreAccess {
-                    bucket: gcs_options.bucket,
-                    service_account_key: gcs_options.service_account_key,
-                };
-                get_sink_for_obj(format, &access, &gcs_options.location)?
-            }
-            (CopyToDestinationOptions::S3(s3_options), format) => {
-                let access = S3StoreAccess {
-                    region: s3_options.region,
-                    bucket: s3_options.bucket,
-                    access_key_id: s3_options.access_key_id,
-                    secret_access_key: s3_options.secret_access_key,
-                };
-                get_sink_for_obj(format, &access, &s3_options.location)?
-            }
-            (CopyToDestinationOptions::Azure(azure_options), format) => {
-                // Create storage options using well-known key names.
-                let opts = StorageOptions::new_from_iter([
-                    (AzureConfigKey::AccountName.as_ref(), azure_options.account),
-                    (AzureConfigKey::AccessKey.as_ref(), azure_options.access_key),
-                ]);
-                let access =
-                    GenericStoreAccess::new_from_location_and_opts(&azure_options.location, opts)
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        unimplemented!()
+        // let sink = match (self.dest, self.format) {
+        //     (CopyToDestinationOptions::Local(local_options), CopyToFormatOptions::Lance(opts)) => {
+        //         get_sink_for_obj(
+        //             CopyToFormatOptions::Lance(opts),
+        //             &LocalStoreAccess {},
+        //             &local_options.location,
+        //         )?
+        //     }
+        //     (CopyToDestinationOptions::Local(local_options), format) => {
+        //         {
+        //             // Create the path if it doesn't exist (for local).
+        //             let _ = tokio::fs::File::create(&local_options.location).await?;
+        //         }
+        //         let access = LocalStoreAccess;
+        //         get_sink_for_obj(format, &access, &local_options.location)?
+        //     }
+        //     (CopyToDestinationOptions::Gcs(gcs_options), format) => {
+        //         let access = GcsStoreAccess {
+        //             bucket: gcs_options.bucket,
+        //             service_account_key: gcs_options.service_account_key,
+        //         };
+        //         get_sink_for_obj(format, &access, &gcs_options.location)?
+        //     }
+        //     (CopyToDestinationOptions::S3(s3_options), format) => {
+        //         let access = S3StoreAccess {
+        //             region: s3_options.region,
+        //             bucket: s3_options.bucket,
+        //             access_key_id: s3_options.access_key_id,
+        //             secret_access_key: s3_options.secret_access_key,
+        //         };
+        //         get_sink_for_obj(format, &access, &s3_options.location)?
+        //     }
+        //     (CopyToDestinationOptions::Azure(azure_options), format) => {
+        //         // Create storage options using well-known key names.
+        //         let opts = StorageOptions::new_from_iter([
+        //             (AzureConfigKey::AccountName.as_ref(), azure_options.account),
+        //             (AzureConfigKey::AccessKey.as_ref(), azure_options.access_key),
+        //         ]);
+        //         let access =
+        //             GenericStoreAccess::new_from_location_and_opts(&azure_options.location, opts)
+        //                 .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-                // TODO: It's weird we need to do this here, but
-                // `get_sink_for_obj` is expected a path relative to the root of
-                // the store. The location we have here is the full url
-                // (azure://...) and so will actually cause object store to
-                // error.
-                //
-                // By converting to a data source url, we can get the path we
-                // need.
-                //
-                // @vaibhav I'd like for us to look into switchin all object
-                // store "locations" to use the full url (with scheme) so that
-                // we can be consistent with this. It would also help with user
-                // experience since they wouldn't need to know which part of the
-                // location is the "bucket" and which is the "location" (path).
-                let source_url = DatasourceUrl::try_new(&azure_options.location)
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        //         // TODO: It's weird we need to do this here, but
+        //         // `get_sink_for_obj` is expected a path relative to the root of
+        //         // the store. The location we have here is the full url
+        //         // (azure://...) and so will actually cause object store to
+        //         // error.
+        //         //
+        //         // By converting to a data source url, we can get the path we
+        //         // need.
+        //         //
+        //         // @vaibhav I'd like for us to look into switchin all object
+        //         // store "locations" to use the full url (with scheme) so that
+        //         // we can be consistent with this. It would also help with user
+        //         // experience since they wouldn't need to know which part of the
+        //         // location is the "bucket" and which is the "location" (path).
+        //         let source_url = DatasourceUrl::try_new(&azure_options.location)
+        //             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-                get_sink_for_obj(format, &access, &source_url.path())?
-            }
-        };
+        //         get_sink_for_obj(format, &access, &source_url.path())?
+        //     }
+        // };
 
-        let stream = execute_stream(self.source, context.clone())?;
-        let count = sink.write_all(vec![stream], &context).await?;
+        // let stream = execute_stream(self.source, context.clone())?;
+        // let count = sink.write_all(vec![stream], &context).await?;
 
-        Ok(new_operation_with_count_batch("copy", count))
+        // Ok(new_operation_with_count_batch("copy", count))
     }
 }
 
-/// Get a sink for writing a file to.
-fn get_sink_for_obj(
-    format: CopyToFormatOptions,
-    access: &dyn ObjStoreAccess,
-    location: &str,
-) -> DataFusionResult<Box<dyn DataSink>> {
-    let store = access
-        .create_store()
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+// /// Get a sink for writing a file to.
+// fn get_sink_for_obj(
+//     format: CopyToFormatOptions,
+//     access: &dyn ObjStoreAccess,
+//     location: &str,
+// ) -> DataFusionResult<Box<dyn DataSink>> {
+//     let store = access
+//         .create_store()
+//         .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-    let path = access
-        .path(location)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+//     let path = access
+//         .path(location)
+//         .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-    let sink: Box<dyn DataSink> = match format {
-        CopyToFormatOptions::Csv(csv_opts) => Box::new(CsvSink::from_obj_store(
-            store,
-            path,
-            CsvSinkOpts {
-                delim: csv_opts.delim,
-                header: csv_opts.header,
-            },
-        )),
-        CopyToFormatOptions::Parquet(parquet_opts) => Box::new(ParquetSink::from_obj_store(
-            store,
-            path,
-            ParquetSinkOpts {
-                row_group_size: parquet_opts.row_group_size,
-            },
-        )),
-        CopyToFormatOptions::Lance(opts) => {
-            let wp = LanceWriteParams::default();
+//     let sink: Box<dyn DataSink> = match format {
+//         CopyToFormatOptions::Csv(csv_opts) => Box::new(CsvSink::from_obj_store(
+//             store,
+//             path,
+//             CsvSinkOpts {
+//                 delim: csv_opts.delim,
+//                 header: csv_opts.header,
+//             },
+//         )),
+//         CopyToFormatOptions::Parquet(parquet_opts) => Box::new(ParquetSink::from_obj_store(
+//             store,
+//             path,
+//             ParquetSinkOpts {
+//                 row_group_size: parquet_opts.row_group_size,
+//             },
+//         )),
+//         CopyToFormatOptions::Lance(opts) => {
+//             let wp = LanceWriteParams::default();
 
-            Box::new(LanceSink::from_obj_store(
-                store,
-                path,
-                LanceSinkOpts {
-                    url: Some(
-                        url::Url::parse(
-                            access
-                                .base_url()
-                                .map_err(|e| DataFusionError::External(Box::new(e)))?
-                                .as_str(),
-                        )
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?,
-                    ),
-                    max_rows_per_file: opts.max_rows_per_file.unwrap_or(wp.max_rows_per_file),
-                    max_rows_per_group: opts.max_rows_per_group.unwrap_or(wp.max_rows_per_group),
-                    max_bytes_per_file: opts.max_bytes_per_file.unwrap_or(wp.max_bytes_per_file),
-                    input_batch_size: opts.input_batch_size.unwrap_or(64),
-                },
-            ))
-        }
-        CopyToFormatOptions::Json(json_opts) => Box::new(JsonSink::from_obj_store(
-            store,
-            path,
-            JsonSinkOpts {
-                array: json_opts.array,
-            },
-        )),
-        CopyToFormatOptions::Bson => Box::new(BsonSink::from_obj_store(store, path)),
-    };
-    Ok(sink)
-}
+//             Box::new(LanceSink::from_obj_store(
+//                 store,
+//                 path,
+//                 LanceSinkOpts {
+//                     url: Some(
+//                         url::Url::parse(
+//                             access
+//                                 .base_url()
+//                                 .map_err(|e| DataFusionError::External(Box::new(e)))?
+//                                 .as_str(),
+//                         )
+//                         .map_err(|e| DataFusionError::External(Box::new(e)))?,
+//                     ),
+//                     max_rows_per_file: opts.max_rows_per_file.unwrap_or(wp.max_rows_per_file),
+//                     max_rows_per_group: opts.max_rows_per_group.unwrap_or(wp.max_rows_per_group),
+//                     max_bytes_per_file: opts.max_bytes_per_file.unwrap_or(wp.max_bytes_per_file),
+//                     input_batch_size: opts.input_batch_size.unwrap_or(64),
+//                 },
+//             ))
+//         }
+//         CopyToFormatOptions::Json(json_opts) => Box::new(JsonSink::from_obj_store(
+//             store,
+//             path,
+//             JsonSinkOpts {
+//                 array: json_opts.array,
+//             },
+//         )),
+//         CopyToFormatOptions::Bson => Box::new(BsonSink::from_obj_store(store, path)),
+//     };
+//     Ok(sink)
+// }

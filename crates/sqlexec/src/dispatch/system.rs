@@ -5,9 +5,9 @@ use datafusion::arrow::array::{BooleanBuilder, ListBuilder, StringBuilder, UInt3
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
 use datafusion::logical_expr::TypeSignature;
-use datasources::common::ssh::key::SshKey;
-use datasources::common::ssh::SshConnectionParameters;
-use datasources::native::access::NativeTableStorage;
+// use datasources::common::ssh::key::SshKey;
+// use datasources::common::ssh::SshConnectionParameters;
+// use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType, SourceAccessMode, TableEntry};
 use protogen::metastore::types::options::TunnelOptions;
 use sqlbuiltins::builtins::{
@@ -22,12 +22,18 @@ use super::{DispatchError, Result};
 /// Dispatch to builtin system tables.
 pub struct SystemTableDispatcher<'a> {
     catalog: &'a SessionCatalog,
-    tables: &'a NativeTableStorage,
+    // tables: &'a NativeTableStorage,
 }
 
 impl<'a> SystemTableDispatcher<'a> {
-    pub fn new(catalog: &'a SessionCatalog, tables: &'a NativeTableStorage) -> Self {
-        SystemTableDispatcher { catalog, tables }
+    pub fn new(
+        catalog: &'a SessionCatalog,
+        // tables: &'a NativeTableStorage
+    ) -> Self {
+        SystemTableDispatcher {
+            catalog,
+            // tables
+        }
     }
 
     pub async fn dispatch(&self, ent: &TableEntry) -> Result<Arc<dyn TableProvider>> {
@@ -82,18 +88,19 @@ impl<'a> SystemTableDispatcher<'a> {
             other => panic!("unexpected entry type: {other:?}"),
         };
 
-        match self.tables.load_table(ent).await {
-            Ok(table) => Ok(Arc::new(table)),
-            Err(_e) => {
-                // TODO: I don't know if delta provides a guarantee about the
-                // error returned if the table doesn't exist. We might want to
-                // have a dedicated 'exists' method or something.
-                let empty = RecordBatch::new_empty(Arc::new(table.arrow_schema()));
-                Ok(Arc::new(
-                    MemTable::try_new(Arc::new(table.arrow_schema()), vec![vec![empty]]).unwrap(),
-                ))
-            }
-        }
+        unimplemented!()
+        // match self.tables.load_table(ent).await {
+        //     Ok(table) => Ok(Arc::new(table)),
+        //     Err(_e) => {
+        //         // TODO: I don't know if delta provides a guarantee about the
+        //         // error returned if the table doesn't exist. We might want to
+        //         // have a dedicated 'exists' method or something.
+        //         let empty = RecordBatch::new_empty(Arc::new(table.arrow_schema()));
+        //         Ok(Arc::new(
+        //             MemTable::try_new(Arc::new(table.arrow_schema()), vec![vec![empty]]).unwrap(),
+        //         ))
+        //     }
+        // }
     }
 
     fn build_glare_databases(&self) -> MemTable {
@@ -530,12 +537,13 @@ impl<'a> SystemTableDispatcher<'a> {
             match t.entry {
                 CatalogEntry::Tunnel(tunnel_entry) => match &tunnel_entry.options {
                     TunnelOptions::Ssh(ssh_options) => {
-                        let key = SshKey::from_bytes(&ssh_options.ssh_key)?;
-                        let key = key.public_key()?;
-                        let conn_params: SshConnectionParameters =
-                            ssh_options.connection_string.parse()?;
-                        let key = format!("{} {}", key, conn_params.user);
-                        public_key.append_value(key);
+                        unimplemented!()
+                        // let key = SshKey::from_bytes(&ssh_options.ssh_key)?;
+                        // let key = key.public_key()?;
+                        // let conn_params: SshConnectionParameters =
+                        //     ssh_options.connection_string.parse()?;
+                        // let key = format!("{} {}", key, conn_params.user);
+                        // public_key.append_value(key);
                     }
                     _ => unreachable!(),
                 },

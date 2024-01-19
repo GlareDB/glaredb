@@ -16,7 +16,7 @@ use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::task::JoinSet;
+// use tokio::task::JoinSet;
 use uuid::Uuid;
 
 use super::client_send::ClientExchangeSendExec;
@@ -114,31 +114,32 @@ impl ExecutionPlan for SendRecvJoinExec {
         let send_execs: Vec<ClientExchangeSendExec> =
             std::mem::take(self.send_execs.lock().as_mut());
 
-        let mut join_set: JoinSet<Result<(), DataFusionError>> = JoinSet::new();
-        for send_exec in send_execs {
-            let context = context.clone();
-            join_set.spawn(async move {
-                let mut stream = send_exec.execute(0, context)?;
-                while let Some(result) = stream.next().await {
-                    // The ouput of this stream is a record batch containing the
-                    // number of rows sent, so just ignore.
-                    let _ = result?;
-                }
-                Ok(())
-            });
-        }
+        unimplemented!()
+        // let mut join_set: JoinSet<Result<(), DataFusionError>> = JoinSet::new();
+        // for send_exec in send_execs {
+        //     let context = context.clone();
+        //     join_set.spawn(async move {
+        //         let mut stream = send_exec.execute(0, context)?;
+        //         while let Some(result) = stream.next().await {
+        //             // The ouput of this stream is a record batch containing the
+        //             // number of rows sent, so just ignore.
+        //             let _ = result?;
+        //         }
+        //         Ok(())
+        //     });
+        // }
 
-        // Now get the output stream we want to read the results from.
-        let stream = self.input.execute(partition, context)?;
+        // // Now get the output stream we want to read the results from.
+        // let stream = self.input.execute(partition, context)?;
 
-        let stream = SendRecvJoinStream {
-            join_set,
-            stream,
-            task_did_err: false,
-            tasks_all_completed: false,
-        };
+        // let stream = SendRecvJoinStream {
+        //     join_set,
+        //     stream,
+        //     task_did_err: false,
+        //     tasks_all_completed: false,
+        // };
 
-        Ok(Box::pin(stream))
+        // Ok(Box::pin(stream))
     }
 
     fn statistics(&self) -> Statistics {
@@ -167,7 +168,7 @@ impl DisplayAs for SendRecvJoinExec {
 /// progress on driving the join set.
 struct SendRecvJoinStream {
     /// The tasks for sending local record batches to the remote node.
-    join_set: JoinSet<Result<(), DataFusionError>>,
+    // join_set: JoinSet<Result<(), DataFusionError>>,
     /// The stream producing output.
     stream: SendableRecordBatchStream,
     /// Set to true if any of the tasks errored.
@@ -180,59 +181,60 @@ impl Stream for SendRecvJoinStream {
     type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = &mut *self;
+        unimplemented!()
+        //     let this = &mut *self;
 
-        if this.task_did_err {
-            return Poll::Ready(None);
-        }
+        //     if this.task_did_err {
+        //         return Poll::Ready(None);
+        //     }
 
-        loop {
-            // Try poll stream first.
-            match this.stream.poll_next_unpin(cx) {
-                // Stream has data (batch or error)
-                Poll::Ready(out) => return Poll::Ready(out),
+        //     loop {
+        //         // Try poll stream first.
+        //         match this.stream.poll_next_unpin(cx) {
+        //             // Stream has data (batch or error)
+        //             Poll::Ready(out) => return Poll::Ready(out),
 
-                // Tasks all completed, we're just waiting for the stream to
-                // finish.
-                Poll::Pending if this.tasks_all_completed => return Poll::Pending,
+        //             // Tasks all completed, we're just waiting for the stream to
+        //             // finish.
+        //             Poll::Pending if this.tasks_all_completed => return Poll::Pending,
 
-                // Only fall down to join set if we know the tasks haven't been
-                // completed yet.
-                Poll::Pending => {
-                    // Stream waiting, now try polling tokio tasks.
-                    match this.join_set.poll_join_next(cx) {
-                        // A task completed with no error. Continue to try to do
-                        // more work.
-                        Poll::Ready(Some(Ok(Ok(_)))) => continue,
+        //             // Only fall down to join set if we know the tasks haven't been
+        //             // completed yet.
+        //             Poll::Pending => {
+        //                 // Stream waiting, now try polling tokio tasks.
+        //                 match this.join_set.poll_join_next(cx) {
+        //                     // A task completed with no error. Continue to try to do
+        //                     // more work.
+        //                     Poll::Ready(Some(Ok(Ok(_)))) => continue,
 
-                        // A task completed with an error. This should
-                        // effectively stop the entire stream and completion of
-                        // other tasks.
-                        Poll::Ready(Some(Ok(Err(e)))) => {
-                            this.task_did_err = true;
-                            return Poll::Ready(Some(Err(e)));
-                        }
+        //                     // A task completed with an error. This should
+        //                     // effectively stop the entire stream and completion of
+        //                     // other tasks.
+        //                     Poll::Ready(Some(Ok(Err(e)))) => {
+        //                         this.task_did_err = true;
+        //                         return Poll::Ready(Some(Err(e)));
+        //                     }
 
-                        // Task was aborted.
-                        Poll::Ready(Some(Err(e))) => {
-                            this.task_did_err = true;
-                            return Poll::Ready(Some(Err(DataFusionError::Execution(format!(
-                                "task aborted: {e}"
-                            )))));
-                        }
+        //                     // Task was aborted.
+        //                     Poll::Ready(Some(Err(e))) => {
+        //                         this.task_did_err = true;
+        //                         return Poll::Ready(Some(Err(DataFusionError::Execution(format!(
+        //                             "task aborted: {e}"
+        //                         )))));
+        //                     }
 
-                        // All tasks completed. Stream might still have more to
-                        // do, so continue.
-                        Poll::Ready(None) => {
-                            this.tasks_all_completed = true;
-                            continue;
-                        }
+        //                     // All tasks completed. Stream might still have more to
+        //                     // do, so continue.
+        //                     Poll::Ready(None) => {
+        //                         this.tasks_all_completed = true;
+        //                         continue;
+        //                     }
 
-                        Poll::Pending => return Poll::Pending,
-                    }
-                }
-            }
-        }
+        //                     Poll::Pending => return Poll::Pending,
+        //                 }
+        //             }
+        //         }
+        //     }
     }
 }
 

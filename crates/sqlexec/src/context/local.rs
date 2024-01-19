@@ -1,4 +1,4 @@
-use crate::distexec::scheduler::Scheduler;
+// use crate::distexec::scheduler::Scheduler;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::parser::StatementWithExtensions;
@@ -16,7 +16,7 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
 use datafusion_ext::session_metrics::SessionMetricsHandler;
 use datafusion_ext::vars::SessionVars;
-use datasources::native::access::NativeTableStorage;
+// use datasources::native::access::NativeTableStorage;
 use pgrepr::format::Format;
 use pgrepr::notice::Notice;
 use pgrepr::types::arrow_to_pg_type;
@@ -50,8 +50,8 @@ pub struct LocalSessionContext {
     exec_client: Option<RemoteSessionClient>,
     /// Database catalog.
     catalog: SessionCatalog,
-    /// Native tables.
-    tables: NativeTableStorage,
+    // /// Native tables.
+    // tables: NativeTableStorage,
     /// Prepared statements.
     prepared: HashMap<String, PreparedStatement>,
     /// Bound portals.
@@ -62,8 +62,8 @@ pub struct LocalSessionContext {
     df_ctx: DfSessionContext,
     /// Read tables from the environment.
     env_reader: Option<Box<dyn EnvironmentReader>>,
-    /// Task scheduler.
-    task_scheduler: Scheduler,
+    // /// Task scheduler.
+    // task_scheduler: Scheduler,
     /// Notices that should be sent to the user.
     notices: Vec<Notice>,
 }
@@ -75,10 +75,10 @@ impl LocalSessionContext {
         vars: SessionVars,
         catalog: SessionCatalog,
         catalog_mutator: CatalogMutator,
-        native_tables: NativeTableStorage,
+        // native_tables: NativeTableStorage,
         metrics_handler: SessionMetricsHandler,
         spill_path: Option<PathBuf>,
-        task_scheduler: Scheduler,
+        // task_scheduler: Scheduler,
     ) -> Result<LocalSessionContext> {
         let database_id = vars.database_id();
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
@@ -89,7 +89,7 @@ impl LocalSessionContext {
         // but it's needed for the create temp table execution plan.
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
-            .with_extension(Arc::new(native_tables.clone()))
+            // .with_extension(Arc::new(native_tables.clone()))
             .with_extension(Arc::new(catalog.get_temp_catalog().clone()));
 
         let state = SessionState::new_with_config_rt(conf, Arc::new(runtime))
@@ -102,13 +102,13 @@ impl LocalSessionContext {
             database_id,
             exec_client: None,
             catalog,
-            tables: native_tables,
+            // tables: native_tables,
             prepared: HashMap::new(),
             portals: HashMap::new(),
             metrics_handler,
             df_ctx,
             env_reader: None,
-            task_scheduler,
+            // task_scheduler,
             notices: Vec::new(),
         })
     }
@@ -141,7 +141,7 @@ impl LocalSessionContext {
         // TODO: Just like above, the temp catalog here is kinda gross.
         conf = conf
             .with_extension(Arc::new(CatalogMutator::empty()))
-            .with_extension(Arc::new(self.get_native_tables().clone()))
+            // .with_extension(Arc::new(self.get_native_tables().clone()))
             .with_extension(Arc::new(catalog.get_temp_catalog().clone()));
 
         let state = SessionState::new_with_config_rt(conf, runtime)
@@ -173,13 +173,13 @@ impl LocalSessionContext {
         self.database_id
     }
 
-    pub fn get_native_tables(&self) -> &NativeTableStorage {
-        &self.tables
-    }
+    // pub fn get_native_tables(&self) -> &NativeTableStorage {
+    //     &self.tables
+    // }
 
-    pub fn get_task_scheduler(&self) -> Scheduler {
-        self.task_scheduler.clone()
-    }
+    // pub fn get_task_scheduler(&self) -> Scheduler {
+    //     self.task_scheduler.clone()
+    // }
 
     /// Return the DF session context.
     pub fn df_ctx(&self) -> &DfSessionContext {

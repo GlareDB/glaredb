@@ -15,13 +15,13 @@ proxyutil = { path = "../proxyutil" }
 pgrepr = { path = "../pgrepr" }
 telemetry = { path = "../telemetry" }
 sqlbuiltins = { path = "../sqlbuiltins" }
-datasources = { path = "../datasources" }
+# datasources = { path = "../datasources" }
 datafusion_ext = { path = "../datafusion_ext" }
 object_store_util = { path = "../object_store_util" }
 dashmap = "5.5.0"
 metastore = { path = "../metastore" }
 thiserror.workspace = true
-tokio = { workspace = true }
+# tokio = { workspace = true }
 async-trait = { workspace = true }
 datafusion = { workspace = true }
 prost = { workspace = true }

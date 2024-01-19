@@ -124,18 +124,17 @@ pub enum ExecError {
     #[error("Invalid URL for remote execution: {0}")]
     InvalidRemoteExecUrl(String),
 
-    #[error(transparent)]
-    DatasourceDebug(#[from] datasources::debug::errors::DebugError),
+    // #[error(transparent)]
+    // DatasourceDebug(#[from] datasources::debug::errors::DebugError),
 
-    #[error(transparent)]
-    DatasourceNative(#[from] datasources::native::errors::NativeError),
+    // #[error(transparent)]
+    // DatasourceNative(#[from] datasources::native::errors::NativeError),
 
-    #[error(transparent)]
-    DatasourceCommon(#[from] datasources::common::errors::DatasourceCommonError),
+    // #[error(transparent)]
+    // DatasourceCommon(#[from] datasources::common::errors::DatasourceCommonError),
 
-    #[error(transparent)]
-    DatasourceObjectStore(#[from] datasources::object_store::errors::ObjectStoreSourceError),
-
+    // #[error(transparent)]
+    // DatasourceObjectStore(#[from] datasources::object_store::errors::ObjectStoreSourceError),
     #[error(transparent)]
     PlanError(#[from] crate::planner::errors::PlanError),
 
@@ -145,9 +144,8 @@ pub enum ExecError {
     #[error(transparent)]
     Catalog(#[from] catalog::errors::CatalogError),
 
-    #[error(transparent)]
-    DistExecError(#[from] crate::distexec::DistExecError),
-
+    // #[error(transparent)]
+    // DistExecError(#[from] crate::distexec::DistExecError),
     #[error("{0:?}")]
     TonicTransport(#[from] tonic::transport::Error),
 

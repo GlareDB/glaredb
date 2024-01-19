@@ -8,7 +8,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use datafusion::prelude::Expr;
-use datasources::native::access::NativeTableStorage;
+// use datasources::native::access::NativeTableStorage;
 use futures::stream;
 use protogen::metastore::types::catalog::TableEntry;
 use std::any::Any;
@@ -65,17 +65,18 @@ impl ExecutionPlan for UpdateExec {
             ));
         }
 
-        let storage = context
-            .session_config()
-            .get_extension::<NativeTableStorage>()
-            .expect("context should have native table storage");
+        unimplemented!()
+        // let storage = context
+        //     .session_config()
+        //     .get_extension::<NativeTableStorage>()
+        //     .expect("context should have native table storage");
 
-        let stream = stream::once(update(self.clone(), storage));
+        // let stream = stream::once(update(self.clone(), storage));
 
-        Ok(Box::pin(RecordBatchStreamAdapter::new(
-            self.schema(),
-            stream,
-        )))
+        // Ok(Box::pin(RecordBatchStreamAdapter::new(
+        //     self.schema(),
+        //     stream,
+        // )))
     }
 
     fn statistics(&self) -> Statistics {
@@ -89,16 +90,16 @@ impl DisplayAs for UpdateExec {
     }
 }
 
-async fn update(
-    plan: UpdateExec,
-    storage: impl AsRef<NativeTableStorage>,
-) -> DataFusionResult<RecordBatch> {
-    let storage = storage.as_ref();
+// async fn update(
+//     plan: UpdateExec,
+//     storage: impl AsRef<NativeTableStorage>,
+// ) -> DataFusionResult<RecordBatch> {
+//     let storage = storage.as_ref();
 
-    let num_updated = storage
-        .update_rows_where(&plan.table, plan.updates, plan.where_expr)
-        .await
-        .map_err(|e| DataFusionError::Execution(format!("failed to update: {e}")))?;
+//     let num_updated = storage
+//         .update_rows_where(&plan.table, plan.updates, plan.where_expr)
+//         .await
+//         .map_err(|e| DataFusionError::Execution(format!("failed to update: {e}")))?;
 
-    Ok(new_operation_with_count_batch("update", num_updated as u64))
-}
+//     Ok(new_operation_with_count_batch("update", num_updated as u64))
+// }

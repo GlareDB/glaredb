@@ -11,7 +11,7 @@ use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::SessionContext as DfSessionContext;
 use datafusion::prelude::{Column, Expr};
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
-use datasources::native::access::NativeTableStorage;
+// use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{
     CatalogEntry, DatabaseEntry, EntryMeta, EntryType, FunctionEntry, ViewEntry,
 };
@@ -65,41 +65,40 @@ pub enum DispatchError {
 
     #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
-    #[error(transparent)]
-    DebugDatasource(#[from] datasources::debug::errors::DebugError),
-    #[error(transparent)]
-    PostgresDatasource(#[from] datasources::postgres::errors::PostgresError),
-    #[error(transparent)]
-    BigQueryDatasource(#[from] datasources::bigquery::errors::BigQueryError),
-    #[error(transparent)]
-    MysqlDatasource(#[from] datasources::mysql::errors::MysqlError),
-    #[error(transparent)]
-    ObjectStoreDatasource(#[from] datasources::object_store::errors::ObjectStoreSourceError),
-    #[error(transparent)]
-    MongoDatasource(#[from] datasources::mongodb::errors::MongoDbError),
-    #[error(transparent)]
-    SnowflakeDatasource(#[from] datasources::snowflake::errors::DatasourceSnowflakeError),
-    #[error(transparent)]
-    DeltaDatasource(#[from] datasources::lake::delta::errors::DeltaError),
-    #[error(transparent)]
-    IcebergDatasource(#[from] datasources::lake::iceberg::errors::IcebergError),
-    #[error(transparent)]
-    SqlServerError(#[from] datasources::sqlserver::errors::SqlServerError),
-    #[error(transparent)]
-    BsonDatasource(#[from] datasources::bson::errors::BsonError),
-    #[error(transparent)]
-    ClickhouseDatasource(#[from] datasources::clickhouse::errors::ClickhouseError),
-    #[error(transparent)]
-    NativeDatasource(#[from] datasources::native::errors::NativeError),
-    #[error(transparent)]
-    CommonDatasource(#[from] datasources::common::errors::DatasourceCommonError),
-    #[error(transparent)]
-    SshKey(#[from] datasources::common::ssh::key::SshKeyError),
+    // #[error(transparent)]
+    // DebugDatasource(#[from] datasources::debug::errors::DebugError),
+    // #[error(transparent)]
+    // PostgresDatasource(#[from] datasources::postgres::errors::PostgresError),
+    // #[error(transparent)]
+    // BigQueryDatasource(#[from] datasources::bigquery::errors::BigQueryError),
+    // #[error(transparent)]
+    // MysqlDatasource(#[from] datasources::mysql::errors::MysqlError),
+    // #[error(transparent)]
+    // ObjectStoreDatasource(#[from] datasources::object_store::errors::ObjectStoreSourceError),
+    // #[error(transparent)]
+    // MongoDatasource(#[from] datasources::mongodb::errors::MongoDbError),
+    // #[error(transparent)]
+    // SnowflakeDatasource(#[from] datasources::snowflake::errors::DatasourceSnowflakeError),
+    // #[error(transparent)]
+    // DeltaDatasource(#[from] datasources::lake::delta::errors::DeltaError),
+    // #[error(transparent)]
+    // IcebergDatasource(#[from] datasources::lake::iceberg::errors::IcebergError),
+    // #[error(transparent)]
+    // SqlServerError(#[from] datasources::sqlserver::errors::SqlServerError),
+    // #[error(transparent)]
+    // BsonDatasource(#[from] datasources::bson::errors::BsonError),
+    // #[error(transparent)]
+    // ClickhouseDatasource(#[from] datasources::clickhouse::errors::ClickhouseError),
+    // #[error(transparent)]
+    // NativeDatasource(#[from] datasources::native::errors::NativeError),
+    // #[error(transparent)]
+    // CommonDatasource(#[from] datasources::common::errors::DatasourceCommonError),
+    // #[error(transparent)]
+    // SshKey(#[from] datasources::common::ssh::key::SshKeyError),
     #[error(transparent)]
     ExtensionError(#[from] datafusion_ext::errors::ExtensionError),
-    #[error(transparent)]
-    CassandraDatasource(#[from] datasources::cassandra::CassandraError),
-
+    // #[error(transparent)]
+    // CassandraDatasource(#[from] datasources::cassandra::CassandraError),
     #[error("{0}")]
     String(String),
 }
@@ -168,7 +167,7 @@ impl ViewPlanner for LocalSessionContext {
 /// Dispatch to table providers.
 pub struct Dispatcher<'a> {
     catalog: &'a SessionCatalog,
-    tables: &'a NativeTableStorage,
+    // tables: &'a NativeTableStorage,
     view_planner: &'a dyn ViewPlanner,
     // TODO: Remove need for this.
     df_ctx: &'a DfSessionContext,
@@ -179,14 +178,14 @@ pub struct Dispatcher<'a> {
 impl<'a> Dispatcher<'a> {
     pub fn new(
         catalog: &'a SessionCatalog,
-        tables: &'a NativeTableStorage,
+        // tables: &'a NativeTableStorage,
         view_planner: &'a dyn ViewPlanner,
         df_ctx: &'a DfSessionContext,
         disable_local_fs_access: bool,
     ) -> Self {
         Dispatcher {
             catalog,
-            tables,
+            // tables,
             view_planner,
             df_ctx,
             disable_local_fs_access,
@@ -216,9 +215,10 @@ impl<'a> Dispatcher<'a> {
             }
             // Dispatch to builtin tables.
             CatalogEntry::Table(tbl) if tbl.meta.builtin => {
-                SystemTableDispatcher::new(self.catalog, self.tables)
-                    .dispatch(&tbl)
-                    .await
+                unimplemented!()
+                // SystemTableDispatcher::new(self.catalog, self.tables)
+                //     .dispatch(&tbl)
+                //     .await
             }
             // Dispatch to external tables.
             CatalogEntry::Table(tbl) if tbl.meta.external => {
@@ -228,8 +228,9 @@ impl<'a> Dispatcher<'a> {
             }
             // Dispatch to native tables.
             CatalogEntry::Table(tbl) => {
-                let table = self.tables.load_table(&tbl).await?;
-                Ok(table.into_table_provider())
+                unimplemented!()
+                // let table = self.tables.load_table(&tbl).await?;
+                // Ok(table.into_table_provider())
             }
             other => Err(DispatchError::UnhandledEntry(other.get_meta().clone())),
         }

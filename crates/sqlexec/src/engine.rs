@@ -1,6 +1,6 @@
 use crate::context::remote::RemoteSessionContext;
-use crate::distexec::executor::TaskExecutor;
-use crate::distexec::scheduler::Scheduler;
+// use crate::distexec::executor::TaskExecutor;
+// use crate::distexec::scheduler::Scheduler;
 use crate::errors::{ExecError, Result};
 use crate::session::Session;
 use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
@@ -21,9 +21,9 @@ use std::sync::Arc;
 
 use catalog::session_catalog::{ResolveConfig, SessionCatalog};
 use datafusion_ext::vars::SessionVars;
-use datasources::common::errors::DatasourceCommonError;
-use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
-use datasources::native::access::NativeTableStorage;
+// use datasources::common::errors::DatasourceCommonError;
+// use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
+// use datasources::native::access::NativeTableStorage;
 use metastore::local::start_inprocess;
 use metastore::util::MetastoreClientMode;
 use object_store_util::conf::StorageConfig;
@@ -86,121 +86,122 @@ impl EngineStorageConfig {
         })
     }
     pub fn try_from_options(location: &str, opts: HashMap<String, String>) -> Result<Self> {
-        if location.starts_with("memory://") {
-            return Ok(EngineStorageConfig {
-                location: Url::parse(location).map_err(DatasourceCommonError::from)?,
-                conf: StorageConfig::Memory,
-            });
-        }
+        unimplemented!()
+        // if location.starts_with("memory://") {
+        //     return Ok(EngineStorageConfig {
+        //         location: Url::parse(location).map_err(DatasourceCommonError::from)?,
+        //         conf: StorageConfig::Memory,
+        //     });
+        // }
 
-        let datasource_url = DatasourceUrl::try_new(location)?;
-        Ok(match datasource_url {
-            DatasourceUrl::File(path) => EngineStorageConfig::try_from_path_buf(&path)?,
-            DatasourceUrl::Url(ref url) => {
-                let url_type = datasource_url.datasource_url_type();
-                match url_type {
-                    DatasourceUrlType::Gcs => {
-                        let service_account_path =
-                            opts.get("service_account_path").cloned().unwrap_or_else(|| {
-                                std::env::var("GOOGLE_APPLICATION_CREDENTIALS")
-                                    .expect(
-                                        "'service_account_path' in provided storage options or 'GOOGLE_APPLICATION_CREDENTIALS' as env var",
-                                    )
-                            });
+        // let datasource_url = DatasourceUrl::try_new(location)?;
+        // Ok(match datasource_url {
+        //     DatasourceUrl::File(path) => EngineStorageConfig::try_from_path_buf(&path)?,
+        //     DatasourceUrl::Url(ref url) => {
+        //         let url_type = datasource_url.datasource_url_type();
+        //         match url_type {
+        //             DatasourceUrlType::Gcs => {
+        //                 let service_account_path =
+        //                     opts.get("service_account_path").cloned().unwrap_or_else(|| {
+        //                         std::env::var("GOOGLE_APPLICATION_CREDENTIALS")
+        //                             .expect(
+        //                                 "'service_account_path' in provided storage options or 'GOOGLE_APPLICATION_CREDENTIALS' as env var",
+        //                             )
+        //                     });
 
-                        let service_account_key = fs::read_to_string(service_account_path)?;
+        //                 let service_account_key = fs::read_to_string(service_account_path)?;
 
-                        // Extract bucket from the location URL
-                        let bucket = opts
-                            .get("bucket")
-                            .cloned()
-                            .or(url.host_str().map(|h| h.to_string()));
+        //                 // Extract bucket from the location URL
+        //                 let bucket = opts
+        //                     .get("bucket")
+        //                     .cloned()
+        //                     .or(url.host_str().map(|h| h.to_string()));
 
-                        EngineStorageConfig {
-                            location: url.clone(),
-                            conf: StorageConfig::Gcs {
-                                service_account_key,
-                                bucket,
-                            },
-                        }
-                    }
-                    DatasourceUrlType::S3 | DatasourceUrlType::Http => {
-                        let access_key_id = opts.get("access_key_id").cloned().unwrap_or_else(|| {
-                            std::env::var(AmazonS3ConfigKey::AccessKeyId.as_ref().to_uppercase())
-                                .expect("'access_key_id' in provided storage options or 'AWS_ACCESS_KEY_ID' as env var")
-                        });
-                        let secret_access_key =
-                            opts.get("secret_access_key").cloned().unwrap_or_else(|| {
-                                std::env::var(AmazonS3ConfigKey::SecretAccessKey.as_ref().to_uppercase())
-                                    .expect("'secret_access_key' in provided storage options or 'AWS_SECRET_ACCESS_KEY' as env var")
-                            });
+        //                 EngineStorageConfig {
+        //                     location: url.clone(),
+        //                     conf: StorageConfig::Gcs {
+        //                         service_account_key,
+        //                         bucket,
+        //                     },
+        //                 }
+        //             }
+        //             DatasourceUrlType::S3 | DatasourceUrlType::Http => {
+        //                 let access_key_id = opts.get("access_key_id").cloned().unwrap_or_else(|| {
+        //                     std::env::var(AmazonS3ConfigKey::AccessKeyId.as_ref().to_uppercase())
+        //                         .expect("'access_key_id' in provided storage options or 'AWS_ACCESS_KEY_ID' as env var")
+        //                 });
+        //                 let secret_access_key =
+        //                     opts.get("secret_access_key").cloned().unwrap_or_else(|| {
+        //                         std::env::var(AmazonS3ConfigKey::SecretAccessKey.as_ref().to_uppercase())
+        //                             .expect("'secret_access_key' in provided storage options or 'AWS_SECRET_ACCESS_KEY' as env var")
+        //                     });
 
-                        let mut endpoint = None;
-                        let region = opts.get("region").cloned();
-                        let mut bucket = opts
-                            .get("bucket")
-                            .cloned()
-                            .or(url.host_str().map(|h| h.to_string()));
+        //                 let mut endpoint = None;
+        //                 let region = opts.get("region").cloned();
+        //                 let mut bucket = opts
+        //                     .get("bucket")
+        //                     .cloned()
+        //                     .or(url.host_str().map(|h| h.to_string()));
 
-                        if url_type == DatasourceUrlType::Http
-                            && !location.contains("amazonaws.com")
-                        {
-                            // For now we don't allow proper HTTP object stores as storage locations,
-                            // so interpret this case as either Cloudflare R2 or a MinIO instance.
-                            // Extract the endpoint...
-                            endpoint = Some(url[..url::Position::BeforePath].to_string());
-                            // ... and the bucket, which is the first path segment (if one exists)
-                            let segments = url.path_segments().unwrap().collect::<Vec<_>>();
-                            if segments.len() > 1 {
-                                bucket = Some(segments[0].to_string());
-                            }
-                        }
+        //                 if url_type == DatasourceUrlType::Http
+        //                     && !location.contains("amazonaws.com")
+        //                 {
+        //                     // For now we don't allow proper HTTP object stores as storage locations,
+        //                     // so interpret this case as either Cloudflare R2 or a MinIO instance.
+        //                     // Extract the endpoint...
+        //                     endpoint = Some(url[..url::Position::BeforePath].to_string());
+        //                     // ... and the bucket, which is the first path segment (if one exists)
+        //                     let segments = url.path_segments().unwrap().collect::<Vec<_>>();
+        //                     if segments.len() > 1 {
+        //                         bucket = Some(segments[0].to_string());
+        //                     }
+        //                 }
 
-                        EngineStorageConfig {
-                            location: url.clone(),
-                            conf: StorageConfig::S3 {
-                                access_key_id,
-                                secret_access_key,
-                                region,
-                                endpoint,
-                                bucket,
-                            },
-                        }
-                    }
-                    DatasourceUrlType::Azure => {
-                        let account_name = opts.get("account_name").cloned().unwrap_or_else(|| {
-                            std::env::var(AzureConfigKey::AccountName.as_ref().to_uppercase())
-                                .expect(
-                                    "'account_name' in provided storage options or 'AZURE_STORAGE_ACCOUNT_NAME' as env var"
-                                )
-                        });
+        //                 EngineStorageConfig {
+        //                     location: url.clone(),
+        //                     conf: StorageConfig::S3 {
+        //                         access_key_id,
+        //                         secret_access_key,
+        //                         region,
+        //                         endpoint,
+        //                         bucket,
+        //                     },
+        //                 }
+        //             }
+        //             DatasourceUrlType::Azure => {
+        //                 let account_name = opts.get("account_name").cloned().unwrap_or_else(|| {
+        //                     std::env::var(AzureConfigKey::AccountName.as_ref().to_uppercase())
+        //                         .expect(
+        //                             "'account_name' in provided storage options or 'AZURE_STORAGE_ACCOUNT_NAME' as env var"
+        //                         )
+        //                 });
 
-                        let access_key = opts.get("access_key").cloned().unwrap_or_else(|| {
-                            std::env::var(AzureConfigKey::AccessKey.as_ref().to_uppercase())
-                                .expect(
-                                    "'access_key' in provided storage options or 'AZURE_STORAGE_ACCOUNT_KEY' as env var"
-                                )
-                        });
+        //                 let access_key = opts.get("access_key").cloned().unwrap_or_else(|| {
+        //                     std::env::var(AzureConfigKey::AccessKey.as_ref().to_uppercase())
+        //                         .expect(
+        //                             "'access_key' in provided storage options or 'AZURE_STORAGE_ACCOUNT_KEY' as env var"
+        //                         )
+        //                 });
 
-                        // Extract bucket (azure container) from the location URL
-                        let container_name = opts
-                            .get("container_name")
-                            .cloned()
-                            .or(url.host_str().map(|h| h.to_string()));
+        //                 // Extract bucket (azure container) from the location URL
+        //                 let container_name = opts
+        //                     .get("container_name")
+        //                     .cloned()
+        //                     .or(url.host_str().map(|h| h.to_string()));
 
-                        EngineStorageConfig {
-                            location: url.clone(),
-                            conf: StorageConfig::Azure {
-                                account_name,
-                                access_key,
-                                container_name,
-                            },
-                        }
-                    }
-                    DatasourceUrlType::File => unreachable!(), // Handled as Datasource::File(_)
-                }
-            }
-        })
+        //                 EngineStorageConfig {
+        //                     location: url.clone(),
+        //                     conf: StorageConfig::Azure {
+        //                         account_name,
+        //                         access_key,
+        //                         container_name,
+        //                     },
+        //                 }
+        //             }
+        //             DatasourceUrlType::File => unreachable!(), // Handled as Datasource::File(_)
+        //         }
+        //     }
+        // })
     }
 
     /// Return the currently configured URL.
@@ -222,14 +223,15 @@ impl EngineStorageConfig {
             ) => {
                 // A session-level bucket overrides the inherent configuration.
                 // Setup the storage config and the location accordingly.
-                EngineStorageConfig {
-                    location: Url::parse(&format!("gs://{bucket}"))
-                        .map_err(DatasourceCommonError::from)?,
-                    conf: StorageConfig::Gcs {
-                        service_account_key,
-                        bucket: Some(bucket),
-                    },
-                }
+                unimplemented!()
+                // EngineStorageConfig {
+                //     location: Url::parse(&format!("gs://{bucket}"))
+                //         .map_err(DatasourceCommonError::from)?,
+                //     conf: StorageConfig::Gcs {
+                //         service_account_key,
+                //         bucket: Some(bucket),
+                //     },
+                // }
             }
             // Expected gcs config opts for the session.
             (StorageConfig::Gcs { bucket: None, .. }, None) => {
@@ -238,7 +240,7 @@ impl EngineStorageConfig {
                 ))
             }
             (_, Some(_)) => EngineStorageConfig {
-                location: Url::parse("memory://").map_err(DatasourceCommonError::from)?,
+                location: Url::parse("memory://").unwrap(),
                 conf: StorageConfig::Memory,
             },
             _ => self.clone(),
@@ -291,17 +293,17 @@ impl EngineStorageConfig {
         }
     }
 
-    /// Create a new native tables storage for a session for a given database.
-    fn new_native_tables_storage(
-        &self,
-        db_id: Uuid,
-        session_conf: &SessionStorageConfig,
-    ) -> Result<NativeTableStorage> {
-        let conf = self.with_session_config(session_conf)?;
-        let store = conf.new_object_store()?;
-        let native = NativeTableStorage::new(db_id, conf.location, store);
-        Ok(native)
-    }
+    // /// Create a new native tables storage for a session for a given database.
+    // fn new_native_tables_storage(
+    //     &self,
+    //     db_id: Uuid,
+    //     session_conf: &SessionStorageConfig,
+    // ) -> Result<NativeTableStorage> {
+    //     let conf = self.with_session_config(session_conf)?;
+    //     let store = conf.new_object_store()?;
+    //     let native = NativeTableStorage::new(db_id, conf.location, store);
+    //     Ok(native)
+    // }
 }
 
 /// Hold configuration and clients needed to create database sessions.
@@ -317,10 +319,10 @@ pub struct Engine {
     spill_path: Option<PathBuf>,
     /// Number of active sessions.
     session_counter: Arc<AtomicU64>,
-    /// Scheduler for running tasks (physical plan).
-    task_scheduler: Scheduler,
-    /// Task executors.
-    _task_executors: Vec<TaskExecutor>,
+    // /// Scheduler for running tasks (physical plan).
+    // task_scheduler: Scheduler,
+    // /// Task executors.
+    // _task_executors: Vec<TaskExecutor>,
 }
 
 impl Engine {
@@ -331,17 +333,17 @@ impl Engine {
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
     ) -> Result<Engine> {
-        let (task_scheduler, executor_builder) = Scheduler::new();
+        // let (task_scheduler, executor_builder) = Scheduler::new();
         // Build executors.
         let num_executors = num_cpus::get();
-        let task_executors: Vec<_> = (0..num_executors)
-            .map(|_| executor_builder.build_only_local())
-            .collect();
+        // let task_executors: Vec<_> = (0..num_executors)
+        //     .map(|_| executor_builder.build_only_local())
+        //     .collect();
 
-        assert!(
-            !task_executors.is_empty(),
-            "there should be at least one executor"
-        );
+        // assert!(
+        //     !task_executors.is_empty(),
+        //     "there should be at least one executor"
+        // );
 
         Ok(Engine {
             supervisor: MetastoreClientSupervisor::new(metastore, DEFAULT_METASTORE_CLIENT_CONFIG),
@@ -349,8 +351,8 @@ impl Engine {
             storage,
             spill_path,
             session_counter: Arc::new(AtomicU64::new(0)),
-            task_scheduler,
-            _task_executors: task_executors,
+            // task_scheduler,
+            // _task_executors: task_executors,
         })
     }
 
@@ -440,29 +442,30 @@ impl Engine {
         vars: SessionVars,
         storage: SessionStorageConfig,
     ) -> Result<Session> {
-        let database_id = vars.database_id();
-        let metastore = self.supervisor.init_client(database_id).await?;
-        let native = self
-            .storage
-            .new_native_tables_storage(database_id, &storage)?;
-        let state = metastore.get_cached_state().await?;
-        let catalog = SessionCatalog::new(
-            state,
-            ResolveConfig {
-                default_schema_oid: SCHEMA_DEFAULT.oid,
-                session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
-            },
-        );
+        unimplemented!()
+        // let database_id = vars.database_id();
+        // let metastore = self.supervisor.init_client(database_id).await?;
+        // let native = self
+        //     .storage
+        //     .new_native_tables_storage(database_id, &storage)?;
+        // let state = metastore.get_cached_state().await?;
+        // let catalog = SessionCatalog::new(
+        //     state,
+        //     ResolveConfig {
+        //         default_schema_oid: SCHEMA_DEFAULT.oid,
+        //         session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
+        //     },
+        // );
 
-        Session::new(
-            vars,
-            catalog,
-            metastore.into(),
-            native,
-            self.tracker.clone(),
-            self.spill_path.clone(),
-            self.task_scheduler.clone(),
-        )
+        // Session::new(
+        //     vars,
+        //     catalog,
+        //     metastore.into(),
+        //     // native,
+        //     self.tracker.clone(),
+        //     self.spill_path.clone(),
+        //     // self.task_scheduler.clone(),
+        // )
     }
 
     /// Create a new remote session for plan execution.
@@ -474,24 +477,29 @@ impl Engine {
         database_id: Uuid,
         storage: SessionStorageConfig,
     ) -> Result<RemoteSessionContext> {
-        let metastore = self.supervisor.init_client(database_id).await?;
-        let native = self
-            .storage
-            .new_native_tables_storage(database_id, &storage)?;
+        unimplemented!()
+        // let metastore = self.supervisor.init_client(database_id).await?;
+        // let native = self
+        //     .storage
+        //     .new_native_tables_storage(database_id, &storage)?;
 
-        let state = metastore.get_cached_state().await?;
-        let catalog = SessionCatalog::new(
-            state,
-            ResolveConfig {
-                default_schema_oid: SCHEMA_DEFAULT.oid,
-                session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
-            },
-        );
+        // let state = metastore.get_cached_state().await?;
+        // let catalog = SessionCatalog::new(
+        //     state,
+        //     ResolveConfig {
+        //         default_schema_oid: SCHEMA_DEFAULT.oid,
+        //         session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
+        //     },
+        // );
 
-        let context =
-            RemoteSessionContext::new(catalog, metastore.into(), native, self.spill_path.clone())?;
+        // let context = RemoteSessionContext::new(
+        //     catalog,
+        //     metastore.into(),
+        //     // native,
+        //     self.spill_path.clone(),
+        // )?;
 
-        Ok(context)
+        // Ok(context)
     }
 }
 
@@ -548,33 +556,33 @@ mod tests {
     use object_store_util::conf::StorageConfig;
     use std::collections::HashMap;
 
-    #[test]
-    fn merged_conf_session_bucket() -> Result<()> {
-        let access_key_id = "my_key".to_string();
-        let secret_access_key = "my_secret".to_string();
-        let conf = EngineStorageConfig::try_from_options(
-            "s3://some-bucket",
-            HashMap::from_iter([
-                ("access_key_id".to_string(), access_key_id.clone()),
-                ("secret_access_key".to_string(), secret_access_key.clone()),
-            ]),
-        )?;
+    // #[test]
+    // fn merged_conf_session_bucket() -> Result<()> {
+    //     let access_key_id = "my_key".to_string();
+    //     let secret_access_key = "my_secret".to_string();
+    //     let conf = EngineStorageConfig::try_from_options(
+    //         "s3://some-bucket",
+    //         HashMap::from_iter([
+    //             ("access_key_id".to_string(), access_key_id.clone()),
+    //             ("secret_access_key".to_string(), secret_access_key.clone()),
+    //         ]),
+    //     )?;
 
-        assert_eq!(
-            conf.conf,
-            StorageConfig::S3 {
-                access_key_id,
-                secret_access_key,
-                region: None,
-                endpoint: None,
-                bucket: Some("some-bucket".to_string()),
-            }
-        );
+    //     assert_eq!(
+    //         conf.conf,
+    //         StorageConfig::S3 {
+    //             access_key_id,
+    //             secret_access_key,
+    //             region: None,
+    //             endpoint: None,
+    //             bucket: Some("some-bucket".to_string()),
+    //         }
+    //     );
 
-        let merged_conf = conf.with_session_config(&SessionStorageConfig {
-            gcs_bucket: Some("my-other-bucket".to_string()),
-        })?;
-        assert_eq!(merged_conf.conf, StorageConfig::Memory,);
-        Ok(())
-    }
+    //     let merged_conf = conf.with_session_config(&SessionStorageConfig {
+    //         gcs_bucket: Some("my-other-bucket".to_string()),
+    //     })?;
+    //     assert_eq!(merged_conf.conf, StorageConfig::Memory,);
+    //     Ok(())
+    // }
 }

@@ -8,7 +8,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream, Statistics,
 };
 use datafusion::prelude::Expr;
-use datasources::native::access::NativeTableStorage;
+// use datasources::native::access::NativeTableStorage;
 use futures::stream;
 use protogen::metastore::types::catalog::TableEntry;
 use std::any::Any;
@@ -64,17 +64,19 @@ impl ExecutionPlan for DeleteExec {
             ));
         }
 
-        let storage = context
-            .session_config()
-            .get_extension::<NativeTableStorage>()
-            .expect("context should have native table storage");
+        unimplemented!()
 
-        let stream = stream::once(delete(self.clone(), storage));
+        // let storage = context
+        //     .session_config()
+        //     .get_extension::<NativeTableStorage>()
+        //     .expect("context should have native table storage");
 
-        Ok(Box::pin(RecordBatchStreamAdapter::new(
-            self.schema(),
-            stream,
-        )))
+        // let stream = stream::once(delete(self.clone(), storage));
+
+        // Ok(Box::pin(RecordBatchStreamAdapter::new(
+        //     self.schema(),
+        //     stream,
+        // )))
     }
 
     fn statistics(&self) -> Statistics {
@@ -88,16 +90,16 @@ impl DisplayAs for DeleteExec {
     }
 }
 
-async fn delete(
-    plan: DeleteExec,
-    storage: impl AsRef<NativeTableStorage>,
-) -> DataFusionResult<RecordBatch> {
-    let storage = storage.as_ref();
+// async fn delete(
+//     plan: DeleteExec,
+//     storage: impl AsRef<NativeTableStorage>,
+// ) -> DataFusionResult<RecordBatch> {
+//     let storage = storage.as_ref();
 
-    let num_deleted = storage
-        .delete_rows_where(&plan.table, plan.where_expr)
-        .await
-        .map_err(|e| DataFusionError::Execution(format!("failed to delete: {e}")))?;
+//     let num_deleted = storage
+//         .delete_rows_where(&plan.table, plan.where_expr)
+//         .await
+//         .map_err(|e| DataFusionError::Execution(format!("failed to delete: {e}")))?;
 
-    Ok(new_operation_with_count_batch("delete", num_deleted as u64))
-}
+//     Ok(new_operation_with_count_batch("delete", num_deleted as u64))
+// }

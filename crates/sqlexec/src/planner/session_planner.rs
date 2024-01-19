@@ -13,25 +13,25 @@ use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
 use datafusion::sql::TableReference;
 use datafusion_ext::planner::SqlQueryPlanner;
 use datafusion_ext::AsyncContextProvider;
-use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
-use datasources::cassandra::{CassandraAccess, CassandraAccessState};
-use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableRef};
-use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
-use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
-use datasources::debug::DebugTableType;
-use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
-use datasources::lake::iceberg::table::IcebergTable;
-use datasources::lance::scan_lance_table;
-use datasources::mongodb::{MongoDbAccessor, MongoDbConnection};
-use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
-use datasources::object_store::gcs::GcsStoreAccess;
-use datasources::object_store::generic::GenericStoreAccess;
-use datasources::object_store::local::LocalStoreAccess;
-use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
-use datasources::postgres::{PostgresAccess, PostgresDbConnection};
-use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use datasources::sqlserver::SqlServerAccess;
+// use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
+// use datasources::cassandra::{CassandraAccess, CassandraAccessState};
+// use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableRef};
+// use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
+// use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
+// use datasources::debug::DebugTableType;
+// use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
+// use datasources::lake::iceberg::table::IcebergTable;
+// use datasources::lance::scan_lance_table;
+// use datasources::mongodb::{MongoDbAccessor, MongoDbConnection};
+// use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
+// use datasources::object_store::gcs::GcsStoreAccess;
+// use datasources::object_store::generic::GenericStoreAccess;
+// use datasources::object_store::local::LocalStoreAccess;
+// use datasources::object_store::s3::S3StoreAccess;
+// use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
+// use datasources::postgres::{PostgresAccess, PostgresDbConnection};
+// use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+// use datasources::sqlserver::SqlServerAccess;
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::azure::AzureConfigKey;
 use object_store::gcp::GoogleConfigKey;
@@ -191,159 +191,160 @@ impl<'a> SessionPlanner<'a> {
 
         let m = &mut stmt.options;
 
-        let db_options = match datasource.as_str() {
-            DatabaseOptions::POSTGRES => {
-                let connection_string = get_pg_conn_str(m)?;
-                let access =
-                    PostgresAccess::new_from_conn_str(connection_string.clone(), tunnel_options);
-                access
-                    .validate_access()
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalDatabase {
-                        source: Box::new(e),
-                    })?;
-                DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string })
-            }
-            DatabaseOptions::BIGQUERY => {
-                let service_account_key = creds_options.as_ref().map(|c| match c {
-                    CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
-                    other => unreachable!("invalid credentials {other} for bigquery"),
-                });
+        unimplemented!()
+        // let db_options = match datasource.as_str() {
+        //     DatabaseOptions::POSTGRES => {
+        //         let connection_string = get_pg_conn_str(m)?;
+        //         let access =
+        //             PostgresAccess::new_from_conn_str(connection_string.clone(), tunnel_options);
+        //         access
+        //             .validate_access()
+        //             .await
+        //             .map_err(|e| PlanError::InvalidExternalDatabase {
+        //                 source: Box::new(e),
+        //             })?;
+        //         DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string })
+        //     }
+        //     DatabaseOptions::BIGQUERY => {
+        //         let service_account_key = creds_options.as_ref().map(|c| match c {
+        //             CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
+        //             other => unreachable!("invalid credentials {other} for bigquery"),
+        //         });
 
-                let service_account_key =
-                    m.remove_required_or("service_account_key", service_account_key)?;
+        //         let service_account_key =
+        //             m.remove_required_or("service_account_key", service_account_key)?;
 
-                let project_id: String = m.remove_required("project_id")?;
+        //         let project_id: String = m.remove_required("project_id")?;
 
-                BigQueryAccessor::validate_external_database(&service_account_key, &project_id)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalDatabase {
-                        source: Box::new(e),
-                    })?;
+        //         BigQueryAccessor::validate_external_database(&service_account_key, &project_id)
+        //             .await
+        //             .map_err(|e| PlanError::InvalidExternalDatabase {
+        //                 source: Box::new(e),
+        //             })?;
 
-                DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
-                    service_account_key,
-                    project_id,
-                })
-            }
-            DatabaseOptions::MYSQL => {
-                let connection_string = get_mysql_conn_str(m)?;
-                MysqlAccessor::validate_external_database(&connection_string, tunnel_options)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalDatabase {
-                        source: Box::new(e),
-                    })?;
-                DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string })
-            }
-            DatabaseOptions::MONGODB => {
-                let connection_string = get_mongodb_conn_str(m)?;
-                // Validate the accessor
-                MongoDbAccessor::validate_external_database(connection_string.as_str())
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalDatabase {
-                        source: Box::new(e),
-                    })?;
-                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string })
-            }
-            DatabaseOptions::SNOWFLAKE => {
-                let account_name: String = m.remove_required("account")?;
-                let login_name: String = m.remove_required("username")?;
-                let password: String = m.remove_required("password")?;
-                let database_name: String = m.remove_required("database")?;
-                let warehouse: String = m.remove_required("warehouse")?;
-                let role_name: Option<String> = m.remove_optional("role")?;
-                SnowflakeAccessor::validate_external_database(SnowflakeDbConnection {
-                    account_name: account_name.clone(),
-                    login_name: login_name.clone(),
-                    password: password.clone(),
-                    database_name: database_name.clone(),
-                    warehouse: warehouse.clone(),
-                    role_name: role_name.clone(),
-                })
-                .await
-                .map_err(|e| PlanError::InvalidExternalDatabase {
-                    source: Box::new(e),
-                })?;
-                DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
-                    account_name,
-                    login_name,
-                    password,
-                    database_name,
-                    warehouse,
-                    role_name: role_name.unwrap_or_default(),
-                })
-            }
-            DatabaseOptions::DELTA => {
-                let catalog = match m.remove_required::<String>("catalog_type")?.as_str() {
-                    "unity" => DeltaLakeCatalog::Unity(DeltaLakeUnityCatalog {
-                        catalog_id: m.remove_required("catalog_id")?,
-                        databricks_access_token: m.remove_required("access_token")?,
-                        workspace_url: m.remove_required("workspace_url")?,
-                    }),
-                    other => return Err(internal!("Unknown catalog type: {}", other)),
-                };
+        //         DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
+        //             service_account_key,
+        //             project_id,
+        //         })
+        //     }
+        //     DatabaseOptions::MYSQL => {
+        //         let connection_string = get_mysql_conn_str(m)?;
+        //         MysqlAccessor::validate_external_database(&connection_string, tunnel_options)
+        //             .await
+        //             .map_err(|e| PlanError::InvalidExternalDatabase {
+        //                 source: Box::new(e),
+        //             })?;
+        //         DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string })
+        //     }
+        //     DatabaseOptions::MONGODB => {
+        //         let connection_string = get_mongodb_conn_str(m)?;
+        //         // Validate the accessor
+        //         MongoDbAccessor::validate_external_database(connection_string.as_str())
+        //             .await
+        //             .map_err(|e| PlanError::InvalidExternalDatabase {
+        //                 source: Box::new(e),
+        //             })?;
+        //         DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string })
+        //     }
+        //     DatabaseOptions::SNOWFLAKE => {
+        //         let account_name: String = m.remove_required("account")?;
+        //         let login_name: String = m.remove_required("username")?;
+        //         let password: String = m.remove_required("password")?;
+        //         let database_name: String = m.remove_required("database")?;
+        //         let warehouse: String = m.remove_required("warehouse")?;
+        //         let role_name: Option<String> = m.remove_optional("role")?;
+        //         SnowflakeAccessor::validate_external_database(SnowflakeDbConnection {
+        //             account_name: account_name.clone(),
+        //             login_name: login_name.clone(),
+        //             password: password.clone(),
+        //             database_name: database_name.clone(),
+        //             warehouse: warehouse.clone(),
+        //             role_name: role_name.clone(),
+        //         })
+        //         .await
+        //         .map_err(|e| PlanError::InvalidExternalDatabase {
+        //             source: Box::new(e),
+        //         })?;
+        //         DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
+        //             account_name,
+        //             login_name,
+        //             password,
+        //             database_name,
+        //             warehouse,
+        //             role_name: role_name.unwrap_or_default(),
+        //         })
+        //     }
+        //     DatabaseOptions::DELTA => {
+        //         let catalog = match m.remove_required::<String>("catalog_type")?.as_str() {
+        //             "unity" => DeltaLakeCatalog::Unity(DeltaLakeUnityCatalog {
+        //                 catalog_id: m.remove_required("catalog_id")?,
+        //                 databricks_access_token: m.remove_required("access_token")?,
+        //                 workspace_url: m.remove_required("workspace_url")?,
+        //             }),
+        //             other => return Err(internal!("Unknown catalog type: {}", other)),
+        //         };
 
-                let mut storage_options = StorageOptions::try_from(m)?;
-                if let Some(creds) = creds_options {
-                    storage_options_with_credentials(&mut storage_options, creds);
-                }
+        //         let mut storage_options = StorageOptions::try_from(m)?;
+        //         if let Some(creds) = creds_options {
+        //             storage_options_with_credentials(&mut storage_options, creds);
+        //         }
 
-                // Try connecting to validate.
-                DeltaLakeAccessor::connect(&catalog, storage_options.clone())
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalDatabase {
-                        source: Box::new(e),
-                    })?;
+        //         // Try connecting to validate.
+        //         DeltaLakeAccessor::connect(&catalog, storage_options.clone())
+        //             .await
+        //             .map_err(|e| PlanError::InvalidExternalDatabase {
+        //                 source: Box::new(e),
+        //             })?;
 
-                DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
-                    catalog,
-                    storage_options,
-                })
-            }
-            DatabaseOptions::SQL_SERVER => {
-                let connection_string: String = m.remove_required("connection_string")?;
+        //         DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
+        //             catalog,
+        //             storage_options,
+        //         })
+        //     }
+        //     DatabaseOptions::SQL_SERVER => {
+        //         let connection_string: String = m.remove_required("connection_string")?;
 
-                // Validate
-                let access = SqlServerAccess::try_new_from_ado_string(&connection_string)?;
-                access.validate_access().await?;
+        //         // Validate
+        //         let access = SqlServerAccess::try_new_from_ado_string(&connection_string)?;
+        //         access.validate_access().await?;
 
-                DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string })
-            }
-            DatabaseOptions::CLICKHOUSE => {
-                let connection_string: String = m.remove_required("connection_string")?;
+        //         DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string })
+        //     }
+        //     DatabaseOptions::CLICKHOUSE => {
+        //         let connection_string: String = m.remove_required("connection_string")?;
 
-                // Validate
-                let access =
-                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
-                access.validate_access().await?;
+        //         // Validate
+        //         let access =
+        //             ClickhouseAccess::new_from_connection_string(connection_string.clone());
+        //         access.validate_access().await?;
 
-                DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string })
-            }
-            DatabaseOptions::CASSANDRA => {
-                let host: String = m.remove_required("host")?;
+        //         DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string })
+        //     }
+        //     DatabaseOptions::CASSANDRA => {
+        //         let host: String = m.remove_required("host")?;
 
-                let access = CassandraAccess::new(host.clone());
-                access.validate_access().await?;
+        //         let access = CassandraAccess::new(host.clone());
+        //         access.validate_access().await?;
 
-                DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host })
-            }
-            DatabaseOptions::DEBUG => {
-                datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
-                DatabaseOptions::Debug(DatabaseOptionsDebug {})
-            }
-            other => return Err(internal!("unsupported datasource: {}", other)),
-        };
+        //         DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host })
+        //     }
+        //     DatabaseOptions::DEBUG => {
+        //         datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
+        //         DatabaseOptions::Debug(DatabaseOptionsDebug {})
+        //     }
+        //     other => return Err(internal!("unsupported datasource: {}", other)),
+        // };
 
-        let database_name = normalize_ident(stmt.name);
+        // let database_name = normalize_ident(stmt.name);
 
-        let plan = CreateExternalDatabase {
-            database_name,
-            if_not_exists: stmt.if_not_exists,
-            options: db_options,
-            tunnel,
-        };
+        // let plan = CreateExternalDatabase {
+        //     database_name,
+        //     if_not_exists: stmt.if_not_exists,
+        //     options: db_options,
+        //     tunnel,
+        // };
 
-        Ok(plan.into_logical_plan())
+        // Ok(plan.into_logical_plan())
     }
 
     async fn plan_create_external_table(
@@ -375,418 +376,419 @@ impl<'a> SessionPlanner<'a> {
 
         let m = &mut stmt.options;
 
-        let external_table_options = match datasource.as_str() {
-            TableOptions::POSTGRES => {
-                let connection_string = get_pg_conn_str(m)?;
-                let schema: String = m.remove_required("schema")?;
-                let table: String = m.remove_required("table")?;
+        unimplemented!()
+        // let external_table_options = match datasource.as_str() {
+        //     TableOptions::POSTGRES => {
+        //         let connection_string = get_pg_conn_str(m)?;
+        //         let schema: String = m.remove_required("schema")?;
+        //         let table: String = m.remove_required("table")?;
 
-                let access =
-                    PostgresAccess::new_from_conn_str(connection_string.clone(), tunnel_options);
-                access
-                    .validate_table_access(&schema, &table)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalDatabase {
-                        source: Box::new(e),
-                    })?;
+        //         let access =
+        //             PostgresAccess::new_from_conn_str(connection_string.clone(), tunnel_options);
+        //         access
+        //             .validate_table_access(&schema, &table)
+        //             .await
+        //             .map_err(|e| PlanError::InvalidExternalDatabase {
+        //                 source: Box::new(e),
+        //             })?;
 
-                TableOptions::Postgres(TableOptionsPostgres {
-                    connection_string,
-                    schema,
-                    table,
-                })
-            }
-            TableOptions::BIGQUERY => {
-                let service_account_key = creds_options.as_ref().map(|c| match c {
-                    CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
-                    other => unreachable!("invalid credentials {other} for bigquery"),
-                });
+        //         TableOptions::Postgres(TableOptionsPostgres {
+        //             connection_string,
+        //             schema,
+        //             table,
+        //         })
+        //     }
+        //     TableOptions::BIGQUERY => {
+        //         let service_account_key = creds_options.as_ref().map(|c| match c {
+        //             CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
+        //             other => unreachable!("invalid credentials {other} for bigquery"),
+        //         });
 
-                let service_account_key =
-                    m.remove_required_or("service_account_key", service_account_key)?;
+        //         let service_account_key =
+        //             m.remove_required_or("service_account_key", service_account_key)?;
 
-                let project_id: String = m.remove_required("project_id")?;
-                let dataset_id = m.remove_required("dataset_id")?;
-                let table_id = m.remove_required("table_id")?;
+        //         let project_id: String = m.remove_required("project_id")?;
+        //         let dataset_id = m.remove_required("dataset_id")?;
+        //         let table_id = m.remove_required("table_id")?;
 
-                let access = BigQueryTableAccess {
-                    dataset_id,
-                    table_id,
-                };
+        //         let access = BigQueryTableAccess {
+        //             dataset_id,
+        //             table_id,
+        //         };
 
-                BigQueryAccessor::validate_table_access(&service_account_key, &project_id, &access)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalTable {
-                        source: Box::new(e),
-                    })?;
+        //         BigQueryAccessor::validate_table_access(&service_account_key, &project_id, &access)
+        //             .await
+        //             .map_err(|e| PlanError::InvalidExternalTable {
+        //                 source: Box::new(e),
+        //             })?;
 
-                TableOptions::BigQuery(TableOptionsBigQuery {
-                    service_account_key,
-                    project_id,
-                    dataset_id: access.dataset_id,
-                    table_id: access.table_id,
-                })
-            }
-            TableOptions::MYSQL => {
-                let connection_string = get_mysql_conn_str(m)?;
-                let schema = m.remove_required("schema")?;
-                let table = m.remove_required("table")?;
+        //         TableOptions::BigQuery(TableOptionsBigQuery {
+        //             service_account_key,
+        //             project_id,
+        //             dataset_id: access.dataset_id,
+        //             table_id: access.table_id,
+        //         })
+        //     }
+        //     TableOptions::MYSQL => {
+        //         let connection_string = get_mysql_conn_str(m)?;
+        //         let schema = m.remove_required("schema")?;
+        //         let table = m.remove_required("table")?;
 
-                let access = MysqlTableAccess {
-                    schema,
-                    name: table,
-                };
+        //         let access = MysqlTableAccess {
+        //             schema,
+        //             name: table,
+        //         };
 
-                MysqlAccessor::validate_table_access(&connection_string, &access, tunnel_options)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalTable {
-                        source: Box::new(e),
-                    })?;
+        //         MysqlAccessor::validate_table_access(&connection_string, &access, tunnel_options)
+        //             .await
+        //             .map_err(|e| PlanError::InvalidExternalTable {
+        //                 source: Box::new(e),
+        //             })?;
 
-                TableOptions::Mysql(TableOptionsMysql {
-                    connection_string,
-                    schema: access.schema,
-                    table: access.name,
-                })
-            }
-            TableOptions::MONGODB => {
-                let connection_string = get_mongodb_conn_str(m)?;
-                let database = m.remove_required("database")?;
-                let collection = m.remove_required("collection")?;
+        //         TableOptions::Mysql(TableOptionsMysql {
+        //             connection_string,
+        //             schema: access.schema,
+        //             table: access.name,
+        //         })
+        //     }
+        //     TableOptions::MONGODB => {
+        //         let connection_string = get_mongodb_conn_str(m)?;
+        //         let database = m.remove_required("database")?;
+        //         let collection = m.remove_required("collection")?;
 
-                // TODO: Validate
+        //         // TODO: Validate
 
-                TableOptions::MongoDb(TableOptionsMongoDb {
-                    connection_string,
-                    database,
-                    collection,
-                })
-            }
-            TableOptions::SNOWFLAKE => {
-                let account_name: String = m.remove_required("account")?;
-                let login_name: String = m.remove_required("username")?;
-                let password: String = m.remove_required("password")?;
-                let database_name: String = m.remove_required("database")?;
-                let warehouse: String = m.remove_required("warehouse")?;
-                let role_name: Option<String> = m.remove_optional("role")?;
-                let schema_name: String = m.remove_required("schema")?;
-                let table_name: String = m.remove_required("table")?;
+        //         TableOptions::MongoDb(TableOptionsMongoDb {
+        //             connection_string,
+        //             database,
+        //             collection,
+        //         })
+        //     }
+        //     TableOptions::SNOWFLAKE => {
+        //         let account_name: String = m.remove_required("account")?;
+        //         let login_name: String = m.remove_required("username")?;
+        //         let password: String = m.remove_required("password")?;
+        //         let database_name: String = m.remove_required("database")?;
+        //         let warehouse: String = m.remove_required("warehouse")?;
+        //         let role_name: Option<String> = m.remove_optional("role")?;
+        //         let schema_name: String = m.remove_required("schema")?;
+        //         let table_name: String = m.remove_required("table")?;
 
-                let conn_params = SnowflakeDbConnection {
-                    account_name: account_name.clone(),
-                    login_name: login_name.clone(),
-                    password: password.clone(),
-                    database_name: database_name.clone(),
-                    warehouse: warehouse.clone(),
-                    role_name: role_name.clone(),
-                };
+        //         let conn_params = SnowflakeDbConnection {
+        //             account_name: account_name.clone(),
+        //             login_name: login_name.clone(),
+        //             password: password.clone(),
+        //             database_name: database_name.clone(),
+        //             warehouse: warehouse.clone(),
+        //             role_name: role_name.clone(),
+        //         };
 
-                let access_info = SnowflakeTableAccess {
-                    schema_name,
-                    table_name,
-                };
+        //         let access_info = SnowflakeTableAccess {
+        //             schema_name,
+        //             table_name,
+        //         };
 
-                let _ = SnowflakeAccessor::validate_table_access(conn_params, &access_info)
-                    .await
-                    .map_err(|e| PlanError::InvalidExternalTable {
-                        source: Box::new(e),
-                    })?;
+        //         let _ = SnowflakeAccessor::validate_table_access(conn_params, &access_info)
+        //             .await
+        //             .map_err(|e| PlanError::InvalidExternalTable {
+        //                 source: Box::new(e),
+        //             })?;
 
-                TableOptions::Snowflake(TableOptionsSnowflake {
-                    account_name,
-                    login_name,
-                    password,
-                    database_name,
-                    warehouse,
-                    role_name: role_name.unwrap_or_default(),
-                    schema_name: access_info.schema_name,
-                    table_name: access_info.table_name,
-                })
-            }
-            TableOptions::SQL_SERVER => {
-                let connection_string: String = m.remove_required("connection_string")?;
-                let schema_name: String = m.remove_required("schema")?;
-                let table_name: String = m.remove_required("table")?;
+        //         TableOptions::Snowflake(TableOptionsSnowflake {
+        //             account_name,
+        //             login_name,
+        //             password,
+        //             database_name,
+        //             warehouse,
+        //             role_name: role_name.unwrap_or_default(),
+        //             schema_name: access_info.schema_name,
+        //             table_name: access_info.table_name,
+        //         })
+        //     }
+        //     TableOptions::SQL_SERVER => {
+        //         let connection_string: String = m.remove_required("connection_string")?;
+        //         let schema_name: String = m.remove_required("schema")?;
+        //         let table_name: String = m.remove_required("table")?;
 
-                // Validate
-                let access = SqlServerAccess::try_new_from_ado_string(&connection_string)?;
-                access
-                    .validate_table_access(&schema_name, &table_name)
-                    .await?;
+        //         // Validate
+        //         let access = SqlServerAccess::try_new_from_ado_string(&connection_string)?;
+        //         access
+        //             .validate_table_access(&schema_name, &table_name)
+        //             .await?;
 
-                TableOptions::SqlServer(TableOptionsSqlServer {
-                    connection_string,
-                    schema: schema_name,
-                    table: table_name,
-                })
-            }
-            TableOptions::CLICKHOUSE => {
-                let connection_string: String = m.remove_required("connection_string")?;
-                let table_name: String = m.remove_required("table")?;
+        //         TableOptions::SqlServer(TableOptionsSqlServer {
+        //             connection_string,
+        //             schema: schema_name,
+        //             table: table_name,
+        //         })
+        //     }
+        //     TableOptions::CLICKHOUSE => {
+        //         let connection_string: String = m.remove_required("connection_string")?;
+        //         let table_name: String = m.remove_required("table")?;
 
-                // You can optionally provide a database name in clickhouse.
-                // This is similar to schema in other databases such as PG.
-                let database_name: Option<String> = m.remove_optional("database")?;
+        //         // You can optionally provide a database name in clickhouse.
+        //         // This is similar to schema in other databases such as PG.
+        //         let database_name: Option<String> = m.remove_optional("database")?;
 
-                // Validate
-                let access =
-                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
+        //         // Validate
+        //         let access =
+        //             ClickhouseAccess::new_from_connection_string(connection_string.clone());
 
-                let table_ref =
-                    ClickhouseTableRef::new(database_name.as_ref(), table_name.as_str());
+        //         let table_ref =
+        //             ClickhouseTableRef::new(database_name.as_ref(), table_name.as_str());
 
-                access.validate_table_access(table_ref.as_ref()).await?;
+        //         access.validate_table_access(table_ref.as_ref()).await?;
 
-                TableOptions::Clickhouse(TableOptionsClickhouse {
-                    connection_string,
-                    table: table_name,
-                    database: database_name,
-                })
-            }
-            TableOptions::CASSANDRA => {
-                let host: String = m.remove_required("host")?;
-                let keyspace: String = m.remove_required("keyspace")?;
-                let table: String = m.remove_required("table")?;
-                let access = CassandraAccessState::try_new(host.clone()).await?;
-                access.validate_table_access(&keyspace, &table).await?;
+        //         TableOptions::Clickhouse(TableOptionsClickhouse {
+        //             connection_string,
+        //             table: table_name,
+        //             database: database_name,
+        //         })
+        //     }
+        //     TableOptions::CASSANDRA => {
+        //         let host: String = m.remove_required("host")?;
+        //         let keyspace: String = m.remove_required("keyspace")?;
+        //         let table: String = m.remove_required("table")?;
+        //         let access = CassandraAccessState::try_new(host.clone()).await?;
+        //         access.validate_table_access(&keyspace, &table).await?;
 
-                TableOptions::Cassandra(TableOptionsCassandra {
-                    host,
-                    keyspace,
-                    table,
-                })
-            }
-            TableOptions::LOCAL => {
-                let location: String = m.remove_required("location")?;
+        //         TableOptions::Cassandra(TableOptionsCassandra {
+        //             host,
+        //             keyspace,
+        //             table,
+        //         })
+        //     }
+        //     TableOptions::LOCAL => {
+        //         let location: String = m.remove_required("location")?;
 
-                let access = Arc::new(LocalStoreAccess);
-                let (file_type, compression) =
-                    validate_and_get_file_type_and_compression(access, &location, m).await?;
+        //         let access = Arc::new(LocalStoreAccess);
+        //         let (file_type, compression) =
+        //             validate_and_get_file_type_and_compression(access, &location, m).await?;
 
-                TableOptions::Local(TableOptionsLocal {
-                    location,
-                    file_type: format!("{file_type:?}").to_lowercase(),
-                    compression: compression.map(|c| c.to_string()),
-                })
-            }
-            TableOptions::GCS => {
-                let service_account_key = creds_options.as_ref().map(|c| match c {
-                    CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
-                    other => unreachable!("invalid credentials {other} for google cloud storage"),
-                });
+        //         TableOptions::Local(TableOptionsLocal {
+        //             location,
+        //             file_type: format!("{file_type:?}").to_lowercase(),
+        //             compression: compression.map(|c| c.to_string()),
+        //         })
+        //     }
+        //     TableOptions::GCS => {
+        //         let service_account_key = creds_options.as_ref().map(|c| match c {
+        //             CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
+        //             other => unreachable!("invalid credentials {other} for google cloud storage"),
+        //         });
 
-                let service_account_key =
-                    m.remove_optional_or("service_account_key", service_account_key)?;
+        //         let service_account_key =
+        //             m.remove_optional_or("service_account_key", service_account_key)?;
 
-                let bucket: String = m.remove_required("bucket")?;
-                let location: String = m.remove_required("location")?;
+        //         let bucket: String = m.remove_required("bucket")?;
+        //         let location: String = m.remove_required("location")?;
 
-                let access = Arc::new(GcsStoreAccess {
-                    bucket: bucket.clone(),
-                    service_account_key: service_account_key.clone(),
-                });
-                let (file_type, compression) =
-                    validate_and_get_file_type_and_compression(access, &location, m).await?;
+        //         let access = Arc::new(GcsStoreAccess {
+        //             bucket: bucket.clone(),
+        //             service_account_key: service_account_key.clone(),
+        //         });
+        //         let (file_type, compression) =
+        //             validate_and_get_file_type_and_compression(access, &location, m).await?;
 
-                TableOptions::Gcs(TableOptionsGcs {
-                    bucket,
-                    service_account_key,
-                    location,
-                    file_type: file_type.to_string(),
-                    compression: compression.map(|c| c.to_string()),
-                })
-            }
-            TableOptions::S3_STORAGE => {
-                let creds = creds_options.as_ref().map(|c| match c {
-                    CredentialsOptions::Aws(c) => c,
-                    other => unreachable!("invalid credentials {other} for aws s3"),
-                });
+        //         TableOptions::Gcs(TableOptionsGcs {
+        //             bucket,
+        //             service_account_key,
+        //             location,
+        //             file_type: file_type.to_string(),
+        //             compression: compression.map(|c| c.to_string()),
+        //         })
+        //     }
+        //     TableOptions::S3_STORAGE => {
+        //         let creds = creds_options.as_ref().map(|c| match c {
+        //             CredentialsOptions::Aws(c) => c,
+        //             other => unreachable!("invalid credentials {other} for aws s3"),
+        //         });
 
-                let (access_key_id, secret_access_key) = match creds {
-                    Some(c) => (
-                        Some(c.access_key_id.clone()),
-                        Some(c.secret_access_key.clone()),
-                    ),
-                    None => (None, None),
-                };
+        //         let (access_key_id, secret_access_key) = match creds {
+        //             Some(c) => (
+        //                 Some(c.access_key_id.clone()),
+        //                 Some(c.secret_access_key.clone()),
+        //             ),
+        //             None => (None, None),
+        //         };
 
-                let access_key_id = m.remove_optional_or("access_key_id", access_key_id)?;
-                let secret_access_key =
-                    m.remove_optional_or("secret_access_key", secret_access_key)?;
+        //         let access_key_id = m.remove_optional_or("access_key_id", access_key_id)?;
+        //         let secret_access_key =
+        //             m.remove_optional_or("secret_access_key", secret_access_key)?;
 
-                let region: String = m.remove_required("region")?;
-                let bucket: String = m.remove_required("bucket")?;
-                let location: String = m.remove_required("location")?;
+        //         let region: String = m.remove_required("region")?;
+        //         let bucket: String = m.remove_required("bucket")?;
+        //         let location: String = m.remove_required("location")?;
 
-                let access = Arc::new(S3StoreAccess {
-                    region: region.clone(),
-                    bucket: bucket.clone(),
-                    access_key_id: access_key_id.clone(),
-                    secret_access_key: secret_access_key.clone(),
-                });
-                let (file_type, compression) =
-                    validate_and_get_file_type_and_compression(access, &location, m).await?;
+        //         let access = Arc::new(S3StoreAccess {
+        //             region: region.clone(),
+        //             bucket: bucket.clone(),
+        //             access_key_id: access_key_id.clone(),
+        //             secret_access_key: secret_access_key.clone(),
+        //         });
+        //         let (file_type, compression) =
+        //             validate_and_get_file_type_and_compression(access, &location, m).await?;
 
-                TableOptions::S3(TableOptionsS3 {
-                    region,
-                    bucket,
-                    access_key_id,
-                    secret_access_key,
-                    location,
-                    file_type: file_type.to_string(),
-                    compression: compression.map(|c| c.to_string()),
-                })
-            }
-            TableOptions::AZURE => {
-                let (account, access_key) = match creds_options {
-                    Some(CredentialsOptions::Azure(c)) => {
-                        (Some(c.account_name.clone()), Some(c.access_key.clone()))
-                    }
-                    Some(other) => {
-                        return Err(PlanError::String(format!(
-                            "invalid credentials {other} for azure"
-                        )))
-                    }
-                    None => (None, None),
-                };
+        //         TableOptions::S3(TableOptionsS3 {
+        //             region,
+        //             bucket,
+        //             access_key_id,
+        //             secret_access_key,
+        //             location,
+        //             file_type: file_type.to_string(),
+        //             compression: compression.map(|c| c.to_string()),
+        //         })
+        //     }
+        //     TableOptions::AZURE => {
+        //         let (account, access_key) = match creds_options {
+        //             Some(CredentialsOptions::Azure(c)) => {
+        //                 (Some(c.account_name.clone()), Some(c.access_key.clone()))
+        //             }
+        //             Some(other) => {
+        //                 return Err(PlanError::String(format!(
+        //                     "invalid credentials {other} for azure"
+        //                 )))
+        //             }
+        //             None => (None, None),
+        //         };
 
-                let account = m.remove_required_or("account_name", account)?;
-                let access_key = m.remove_required_or("access_key", access_key)?;
+        //         let account = m.remove_required_or("account_name", account)?;
+        //         let access_key = m.remove_required_or("access_key", access_key)?;
 
-                let location: String = m.remove_required("location")?;
+        //         let location: String = m.remove_required("location")?;
 
-                let mut opts = StorageOptions::default();
-                opts.inner
-                    .insert(AzureConfigKey::AccountName.as_ref().to_string(), account);
-                opts.inner
-                    .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
+        //         let mut opts = StorageOptions::default();
+        //         opts.inner
+        //             .insert(AzureConfigKey::AccountName.as_ref().to_string(), account);
+        //         opts.inner
+        //             .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
 
-                let access = Arc::new(GenericStoreAccess::new_from_location_and_opts(
-                    &location,
-                    opts.clone(),
-                )?);
+        //         let access = Arc::new(GenericStoreAccess::new_from_location_and_opts(
+        //             &location,
+        //             opts.clone(),
+        //         )?);
 
-                // TODO: Creating a data source url here is a workaround for
-                // getting the path to the file. Since we're using the generic
-                // object store access, it requires that "location" is the full
-                // url of the object, but that goes against our other
-                // assumptions that "location" is just the path.
-                let (file_type, compression) = validate_and_get_file_type_and_compression(
-                    access,
-                    DatasourceUrl::try_new(location.clone())?.path(),
-                    m,
-                )
-                .await?;
+        //         // TODO: Creating a data source url here is a workaround for
+        //         // getting the path to the file. Since we're using the generic
+        //         // object store access, it requires that "location" is the full
+        //         // url of the object, but that goes against our other
+        //         // assumptions that "location" is just the path.
+        //         let (file_type, compression) = validate_and_get_file_type_and_compression(
+        //             access,
+        //             DatasourceUrl::try_new(location.clone())?.path(),
+        //             m,
+        //         )
+        //         .await?;
 
-                TableOptions::Azure(TableOptionsObjectStore {
-                    location,
-                    storage_options: opts,
-                    file_type: Some(file_type.to_string()),
-                    compression: compression.map(|c| c.to_string()),
-                    schema_sample_size: None,
-                })
-            }
-            TableOptions::DELTA | TableOptions::ICEBERG => {
-                let location: String = m.remove_required("location")?;
+        //         TableOptions::Azure(TableOptionsObjectStore {
+        //             location,
+        //             storage_options: opts,
+        //             file_type: Some(file_type.to_string()),
+        //             compression: compression.map(|c| c.to_string()),
+        //             schema_sample_size: None,
+        //         })
+        //     }
+        //     TableOptions::DELTA | TableOptions::ICEBERG => {
+        //         let location: String = m.remove_required("location")?;
 
-                let mut storage_options = StorageOptions::try_from(m)?;
-                if let Some(creds) = creds_options {
-                    storage_options_with_credentials(&mut storage_options, creds);
-                }
+        //         let mut storage_options = StorageOptions::try_from(m)?;
+        //         if let Some(creds) = creds_options {
+        //             storage_options_with_credentials(&mut storage_options, creds);
+        //         }
 
-                if datasource.as_str() == TableOptions::DELTA {
-                    let _table = load_table_direct(&location, storage_options.clone()).await?;
+        //         if datasource.as_str() == TableOptions::DELTA {
+        //             let _table = load_table_direct(&location, storage_options.clone()).await?;
 
-                    TableOptions::Delta(TableOptionsObjectStore {
-                        location,
-                        storage_options,
-                        file_type: None,
-                        compression: None,
-                        schema_sample_size: None,
-                    })
-                } else {
-                    let url = DatasourceUrl::try_new(&location)?;
-                    let store = GenericStoreAccess::new_from_location_and_opts(
-                        &location,
-                        storage_options.clone(),
-                    )?
-                    .create_store()?;
-                    let _table = IcebergTable::open(url, store).await?;
+        //             TableOptions::Delta(TableOptionsObjectStore {
+        //                 location,
+        //                 storage_options,
+        //                 file_type: None,
+        //                 compression: None,
+        //                 schema_sample_size: None,
+        //             })
+        //         } else {
+        //             let url = DatasourceUrl::try_new(&location)?;
+        //             let store = GenericStoreAccess::new_from_location_and_opts(
+        //                 &location,
+        //                 storage_options.clone(),
+        //             )?
+        //             .create_store()?;
+        //             let _table = IcebergTable::open(url, store).await?;
 
-                    TableOptions::Iceberg(TableOptionsObjectStore {
-                        location,
-                        storage_options,
-                        file_type: None,
-                        compression: None,
-                        schema_sample_size: None,
-                    })
-                }
-            }
-            TableOptions::DEBUG => {
-                datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
+        //             TableOptions::Iceberg(TableOptionsObjectStore {
+        //                 location,
+        //                 storage_options,
+        //                 file_type: None,
+        //                 compression: None,
+        //                 schema_sample_size: None,
+        //             })
+        //         }
+        //     }
+        //     TableOptions::DEBUG => {
+        //         datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
 
-                let typ: Option<DebugTableType> = match creds_options {
-                    Some(CredentialsOptions::Debug(c)) => Some(c.table_type.parse()?),
-                    Some(other) => unreachable!("invalid credentials {other} for debug datasource"),
-                    None => None,
-                };
-                let typ: DebugTableType = m.remove_required_or("table_type", typ)?;
+        //         let typ: Option<DebugTableType> = match creds_options {
+        //             Some(CredentialsOptions::Debug(c)) => Some(c.table_type.parse()?),
+        //             Some(other) => unreachable!("invalid credentials {other} for debug datasource"),
+        //             None => None,
+        //         };
+        //         let typ: DebugTableType = m.remove_required_or("table_type", typ)?;
 
-                TableOptions::Debug(TableOptionsDebug {
-                    table_type: typ.to_string(),
-                })
-            }
-            TableOptions::LANCE => {
-                let location: String = m.remove_required("location")?;
-                let mut storage_options = StorageOptions::try_from(m)?;
-                if let Some(creds) = creds_options {
-                    storage_options_with_credentials(&mut storage_options, creds);
-                }
-                // Validate that the table exists.
-                let _table = scan_lance_table(&location, storage_options.clone()).await?;
-                TableOptions::Lance(TableOptionsObjectStore {
-                    location,
-                    storage_options,
-                    file_type: None,
-                    compression: None,
-                    schema_sample_size: None,
-                })
-            }
-            TableOptions::BSON => {
-                let location: String = m.remove_required("location")?;
-                let mut storage_options = StorageOptions::try_from(m)?;
-                if let Some(creds) = creds_options {
-                    storage_options_with_credentials(&mut storage_options, creds);
-                }
-                let schema_sample_size = Some(
-                    storage_options
-                        .inner
-                        .get("schema_sample_size")
-                        .map(|strint| strint.parse())
-                        .unwrap_or(Ok(100))?,
-                );
-                TableOptions::Bson(TableOptionsObjectStore {
-                    location,
-                    storage_options,
-                    file_type: None,
-                    compression: None,
-                    schema_sample_size,
-                })
-            }
-            other => return Err(internal!("unsupported datasource: {}", other)),
-        };
+        //         TableOptions::Debug(TableOptionsDebug {
+        //             table_type: typ.to_string(),
+        //         })
+        //     }
+        //     TableOptions::LANCE => {
+        //         let location: String = m.remove_required("location")?;
+        //         let mut storage_options = StorageOptions::try_from(m)?;
+        //         if let Some(creds) = creds_options {
+        //             storage_options_with_credentials(&mut storage_options, creds);
+        //         }
+        //         // Validate that the table exists.
+        //         let _table = scan_lance_table(&location, storage_options.clone()).await?;
+        //         TableOptions::Lance(TableOptionsObjectStore {
+        //             location,
+        //             storage_options,
+        //             file_type: None,
+        //             compression: None,
+        //             schema_sample_size: None,
+        //         })
+        //     }
+        //     TableOptions::BSON => {
+        //         let location: String = m.remove_required("location")?;
+        //         let mut storage_options = StorageOptions::try_from(m)?;
+        //         if let Some(creds) = creds_options {
+        //             storage_options_with_credentials(&mut storage_options, creds);
+        //         }
+        //         let schema_sample_size = Some(
+        //             storage_options
+        //                 .inner
+        //                 .get("schema_sample_size")
+        //                 .map(|strint| strint.parse())
+        //                 .unwrap_or(Ok(100))?,
+        //         );
+        //         TableOptions::Bson(TableOptionsObjectStore {
+        //             location,
+        //             storage_options,
+        //             file_type: None,
+        //             compression: None,
+        //             schema_sample_size,
+        //         })
+        //     }
+        //     other => return Err(internal!("unsupported datasource: {}", other)),
+        // };
 
-        let table_name = object_name_to_table_ref(stmt.name)?;
+        // let table_name = object_name_to_table_ref(stmt.name)?;
 
-        let plan = CreateExternalTable {
-            tbl_reference: self.ctx.resolve_table_ref(table_name)?,
-            or_replace: stmt.or_replace,
-            if_not_exists: stmt.if_not_exists,
-            table_options: external_table_options,
-            tunnel,
-        };
+        // let plan = CreateExternalTable {
+        //     tbl_reference: self.ctx.resolve_table_ref(table_name)?,
+        //     or_replace: stmt.or_replace,
+        //     if_not_exists: stmt.if_not_exists,
+        //     table_options: external_table_options,
+        //     tunnel,
+        // };
 
-        Ok(plan.into_logical_plan())
+        // Ok(plan.into_logical_plan())
     }
 
     fn plan_create_tunnel(&self, mut stmt: CreateTunnelStmt) -> Result<LogicalPlan> {
@@ -794,30 +796,31 @@ impl<'a> SessionPlanner<'a> {
 
         let tunnel_type = normalize_ident(stmt.tunnel);
 
-        let options = match tunnel_type.as_str() {
-            TunnelOptions::INTERNAL => TunnelOptions::Internal(TunnelOptionsInternal {}),
-            TunnelOptions::DEBUG => TunnelOptions::Debug(TunnelOptionsDebug {}),
-            TunnelOptions::SSH => {
-                let connection_string = get_ssh_conn_str(m)?;
-                let ssh_key = SshKey::generate_random()?;
+        unimplemented!()
+        // let options = match tunnel_type.as_str() {
+        //     TunnelOptions::INTERNAL => TunnelOptions::Internal(TunnelOptionsInternal {}),
+        //     TunnelOptions::DEBUG => TunnelOptions::Debug(TunnelOptionsDebug {}),
+        //     TunnelOptions::SSH => {
+        //         let connection_string = get_ssh_conn_str(m)?;
+        //         let ssh_key = SshKey::generate_random()?;
 
-                TunnelOptions::Ssh(TunnelOptionsSsh {
-                    connection_string,
-                    ssh_key: ssh_key.to_bytes()?,
-                })
-            }
-            other => return Err(internal!("unsupported tunnel: {other}")),
-        };
+        //         TunnelOptions::Ssh(TunnelOptionsSsh {
+        //             connection_string,
+        //             ssh_key: ssh_key.to_bytes()?,
+        //         })
+        //     }
+        //     other => return Err(internal!("unsupported tunnel: {other}")),
+        // };
 
-        let name = normalize_ident(stmt.name);
+        // let name = normalize_ident(stmt.name);
 
-        let plan = CreateTunnel {
-            name,
-            options,
-            if_not_exists: stmt.if_not_exists,
-        };
+        // let plan = CreateTunnel {
+        //     name,
+        //     options,
+        //     if_not_exists: stmt.if_not_exists,
+        // };
 
-        Ok(plan.into_logical_plan())
+        // Ok(plan.into_logical_plan())
     }
 
     fn plan_create_credentials(
@@ -829,59 +832,60 @@ impl<'a> SessionPlanner<'a> {
 
         let provider = normalize_ident(stmt.provider);
 
-        let options = match provider.as_str() {
-            CredentialsOptions::DEBUG => {
-                let table_type: DebugTableType = m.remove_required("table_type")?;
-                CredentialsOptions::Debug(CredentialsOptionsDebug {
-                    table_type: table_type.to_string(),
-                })
-            }
-            CredentialsOptions::GCP => {
-                let service_account_key = m.remove_required("service_account_key")?;
-                CredentialsOptions::Gcp(CredentialsOptionsGcp {
-                    service_account_key,
-                })
-            }
-            CredentialsOptions::AWS => {
-                let access_key_id = m.remove_required("access_key_id")?;
-                let secret_access_key = m.remove_required("secret_access_key")?;
-                CredentialsOptions::Aws(CredentialsOptionsAws {
-                    access_key_id,
-                    secret_access_key,
-                })
-            }
-            CredentialsOptions::AZURE => {
-                let account_name = m.remove_required("account_name")?;
-                let access_key = m.remove_required("access_key")?;
-                CredentialsOptions::Azure(CredentialsOptionsAzure {
-                    account_name,
-                    access_key,
-                })
-            }
-            other => return Err(internal!("unsupported credentials provider: {other}")),
-        };
+        unimplemented!()
+        // let options = match provider.as_str() {
+        //     CredentialsOptions::DEBUG => {
+        //         let table_type: DebugTableType = m.remove_required("table_type")?;
+        //         CredentialsOptions::Debug(CredentialsOptionsDebug {
+        //             table_type: table_type.to_string(),
+        //         })
+        //     }
+        //     CredentialsOptions::GCP => {
+        //         let service_account_key = m.remove_required("service_account_key")?;
+        //         CredentialsOptions::Gcp(CredentialsOptionsGcp {
+        //             service_account_key,
+        //         })
+        //     }
+        //     CredentialsOptions::AWS => {
+        //         let access_key_id = m.remove_required("access_key_id")?;
+        //         let secret_access_key = m.remove_required("secret_access_key")?;
+        //         CredentialsOptions::Aws(CredentialsOptionsAws {
+        //             access_key_id,
+        //             secret_access_key,
+        //         })
+        //     }
+        //     CredentialsOptions::AZURE => {
+        //         let account_name = m.remove_required("account_name")?;
+        //         let access_key = m.remove_required("access_key")?;
+        //         CredentialsOptions::Azure(CredentialsOptionsAzure {
+        //             account_name,
+        //             access_key,
+        //         })
+        //     }
+        //     other => return Err(internal!("unsupported credentials provider: {other}")),
+        // };
 
-        let name = normalize_ident(stmt.name);
+        // let name = normalize_ident(stmt.name);
 
-        let plan = if deprecated {
-            CreateCredentials {
-                name,
-                options,
-                comment: stmt.comment,
-                or_replace: stmt.or_replace,
-            }
-            .into_logical_plan()
-        } else {
-            CreateCredential {
-                name,
-                options,
-                comment: stmt.comment,
-                or_replace: stmt.or_replace,
-            }
-            .into_logical_plan()
-        };
+        // let plan = if deprecated {
+        //     CreateCredentials {
+        //         name,
+        //         options,
+        //         comment: stmt.comment,
+        //         or_replace: stmt.or_replace,
+        //     }
+        //     .into_logical_plan()
+        // } else {
+        //     CreateCredential {
+        //         name,
+        //         options,
+        //         comment: stmt.comment,
+        //         or_replace: stmt.or_replace,
+        //     }
+        //     .into_logical_plan()
+        // };
 
-        Ok(plan)
+        // Ok(plan)
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
@@ -1517,19 +1521,20 @@ impl<'a> SessionPlanner<'a> {
         validate_ident(&stmt.name)?;
         let name = normalize_ident(stmt.name);
 
-        let plan = match stmt.action {
-            AlterTunnelAction::RotateKeys => {
-                let new_ssh_key = SshKey::generate_random()?;
-                let new_ssh_key = new_ssh_key.to_bytes()?;
-                AlterTunnelRotateKeys {
-                    name,
-                    if_exists: stmt.if_exists,
-                    new_ssh_key,
-                }
-            }
-        };
+        unimplemented!()
+        // let plan = match stmt.action {
+        //     AlterTunnelAction::RotateKeys => {
+        //         let new_ssh_key = SshKey::generate_random()?;
+        //         let new_ssh_key = new_ssh_key.to_bytes()?;
+        //         AlterTunnelRotateKeys {
+        //             name,
+        //             if_exists: stmt.if_exists,
+        //             new_ssh_key,
+        //         }
+        //     }
+        // };
 
-        Ok(plan.into_logical_plan())
+        // Ok(plan.into_logical_plan())
     }
 
     fn plan_alter_database(&self, stmt: AlterDatabaseStmt) -> Result<LogicalPlan> {
@@ -1590,229 +1595,230 @@ impl<'a> SessionPlanner<'a> {
             CopyToSource::Query(query) => query,
         };
 
-        let state = self.ctx.df_ctx().state();
-        let mut context_provider = PartialContextProvider::new(self.ctx, &state)?;
-        let mut planner = SqlQueryPlanner::new(&mut context_provider);
-        let source = planner.query_to_plan(query).await?;
+        unimplemented!()
+        // let state = self.ctx.df_ctx().state();
+        // let mut context_provider = PartialContextProvider::new(self.ctx, &state)?;
+        // let mut planner = SqlQueryPlanner::new(&mut context_provider);
+        // let source = planner.query_to_plan(query).await?;
 
-        let mut m = stmt.options;
+        // let mut m = stmt.options;
 
-        let dest = normalize_ident(stmt.dest);
+        // let dest = normalize_ident(stmt.dest);
 
-        // We currently support two versions of COPY TO:
-        //
-        // 1: COPY <source> TO <s3|gcs|azure> OPTIONS (...)
-        // 2: COPY <source> TO <dest> OPTIONS (...)
-        //
-        // Where the first matches on fixed keywords, and the second matches on
-        // the full object path (e.g. 'gs://bucket/object.csv'). This statement
-        // is what lets us differentiate between those, and if `url` is `None`,
-        // we'll resolve the actual object destination from the OPTIONS down
-        // below.
-        let (dest, uri) = if matches!(
-            dest.as_str(),
-            CopyToDestinationOptions::LOCAL
-                | CopyToDestinationOptions::GCS
-                | CopyToDestinationOptions::S3_STORAGE
-                | CopyToDestinationOptions::AZURE
-        ) {
-            (dest.as_str(), None)
-        } else {
-            let u = DatasourceUrl::try_new(&dest)?;
-            let d = match u.datasource_url_type() {
-                DatasourceUrlType::File => CopyToDestinationOptions::LOCAL,
-                DatasourceUrlType::Gcs => CopyToDestinationOptions::GCS,
-                DatasourceUrlType::S3 => CopyToDestinationOptions::S3_STORAGE,
-                DatasourceUrlType::Azure => CopyToDestinationOptions::AZURE,
-                DatasourceUrlType::Http => return Err(internal!("invalid URL scheme")),
-            };
-            (d, Some(u))
-        };
+        // // We currently support two versions of COPY TO:
+        // //
+        // // 1: COPY <source> TO <s3|gcs|azure> OPTIONS (...)
+        // // 2: COPY <source> TO <dest> OPTIONS (...)
+        // //
+        // // Where the first matches on fixed keywords, and the second matches on
+        // // the full object path (e.g. 'gs://bucket/object.csv'). This statement
+        // // is what lets us differentiate between those, and if `url` is `None`,
+        // // we'll resolve the actual object destination from the OPTIONS down
+        // // below.
+        // let (dest, uri) = if matches!(
+        //     dest.as_str(),
+        //     CopyToDestinationOptions::LOCAL
+        //         | CopyToDestinationOptions::GCS
+        //         | CopyToDestinationOptions::S3_STORAGE
+        //         | CopyToDestinationOptions::AZURE
+        // ) {
+        //     (dest.as_str(), None)
+        // } else {
+        //     let u = DatasourceUrl::try_new(&dest)?;
+        //     let d = match u.datasource_url_type() {
+        //         DatasourceUrlType::File => CopyToDestinationOptions::LOCAL,
+        //         DatasourceUrlType::Gcs => CopyToDestinationOptions::GCS,
+        //         DatasourceUrlType::S3 => CopyToDestinationOptions::S3_STORAGE,
+        //         DatasourceUrlType::Azure => CopyToDestinationOptions::AZURE,
+        //         DatasourceUrlType::Http => return Err(internal!("invalid URL scheme")),
+        //     };
+        //     (d, Some(u))
+        // };
 
-        let creds = stmt.credentials.map(normalize_ident);
-        let creds_options = self.get_credentials_opts(&creds)?;
-        if let Some(creds_options) = &creds_options {
-            validate_copyto_dest_creds_support(dest, creds_options.as_str()).map_err(|e| {
-                PlanError::InvalidCopyToStatement {
-                    source: Box::new(e),
-                }
-            })?;
-        }
+        // let creds = stmt.credentials.map(normalize_ident);
+        // let creds_options = self.get_credentials_opts(&creds)?;
+        // if let Some(creds_options) = &creds_options {
+        //     validate_copyto_dest_creds_support(dest, creds_options.as_str()).map_err(|e| {
+        //         PlanError::InvalidCopyToStatement {
+        //             source: Box::new(e),
+        //         }
+        //     })?;
+        // }
 
-        fn get_location(m: &mut StmtOptions, uri: &Option<DatasourceUrl>) -> Result<String> {
-            let location = match uri.as_ref() {
-                Some(u) => u.path().into_owned(),
-                None => m.remove_required("location")?,
-            };
-            Ok(location)
-        }
+        // fn get_location(m: &mut StmtOptions, uri: &Option<DatasourceUrl>) -> Result<String> {
+        //     let location = match uri.as_ref() {
+        //         Some(u) => u.path().into_owned(),
+        //         None => m.remove_required("location")?,
+        //     };
+        //     Ok(location)
+        // }
 
-        fn get_bucket(m: &mut StmtOptions, uri: &Option<DatasourceUrl>) -> Result<String> {
-            let bucket = match uri.as_ref() {
-                Some(u) => u
-                    .host()
-                    .ok_or(internal!("missing bucket name in URL"))?
-                    .to_string(),
-                None => m.remove_required("bucket")?,
-            };
-            Ok(bucket)
-        }
+        // fn get_bucket(m: &mut StmtOptions, uri: &Option<DatasourceUrl>) -> Result<String> {
+        //     let bucket = match uri.as_ref() {
+        //         Some(u) => u
+        //             .host()
+        //             .ok_or(internal!("missing bucket name in URL"))?
+        //             .to_string(),
+        //         None => m.remove_required("bucket")?,
+        //     };
+        //     Ok(bucket)
+        // }
 
-        let dest = match dest {
-            CopyToDestinationOptions::LOCAL => {
-                let location = get_location(&mut m, &uri)?;
-                CopyToDestinationOptions::Local(CopyToDestinationOptionsLocal { location })
-            }
-            CopyToDestinationOptions::GCS => {
-                let service_account_key = creds_options.as_ref().map(|c| match c {
-                    CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
-                    other => unreachable!("invalid credentials {other} for google cloud storage"),
-                });
+        // let dest = match dest {
+        //     CopyToDestinationOptions::LOCAL => {
+        //         let location = get_location(&mut m, &uri)?;
+        //         CopyToDestinationOptions::Local(CopyToDestinationOptionsLocal { location })
+        //     }
+        //     CopyToDestinationOptions::GCS => {
+        //         let service_account_key = creds_options.as_ref().map(|c| match c {
+        //             CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
+        //             other => unreachable!("invalid credentials {other} for google cloud storage"),
+        //         });
 
-                let service_account_key =
-                    m.remove_optional_or("service_account_key", service_account_key)?;
+        //         let service_account_key =
+        //             m.remove_optional_or("service_account_key", service_account_key)?;
 
-                let bucket = get_bucket(&mut m, &uri)?;
-                let location = get_location(&mut m, &uri)?;
+        //         let bucket = get_bucket(&mut m, &uri)?;
+        //         let location = get_location(&mut m, &uri)?;
 
-                CopyToDestinationOptions::Gcs(CopyToDestinationOptionsGcs {
-                    service_account_key,
-                    bucket,
-                    location,
-                })
-            }
-            CopyToDestinationOptions::S3_STORAGE => {
-                let creds = creds_options.as_ref().map(|c| match c {
-                    CredentialsOptions::Aws(c) => c,
-                    other => unreachable!("invalid credentials {other} for aws s3"),
-                });
+        //         CopyToDestinationOptions::Gcs(CopyToDestinationOptionsGcs {
+        //             service_account_key,
+        //             bucket,
+        //             location,
+        //         })
+        //     }
+        //     CopyToDestinationOptions::S3_STORAGE => {
+        //         let creds = creds_options.as_ref().map(|c| match c {
+        //             CredentialsOptions::Aws(c) => c,
+        //             other => unreachable!("invalid credentials {other} for aws s3"),
+        //         });
 
-                let (access_key_id, secret_access_key) = match creds {
-                    Some(c) => (
-                        Some(c.access_key_id.clone()),
-                        Some(c.secret_access_key.clone()),
-                    ),
-                    None => (None, None),
-                };
+        //         let (access_key_id, secret_access_key) = match creds {
+        //             Some(c) => (
+        //                 Some(c.access_key_id.clone()),
+        //                 Some(c.secret_access_key.clone()),
+        //             ),
+        //             None => (None, None),
+        //         };
 
-                let access_key_id = m.remove_optional_or("access_key_id", access_key_id)?;
-                let secret_access_key =
-                    m.remove_optional_or("secret_access_key", secret_access_key)?;
+        //         let access_key_id = m.remove_optional_or("access_key_id", access_key_id)?;
+        //         let secret_access_key =
+        //             m.remove_optional_or("secret_access_key", secret_access_key)?;
 
-                let region = m.remove_required("region")?;
-                let bucket = get_bucket(&mut m, &uri)?;
-                let location = get_location(&mut m, &uri)?;
+        //         let region = m.remove_required("region")?;
+        //         let bucket = get_bucket(&mut m, &uri)?;
+        //         let location = get_location(&mut m, &uri)?;
 
-                CopyToDestinationOptions::S3(CopyToDestinationOptionsS3 {
-                    access_key_id,
-                    secret_access_key,
-                    region,
-                    bucket,
-                    location,
-                })
-            }
-            CopyToDestinationOptions::AZURE => {
-                let creds = match creds_options.as_ref() {
-                    Some(CredentialsOptions::Azure(c)) => Some(c),
-                    Some(other) => {
-                        return Err(PlanError::String(format!(
-                            "invalid credentials {other} for azure"
-                        )))
-                    }
-                    None => None,
-                };
+        //         CopyToDestinationOptions::S3(CopyToDestinationOptionsS3 {
+        //             access_key_id,
+        //             secret_access_key,
+        //             region,
+        //             bucket,
+        //             location,
+        //         })
+        //     }
+        //     CopyToDestinationOptions::AZURE => {
+        //         let creds = match creds_options.as_ref() {
+        //             Some(CredentialsOptions::Azure(c)) => Some(c),
+        //             Some(other) => {
+        //                 return Err(PlanError::String(format!(
+        //                     "invalid credentials {other} for azure"
+        //                 )))
+        //             }
+        //             None => None,
+        //         };
 
-                // Get account and access key from credentials if provided. If
-                // not provided, require that they've been passed in through
-                // OPTIONS.
-                let (account, access_key) = match creds {
-                    Some(c) => (c.account_name.clone(), c.access_key.clone()),
-                    None => (
-                        m.remove_required("account_name")?,
-                        m.remove_required("access_key")?,
-                    ),
-                };
+        //         // Get account and access key from credentials if provided. If
+        //         // not provided, require that they've been passed in through
+        //         // OPTIONS.
+        //         let (account, access_key) = match creds {
+        //             Some(c) => (c.account_name.clone(), c.access_key.clone()),
+        //             None => (
+        //                 m.remove_required("account_name")?,
+        //                 m.remove_required("access_key")?,
+        //             ),
+        //         };
 
-                // Grab location from the 'TO <location>' if provided, or from
-                // OPTIONS.
-                let location = match uri {
-                    Some(uri) => uri.to_string(),
-                    None => m.remove_required("location")?,
-                };
+        //         // Grab location from the 'TO <location>' if provided, or from
+        //         // OPTIONS.
+        //         let location = match uri {
+        //             Some(uri) => uri.to_string(),
+        //             None => m.remove_required("location")?,
+        //         };
 
-                CopyToDestinationOptions::Azure(CopyToDestinationOptionsAzure {
-                    account,
-                    access_key,
-                    location,
-                })
-            }
-            other => {
-                return Err(internal!(
-                    "unsupported destination for copying data: {other}"
-                ))
-            }
-        };
+        //         CopyToDestinationOptions::Azure(CopyToDestinationOptionsAzure {
+        //             account,
+        //             access_key,
+        //             location,
+        //         })
+        //     }
+        //     other => {
+        //         return Err(internal!(
+        //             "unsupported destination for copying data: {other}"
+        //         ))
+        //     }
+        // };
 
-        let loc = dest.location();
-        let loc = Path::new(loc);
-        let ext = loc
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .map(|ext| ext.to_lowercase());
+        // let loc = dest.location();
+        // let loc = Path::new(loc);
+        // let ext = loc
+        //     .extension()
+        //     .and_then(|ext| ext.to_str())
+        //     .map(|ext| ext.to_lowercase());
 
-        let format = match stmt
-            .format
-            .as_ref()
-            .map(|f| f.value.as_str())
-            // Choose from specified format "OR" from location.
-            .or(ext.as_deref())
-        {
-            None => {
-                // TODO: Choose the default based on destination.
-                CopyToFormatOptions::default()
-            }
-            Some(CopyToFormatOptions::CSV) => {
-                let delim = m.remove_optional::<char>("delimeter")?.unwrap_or(',');
-                let header = m.remove_optional::<bool>("header")?.unwrap_or(true);
-                CopyToFormatOptions::Csv(CopyToFormatOptionsCsv {
-                    delim: delim as u8,
-                    header,
-                })
-            }
-            Some(CopyToFormatOptions::PARQUET) => {
-                let row_group_size = m
-                    .remove_optional::<usize>("row_group_size")?
-                    .unwrap_or(122880);
-                CopyToFormatOptions::Parquet(CopyToFormatOptionsParquet { row_group_size })
-            }
-            Some(CopyToFormatOptions::JSON) => {
-                let array = m.remove_optional::<bool>("array")?.unwrap_or(false);
-                CopyToFormatOptions::Json(CopyToFormatOptionsJson { array })
-            }
-            Some(CopyToFormatOptions::BSON) => CopyToFormatOptions::Bson {},
-            Some(CopyToFormatOptions::LANCE) => {
-                CopyToFormatOptions::Lance(CopyToFormatOptionsLance {
-                    max_rows_per_file: m.remove_optional("max_rows_per_file")?,
-                    max_rows_per_group: m.remove_optional("max_rows_per_group")?,
-                    max_bytes_per_file: m.remove_optional("max_bytes_per_file")?,
-                    input_batch_size: m.remove_optional("input_batch_size")?,
-                })
-            }
-            Some(other) => return Err(internal!("unsupported output format: {other}")),
-        };
+        // let format = match stmt
+        //     .format
+        //     .as_ref()
+        //     .map(|f| f.value.as_str())
+        //     // Choose from specified format "OR" from location.
+        //     .or(ext.as_deref())
+        // {
+        //     None => {
+        //         // TODO: Choose the default based on destination.
+        //         CopyToFormatOptions::default()
+        //     }
+        //     Some(CopyToFormatOptions::CSV) => {
+        //         let delim = m.remove_optional::<char>("delimeter")?.unwrap_or(',');
+        //         let header = m.remove_optional::<bool>("header")?.unwrap_or(true);
+        //         CopyToFormatOptions::Csv(CopyToFormatOptionsCsv {
+        //             delim: delim as u8,
+        //             header,
+        //         })
+        //     }
+        //     Some(CopyToFormatOptions::PARQUET) => {
+        //         let row_group_size = m
+        //             .remove_optional::<usize>("row_group_size")?
+        //             .unwrap_or(122880);
+        //         CopyToFormatOptions::Parquet(CopyToFormatOptionsParquet { row_group_size })
+        //     }
+        //     Some(CopyToFormatOptions::JSON) => {
+        //         let array = m.remove_optional::<bool>("array")?.unwrap_or(false);
+        //         CopyToFormatOptions::Json(CopyToFormatOptionsJson { array })
+        //     }
+        //     Some(CopyToFormatOptions::BSON) => CopyToFormatOptions::Bson {},
+        //     Some(CopyToFormatOptions::LANCE) => {
+        //         CopyToFormatOptions::Lance(CopyToFormatOptionsLance {
+        //             max_rows_per_file: m.remove_optional("max_rows_per_file")?,
+        //             max_rows_per_group: m.remove_optional("max_rows_per_group")?,
+        //             max_bytes_per_file: m.remove_optional("max_bytes_per_file")?,
+        //             input_batch_size: m.remove_optional("input_batch_size")?,
+        //         })
+        //     }
+        //     Some(other) => return Err(internal!("unsupported output format: {other}")),
+        // };
 
-        validate_copyto_dest_format_support(dest.as_str(), format.as_str()).map_err(|e| {
-            PlanError::InvalidExternalTable {
-                source: Box::new(e),
-            }
-        })?;
+        // validate_copyto_dest_format_support(dest.as_str(), format.as_str()).map_err(|e| {
+        //     PlanError::InvalidExternalTable {
+        //         source: Box::new(e),
+        //     }
+        // })?;
 
-        Ok(CopyTo {
-            format,
-            dest,
-            source,
-        }
-        .into_logical_plan())
+        // Ok(CopyTo {
+        //     format,
+        //     dest,
+        //     source,
+        // }
+        // .into_logical_plan())
     }
 
     fn get_tunnel_opts(&self, tunnel: &Option<String>) -> Result<Option<TunnelOptions>> {
@@ -1877,63 +1883,63 @@ impl<'a> SessionPlanner<'a> {
 /// Creates an accessor from object store external table and validates if the
 /// location returns any objects. If objects are returned, tries to get the file
 /// type and compression of the object.
-async fn validate_and_get_file_type_and_compression(
-    access: Arc<dyn ObjStoreAccess>,
-    path: impl AsRef<str>,
-    m: &mut StmtOptions,
-) -> Result<(FileType, Option<CompressionTypeVariant>)> {
-    let path = path.as_ref();
-    let accessor =
-        ObjStoreAccessor::new(access.clone()).map_err(|e| PlanError::InvalidExternalTable {
-            source: Box::new(e),
-        })?;
+// async fn validate_and_get_file_type_and_compression(
+//     access: Arc<dyn ObjStoreAccess>,
+//     path: impl AsRef<str>,
+//     m: &mut StmtOptions,
+// ) -> Result<(FileType, Option<CompressionTypeVariant>)> {
+//     let path = path.as_ref();
+//     let accessor =
+//         ObjStoreAccessor::new(access.clone()).map_err(|e| PlanError::InvalidExternalTable {
+//             source: Box::new(e),
+//         })?;
 
-    let objects =
-        accessor
-            .list_globbed(path)
-            .await
-            .map_err(|e| PlanError::InvalidExternalTable {
-                source: Box::new(e),
-            })?;
+//     let objects =
+//         accessor
+//             .list_globbed(path)
+//             .await
+//             .map_err(|e| PlanError::InvalidExternalTable {
+//                 source: Box::new(e),
+//             })?;
 
-    if objects.is_empty() {
-        return Err(PlanError::InvalidExternalTable {
-            source: Box::new(internal!("object '{path}' not found")),
-        });
-    }
+//     if objects.is_empty() {
+//         return Err(PlanError::InvalidExternalTable {
+//             source: Box::new(internal!("object '{path}' not found")),
+//         });
+//     }
 
-    let compression = match m.remove_optional::<CompressionTypeVariant>("compression")? {
-        Some(compression) => Some(compression),
-        None => objects
-            .first()
-            .ok_or_else(|| PlanError::InvalidExternalTable {
-                source: Box::new(internal!("object '{path} not found'")),
-            })?
-            .location
-            .extension()
-            .and_then(|ext| ext.parse().ok()),
-    };
+//     let compression = match m.remove_optional::<CompressionTypeVariant>("compression")? {
+//         Some(compression) => Some(compression),
+//         None => objects
+//             .first()
+//             .ok_or_else(|| PlanError::InvalidExternalTable {
+//                 source: Box::new(internal!("object '{path} not found'")),
+//             })?
+//             .location
+//             .extension()
+//             .and_then(|ext| ext.parse().ok()),
+//     };
 
-    let file_type = match m.remove_optional::<FileType>("file_type")? {
-        Some(file_type) => file_type,
-        None => {
-            let mut ft = None;
-            for obj in objects {
-                ft = match file_type_from_path(&obj.location) {
-                    Err(_) => continue,
-                    Ok(file_type) => Some(file_type),
-                };
-            }
-            ft.ok_or_else(|| PlanError::InvalidExternalTable {
-                source: Box::new(internal!(
-                    "unable to resolve file type from the objects, try passing `file_type` option"
-                )),
-            })?
-        }
-    };
+//     let file_type = match m.remove_optional::<FileType>("file_type")? {
+//         Some(file_type) => file_type,
+//         None => {
+//             let mut ft = None;
+//             for obj in objects {
+//                 ft = match file_type_from_path(&obj.location) {
+//                     Err(_) => continue,
+//                     Ok(file_type) => Some(file_type),
+//                 };
+//             }
+//             ft.ok_or_else(|| PlanError::InvalidExternalTable {
+//                 source: Box::new(internal!(
+//                     "unable to resolve file type from the objects, try passing `file_type` option"
+//                 )),
+//             })?
+//         }
+//     };
 
-    Ok((file_type, compression))
-}
+//     Ok((file_type, compression))
+// }
 
 /// Resolves an ident (unquoted -> lowercase else case sensitive).
 fn normalize_ident(ident: Ident) -> String {
@@ -2092,82 +2098,86 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
 }
 
 fn get_pg_conn_str(m: &mut StmtOptions) -> Result<String> {
-    let conn = match m.remove_optional("connection_string")? {
-        Some(conn_str) => PostgresDbConnection::ConnectionString(conn_str),
-        None => {
-            let host = m.remove_required("host")?;
-            let port = m.remove_optional("port")?;
-            let user = m.remove_required("user")?;
-            let password = m.remove_optional("password")?;
-            let database = m.remove_required("database")?;
-            PostgresDbConnection::Parameters {
-                host,
-                port,
-                user,
-                password,
-                database,
-            }
-        }
-    };
+    unimplemented!()
+    // let conn = match m.remove_optional("connection_string")? {
+    //     Some(conn_str) => PostgresDbConnection::ConnectionString(conn_str),
+    //     None => {
+    //         let host = m.remove_required("host")?;
+    //         let port = m.remove_optional("port")?;
+    //         let user = m.remove_required("user")?;
+    //         let password = m.remove_optional("password")?;
+    //         let database = m.remove_required("database")?;
+    //         PostgresDbConnection::Parameters {
+    //             host,
+    //             port,
+    //             user,
+    //             password,
+    //             database,
+    //         }
+    //     }
+    // };
 
-    Ok(conn.connection_string())
+    // Ok(conn.connection_string())
 }
 
 fn get_mysql_conn_str(m: &mut StmtOptions) -> Result<String> {
-    let conn = match m.remove_optional("connection_string")? {
-        Some(conn_str) => MysqlDbConnection::ConnectionString(conn_str),
-        None => {
-            let host = m.remove_required("host")?;
-            let port = m.remove_optional("port")?;
-            let user = m.remove_required("user")?;
-            let password = m.remove_optional("password")?;
-            let database = m.remove_required("database")?;
-            MysqlDbConnection::Parameters {
-                host,
-                port,
-                user,
-                password,
-                database,
-            }
-        }
-    };
+    unimplemented!()
+    // let conn = match m.remove_optional("connection_string")? {
+    //     Some(conn_str) => MysqlDbConnection::ConnectionString(conn_str),
+    //     None => {
+    //         let host = m.remove_required("host")?;
+    //         let port = m.remove_optional("port")?;
+    //         let user = m.remove_required("user")?;
+    //         let password = m.remove_optional("password")?;
+    //         let database = m.remove_required("database")?;
+    //         MysqlDbConnection::Parameters {
+    //             host,
+    //             port,
+    //             user,
+    //             password,
+    //             database,
+    //         }
+    //     }
+    // };
 
-    Ok(conn.connection_string())
+    // Ok(conn.connection_string())
 }
 
 fn get_mongodb_conn_str(m: &mut StmtOptions) -> Result<String> {
-    let conn = match m.remove_optional("connection_string")? {
-        Some(conn_str) => MongoDbConnection::ConnectionString(conn_str),
-        None => {
-            let protocol = m.remove_optional("protocol")?.unwrap_or_default();
-            let host = m.remove_required("host")?;
-            let port = m.remove_optional("port")?;
-            let user = m.remove_required("user")?;
-            let password = m.remove_optional("password")?;
-            MongoDbConnection::Parameters {
-                protocol,
-                host,
-                port,
-                user,
-                password,
-            }
-        }
-    };
+    unimplemented!()
+    // let conn = match m.remove_optional("connection_string")? {
+    //     Some(conn_str) => MongoDbConnection::ConnectionString(conn_str),
+    //     None => {
+    //         let protocol = m.remove_optional("protocol")?.unwrap_or_default();
+    //         let host = m.remove_required("host")?;
+    //         let port = m.remove_optional("port")?;
+    //         let user = m.remove_required("user")?;
+    //         let password = m.remove_optional("password")?;
+    //         MongoDbConnection::Parameters {
+    //             protocol,
+    //             host,
+    //             port,
+    //             user,
+    //             password,
+    //         }
+    //     }
+    // };
 
-    Ok(conn.connection_string())
+    // Ok(conn.connection_string())
 }
 
 fn get_ssh_conn_str(m: &mut StmtOptions) -> Result<String> {
-    let conn = match m.remove_optional("connection_string")? {
-        Some(conn_str) => SshConnection::ConnectionString(conn_str),
-        None => {
-            let host = m.remove_required("host")?;
-            let port = m.remove_optional("port")?;
-            let user = m.remove_required("user")?;
-            SshConnection::Parameters(SshConnectionParameters { host, port, user })
-        }
-    };
-    Ok(conn.connection_string())
+    unimplemented!()
+    // let conn = match m.remove_optional("connection_string")? {
+    //     Some(conn_str) => SshConnection::ConnectionString(conn_str),
+    //     None => {
+    //         let host = m.remove_required("host")?;
+    //         let port = m.remove_optional("port")?;
+    //         let user = m.remove_required("user")?;
+    //         SshConnection::Parameters(SshConnectionParameters { host, port, user })
+    //     }
+    // };
+    // Ok(conn.connection_string())
 }
 
 /// Update storage options with the provided credentials object contents

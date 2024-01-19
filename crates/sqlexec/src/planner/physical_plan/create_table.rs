@@ -16,7 +16,7 @@ use datafusion::{
         Partitioning, SendableRecordBatchStream, Statistics,
     },
 };
-use datasources::native::access::{NativeTable, NativeTableStorage, SaveMode};
+// use datasources::native::access::{NativeTable, NativeTableStorage, SaveMode};
 use futures::stream;
 use protogen::metastore::types::{service, service::Mutation};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
@@ -92,18 +92,19 @@ impl ExecutionPlan for CreateTableExec {
             .session_config()
             .get_extension::<CatalogMutator>()
             .unwrap();
-        let storage = context
-            .session_config()
-            .get_extension::<NativeTableStorage>()
-            .unwrap();
+        unimplemented!()
+        // let storage = context
+        //     .session_config()
+        //     .get_extension::<NativeTableStorage>()
+        //     .unwrap();
 
-        let this = self.clone();
-        let stream = stream::once(this.create_table(catalog_mutator, storage, context));
+        // let this = self.clone();
+        // let stream = stream::once(this.create_table(catalog_mutator, storage, context));
 
-        Ok(Box::pin(RecordBatchStreamAdapter::new(
-            self.schema(),
-            stream,
-        )))
+        // Ok(Box::pin(RecordBatchStreamAdapter::new(
+        //     self.schema(),
+        //     stream,
+        // )))
     }
 
     fn statistics(&self) -> Statistics {
@@ -117,108 +118,108 @@ impl DisplayAs for CreateTableExec {
     }
 }
 
-impl CreateTableExec {
-    async fn create_table(
-        self,
-        mutator: Arc<CatalogMutator>,
-        storage: Arc<NativeTableStorage>,
-        context: Arc<TaskContext>,
-    ) -> DataFusionResult<RecordBatch> {
-        let or_replace = self.or_replace;
-        let if_not_exists = self.if_not_exists;
+// impl CreateTableExec {
+//     async fn create_table(
+//         self,
+//         mutator: Arc<CatalogMutator>,
+//         storage: Arc<NativeTableStorage>,
+//         context: Arc<TaskContext>,
+//     ) -> DataFusionResult<RecordBatch> {
+//         let or_replace = self.or_replace;
+//         let if_not_exists = self.if_not_exists;
 
-        let state = mutator
-            .mutate(
-                self.catalog_version,
-                [Mutation::CreateTable(service::CreateTable {
-                    schema: self.tbl_reference.schema.clone().into_owned(),
-                    name: self.tbl_reference.name.clone().into_owned(),
-                    options: self.arrow_schema.into(),
-                    if_not_exists,
-                    or_replace,
-                })],
-            )
-            .await
-            .map_err(|e| {
-                DataFusionError::Execution(format!("failed to create table in catalog: {e}"))
-            })?;
+//         let state = mutator
+//             .mutate(
+//                 self.catalog_version,
+//                 [Mutation::CreateTable(service::CreateTable {
+//                     schema: self.tbl_reference.schema.clone().into_owned(),
+//                     name: self.tbl_reference.name.clone().into_owned(),
+//                     options: self.arrow_schema.into(),
+//                     if_not_exists,
+//                     or_replace,
+//                 })],
+//             )
+//             .await
+//             .map_err(|e| {
+//                 DataFusionError::Execution(format!("failed to create table in catalog: {e}"))
+//             })?;
 
-        let source = self.source.map(|source| {
-            if source.output_partitioning().partition_count() != 1 {
-                Arc::new(CoalescePartitionsExec::new(source))
-            } else {
-                source
-            }
-        });
+//         let source = self.source.map(|source| {
+//             if source.output_partitioning().partition_count() != 1 {
+//                 Arc::new(CoalescePartitionsExec::new(source))
+//             } else {
+//                 source
+//             }
+//         });
 
-        // Note that we're not changing out the catalog stored on the context
-        // here. The session's catalog will get swapped out at the beginning of
-        // the next query execution.
-        //
-        // TODO: We should be returning _what_ was updated from metastore
-        // instead of needing to do this. Sean has a stash working on this.
-        let new_catalog = SessionCatalog::new(
-            state,
-            ResolveConfig {
-                default_schema_oid: 0,
-                session_schema_oid: 0,
-            },
-        );
+//         // Note that we're not changing out the catalog stored on the context
+//         // here. The session's catalog will get swapped out at the beginning of
+//         // the next query execution.
+//         //
+//         // TODO: We should be returning _what_ was updated from metastore
+//         // instead of needing to do this. Sean has a stash working on this.
+//         let new_catalog = SessionCatalog::new(
+//             state,
+//             ResolveConfig {
+//                 default_schema_oid: 0,
+//                 session_schema_oid: 0,
+//             },
+//         );
 
-        let ent = new_catalog
-            .resolve_table(
-                DEFAULT_CATALOG,
-                &self.tbl_reference.schema,
-                &self.tbl_reference.name,
-            )
-            .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))
-            .unwrap();
+//         let ent = new_catalog
+//             .resolve_table(
+//                 DEFAULT_CATALOG,
+//                 &self.tbl_reference.schema,
+//                 &self.tbl_reference.name,
+//             )
+//             .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))
+//             .unwrap();
 
-        let save_mode = match (if_not_exists, or_replace) {
-            (true, false) => SaveMode::Ignore,
-            (false, true) => SaveMode::Overwrite,
-            (false, false) => SaveMode::ErrorIfExists,
-            (true, true) => {
-                return Err(DataFusionError::Internal(
-                    "cannot create table with both `if_not_exists` and `or_replace` policies"
-                        .to_string(),
-                ))
-            }
-        };
+//         let save_mode = match (if_not_exists, or_replace) {
+//             (true, false) => SaveMode::Ignore,
+//             (false, true) => SaveMode::Overwrite,
+//             (false, false) => SaveMode::ErrorIfExists,
+//             (true, true) => {
+//                 return Err(DataFusionError::Internal(
+//                     "cannot create table with both `if_not_exists` and `or_replace` policies"
+//                         .to_string(),
+//                 ))
+//             }
+//         };
 
-        let table = storage.create_table(ent, save_mode).await.map_err(|e| {
-            DataFusionError::Execution(format!("failed to create table in storage: {e}"))
-        })?;
+//         let table = storage.create_table(ent, save_mode).await.map_err(|e| {
+//             DataFusionError::Execution(format!("failed to create table in storage: {e}"))
+//         })?;
 
-        match (source, or_replace) {
-            (Some(input), overwrite) => insert(&table, input, overwrite, context).await?,
+//         match (source, or_replace) {
+//             (Some(input), overwrite) => insert(&table, input, overwrite, context).await?,
 
-            // if it's a 'replace' and there is no insert, we overwrite with an empty table
-            (None, true) => {
-                let input = Arc::new(EmptyExec::new(false, TableProvider::schema(&table)));
-                insert(&table, input, true, context).await?
-            }
-            (None, false) => {}
-        };
-        debug!(loc = %table.storage_location(), "native table created");
+//             // if it's a 'replace' and there is no insert, we overwrite with an empty table
+//             (None, true) => {
+//                 let input = Arc::new(EmptyExec::new(false, TableProvider::schema(&table)));
+//                 insert(&table, input, true, context).await?
+//             }
+//             (None, false) => {}
+//         };
+//         debug!(loc = %table.storage_location(), "native table created");
 
-        // TODO: Add storage tracking job.
+//         // TODO: Add storage tracking job.
 
-        Ok(new_operation_batch("create_table"))
-    }
-}
+//         Ok(new_operation_batch("create_table"))
+//     }
+// }
 
-async fn insert(
-    tbl: &NativeTable,
-    input: Arc<dyn ExecutionPlan>,
-    overwrite: bool,
-    context: Arc<TaskContext>,
-) -> DataFusionResult<()> {
-    let mut stream = tbl.insert_exec(input, overwrite).execute(0, context)?;
+// async fn insert(
+//     tbl: &NativeTable,
+//     input: Arc<dyn ExecutionPlan>,
+//     overwrite: bool,
+//     context: Arc<TaskContext>,
+// ) -> DataFusionResult<()> {
+//     let mut stream = tbl.insert_exec(input, overwrite).execute(0, context)?;
 
-    while let Some(res) = stream.next().await {
-        // Drain stream to write everything.
-        let _ = res?;
-    }
-    Ok(())
-}
+//     while let Some(res) = stream.next().await {
+//         // Drain stream to write everything.
+//         let _ = res?;
+//     }
+//     Ok(())
+// }

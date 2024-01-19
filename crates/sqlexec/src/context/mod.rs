@@ -21,7 +21,7 @@ use datafusion::{
     },
 };
 use datafusion_ext::vars::SessionVars;
-use datasources::object_store::init_session_registry;
+// use datasources::object_store::init_session_registry;
 use protogen::metastore::types::catalog::CatalogEntry;
 
 use crate::errors::Result;
@@ -71,7 +71,7 @@ pub(crate) fn new_datafusion_runtime_env(
             None
         }
     });
-    init_session_registry(&runtime, entries)?;
+    // init_session_registry(&runtime, entries)?;
 
     Ok(runtime)
 }

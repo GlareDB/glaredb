@@ -6,8 +6,8 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
-use crate::distexec::scheduler::{OutputSink, Scheduler};
-use crate::distexec::stream::create_coalescing_adapter;
+// use crate::distexec::scheduler::{OutputSink, Scheduler};
+// use crate::distexec::stream::create_coalescing_adapter;
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
 use crate::parser::StatementWithExtensions;
@@ -36,7 +36,7 @@ use datafusion_ext::session_metrics::{
     BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetricsHandler,
 };
 use datafusion_ext::vars::SessionVars;
-use datasources::native::access::NativeTableStorage;
+// use datasources::native::access::NativeTableStorage;
 use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
 use pgrepr::format::Format;
@@ -395,10 +395,10 @@ impl Session {
         vars: SessionVars,
         catalog: SessionCatalog,
         catalog_mutator: CatalogMutator,
-        native_tables: NativeTableStorage,
+        // native_tables: NativeTableStorage,
         tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
-        task_scheduler: Scheduler,
+        // task_scheduler: Scheduler,
     ) -> Result<Session> {
         let metrics_handler = SessionMetricsHandler::new(
             vars.user_id(),
@@ -411,10 +411,10 @@ impl Session {
             vars,
             catalog,
             catalog_mutator,
-            native_tables,
+            // native_tables,
             metrics_handler,
             spill_path,
-            task_scheduler,
+            // task_scheduler,
         )?;
 
         Ok(Session { ctx })
@@ -476,18 +476,19 @@ impl Session {
     ) -> Result<SendableRecordBatchStream> {
         let context = self.ctx.task_context();
         let stream = if self.ctx.get_session_vars().enable_experimental_scheduler() {
-            let scheduler = self.ctx.get_task_scheduler();
-            let (sink, stream) =
-                create_coalescing_adapter(plan.output_partitioning(), plan.schema());
-            let sink = Arc::new(sink);
+            unimplemented!()
+            // let scheduler = self.ctx.get_task_scheduler();
+            // let (sink, stream) =
+            //     create_coalescing_adapter(plan.output_partitioning(), plan.schema());
+            // let sink = Arc::new(sink);
 
-            let output = OutputSink {
-                batches: sink.clone(),
-                errors: sink,
-            };
+            // let output = OutputSink {
+            //     batches: sink.clone(),
+            //     errors: sink,
+            // };
 
-            scheduler.schedule(plan, context, output)?;
-            Box::pin(stream)
+            // scheduler.schedule(plan, context, output)?;
+            // Box::pin(stream)
         } else {
             execute_stream(plan, context)?
         };
