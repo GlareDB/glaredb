@@ -3796,9 +3796,9 @@ dependencies = [
 
 [[package]]
 name = "klickhouse"
-version = "0.10.2"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b2b55b1aa0f264fc2aa5e9d73e2285c79cf9a0a52d3806797391e5f8cbdb1a3"
+checksum = "051a867a8208f75120f653badc7331df46ff31b7210214c53e54aea3c1a65a2a"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3812,6 +3812,7 @@ dependencies = [
  "libc",
  "log",
  "lz4",
+ "paste",
  "rustc_version 0.3.3",
  "serde",
  "serde_json",
@@ -3824,9 +3825,9 @@ dependencies = [
 
 [[package]]
 name = "klickhouse_derive"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1ed3a57ddece97a17d5086d1e7e84f15548a86fce544f1d593eb6ea3dc1dfd3"
+checksum = "dc5035fb62551169c670cc6133a81917704cd7293d458197140d7f5ac4db96c5"
 dependencies = [
  "proc-macro2",
  "quote",
