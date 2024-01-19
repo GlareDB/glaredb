@@ -16,9 +16,10 @@ use uuid::Uuid;
 
 use crate::{
     dispatch::external::ExternalDispatcher,
+    distexec::scheduler::Scheduler,
     errors::{ExecError, Result},
     extension_codec::GlareDBExtensionCodec,
-    remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams}, distexec::scheduler::Scheduler,
+    remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
 use catalog::mutator::CatalogMutator;
 use catalog::session_catalog::SessionCatalog;
