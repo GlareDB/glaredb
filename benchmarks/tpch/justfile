@@ -56,4 +56,4 @@ upload_log github_ref github_run scale_factor system_meta="" timings_file="timin
   echo "github_ref,github_run,scale_factor,system_meta" > meta.csv
   echo "{{github_ref}},{{github_run}},{{scale_factor}},{{system_meta}}" >> meta.csv
   # Run the SQL for uploading benchmarks.
-  {{GLARE_BIN}} -q upload_bench.sql
+  {{GLARE_BIN}} --query "$(cat upload_bench.sql)"

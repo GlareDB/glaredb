@@ -84,10 +84,12 @@ impl RunCommand for LocalArgs {
         let runtime = build_runtime("local")?;
         runtime.block_on(async move {
             let query = match self.query {
-                Some(q) if q.to_ascii_lowercase() == "version"=> return Err(anyhow!(
-                    "'version' is not a valid command, did you mean '--version'?"
-                )),
-                Some(q) if q.ends_with(".sql")=> {
+                Some(q) if q.to_ascii_lowercase() == "version" => {
+                    return Err(anyhow!(
+                        "'version' is not a valid command, did you mean '--version'?"
+                    ))
+                }
+                Some(q) if q.ends_with(".sql") => {
                     let file = std::path::Path::new(&q);
                     if !file.exists() {
                         return Err(anyhow!("file '{q}' does not exist"));
