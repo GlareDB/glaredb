@@ -59,7 +59,7 @@ tokio-postgres = { version = "0.7.8", features = [
 parking_lot = "0.12.1"
 tokio-rustls = "0.24.1"
 tracing = { workspace = true }
-uuid = "1.6.1"
+uuid = "1.7.0"
 url.workspace = true
 webpki-roots = "0.26.0"
 calamine = { version = "0.23.1", features = ["dates"] }
