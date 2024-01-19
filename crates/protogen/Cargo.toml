@@ -3,9 +3,6 @@ name = "protogen"
 version.workspace = true
 edition.workspace = true
 
-[lints]
-workspace = true
-
 [dependencies]
 datafusion = { workspace = true }
 datafusion-proto = { workspace = true }
