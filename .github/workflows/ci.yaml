@@ -48,7 +48,7 @@ jobs:
       - name: build
         run: just build
 
-  lint:
+  static-analysis:
     name: Lint (clippy)
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
