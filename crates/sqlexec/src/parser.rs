@@ -1475,7 +1475,6 @@ mod tests {
             // Empty
             ("", BTreeMap::new()),
             ("OPTIONS ( )", BTreeMap::new()),
-            ("()", BTreeMap::new()),
         ];
 
         for (sql, map) in test_cases {

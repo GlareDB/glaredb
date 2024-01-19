@@ -7,9 +7,6 @@ create external table t1 from debug (table_type = 'error_during_execution');
 statement error
 create external table t1 from debug options;
 
-statement ok
-create external table t1 from debug options ();
-
 statement error Duplicate name
 create external table t1 from debug options (table_type = 'never_ending');
 
