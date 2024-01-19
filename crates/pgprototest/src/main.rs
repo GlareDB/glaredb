@@ -4,6 +4,7 @@ use std::time::Duration;
 mod messages;
 mod proto;
 
+#[allow(clippy::pedantic)]
 #[derive(Parser)]
 #[clap(name = "pgprototest")]
 #[clap(about = "Data driven postgres protocol testing", long_about = None)]
