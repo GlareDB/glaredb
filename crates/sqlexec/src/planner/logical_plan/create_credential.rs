@@ -1,4 +1,4 @@
-use super::*;
+use super::{CredentialsOptions, DfLogicalPlan, ExtensionNode, GENERIC_OPERATION_LOGICAL_SCHEMA, UserDefinedLogicalNodeCore};
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CreateCredential {
     pub name: String,

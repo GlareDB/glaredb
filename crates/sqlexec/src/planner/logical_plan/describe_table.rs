@@ -1,4 +1,4 @@
-use super::*;
+use super::{Arc, DFSchemaRef, DataType, DfLogicalPlan, ExtensionNode, Lazy, UserDefinedLogicalNodeCore};
 use datafusion::{
     arrow::datatypes::{Field, Schema, SchemaRef},
     common::ToDFSchema,

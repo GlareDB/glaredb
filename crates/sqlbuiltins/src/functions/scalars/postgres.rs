@@ -3,7 +3,11 @@ use pgrepr::compatible::server_version_with_build_info;
 
 use crate::functions::FunctionNamespace;
 
-use super::{df_scalars::array_to_string, *};
+use super::{
+    df_scalars::array_to_string, get_nth_scalar_value, session_var, Arc, BuiltinError,
+    BuiltinScalarFunction, BuiltinScalarUDF, ColumnarValue, ConstBuiltinFunction, DataType, Expr,
+    Field, FunctionType, ScalarUDF, ScalarValue, Signature, TypeSignature, Volatility,
+};
 
 const PG_CATALOG_NAMESPACE: FunctionNamespace = FunctionNamespace::Optional("pg_catalog");
 

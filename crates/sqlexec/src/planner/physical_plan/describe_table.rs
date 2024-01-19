@@ -1,4 +1,4 @@
-use super::*;
+use super::SchemaRef;
 use std::{any::Any, sync::Arc};
 
 use arrow_util::pretty::fmt_dtype;

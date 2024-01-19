@@ -5,7 +5,7 @@ use protogen::metastore::types::catalog::RuntimePreference;
 
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 
-use super::*;
+use super::{DfLogicalPlan, ExtensionNode, GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA, UserDefinedLogicalNodeCore};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Insert {

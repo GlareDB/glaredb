@@ -11,7 +11,7 @@ use crate::distexec::stream::create_coalescing_adapter;
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
 use crate::parser::StatementWithExtensions;
-use crate::planner::logical_plan::*;
+use crate::planner::logical_plan::{LogicalPlan, OperationInfo, TransactionPlan};
 use crate::planner::physical_plan::{
     get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
     GENERIC_OPERATION_PHYSICAL_SCHEMA,

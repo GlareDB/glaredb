@@ -19,7 +19,7 @@ use uuid::Uuid;
 pub use arrow_flight::flight_service_server::FlightServiceServer;
 use arrow_flight::{
     encode::FlightDataEncoderBuilder, error::FlightError::ExternalError,
-    flight_service_server::FlightService, sql::*, Action, FlightDescriptor, FlightEndpoint,
+    flight_service_server::FlightService, sql::{ActionClosePreparedStatementRequest, ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any, CommandGetSqlInfo, CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt, SqlInfo}, Action, FlightDescriptor, FlightEndpoint,
     FlightInfo, IpcMessage, SchemaAsIpc, Ticket,
 };
 use arrow_flight::{
