@@ -56,7 +56,6 @@ impl Scheduler {
         context: Arc<TaskContext>,
         output: OutputSink,
     ) -> Result<()> {
-        println!("Scheduling plan");
         let pipeline = PipelineBuilder::new(plan, context)
             .build(output.batches.clone(), output.errors.clone())?;
 

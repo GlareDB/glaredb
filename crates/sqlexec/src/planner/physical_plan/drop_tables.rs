@@ -1,5 +1,3 @@
-use crate::distexec::pipeline::LogSink;
-use crate::distexec::scheduler::{OutputSink, Scheduler};
 use crate::planner::logical_plan::OwnedFullObjectReference;
 
 use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
@@ -13,7 +11,7 @@ use datafusion::physical_plan::{
     stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
     SendableRecordBatchStream, Statistics,
 };
-use futures::stream;
+use futures::{stream, StreamExt};
 use protogen::metastore::types::catalog::TableEntry;
 use protogen::metastore::types::service::{self, Mutation};
 use sqlbuiltins::functions::table::system::remove_delta_tables::DeleteDeltaTablesOperation;
@@ -94,16 +92,10 @@ async fn drop_tables(
     context: Arc<TaskContext>,
     plan: DropTablesExec,
 ) -> DataFusionResult<RecordBatch> {
-    println!("Executing DropTablesExec");
     let mutator = context
         .session_config()
         .get_extension::<CatalogMutator>()
         .expect("context should have catalog mutator");
-
-    let scheduler = context
-        .session_config()
-        .get_extension::<Scheduler>()
-        .expect("context should have scheduler");
 
     let drops = plan.tbl_references.into_iter().map(|r| {
         Mutation::DropObject(service::DropObject {
@@ -120,20 +112,13 @@ async fn drop_tables(
         .map_err(|e| DataFusionError::Execution(format!("failed to drop tables: {e}")))?;
 
     // only after the catalog is updated, we can delete the delta tables
-    // we don't do this immediately as to not block the client, so we schedule it
+    // TODO: this should be done in the scheduler.
     let sys_exec =
         SystemOperationExec::new(DeleteDeltaTablesOperation::new(plan.tbl_entries.clone()).into());
-
-    scheduler
-        .schedule(
-            Arc::new(sys_exec),
-            context.clone(),
-            OutputSink {
-                batches: Arc::new(LogSink),
-                errors: Arc::new(LogSink),
-            },
-        )
-        .unwrap();
+    let _ = sys_exec
+        .execute(0, context.clone())?
+        .collect::<Vec<_>>()
+        .await;
 
     Ok(new_operation_batch("drop_tables"))
 }
