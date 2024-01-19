@@ -1,4 +1,7 @@
+use pgrepr::notice::NoticeSeverity;
+
 use super::*;
+
 pub trait Value: ToOwned + std::fmt::Debug {
     fn try_parse(s: &str) -> Option<Self::Owned>;
     fn format(&self) -> String;
@@ -109,5 +112,15 @@ impl Value for Dialect {
             Dialect::Sql => "sql".to_string(),
             Dialect::Prql => "prql".to_string(),
         }
+    }
+}
+
+impl Value for NoticeSeverity {
+    fn try_parse(s: &str) -> Option<NoticeSeverity> {
+        NoticeSeverity::from_str(s).ok()
+    }
+
+    fn format(&self) -> String {
+        self.to_string()
     }
 }

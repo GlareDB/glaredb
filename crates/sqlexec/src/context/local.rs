@@ -18,6 +18,7 @@ use datafusion_ext::session_metrics::SessionMetricsHandler;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use pgrepr::format::Format;
+use pgrepr::notice::Notice;
 use pgrepr::types::arrow_to_pg_type;
 
 use datafusion::variable::VarType;
@@ -63,6 +64,8 @@ pub struct LocalSessionContext {
     env_reader: Option<Box<dyn EnvironmentReader>>,
     /// Task scheduler.
     task_scheduler: Scheduler,
+    /// Notices that should be sent to the user.
+    notices: Vec<Notice>,
 }
 
 impl LocalSessionContext {
@@ -108,6 +111,7 @@ impl LocalSessionContext {
             df_ctx,
             env_reader: None,
             task_scheduler,
+            notices: Vec::new(),
         })
     }
 
@@ -320,6 +324,28 @@ impl LocalSessionContext {
     /// Remove a portal.
     pub fn remove_portal(&mut self, name: &str) {
         self.portals.remove(name);
+    }
+
+    pub(crate) fn push_notice(&mut self, notice: Notice) {
+        self.notices.push(notice)
+    }
+
+    /// Take all notices from the session.
+    ///
+    /// This will take into account the 'client_min_messages' session var to
+    /// filter out notices that shouldn't be sent to the client.
+    pub(crate) fn take_notices(&mut self) -> Vec<Notice> {
+        // Behind an if since this is called every query, and session vars is behind  a lock :)
+        // Let's get rid of the lock.
+        if !self.notices.is_empty() {
+            let min = self.get_session_vars().client_min_messages();
+            self.notices
+                .drain(..)
+                .filter(|notice| notice.severity >= min)
+                .collect()
+        } else {
+            Vec::new()
+        }
     }
 
     /// Get a datafusion task context to use for physical plan execution.

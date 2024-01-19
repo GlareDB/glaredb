@@ -1536,6 +1536,7 @@ pub struct CopyToDestinationOptionsAzure {
 pub enum CopyToFormatOptions {
     Csv(CopyToFormatOptionsCsv),
     Parquet(CopyToFormatOptionsParquet),
+    Lance(CopyToFormatOptionsLance),
     Json(CopyToFormatOptionsJson),
     Bson,
 }
@@ -1554,6 +1555,7 @@ impl CopyToFormatOptions {
     pub const PARQUET: &'static str = "parquet";
     pub const JSON: &'static str = "json";
     pub const BSON: &'static str = "bson";
+    pub const LANCE: &'static str = "lance";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -1561,6 +1563,7 @@ impl CopyToFormatOptions {
             Self::Parquet(_) => Self::PARQUET,
             Self::Json(_) => Self::JSON,
             Self::Bson => Self::BSON,
+            Self::Lance(_) => Self::LANCE,
         }
     }
 }
@@ -1579,4 +1582,12 @@ pub struct CopyToFormatOptionsParquet {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToFormatOptionsJson {
     pub array: bool,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct CopyToFormatOptionsLance {
+    pub max_rows_per_file: Option<usize>,
+    pub max_rows_per_group: Option<usize>,
+    pub max_bytes_per_file: Option<usize>,
+    pub input_batch_size: Option<usize>,
 }

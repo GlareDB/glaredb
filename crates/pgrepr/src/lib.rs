@@ -1,5 +1,7 @@
+pub mod compatible;
 pub mod error;
 pub mod format;
+pub mod notice;
 pub mod oid;
 pub mod reader;
 pub mod scalar;

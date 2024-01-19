@@ -21,10 +21,11 @@ async-recursion = "1.0.4"
 uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 regex = "1.8"
 once_cell = "1.19.0"
-tracing = "0.1"
+tracing = { workspace = true }
 thiserror.workspace = true
 decimal = { path = "../decimal" }
 protogen = { path = "../protogen" }
+pgrepr = { path = "../pgrepr" }
 futures = { workspace = true }
 parking_lot = "0.12.1"
 bson = "2.7.0"

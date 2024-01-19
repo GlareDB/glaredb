@@ -14,29 +14,33 @@ use std::time::{Duration, Instant};
 /// Each file will open a unique connection, with each test case in that file
 /// being ran sequentially using that connection.
 pub fn walk(
-    dir: String,
+    dirs: Vec<String>,
     addr: String,
     options: HashMap<String, String>,
     password: Option<String>,
     timeout: Duration,
     verbose: bool,
 ) {
-    datadriven::walk(&dir, |file| {
-        let mut conn = PgConn::connect(&addr, &options, &password, timeout).unwrap();
-        file.run(|testcase| {
-            if verbose {
-                println!();
-                println!("--- TESTCASE ({}) ---", testcase.directive);
-                println!("{}", testcase.input);
-            }
+    for dir in dirs {
+        datadriven::walk(&dir, |file| {
+            let mut conn = PgConn::connect(&addr, &options, &password, timeout).unwrap();
+            file.run(|testcase| {
+                if verbose {
+                    println!();
+                    println!("--- TESTCASE ({}) ---", testcase.directive);
+                    println!("{}", testcase.input);
+                }
 
-            match testcase.directive.as_str() {
-                "send" => run_send(&mut conn, &testcase.args, &testcase.input, verbose),
-                "until" => run_until(&mut conn, &testcase.args, &testcase.input, timeout, verbose),
-                unknown => panic!("unknown directive: {}", unknown),
-            }
+                match testcase.directive.as_str() {
+                    "send" => run_send(&mut conn, &testcase.args, &testcase.input, verbose),
+                    "until" => {
+                        run_until(&mut conn, &testcase.args, &testcase.input, timeout, verbose)
+                    }
+                    unknown => panic!("unknown directive: {}", unknown),
+                }
+            });
         });
-    });
+    }
 }
 
 /// Run a "send" directive.

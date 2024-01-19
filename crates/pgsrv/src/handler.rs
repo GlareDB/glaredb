@@ -3,7 +3,7 @@ use crate::codec::server::{FramedConn, PgCodec};
 use crate::errors::{PgSrvError, Result};
 use crate::messages::{
     BackendMessage, DescribeObjectType, ErrorResponse, FieldDescriptionBuilder, FrontendMessage,
-    SqlState, StartupMessage, TransactionStatus,
+    StartupMessage, TransactionStatus,
 };
 use crate::proxy::{
     ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_GCS_STORAGE_BUCKET_KEY,
@@ -426,6 +426,16 @@ where
     }
 
     async fn ready_for_query(&mut self) -> Result<()> {
+        // Display notice messages before indicating we're ready for the next
+        // query. The pg protocol does not presribe a specific flow for notice
+        // messages, and so frontends should be capable of handling notices at
+        // any point in the message flow.
+        for notice in self.session.take_notices() {
+            self.conn
+                .send(BackendMessage::NoticeResponse(notice))
+                .await?;
+        }
+
         // TODO: Proper status.
         self.conn
             .send(BackendMessage::ReadyForQuery(TransactionStatus::Idle))
@@ -774,8 +784,14 @@ where
             let batch = match result {
                 Ok(r) => r,
                 Err(e) => {
-                    conn.send(ErrorResponse::error(SqlState::InternalError, e.to_string()).into())
-                        .await?;
+                    conn.send(
+                        ErrorResponse::error(
+                            pgrepr::notice::SqlState::InternalError,
+                            e.to_string(),
+                        )
+                        .into(),
+                    )
+                    .await?;
                     return Ok(None);
                 }
             };
@@ -804,7 +820,7 @@ fn parse_sql(
         Dialect::Prql => parser::parse_prql(sql),
         Dialect::Sql => parser::parse_sql(sql),
     }
-    .map_err(|e| ErrorResponse::error(SqlState::SyntaxError, e.to_string()))
+    .map_err(|e| ErrorResponse::error(pgrepr::notice::SqlState::SyntaxError, e.to_string()))
 }
 
 /// Decodes inputs for a prepared query into the appropriate scalar values.

@@ -6,14 +6,15 @@ edition = {workspace = true}
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-repr = { path = "../repr" }
 thiserror.workspace = true
-bytes = "1.4.0"
 datafusion = {workspace = true}
 tokio-postgres = { version = "0.7.8", features = ["with-uuid-1", "with-serde_json-1", "with-chrono-0_4"] }
+chrono = { workspace = true }
+tracing = { workspace = true }
+repr = { path = "../repr" }
+decimal = { path = "../decimal" }
 num-traits = "0.2.17"
 dtoa = "1.0.9"
-chrono = { workspace = true }
 chrono-tz = "0.8.5"
-tracing = "0.1"
-decimal = { path = "../decimal" }
+bytes = "1.4.0"
+const_format = "0.2.32"

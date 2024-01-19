@@ -10,7 +10,6 @@
 statement ok
 set search_path = public;
 
-
 query T
 select current_schema();
 ----

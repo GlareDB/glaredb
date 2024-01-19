@@ -31,15 +31,12 @@ def test_copy_to(
     assert not os.path.exists(output_path)
 
     with glaredb_connection.cursor() as curr:
-        print(output_path)
         curr.execute(f"COPY( SELECT * FROM bson_test ) TO '{output_path}'")
 
     assert os.path.exists(output_path)
 
     with open(output_path, "rb") as f:
         for idx, doc in enumerate(bson.decode_file_iter(f)):
-            print(doc)
-
             assert len(doc) == 1
             assert "amount" in doc
             assert doc["amount"] == idx
@@ -74,7 +71,7 @@ def test_read_bson(
             f"create external table bson_beatles from bson options ( location='{data_path}', file_type='bson')"
         )
 
-    for from_clause in ["bson_beatles", f"read_bson('{data_path}')"]:
+    for from_clause in ["bson_beatles", f"read_bson('{data_path}')", f"'{data_path}'"]:
         with glaredb_connection.cursor() as curr:
             curr.execute(f"select count(*) from {from_clause}")
             r = curr.fetchone()

@@ -1,21 +1,31 @@
-use crate::args::server::ServerArgs;
-use crate::args::{LocalArgs, MetastoreArgs, PgProxyArgs, RpcProxyArgs};
-use crate::local::LocalSession;
-use crate::metastore::Metastore;
-use crate::proxy::{PgProxy, RpcProxy};
-use crate::server::ComputeServer;
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
 use anyhow::{anyhow, Result};
 use atty::Stream;
 use clap::Subcommand;
 use ioutil::ensure_dir;
-use object_store_util::conf::StorageConfig;
-use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
 use tracing::info;
+
+use object_store_util::conf::StorageConfig;
+use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
+use slt::{
+    discovery::SltDiscovery,
+    hooks::{AllTestsHook, SshTunnelHook},
+    tests::{PgBinaryEncoding, SshKeysTest},
+};
+
+use crate::args::server::ServerArgs;
+use crate::args::{LocalArgs, MetastoreArgs, PgProxyArgs, RpcProxyArgs, SltArgs};
+use crate::built_info;
+use crate::local::LocalSession;
+use crate::metastore::Metastore;
+use crate::proxy::{PgProxy, RpcProxy};
+use crate::server::ComputeServer;
 
 #[derive(Subcommand)]
 pub enum Commands {
@@ -32,6 +42,9 @@ pub enum Commands {
     /// Starts an instance of the Metastore.
     #[clap(hide = true)]
     Metastore(MetastoreArgs),
+    /// Runs SQL Logic Tests
+    #[clap(hide = true, alias = "slt")]
+    SqlLogicTests(SltArgs),
 }
 
 impl Commands {
@@ -42,6 +55,7 @@ impl Commands {
             Commands::PgProxy(pg_proxy) => pg_proxy.run(),
             Commands::RpcProxy(rpc_proxy) => rpc_proxy.run(),
             Commands::Metastore(metastore) => metastore.run(),
+            Commands::SqlLogicTests(slt) => slt.run(),
         }
     }
 }
@@ -117,7 +131,12 @@ impl RunCommand for LocalArgs {
             };
 
             if query.is_none() {
-                println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
+                // git should always be present, but just in case, we'll fall back to the version
+                if let Some(git_version) = built_info::GIT_VERSION {
+                    println!("GlareDB ({git_version})",);
+                } else {
+                    println!("GlareDB (v{})", env!("CARGO_PKG_VERSION"));
+                }
             }
 
             let local = LocalSession::connect(self.opts).await?;
@@ -280,8 +299,39 @@ impl RunCommand for MetastoreArgs {
     }
 }
 
+impl RunCommand for SltArgs {
+    fn run(self) -> Result<()> {
+        let disco = SltDiscovery::new()
+            .test_files_dir("testdata")?
+            // Rust tests
+            .test("sqllogictests/ssh_keys", Box::new(SshKeysTest))?
+            .test("pgproto/binary_encoding", Box::new(PgBinaryEncoding))?
+            // Add hooks
+            .hook("*", Arc::new(AllTestsHook))?
+            // SSH Tunnels hook
+            .hook("*/tunnels/ssh", Arc::new(SshTunnelHook))?;
+
+        self.execute(disco.tests, disco.hooks)
+    }
+}
+
 fn build_runtime(thread_label: &'static str) -> Result<Runtime> {
-    let runtime = Builder::new_multi_thread()
+    let mut builder = Builder::new_multi_thread();
+
+    // Bump the stack from the default 2MB.
+    //
+    // We reach the limit when planning a query
+    // with nested views.
+    //
+    // Note that Sean observed the stack size only reaching ~300KB when
+    // running in release mode, and so we don't need to bump this
+    // everywhere. However there's definitely improvements to stack
+    // usage that we can make.
+    // see <https://github.com/GlareDB/glaredb/issues/2390>
+    #[cfg(not(release))]
+    builder.thread_stack_size(4 * 1024 * 1024);
+
+    let runtime = builder
         .thread_name_fn(move || {
             static THREAD_ID: AtomicU64 = AtomicU64::new(0);
             let id = THREAD_ID.fetch_add(1, Ordering::Relaxed);

@@ -1,6 +1,6 @@
 {
   "name": "@glaredb/glaredb",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "main": "glaredb.js",
   "types": "index.d.ts",
   "repository": {
