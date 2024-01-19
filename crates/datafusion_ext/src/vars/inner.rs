@@ -1,3 +1,6 @@
+use std::borrow::Borrow;
+use std::sync::Arc;
+
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -5,14 +8,12 @@ use datafusion::config::ConfigEntry;
 use datafusion::error::Result;
 use datafusion::variable::VarType;
 use pgrepr::notice::NoticeSeverity;
-use std::borrow::Borrow;
+use tracing::error;
+use uuid::Uuid;
 
 use super::constants::*;
 use super::error::VarError;
 use super::value::Value;
-use std::sync::Arc;
-use tracing::error;
-use uuid::Uuid;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub enum Dialect {

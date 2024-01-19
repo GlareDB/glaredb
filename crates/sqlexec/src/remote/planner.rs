@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::Schema;
@@ -18,14 +20,34 @@ use protogen::metastore::types::options::CopyToDestinationOptions;
 use tracing::debug;
 use uuid::Uuid;
 
-use std::sync::Arc;
-
+use super::client::RemoteSessionClient;
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
-    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredential, CreateCredentials,
-    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
-    CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
-    DropTables, DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
+    AlterDatabase,
+    AlterTable,
+    AlterTunnelRotateKeys,
+    CopyTo,
+    CreateCredential,
+    CreateCredentials,
+    CreateExternalDatabase,
+    CreateExternalTable,
+    CreateSchema,
+    CreateTable,
+    CreateTempTable,
+    CreateTunnel,
+    CreateView,
+    Delete,
+    DescribeTable,
+    DropCredentials,
+    DropDatabase,
+    DropSchemas,
+    DropTables,
+    DropTunnel,
+    DropViews,
+    Insert,
+    SetVariable,
+    ShowVariable,
+    Update,
 };
 use crate::planner::physical_plan::alter_database::AlterDatabaseExec;
 use crate::planner::physical_plan::alter_table::AlterTableExec;
@@ -58,8 +80,6 @@ use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 use crate::planner::physical_plan::set_var::SetVarExec;
 use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
-
-use super::client::RemoteSessionClient;
 
 pub struct DDLExtensionPlanner {
     catalog: SessionCatalog,

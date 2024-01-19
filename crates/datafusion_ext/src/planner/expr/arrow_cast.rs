@@ -18,11 +18,12 @@
 //! Implementation of the `arrow_cast` function that allows
 //! casting to arbitrary arrow types (rather than SQL types)
 
-use std::{fmt::Display, iter::Peekable, str::Chars};
+use std::fmt::Display;
+use std::iter::Peekable;
+use std::str::Chars;
 
 use datafusion::arrow::datatypes::{DataType, IntervalUnit, TimeUnit};
 use datafusion::common::{DFSchema, DataFusionError, Result, ScalarValue};
-
 use datafusion::logical_expr::{Expr, ExprSchemable};
 
 pub const ARROW_CAST_NAME: &str = "arrow_cast";
@@ -553,7 +554,6 @@ impl<'a> Iterator for Tokenizer<'a> {
 }
 
 /// Grammar is
-///
 #[derive(Debug, PartialEq)]
 enum Token {
     // Null, or Int32

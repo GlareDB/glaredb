@@ -1,5 +1,7 @@
-use super::{builder::CqlValueArrayBuilder, *};
 use datafusion::arrow::array::ArrayBuilder;
+
+use super::builder::CqlValueArrayBuilder;
+use super::*;
 
 pub(super) struct CassandraExec {
     schema: ArrowSchemaRef,

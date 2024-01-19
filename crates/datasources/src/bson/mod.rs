@@ -5,7 +5,8 @@ pub mod stream;
 pub mod table;
 
 use datafusion::arrow::array::cast::as_string_array;
-use datafusion::arrow::array::{types::*, Array, ArrayRef, AsArray, StructArray};
+use datafusion::arrow::array::types::*;
+use datafusion::arrow::array::{Array, ArrayRef, AsArray, StructArray};
 use datafusion::arrow::datatypes::{DataType, Fields, IntervalUnit, TimeUnit};
 use datafusion::arrow::error::ArrowError;
 

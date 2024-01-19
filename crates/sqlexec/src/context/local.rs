@@ -1,3 +1,37 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::slice;
+use std::sync::Arc;
+
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::SessionCatalog;
+use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
+use datafusion::common::SchemaReference;
+use datafusion::execution::context::{
+    SessionConfig,
+    SessionContext as DfSessionContext,
+    SessionState,
+    TaskContext,
+};
+use datafusion::scalar::ScalarValue;
+use datafusion::sql::TableReference;
+use datafusion::variable::VarType;
+use datafusion_ext::runtime::group_pull_up::RuntimeGroupPullUp;
+use datafusion_ext::session_metrics::SessionMetricsHandler;
+use datafusion_ext::vars::SessionVars;
+use datasources::native::access::NativeTableStorage;
+use pgrepr::format::Format;
+use pgrepr::notice::Notice;
+use pgrepr::types::arrow_to_pg_type;
+use protogen::rpcsrv::types::service::{
+    InitializeSessionRequest,
+    InitializeSessionRequestFromClient,
+};
+use sqlbuiltins::builtins::DEFAULT_CATALOG;
+use tokio_postgres::types::Type as PgType;
+use uuid::Uuid;
+
+use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 use crate::distexec::scheduler::Scheduler;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
@@ -5,37 +39,6 @@ use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
-use catalog::mutator::CatalogMutator;
-use catalog::session_catalog::SessionCatalog;
-use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
-use datafusion::common::SchemaReference;
-use datafusion::execution::context::{
-    SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
-};
-use datafusion::scalar::ScalarValue;
-use datafusion::sql::TableReference;
-use datafusion_ext::session_metrics::SessionMetricsHandler;
-use datafusion_ext::vars::SessionVars;
-use datasources::native::access::NativeTableStorage;
-use pgrepr::format::Format;
-use pgrepr::notice::Notice;
-use pgrepr::types::arrow_to_pg_type;
-
-use datafusion::variable::VarType;
-use protogen::rpcsrv::types::service::{
-    InitializeSessionRequest, InitializeSessionRequestFromClient,
-};
-use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::slice;
-use std::sync::Arc;
-use tokio_postgres::types::Type as PgType;
-
-use datafusion_ext::runtime::group_pull_up::RuntimeGroupPullUp;
-use uuid::Uuid;
-
-use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 
 /// Context for a session used local execution and planning.
 ///

@@ -6,14 +6,16 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::common::ssh::session::SshTunnelSession;
-use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
-use crate::common::util::{self, create_count_record_batch, COUNT_SCHEMA};
 use async_stream::stream;
 use async_trait::async_trait;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use datafusion::arrow::datatypes::{
-    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    DataType,
+    Field,
+    Fields,
+    Schema as ArrowSchema,
+    SchemaRef as ArrowSchemaRef,
+    TimeUnit,
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
@@ -24,25 +26,40 @@ use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::memory::MemoryExec;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
-    execute_stream, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
+    execute_stream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    RecordBatchStream,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
+use errors::{MysqlError, Result};
 use futures::{Stream, StreamExt, TryStreamExt};
 use mysql_async::consts::{ColumnFlags, ColumnType};
 use mysql_async::prelude::Queryable;
 use mysql_async::{
-    Column as MysqlColumn, Conn, IsolationLevel, Opts, OptsBuilder, Row as MysqlRow, TxOpts,
+    Column as MysqlColumn,
+    Conn,
+    IsolationLevel,
+    Opts,
+    OptsBuilder,
+    Row as MysqlRow,
+    TxOpts,
 };
 use protogen::metastore::types::options::TunnelOptions;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, trace};
 
-use errors::{MysqlError, Result};
+use crate::common::ssh::key::SshKey;
+use crate::common::ssh::session::{SshTunnelAccess, SshTunnelSession};
+use crate::common::util::{self, create_count_record_batch, COUNT_SCHEMA};
 
 #[derive(Debug)]
 pub enum MysqlDbConnection {
@@ -635,10 +652,23 @@ macro_rules! make_column {
 /// Convert mysql rows into a single record batch.
 fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Result<RecordBatch> {
     use datafusion::arrow::array::{
-        Array, BinaryBuilder, Date32Builder, Decimal128Builder, Float32Builder, Float64Builder,
-        Int16Builder, Int32Builder, Int64Builder, Int8Builder, StringBuilder,
-        Time64NanosecondBuilder, TimestampNanosecondBuilder, UInt16Builder, UInt32Builder,
-        UInt64Builder, UInt8Builder,
+        Array,
+        BinaryBuilder,
+        Date32Builder,
+        Decimal128Builder,
+        Float32Builder,
+        Float64Builder,
+        Int16Builder,
+        Int32Builder,
+        Int64Builder,
+        Int8Builder,
+        StringBuilder,
+        Time64NanosecondBuilder,
+        TimestampNanosecondBuilder,
+        UInt16Builder,
+        UInt32Builder,
+        UInt64Builder,
+        UInt8Builder,
     };
 
     let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(schema.fields.len());

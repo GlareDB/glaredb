@@ -1,22 +1,23 @@
-use std::{fmt::Display, sync::Arc};
+use std::fmt::Display;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::Utc;
-use datafusion::{
-    arrow::datatypes::Schema,
-    datasource::{file_format::FileFormat, TableProvider},
-    error::DataFusionError,
-    execution::{context::SessionState, object_store::ObjectStoreUrl},
-};
-use object_store::{http::HttpBuilder, path::Path as ObjectStorePath, ObjectMeta, ObjectStore};
+use datafusion::arrow::datatypes::Schema;
+use datafusion::datasource::file_format::FileFormat;
+use datafusion::datasource::TableProvider;
+use datafusion::error::DataFusionError;
+use datafusion::execution::context::SessionState;
+use datafusion::execution::object_store::ObjectStoreUrl;
+use object_store::http::HttpBuilder;
+use object_store::path::Path as ObjectStorePath;
+use object_store::{ObjectMeta, ObjectStore};
 use url::Url;
 
-use crate::{
-    common::url::DatasourceUrl,
-    object_store::{errors::ObjectStoreSourceError, Result},
-};
-
 use super::{MultiSourceTableProvider, ObjStoreAccess, ObjStoreTableProvider};
+use crate::common::url::DatasourceUrl;
+use crate::object_store::errors::ObjectStoreSourceError;
+use crate::object_store::Result;
 
 #[derive(Debug, Clone)]
 pub struct HttpStoreAccess {

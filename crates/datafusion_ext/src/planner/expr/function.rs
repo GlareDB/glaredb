@@ -15,22 +15,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+use std::str::FromStr;
+
 use datafusion::common::{DFSchema, DataFusionError, Result};
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::utils::COUNT_STAR_EXPANSION;
 use datafusion::logical_expr::window_frame::regularize;
 use datafusion::logical_expr::{
-    expr, window_function, AggregateFunction, BuiltinScalarFunction, Expr, WindowFrame,
+    expr,
+    window_function,
+    AggregateFunction,
+    BuiltinScalarFunction,
+    Expr,
+    WindowFrame,
     WindowFunction,
 };
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
-    Expr as SQLExpr, Function as SQLFunction, FunctionArg, FunctionArgExpr, WindowType,
+    Expr as SQLExpr,
+    Function as SQLFunction,
+    FunctionArg,
+    FunctionArgExpr,
+    WindowType,
 };
-use std::str::FromStr;
 
 use super::arrow_cast::ARROW_CAST_NAME;
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     pub(super) async fn sql_function_to_expr(

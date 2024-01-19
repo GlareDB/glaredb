@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
 use once_cell::sync::Lazy;
-
 use protogen::metastore::types::catalog::FunctionType;
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
@@ -350,8 +349,9 @@ macro_rules! document {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::HashSet;
+
+    use super::*;
 
     #[test]
     fn get_function_info() {

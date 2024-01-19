@@ -17,14 +17,14 @@
 
 //! SQL Utility Functions
 
-use datafusion::arrow::datatypes::{DataType, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE};
+use std::collections::HashMap;
 
+use datafusion::arrow::datatypes::{DataType, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE};
 use datafusion::common::tree_node::{Transformed, TreeNode};
 use datafusion::common::{DataFusionError, Result, ScalarValue};
-use datafusion::logical_expr::expr::{GroupingSet, WindowFunction};
+use datafusion::logical_expr::expr::{Alias, GroupingSet, WindowFunction};
 use datafusion::logical_expr::utils::{expr_as_column_expr, find_column_exprs};
-use datafusion::logical_expr::{expr::Alias, Expr, LogicalPlan};
-use std::collections::HashMap;
+use datafusion::logical_expr::{Expr, LogicalPlan};
 
 /// Make a best-effort attempt at resolving all columns in the expression tree
 pub(crate) fn resolve_columns(expr: &Expr, plan: &LogicalPlan) -> Result<Expr> {

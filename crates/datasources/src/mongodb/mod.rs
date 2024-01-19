@@ -4,31 +4,29 @@ pub mod errors;
 mod exec;
 mod infer;
 
+use std::any::Any;
+use std::fmt::{Display, Write};
+use std::str::FromStr;
+use std::sync::{Arc, Mutex};
+
+use async_trait::async_trait;
 use bson::RawBson;
+use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
+use datafusion::datasource::TableProvider;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::execution::context::SessionState;
+use datafusion::logical_expr::{Expr, Operator, TableProviderFilterPushDown, TableType};
+use datafusion::physical_plan::ExecutionPlan;
+use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use errors::{MongoDbError, Result};
 use exec::MongoDbBsonExec;
 use infer::TableSampler;
-
-use async_trait::async_trait;
-use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
-use datafusion::datasource::TableProvider;
-use datafusion::error::{DataFusionError, Result as DatafusionResult};
-use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::Operator;
-use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
-use datafusion::physical_plan::ExecutionPlan;
-use datafusion::scalar::ScalarValue;
 use mongodb::bson::spec::BinarySubtype;
 use mongodb::bson::{bson, Binary, Bson, Document, RawDocumentBuf};
 use mongodb::options::{ClientOptions, FindOptions};
-use mongodb::Client;
-use mongodb::Collection;
-use std::any::Any;
-use std::fmt::{Display, Write};
-use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use mongodb::{Client, Collection};
 use tracing::debug;
 
 /// Field name in mongo for uniquely identifying a record. Some special handling

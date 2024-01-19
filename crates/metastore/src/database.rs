@@ -1,31 +1,54 @@
 //! Module for handling the catalog for a single database.
-use crate::errors::{MetastoreError, Result};
-use crate::storage::persist::Storage;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use protogen::metastore::types::catalog::{
-    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
-    EntryType, FunctionEntry, SchemaEntry, SourceAccessMode, TableEntry, TunnelEntry, ViewEntry,
+    CatalogEntry,
+    CatalogState,
+    CredentialsEntry,
+    DatabaseEntry,
+    DeploymentMetadata,
+    EntryMeta,
+    EntryType,
+    FunctionEntry,
+    SchemaEntry,
+    SourceAccessMode,
+    TableEntry,
+    TunnelEntry,
+    ViewEntry,
 };
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
+    DatabaseOptions,
+    DatabaseOptionsInternal,
+    TableOptions,
+    TunnelOptions,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
 use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
-    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
+    BuiltinDatabase,
+    BuiltinSchema,
+    BuiltinTable,
+    BuiltinView,
+    DATABASE_DEFAULT,
+    DEFAULT_SCHEMA,
     FIRST_NON_STATIC_OID,
 };
 use sqlbuiltins::functions::{BuiltinFunction, FUNCTION_REGISTRY};
 use sqlbuiltins::validation::{
-    validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
+    validate_database_tunnel_support,
+    validate_object_name,
+    validate_table_tunnel_support,
 };
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
 use tracing::debug;
 use uuid::Uuid;
+
+use crate::errors::{MetastoreError, Result};
+use crate::storage::persist::Storage;
 
 /// Special id indicating that databases have no parents.
 const DATABASE_PARENT_ID: u32 = 0;
@@ -1375,18 +1398,23 @@ impl BuiltinCatalog {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::storage::persist::Storage;
+    use std::collections::HashSet;
+
     use object_store::memory::InMemory;
-    use protogen::metastore::types::options::DatabaseOptionsDebug;
-    use protogen::metastore::types::options::TableOptionsDebug;
-    use protogen::metastore::types::service::AlterDatabase;
-    use protogen::metastore::types::service::DropDatabase;
+    use protogen::metastore::types::options::{DatabaseOptionsDebug, TableOptionsDebug};
     use protogen::metastore::types::service::{
-        CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropSchema,
+        AlterDatabase,
+        CreateExternalDatabase,
+        CreateExternalTable,
+        CreateSchema,
+        CreateView,
+        DropDatabase,
+        DropSchema,
     };
     use sqlbuiltins::builtins::DEFAULT_CATALOG;
-    use std::collections::HashSet;
+
+    use super::*;
+    use crate::storage::persist::Storage;
 
     async fn new_catalog() -> DatabaseCatalog {
         logutil::init_test();

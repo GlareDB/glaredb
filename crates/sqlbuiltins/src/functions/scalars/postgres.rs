@@ -1,8 +1,8 @@
 use datafusion::logical_expr::expr::ScalarFunction;
 
+use super::df_scalars::array_to_string;
+use super::*;
 use crate::functions::FunctionNamespace;
-
-use super::{df_scalars::array_to_string, *};
 
 const PG_CATALOG_NAMESPACE: FunctionNamespace = FunctionNamespace::Optional("pg_catalog");
 

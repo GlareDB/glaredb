@@ -1,14 +1,13 @@
+use std::collections::BTreeMap;
+use std::fmt;
+
+use datafusion::arrow::datatypes::{DataType, Field, SchemaRef};
+use datafusion::common::DFSchemaRef;
+use proptest_derive::Arbitrary;
+
 use crate::gen::common::arrow;
 use crate::gen::metastore::options;
 use crate::{FromOptionalField, ProtoConvError};
-use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::{
-    arrow::datatypes::{DataType, Field},
-    common::DFSchemaRef,
-};
-use proptest_derive::Arbitrary;
-use std::collections::BTreeMap;
-use std::fmt;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct InternalColumnDefinition {
@@ -1286,9 +1285,10 @@ impl From<TunnelOptionsSsh> for options::TunnelOptionsSsh {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use proptest::arbitrary::any;
     use proptest::proptest;
+
+    use super::*;
 
     proptest! {
         #[test]

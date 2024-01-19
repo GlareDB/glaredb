@@ -1,40 +1,40 @@
-use crate::context::remote::RemoteSessionContext;
-use crate::distexec::executor::TaskExecutor;
-use crate::distexec::scheduler::Scheduler;
-use crate::errors::{ExecError, Result};
-use crate::session::Session;
-use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
-use object_store::azure::AzureConfigKey;
-use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
 use std::collections::HashMap;
-
-use ioutil::ensure_dir;
-use object_store::aws::AmazonS3ConfigKey;
-use object_store::{path::Path as ObjectPath, prefix::PrefixStore};
-use object_store::{Error as ObjectStoreError, ObjectStore};
 use std::fs;
 use std::ops::{Deref, DerefMut};
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
 use catalog::session_catalog::{ResolveConfig, SessionCatalog};
 use datafusion_ext::vars::SessionVars;
 use datasources::common::errors::DatasourceCommonError;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::native::access::NativeTableStorage;
+use ioutil::ensure_dir;
 use metastore::local::start_inprocess;
 use metastore::util::MetastoreClientMode;
+use object_store::aws::AmazonS3ConfigKey;
+use object_store::azure::AzureConfigKey;
+use object_store::path::Path as ObjectPath;
+use object_store::prefix::PrefixStore;
+use object_store::{Error as ObjectStoreError, ObjectStore};
 use object_store_util::conf::StorageConfig;
 use object_store_util::shared::SharedObjectStore;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
 use protogen::rpcsrv::types::common;
+use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
 use telemetry::Tracker;
 use tonic::transport::Channel;
 use tracing::{debug, info};
 use url::Url;
 use uuid::Uuid;
+
+use crate::context::remote::RemoteSessionContext;
+use crate::distexec::executor::TaskExecutor;
+use crate::distexec::scheduler::Scheduler;
+use crate::errors::{ExecError, Result};
+use crate::session::Session;
 
 #[derive(Debug, Clone, Default)]
 pub struct SessionStorageConfig {
@@ -543,10 +543,12 @@ pub fn ensure_spill_path<P: AsRef<Path>>(path: Option<P>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use object_store_util::conf::StorageConfig;
+
     use crate::engine::{EngineStorageConfig, SessionStorageConfig};
     use crate::errors::Result;
-    use object_store_util::conf::StorageConfig;
-    use std::collections::HashMap;
 
     #[test]
     fn merged_conf_session_bucket() -> Result<()> {

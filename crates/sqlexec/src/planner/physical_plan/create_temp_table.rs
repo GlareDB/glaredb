@@ -1,14 +1,13 @@
-use datafusion::{
-    datasource::{MemTable, TableProvider},
-    execution::{context::SessionState, TaskContext},
-    physical_plan::{coalesce_partitions::CoalescePartitionsExec, SendableRecordBatchStream},
-};
+use catalog::session_catalog::TempCatalog;
+use datafusion::datasource::{MemTable, TableProvider};
+use datafusion::execution::context::SessionState;
+use datafusion::execution::TaskContext;
+use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
+use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 
-use crate::planner::logical_plan::OwnedFullObjectReference;
-use catalog::session_catalog::TempCatalog;
-
 use super::*;
+use crate::planner::logical_plan::OwnedFullObjectReference;
 
 #[derive(Debug, Clone)]
 pub struct CreateTempTableExec {

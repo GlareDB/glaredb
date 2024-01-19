@@ -3,22 +3,16 @@ use std::sync::Arc;
 use bytes::BytesMut;
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Timelike, Utc};
 use chrono_tz::{Tz, TZ_VARIANTS};
-use datafusion::{
-    arrow::{
-        array::{Array, Float16Array},
-        datatypes::{DataType as ArrowType, TimeUnit},
-    },
-    scalar::ScalarValue as DfScalar,
-};
+use datafusion::arrow::array::{Array, Float16Array};
+use datafusion::arrow::datatypes::{DataType as ArrowType, TimeUnit};
+use datafusion::scalar::ScalarValue as DfScalar;
 use decimal::Decimal128;
 use tokio_postgres::types::Type as PgType;
 
-use crate::{
-    error::{PgReprError, Result},
-    format::Format,
-    reader::TextReader,
-    writer::{BinaryWriter, TextWriter},
-};
+use crate::error::{PgReprError, Result};
+use crate::format::Format;
+use crate::reader::TextReader;
+use crate::writer::{BinaryWriter, TextWriter};
 
 /// Scalasentation of Postgres value. This can be used as interface
 /// between datafusion and postgres scalar values. All the scalar values

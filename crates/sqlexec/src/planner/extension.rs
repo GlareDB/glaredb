@@ -1,17 +1,37 @@
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
+use std::sync::Arc;
 
-use crate::{
-    errors::{internal, ExecError, Result},
-    LogicalPlan,
-};
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 
 use super::logical_plan::{
-    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredential, CreateCredentials,
-    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
-    CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
-    DropTables, DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
+    AlterDatabase,
+    AlterTable,
+    AlterTunnelRotateKeys,
+    CopyTo,
+    CreateCredential,
+    CreateCredentials,
+    CreateExternalDatabase,
+    CreateExternalTable,
+    CreateSchema,
+    CreateTable,
+    CreateTempTable,
+    CreateTunnel,
+    CreateView,
+    Delete,
+    DescribeTable,
+    DropCredentials,
+    DropDatabase,
+    DropSchemas,
+    DropTables,
+    DropTunnel,
+    DropViews,
+    Insert,
+    SetVariable,
+    ShowVariable,
+    Update,
 };
+use crate::errors::{internal, ExecError, Result};
+use crate::LogicalPlan;
 
 /// This tracks all of our extensions so that we can ensure an exhaustive match on anywhere that uses the extension
 ///

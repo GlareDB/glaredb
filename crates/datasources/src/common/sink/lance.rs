@@ -7,12 +7,12 @@ use datafusion::common::Result as DfResult;
 use datafusion::error::DataFusionError;
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::insert::DataSink;
-use datafusion::physical_plan::DisplayAs;
-use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
+use datafusion::physical_plan::{DisplayAs, DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
 use lance::dataset::WriteMode;
 use lance::Dataset;
-use object_store::{path::Path as ObjectPath, ObjectStore};
+use object_store::path::Path as ObjectPath;
+use object_store::ObjectStore;
 
 pub type LanceWriteParams = lance::dataset::WriteParams;
 

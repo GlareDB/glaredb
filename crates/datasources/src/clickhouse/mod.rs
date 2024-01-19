@@ -2,41 +2,47 @@ pub mod errors;
 
 mod convert;
 
+use std::any::Any;
+use std::borrow::Cow;
+use std::fmt::{self, Display, Write};
+use std::sync::Arc;
+use std::time::Duration;
+
+use async_trait::async_trait;
+use datafusion::arrow::datatypes::{
+    Field,
+    Fields,
+    Schema as ArrowSchema,
+    SchemaRef as ArrowSchemaRef,
+};
+use datafusion::datasource::TableProvider;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::execution::context::{SessionState, TaskContext};
+use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion::physical_plan::{
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
+    Statistics,
+};
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{ClickhouseError, Result};
 use futures::{Stream, StreamExt};
 use klickhouse::block::Block;
-use parking_lot::Mutex;
-
-use async_trait::async_trait;
-use datafusion::arrow::datatypes::{
-    Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
-};
-use datafusion::datasource::TableProvider;
-use datafusion::error::{DataFusionError, Result as DatafusionResult};
-use datafusion::execution::context::{SessionState, TaskContext};
-use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
-use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-    Statistics,
-};
 use klickhouse::{Client, ClientOptions, KlickhouseError};
+use parking_lot::Mutex;
 use rustls::ServerName;
-use std::any::Any;
-use std::borrow::Cow;
-use std::fmt::{self, Display, Write};
-use std::sync::Arc;
-use std::time::Duration;
 use tokio_rustls::TlsConnector;
 use url::Url;
 
-use crate::common::util;
-
 use self::convert::ConvertStream;
+use crate::common::util;
 
 #[derive(Debug, Clone)]
 pub struct ClickhouseAccess {

@@ -1,38 +1,40 @@
-use crate::{
-    errors::{Result, RpcsrvError},
-    util::ConnKey,
-};
+use std::pin::Pin;
+use std::sync::Arc;
 
-use dashmap::DashMap;
-use datafusion::{arrow::ipc::writer::IpcWriteOptions, logical_expr::LogicalPlan};
-use datafusion_ext::vars::SessionVars;
-use once_cell::sync::Lazy;
-use sqlexec::{
-    engine::{Engine, SessionStorageConfig},
-    session::Session,
-    OperationInfo,
+use arrow_flight::encode::FlightDataEncoderBuilder;
+use arrow_flight::error::FlightError::ExternalError;
+use arrow_flight::flight_service_server::FlightService;
+pub use arrow_flight::flight_service_server::FlightServiceServer;
+use arrow_flight::sql::metadata::{SqlInfoData, SqlInfoDataBuilder};
+use arrow_flight::sql::server::FlightSqlService;
+use arrow_flight::sql::*;
+use arrow_flight::{
+    Action,
+    FlightDescriptor,
+    FlightEndpoint,
+    FlightInfo,
+    HandshakeRequest,
+    HandshakeResponse,
+    IpcMessage,
+    SchemaAsIpc,
+    Ticket,
 };
-use std::{pin::Pin, sync::Arc};
+use dashmap::DashMap;
+use datafusion::arrow::ipc::writer::IpcWriteOptions;
+use datafusion::logical_expr::LogicalPlan;
+use datafusion_ext::vars::SessionVars;
+use futures::{Stream, TryStreamExt};
+use once_cell::sync::Lazy;
+use prost::Message;
+use sqlexec::engine::{Engine, SessionStorageConfig};
+use sqlexec::session::Session;
+use sqlexec::OperationInfo;
 use tokio::sync::{Mutex, MutexGuard};
+use tonic::{Request, Response, Status, Streaming};
 use uuid::Uuid;
 
-pub use arrow_flight::flight_service_server::FlightServiceServer;
-use arrow_flight::{
-    encode::FlightDataEncoderBuilder, error::FlightError::ExternalError,
-    flight_service_server::FlightService, sql::*, Action, FlightDescriptor, FlightEndpoint,
-    FlightInfo, IpcMessage, SchemaAsIpc, Ticket,
-};
-use arrow_flight::{
-    sql::{
-        metadata::{SqlInfoData, SqlInfoDataBuilder},
-        server::FlightSqlService,
-    },
-    HandshakeRequest, HandshakeResponse,
-};
-use futures::Stream;
-use futures::TryStreamExt;
-use prost::Message;
-use tonic::{Request, Response, Status, Streaming};
+use crate::errors::{Result, RpcsrvError};
+use crate::util::ConnKey;
 
 static INSTANCE_SQL_DATA: Lazy<SqlInfoData> = Lazy::new(|| {
     let mut builder = SqlInfoDataBuilder::new();

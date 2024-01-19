@@ -1,8 +1,13 @@
-use super::*;
 use chrono::{DateTime, NaiveTime, Utc};
 use datafusion::arrow::array::{
-    ArrayBuilder, Date64Builder, DurationNanosecondBuilder, Int64Builder, ListBuilder,
+    ArrayBuilder,
+    Date64Builder,
+    DurationNanosecondBuilder,
+    Int64Builder,
+    ListBuilder,
 };
+
+use super::*;
 #[derive(Debug)]
 pub(super) enum CqlValueArrayBuilder {
     Date64(Date64Builder),

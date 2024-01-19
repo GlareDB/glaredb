@@ -8,18 +8,24 @@ use std::sync::Arc;
 use datafusion::arrow::array::Array;
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::error::DataFusionError;
-use datafusion::logical_expr::BuiltinScalarFunction;
-use datafusion::logical_expr::{Expr, ScalarUDF, Signature, TypeSignature, Volatility};
+use datafusion::logical_expr::{
+    BuiltinScalarFunction,
+    Expr,
+    ScalarUDF,
+    Signature,
+    TypeSignature,
+    Volatility,
+};
 use datafusion::physical_plan::ColumnarValue;
 use datafusion::scalar::ScalarValue;
+use datafusion_ext::cast::scalar_iter_to_array;
+use datafusion_ext::errors::ExtensionError;
 use num_traits::ToPrimitive;
+use protogen::metastore::types::catalog::FunctionType;
 
 use crate::document;
 use crate::errors::BuiltinError;
 use crate::functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction};
-use datafusion_ext::cast::scalar_iter_to_array;
-use datafusion_ext::errors::ExtensionError;
-use protogen::metastore::types::catalog::FunctionType;
 
 pub struct ConnectionId;
 

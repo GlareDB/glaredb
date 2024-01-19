@@ -1,6 +1,9 @@
-use crate::args::{LocalClientOpts, OutputMode, StorageConfigArgs};
-use crate::highlighter::{SQLHighlighter, SQLHinter, SQLValidator};
-use crate::prompt::SQLPrompt;
+use std::collections::HashMap;
+use std::env;
+use std::io::Write;
+use std::path::PathBuf;
+use std::time::Instant;
+
 use anyhow::{anyhow, Result};
 use arrow_util::pretty;
 use clap::ValueEnum;
@@ -8,25 +11,25 @@ use colored::Colorize;
 use datafusion::arrow::csv::writer::WriterBuilder as CsvWriterBuilder;
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::json::writer::{
-    JsonFormat, LineDelimited as JsonLineDelimted, Writer as JsonWriter,
+    JsonFormat,
+    LineDelimited as JsonLineDelimted,
+    Writer as JsonWriter,
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion_ext::vars::SessionVars;
 use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::notice::NoticeSeverity;
 use reedline::{FileBackedHistory, Reedline, Signal};
-use std::collections::HashMap;
-
-use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::session::ExecutionResult;
-use std::env;
-use std::io::Write;
-use std::path::PathBuf;
-use std::time::Instant;
 use url::Url;
+
+use crate::args::{LocalClientOpts, OutputMode, StorageConfigArgs};
+use crate::highlighter::{SQLHighlighter, SQLHinter, SQLValidator};
+use crate::prompt::SQLPrompt;
 
 #[derive(Debug, Clone, Copy)]
 enum ClientCommandResult {
