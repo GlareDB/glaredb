@@ -120,7 +120,6 @@ impl CqlValueArrayBuilder {
             Some(value) => self.append_value(value),
         }
     }
-
     pub(super) fn append_null(&mut self) {
         match self {
             CqlValueArrayBuilder::Utf8(b) => b.append_null(),

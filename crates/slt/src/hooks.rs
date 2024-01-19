@@ -16,8 +16,8 @@ use super::test::{Hook, TestClient};
 pub struct AllTestsHook;
 
 impl AllTestsHook {
-    const TMP_DIR: &'static str = "TMP";
     const VAR_CURRENT_DATABASE: &'static str = "SLT_CURRENT_DATABASE";
+    const TMP_DIR: &'static str = "TMP";
 }
 
 #[async_trait]

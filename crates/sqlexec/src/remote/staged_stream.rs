@@ -110,7 +110,6 @@ pub enum ResolveStreamFut<S> {
 
 impl<S: Unpin> Future for ResolveStreamFut<S> {
     type Output = Result<S>;
-
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match &mut *self {
             Self::Immediate(s @ Some(_)) => Poll::Ready(Ok(s.take().unwrap())),

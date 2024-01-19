@@ -261,7 +261,6 @@ impl DatabaseEntries {
 
         Ok(self.0.remove(oid))
     }
-
     /// Insert an entry.
     fn insert(&mut self, oid: u32, ent: CatalogEntry) -> Result<Option<CatalogEntry>> {
         if self.0.len() > MAX_DATABASE_OBJECTS {

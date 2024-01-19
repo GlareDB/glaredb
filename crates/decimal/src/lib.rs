@@ -57,9 +57,8 @@ pub struct DecimalType128;
 
 impl DecimalType for DecimalType128 {
     type MantissaType = i128;
-
-    const MANTISSA_TYPE_NAME: &'static str = "128 bit integer";
     const MAX_SCALE: u8 = 38;
+    const MANTISSA_TYPE_NAME: &'static str = "128 bit integer";
 }
 
 /// Compatible with arrow's `Decimal128`.

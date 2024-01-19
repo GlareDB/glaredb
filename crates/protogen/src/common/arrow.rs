@@ -28,7 +28,6 @@ impl TryFrom<&arrow::ArrowType> for DataType {
 
 impl TryFrom<&arrow::arrow_type::ArrowTypeEnum> for DataType {
     type Error = ProtoConvError;
-
     fn try_from(arrow_type_enum: &arrow::arrow_type::ArrowTypeEnum) -> Result<Self, Self::Error> {
         use arrow::arrow_type;
         Ok(match arrow_type_enum {
@@ -233,7 +232,6 @@ impl TryFrom<&DataType> for arrow::arrow_type::ArrowTypeEnum {
 
 impl TryFrom<&arrow::Field> for Field {
     type Error = ProtoConvError;
-
     fn try_from(field: &arrow::Field) -> Result<Self, Self::Error> {
         let datatype = field.arrow_type.as_deref().required("arrow_type")?;
 
@@ -243,7 +241,6 @@ impl TryFrom<&arrow::Field> for Field {
 
 impl TryFrom<&Field> for arrow::Field {
     type Error = ProtoConvError;
-
     fn try_from(field: &Field) -> Result<Self, Self::Error> {
         let arrow_type = field.data_type().try_into()?;
         Ok(Self {

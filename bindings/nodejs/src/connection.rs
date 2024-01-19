@@ -128,7 +128,6 @@ impl Connection {
             _engine: Arc::new(engine),
         })
     }
-
     /// Returns a default connection to an in-memory database.
     ///
     /// The database is only initialized once, and all subsequent calls will

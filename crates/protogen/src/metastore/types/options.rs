@@ -54,7 +54,6 @@ impl InternalColumnDefinition {
 
 impl TryFrom<options::InternalColumnDefinition> for InternalColumnDefinition {
     type Error = ProtoConvError;
-
     fn try_from(value: options::InternalColumnDefinition) -> Result<Self, Self::Error> {
         let arrow_type: DataType = value.arrow_type.as_ref().required("arrow_type")?;
         Ok(InternalColumnDefinition {
@@ -69,7 +68,6 @@ impl TryFrom<options::InternalColumnDefinition> for InternalColumnDefinition {
 // for the arrow types.
 impl TryFrom<InternalColumnDefinition> for options::InternalColumnDefinition {
     type Error = ProtoConvError;
-
     fn try_from(value: InternalColumnDefinition) -> Result<Self, Self::Error> {
         let arrow_type = arrow::ArrowType::try_from(&value.arrow_type)?;
         Ok(options::InternalColumnDefinition {
@@ -98,17 +96,17 @@ pub enum DatabaseOptions {
 }
 
 impl DatabaseOptions {
-    pub const BIGQUERY: &'static str = "bigquery";
-    pub const CASSANDRA: &'static str = "cassandra";
-    pub const CLICKHOUSE: &'static str = "clickhouse";
-    pub const DEBUG: &'static str = "debug";
-    pub const DELTA: &'static str = "delta";
     pub const INTERNAL: &'static str = "internal";
-    pub const MONGODB: &'static str = "mongo";
-    pub const MYSQL: &'static str = "mysql";
+    pub const DEBUG: &'static str = "debug";
     pub const POSTGRES: &'static str = "postgres";
+    pub const BIGQUERY: &'static str = "bigquery";
+    pub const MYSQL: &'static str = "mysql";
+    pub const MONGODB: &'static str = "mongo";
     pub const SNOWFLAKE: &'static str = "snowflake";
+    pub const DELTA: &'static str = "delta";
     pub const SQL_SERVER: &'static str = "sql_server";
+    pub const CLICKHOUSE: &'static str = "clickhouse";
+    pub const CASSANDRA: &'static str = "cassandra";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -135,7 +133,6 @@ impl fmt::Display for DatabaseOptions {
 
 impl TryFrom<options::database_options::Options> for DatabaseOptions {
     type Error = ProtoConvError;
-
     fn try_from(value: options::database_options::Options) -> Result<Self, Self::Error> {
         Ok(match value {
             options::database_options::Options::Internal(v) => {
@@ -171,7 +168,6 @@ impl TryFrom<options::database_options::Options> for DatabaseOptions {
 
 impl TryFrom<options::DatabaseOptions> for DatabaseOptions {
     type Error = ProtoConvError;
-
     fn try_from(value: options::DatabaseOptions) -> Result<Self, Self::Error> {
         value.options.required("options")
     }
@@ -216,7 +212,6 @@ pub struct DatabaseOptionsInternal {}
 
 impl TryFrom<options::DatabaseOptionsInternal> for DatabaseOptionsInternal {
     type Error = ProtoConvError;
-
     fn try_from(_value: options::DatabaseOptionsInternal) -> Result<Self, Self::Error> {
         Ok(DatabaseOptionsInternal {})
     }
@@ -233,7 +228,6 @@ pub struct DatabaseOptionsDebug {}
 
 impl TryFrom<options::DatabaseOptionsDebug> for DatabaseOptionsDebug {
     type Error = ProtoConvError;
-
     fn try_from(_value: options::DatabaseOptionsDebug) -> Result<Self, Self::Error> {
         Ok(DatabaseOptionsDebug {})
     }
@@ -252,7 +246,6 @@ pub struct DatabaseOptionsPostgres {
 
 impl TryFrom<options::DatabaseOptionsPostgres> for DatabaseOptionsPostgres {
     type Error = ProtoConvError;
-
     fn try_from(value: options::DatabaseOptionsPostgres) -> Result<Self, Self::Error> {
         Ok(DatabaseOptionsPostgres {
             connection_string: value.connection_string,
@@ -276,7 +269,6 @@ pub struct DatabaseOptionsBigQuery {
 
 impl TryFrom<options::DatabaseOptionsBigQuery> for DatabaseOptionsBigQuery {
     type Error = ProtoConvError;
-
     fn try_from(value: options::DatabaseOptionsBigQuery) -> Result<Self, Self::Error> {
         Ok(DatabaseOptionsBigQuery {
             service_account_key: value.service_account_key,
@@ -301,7 +293,6 @@ pub struct DatabaseOptionsMysql {
 
 impl TryFrom<options::DatabaseOptionsMysql> for DatabaseOptionsMysql {
     type Error = ProtoConvError;
-
     fn try_from(value: options::DatabaseOptionsMysql) -> Result<Self, Self::Error> {
         Ok(DatabaseOptionsMysql {
             connection_string: value.connection_string,
@@ -324,7 +315,6 @@ pub struct DatabaseOptionsMongoDb {
 
 impl TryFrom<options::DatabaseOptionsMongoDb> for DatabaseOptionsMongoDb {
     type Error = ProtoConvError;
-
     fn try_from(value: options::DatabaseOptionsMongoDb) -> Result<Self, Self::Error> {
         Ok(DatabaseOptionsMongoDb {
             connection_string: value.connection_string,
@@ -347,7 +337,6 @@ pub struct DatabaseOptionsSqlServer {
 
 impl TryFrom<options::DatabaseOptionsSqlServer> for DatabaseOptionsSqlServer {
     type Error = ProtoConvError;
-
     fn try_from(value: options::DatabaseOptionsSqlServer) -> Result<Self, Self::Error> {
         Ok(DatabaseOptionsSqlServer {
             connection_string: value.connection_string,
@@ -370,7 +359,6 @@ pub struct DatabaseOptionsClickhouse {
 
 impl TryFrom<options::DatabaseOptionsClickhouse> for DatabaseOptionsClickhouse {
     type Error = ProtoConvError;
-
     fn try_from(value: options::DatabaseOptionsClickhouse) -> Result<Self, Self::Error> {
         Ok(DatabaseOptionsClickhouse {
             connection_string: value.connection_string,
@@ -392,7 +380,6 @@ pub struct DatabaseOptionsCassandra {
 
 impl TryFrom<options::DatabaseOptionsCassandra> for DatabaseOptionsCassandra {
     type Error = ProtoConvError;
-
     fn try_from(value: options::DatabaseOptionsCassandra) -> Result<Self, Self::Error> {
         Ok(DatabaseOptionsCassandra { host: value.host })
     }
@@ -416,7 +403,6 @@ pub struct DatabaseOptionsSnowflake {
 
 impl TryFrom<options::DatabaseOptionsSnowflake> for DatabaseOptionsSnowflake {
     type Error = ProtoConvError;
-
     fn try_from(value: options::DatabaseOptionsSnowflake) -> Result<Self, Self::Error> {
         Ok(DatabaseOptionsSnowflake {
             account_name: value.account_name,
@@ -450,7 +436,6 @@ pub struct DatabaseOptionsDeltaLake {
 
 impl TryFrom<options::DatabaseOptionsDeltaLake> for DatabaseOptionsDeltaLake {
     type Error = ProtoConvError;
-
     fn try_from(value: options::DatabaseOptionsDeltaLake) -> Result<Self, Self::Error> {
         let catalog: DeltaLakeCatalog = value.catalog.required("catalog")?;
         let storage_options: StorageOptions = value.storage_options.required("storage_options")?;
@@ -477,7 +462,6 @@ pub enum DeltaLakeCatalog {
 
 impl TryFrom<options::database_options_delta_lake::Catalog> for DeltaLakeCatalog {
     type Error = ProtoConvError;
-
     fn try_from(value: options::database_options_delta_lake::Catalog) -> Result<Self, Self::Error> {
         Ok(match value {
             options::database_options_delta_lake::Catalog::Unity(v) => {
@@ -506,7 +490,6 @@ pub struct DeltaLakeUnityCatalog {
 
 impl TryFrom<options::DeltaLakeUnityCatalog> for DeltaLakeUnityCatalog {
     type Error = ProtoConvError;
-
     fn try_from(value: options::DeltaLakeUnityCatalog) -> Result<Self, Self::Error> {
         Ok(DeltaLakeUnityCatalog {
             catalog_id: value.catalog_id,
@@ -559,7 +542,6 @@ impl StorageOptions {
 
 impl TryFrom<options::StorageOptions> for StorageOptions {
     type Error = ProtoConvError;
-
     fn try_from(value: options::StorageOptions) -> Result<Self, Self::Error> {
         Ok(StorageOptions { inner: value.inner })
     }
@@ -596,24 +578,24 @@ pub enum TableOptions {
 }
 
 impl TableOptions {
-    pub const AZURE: &'static str = "azure";
-    pub const BIGQUERY: &'static str = "bigquery";
-    pub const BSON: &'static str = "bson";
-    pub const CASSANDRA: &'static str = "cassandra";
-    pub const CLICKHOUSE: &'static str = "clickhouse";
-    pub const DEBUG: &'static str = "debug";
-    pub const DELTA: &'static str = "delta";
-    pub const GCS: &'static str = "gcs";
-    pub const ICEBERG: &'static str = "iceberg";
     pub const INTERNAL: &'static str = "internal";
-    pub const LANCE: &'static str = "lance";
-    pub const LOCAL: &'static str = "local";
-    pub const MONGODB: &'static str = "mongo";
-    pub const MYSQL: &'static str = "mysql";
+    pub const DEBUG: &'static str = "debug";
     pub const POSTGRES: &'static str = "postgres";
+    pub const BIGQUERY: &'static str = "bigquery";
+    pub const MYSQL: &'static str = "mysql";
+    pub const LOCAL: &'static str = "local";
+    pub const GCS: &'static str = "gcs";
     pub const S3_STORAGE: &'static str = "s3";
+    pub const MONGODB: &'static str = "mongo";
     pub const SNOWFLAKE: &'static str = "snowflake";
+    pub const DELTA: &'static str = "delta";
+    pub const ICEBERG: &'static str = "iceberg";
+    pub const AZURE: &'static str = "azure";
     pub const SQL_SERVER: &'static str = "sql_server";
+    pub const LANCE: &'static str = "lance";
+    pub const BSON: &'static str = "bson";
+    pub const CLICKHOUSE: &'static str = "clickhouse";
+    pub const CASSANDRA: &'static str = "cassandra";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -651,7 +633,6 @@ impl fmt::Display for TableOptions {
 
 impl TryFrom<options::table_options::Options> for TableOptions {
     type Error = ProtoConvError;
-
     fn try_from(value: options::table_options::Options) -> Result<Self, Self::Error> {
         Ok(match value {
             options::table_options::Options::Internal(v) => TableOptions::Internal(v.try_into()?),
@@ -680,7 +661,6 @@ impl TryFrom<options::table_options::Options> for TableOptions {
 
 impl TryFrom<options::TableOptions> for TableOptions {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptions) -> Result<Self, Self::Error> {
         value.options.required("options")
     }
@@ -688,7 +668,6 @@ impl TryFrom<options::TableOptions> for TableOptions {
 
 impl TryFrom<TableOptions> for options::table_options::Options {
     type Error = ProtoConvError;
-
     fn try_from(value: TableOptions) -> Result<Self, Self::Error> {
         Ok(match value {
             TableOptions::Internal(v) => options::table_options::Options::Internal(v.try_into()?),
@@ -715,7 +694,6 @@ impl TryFrom<TableOptions> for options::table_options::Options {
 
 impl TryFrom<TableOptions> for options::TableOptions {
     type Error = ProtoConvError;
-
     fn try_from(value: TableOptions) -> Result<Self, Self::Error> {
         Ok(options::TableOptions {
             options: Some(value.try_into()?),
@@ -762,7 +740,6 @@ impl From<SchemaRef> for TableOptionsInternal {
 
 impl TryFrom<options::TableOptionsInternal> for TableOptionsInternal {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsInternal) -> Result<Self, Self::Error> {
         Ok(TableOptionsInternal {
             columns: value
@@ -776,7 +753,6 @@ impl TryFrom<options::TableOptionsInternal> for TableOptionsInternal {
 
 impl TryFrom<TableOptionsInternal> for options::TableOptionsInternal {
     type Error = ProtoConvError;
-
     fn try_from(value: TableOptionsInternal) -> Result<Self, Self::Error> {
         Ok(options::TableOptionsInternal {
             columns: value
@@ -795,7 +771,6 @@ pub struct TableOptionsDebug {
 
 impl TryFrom<options::TableOptionsDebug> for TableOptionsDebug {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsDebug) -> Result<Self, Self::Error> {
         Ok(TableOptionsDebug {
             table_type: value.table_type,
@@ -820,7 +795,6 @@ pub struct TableOptionsPostgres {
 
 impl TryFrom<options::TableOptionsPostgres> for TableOptionsPostgres {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsPostgres) -> Result<Self, Self::Error> {
         Ok(TableOptionsPostgres {
             connection_string: value.connection_string,
@@ -850,7 +824,6 @@ pub struct TableOptionsBigQuery {
 
 impl TryFrom<options::TableOptionsBigQuery> for TableOptionsBigQuery {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsBigQuery) -> Result<Self, Self::Error> {
         Ok(TableOptionsBigQuery {
             service_account_key: value.service_account_key,
@@ -881,7 +854,6 @@ pub struct TableOptionsMysql {
 
 impl TryFrom<options::TableOptionsMysql> for TableOptionsMysql {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsMysql) -> Result<Self, Self::Error> {
         Ok(TableOptionsMysql {
             connection_string: value.connection_string,
@@ -910,7 +882,6 @@ pub struct TableOptionsLocal {
 
 impl TryFrom<options::TableOptionsLocal> for TableOptionsLocal {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsLocal) -> Result<Self, Self::Error> {
         Ok(TableOptionsLocal {
             location: value.location,
@@ -941,7 +912,6 @@ pub struct TableOptionsGcs {
 
 impl TryFrom<options::TableOptionsGcs> for TableOptionsGcs {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsGcs) -> Result<Self, Self::Error> {
         Ok(TableOptionsGcs {
             service_account_key: value.service_account_key,
@@ -978,7 +948,6 @@ pub struct TableOptionsS3 {
 
 impl TryFrom<options::TableOptionsS3> for TableOptionsS3 {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsS3) -> Result<Self, Self::Error> {
         Ok(TableOptionsS3 {
             access_key_id: value.access_key_id,
@@ -1014,7 +983,6 @@ pub struct TableOptionsMongoDb {
 
 impl TryFrom<options::TableOptionsMongo> for TableOptionsMongoDb {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsMongo) -> Result<Self, Self::Error> {
         Ok(TableOptionsMongoDb {
             connection_string: value.connection_string,
@@ -1043,7 +1011,6 @@ pub struct TableOptionsSqlServer {
 
 impl TryFrom<options::TableOptionsSqlServer> for TableOptionsSqlServer {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsSqlServer) -> Result<Self, Self::Error> {
         Ok(TableOptionsSqlServer {
             connection_string: value.connection_string,
@@ -1072,7 +1039,6 @@ pub struct TableOptionsClickhouse {
 
 impl TryFrom<options::TableOptionsClickhouse> for TableOptionsClickhouse {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsClickhouse) -> Result<Self, Self::Error> {
         Ok(TableOptionsClickhouse {
             connection_string: value.connection_string,
@@ -1101,7 +1067,6 @@ pub struct TableOptionsCassandra {
 
 impl TryFrom<options::TableOptionsCassandra> for TableOptionsCassandra {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsCassandra) -> Result<Self, Self::Error> {
         Ok(TableOptionsCassandra {
             host: value.host,
@@ -1135,7 +1100,6 @@ pub struct TableOptionsSnowflake {
 
 impl TryFrom<options::TableOptionsSnowflake> for TableOptionsSnowflake {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsSnowflake) -> Result<Self, Self::Error> {
         Ok(TableOptionsSnowflake {
             account_name: value.account_name,
@@ -1176,7 +1140,6 @@ pub struct TableOptionsObjectStore {
 
 impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TableOptionsObjectStore) -> Result<Self, Self::Error> {
         Ok(TableOptionsObjectStore {
             location: value.location,
@@ -1208,8 +1171,8 @@ pub enum TunnelOptions {
 }
 
 impl TunnelOptions {
-    pub const DEBUG: &'static str = "debug";
     pub const INTERNAL: &'static str = "internal";
+    pub const DEBUG: &'static str = "debug";
     pub const SSH: &'static str = "ssh";
 
     pub fn as_str(&self) -> &'static str {
@@ -1229,7 +1192,6 @@ impl fmt::Display for TunnelOptions {
 
 impl TryFrom<options::tunnel_options::Options> for TunnelOptions {
     type Error = ProtoConvError;
-
     fn try_from(value: options::tunnel_options::Options) -> Result<Self, Self::Error> {
         Ok(match value {
             options::tunnel_options::Options::Internal(v) => Self::Internal(v.try_into()?),
@@ -1241,7 +1203,6 @@ impl TryFrom<options::tunnel_options::Options> for TunnelOptions {
 
 impl TryFrom<options::TunnelOptions> for TunnelOptions {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TunnelOptions) -> Result<Self, Self::Error> {
         value.options.required("options")
     }
@@ -1270,7 +1231,6 @@ pub struct TunnelOptionsInternal {}
 
 impl TryFrom<options::TunnelOptionsInternal> for TunnelOptionsInternal {
     type Error = ProtoConvError;
-
     fn try_from(_value: options::TunnelOptionsInternal) -> Result<Self, Self::Error> {
         Ok(TunnelOptionsInternal {})
     }
@@ -1287,7 +1247,6 @@ pub struct TunnelOptionsDebug {}
 
 impl TryFrom<options::TunnelOptionsDebug> for TunnelOptionsDebug {
     type Error = ProtoConvError;
-
     fn try_from(_value: options::TunnelOptionsDebug) -> Result<Self, Self::Error> {
         Ok(TunnelOptionsDebug {})
     }
@@ -1307,7 +1266,6 @@ pub struct TunnelOptionsSsh {
 
 impl TryFrom<options::TunnelOptionsSsh> for TunnelOptionsSsh {
     type Error = ProtoConvError;
-
     fn try_from(value: options::TunnelOptionsSsh) -> Result<Self, Self::Error> {
         Ok(TunnelOptionsSsh {
             connection_string: value.connection_string,
@@ -1360,10 +1318,10 @@ pub enum CredentialsOptions {
 }
 
 impl CredentialsOptions {
-    pub const AWS: &'static str = "aws";
-    pub const AZURE: &'static str = "azure";
     pub const DEBUG: &'static str = "debug";
     pub const GCP: &'static str = "gcp";
+    pub const AWS: &'static str = "aws";
+    pub const AZURE: &'static str = "azure";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -1383,7 +1341,6 @@ impl fmt::Display for CredentialsOptions {
 
 impl TryFrom<options::credentials_options::Options> for CredentialsOptions {
     type Error = ProtoConvError;
-
     fn try_from(value: options::credentials_options::Options) -> Result<Self, Self::Error> {
         Ok(match value {
             options::credentials_options::Options::Debug(v) => Self::Debug(v.try_into()?),
@@ -1396,7 +1353,6 @@ impl TryFrom<options::credentials_options::Options> for CredentialsOptions {
 
 impl TryFrom<options::CredentialsOptions> for CredentialsOptions {
     type Error = ProtoConvError;
-
     fn try_from(value: options::CredentialsOptions) -> Result<Self, Self::Error> {
         value.options.required("options")
     }
@@ -1428,7 +1384,6 @@ pub struct CredentialsOptionsDebug {
 
 impl TryFrom<options::CredentialsOptionsDebug> for CredentialsOptionsDebug {
     type Error = ProtoConvError;
-
     fn try_from(value: options::CredentialsOptionsDebug) -> Result<Self, Self::Error> {
         Ok(CredentialsOptionsDebug {
             table_type: value.table_type,
@@ -1451,7 +1406,6 @@ pub struct CredentialsOptionsGcp {
 
 impl TryFrom<options::CredentialsOptionsGcp> for CredentialsOptionsGcp {
     type Error = ProtoConvError;
-
     fn try_from(value: options::CredentialsOptionsGcp) -> Result<Self, Self::Error> {
         Ok(CredentialsOptionsGcp {
             service_account_key: value.service_account_key,
@@ -1475,7 +1429,6 @@ pub struct CredentialsOptionsAws {
 
 impl TryFrom<options::CredentialsOptionsAws> for CredentialsOptionsAws {
     type Error = ProtoConvError;
-
     fn try_from(value: options::CredentialsOptionsAws) -> Result<Self, Self::Error> {
         Ok(CredentialsOptionsAws {
             access_key_id: value.access_key_id,
@@ -1501,7 +1454,6 @@ pub struct CredentialsOptionsAzure {
 
 impl TryFrom<options::CredentialsOptionsAzure> for CredentialsOptionsAzure {
     type Error = ProtoConvError;
-
     fn try_from(value: options::CredentialsOptionsAzure) -> Result<Self, Self::Error> {
         Ok(CredentialsOptionsAzure {
             account_name: value.account_name,
@@ -1528,10 +1480,10 @@ pub enum CopyToDestinationOptions {
 }
 
 impl CopyToDestinationOptions {
-    pub const AZURE: &'static str = "azure";
-    pub const GCS: &'static str = "gcs";
     pub const LOCAL: &'static str = "local";
+    pub const GCS: &'static str = "gcs";
     pub const S3_STORAGE: &'static str = "s3";
+    pub const AZURE: &'static str = "azure";
 
     pub const fn as_str(&self) -> &'static str {
         match self {
@@ -1599,11 +1551,11 @@ impl Default for CopyToFormatOptions {
 }
 
 impl CopyToFormatOptions {
-    pub const BSON: &'static str = "bson";
     pub const CSV: &'static str = "csv";
-    pub const JSON: &'static str = "json";
-    pub const LANCE: &'static str = "lance";
     pub const PARQUET: &'static str = "parquet";
+    pub const JSON: &'static str = "json";
+    pub const BSON: &'static str = "bson";
+    pub const LANCE: &'static str = "lance";
 
     pub fn as_str(&self) -> &'static str {
         match self {

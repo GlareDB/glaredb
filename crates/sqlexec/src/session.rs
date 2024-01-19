@@ -128,7 +128,6 @@ pub struct PrepareStatementArg {
 
 impl<'a> TryFrom<&'a str> for PrepareStatementArg {
     type Error = ExecError;
-
     fn try_from(query: &'a str) -> Result<Self> {
         let mut statements = crate::parser::parse_sql(query)?;
         match statements.len() {
@@ -145,7 +144,6 @@ impl<'a> TryFrom<&'a str> for PrepareStatementArg {
 
 impl<'a> TryFrom<&'a String> for PrepareStatementArg {
     type Error = ExecError;
-
     fn try_from(query: &'a String) -> Result<Self> {
         let s: &str = query;
         s.try_into()
@@ -154,14 +152,12 @@ impl<'a> TryFrom<&'a String> for PrepareStatementArg {
 
 impl TryFrom<Option<StatementWithExtensions>> for PrepareStatementArg {
     type Error = ExecError;
-
     fn try_from(stmt: Option<StatementWithExtensions>) -> Result<Self> {
         Ok(PrepareStatementArg { stmt })
     }
 }
 impl TryFrom<StatementWithExtensions> for PrepareStatementArg {
     type Error = ExecError;
-
     fn try_from(stmt: StatementWithExtensions) -> Result<Self> {
         Ok(PrepareStatementArg { stmt: Some(stmt) })
     }

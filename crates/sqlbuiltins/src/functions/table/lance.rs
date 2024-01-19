@@ -21,10 +21,10 @@ use crate::functions::ConstBuiltinFunction;
 pub struct LanceScan;
 
 impl ConstBuiltinFunction for LanceScan {
+    const NAME: &'static str = "lance_scan";
     const DESCRIPTION: &'static str = "Scans a Lance table";
     const EXAMPLE: &'static str = "SELECT * FROM lance_scan('file:///path/to/table.lance')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
-    const NAME: &'static str = "lance_scan";
 }
 
 #[async_trait]

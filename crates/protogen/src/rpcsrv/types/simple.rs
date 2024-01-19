@@ -14,7 +14,6 @@ pub struct ExecuteQueryRequest {
 
 impl TryFrom<simple::ExecuteQueryRequest> for ExecuteQueryRequest {
     type Error = ProtoConvError;
-
     fn try_from(value: simple::ExecuteQueryRequest) -> Result<Self, Self::Error> {
         Ok(Self {
             config: value.config.required("config")?,
@@ -74,7 +73,6 @@ pub enum ExecuteQueryResponse {
 
 impl TryFrom<simple::ExecuteQueryResponse> for ExecuteQueryResponse {
     type Error = ProtoConvError;
-
     fn try_from(value: simple::ExecuteQueryResponse) -> Result<Self, Self::Error> {
         let result: simple::execute_query_response::Result = value.result.required("result")?;
         Ok(match result {

@@ -170,7 +170,6 @@ impl RecordBatchStream for BatchStreamWithMetricSender {
 
 impl Stream for BatchStreamWithMetricSender {
     type Item = DatafusionResult<RecordBatch>;
-
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.stream.poll_next_unpin(cx) {
             Poll::Ready(None) => {

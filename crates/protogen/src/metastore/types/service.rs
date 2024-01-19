@@ -35,7 +35,6 @@ pub enum Mutation {
 
 impl TryFrom<service::Mutation> for Mutation {
     type Error = ProtoConvError;
-
     fn try_from(value: service::Mutation) -> Result<Self, Self::Error> {
         value.mutation.required("mutation")
     }
@@ -43,7 +42,6 @@ impl TryFrom<service::Mutation> for Mutation {
 
 impl TryFrom<service::mutation::Mutation> for Mutation {
     type Error = ProtoConvError;
-
     fn try_from(value: service::mutation::Mutation) -> Result<Self, Self::Error> {
         Ok(match value {
             service::mutation::Mutation::DropDatabase(v) => Mutation::DropDatabase(v.try_into()?),
@@ -83,7 +81,6 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
 
 impl TryFrom<Mutation> for service::mutation::Mutation {
     type Error = ProtoConvError;
-
     fn try_from(value: Mutation) -> Result<Self, Self::Error> {
         Ok(match value {
             Mutation::DropDatabase(v) => service::mutation::Mutation::DropDatabase(v.into()),
@@ -121,7 +118,6 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
 
 impl TryFrom<Mutation> for service::Mutation {
     type Error = ProtoConvError;
-
     fn try_from(value: Mutation) -> Result<Self, Self::Error> {
         Ok(service::Mutation {
             mutation: Some(value.try_into()?),
@@ -137,7 +133,6 @@ pub struct DropDatabase {
 
 impl TryFrom<service::DropDatabase> for DropDatabase {
     type Error = ProtoConvError;
-
     fn try_from(value: service::DropDatabase) -> Result<Self, Self::Error> {
         // TODO: Check if string is zero value.
         Ok(DropDatabase {
@@ -165,7 +160,6 @@ pub struct DropSchema {
 
 impl TryFrom<service::DropSchema> for DropSchema {
     type Error = ProtoConvError;
-
     fn try_from(value: service::DropSchema) -> Result<Self, Self::Error> {
         // TODO: Check if string is zero value.
         Ok(DropSchema {
@@ -195,7 +189,6 @@ pub struct DropObject {
 
 impl TryFrom<service::DropObject> for DropObject {
     type Error = ProtoConvError;
-
     fn try_from(value: service::DropObject) -> Result<Self, Self::Error> {
         // TODO: Check if strings are zero value.
         Ok(DropObject {
@@ -224,7 +217,6 @@ pub struct CreateSchema {
 
 impl TryFrom<service::CreateSchema> for CreateSchema {
     type Error = ProtoConvError;
-
     fn try_from(value: service::CreateSchema) -> Result<Self, Self::Error> {
         // TODO: Check if string are zero value.
         Ok(CreateSchema {
@@ -253,7 +245,6 @@ pub struct CreateView {
 
 impl TryFrom<service::CreateView> for CreateView {
     type Error = ProtoConvError;
-
     fn try_from(value: service::CreateView) -> Result<Self, Self::Error> {
         // TODO: Check if string are zero value.
         Ok(CreateView {
@@ -289,7 +280,6 @@ pub struct CreateTable {
 
 impl TryFrom<service::CreateTable> for CreateTable {
     type Error = ProtoConvError;
-
     fn try_from(value: service::CreateTable) -> Result<Self, Self::Error> {
         let options: TableOptionsInternal = value.options.required("options")?;
         Ok(CreateTable {
@@ -304,7 +294,6 @@ impl TryFrom<service::CreateTable> for CreateTable {
 
 impl TryFrom<CreateTable> for service::CreateTable {
     type Error = ProtoConvError;
-
     fn try_from(value: CreateTable) -> Result<service::CreateTable, Self::Error> {
         Ok(service::CreateTable {
             schema: value.schema,
@@ -328,7 +317,6 @@ pub struct CreateExternalTable {
 
 impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
     type Error = ProtoConvError;
-
     fn try_from(value: service::CreateExternalTable) -> Result<Self, Self::Error> {
         // TODO: Check if string are zero value.
         Ok(CreateExternalTable {
@@ -344,7 +332,6 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
 
 impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
     type Error = ProtoConvError;
-
     fn try_from(value: CreateExternalTable) -> Result<Self, Self::Error> {
         Ok(service::CreateExternalTable {
             schema: value.schema,
@@ -367,7 +354,6 @@ pub struct CreateExternalDatabase {
 
 impl TryFrom<service::CreateExternalDatabase> for CreateExternalDatabase {
     type Error = ProtoConvError;
-
     fn try_from(value: service::CreateExternalDatabase) -> Result<Self, Self::Error> {
         Ok(CreateExternalDatabase {
             name: value.name,
@@ -397,7 +383,6 @@ pub enum AlterTableOperation {
 
 impl TryFrom<service::alter_table_operation::Operation> for AlterTableOperation {
     type Error = ProtoConvError;
-
     fn try_from(value: service::alter_table_operation::Operation) -> Result<Self, Self::Error> {
         Ok(match value {
             service::alter_table_operation::Operation::AlterTableOperationRename(
@@ -433,7 +418,6 @@ impl From<AlterTableOperation> for service::alter_table_operation::Operation {
 
 impl TryFrom<service::AlterTableOperation> for AlterTableOperation {
     type Error = ProtoConvError;
-
     fn try_from(value: service::AlterTableOperation) -> Result<Self, Self::Error> {
         value.operation.required("alter table operation")
     }
@@ -456,7 +440,6 @@ pub struct AlterTable {
 
 impl TryFrom<service::AlterTable> for AlterTable {
     type Error = ProtoConvError;
-
     fn try_from(value: service::AlterTable) -> Result<Self, Self::Error> {
         Ok(AlterTable {
             schema: value.schema,
@@ -484,7 +467,6 @@ pub enum AlterDatabaseOperation {
 
 impl TryFrom<service::alter_database_operation::Operation> for AlterDatabaseOperation {
     type Error = ProtoConvError;
-
     fn try_from(value: service::alter_database_operation::Operation) -> Result<Self, Self::Error> {
         Ok(match value {
             service::alter_database_operation::Operation::AlterDatabaseOperationRename(
@@ -520,7 +502,6 @@ impl From<AlterDatabaseOperation> for service::alter_database_operation::Operati
 
 impl TryFrom<service::AlterDatabaseOperation> for AlterDatabaseOperation {
     type Error = ProtoConvError;
-
     fn try_from(value: service::AlterDatabaseOperation) -> Result<Self, Self::Error> {
         value.operation.required("alter database operation")
     }
@@ -542,7 +523,6 @@ pub struct AlterDatabase {
 
 impl TryFrom<service::AlterDatabase> for AlterDatabase {
     type Error = ProtoConvError;
-
     fn try_from(value: service::AlterDatabase) -> Result<Self, Self::Error> {
         Ok(AlterDatabase {
             name: value.name,
@@ -569,7 +549,6 @@ pub struct CreateTunnel {
 
 impl TryFrom<service::CreateTunnel> for CreateTunnel {
     type Error = ProtoConvError;
-
     fn try_from(value: service::CreateTunnel) -> Result<Self, Self::Error> {
         Ok(CreateTunnel {
             name: value.name,
@@ -597,7 +576,6 @@ pub struct DropTunnel {
 
 impl TryFrom<service::DropTunnel> for DropTunnel {
     type Error = ProtoConvError;
-
     fn try_from(value: service::DropTunnel) -> Result<Self, Self::Error> {
         Ok(DropTunnel {
             name: value.name,
@@ -624,7 +602,6 @@ pub struct AlterTunnelRotateKeys {
 
 impl TryFrom<service::AlterTunnelRotateKeys> for AlterTunnelRotateKeys {
     type Error = ProtoConvError;
-
     fn try_from(value: service::AlterTunnelRotateKeys) -> Result<Self, Self::Error> {
         Ok(AlterTunnelRotateKeys {
             name: value.name,
@@ -654,7 +631,6 @@ pub struct CreateCredentials {
 
 impl TryFrom<service::CreateCredentials> for CreateCredentials {
     type Error = ProtoConvError;
-
     fn try_from(value: service::CreateCredentials) -> Result<Self, Self::Error> {
         Ok(CreateCredentials {
             name: value.name,
@@ -686,7 +662,6 @@ pub struct CreateCredential {
 
 impl TryFrom<service::CreateCredential> for CreateCredential {
     type Error = ProtoConvError;
-
     fn try_from(value: service::CreateCredential) -> Result<Self, Self::Error> {
         Ok(CreateCredential {
             name: value.name,
@@ -716,7 +691,6 @@ pub struct DropCredentials {
 
 impl TryFrom<service::DropCredentials> for DropCredentials {
     type Error = ProtoConvError;
-
     fn try_from(value: service::DropCredentials) -> Result<Self, Self::Error> {
         Ok(DropCredentials {
             name: value.name,
@@ -741,7 +715,6 @@ pub struct UpdateDeploymentStorage {
 
 impl TryFrom<service::UpdateDeploymentStorage> for UpdateDeploymentStorage {
     type Error = ProtoConvError;
-
     fn try_from(value: service::UpdateDeploymentStorage) -> Result<Self, Self::Error> {
         Ok(Self {
             new_storage_size: value.new_storage_size,

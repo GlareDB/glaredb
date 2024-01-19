@@ -191,7 +191,6 @@ impl TryFrom<FuncParamValue> for ProtoFuncParamValue {
 
 impl TryFrom<ProtoFuncParamValue> for FuncParamValue {
     type Error = ExtensionError;
-
     fn try_from(value: ProtoFuncParamValue) -> Result<Self, Self::Error> {
         let variant = value.func_param_value_enum.unwrap();
         Ok(match variant {

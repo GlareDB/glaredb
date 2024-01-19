@@ -49,12 +49,12 @@ impl Display for DatasourceUrl {
 }
 
 impl DatasourceUrl {
-    const AZURE_SCHEME: &'static str = "azure";
     const FILE_SCHEME: &'static str = "file";
-    const GS_SCHEME: &'static str = "gs";
-    const HTTPS_SCHEME: &'static str = "https";
     const HTTP_SCHEME: &'static str = "http";
+    const HTTPS_SCHEME: &'static str = "https";
+    const GS_SCHEME: &'static str = "gs";
     const S3_SCHEME: &'static str = "s3";
+    const AZURE_SCHEME: &'static str = "azure";
 
     pub fn try_new(u: impl AsRef<str>) -> Result<Self> {
         let u = u.as_ref();
@@ -144,7 +144,6 @@ impl DatasourceUrl {
 
 impl TryFrom<&str> for DatasourceUrl {
     type Error = DatasourceCommonError;
-
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::try_new(value)
     }

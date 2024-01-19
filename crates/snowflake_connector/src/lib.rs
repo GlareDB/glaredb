@@ -39,16 +39,6 @@ macro_rules! builder_fn {
 }
 
 impl ConnectionBuilder {
-    builder_fn! {password, String}
-
-    builder_fn! {database_name, String}
-
-    builder_fn! {schema_name, String}
-
-    builder_fn! {warehouse, String}
-
-    builder_fn! {role_name, String}
-
     pub fn new(account_name: String, login_name: String) -> Self {
         Self {
             account_name,
@@ -61,6 +51,12 @@ impl ConnectionBuilder {
             role_name: None,
         }
     }
+
+    builder_fn! {password, String}
+    builder_fn! {database_name, String}
+    builder_fn! {schema_name, String}
+    builder_fn! {warehouse, String}
+    builder_fn! {role_name, String}
 
     pub async fn build(self) -> Result<Connection> {
         if self.account_name.is_empty() || self.login_name.is_empty() {

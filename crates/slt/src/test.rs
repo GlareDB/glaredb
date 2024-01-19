@@ -212,7 +212,6 @@ pub struct PgTestClient {
 
 impl Deref for PgTestClient {
     type Target = Client;
-
     fn deref(&self) -> &Self::Target {
         &self.client
     }
@@ -334,9 +333,8 @@ impl TestClient {
 
 #[async_trait]
 impl AsyncDB for PgTestClient {
-    type ColumnType = DefaultColumnType;
     type Error = sqlexec::errors::ExecError;
-
+    type ColumnType = DefaultColumnType;
     async fn run(&mut self, sql: &str) -> Result<DBOutput<Self::ColumnType>, Self::Error> {
         let mut output = Vec::new();
         let mut num_columns = 0;
@@ -381,9 +379,8 @@ impl AsyncDB for PgTestClient {
 
 #[async_trait]
 impl AsyncDB for RpcTestClient {
-    type ColumnType = DefaultColumnType;
     type Error = sqlexec::errors::ExecError;
-
+    type ColumnType = DefaultColumnType;
     async fn run(&mut self, sql: &str) -> Result<DBOutput<Self::ColumnType>, Self::Error> {
         let mut output = Vec::new();
         let mut num_columns = 0;
@@ -466,9 +463,8 @@ impl AsyncDB for RpcTestClient {
 
 #[async_trait]
 impl AsyncDB for FlightSqlTestClient {
-    type ColumnType = DefaultColumnType;
     type Error = sqlexec::errors::ExecError;
-
+    type ColumnType = DefaultColumnType;
     async fn run(&mut self, sql: &str) -> Result<DBOutput<Self::ColumnType>, Self::Error> {
         let mut output = Vec::new();
         let mut num_columns = 0;
@@ -538,8 +534,8 @@ impl AsyncDB for FlightSqlTestClient {
 
 #[async_trait]
 impl AsyncDB for TestClient {
-    type ColumnType = DefaultColumnType;
     type Error = sqlexec::errors::ExecError;
+    type ColumnType = DefaultColumnType;
 
     async fn run(&mut self, sql: &str) -> Result<DBOutput<Self::ColumnType>, Self::Error> {
         match self {

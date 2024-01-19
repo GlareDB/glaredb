@@ -235,7 +235,6 @@ impl<M> ProxiedRequestStream<M> {
 
 impl<M> Stream for ProxiedRequestStream<M> {
     type Item = M;
-
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.inner.poll_next_unpin(cx) {
             Poll::Ready(Some(Ok(m))) => Poll::Ready(Some(m)),
