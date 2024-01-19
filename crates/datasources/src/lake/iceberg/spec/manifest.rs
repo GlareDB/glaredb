@@ -116,7 +116,6 @@ pub enum ManifestContent {
 
 impl FromStr for ManifestContent {
     type Err = IcebergError;
-
     fn from_str(s: &str) -> Result<Self> {
         Ok(match s {
             "data" => ManifestContent::Data,

@@ -42,10 +42,10 @@ use crate::functions::ConstBuiltinFunction;
 #[derive(Debug, Clone, Copy)]
 pub struct ListSchemas;
 impl ConstBuiltinFunction for ListSchemas {
+    const NAME: &'static str = "list_schemas";
     const DESCRIPTION: &'static str = "Lists schemas in a database";
     const EXAMPLE: &'static str = "SELECT * FROM list_schemas('database')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
-    const NAME: &'static str = "list_schemas";
 }
 
 #[async_trait]
@@ -97,11 +97,10 @@ impl TableFunc for ListSchemas {
 pub struct ListTables;
 
 impl ConstBuiltinFunction for ListTables {
+    const NAME: &'static str = "list_tables";
     const DESCRIPTION: &'static str = "Lists tables in a schema";
     const EXAMPLE: &'static str = "SELECT * FROM list_tables('database', 'schema')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
-    const NAME: &'static str = "list_tables";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             3,
@@ -161,10 +160,10 @@ impl TableFunc for ListTables {
 pub struct ListColumns;
 
 impl ConstBuiltinFunction for ListColumns {
+    const NAME: &'static str = "list_columns";
     const DESCRIPTION: &'static str = "Lists columns in a table";
     const EXAMPLE: &'static str = "SELECT * FROM list_columns('database', 'schema', 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
-    const NAME: &'static str = "list_columns";
 
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(

@@ -30,11 +30,10 @@ use crate::functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction};
 pub struct ConnectionId;
 
 impl ConstBuiltinFunction for ConnectionId {
+    const NAME: &'static str = "connection_id";
     const DESCRIPTION: &'static str = "Returns the connection id of the current session";
     const EXAMPLE: &'static str = "connection_id()";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "connection_id";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::exact(vec![], Volatility::Stable))
     }
@@ -49,11 +48,10 @@ impl BuiltinScalarUDF for ConnectionId {
 pub struct Version;
 
 impl ConstBuiltinFunction for Version {
+    const NAME: &'static str = "version";
     const DESCRIPTION: &'static str = "Returns the version of the database";
     const EXAMPLE: &'static str = "version()";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "version";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::exact(vec![], Volatility::Stable))
     }

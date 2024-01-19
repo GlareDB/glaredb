@@ -17,11 +17,11 @@ use crate::functions::ConstBuiltinFunction;
 pub struct ReadMongoDb;
 
 impl ConstBuiltinFunction for ReadMongoDb {
+    const NAME: &'static str = "read_mongodb";
     const DESCRIPTION: &'static str = "Reads a MongoDB table";
     const EXAMPLE: &'static str =
         "SELECT * FROM read_mongodb('mongodb://localhost:27017', 'database', 'collection')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
-    const NAME: &'static str = "read_mongodb";
 
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(

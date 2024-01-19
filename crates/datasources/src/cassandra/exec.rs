@@ -29,24 +29,19 @@ impl ExecutionPlan for CassandraExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
-
     fn schema(&self) -> ArrowSchemaRef {
         self.schema.clone()
     }
-
     fn output_partitioning(&self) -> Partitioning {
         // TODO: does scylla driver support partitioning?
         Partitioning::UnknownPartitioning(1)
     }
-
     fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
         None
     }
-
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
         vec![]
     }
-
     fn with_new_children(
         self: Arc<Self>,
         _children: Vec<Arc<dyn ExecutionPlan>>,
@@ -55,7 +50,6 @@ impl ExecutionPlan for CassandraExec {
             "cannot replace children for ScyllaExec".to_string(),
         ))
     }
-
     fn execute(
         &self,
         partition: usize,
@@ -77,7 +71,6 @@ impl ExecutionPlan for CassandraExec {
             &self.metrics,
         )))
     }
-
     fn statistics(&self) -> Statistics {
         Statistics::default()
     }
@@ -108,7 +101,6 @@ pub(super) struct CassandraRowStream {
 }
 impl Stream for CassandraRowStream {
     type Item = Result<RecordBatch, DataFusionError>;
-
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.inner.poll_next_unpin(cx)
     }

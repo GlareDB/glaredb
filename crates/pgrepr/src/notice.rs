@@ -74,7 +74,6 @@ impl NoticeSeverity {
 
 impl FromStr for NoticeSeverity {
     type Err = PgReprError;
-
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "DEBUG5" => Self::Debug5,

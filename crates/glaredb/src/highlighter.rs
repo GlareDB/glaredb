@@ -235,7 +235,6 @@ impl SQLHinter {
             min_chars: 1,
         }
     }
-
     fn paint(&self) -> String {
         let mut styled_text = StyledText::new();
         colorize_sql(&self.current_hint, &mut styled_text, true);

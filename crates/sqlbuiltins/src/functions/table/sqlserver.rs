@@ -21,12 +21,11 @@ use crate::functions::ConstBuiltinFunction;
 pub struct ReadSqlServer;
 
 impl ConstBuiltinFunction for ReadSqlServer {
+    const NAME: &'static str = "read_sqlserver";
     const DESCRIPTION: &'static str = "Reads an SQL Server table";
     const EXAMPLE: &'static str =
         "SELECT * FROM read_sqlserver('server=tcp:localhost,1433;user=SA;password=Password123;TrustServerCertificate=true', 'dbo', 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
-    const NAME: &'static str = "read_sqlserver";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             3,

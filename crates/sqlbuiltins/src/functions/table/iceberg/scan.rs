@@ -17,10 +17,10 @@ use crate::functions::ConstBuiltinFunction;
 pub struct IcebergScan;
 
 impl ConstBuiltinFunction for IcebergScan {
+    const NAME: &'static str = "iceberg_scan";
     const DESCRIPTION: &'static str = "Scans an iceberg table";
     const EXAMPLE: &'static str = "SELECT * FROM iceberg_scan('file:///path/to/table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
-    const NAME: &'static str = "iceberg_scan";
 }
 
 #[async_trait]

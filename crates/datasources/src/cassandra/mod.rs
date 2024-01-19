@@ -63,13 +63,11 @@ impl CassandraAccess {
     pub fn new(host: String) -> Self {
         Self { host }
     }
-
     pub async fn validate_access(&self) -> Result<()> {
         let _access = CassandraAccessState::try_new(&self.host).await?;
 
         Ok(())
     }
-
     pub async fn connect(&self) -> Result<CassandraAccessState> {
         CassandraAccessState::try_new(&self.host).await
     }
@@ -137,7 +135,6 @@ impl CassandraAccessState {
             .await?;
         Ok(Self { session })
     }
-
     async fn get_schema(&self, ks: &str, table: &str) -> Result<ArrowSchema> {
         let query = format!("SELECT * FROM {ks}.{table} LIMIT 1");
         let res = self.session.query(query, &[]).await?;
@@ -153,7 +150,6 @@ impl CassandraAccessState {
             .collect::<Result<_>>()?;
         Ok(ArrowSchema::new(fields))
     }
-
     pub async fn validate_table_access(&self, ks: &str, table: &str) -> Result<()> {
         let query = format!("SELECT * FROM {ks}.{table} LIMIT 1");
         let res = self.session.query(query, &[]).await?;

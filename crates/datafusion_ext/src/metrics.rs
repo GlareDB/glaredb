@@ -174,22 +174,22 @@ pub trait DataSourceMetricsOptsType: 'static + Debug + Clone + Sync + Send {
 #[derive(Debug, Clone)]
 pub struct ReadWriteDataSourceMetricsOptsType;
 impl DataSourceMetricsOptsType for ReadWriteDataSourceMetricsOptsType {
-    const DISPLAY_NAME_PREFIX: &'static str = "ReadWrite";
     const OPTS: DataSourceMetricsOpts = DataSourceMetricsOpts::read_write();
+    const DISPLAY_NAME_PREFIX: &'static str = "ReadWrite";
 }
 
 #[derive(Debug, Clone)]
 pub struct ReadOnlyDataSourceMetricsOptsType;
 impl DataSourceMetricsOptsType for ReadOnlyDataSourceMetricsOptsType {
-    const DISPLAY_NAME_PREFIX: &'static str = "ReadOnly";
     const OPTS: DataSourceMetricsOpts = DataSourceMetricsOpts::read_only();
+    const DISPLAY_NAME_PREFIX: &'static str = "ReadOnly";
 }
 
 #[derive(Debug, Clone)]
 pub struct WriteOnlyDataSourceMetricsOptsType;
 impl DataSourceMetricsOptsType for WriteOnlyDataSourceMetricsOptsType {
-    const DISPLAY_NAME_PREFIX: &'static str = "WriteOnly";
     const OPTS: DataSourceMetricsOpts = DataSourceMetricsOpts::write_only();
+    const DISPLAY_NAME_PREFIX: &'static str = "WriteOnly";
 }
 
 /// Wrapper around and execution plan that returns a
