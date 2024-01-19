@@ -1,4 +1,5 @@
 use datafusion::logical_expr::expr::ScalarFunction;
+use pgrepr::compatible::server_version_with_build_info;
 
 use super::df_scalars::array_to_string;
 use super::*;
@@ -469,6 +470,39 @@ impl BuiltinScalarUDF for PgArrayToString {
             BuiltinScalarFunction::ArrayToString,
             args,
         ))
+    }
+
+    fn namespace(&self) -> FunctionNamespace {
+        FunctionNamespace::Required("pg_catalog")
+    }
+}
+
+/// `pg_catalog.version()` implementation.
+///
+/// This provides more informatation that just the 'server_version' session
+/// variable, and includes things like the build triple.
+///
+/// This uses a spoofed version (and so does not match the `version()` function)
+/// since many postgres tools, including sqlalchemy, will check the version
+/// against hard coded values.
+#[derive(Clone, Copy, Debug)]
+pub struct PgVersion;
+
+impl ConstBuiltinFunction for PgVersion {
+    const NAME: &'static str = "version";
+    const DESCRIPTION: &'static str = "Returns the spoofed postgres version of the database";
+    const EXAMPLE: &'static str = "pg_catalog.version()";
+    const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::exact(vec![], Volatility::Stable))
+    }
+}
+
+impl BuiltinScalarUDF for PgVersion {
+    fn as_expr(&self, _: Vec<Expr>) -> Expr {
+        Expr::Literal(ScalarValue::Utf8(Some(
+            server_version_with_build_info().to_string(),
+        )))
     }
 
     fn namespace(&self) -> FunctionNamespace {

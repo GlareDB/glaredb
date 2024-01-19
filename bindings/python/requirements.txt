@@ -10,3 +10,5 @@ pandas
 polars
 pytest
 pandasai
+great_expectations[postgresql]
+great_expectations

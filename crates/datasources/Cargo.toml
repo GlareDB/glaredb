@@ -22,7 +22,7 @@ decimal = { path = "../decimal" }
 deltalake = { workspace = true }
 futures = { workspace = true }
 gcp-bigquery-client = "0.18.0"
-klickhouse = { version = "0.10.2", features = ["tls"] }
+klickhouse = { version = "0.11.0", features = ["tls"] }
 protogen = { path = "../protogen" }
 datafusion_ext = { path = "../datafusion_ext" }
 mongodb = "2.8.0"
@@ -59,7 +59,7 @@ tokio-postgres = { version = "0.7.8", features = [
 parking_lot = "0.12.1"
 tokio-rustls = "0.24.1"
 tracing = { workspace = true }
-uuid = "1.6.1"
+uuid = "1.7.0"
 url.workspace = true
 webpki-roots = "0.26.0"
 calamine = { version = "0.23.1", features = ["dates"] }

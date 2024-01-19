@@ -109,3 +109,12 @@ query T
 show client_min_messages;
 ----
 WARNING
+
+# standard_conforming_strings
+
+# TODO: Double check how we format bools for session vars. Interestingly,
+# postgres returns 'on' for this.
+query T
+show standard_conforming_strings;
+----
+true

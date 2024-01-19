@@ -4,7 +4,7 @@
 # the SLT framework.
 
 # Table setup
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/data/chinook/schema.sql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/data/chinook/schema.sql
 
 statement ok
 DROP TABLE IF EXISTS invoices;
@@ -177,7 +177,7 @@ from glare_catalog.tables | take 1
 
 # Begin integration tests copied from prql.
 
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/aggregation.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/aggregation.prql
 
 # TODO: Missing string_agg function
 # statement ok
@@ -199,7 +199,7 @@ from glare_catalog.tables | take 1
 # ----
 # 0  1  0
 
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/arithmetic.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/arithmetic.prql
 query RRRRRRRRRRRRRRRRR
 from [
     { id = 1, x_int =  13, x_float =  13.0, k_int =  5, k_float =  5.0 },
@@ -221,10 +221,10 @@ select {
     r_if = x_int % k_float,
     r_fi = x_float % k_int,
     r_ff = x_float % k_float,
-    (q_ii * k_int + r_ii | round 0),
-    (q_if * k_float + r_if | round 0),
-    (q_fi * k_int + r_fi | round 0),
-    (q_ff * k_float + r_ff | round 0),
+    (q_ii * k_int + r_ii | math.round 0),
+    (q_if * k_float + r_if | math.round 0),
+    (q_fi * k_int + r_fi | math.round 0),
+    (q_ff * k_float + r_ff | math.round 0),
 }
 sort id
 ----
@@ -233,7 +233,7 @@ sort id
 3  -2.6  -2.6  -2.6  -2.6  -2  -2  -2  -2  3   3   3   3   13   13   13   13
 4  2.6   2.6   2.6   2.6   2   2   2   2   -3  -3  -3  -3  -13  -13  -13  -13
 
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/cast.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/cast.prql
 query TR
 from tracks
 sort {-bytes}
@@ -264,7 +264,7 @@ Lockdown                                  22869
 Man of Science, Man of Faith (Premiere)   22869
 Run!                                      22572
 
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/constants_only.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/constants_only.prql
 query I
 from genres
 take 10
@@ -284,7 +284,7 @@ select d = 10
 10
 10
 
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/distinct.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/distinct.prql
 query II
 from tracks
 select {album_id, genre_id}
@@ -653,14 +653,14 @@ sort tracks.*
 347  10
 
 # TODO: Distinct on
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/distinct_on.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/distinct_on.prql
 # statement ok
 # from tracks
 # select {genre_id, media_type_id, album_id}
 # group {genre_id, media_type_id} (sort {-album_id} | take 1)
 # sort {-genre_id, media_type_id}
 
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/genre_counts.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/genre_counts.prql
 query I
 let genre_count = (
     from genres
@@ -672,7 +672,7 @@ select a = -a
 ----
 -25
 
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/group_all.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/group_all.prql
 query ITR
 from a=albums
 take 10
@@ -769,7 +769,7 @@ Fort Worth   2211 W Berry Street     7  38 38 38
 Frankfurt    Berger Straße 10        7  38 38 38
 
 # TODO: Recursive CTEs
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/loop.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/loop.prql
 # statement ok
 # from [{n = 1}]
 # select n = n - 2
@@ -777,7 +777,7 @@ Frankfurt    Berger Straße 10        7  38 38 38
 # select n = n * 2
 # sort n
 
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/pipelines.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/pipelines.prql
 query TT
 from tracks
 filter (name ~= "Love")
@@ -802,7 +802,7 @@ Love Or Confusion                              Jimi Hendrix
 May This Be Love                               Jimi Hendrix
 Do You Love Me                                 Paul Stanley, Bob Ezrin, Kim Fowley
 
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/set_ops_remove.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/set_ops_remove.prql
 query I
 let distinct = rel -> (from t = _param.rel | group {t.*} (take 1))
 from_text format:json '{ "columns": ["a"], "data": [[1], [2], [2], [3]] }'
@@ -812,7 +812,7 @@ sort a
 ----
 3
 
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/sort.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/sort.prql
 query TTT
 from e=employees
 filter first_name != "Mitchell"
@@ -830,7 +830,7 @@ Robert    King      Michael
 Steve     Johnson   Nancy
 
 # TODO: PRQL error: "function call expected {, but found ["
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/switch.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/switch.prql
 # statement ok
 # from tracks
 # sort milliseconds
@@ -842,7 +842,7 @@ Steve     Johnson   Nancy
 # take 10
 
 # TODO: Distinct on
-# https://github.com/PRQL/prql/blob/main/crates/prql-compiler/tests/integration/queries/window.prql
+# https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/window.prql
 # statement ok
 # from tracks
 # group genre_id (

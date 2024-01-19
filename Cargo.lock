@@ -106,21 +106,6 @@ dependencies = [
 
 [[package]]
 name = "anstream"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ca84f3628370c59db74ee214b3263d58f9aadd9b4fe7e711fd87dc452b7f163"
-dependencies = [
- "anstyle",
- "anstyle-parse",
- "anstyle-query",
- "anstyle-wincon 1.0.2",
- "colorchoice",
- "is-terminal",
- "utf8parse",
-]
-
-[[package]]
-name = "anstream"
 version = "0.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4cd2405b3ac1faab2990b74d728624cd9fd115651fcecc7c2d8daf01376275ba"
@@ -128,7 +113,7 @@ dependencies = [
  "anstyle",
  "anstyle-parse",
  "anstyle-query",
- "anstyle-wincon 3.0.1",
+ "anstyle-wincon",
  "colorchoice",
  "utf8parse",
 ]
@@ -154,16 +139,6 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ca11d4be1bab0c8bc8734a9aa7bf4ee8316d462a08c6ac5052f888fef5b494b"
 dependencies = [
- "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "anstyle-wincon"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c677ab05e09154296dd37acecd46420c17b9713e8366facafa8fc0885167cf4c"
-dependencies = [
- "anstyle",
  "windows-sys 0.48.0",
 ]
 
@@ -1561,9 +1536,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.4.16"
+version = "4.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58e54881c004cec7895b0068a0a954cd5d62da01aef83fa35b1e594497bf5445"
+checksum = "1e578d6ec4194633722ccf9544794b71b1385c3c027efe0c55db226fc880865c"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1571,11 +1546,11 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.4.16"
+version = "4.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59cb82d7f531603d2fd1f507441cdd35184fa81beff7bd489570de7f773460bb"
+checksum = "4df4df40ec50c46000231c914968278b1eb05098cf8f1b3a518a95030e71d1c7"
 dependencies = [
- "anstream 0.6.7",
+ "anstream",
  "anstyle",
  "clap_lex",
  "strsim",
@@ -1745,6 +1720,26 @@ dependencies = [
  "getrandom",
  "once_cell",
  "tiny-keccak",
+]
+
+[[package]]
+name = "const_format"
+version = "0.2.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3a214c7af3d04997541b18d432afaff4c455e79e2029079647e72fc2bd27673"
+dependencies = [
+ "const_format_proc_macros",
+]
+
+[[package]]
+name = "const_format_proc_macros"
+version = "0.2.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7f6ff08fd20f4f299298a28e2dfa8a8ba1036e6cd2460ac1de7b425d76f2500"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-xid",
 ]
 
 [[package]]
@@ -2160,7 +2155,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "rand",
- "sqlparser",
+ "sqlparser 0.38.0",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -2188,7 +2183,7 @@ dependencies = [
  "object_store",
  "parquet",
  "pyo3",
- "sqlparser",
+ "sqlparser 0.38.0",
 ]
 
 [[package]]
@@ -2222,7 +2217,7 @@ dependencies = [
  "arrow",
  "arrow-array",
  "datafusion-common",
- "sqlparser",
+ "sqlparser 0.38.0",
  "strum 0.25.0",
  "strum_macros 0.25.3",
 ]
@@ -2336,7 +2331,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "log",
- "sqlparser",
+ "sqlparser 0.38.0",
 ]
 
 [[package]]
@@ -2486,7 +2481,7 @@ dependencies = [
  "rusoto_sts",
  "serde",
  "serde_json",
- "sqlparser",
+ "sqlparser 0.38.0",
  "thiserror",
  "tokio",
  "url",
@@ -2843,9 +2838,9 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95b3f3e67048839cb0d0781f445682a35113da7121f7c949db0e2be96a4fbece"
+checksum = "4cd405aab171cb85d6735e5c8d9db038c17d3ca007a4d2c25f337935c3d90580"
 dependencies = [
  "humantime",
  "is-terminal",
@@ -3286,9 +3281,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.3.21"
+version = "0.3.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91fc23aa11be92976ef4729127f1a74adf36d8436f7816b185d18df956790833"
+checksum = "bb2c4422095b67ee78da96fbb51a4cc413b3b25883c7717ff7ca1ab31022c9c9"
 dependencies = [
  "bytes",
  "fnv",
@@ -3296,7 +3291,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http",
- "indexmap 1.9.3",
+ "indexmap 2.0.2",
  "slab",
  "tokio",
  "tokio-util",
@@ -3776,9 +3771,9 @@ dependencies = [
 
 [[package]]
 name = "klickhouse"
-version = "0.10.2"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b2b55b1aa0f264fc2aa5e9d73e2285c79cf9a0a52d3806797391e5f8cbdb1a3"
+checksum = "051a867a8208f75120f653badc7331df46ff31b7210214c53e54aea3c1a65a2a"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3792,6 +3787,7 @@ dependencies = [
  "libc",
  "log",
  "lz4",
+ "paste",
  "rustc_version 0.3.3",
  "serde",
  "serde_json",
@@ -3804,9 +3800,9 @@ dependencies = [
 
 [[package]]
 name = "klickhouse_derive"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1ed3a57ddece97a17d5086d1e7e84f15548a86fce544f1d593eb6ea3dc1dfd3"
+checksum = "dc5035fb62551169c670cc6133a81917704cd7293d458197140d7f5ac4db96c5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5272,6 +5268,7 @@ dependencies = [
  "bytes",
  "chrono",
  "chrono-tz",
+ "const_format",
  "datafusion",
  "decimal",
  "dtoa",
@@ -5474,14 +5471,13 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "predicates"
-version = "3.0.4"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6dfc28575c2e3f19cb3c73b93af36460ae898d426eba6fc15b9bd2a5220758a0"
+checksum = "68b87bfd4605926cdfefc1c3b5f8fe560e3feca9d5552cf68c466d3d8236c7e8"
 dependencies = [
  "anstyle",
  "difflib",
  "float-cmp",
- "itertools 0.11.0",
  "normalize-line-endings",
  "predicates-core",
  "regex",
@@ -5699,16 +5695,17 @@ dependencies = [
 
 [[package]]
 name = "prql-compiler"
-version = "0.10.1"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89369450e8ed4e569bdd6b109f719a532d18a4b20e5e828bbd9905475c3276b5"
+checksum = "5d57e90671dbcb08b282e91db60837fc43f93a99945c1a44d3fa8e78f5ccd860"
 dependencies = [
- "anstream 0.3.2",
+ "anstream",
  "anyhow",
  "ariadne",
+ "chrono",
  "csv",
  "enum-as-inner 0.6.0",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "log",
  "once_cell",
  "prqlc-ast",
@@ -5718,16 +5715,16 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlformat",
- "sqlparser",
+ "sqlparser 0.41.0",
  "strum 0.25.0",
  "strum_macros 0.25.3",
 ]
 
 [[package]]
 name = "prqlc-ast"
-version = "0.10.1"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e72a8626577e4f8e956c7e17acb909ce49374da61563afa7324feb250dc1bece"
+checksum = "e77bf8e4af75cfe1d055b4a30995466c1cb2726318b8255b4589b6ae177e45b1"
 dependencies = [
  "enum-as-inner 0.6.0",
  "semver 1.0.20",
@@ -5737,12 +5734,12 @@ dependencies = [
 
 [[package]]
 name = "prqlc-parser"
-version = "0.10.1"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e69c749add52b45bf21ec316f489d8dee5eb64a8d65373849fc3176296c1b348"
+checksum = "54a828f1f50699defbfd0bc1dec9368c5b5a1f0e7f12193129ed74160b96415b"
 dependencies = [
  "chumsky",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "prqlc-ast",
  "semver 1.0.20",
  "stacker",
@@ -7374,11 +7371,11 @@ dependencies = [
 
 [[package]]
 name = "sqlformat"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b7b278788e7be4d0d29c0f39497a0eef3fba6bbc8e70d8bf7fde46edeaa9e85"
+checksum = "ce81b7bd7c4493975347ef60d8c7e8b742d4694f4c49f93e0a12ea263938176c"
 dependencies = [
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "nom",
  "unicode_categories",
 ]
@@ -7414,8 +7411,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0272b7bb0a225320170c99901b4b5fb3a4384e255a7f2cc228f61e2ba3893e75"
 dependencies = [
  "log",
- "serde",
  "sqlparser_derive",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cc2c25a6c66789625ef164b4c7d2e548d627902280c13710d33da8222169964"
+dependencies = [
+ "log",
+ "serde",
 ]
 
 [[package]]
@@ -8323,6 +8329,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e51733f11c9c4f72aa0c160008246859e340b00807569a0da0e7a1079b27ba85"
 
 [[package]]
+name = "unicode-xid"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c"
+
+[[package]]
 name = "unicode_categories"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8371,9 +8383,9 @@ checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 
 [[package]]
 name = "uuid"
-version = "1.6.1"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e395fcf16a7a3d8127ec99782007af141946b4795001f876d54fb0d55978560"
+checksum = "f00cc9702ca12d3c81455259621e676d0f7251cec66a21e98fe2e9a37db93b2a"
 dependencies = [
  "getrandom",
  "rand",
@@ -8383,9 +8395,9 @@ dependencies = [
 
 [[package]]
 name = "uuid-macro-internal"
-version = "1.6.1"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f49e7f3f3db8040a100710a11932239fd30697115e2ba4107080d8252939845e"
+checksum = "7abb14ae1a50dad63eaa768a458ef43d298cd1bd44951677bd10b732a9ba2a2d"
 dependencies = [
  "proc-macro2",
  "quote",
