@@ -3,6 +3,9 @@ name = "rpcsrv"
 version.workspace = true
 edition.workspace = true
 
+[lints]
+workspace = true
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -16,15 +19,12 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
 tracing = { workspace = true }
-
 datafusion_ext = { path = "../datafusion_ext" }
 logutil = { path = "../logutil" }
 protogen = { path = "../protogen" }
 proxyutil = { path = "../proxyutil" }
 sqlexec = { path = "../sqlexec" }
 telemetry = { path = "../telemetry" }
-
-
 base64 = "0.21.7"
 bytes = "1.4"
 dashmap = "5.5.0"

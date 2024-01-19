@@ -6,6 +6,9 @@ version = "0.0.0"
 [lib]
 crate-type = ["cdylib"]
 
+[lints]
+workspace = true
+
 [dependencies]
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
 ioutil = { path = "../../crates/ioutil" }
