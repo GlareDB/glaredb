@@ -182,6 +182,7 @@ impl FunctionRegistry {
             Arc::new(PgTableIsVisible),
             Arc::new(PgEncodingToChar),
             Arc::new(PgArrayToString),
+            Arc::new(PgVersion),
             // System functions
             Arc::new(ConnectionId),
             Arc::new(Version),

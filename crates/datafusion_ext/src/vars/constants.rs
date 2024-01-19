@@ -1,11 +1,11 @@
 use super::*;
 
+use pgrepr::compatible::server_version;
 use pgrepr::notice::NoticeSeverity;
 
-// TODO: Decide proper postgres version to spoof/support
 pub(super) const SERVER_VERSION: ServerVar<str> = ServerVar {
     name: "server_version",
-    value: "15.1",
+    value: server_version(),
     group: "postgres",
     user_configurable: false,
     description: "Version of the server",
@@ -82,6 +82,14 @@ pub(super) const CLIENT_MIN_MESSAGES: ServerVar<NoticeSeverity> = ServerVar {
     group: "postgres",
     user_configurable: true,
     description: "Controls which messages are sent to the client, defaults NOTICE",
+};
+
+pub(super) const STANDARD_CONFORMING_STRINGS: ServerVar<bool> = ServerVar {
+    name: "standard_conforming_strings",
+    value: &true,
+    group: "postgres",
+    user_configurable: false,
+    description: "Treat backslashes literally in string literals",
 };
 
 pub(super) static GLAREDB_VERSION_OWNED: Lazy<String> =
