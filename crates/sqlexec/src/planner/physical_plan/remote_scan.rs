@@ -1,3 +1,8 @@
+use std::any::Any;
+use std::fmt;
+use std::hash::Hash;
+use std::sync::Arc;
+
 use datafusion::arrow::datatypes::Schema;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -9,7 +14,11 @@ use datafusion::physical_plan::expressions::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
     Statistics,
 };
 use datafusion::prelude::Expr;
@@ -17,10 +26,6 @@ use datafusion_ext::metrics::AggregateMetricsStreamAdapter;
 use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use futures::{stream, TryStreamExt};
 use protogen::metastore::types::catalog::RuntimePreference;
-use std::any::Any;
-use std::fmt;
-use std::hash::Hash;
-use std::sync::Arc;
 use uuid::Uuid;
 
 /// Reference to a table provider.

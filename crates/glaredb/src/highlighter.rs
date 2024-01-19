@@ -1,13 +1,13 @@
 use std::io::{self};
 
-use nu_ansi_term::{Color, Style};
-
-use crate::local::is_client_cmd;
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
+use nu_ansi_term::{Color, Style};
 use reedline::{Highlighter, Hinter, SearchQuery, StyledText, ValidationResult, Validator};
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
+
+use crate::local::is_client_cmd;
 
 pub(crate) struct SQLHighlighter;
 pub(crate) struct SQLValidator;
@@ -235,6 +235,7 @@ impl SQLHinter {
             min_chars: 1,
         }
     }
+
     fn paint(&self) -> String {
         let mut styled_text = StyledText::new();
         colorize_sql(&self.current_hint, &mut styled_text, true);
@@ -338,8 +339,8 @@ mod tests {
             "select \"value\\\"; another\";", // Escaped double quote inside, semicolon outside
             "select \";value\";",             // Semicolon inside double quotes, but also outside
             "select \"\";",                   // Empty double quotes
-            "select 'value; \"inner\"';", // Nested double quote inside single quote, semicolon outside
-            "select \"value; 'inner'\";", // Nested single quote inside double quote, semicolon outside
+            "select 'value; \"inner\"';", /* Nested double quote inside single quote, semicolon outside */
+            "select \"value; 'inner'\";", /* Nested single quote inside double quote, semicolon outside */
             "select 'value; \\'another\\'';", // Escaped single quote inside single quotes
             "select \"value; \\\"another\\\"\";", // Escaped double quote inside double quotes
         ];

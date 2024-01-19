@@ -1,9 +1,7 @@
 mod setup;
 
-use std::{
-    fs::{remove_file, OpenOptions},
-    io::Read,
-};
+use std::fs::{remove_file, OpenOptions};
+use std::io::Read;
 
 use tempfile::NamedTempFile;
 

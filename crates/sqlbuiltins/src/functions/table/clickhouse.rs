@@ -17,11 +17,11 @@ use crate::functions::ConstBuiltinFunction;
 pub struct ReadClickhouse;
 
 impl ConstBuiltinFunction for ReadClickhouse {
-    const NAME: &'static str = "read_clickhouse";
     const DESCRIPTION: &'static str = "Read a Clickhouse table";
     const EXAMPLE: &'static str =
         "SELECT * FROM read_clickhouse('clickhouse://user:password@localhost:9000/database', 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const NAME: &'static str = "read_clickhouse";
 
     fn signature(&self) -> Option<Signature> {
         Some(Signature::one_of(

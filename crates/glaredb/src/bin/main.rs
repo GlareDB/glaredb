@@ -59,8 +59,7 @@ fn main() -> Result<()> {
                 log_file: Some(log_file),
                 ..
             }),
-            _,
-            _,
+            ..,
         ) => logutil::init(
             cli.verbose,
             // Use JSON logging by default when writing to a file.

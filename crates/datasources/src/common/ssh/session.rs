@@ -102,12 +102,12 @@ impl SshTunnelAccess {
 /// what's exposed in Cloud.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod unix_impl {
-    use super::*;
+    use std::net::{IpAddr, Ipv4Addr};
+    use std::os::unix::prelude::PermissionsExt;
+
     use openssh::{ForwardType, KnownHosts, Session, SessionBuilder};
-    use std::{
-        net::{IpAddr, Ipv4Addr},
-        os::unix::prelude::PermissionsExt,
-    };
+
+    use super::*;
 
     #[derive(Debug)]
     pub struct SshTunnelSessionImpl(pub(super) Session);

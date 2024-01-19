@@ -1,14 +1,14 @@
-use futures::{Future, FutureExt};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use crate::errors::{internal, Result};
+use futures::{Future, FutureExt};
 use parking_lot::Mutex;
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
 use super::batch_stream::ExecutionBatchStream;
+use crate::errors::{internal, Result};
 
 pub type StagedClientStreams = StagedStreams<ExecutionBatchStream>;
 
@@ -41,7 +41,7 @@ impl<S> StagedStreams<S> {
         // Handle case where we began executing before the stream arrived.
         if let Some(pending) = streams.remove(&id) {
             match pending {
-                PendingStream::StreamArrivedFirst(_) => panic!("attempted to put stream twice"), // Programmer bug.
+                PendingStream::StreamArrivedFirst(_) => panic!("attempted to put stream twice"), /* Programmer bug. */
                 PendingStream::WaitingForStream(channel) => {
                     // We don't care if the receiver dropped. Means it was
                     // canceled on the "execution" side.
@@ -110,6 +110,7 @@ pub enum ResolveStreamFut<S> {
 
 impl<S: Unpin> Future for ResolveStreamFut<S> {
     type Output = Result<S>;
+
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match &mut *self {
             Self::Immediate(s @ Some(_)) => Poll::Ready(Ok(s.take().unwrap())),
@@ -123,8 +124,9 @@ impl<S: Unpin> Future for ResolveStreamFut<S> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::Arc;
+
+    use super::*;
 
     #[tokio::test]
     async fn client_puts_stream_first() {

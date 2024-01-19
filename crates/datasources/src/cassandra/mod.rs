@@ -1,16 +1,33 @@
 mod builder;
 mod errors;
 mod exec;
+use std::any::Any;
+use std::fmt;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+use std::time::Duration;
+
 use async_stream::stream;
 use async_trait::async_trait;
 use datafusion::arrow::array::{
-    ArrayRef, Float32Builder, Float64Builder, Int16Builder, Int32Builder, Int8Builder,
-    StringBuilder, TimestampMillisecondBuilder,
+    ArrayRef,
+    Float32Builder,
+    Float64Builder,
+    Int16Builder,
+    Int32Builder,
+    Int8Builder,
+    StringBuilder,
+    TimestampMillisecondBuilder,
 };
 use datafusion::arrow::datatypes::{
-    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    DataType,
+    Field,
+    Fields,
+    Schema as ArrowSchema,
+    SchemaRef as ArrowSchemaRef,
+    TimeUnit,
 };
-
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -20,26 +37,22 @@ use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    RecordBatchStream,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 pub use errors::*;
-use futures::Stream;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use scylla::frame::response::result::{ColumnType, CqlValue, Row};
-
 use scylla::transport::session::Session;
 use scylla::SessionBuilder;
-use std::any::Any;
-
-use std::fmt;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-use std::time::Duration;
 
 use self::exec::CassandraExec;
 
@@ -50,11 +63,13 @@ impl CassandraAccess {
     pub fn new(host: String) -> Self {
         Self { host }
     }
+
     pub async fn validate_access(&self) -> Result<()> {
         let _access = CassandraAccessState::try_new(&self.host).await?;
 
         Ok(())
     }
+
     pub async fn connect(&self) -> Result<CassandraAccessState> {
         CassandraAccessState::try_new(&self.host).await
     }
@@ -122,6 +137,7 @@ impl CassandraAccessState {
             .await?;
         Ok(Self { session })
     }
+
     async fn get_schema(&self, ks: &str, table: &str) -> Result<ArrowSchema> {
         let query = format!("SELECT * FROM {ks}.{table} LIMIT 1");
         let res = self.session.query(query, &[]).await?;
@@ -137,6 +153,7 @@ impl CassandraAccessState {
             .collect::<Result<_>>()?;
         Ok(ArrowSchema::new(fields))
     }
+
     pub async fn validate_table_access(&self, ks: &str, table: &str) -> Result<()> {
         let query = format!("SELECT * FROM {ks}.{table} LIMIT 1");
         let res = self.session.query(query, &[]).await?;

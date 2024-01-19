@@ -1,28 +1,35 @@
-use crate::errors::{Result, RpcsrvError};
-use crate::proxy::{ProxiedRequestStream, ProxyHandler};
-use crate::util::ConnKey;
+use std::borrow::Cow;
+use std::time::Duration;
+
 use arrow_flight::flight_service_client::FlightServiceClient;
 use arrow_flight::flight_service_server::FlightService;
 use arrow_flight::{
-    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
+    Action,
+    ActionType,
+    Criteria,
+    Empty,
+    FlightData,
+    FlightDescriptor,
+    FlightInfo,
+    HandshakeRequest,
+    HandshakeResponse,
+    PutResult,
+    SchemaResult,
+    Ticket,
 };
 use base64::prelude::*;
-
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use proxyutil::cloudauth::{AuthParams, CloudAuthenticator, ProxyAuthenticator, ServiceProtocol};
 use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY};
-use std::borrow::Cow;
-use std::time::Duration;
-use tonic::{
-    metadata::MetadataMap,
-    transport::{Channel, Endpoint},
-    Status,
-};
-use tonic::{Request, Response, Streaming};
+use tonic::metadata::MetadataMap;
+use tonic::transport::{Channel, Endpoint};
+use tonic::{Request, Response, Status, Streaming};
 
 use super::handler::{FLIGHTSQL_DATABASE_HEADER, FLIGHTSQL_GCS_BUCKET_HEADER};
+use crate::errors::{Result, RpcsrvError};
+use crate::proxy::{ProxiedRequestStream, ProxyHandler};
+use crate::util::ConnKey;
 
 pub type CloudFlightProxyHandler = ProxyHandler<CloudAuthenticator, FlightServiceClient<Channel>>;
 
@@ -109,13 +116,13 @@ impl CloudFlightProxyHandler {
 
 #[tonic::async_trait]
 impl FlightService for CloudFlightProxyHandler {
-    type HandshakeStream = BoxStream<'static, Result<HandshakeResponse, Status>>;
-    type ListFlightsStream = BoxStream<'static, Result<FlightInfo, Status>>;
+    type DoActionStream = BoxStream<'static, Result<arrow_flight::Result, Status>>;
+    type DoExchangeStream = BoxStream<'static, Result<FlightData, Status>>;
     type DoGetStream = BoxStream<'static, Result<FlightData, Status>>;
     type DoPutStream = BoxStream<'static, Result<PutResult, Status>>;
-    type DoActionStream = BoxStream<'static, Result<arrow_flight::Result, Status>>;
+    type HandshakeStream = BoxStream<'static, Result<HandshakeResponse, Status>>;
     type ListActionsStream = BoxStream<'static, Result<ActionType, Status>>;
-    type DoExchangeStream = BoxStream<'static, Result<FlightData, Status>>;
+    type ListFlightsStream = BoxStream<'static, Result<FlightInfo, Status>>;
 
     async fn handshake(
         &self,

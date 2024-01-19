@@ -1,5 +1,6 @@
-use crate::error::{PgReprError, Result};
 use std::str::FromStr;
+
+use crate::error::{PgReprError, Result};
 
 /// Reader defines the interface for the different kinds of values that can be
 /// decoded as a postgres type.
@@ -66,6 +67,7 @@ struct SqlBool(bool);
 
 impl FromStr for SqlBool {
     type Err = ParseSqlBoolError;
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "true" | "t" => Ok(SqlBool(true)),

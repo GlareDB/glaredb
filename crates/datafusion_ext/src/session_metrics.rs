@@ -1,3 +1,7 @@
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::Result as DatafusionResult;
@@ -6,10 +10,6 @@ use futures::stream::{Stream, StreamExt};
 use serde_json::json;
 use telemetry::Tracker;
 use uuid::Uuid;
-
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
 
 use crate::metrics::AggregatedMetrics;
 
@@ -170,6 +170,7 @@ impl RecordBatchStream for BatchStreamWithMetricSender {
 
 impl Stream for BatchStreamWithMetricSender {
     type Item = DatafusionResult<RecordBatch>;
+
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.stream.poll_next_unpin(cx) {
             Poll::Ready(None) => {

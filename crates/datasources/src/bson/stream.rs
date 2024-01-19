@@ -9,8 +9,7 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
-use futures::Stream;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 
 use super::builder::RecordStructBuilder;
 use super::errors::BsonError;

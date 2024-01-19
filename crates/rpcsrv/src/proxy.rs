@@ -1,30 +1,35 @@
-use crate::errors::{Result, RpcsrvError};
-use crate::util::ConnKey;
-use async_trait::async_trait;
-use dashmap::DashMap;
-use futures::{Stream, StreamExt};
-use protogen::gen::rpcsrv::common;
-use protogen::gen::rpcsrv::service;
-use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
-use protogen::rpcsrv::types::common::SessionStorageConfig;
-use protogen::rpcsrv::types::service::{
-    InitializeSessionRequest, InitializeSessionRequestFromProxy, InitializeSessionResponse,
-};
-use proxyutil::cloudauth::{
-    AuthParams, CloudAuthenticator, DatabaseDetails, ProxyAuthenticator, ServiceProtocol,
-};
-use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
 use std::borrow::Cow;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use tonic::{
-    metadata::MetadataMap,
-    transport::{Channel, Endpoint},
-    Request, Response, Status, Streaming,
+
+use async_trait::async_trait;
+use dashmap::DashMap;
+use futures::{Stream, StreamExt};
+use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
+use protogen::gen::rpcsrv::{common, service};
+use protogen::rpcsrv::types::common::SessionStorageConfig;
+use protogen::rpcsrv::types::service::{
+    InitializeSessionRequest,
+    InitializeSessionRequestFromProxy,
+    InitializeSessionResponse,
 };
+use proxyutil::cloudauth::{
+    AuthParams,
+    CloudAuthenticator,
+    DatabaseDetails,
+    ProxyAuthenticator,
+    ServiceProtocol,
+};
+use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
+use tonic::metadata::MetadataMap;
+use tonic::transport::{Channel, Endpoint};
+use tonic::{Request, Response, Status, Streaming};
 use tracing::{info, warn};
 use uuid::Uuid;
+
+use crate::errors::{Result, RpcsrvError};
+use crate::util::ConnKey;
 pub type CloudRpcProxyHandler = ProxyHandler<CloudAuthenticator, ExecutionServiceClient<Channel>>;
 
 /// Proxies rpc requests to compute nodes.
@@ -230,6 +235,7 @@ impl<M> ProxiedRequestStream<M> {
 
 impl<M> Stream for ProxiedRequestStream<M> {
     type Item = M;
+
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.inner.poll_next_unpin(cx) {
             Poll::Ready(Some(Ok(m))) => Poll::Ready(Some(m)),

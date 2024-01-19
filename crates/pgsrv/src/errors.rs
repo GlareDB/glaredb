@@ -1,5 +1,6 @@
-use crate::messages::{BackendMessage, FrontendMessage, StartupMessage};
 use std::io;
+
+use crate::messages::{BackendMessage, FrontendMessage, StartupMessage};
 
 pub type Result<T, E = PgSrvError> = std::result::Result<T, E>;
 
@@ -12,7 +13,7 @@ pub enum PgSrvError {
     InvalidMsgLength(i32),
 
     #[error("unexpected frontend message: {0:?}")]
-    UnexpectedFrontendMessage(Box<FrontendMessage>), // Boxed since frontend message has a large variant.
+    UnexpectedFrontendMessage(Box<FrontendMessage>), /* Boxed since frontend message has a large variant. */
 
     #[error("unexpected backend message: {0:?}")]
     UnexpectedBackendMessage(BackendMessage),

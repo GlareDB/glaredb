@@ -1,20 +1,33 @@
-use datafusion::{
-    arrow::datatypes::SchemaRef,
-    arrow::{datatypes::Schema, record_batch::RecordBatch},
-    error::Result,
-    execution::TaskContext,
-    physical_expr::PhysicalSortExpr,
-    physical_plan::{
-        metrics::{BaselineMetrics, ExecutionPlanMetricsSet, Gauge, MetricBuilder, MetricsSet},
-        DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-        SendableRecordBatchStream, Statistics,
-    },
+use std::any::Any;
+use std::fmt;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
+use datafusion::arrow::datatypes::{Schema, SchemaRef};
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::error::Result;
+use datafusion::execution::TaskContext;
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::{
+    BaselineMetrics,
+    ExecutionPlanMetricsSet,
+    Gauge,
+    MetricBuilder,
+    MetricsSet,
+};
+use datafusion::physical_plan::{
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    RecordBatchStream,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use futures::{Stream, StreamExt};
-use std::task::{Context, Poll};
-use std::{any::Any, pin::Pin};
-use std::{fmt, marker::PhantomData};
-use std::{fmt::Debug, sync::Arc};
 
 const BYTES_READ_GAUGE_NAME: &str = "bytes_read";
 const BYTES_WRITTEN_GAUGE_NAME: &str = "bytes_written";
@@ -161,22 +174,22 @@ pub trait DataSourceMetricsOptsType: 'static + Debug + Clone + Sync + Send {
 #[derive(Debug, Clone)]
 pub struct ReadWriteDataSourceMetricsOptsType;
 impl DataSourceMetricsOptsType for ReadWriteDataSourceMetricsOptsType {
-    const OPTS: DataSourceMetricsOpts = DataSourceMetricsOpts::read_write();
     const DISPLAY_NAME_PREFIX: &'static str = "ReadWrite";
+    const OPTS: DataSourceMetricsOpts = DataSourceMetricsOpts::read_write();
 }
 
 #[derive(Debug, Clone)]
 pub struct ReadOnlyDataSourceMetricsOptsType;
 impl DataSourceMetricsOptsType for ReadOnlyDataSourceMetricsOptsType {
-    const OPTS: DataSourceMetricsOpts = DataSourceMetricsOpts::read_only();
     const DISPLAY_NAME_PREFIX: &'static str = "ReadOnly";
+    const OPTS: DataSourceMetricsOpts = DataSourceMetricsOpts::read_only();
 }
 
 #[derive(Debug, Clone)]
 pub struct WriteOnlyDataSourceMetricsOptsType;
 impl DataSourceMetricsOptsType for WriteOnlyDataSourceMetricsOptsType {
-    const OPTS: DataSourceMetricsOpts = DataSourceMetricsOpts::write_only();
     const DISPLAY_NAME_PREFIX: &'static str = "WriteOnly";
+    const OPTS: DataSourceMetricsOpts = DataSourceMetricsOpts::write_only();
 }
 
 /// Wrapper around and execution plan that returns a

@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use datafusion::arrow::datatypes::DataType;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
@@ -18,11 +17,12 @@ use crate::functions::ConstBuiltinFunction;
 pub struct ReadBigQuery;
 
 impl ConstBuiltinFunction for ReadBigQuery {
-    const NAME: &'static str = "read_bigquery";
     const DESCRIPTION: &'static str = "Reads a BigQuery table";
     const EXAMPLE: &'static str =
         "SELECT * FROM read_bigquery('service_account', 'project_id', 'dataset_id', 'table_id')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const NAME: &'static str = "read_bigquery";
+
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             4,

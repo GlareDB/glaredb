@@ -1,12 +1,13 @@
-use crate::errors::{PgSrvError, Result};
-use crate::messages::{BackendMessage, FrontendMessage, StartupMessage};
-use crate::ssl::Connection;
 use bytes::{Buf, BufMut, BytesMut};
 use bytesutil::{BufStringMut, Cursor};
 use futures::{SinkExt, TryStreamExt};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 use tracing::trace;
+
+use crate::errors::{PgSrvError, Result};
+use crate::messages::{BackendMessage, FrontendMessage, StartupMessage};
+use crate::ssl::Connection;
 
 pub struct FramedClientConn<C> {
     conn: Framed<Connection<C>, PgClientCodec>,
@@ -141,8 +142,8 @@ impl Encoder<FrontendMessage> for PgClientCodec {
 }
 
 impl Decoder for PgClientCodec {
-    type Item = BackendMessage;
     type Error = PgSrvError;
+    type Item = BackendMessage;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         // Every message has a type byte, and an i32 for msg length. Return

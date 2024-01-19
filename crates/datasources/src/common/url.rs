@@ -1,12 +1,13 @@
 //! Utility for source "URLs".
-use std::{borrow::Cow, fmt::Display, path::PathBuf};
+use std::borrow::Cow;
+use std::fmt::Display;
+use std::path::PathBuf;
 
 use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
-use url::Url;
-
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::FuncParamValue;
+use url::Url;
 
 use super::errors::{DatasourceCommonError, Result};
 
@@ -48,12 +49,12 @@ impl Display for DatasourceUrl {
 }
 
 impl DatasourceUrl {
-    const FILE_SCHEME: &'static str = "file";
-    const HTTP_SCHEME: &'static str = "http";
-    const HTTPS_SCHEME: &'static str = "https";
-    const GS_SCHEME: &'static str = "gs";
-    const S3_SCHEME: &'static str = "s3";
     const AZURE_SCHEME: &'static str = "azure";
+    const FILE_SCHEME: &'static str = "file";
+    const GS_SCHEME: &'static str = "gs";
+    const HTTPS_SCHEME: &'static str = "https";
+    const HTTP_SCHEME: &'static str = "http";
+    const S3_SCHEME: &'static str = "s3";
 
     pub fn try_new(u: impl AsRef<str>) -> Result<Self> {
         let u = u.as_ref();
@@ -98,7 +99,7 @@ impl DatasourceUrl {
         match self {
             Self::File(_) => DatasourceUrlType::File,
             Self::Url(u) => match u.scheme() {
-                Self::HTTP_SCHEME | Self::HTTPS_SCHEME => DatasourceUrlType::Http, // TODO: Parse out azure specific hosts.
+                Self::HTTP_SCHEME | Self::HTTPS_SCHEME => DatasourceUrlType::Http, /* TODO: Parse out azure specific hosts. */
                 Self::GS_SCHEME => DatasourceUrlType::Gcs,
                 Self::S3_SCHEME => DatasourceUrlType::S3,
                 Self::AZURE_SCHEME => DatasourceUrlType::Azure,
@@ -143,6 +144,7 @@ impl DatasourceUrl {
 
 impl TryFrom<&str> for DatasourceUrl {
     type Error = DatasourceCommonError;
+
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::try_new(value)
     }

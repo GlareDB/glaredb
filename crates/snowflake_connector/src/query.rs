@@ -1,35 +1,40 @@
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    io::{BufReader, Cursor},
-    sync::Arc,
-    vec,
-};
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::io::{BufReader, Cursor};
+use std::sync::Arc;
+use std::vec;
 
-use datafusion::{
-    arrow::{
-        array::{
-            Array, ArrayRef, BinaryBuilder, BooleanBuilder, Date32Builder, Decimal128Builder,
-            Float64Builder, Int16Array, Int32Array, Int64Array, Int64Builder, Int8Array,
-            StringBuilder, StructArray, Time64NanosecondBuilder, TimestampNanosecondBuilder,
-        },
-        datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
-        error::ArrowError,
-        ipc::reader::StreamReader,
-        record_batch::RecordBatch,
-    },
-    scalar::ScalarValue,
+use base64::engine::general_purpose::STANDARD as base64_engine;
+use base64::Engine;
+use datafusion::arrow::array::{
+    Array,
+    ArrayRef,
+    BinaryBuilder,
+    BooleanBuilder,
+    Date32Builder,
+    Decimal128Builder,
+    Float64Builder,
+    Int16Array,
+    Int32Array,
+    Int64Array,
+    Int64Builder,
+    Int8Array,
+    StringBuilder,
+    StructArray,
+    Time64NanosecondBuilder,
+    TimestampNanosecondBuilder,
 };
+use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
+use datafusion::arrow::error::ArrowError;
+use datafusion::arrow::ipc::reader::StreamReader;
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::scalar::ScalarValue;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    auth::Session,
-    datatype::SnowflakeDataType,
-    errors::{Result, SnowflakeError},
-    req::{EmptySerde, ExecMethod, RequestId, SnowflakeChunkDl, SnowflakeClient},
-};
-
-use base64::{engine::general_purpose::STANDARD as base64_engine, Engine};
+use crate::auth::Session;
+use crate::datatype::SnowflakeDataType;
+use crate::errors::{Result, SnowflakeError};
+use crate::req::{EmptySerde, ExecMethod, RequestId, SnowflakeChunkDl, SnowflakeClient};
 
 const QUERY_ENDPOINT: &str = "/queries/v1/query-request";
 
@@ -106,8 +111,8 @@ struct QueryResponse {
 }
 
 impl QueryResponse {
-    const QUERY_IN_PROGRESS_CODE: &'static str = "333333";
     const ASYNC_QUERY_IN_PROGRESS_CODE: &'static str = "333334";
+    const QUERY_IN_PROGRESS_CODE: &'static str = "333333";
 
     fn is_query_in_progress(&self) -> bool {
         let code = match self.code.as_ref() {
@@ -392,8 +397,8 @@ impl QueryResultChunk {
 }
 
 impl IntoIterator for QueryResultChunk {
-    type Item = Result<RecordBatch>;
     type IntoIter = RecordBatchIter;
+    type Item = Result<RecordBatch>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter
@@ -688,7 +693,8 @@ impl Query {
                 .execute(
                     ExecMethod::Get,
                     &url,
-                    /* params = */ EmptySerde::none(),
+                    // params =
+                    EmptySerde::none(),
                     EmptySerde::new(),
                     Some(&session.token),
                 )

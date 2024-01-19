@@ -1,11 +1,10 @@
-use super::errors::Result;
 use bson::RawDocumentBuf;
 use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use futures::TryStreamExt;
-
 use mongodb::bson::{doc, Document};
 use mongodb::Collection;
 
+use super::errors::Result;
 use crate::bson::schema::{merge_schemas, schema_from_document};
 
 const SAMPLE_PCT: f32 = 0.05;

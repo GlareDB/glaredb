@@ -2,13 +2,28 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use bitvec::{order::Lsb0, vec::BitVec};
+use bitvec::order::Lsb0;
+use bitvec::vec::BitVec;
 use bson::{RawBsonRef, RawDocument};
 use datafusion::arrow::array::{
-    Array, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanBuilder, Date32Builder, Date64Builder,
-    Decimal128Builder, Float64Builder, Int32Builder, Int64Builder, LargeBinaryBuilder,
-    LargeStringBuilder, StringBuilder, StructArray, TimestampMicrosecondBuilder,
-    TimestampMillisecondBuilder, TimestampSecondBuilder,
+    Array,
+    ArrayBuilder,
+    ArrayRef,
+    BinaryBuilder,
+    BooleanBuilder,
+    Date32Builder,
+    Date64Builder,
+    Decimal128Builder,
+    Float64Builder,
+    Int32Builder,
+    Int64Builder,
+    LargeBinaryBuilder,
+    LargeStringBuilder,
+    StringBuilder,
+    StructArray,
+    TimestampMicrosecondBuilder,
+    TimestampMillisecondBuilder,
+    TimestampSecondBuilder,
 };
 use datafusion::arrow::datatypes::{DataType, Field, Fields, TimeUnit};
 
@@ -349,7 +364,7 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
         }
 
         // Decimal128
-        (RawBsonRef::Decimal128(v), DataType::Decimal128(_, _)) => col
+        (RawBsonRef::Decimal128(v), DataType::Decimal128(..)) => col
             .as_any_mut()
             .downcast_mut::<Decimal128Builder>()
             .unwrap()
@@ -391,7 +406,7 @@ fn append_null(typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
             .downcast_mut::<Float64Builder>()
             .unwrap()
             .append_null(),
-        &DataType::Timestamp(_, _) => col
+        &DataType::Timestamp(..) => col
             .as_any_mut()
             .downcast_mut::<TimestampMillisecondBuilder>() // TODO: Possibly change to nanosecond.
             .unwrap()
@@ -411,7 +426,7 @@ fn append_null(typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
             .downcast_mut::<RecordStructBuilder>()
             .unwrap()
             .append_nulls()?,
-        &DataType::Decimal128(_, _) => col
+        &DataType::Decimal128(..) => col
             .as_any_mut()
             .downcast_mut::<Decimal128Builder>()
             .unwrap()
@@ -433,12 +448,12 @@ fn column_builders_for_fields(
             DataType::Int32 => Box::new(Int32Builder::with_capacity(capacity)),
             DataType::Int64 => Box::new(Int64Builder::with_capacity(capacity)),
             DataType::Float64 => Box::new(Float64Builder::with_capacity(capacity)),
-            DataType::Timestamp(_, _) => {
+            DataType::Timestamp(..) => {
                 Box::new(TimestampMicrosecondBuilder::with_capacity(capacity)) // TODO: Possibly change to nanosecond.
             }
-            DataType::Utf8 => Box::new(StringBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.
-            DataType::Binary => Box::new(BinaryBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.
-            DataType::Decimal128(_, _) => Box::new(Decimal128Builder::with_capacity(capacity)), // TODO: Can collect avg when inferring schema.
+            DataType::Utf8 => Box::new(StringBuilder::with_capacity(capacity, 10)), /* TODO: Can collect avg when inferring schema. */
+            DataType::Binary => Box::new(BinaryBuilder::with_capacity(capacity, 10)), /* TODO: Can collect avg when inferring schema. */
+            DataType::Decimal128(..) => Box::new(Decimal128Builder::with_capacity(capacity)), /* TODO: Can collect avg when inferring schema. */
             DataType::Struct(fields) => {
                 let nested = column_builders_for_fields(fields.clone(), capacity)?;
                 Box::new(RecordStructBuilder::new_with_builders(

@@ -1,8 +1,9 @@
-use super::*;
-
-use protogen::metastore::types::{options::CredentialsOptions, service, service::Mutation};
-
 use catalog::mutator::CatalogMutator;
+use protogen::metastore::types::options::CredentialsOptions;
+use protogen::metastore::types::service;
+use protogen::metastore::types::service::Mutation;
+
+use super::*;
 
 #[derive(Clone, Debug)]
 pub struct CreateCredentialExec {

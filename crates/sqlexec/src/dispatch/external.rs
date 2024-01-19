@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use catalog::session_catalog::SessionCatalog;
 use datafusion::common::FileType;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
@@ -30,22 +31,42 @@ use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use datasources::sqlserver::{
-    SqlServerAccess, SqlServerTableProvider, SqlServerTableProviderConfig,
+    SqlServerAccess,
+    SqlServerTableProvider,
+    SqlServerTableProviderConfig,
 };
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionEntry, TableEntry};
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsCassandra, DatabaseOptionsClickhouse,
-    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, TableOptions,
-    TableOptionsBigQuery, TableOptionsCassandra, TableOptionsClickhouse, TableOptionsDebug,
-    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongoDb,
-    TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
+    DatabaseOptions,
+    DatabaseOptionsBigQuery,
+    DatabaseOptionsCassandra,
+    DatabaseOptionsClickhouse,
+    DatabaseOptionsDebug,
+    DatabaseOptionsDeltaLake,
+    DatabaseOptionsMongoDb,
+    DatabaseOptionsMysql,
+    DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake,
+    DatabaseOptionsSqlServer,
+    TableOptions,
+    TableOptionsBigQuery,
+    TableOptionsCassandra,
+    TableOptionsClickhouse,
+    TableOptionsDebug,
+    TableOptionsGcs,
+    TableOptionsInternal,
+    TableOptionsLocal,
+    TableOptionsMongoDb,
+    TableOptionsMysql,
+    TableOptionsObjectStore,
+    TableOptionsPostgres,
+    TableOptionsS3,
+    TableOptionsSnowflake,
+    TableOptionsSqlServer,
+    TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
-
-use catalog::session_catalog::SessionCatalog;
 
 use super::{DispatchError, Result};
 
@@ -248,7 +269,7 @@ impl<'a> ExternalDispatcher<'a> {
         let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
 
         match &table.options {
-            TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
+            TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), /* Purposely unimplemented. */
             TableOptions::Debug(TableOptionsDebug { table_type }) => {
                 let provider = DebugTableType::from_str(table_type)?;
                 Ok(provider.into_table_provider(tunnel.as_ref()))

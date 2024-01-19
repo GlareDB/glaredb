@@ -1,8 +1,13 @@
-use super::*;
 use chrono::{DateTime, NaiveTime, Utc};
 use datafusion::arrow::array::{
-    ArrayBuilder, Date64Builder, DurationNanosecondBuilder, Int64Builder, ListBuilder,
+    ArrayBuilder,
+    Date64Builder,
+    DurationNanosecondBuilder,
+    Int64Builder,
+    ListBuilder,
 };
+
+use super::*;
 #[derive(Debug)]
 pub(super) enum CqlValueArrayBuilder {
     Date64(Date64Builder),
@@ -115,6 +120,7 @@ impl CqlValueArrayBuilder {
             Some(value) => self.append_value(value),
         }
     }
+
     pub(super) fn append_null(&mut self) {
         match self {
             CqlValueArrayBuilder::Utf8(b) => b.append_null(),
@@ -174,7 +180,7 @@ impl CqlValueArrayBuilder {
                 }
                 builder.append(true)
             }
-            (_, _) => {
+            (..) => {
                 unreachable!("Schema is already checked. This indicates a bug")
             }
         }

@@ -17,11 +17,12 @@ use crate::functions::ConstBuiltinFunction;
 pub struct ReadMysql;
 
 impl ConstBuiltinFunction for ReadMysql {
-    const NAME: &'static str = "read_mysql";
     const DESCRIPTION: &'static str = "Reads a MySQL table";
     const EXAMPLE: &'static str =
         "SELECT * FROM read_mysql('mysql://localhost:3306', 'database', 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const NAME: &'static str = "read_mysql";
+
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             3,

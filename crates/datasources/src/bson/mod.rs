@@ -5,7 +5,8 @@ pub mod stream;
 pub mod table;
 
 use datafusion::arrow::array::cast::as_string_array;
-use datafusion::arrow::array::{types::*, Array, ArrayRef, AsArray, StructArray};
+use datafusion::arrow::array::types::*;
+use datafusion::arrow::array::{Array, ArrayRef, AsArray, StructArray};
 use datafusion::arrow::datatypes::{DataType, Fields, IntervalUnit, TimeUnit};
 use datafusion::arrow::error::ArrowError;
 
@@ -121,7 +122,7 @@ fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
             .as_primitive::<Float64Type>()
             .iter()
             .for_each(|val| out.push(bson::Bson::Double(val.unwrap_or_default()))),
-        DataType::Decimal128(_, _) => array
+        DataType::Decimal128(..) => array
             .as_primitive::<Decimal128Type>()
             .iter()
             // TODO: this is probably not correct:
@@ -256,7 +257,7 @@ fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
             .as_primitive::<DurationNanosecondType>()
             .iter()
             .for_each(|val| out.push(bson::Bson::Int64(val.unwrap_or_default()))),
-        DataType::List(_) | DataType::FixedSizeList(_, _) | DataType::LargeList(_) => {
+        DataType::List(_) | DataType::FixedSizeList(..) | DataType::LargeList(_) => {
             out.push(bson::Bson::Array(array_to_bson(array)?))
         }
         DataType::Struct(fields) => {
@@ -266,7 +267,7 @@ fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
                 out.push(bson::Bson::Document(doc?))
             }
         }
-        DataType::Map(_, _) => {
+        DataType::Map(..) => {
             let struct_array = array.as_map().entries();
             let converter =
                 BsonBatchConverter::new(struct_array.to_owned(), struct_array.fields().to_owned());
@@ -275,10 +276,10 @@ fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
                 out.push(bson::Bson::Document(doc?))
             }
         }
-        DataType::Dictionary(_, _) => out.push(bson::Bson::Array(array_to_bson(
+        DataType::Dictionary(..) => out.push(bson::Bson::Array(array_to_bson(
             array.as_any_dictionary().values(),
         )?)),
-        DataType::Decimal256(_, _) | DataType::RunEndEncoded(_, _) | DataType::Union(_, _) => {
+        DataType::Decimal256(..) | DataType::RunEndEncoded(..) | DataType::Union(..) => {
             return Err(ArrowError::CastError(
                 "type is not representable in BSON".to_string(),
             ))

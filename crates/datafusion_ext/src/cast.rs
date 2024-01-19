@@ -1,25 +1,74 @@
+use std::sync::Arc;
+
 use datafusion::arrow::array::{
-    new_empty_array, new_null_array, Array, ArrayDataBuilder, ArrayRef, BinaryArray, BooleanArray,
-    BooleanBufferBuilder, BooleanBuilder, Date32Array, Date64Array, Decimal128Array,
-    Decimal256Array, DictionaryArray, FixedSizeBinaryArray, Float32Array, Float64Array,
-    GenericListArray, Int16Array, Int32Array, Int64Array, Int8Array, IntervalDayTimeArray,
-    IntervalMonthDayNanoArray, IntervalYearMonthArray, LargeBinaryArray, LargeStringArray,
-    LargeStringBuilder, ListArray, ListBuilder, PrimitiveArray, StringArray, StringBuilder,
-    StructArray, Time32MillisecondArray, Time32SecondArray, Time64MicrosecondArray,
-    Time64NanosecondArray, TimestampMicrosecondArray, TimestampMillisecondArray,
-    TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
+    new_empty_array,
+    new_null_array,
+    Array,
+    ArrayDataBuilder,
+    ArrayRef,
+    BinaryArray,
+    BooleanArray,
+    BooleanBufferBuilder,
+    BooleanBuilder,
+    Date32Array,
+    Date64Array,
+    Decimal128Array,
+    Decimal256Array,
+    DictionaryArray,
+    FixedSizeBinaryArray,
+    Float32Array,
+    Float64Array,
+    GenericListArray,
+    Int16Array,
+    Int32Array,
+    Int64Array,
+    Int8Array,
+    IntervalDayTimeArray,
+    IntervalMonthDayNanoArray,
+    IntervalYearMonthArray,
+    LargeBinaryArray,
+    LargeStringArray,
+    LargeStringBuilder,
+    ListArray,
+    ListBuilder,
+    PrimitiveArray,
+    StringArray,
+    StringBuilder,
+    StructArray,
+    Time32MillisecondArray,
+    Time32SecondArray,
+    Time64MicrosecondArray,
+    Time64NanosecondArray,
+    TimestampMicrosecondArray,
+    TimestampMillisecondArray,
+    TimestampNanosecondArray,
+    TimestampSecondArray,
+    UInt16Array,
+    UInt32Array,
+    UInt64Array,
     UInt8Array,
 };
 use datafusion::arrow::buffer::NullBuffer;
 use datafusion::arrow::compute::nullif;
-use datafusion::arrow::datatypes::ArrowNativeType;
 use datafusion::arrow::datatypes::{
-    ArrowDictionaryKeyType, DataType, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type,
-    Int8Type, IntervalUnit, TimeUnit, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+    ArrowDictionaryKeyType,
+    ArrowNativeType,
+    DataType,
+    Float32Type,
+    Float64Type,
+    Int16Type,
+    Int32Type,
+    Int64Type,
+    Int8Type,
+    IntervalUnit,
+    TimeUnit,
+    UInt16Type,
+    UInt32Type,
+    UInt64Type,
+    UInt8Type,
 };
 use datafusion::error::DataFusionError;
 use datafusion::scalar::ScalarValue;
-use std::sync::Arc;
 
 use crate::errors::ExtensionError;
 
@@ -393,11 +442,11 @@ pub fn scalar_iter_to_array(
         | DataType::Time64(TimeUnit::Second)
         | DataType::Time64(TimeUnit::Millisecond)
         | DataType::Duration(_)
-        | DataType::FixedSizeList(_, _)
+        | DataType::FixedSizeList(..)
         | DataType::LargeList(_)
-        | DataType::Union(_, _)
-        | DataType::Map(_, _)
-        | DataType::RunEndEncoded(_, _) => {
+        | DataType::Union(..)
+        | DataType::Map(..)
+        | DataType::RunEndEncoded(..) => {
             return Err(ExtensionError::String("unsupported type".to_string()))
         }
     };
@@ -523,7 +572,7 @@ fn iter_to_decimal_array(
         .into_iter()
         .map(
             |element: Result<ScalarValue, ExtensionError>| match element? {
-                ScalarValue::Decimal128(v1, _, _) => Ok(v1),
+                ScalarValue::Decimal128(v1, ..) => Ok(v1),
                 _ => unreachable!(),
             },
         )
@@ -541,7 +590,7 @@ fn iter_to_decimal256_array(
         .into_iter()
         .map(
             |element: Result<ScalarValue, ExtensionError>| match element? {
-                ScalarValue::Decimal256(v1, _, _) => Ok(v1),
+                ScalarValue::Decimal256(v1, ..) => Ok(v1),
                 _ => unreachable!(),
             },
         )
@@ -569,24 +618,32 @@ fn iter_to_null_array(
 #[cfg(test)]
 mod tests {
     use std::cmp::Ordering;
+    use std::collections::HashSet;
     use std::sync::Arc;
 
     use chrono::NaiveDate;
     use datafusion::arrow::array::{
-        ArrowNumericType, AsArray, PrimitiveBuilder, StringBuilder, StructBuilder,
+        ArrowNumericType,
+        AsArray,
+        PrimitiveBuilder,
+        StringBuilder,
+        StructBuilder,
     };
     use datafusion::arrow::compute::kernels;
     use datafusion::arrow::datatypes::{ArrowPrimitiveType, Field};
+    use datafusion::common::cast::{
+        as_decimal128_array,
+        as_dictionary_array,
+        as_list_array,
+        as_string_array,
+        as_struct_array,
+        as_uint32_array,
+        as_uint64_array,
+    };
+    use datafusion::common::*;
     use rand::Rng;
 
-    use datafusion::common::cast::{
-        as_decimal128_array, as_dictionary_array, as_list_array, as_string_array, as_struct_array,
-        as_uint32_array, as_uint64_array,
-    };
-    use std::collections::HashSet;
-
     use super::*;
-    use datafusion::common::*;
 
     #[test]
     fn scalar_add_trait_test() -> Result<()> {
@@ -746,7 +803,7 @@ mod tests {
         assert!(!decimal_value.is_null());
         let neg_decimal_value = decimal_value.arithmetic_negate()?;
         match neg_decimal_value {
-            ScalarValue::Decimal128(v, _, _) => {
+            ScalarValue::Decimal128(v, ..) => {
                 assert_eq!(-123, v.unwrap());
             }
             _ => {
