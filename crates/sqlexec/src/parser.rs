@@ -1402,7 +1402,7 @@ mod tests {
                 options.clone(),
             ),
             (
-                "(
+                "OPTIONS (
                     o1 = 'abc',
                     o2 = TRUE,
                     o3 = def,
@@ -1422,7 +1422,7 @@ mod tests {
                 options.clone(),
             ),
             (
-                "(
+                "OPTIONS (
                     o1 'abc',
                     o2 TRUE,
                     o3 def,
@@ -1443,7 +1443,7 @@ mod tests {
                 options.clone(),
             ),
             (
-                "(
+                "OPTIONS (
                     o1 = 'abc',
                     o2 = TRUE,
                     o3 = def,
@@ -1463,7 +1463,7 @@ mod tests {
                 options.clone(),
             ),
             (
-                "(
+                "OPTIONS (
                     o1 'abc',
                     o2 TRUE,
                     o3 def,
