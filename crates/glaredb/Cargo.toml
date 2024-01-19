@@ -7,6 +7,9 @@ edition = { workspace = true }
 name = "glaredb"
 path = "src/bin/main.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }
