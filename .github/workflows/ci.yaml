@@ -21,26 +21,26 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: build cache
         with:
           path: |
             target/
             !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -58,13 +58,13 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: cargo cache
         with:
           path: |
@@ -104,13 +104,13 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: cargo cache
         with:
           path: |
@@ -130,19 +130,19 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: build cache
         with:
           path: |
@@ -169,19 +169,19 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: build cache
         with:
           path: |
@@ -203,19 +203,19 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: build cache
         with:
           path: |
@@ -242,7 +242,7 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -282,31 +282,31 @@ jobs:
           python-version: "3.11"
           cache: poetry
           cache-dependency-path: tests/poetry.lock
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: build cache
         with:
           path: |
             target/
             !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
           key: ${{ github.run_id }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: py cache
         with:
           path: |
@@ -328,7 +328,7 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -440,7 +440,7 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -532,7 +532,7 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -565,7 +565,7 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
