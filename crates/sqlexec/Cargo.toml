@@ -6,8 +6,6 @@ edition = { workspace = true }
 [lints]
 workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 ioutil = { path = "../ioutil" }
 arrow_util = { path = "../arrow_util" }

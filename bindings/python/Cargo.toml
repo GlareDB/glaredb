@@ -7,7 +7,7 @@ edition = "2021"
 workspace = true
 
 # [workspace]
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [lib]
 name = "glaredb"
 crate-type = ["cdylib"]

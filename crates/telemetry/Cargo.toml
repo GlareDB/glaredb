@@ -6,11 +6,9 @@ edition = {workspace = true}
 [lints]
 workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 tracing = { workspace = true }
-segment = "0.2.3"
 tokio = { workspace = true }
-uuid = { version = "1.7.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 serde_json = { workspace = true }
+segment = "0.2.3"
+uuid = { version = "1.7.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
