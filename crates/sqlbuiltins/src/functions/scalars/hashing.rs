@@ -26,6 +26,7 @@ impl ConstBuiltinFunction for SipHash {
         ))
     }
 }
+
 impl BuiltinScalarUDF for SipHash {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
         let udf = ScalarUDF {
