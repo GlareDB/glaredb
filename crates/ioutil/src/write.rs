@@ -1,6 +1,5 @@
-use std::fmt;
-
 use bytes::BufMut;
+use std::fmt;
 
 /// A trait representing infallible writes to some underlying buffer.
 ///

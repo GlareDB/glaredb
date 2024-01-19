@@ -1,6 +1,5 @@
-use std::sync::Arc;
-
 use datafusion::datasource::TableProvider;
+use std::sync::Arc;
 
 /// Read from the environment (e.g. Python dataframes).
 pub trait EnvironmentReader: Send + Sync {

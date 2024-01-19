@@ -1,22 +1,13 @@
-use std::any::Any;
-use std::fmt;
-use std::sync::Arc;
-
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::execute_stream;
 use datafusion::physical_plan::insert::DataSink;
-use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    execute_stream,
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    SendableRecordBatchStream,
-    Statistics,
+    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
+    SendableRecordBatchStream, Statistics,
 };
 use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use datasources::common::sink::bson::BsonSink;
@@ -33,10 +24,11 @@ use datasources::object_store::ObjStoreAccess;
 use futures::stream;
 use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::options::{
-    CopyToDestinationOptions,
-    CopyToFormatOptions,
-    StorageOptions,
+    CopyToDestinationOptions, CopyToFormatOptions, StorageOptions,
 };
+use std::any::Any;
+use std::fmt;
+use std::sync::Arc;
 
 use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA};
 

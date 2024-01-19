@@ -1,31 +1,24 @@
+use super::pipeline::{Sink, Source};
+use super::Result;
+use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::error::Result as DataFusionResult;
+use datafusion::execution::context::TaskContext;
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_expr::PhysicalSortRequirement;
+use datafusion::physical_plan::metrics::MetricsSet;
+use datafusion::physical_plan::{
+    DisplayAs, DisplayFormatType, Distribution, ExecutionPlan, Partitioning, RecordBatchStream,
+    SendableRecordBatchStream, Statistics,
+};
+use futures::{Stream, StreamExt};
+use parking_lot::Mutex;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
-
-use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::error::Result as DataFusionResult;
-use datafusion::execution::context::TaskContext;
-use datafusion::physical_expr::{PhysicalSortExpr, PhysicalSortRequirement};
-use datafusion::physical_plan::metrics::MetricsSet;
-use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    Distribution,
-    ExecutionPlan,
-    Partitioning,
-    RecordBatchStream,
-    SendableRecordBatchStream,
-    Statistics,
-};
-use futures::{Stream, StreamExt};
-use parking_lot::Mutex;
-
-use super::pipeline::{Sink, Source};
-use super::Result;
 
 pub struct SplicedPlan {
     /// The execution plan after splicing.

@@ -17,10 +17,10 @@ use crate::functions::ConstBuiltinFunction;
 pub struct ReadCassandra;
 
 impl ConstBuiltinFunction for ReadCassandra {
+    const NAME: &'static str = "read_cassandra";
     const DESCRIPTION: &'static str = "Read a Cassandra table";
     const EXAMPLE: &'static str = "SELECT * FROM read_cassandra('localhost:9000', 'ks', 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
-    const NAME: &'static str = "read_cassandra";
 
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(

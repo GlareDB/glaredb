@@ -1,30 +1,25 @@
-use std::any::Any;
-use std::fmt;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-
+use crate::errors::Result;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::RecordBatchStream;
 use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    RecordBatchStream,
-    SendableRecordBatchStream,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
 use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
+use std::any::Any;
+use std::fmt;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 use tokio::task::JoinSet;
 use uuid::Uuid;
 
 use super::client_send::ClientExchangeSendExec;
-use crate::errors::Result;
 
 /// Drives execution of the output stream from the server in conjunction with
 /// the send streams to the server.

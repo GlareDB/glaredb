@@ -15,57 +15,34 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashSet;
-use std::sync::Arc;
-
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+use crate::utils::{
+    check_columns_satisfy_exprs, extract_aliases, rebase_expr, resolve_aliases_to_exprs,
+    resolve_columns, resolve_positions_to_exprs,
+};
 use async_recursion::async_recursion;
 use datafusion::common::{plan_err, DataFusionError, Result};
 use datafusion::logical_expr::expr::Alias;
 use datafusion::logical_expr::expr_rewriter::{
-    normalize_col,
-    normalize_col_with_schemas_and_ambiguity_check,
+    normalize_col, normalize_col_with_schemas_and_ambiguity_check,
 };
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::utils::{
-    expand_qualified_wildcard,
-    expand_wildcard,
-    expr_as_column_expr,
-    expr_to_columns,
-    find_aggregate_exprs,
-    find_window_exprs,
+    expand_qualified_wildcard, expand_wildcard, expr_as_column_expr, expr_to_columns,
+    find_aggregate_exprs, find_window_exprs,
 };
 use datafusion::logical_expr::{
-    Expr,
-    Filter,
-    GroupingSet,
-    LogicalPlan,
-    LogicalPlanBuilder,
-    Partitioning,
+    Expr, Filter, GroupingSet, LogicalPlan, LogicalPlanBuilder, Partitioning,
 };
 use datafusion::prelude::Column;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
-    Distinct,
-    Expr as SQLExpr,
-    GroupByExpr,
-    NamedWindowDefinition,
-    ReplaceSelectItem,
-    Select,
-    SelectItem,
-    TableWithJoins,
-    WildcardAdditionalOptions,
-    WindowType,
+    Distinct, Expr as SQLExpr, GroupByExpr, NamedWindowDefinition, ReplaceSelectItem,
+    WildcardAdditionalOptions, WindowType,
 };
-
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
-use crate::utils::{
-    check_columns_satisfy_exprs,
-    extract_aliases,
-    rebase_expr,
-    resolve_aliases_to_exprs,
-    resolve_columns,
-    resolve_positions_to_exprs,
-};
+use datafusion::sql::sqlparser::ast::{Select, SelectItem, TableWithJoins};
+use std::collections::HashSet;
+use std::sync::Arc;
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     /// Generate a logic plan from an SQL select

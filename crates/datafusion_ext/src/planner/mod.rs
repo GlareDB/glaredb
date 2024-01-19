@@ -28,34 +28,29 @@ mod values;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::functions::*;
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{DataType, Field, IntervalUnit, Schema, TimeUnit};
+use datafusion::arrow::datatypes::DataType;
+use datafusion::arrow::datatypes::Field;
+use datafusion::arrow::datatypes::IntervalUnit;
+use datafusion::arrow::datatypes::Schema;
+use datafusion::arrow::datatypes::TimeUnit;
 use datafusion::common::config::ConfigOptions;
-use datafusion::common::{
-    field_not_found,
-    unqualified_field_not_found,
-    DFSchema,
-    DataFusionError,
-    OwnedTableReference,
-    Result,
-    TableReference,
-};
+use datafusion::common::field_not_found;
+use datafusion::common::{unqualified_field_not_found, DFSchema, DataFusionError, Result};
+use datafusion::common::{OwnedTableReference, TableReference};
 use datafusion::logical_expr::logical_plan::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::logical_expr::utils::find_column_exprs;
-use datafusion::logical_expr::{col, AggregateUDF, Expr, SubqueryAlias, TableSource};
-use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, ParserOptions};
-use datafusion::sql::sqlparser::ast::{
-    ColumnDef as SQLColumnDef,
-    ColumnOption,
-    DataType as SQLDataType,
-    ExactNumberInfo,
-    Ident,
-    ObjectName,
-    TableAlias,
-    TimezoneInfo,
-};
+use datafusion::logical_expr::TableSource;
+use datafusion::logical_expr::{col, AggregateUDF, Expr, SubqueryAlias};
+use datafusion::sql::planner::object_name_to_table_reference;
+use datafusion::sql::planner::IdentNormalizer;
+use datafusion::sql::planner::ParserOptions;
+use datafusion::sql::sqlparser::ast::ExactNumberInfo;
+use datafusion::sql::sqlparser::ast::TimezoneInfo;
+use datafusion::sql::sqlparser::ast::{ColumnDef as SQLColumnDef, ColumnOption};
+use datafusion::sql::sqlparser::ast::{DataType as SQLDataType, Ident, ObjectName, TableAlias};
 
-use crate::functions::*;
 use crate::utils::make_decimal_type;
 
 /// The ContextProvider trait allows the query planner to obtain meta-data about tables and

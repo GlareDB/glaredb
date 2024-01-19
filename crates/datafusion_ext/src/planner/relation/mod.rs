@@ -18,15 +18,17 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::functions::FuncParamValue;
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, OwnedTableReference, Result};
+
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
+
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast;
-
-use crate::functions::FuncParamValue;
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 mod join;
 

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use datafusion::common::tree_node::{Transformed, TreeNode};
 use datafusion::config::ConfigOptions;
 use datafusion::error::{DataFusionError, Result};
@@ -15,6 +13,7 @@ use datafusion::physical_plan::sorts::sort_preserving_merge::SortPreservingMerge
 use datafusion::physical_plan::union::{InterleaveExec, UnionExec};
 use datafusion::physical_plan::ExecutionPlan;
 use protogen::metastore::types::catalog::RuntimePreference;
+use std::sync::Arc;
 
 use crate::runtime::runtime_group::RuntimeGroupExec;
 
@@ -40,18 +39,16 @@ impl RuntimeGroupPullUp {
                 if children.is_empty() {
                     return Ok(None);
                 }
-                Ok(Some(
-                    if children.len() == 1 {
-                        self.optimize(children.first().unwrap().clone().child, config)?
-                    } else {
-                        Arc::new(UnionExec::new(
-                            children
-                                .into_iter()
-                                .map(|x| self.optimize(x.child, config))
-                                .collect::<Result<_>>()?,
-                        ))
-                    },
-                ))
+                Ok(Some(if children.len() == 1 {
+                    self.optimize(children.first().unwrap().clone().child, config)?
+                } else {
+                    Arc::new(UnionExec::new(
+                        children
+                            .into_iter()
+                            .map(|x| self.optimize(x.child, config))
+                            .collect::<Result<_>>()?,
+                    ))
+                }))
             };
 
         let it = children.into_iter();
@@ -172,12 +169,13 @@ fn can_pull_through_node(plan: &dyn ExecutionPlan) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use datafusion::arrow::datatypes::{DataType, Field, Schema};
+    use datafusion::arrow::datatypes::{DataType, Field};
     use datafusion::physical_plan::displayable;
-    use datafusion::physical_plan::empty::EmptyExec;
-    use datafusion::physical_plan::expressions::Column;
-    use datafusion::physical_plan::filter::FilterExec;
     use datafusion::physical_plan::union::UnionExec;
+    use datafusion::{
+        arrow::datatypes::Schema,
+        physical_plan::{empty::EmptyExec, expressions::Column, filter::FilterExec},
+    };
     use protogen::metastore::types::catalog::RuntimePreference;
 
     use super::*;

@@ -1,9 +1,5 @@
-use std::any::Any;
-use std::fmt;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-
+use crate::errors::Result;
+use crate::remote::client::RemoteSessionClient;
 use datafusion::arrow::array::UInt64Array;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
@@ -11,23 +7,20 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    SendableRecordBatchStream,
-    Statistics,
+    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
+    SendableRecordBatchStream, Statistics,
 };
 use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
 use protogen::gen::rpcsrv::common;
+use std::any::Any;
+use std::fmt;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 use tracing::debug;
 use uuid::Uuid;
-
-use crate::errors::Result;
-use crate::remote::client::RemoteSessionClient;
 
 /// Execution plan for sending batches to a remote node.
 #[derive(Debug)]

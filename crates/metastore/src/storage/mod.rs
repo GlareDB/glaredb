@@ -4,9 +4,8 @@ pub mod persist;
 
 mod lease;
 
-use std::time::SystemTime;
-
 use object_store::path::Path as ObjectPath;
+use std::time::SystemTime;
 use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]

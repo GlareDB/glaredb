@@ -1,22 +1,16 @@
-use std::collections::HashMap;
-use std::fmt::{self, Display};
-use std::str::FromStr;
-
-use datafusion::arrow::datatypes::DataType;
-use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
-use proptest_derive::Arbitrary;
-
 use super::options::{
-    CredentialsOptions,
-    DatabaseOptions,
-    InternalColumnDefinition,
-    TableOptions,
-    TableOptionsInternal,
-    TunnelOptions,
+    CredentialsOptions, InternalColumnDefinition, TableOptionsInternal, TunnelOptions,
 };
+use super::options::{DatabaseOptions, TableOptions};
 use crate::gen::common::arrow::ArrowType;
 use crate::gen::metastore::catalog::{self, type_signature};
 use crate::{FromOptionalField, ProtoConvError};
+use datafusion::arrow::datatypes::DataType;
+use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
+use proptest_derive::Arbitrary;
+use std::collections::HashMap;
+use std::fmt::{self, Display};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogState {
@@ -27,7 +21,6 @@ pub struct CatalogState {
 
 impl TryFrom<catalog::CatalogState> for CatalogState {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::CatalogState) -> Result<Self, Self::Error> {
         let mut entries = HashMap::with_capacity(value.entries.len());
         for (id, ent) in value.entries {
@@ -54,7 +47,6 @@ impl TryFrom<catalog::CatalogState> for CatalogState {
 
 impl TryFrom<CatalogState> for catalog::CatalogState {
     type Error = ProtoConvError;
-
     fn try_from(value: CatalogState) -> Result<Self, Self::Error> {
         Ok(catalog::CatalogState {
             version: value.version,
@@ -78,7 +70,6 @@ pub struct DeploymentMetadata {
 
 impl TryFrom<catalog::DeploymentMetadata> for DeploymentMetadata {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::DeploymentMetadata) -> Result<Self, Self::Error> {
         Ok(Self {
             storage_size: value.storage_size,
@@ -151,7 +142,6 @@ impl CatalogEntry {
 
 impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::catalog_entry::Entry) -> Result<Self, Self::Error> {
         Ok(match value {
             catalog::catalog_entry::Entry::Database(v) => CatalogEntry::Database(v.try_into()?),
@@ -169,7 +159,6 @@ impl TryFrom<catalog::catalog_entry::Entry> for CatalogEntry {
 
 impl TryFrom<catalog::CatalogEntry> for CatalogEntry {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::CatalogEntry) -> Result<Self, Self::Error> {
         value.entry.required("entry")
     }
@@ -177,7 +166,6 @@ impl TryFrom<catalog::CatalogEntry> for CatalogEntry {
 
 impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
     type Error = ProtoConvError;
-
     fn try_from(value: CatalogEntry) -> Result<Self, Self::Error> {
         let ent = match value {
             CatalogEntry::Database(v) => catalog::catalog_entry::Entry::Database(v.into()),
@@ -219,7 +207,6 @@ impl EntryType {
 
 impl TryFrom<i32> for EntryType {
     type Error = ProtoConvError;
-
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         catalog::entry_meta::EntryType::try_from(value)
             .map_err(|_| ProtoConvError::UnknownEnumVariant("EntryType", value))
@@ -229,7 +216,6 @@ impl TryFrom<i32> for EntryType {
 
 impl TryFrom<catalog::entry_meta::EntryType> for EntryType {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::entry_meta::EntryType) -> Result<Self, Self::Error> {
         Ok(match value {
             catalog::entry_meta::EntryType::Unknown => {
@@ -299,7 +285,6 @@ impl From<EntryMeta> for catalog::EntryMeta {
 
 impl TryFrom<catalog::EntryMeta> for EntryMeta {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::EntryMeta) -> Result<Self, Self::Error> {
         Ok(EntryMeta {
             entry_type: value.entry_type.try_into()?,
@@ -321,7 +306,6 @@ pub enum SourceAccessMode {
 
 impl FromStr for SourceAccessMode {
     type Err = ProtoConvError;
-
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_uppercase();
         let access_mode = catalog::SourceAccessMode::from_str_name(&s).ok_or_else(|| {
@@ -363,7 +347,6 @@ impl From<catalog::SourceAccessMode> for SourceAccessMode {
 
 impl TryFrom<i32> for SourceAccessMode {
     type Error = ProtoConvError;
-
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         Ok(match value {
             x if x == catalog::SourceAccessMode::ReadOnly as i32 => Self::ReadOnly,
@@ -403,7 +386,6 @@ pub struct DatabaseEntry {
 
 impl TryFrom<catalog::DatabaseEntry> for DatabaseEntry {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::DatabaseEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
         Ok(DatabaseEntry {
@@ -433,7 +415,6 @@ pub struct SchemaEntry {
 
 impl TryFrom<catalog::SchemaEntry> for SchemaEntry {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::SchemaEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
         Ok(SchemaEntry { meta })
@@ -468,7 +449,6 @@ impl TableEntry {
 
 impl TryFrom<catalog::TableEntry> for TableEntry {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::TableEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
         Ok(TableEntry {
@@ -482,7 +462,6 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
 
 impl TryFrom<TableEntry> for catalog::TableEntry {
     type Error = ProtoConvError;
-
     fn try_from(value: TableEntry) -> Result<Self, Self::Error> {
         Ok(catalog::TableEntry {
             meta: Some(value.meta.into()),
@@ -508,7 +487,6 @@ pub struct ViewEntry {
 
 impl TryFrom<catalog::ViewEntry> for ViewEntry {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::ViewEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
         Ok(ViewEntry {
@@ -537,7 +515,6 @@ pub struct TunnelEntry {
 
 impl TryFrom<catalog::TunnelEntry> for TunnelEntry {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::TunnelEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
         Ok(TunnelEntry {
@@ -575,7 +552,6 @@ impl FunctionType {
 
 impl TryFrom<i32> for FunctionType {
     type Error = ProtoConvError;
-
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         catalog::function_entry::FunctionType::try_from(value)
             .map_err(|_| ProtoConvError::UnknownEnumVariant("FunctionType", value))
@@ -585,7 +561,6 @@ impl TryFrom<i32> for FunctionType {
 
 impl TryFrom<catalog::function_entry::FunctionType> for FunctionType {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::function_entry::FunctionType) -> Result<Self, Self::Error> {
         Ok(match value {
             catalog::function_entry::FunctionType::Unknown => {
@@ -628,7 +603,6 @@ impl RuntimePreference {
 
 impl TryFrom<i32> for RuntimePreference {
     type Error = ProtoConvError;
-
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         let pref = catalog::function_entry::RuntimePreference::try_from(value)
             .map_err(|_| ProtoConvError::UnknownEnumVariant("RuntimePreference", value))?;
@@ -669,7 +643,6 @@ pub struct FunctionEntry {
 
 impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::FunctionEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
         Ok(FunctionEntry {
@@ -808,7 +781,6 @@ impl From<Signature> for catalog::Signature {
 
 impl TryFrom<catalog::Signature> for Signature {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::Signature) -> Result<Self, Self::Error> {
         let volatility = catalog::Volatility::try_from(value.volatility)?;
         let volatility: Volatility = volatility.try_into()?;
@@ -840,7 +812,6 @@ pub struct CredentialsEntry {
 
 impl TryFrom<catalog::CredentialsEntry> for CredentialsEntry {
     type Error = ProtoConvError;
-
     fn try_from(value: catalog::CredentialsEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
         Ok(CredentialsEntry {
@@ -863,10 +834,9 @@ impl From<CredentialsEntry> for catalog::CredentialsEntry {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use proptest::arbitrary::any;
     use proptest::proptest;
-
-    use super::*;
 
     proptest! {
         #[test]

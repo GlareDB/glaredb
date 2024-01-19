@@ -1,12 +1,12 @@
-use std::net::SocketAddr;
-
 use anyhow::Result;
 use clap::ValueEnum;
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use proxyutil::cloudauth::CloudAuthenticator;
-use rpcsrv::flight::handler::FlightServiceServer;
-use rpcsrv::flight::proxy::CloudFlightProxyHandler;
-use rpcsrv::proxy::CloudRpcProxyHandler;
+use rpcsrv::{
+    flight::{handler::FlightServiceServer, proxy::CloudFlightProxyHandler},
+    proxy::CloudRpcProxyHandler,
+};
+use std::net::SocketAddr;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 use tracing::{debug_span, info, warn};
 

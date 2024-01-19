@@ -1,8 +1,3 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::{env, fs};
-
 use anyhow::{anyhow, Result};
 use metastore::util::MetastoreClientMode;
 use pgsrv::auth::LocalAuthenticator;
@@ -10,9 +5,12 @@ use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use protogen::gen::rpcsrv::simple::simple_service_server::SimpleServiceServer;
 use rpcsrv::flight::handler::{FlightServiceServer, FlightSessionHandler};
-use rpcsrv::handler::RpcHandler;
-use rpcsrv::simple::SimpleHandler;
+use rpcsrv::{handler::RpcHandler, simple::SimpleHandler};
 use sqlexec::engine::{Engine, EngineStorageConfig};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::{env, fs};
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
 use tokio::signal;
@@ -78,79 +76,65 @@ impl ComputeServerBuilder {
             enable_flight_api: false,
         }
     }
-
     /// Set the authenticator to use for the pg handler.
     pub fn with_authenticator<T: LocalAuthenticator + 'static>(mut self, authenticator: T) -> Self {
         self.authenticator = Some(Box::new(authenticator));
         self
     }
-
     /// Add a tcp listener to use for serving over the pg protocol.
     pub fn with_pg_listener(mut self, pg_listener: TcpListener) -> Self {
         self.pg_listener = Some(pg_listener);
         self
     }
-
     /// Optionally add a tcp listener to use for serving over the pg protocol.
     pub fn with_pg_listener_opt(mut self, pg_listener: Option<TcpListener>) -> Self {
         self.pg_listener = pg_listener;
         self
     }
-
     /// Add a tcp listener to use for serving over the rpc protocol.
     pub fn with_rpc_listener(mut self, rpc_listener: TcpListener) -> Self {
         self.rpc_listener = Some(rpc_listener);
         self
     }
-
     /// Optionally add a tcp listener to use for serving over the rpc protocol.
     pub fn with_rpc_listener_opt(mut self, rpc_listener: Option<TcpListener>) -> Self {
         self.rpc_listener = rpc_listener;
         self
     }
-
     /// Add a metastore address to use for connecting to a remote metastore.
     pub fn with_metastore_addr(mut self, metastore_addr: String) -> Self {
         self.metastore_addr = Some(metastore_addr);
         self
     }
-
     /// Optionally add a metastore address to use for connecting to a remote metastore.
     pub fn with_metastore_addr_opt(mut self, metastore_addr: Option<String>) -> Self {
         self.metastore_addr = metastore_addr;
         self
     }
-
     pub fn with_segment_key(mut self, segment_key: String) -> Self {
         self.segment_key = Some(segment_key);
         self
     }
-
     pub fn with_segment_key_opt(mut self, segment_key: Option<String>) -> Self {
         self.segment_key = segment_key;
         self
     }
-
     pub fn with_data_dir(mut self, data_dir: PathBuf) -> Self {
         self.data_dir = Some(data_dir);
         self
     }
-
     pub fn with_data_dir_opt(mut self, data_dir: Option<PathBuf>) -> Self {
         self.data_dir = data_dir;
         self
     }
-
     pub fn with_service_account_path(mut self, service_account_path: String) -> Self {
         self.service_account_path = Some(service_account_path);
         self
     }
-
     pub fn with_service_account_path_opt(mut self, service_account_path: Option<String>) -> Self {
         self.service_account_path = service_account_path;
         self
     }
-
     pub fn with_location(mut self, location: String) -> Self {
         self.location = Some(location);
         self
@@ -165,32 +149,26 @@ impl ComputeServerBuilder {
         self.storage_options = storage_options;
         self
     }
-
     pub fn with_spill_path(mut self, spill_path: PathBuf) -> Self {
         self.spill_path = Some(spill_path);
         self
     }
-
     pub fn with_spill_path_opt(mut self, spill_path: Option<PathBuf>) -> Self {
         self.spill_path = spill_path;
         self
     }
-
     pub fn integration_testing_mode(mut self, integration_testing: bool) -> Self {
         self.integration_testing = integration_testing;
         self
     }
-
     pub fn disable_rpc_auth(mut self, disable_rpc_auth: bool) -> Self {
         self.disable_rpc_auth = disable_rpc_auth;
         self
     }
-
     pub fn enable_simple_query_rpc(mut self, enable_simple_query_rpc: bool) -> Self {
         self.enable_simple_query_rpc = enable_simple_query_rpc;
         self
     }
-
     pub fn enable_flight_api(mut self, enable_flight_api: bool) -> Self {
         self.enable_flight_api = enable_flight_api;
         self

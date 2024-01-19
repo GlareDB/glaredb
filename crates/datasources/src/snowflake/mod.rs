@@ -1,49 +1,41 @@
 pub mod errors;
 
-use std::any::Any;
 use std::fmt::{self, Write};
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::task::{Context, Poll};
+use std::{any::Any, sync::Arc};
 
+use crate::common::util;
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{
-    Field,
-    Fields,
-    Schema as ArrowSchema,
-    SchemaRef as ArrowSchemaRef,
-};
+use datafusion::arrow::datatypes::Fields;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::datasource::TableProvider;
-use datafusion::error::{DataFusionError, Result as DatafusionResult};
-use datafusion::execution::context::{SessionState, TaskContext};
-use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
+use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    RecordBatchStream,
-    Statistics,
+    DisplayAs, DisplayFormatType, Partitioning, RecordBatchStream, Statistics,
 };
 use datafusion::scalar::ScalarValue;
+use datafusion::{
+    arrow::datatypes::{Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
+    datasource::TableProvider,
+    error::{DataFusionError, Result as DatafusionResult},
+    execution::context::SessionState,
+    logical_expr::{Expr, TableProviderFilterPushDown, TableType},
+    physical_plan::ExecutionPlan,
+};
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
-use errors::Result;
 use futures::{Stream, StreamExt};
-use snowflake_connector::datatype::SnowflakeDataType;
 use snowflake_connector::{
-    snowflake_to_arrow_datatype,
-    Connection as SnowflakeConnection,
+    datatype::SnowflakeDataType, snowflake_to_arrow_datatype, Connection as SnowflakeConnection,
     QueryBindParameter,
-    QueryResult,
-    QueryResultChunkMeta,
 };
+use snowflake_connector::{QueryResult, QueryResultChunkMeta};
 
-use crate::common::util;
+use errors::Result;
 
 #[derive(Debug, Clone)]
 pub struct SnowflakeDbConnection {

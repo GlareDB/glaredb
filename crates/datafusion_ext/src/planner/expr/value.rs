@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashSet;
-
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use async_recursion::async_recursion;
 use datafusion::arrow::compute::kernels::cast_utils::parse_interval_month_day_nano;
 use datafusion::arrow::datatypes::DataType;
@@ -26,8 +25,7 @@ use datafusion::logical_expr::{lit, Expr, Operator};
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{BinaryOperator, DateTimeField, Expr as SQLExpr, Value};
 use datafusion::sql::sqlparser::parser::ParserError::ParserError;
-
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+use std::collections::HashSet;
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     pub(crate) fn parse_value(&self, value: Value, param_data_types: &[DataType]) -> Result<Expr> {
@@ -246,7 +244,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     //
                     // Leading field is not supported when the right operand
                     // is not a value.
-                    (None, ..) => {
+                    (None, _, _) => {
                         let left_expr = self
                             .sql_interval_to_expr(
                                 *left,

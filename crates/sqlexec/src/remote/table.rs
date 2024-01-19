@@ -1,17 +1,21 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{Schema, SchemaRef};
-use datafusion::datasource::TableProvider;
-use datafusion::error::{DataFusionError, Result as DfResult};
-use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::TableType;
-use datafusion::physical_plan::ExecutionPlan;
-use datafusion::prelude::Expr;
+use datafusion::{
+    arrow::datatypes::{Schema, SchemaRef},
+    datasource::TableProvider,
+    error::{DataFusionError, Result as DfResult},
+    execution::context::SessionState,
+    logical_expr::TableType,
+    physical_plan::ExecutionPlan,
+    prelude::Expr,
+};
 use uuid::Uuid;
 
-use crate::errors::Result;
-use crate::planner::physical_plan::remote_scan::{ProviderReference, RemoteScanExec};
+use crate::{
+    errors::Result,
+    planner::physical_plan::remote_scan::{ProviderReference, RemoteScanExec},
+};
 
 /// A stub table provider for getting the schema of a remote table.
 ///

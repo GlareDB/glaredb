@@ -13,12 +13,11 @@
 //! database node will be able to see it, but will not be able to execute
 //! appropriately. We can revisit this if this isn't acceptable long-term.
 
-use std::sync::Arc;
-
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_GLAREDB_BUILTIN_ID;
 use protogen::metastore::types::options::InternalColumnDefinition;
+use std::sync::Arc;
 
 /// The default catalog that exists in all GlareDB databases.
 pub const DEFAULT_CATALOG: &str = "default";
@@ -235,6 +234,7 @@ pub static GLARE_DEPLOYMENT_METADATA: Lazy<BuiltinTable> = Lazy::new(|| BuiltinT
 /// This stores information for all tables, and all columns for each table.
 ///
 /// The cached data lives in an on-disk (delta) table alongside user table data.
+///
 // TODO: Do we want to store columns in a separate table?
 pub static GLARE_CACHED_EXTERNAL_DATABASE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
@@ -709,9 +709,8 @@ impl BuiltinView {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn builtin_schema_oid_range() {

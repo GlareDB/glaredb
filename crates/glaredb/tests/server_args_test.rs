@@ -1,7 +1,6 @@
 mod setup;
 
-use predicates::boolean::PredicateBooleanExt;
-use predicates::str::contains;
+use predicates::{boolean::PredicateBooleanExt, str::contains};
 use setup::DEFAULT_TIMEOUT;
 
 use crate::setup::make_cli;

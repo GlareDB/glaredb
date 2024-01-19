@@ -1,11 +1,13 @@
-use std::sync::Arc;
-
-use datafusion::arrow::pyarrow::PyArrowType;
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::datasource::{MemTable, TableProvider};
-use pyo3::prelude::*;
-use pyo3::types::{IntoPyDict, PyTuple, PyType};
+use datafusion::datasource::MemTable;
+use datafusion::{
+    arrow::{pyarrow::PyArrowType, record_batch::RecordBatch},
+    datasource::TableProvider,
+};
+use pyo3::types::IntoPyDict;
+use pyo3::types::PyTuple;
+use pyo3::{prelude::*, types::PyType};
 use sqlexec::environment::EnvironmentReader;
+use std::sync::Arc;
 
 use crate::logical_plan::PyLogicalPlan;
 

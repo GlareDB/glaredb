@@ -8,11 +8,11 @@ use super::*;
 pub struct SipHash;
 
 impl ConstBuiltinFunction for SipHash {
+    const NAME: &'static str = "siphash";
     const DESCRIPTION: &'static str =
         "Calculates a 64bit non-cryptographic hash (SipHash24) of the value.";
     const EXAMPLE: &'static str = "siphash(<value>)";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "siphash";
 
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
@@ -49,11 +49,11 @@ impl BuiltinScalarUDF for SipHash {
 pub struct FnvHash;
 
 impl ConstBuiltinFunction for FnvHash {
+    const NAME: &'static str = "fnv";
     const DESCRIPTION: &'static str =
         "Calculates a 64bit non-cryptographic hash (fnv1a) of the value.";
     const EXAMPLE: &'static str = "fnv(<value>)";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "fnv";
 
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
@@ -91,11 +91,11 @@ impl BuiltinScalarUDF for FnvHash {
 pub struct PartitionResults;
 
 impl ConstBuiltinFunction for PartitionResults {
+    const NAME: &'static str = "partition_results";
     const DESCRIPTION: &'static str =
         "Returns true if the value is in the partition ID given the number of partitions.";
     const EXAMPLE: &'static str = "partition_results(<value>, <num_partitions>, <partition_id>)";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "partition_results";
 
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(

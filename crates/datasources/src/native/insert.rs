@@ -1,6 +1,3 @@
-use std::any::Any;
-use std::sync::Arc;
-
 use datafusion::arrow::array::UInt64Array;
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -10,19 +7,16 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    Distribution,
-    ExecutionPlan,
-    Partitioning,
-    SendableRecordBatchStream,
-    Statistics,
+    DisplayAs, DisplayFormatType, Distribution, ExecutionPlan, Partitioning,
+    SendableRecordBatchStream, Statistics,
 };
 use deltalake::operations::write::WriteBuilder;
 use deltalake::protocol::SaveMode;
 use deltalake::storage::DeltaObjectStore;
 use deltalake::table::state::DeltaTableState;
 use futures::StreamExt;
+use std::any::Any;
+use std::sync::Arc;
 
 /// An execution plan for inserting data into a delta table.
 #[derive(Debug)]

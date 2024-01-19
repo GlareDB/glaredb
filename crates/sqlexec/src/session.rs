@@ -5,6 +5,20 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
+use crate::distexec::scheduler::{OutputSink, Scheduler};
+use crate::distexec::stream::create_coalescing_adapter;
+use crate::environment::EnvironmentReader;
+use crate::errors::{ExecError, Result};
+use crate::parser::StatementWithExtensions;
+use crate::planner::logical_plan::*;
+use crate::planner::physical_plan::{
+    get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
+    GENERIC_OPERATION_PHYSICAL_SCHEMA,
+};
+use crate::planner::session_planner::SessionPlanner;
+use crate::remote::client::RemoteClient;
+use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 use catalog::mutator::CatalogMutator;
 use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::Schema;
@@ -13,19 +27,13 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{
-    execute_stream,
-    ExecutionPlan,
-    RecordBatchStream,
-    SendableRecordBatchStream,
+    execute_stream, ExecutionPlan, RecordBatchStream, SendableRecordBatchStream,
 };
 use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::metrics::AggregatedMetrics;
 use datafusion_ext::session_metrics::{
-    BatchStreamWithMetricSender,
-    ExecutionStatus,
-    QueryMetrics,
-    SessionMetricsHandler,
+    BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetricsHandler,
 };
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
@@ -36,27 +44,9 @@ use pgrepr::notice::{Notice, NoticeSeverity, SqlState};
 use telemetry::Tracker;
 use uuid::Uuid;
 
-use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
-use crate::distexec::scheduler::{OutputSink, Scheduler};
-use crate::distexec::stream::create_coalescing_adapter;
-use crate::environment::EnvironmentReader;
-use crate::errors::{ExecError, Result};
-use crate::parser::StatementWithExtensions;
-use crate::planner::logical_plan::*;
-use crate::planner::physical_plan::{
-    get_count_from_batch,
-    get_operation_from_batch,
-    GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
-    GENERIC_OPERATION_PHYSICAL_SCHEMA,
-};
-use crate::planner::session_planner::SessionPlanner;
-use crate::remote::client::RemoteClient;
-use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
-
 static EMPTY_EXEC_PLAN: Lazy<Arc<dyn ExecutionPlan>> = Lazy::new(|| {
     Arc::new(EmptyExec::new(
-        // produce_one_row =
-        false,
+        /* produce_one_row = */ false,
         Arc::new(Schema::empty()),
     ))
 });
@@ -128,7 +118,6 @@ pub struct PrepareStatementArg {
 
 impl<'a> TryFrom<&'a str> for PrepareStatementArg {
     type Error = ExecError;
-
     fn try_from(query: &'a str) -> Result<Self> {
         let mut statements = crate::parser::parse_sql(query)?;
         match statements.len() {
@@ -145,7 +134,6 @@ impl<'a> TryFrom<&'a str> for PrepareStatementArg {
 
 impl<'a> TryFrom<&'a String> for PrepareStatementArg {
     type Error = ExecError;
-
     fn try_from(query: &'a String) -> Result<Self> {
         let s: &str = query;
         s.try_into()
@@ -154,14 +142,12 @@ impl<'a> TryFrom<&'a String> for PrepareStatementArg {
 
 impl TryFrom<Option<StatementWithExtensions>> for PrepareStatementArg {
     type Error = ExecError;
-
     fn try_from(stmt: Option<StatementWithExtensions>) -> Result<Self> {
         Ok(PrepareStatementArg { stmt })
     }
 }
 impl TryFrom<StatementWithExtensions> for PrepareStatementArg {
     type Error = ExecError;
-
     fn try_from(stmt: StatementWithExtensions) -> Result<Self> {
         Ok(PrepareStatementArg { stmt: Some(stmt) })
     }

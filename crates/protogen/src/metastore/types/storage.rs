@@ -1,10 +1,8 @@
-use std::time::SystemTime;
-
-use uuid::Uuid;
-
 use super::catalog::CatalogState;
 use crate::gen::metastore::storage;
 use crate::{FromOptionalField, ProtoConvError};
+use std::time::SystemTime;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LeaseState {
@@ -14,7 +12,6 @@ pub enum LeaseState {
 
 impl TryFrom<storage::lease_information::State> for LeaseState {
     type Error = ProtoConvError;
-
     fn try_from(value: storage::lease_information::State) -> Result<Self, Self::Error> {
         match value {
             storage::lease_information::State::Unkown => {
@@ -28,7 +25,6 @@ impl TryFrom<storage::lease_information::State> for LeaseState {
 
 impl TryFrom<i32> for LeaseState {
     type Error = ProtoConvError;
-
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         storage::lease_information::State::try_from(value)
             .map_err(|_| ProtoConvError::UnknownEnumVariant("LockState", value))
@@ -55,7 +51,6 @@ pub struct LeaseInformation {
 
 impl TryFrom<storage::LeaseInformation> for LeaseInformation {
     type Error = ProtoConvError;
-
     fn try_from(value: storage::LeaseInformation) -> Result<Self, Self::Error> {
         let state: LeaseState = value.state.try_into()?;
         if state == LeaseState::Unlocked {
@@ -106,7 +101,6 @@ pub struct CatalogMetadata {
 
 impl TryFrom<storage::CatalogMetadata> for CatalogMetadata {
     type Error = ProtoConvError;
-
     fn try_from(value: storage::CatalogMetadata) -> Result<Self, Self::Error> {
         Ok(CatalogMetadata {
             latest_version: value.latest_version,
@@ -132,7 +126,6 @@ pub struct PersistedCatalog {
 
 impl TryFrom<storage::PersistedCatalog> for PersistedCatalog {
     type Error = ProtoConvError;
-
     fn try_from(value: storage::PersistedCatalog) -> Result<Self, Self::Error> {
         Ok(PersistedCatalog {
             state: value.state.required("state".to_string())?,
@@ -143,7 +136,6 @@ impl TryFrom<storage::PersistedCatalog> for PersistedCatalog {
 
 impl TryFrom<PersistedCatalog> for storage::PersistedCatalog {
     type Error = ProtoConvError;
-
     fn try_from(value: PersistedCatalog) -> Result<Self, Self::Error> {
         Ok(storage::PersistedCatalog {
             state: Some(value.state.try_into()?),
@@ -159,7 +151,6 @@ pub struct ExtraState {
 
 impl TryFrom<storage::ExtraState> for ExtraState {
     type Error = ProtoConvError;
-
     fn try_from(value: storage::ExtraState) -> Result<Self, Self::Error> {
         Ok(ExtraState {
             oid_counter: value.oid_counter,

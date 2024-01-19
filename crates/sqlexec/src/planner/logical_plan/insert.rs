@@ -3,8 +3,9 @@ use std::hash::Hash;
 
 use protogen::metastore::types::catalog::RuntimePreference;
 
-use super::*;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
+
+use super::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Insert {

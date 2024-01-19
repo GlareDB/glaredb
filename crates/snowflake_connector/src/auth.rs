@@ -178,8 +178,7 @@ impl Authenticator {
                 AUTH_ENDPOINT,
                 Some(&params),
                 &AuthRequest { data: req.into() },
-                // Token =
-                None,
+                /* Token = */ None,
             )
             .await
     }

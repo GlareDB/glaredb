@@ -1,16 +1,14 @@
-use std::fmt;
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use datafusion::common::Result as DfResult;
 use datafusion::execution::TaskContext;
-use datafusion::parquet::arrow::AsyncArrowWriter;
-use datafusion::parquet::file::properties::WriterProperties;
+use datafusion::parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
 use datafusion::physical_plan::insert::DataSink;
-use datafusion::physical_plan::{DisplayAs, DisplayFormatType, SendableRecordBatchStream};
+use datafusion::physical_plan::DisplayAs;
+use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
-use object_store::path::Path as ObjectPath;
-use object_store::ObjectStore;
+use object_store::{path::Path as ObjectPath, ObjectStore};
+use std::fmt;
+use std::sync::Arc;
 
 const BUFFER_SIZE: usize = 8 * 1024 * 1024;
 

@@ -17,11 +17,11 @@ use crate::functions::ConstBuiltinFunction;
 pub struct ReadSnowflake;
 
 impl ConstBuiltinFunction for ReadSnowflake {
+    const NAME: &'static str = "read_snowflake";
     const DESCRIPTION: &'static str = "Reads a Snowflake table";
     const EXAMPLE: &'static str =
         "SELECT * FROM read_snowflake('account', 'username', 'password', 'database', 'warehouse', 'role', 'schema', 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
-    const NAME: &'static str = "read_snowflake";
 
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(

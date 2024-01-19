@@ -1,6 +1,11 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
+use crate::context::local::LocalSessionContext;
+use crate::dispatch::DispatchError;
+use crate::dispatch::Dispatcher;
+use crate::errors::ExecError;
+use crate::planner::errors::PlanError;
+use crate::remote::client::RemoteSessionClient;
+use crate::resolve::EntryResolver;
+use crate::resolve::ResolvedEntry;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::OwnedTableReference;
@@ -8,29 +13,23 @@ use datafusion::config::ConfigOptions;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::{AggregateUDF, TableSource};
+use datafusion::logical_expr::AggregateUDF;
+use datafusion::logical_expr::TableSource;
 use datafusion::prelude::Expr;
 use datafusion::sql::TableReference;
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_ext::planner::AsyncContextProvider;
+
 use datafusion_ext::runtime::table_provider::RuntimeAwareTableProvider;
 use protogen::metastore::types::catalog::{
-    CatalogEntry,
-    DatabaseEntry,
-    FunctionEntry,
-    RuntimePreference,
-    TableEntry,
+    CatalogEntry, DatabaseEntry, FunctionEntry, RuntimePreference, TableEntry,
 };
 use protogen::metastore::types::options::TableOptions;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
-use sqlbuiltins::functions::FUNCTION_REGISTRY;
 
-use crate::context::local::LocalSessionContext;
-use crate::dispatch::{DispatchError, Dispatcher};
-use crate::errors::ExecError;
-use crate::planner::errors::PlanError;
-use crate::remote::client::RemoteSessionClient;
-use crate::resolve::{EntryResolver, ResolvedEntry};
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Partial context provider with table providers required to fulfill a single
 /// query.

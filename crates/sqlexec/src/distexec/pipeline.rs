@@ -1,13 +1,12 @@
-use std::fmt::Debug;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::repartition::RepartitionExec;
 use datafusion::physical_plan::{ExecutionPlan, Partitioning};
+use std::sync::Arc;
+use std::task::Poll;
+use std::{fmt::Debug, task::Context};
 
 use super::adapter::{AdapterPipeline, SplicedPlan};
 use super::repartition::RepartitionPipeline;

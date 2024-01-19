@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
 use once_cell::sync::Lazy;
+
 use protogen::metastore::types::catalog::FunctionType;
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
@@ -115,19 +116,15 @@ where
     fn name(&self) -> &str {
         Self::NAME
     }
-
     fn sql_example(&self) -> Option<&str> {
         Some(Self::EXAMPLE)
     }
-
     fn description(&self) -> Option<&str> {
         Some(Self::DESCRIPTION)
     }
-
     fn function_type(&self) -> FunctionType {
         Self::FUNCTION_TYPE
     }
-
     fn signature(&self) -> Option<Signature> {
         self.signature()
     }
@@ -353,9 +350,8 @@ macro_rules! document {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn get_function_info() {

@@ -1,24 +1,18 @@
-use std::any::Any;
-use std::fmt;
-use std::sync::Arc;
-
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    SendableRecordBatchStream,
-    Statistics,
+    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
+    SendableRecordBatchStream, Statistics,
 };
 use datafusion_ext::vars::SessionVars;
 use futures::stream;
+use std::any::Any;
+use std::fmt;
+use std::sync::Arc;
 
 pub fn create_show_var_schema(var: impl Into<String>) -> Schema {
     Schema::new(vec![Field::new(var, DataType::Utf8, false)])

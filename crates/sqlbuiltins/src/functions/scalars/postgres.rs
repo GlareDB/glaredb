@@ -1,8 +1,8 @@
 use datafusion::logical_expr::expr::ScalarFunction;
 
-use super::df_scalars::array_to_string;
-use super::*;
 use crate::functions::FunctionNamespace;
+
+use super::{df_scalars::array_to_string, *};
 
 const PG_CATALOG_NAMESPACE: FunctionNamespace = FunctionNamespace::Optional("pg_catalog");
 
@@ -10,11 +10,10 @@ const PG_CATALOG_NAMESPACE: FunctionNamespace = FunctionNamespace::Optional("pg_
 pub struct PgGetUserById;
 
 impl ConstBuiltinFunction for PgGetUserById {
+    const NAME: &'static str = "pg_get_userbyid";
     const DESCRIPTION: &'static str = "Postgres `pg_get_userbyid` function";
     const EXAMPLE: &'static str = "pg_get_userbyid(1)";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "pg_get_userbyid";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::Exact(vec![DataType::Int64]),
@@ -50,11 +49,10 @@ impl BuiltinScalarUDF for PgGetUserById {
 pub struct PgTableIsVisible;
 
 impl ConstBuiltinFunction for PgTableIsVisible {
+    const NAME: &'static str = "pg_table_is_visible";
     const DESCRIPTION: &'static str = "Postgres `pg_table_is_visible` function";
     const EXAMPLE: &'static str = "pg_table_is_visible(1)";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "pg_table_is_visible";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::Exact(vec![DataType::Int64]),
@@ -97,11 +95,10 @@ impl BuiltinScalarUDF for PgTableIsVisible {
 pub struct PgEncodingToChar;
 
 impl ConstBuiltinFunction for PgEncodingToChar {
+    const NAME: &'static str = "pg_encoding_to_char";
     const DESCRIPTION: &'static str = "Postgres `pg_encoding_to_char` function";
     const EXAMPLE: &'static str = "pg_encoding_to_char(1)";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "pg_encoding_to_char";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::Exact(vec![DataType::Int64]),
@@ -146,11 +143,10 @@ impl BuiltinScalarUDF for PgEncodingToChar {
 pub struct HasSchemaPrivilege;
 
 impl ConstBuiltinFunction for HasSchemaPrivilege {
+    const NAME: &'static str = "has_schema_privilege";
     const DESCRIPTION: &'static str = "Returns true if user have privilege for schema";
     const EXAMPLE: &'static str = "has_schema_privilege('foo', 'bar', 'baz')";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "has_schema_privilege";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::OneOf(vec![
@@ -187,11 +183,10 @@ impl BuiltinScalarUDF for HasSchemaPrivilege {
 pub struct HasDatabasePrivilege;
 
 impl ConstBuiltinFunction for HasDatabasePrivilege {
+    const NAME: &'static str = "has_database_privilege";
     const DESCRIPTION: &'static str = "Returns true if user have privilege for database";
     const EXAMPLE: &'static str = "has_database_privilege('foo', 'bar', 'baz')";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "has_database_privilege";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::OneOf(vec![
@@ -227,11 +222,10 @@ impl BuiltinScalarUDF for HasDatabasePrivilege {
 #[derive(Clone, Copy, Debug)]
 pub struct HasTablePrivilege;
 impl ConstBuiltinFunction for HasTablePrivilege {
+    const NAME: &'static str = "has_table_privilege";
     const DESCRIPTION: &'static str = "Returns true if user have privilege for table";
     const EXAMPLE: &'static str = "has_table_privilege('foo', 'bar', 'baz')";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "has_table_privilege";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::OneOf(vec![
@@ -268,11 +262,10 @@ impl BuiltinScalarUDF for HasTablePrivilege {
 pub struct CurrentSchemas;
 
 impl ConstBuiltinFunction for CurrentSchemas {
+    const NAME: &'static str = "current_schemas";
     const DESCRIPTION: &'static str = "Returns current schemas";
     const EXAMPLE: &'static str = "current_schemas()";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "current_schemas";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::one_of(
             vec![
@@ -311,11 +304,10 @@ impl BuiltinScalarUDF for CurrentSchemas {
 pub struct CurrentUser;
 
 impl ConstBuiltinFunction for CurrentUser {
+    const NAME: &'static str = "current_user";
     const DESCRIPTION: &'static str = "Returns current user";
     const EXAMPLE: &'static str = "current_user()";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "current_user";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::Exact(vec![]),
@@ -333,11 +325,10 @@ impl BuiltinScalarUDF for CurrentUser {
 pub struct CurrentRole;
 
 impl ConstBuiltinFunction for CurrentRole {
+    const NAME: &'static str = "current_role";
     const DESCRIPTION: &'static str = "Returns current role";
     const EXAMPLE: &'static str = "current_role()";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "current_role";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::Exact(vec![]),
@@ -360,11 +351,10 @@ impl BuiltinScalarUDF for CurrentRole {
 pub struct CurrentSchema;
 
 impl ConstBuiltinFunction for CurrentSchema {
+    const NAME: &'static str = "current_schema";
     const DESCRIPTION: &'static str = "Returns current schema";
     const EXAMPLE: &'static str = "current_schema()";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "current_schema";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::Exact(vec![]),
@@ -387,11 +377,10 @@ impl BuiltinScalarUDF for CurrentSchema {
 pub struct CurrentDatabase;
 
 impl ConstBuiltinFunction for CurrentDatabase {
+    const NAME: &'static str = "current_database";
     const DESCRIPTION: &'static str = "Returns current database";
     const EXAMPLE: &'static str = "current_database()";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "current_database";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::Exact(vec![]),
@@ -410,11 +399,10 @@ impl BuiltinScalarUDF for CurrentDatabase {
 pub struct CurrentCatalog;
 
 impl ConstBuiltinFunction for CurrentCatalog {
+    const NAME: &'static str = "current_catalog";
     const DESCRIPTION: &'static str = "Returns current catalog";
     const EXAMPLE: &'static str = "current_catalog()";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "current_catalog";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::Exact(vec![]),
@@ -437,11 +425,10 @@ impl BuiltinScalarUDF for CurrentCatalog {
 pub struct User;
 
 impl ConstBuiltinFunction for User {
+    const NAME: &'static str = "user";
     const DESCRIPTION: &'static str = "equivalent to `current_user`";
     const EXAMPLE: &'static str = "user()";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = "user";
-
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
             TypeSignature::Exact(vec![]),
@@ -467,11 +454,10 @@ impl BuiltinScalarUDF for User {
 pub struct PgArrayToString;
 
 impl ConstBuiltinFunction for PgArrayToString {
+    const NAME: &'static str = array_to_string::NAME;
     const DESCRIPTION: &'static str = array_to_string::DESCRIPTION;
     const EXAMPLE: &'static str = array_to_string::EXAMPLE;
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    const NAME: &'static str = array_to_string::NAME;
-
     fn signature(&self) -> Option<Signature> {
         Some(BuiltinScalarFunction::ArrayToString.signature())
     }

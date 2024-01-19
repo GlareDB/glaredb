@@ -1,17 +1,15 @@
+use futures::future::{FutureExt, TryFutureExt};
+use ring::digest;
+use rustls::{ClientConfig, ServerName};
 use std::convert::TryFrom;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-
-use futures::future::{FutureExt, TryFutureExt};
-use ring::digest;
-use rustls::{ClientConfig, ServerName};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio_postgres::tls::{ChannelBinding, MakeTlsConnect, TlsConnect};
-use tokio_rustls::client::TlsStream;
-use tokio_rustls::TlsConnector;
+use tokio_rustls::{client::TlsStream, TlsConnector};
 
 #[derive(Clone)]
 pub struct MakeRustlsConnect {
@@ -50,9 +48,9 @@ impl<S> MakeTlsConnect<S> for MakeRustlsConnect
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    type Error = io::Error;
     type Stream = RustlsStream<S>;
     type TlsConnect = RustlsConnect;
+    type Error = io::Error;
 
     fn make_tls_connect(&mut self, hostname: &str) -> io::Result<RustlsConnect> {
         ServerName::try_from(hostname)
@@ -77,9 +75,9 @@ impl<S> TlsConnect<S> for RustlsConnect
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
+    type Stream = RustlsStream<S>;
     type Error = io::Error;
     type Future = Pin<Box<dyn Future<Output = io::Result<RustlsStream<S>>> + Send>>;
-    type Stream = RustlsStream<S>;
 
     fn connect(self, stream: S) -> Self::Future {
         match self.0 {

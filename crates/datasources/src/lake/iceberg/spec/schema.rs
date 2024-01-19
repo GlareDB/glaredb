@@ -1,17 +1,12 @@
-use std::str::FromStr;
-use std::sync::Arc;
-
+use crate::lake::iceberg::errors::{IcebergError, Result};
 use datafusion::arrow::datatypes::{
-    DataType,
-    Field as ArrowField,
-    Schema as ArrowSchema,
-    TimeUnit,
+    DataType, Field as ArrowField, Schema as ArrowSchema, TimeUnit,
 };
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
-
-use crate::lake::iceberg::errors::{IcebergError, Result};
+use std::str::FromStr;
+use std::sync::Arc;
 
 /// Primitive types supported in iceberg tables.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,7 +39,7 @@ impl TryFrom<PrimitiveType> for DataType {
             PrimitiveType::Double => DataType::Float64,
             PrimitiveType::Decimal { p, s } => DataType::Decimal128(p, s as i8),
             PrimitiveType::Date => DataType::Date32,
-            PrimitiveType::Time => DataType::Timestamp(TimeUnit::Microsecond, None), /* TODO: Possibly `Time32` instead? */
+            PrimitiveType::Time => DataType::Timestamp(TimeUnit::Microsecond, None), // TODO: Possibly `Time32` instead?
             PrimitiveType::Timestamp => DataType::Timestamp(TimeUnit::Microsecond, None),
             PrimitiveType::Timestamptz => DataType::Timestamp(TimeUnit::Microsecond, None),
             PrimitiveType::String => DataType::Utf8,

@@ -1,11 +1,9 @@
-use std::borrow::Cow;
-
+use crate::context::local::LocalSessionContext;
 use catalog::session_catalog::SessionCatalog;
 use datafusion::sql::TableReference;
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, TableEntry};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
-
-use crate::context::local::LocalSessionContext;
+use std::borrow::Cow;
 
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("failed to resolve: {0}")]

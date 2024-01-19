@@ -15,20 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, Result, ScalarValue};
 use datafusion::logical_expr::{Expr, LogicalPlan, LogicalPlanBuilder};
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
-    Expr as SQLExpr,
-    Offset as SQLOffset,
-    OrderByExpr,
-    Query,
-    Value,
+    Expr as SQLExpr, Offset as SQLOffset, OrderByExpr, Query, Value,
 };
-use datafusion::sql::sqlparser::parser::ParserError::ParserError;
 
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+use datafusion::sql::sqlparser::parser::ParserError::ParserError;
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     /// Generate a logical plan from an SQL query

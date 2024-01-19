@@ -1,6 +1,5 @@
-use std::convert::TryFrom;
-
 use crate::error::{PgReprError, Result};
+use std::convert::TryFrom;
 
 /// Postgres paramater formats.
 #[derive(Debug, Clone, Copy)]

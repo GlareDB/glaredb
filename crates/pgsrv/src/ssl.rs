@@ -1,16 +1,13 @@
+use crate::errors::{PgSrvError, Result};
+use rustls::{server, sign, Certificate, PrivateKey, ServerConfig};
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-
-use rustls::{server, sign, Certificate, PrivateKey, ServerConfig};
 use tokio::fs;
 use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
-use tokio_rustls::server::TlsStream;
-use tokio_rustls::TlsAcceptor;
+use tokio_rustls::{server::TlsStream, TlsAcceptor};
 use tracing::debug;
-
-use crate::errors::{PgSrvError, Result};
 
 /// Configuration for creating encrypted connections using SSL/TLS.
 #[derive(Debug)]
@@ -148,11 +145,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
-
-    use tempfile::NamedTempFile;
-
     use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
 
     const TEST_CERT: &str = r#"
 -----BEGIN CERTIFICATE-----

@@ -1,7 +1,6 @@
 use std::future::Future;
 
-use pyo3::prelude::*;
-use pyo3::{PyRef, Python};
+use pyo3::{prelude::*, PyRef, Python};
 use tokio::runtime::Runtime;
 
 #[pyclass]

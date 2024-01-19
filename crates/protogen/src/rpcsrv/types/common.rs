@@ -8,7 +8,6 @@ pub struct SessionStorageConfig {
 
 impl TryFrom<common::SessionStorageConfig> for SessionStorageConfig {
     type Error = ProtoConvError;
-
     fn try_from(value: common::SessionStorageConfig) -> Result<Self, Self::Error> {
         Ok(SessionStorageConfig {
             gcs_bucket: value.gcs_bucket,

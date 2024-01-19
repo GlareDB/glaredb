@@ -1,24 +1,22 @@
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-
+use crate::errors::{Result, RpcsrvError};
 use async_trait::async_trait;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
 use futures::{Stream, StreamExt};
-use protogen::gen::rpcsrv::simple;
-use protogen::rpcsrv::types::simple::{
-    ExecuteQueryRequest,
-    ExecuteQueryResponse,
-    QueryResultError,
-    QueryResultSuccess,
+use protogen::{
+    gen::rpcsrv::simple,
+    rpcsrv::types::simple::{
+        ExecuteQueryRequest, ExecuteQueryResponse, QueryResultError, QueryResultSuccess,
+    },
 };
-use sqlexec::engine::Engine;
-use sqlexec::OperationInfo;
+use sqlexec::{engine::Engine, OperationInfo};
+use std::{
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
 use tonic::{Request, Response, Status};
-
-use crate::errors::{Result, RpcsrvError};
 
 /// The "simple query" rpc handler.
 ///
@@ -131,12 +129,12 @@ impl Stream for SimpleExecuteQueryStream {
 
 #[cfg(test)]
 mod tests {
-    use datafusion::arrow::datatypes::Schema;
-    use datafusion::arrow::record_batch::RecordBatch;
-    use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-    use futures::stream::{self, StreamExt};
-
     use super::*;
+    use datafusion::{
+        arrow::{datatypes::Schema, record_batch::RecordBatch},
+        physical_plan::stream::RecordBatchStreamAdapter,
+    };
+    use futures::stream::{self, StreamExt};
 
     #[tokio::test]
     async fn simple_stream_exits() {

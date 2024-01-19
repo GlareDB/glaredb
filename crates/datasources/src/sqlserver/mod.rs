@@ -2,6 +2,37 @@ pub mod errors;
 
 mod client;
 
+use async_trait::async_trait;
+use chrono::naive::NaiveDateTime;
+use chrono::{DateTime, Utc};
+use client::{Client, QueryStream};
+use datafusion::arrow::datatypes::{
+    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+};
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::datasource::TableProvider;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::execution::context::SessionState;
+use datafusion::execution::context::TaskContext;
+use datafusion::logical_expr::{BinaryExpr, Expr, TableProviderFilterPushDown, TableType};
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
+use datafusion::physical_plan::metrics::MetricsSet;
+use datafusion::physical_plan::{
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
+    SendableRecordBatchStream, Statistics,
+};
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
+use errors::{Result, SqlServerError};
+use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
+use tiberius::FromSql;
+use tokio::net::TcpStream;
+use tokio::task::JoinHandle;
+use tokio_util::compat::TokioAsyncWriteCompatExt;
+use tracing::warn;
+
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::{self, Write};
@@ -9,47 +40,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
-
-use async_trait::async_trait;
-use chrono::naive::NaiveDateTime;
-use chrono::{DateTime, Utc};
-use client::{Client, QueryStream};
-use datafusion::arrow::datatypes::{
-    DataType,
-    Field,
-    Fields,
-    Schema as ArrowSchema,
-    SchemaRef as ArrowSchemaRef,
-    TimeUnit,
-};
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::datasource::TableProvider;
-use datafusion::error::{DataFusionError, Result as DatafusionResult};
-use datafusion::execution::context::{SessionState, TaskContext};
-use datafusion::logical_expr::{BinaryExpr, Expr, TableProviderFilterPushDown, TableType};
-use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
-use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    RecordBatchStream,
-    SendableRecordBatchStream,
-    Statistics,
-};
-use datafusion_ext::errors::ExtensionError;
-use datafusion_ext::functions::VirtualLister;
-use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
-use errors::{Result, SqlServerError};
-use futures::future::BoxFuture;
-use futures::stream::BoxStream;
-use futures::{ready, FutureExt, Stream, StreamExt};
-use tiberius::FromSql;
-use tokio::net::TcpStream;
-use tokio::task::JoinHandle;
-use tokio_util::compat::TokioAsyncWriteCompatExt;
-use tracing::warn;
 
 use crate::common::util;
 
@@ -660,16 +650,8 @@ fn rows_to_record_batch(
     schema: ArrowSchemaRef,
 ) -> Result<RecordBatch> {
     use datafusion::arrow::array::{
-        Array,
-        BinaryBuilder,
-        BooleanBuilder,
-        Float32Builder,
-        Float64Builder,
-        Int16Builder,
-        Int32Builder,
-        Int64Builder,
-        StringBuilder,
-        TimestampNanosecondBuilder,
+        Array, BinaryBuilder, BooleanBuilder, Float32Builder, Float64Builder, Int16Builder,
+        Int32Builder, Int64Builder, StringBuilder, TimestampNanosecondBuilder,
     };
 
     let rows = rows.into_iter().collect::<Result<Vec<_>>>()?;

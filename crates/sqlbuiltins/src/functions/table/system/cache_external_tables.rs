@@ -1,8 +1,5 @@
-use std::any::Any;
-use std::collections::HashMap;
-use std::fmt;
-use std::sync::Arc;
-
+use crate::functions::table::TableFunc;
+use crate::functions::ConstBuiltinFunction;
 use async_trait::async_trait;
 use datafusion::arrow::array::{StringBuilder, UInt32Builder};
 use datafusion::arrow::datatypes::Schema;
@@ -13,39 +10,33 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    SendableRecordBatchStream,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, VirtualLister};
 use datasources::native::access::{NativeTableStorage, SaveMode};
 use futures::{stream, StreamExt};
-use protogen::metastore::types::catalog::{
-    CatalogEntry,
-    FunctionType,
-    RuntimePreference,
-    TableEntry,
-};
+use protogen::metastore::types::catalog::FunctionType;
+use protogen::metastore::types::catalog::{CatalogEntry, RuntimePreference, TableEntry};
+use std::any::Any;
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
 use tracing::warn;
 
 use super::{SystemOperation, SystemOperationTableProvider};
 use crate::builtins::GLARE_CACHED_EXTERNAL_DATABASE_TABLES;
 use crate::functions::table::virtual_listing::get_virtual_lister_for_external_db;
-use crate::functions::table::TableFunc;
-use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CacheExternalDatabaseTables;
 
 impl ConstBuiltinFunction for CacheExternalDatabaseTables {
+    const NAME: &'static str = "cache_external_database_tables";
     const DESCRIPTION: &'static str = "Cache tables from external databases.";
     const EXAMPLE: &'static str = "select * from cache_external_database_tables();";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
-    const NAME: &'static str = "cache_external_database_tables";
 }
 
 #[async_trait]

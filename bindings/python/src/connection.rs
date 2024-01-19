@@ -1,21 +1,16 @@
-use std::sync::Arc;
-
+use crate::execution_result::PyExecutionResult;
 use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
 use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
 use once_cell::sync::OnceCell;
-use pyo3::prelude::*;
-use pyo3::types::PyType;
+use pyo3::{prelude::*, types::PyType};
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::{LogicalPlan, OperationInfo};
-
-use crate::execution_result::PyExecutionResult;
+use std::sync::Arc;
 
 pub(super) type PyTrackedSession = Arc<Mutex<TrackedSession>>;
 
-use crate::error::PyGlareDbError;
-use crate::logical_plan::PyLogicalPlan;
-use crate::runtime::wait_for_future;
+use crate::{error::PyGlareDbError, logical_plan::PyLogicalPlan, runtime::wait_for_future};
 
 /// A connected session to a GlareDB database.
 #[pyclass]

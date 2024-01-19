@@ -1,6 +1,6 @@
-use pgrepr::notice::NoticeSeverity;
-
 use super::*;
+
+use pgrepr::notice::NoticeSeverity;
 
 // TODO: Decide proper postgres version to spoof/support
 pub(super) const SERVER_VERSION: ServerVar<str> = ServerVar {

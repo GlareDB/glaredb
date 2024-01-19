@@ -15,22 +15,20 @@
 //! exprires, a little bit of clock drift doesn't matter. We should only be
 //! concerned if it's on the order of tens of seconds.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::{Duration, SystemTime};
-
+use crate::storage::{Result, SingletonStorageObject, StorageError, StorageObject};
 use bytes::BytesMut;
-use object_store::path::Path as ObjectPath;
-use object_store::{Error as ObjectStoreError, ObjectStore};
+use object_store::{path::Path as ObjectPath, Error as ObjectStoreError, ObjectStore};
 use prost::Message;
 use protogen::gen::metastore::storage;
 use protogen::metastore::types::storage::{LeaseInformation, LeaseState};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+use std::time::SystemTime;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tracing::{debug_span, error, Instrument};
 use uuid::Uuid;
-
-use crate::storage::{Result, SingletonStorageObject, StorageError, StorageObject};
 
 /// Location of the catalog lock object.
 const LEASE_INFORMATION_OBJECT: SingletonStorageObject = SingletonStorageObject("lease");
@@ -364,9 +362,8 @@ impl LeaseRenewer {
 
 #[cfg(test)]
 mod tests {
-    use object_store_util::temp::TempObjectStore;
-
     use super::*;
+    use object_store_util::temp::TempObjectStore;
 
     async fn insert_lease(store: &dyn ObjectStore, path: &ObjectPath, lease: LeaseInformation) {
         let proto: storage::LeaseInformation = lease.into();

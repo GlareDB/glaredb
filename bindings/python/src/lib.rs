@@ -9,13 +9,12 @@ mod logical_plan;
 mod runtime;
 mod util;
 
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use connection::Connection;
 use execution_result::PyExecutionResult;
 use logical_plan::PyLogicalPlan;
 use pyo3::prelude::*;
 use runtime::TokioRuntime;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::runtime::Builder;
 
 /// A Python module implemented in Rust.

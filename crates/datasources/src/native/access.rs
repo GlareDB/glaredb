@@ -1,11 +1,11 @@
-use std::any::Any;
-use std::sync::Arc;
-
+use crate::native::errors::{NativeError, Result};
+use crate::native::insert::NativeTableInsertExec;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema, TimeUnit};
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::SessionState;
+
 use datafusion::logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableType};
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{ExecutionPlan, Statistics};
@@ -14,7 +14,6 @@ use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
 use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::delete::DeleteBuilder;
 use deltalake::operations::update::UpdateBuilder;
-pub use deltalake::protocol::SaveMode;
 use deltalake::storage::DeltaObjectStore;
 use deltalake::{DeltaTable, DeltaTableConfig};
 use futures::StreamExt;
@@ -24,15 +23,14 @@ use object_store::ObjectStore;
 use object_store_util::shared::SharedObjectStore;
 use protogen::metastore::types::catalog::TableEntry;
 use protogen::metastore::types::options::{
-    InternalColumnDefinition,
-    TableOptions,
-    TableOptionsInternal,
+    InternalColumnDefinition, TableOptions, TableOptionsInternal,
 };
+use std::any::Any;
+use std::sync::Arc;
 use url::Url;
 use uuid::Uuid;
 
-use crate::native::errors::{NativeError, Result};
-use crate::native::insert::NativeTableInsertExec;
+pub use deltalake::protocol::SaveMode;
 
 #[derive(Debug, Clone)]
 pub struct NativeTableStorage {
@@ -332,11 +330,9 @@ mod tests {
     use datafusion::arrow::datatypes::DataType;
     use deltalake::protocol::SaveMode;
     use object_store_util::conf::StorageConfig;
-    use protogen::metastore::types::catalog::{EntryMeta, EntryType, SourceAccessMode, TableEntry};
-    use protogen::metastore::types::options::{
-        InternalColumnDefinition,
-        TableOptions,
-        TableOptionsInternal,
+    use protogen::metastore::types::{
+        catalog::{EntryMeta, EntryType, SourceAccessMode, TableEntry},
+        options::{InternalColumnDefinition, TableOptions, TableOptionsInternal},
     };
     use tempfile::tempdir;
     use url::Url;

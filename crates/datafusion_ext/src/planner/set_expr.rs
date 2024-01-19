@@ -15,13 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, Result};
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{SetExpr, SetOperator, SetQuantifier};
-
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     #[async_recursion]

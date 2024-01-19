@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use super::table_location_and_opts;
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
@@ -8,7 +9,7 @@ use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::lance::scan_lance_table;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
-use super::{table_location_and_opts, TableFunc};
+use super::TableFunc;
 use crate::functions::ConstBuiltinFunction;
 
 /// Function for scanning delta tables.
@@ -21,10 +22,10 @@ use crate::functions::ConstBuiltinFunction;
 pub struct LanceScan;
 
 impl ConstBuiltinFunction for LanceScan {
+    const NAME: &'static str = "lance_scan";
     const DESCRIPTION: &'static str = "Scans a Lance table";
     const EXAMPLE: &'static str = "SELECT * FROM lance_scan('file:///path/to/table.lance')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
-    const NAME: &'static str = "lance_scan";
 }
 
 #[async_trait]

@@ -3,11 +3,9 @@
 // `Abs` would otherwise be `Abs` instead of `abs`. and so on.
 #![allow(non_camel_case_types)]
 
+use crate::{document, functions::BuiltinFunction};
 use datafusion::logical_expr::AggregateFunction;
 use protogen::metastore::types::catalog::FunctionType;
-
-use crate::document;
-use crate::functions::BuiltinFunction;
 
 document! {
     doc => "Gives the approximate count of distinct elements using HyperLogLog",

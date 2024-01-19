@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field, Fields};
 use datafusion::datasource::TableProvider;
@@ -11,6 +8,8 @@ use datasources::common::url::DatasourceUrl;
 use datasources::excel::read_excel_impl;
 use ioutil::resolve_path;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::{table_location_and_opts, TableFunc};
 use crate::functions::ConstBuiltinFunction;
@@ -19,12 +18,11 @@ use crate::functions::ConstBuiltinFunction;
 pub struct ExcelScan;
 
 impl ConstBuiltinFunction for ExcelScan {
+    const NAME: &'static str = "read_excel";
     const DESCRIPTION: &'static str = "Reads an Excel file from the local filesystem";
     const EXAMPLE: &'static str =
         "SELECT * FROM read_excel('file:///path/to/file.xlsx', sheet_name => 'Sheet1')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
-    const NAME: &'static str = "read_excel";
-
     fn signature(&self) -> Option<Signature> {
         let options: Fields = vec![
             Field::new("sheet_name", DataType::Utf8, true),

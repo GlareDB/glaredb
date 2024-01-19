@@ -1,7 +1,6 @@
-use std::sync::Arc;
-
 use datafusion::common::tree_node::{DynTreeNode, Transformed, TreeNode};
 use datafusion::error::Result;
+use std::sync::Arc;
 
 /// Extension trait for TreeNode.
 pub trait TreeNodeExt: TreeNode {

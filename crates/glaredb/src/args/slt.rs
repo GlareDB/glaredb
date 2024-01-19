@@ -1,30 +1,23 @@
-use std::collections::{BTreeMap, HashMap};
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::{anyhow, Result};
 use clap::Args;
-use pgsrv::auth::SingleUserAuthenticator;
-use slt::test::{
-    ClientProtocol,
-    FlightSqlTestClient,
-    PgTestClient,
-    RpcTestClient,
-    Test,
-    TestClient,
-    TestHooks,
-};
-use tokio::net::TcpListener;
-use tokio::runtime::Builder;
-use tokio::sync::mpsc;
-use tokio::time::Instant;
+use tokio::{net::TcpListener, runtime::Builder, sync::mpsc, time::Instant};
 use tokio_postgres::config::Config as ClientConfig;
 use tracing::info;
 use uuid::Uuid;
 
 use crate::args::StorageConfigArgs;
 use crate::server::ComputeServer;
+use pgsrv::auth::SingleUserAuthenticator;
+use slt::test::{
+    ClientProtocol, FlightSqlTestClient, PgTestClient, RpcTestClient, Test, TestClient, TestHooks,
+};
 
 #[derive(Args)]
 pub struct SltArgs {

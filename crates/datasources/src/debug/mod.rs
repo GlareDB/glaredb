@@ -1,37 +1,23 @@
 //! A collection of debug datasources.
 pub mod errors;
 
-use std::any::Any;
-use std::fmt;
-use std::pin::Pin;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-
 use async_trait::async_trait;
 use datafusion::arrow::array::Int32Array;
 use datafusion::arrow::datatypes::{
-    DataType,
-    Field,
-    Fields,
-    Schema as ArrowSchema,
-    SchemaRef as ArrowSchemaRef,
+    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
 };
 use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
-use datafusion::execution::context::{SessionState, TaskContext};
-use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
+use datafusion::execution::context::SessionState;
+use datafusion::execution::context::TaskContext;
+use datafusion::logical_expr::Expr;
+use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::{DisplayAs, DisplayFormatType};
 use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    RecordBatchStream,
-    SendableRecordBatchStream,
-    Statistics,
+    ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
 };
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
@@ -39,6 +25,12 @@ use errors::DebugError;
 use futures::Stream;
 use protogen::metastore::types::options::TunnelOptions;
 use serde::{Deserialize, Serialize};
+use std::any::Any;
+use std::fmt;
+use std::pin::Pin;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DebugTableType {
@@ -308,7 +300,6 @@ struct AlwaysErrorStream {
 
 impl Stream for AlwaysErrorStream {
     type Item = DatafusionResult<RecordBatch>;
-
     fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(Some(Err(DataFusionError::External(Box::new(
             DebugError::ExecutionError("always error"),
@@ -331,7 +322,6 @@ struct NeverEndingStream {
 
 impl Stream for NeverEndingStream {
     type Item = DatafusionResult<RecordBatch>;
-
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(limit) = self.limit {
             if self.curr_count > limit {

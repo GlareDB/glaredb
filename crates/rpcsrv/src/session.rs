@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
+use crate::errors::Result;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::physical_plan::{ExecutionPlan, SendableRecordBatchStream};
 use datafusion_ext::functions::FuncParamValue;
@@ -10,9 +8,9 @@ use protogen::metastore::types::catalog::CatalogState;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
 use sqlexec::context::remote::RemoteSessionContext;
 use sqlexec::remote::batch_stream::ExecutionBatchStream;
+use std::collections::HashMap;
+use std::sync::Arc;
 use uuid::Uuid;
-
-use crate::errors::Result;
 
 /// A wrapper around a remote session context for physical plan execution.
 #[derive(Clone)]

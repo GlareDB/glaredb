@@ -3,22 +3,23 @@
 //! User's will call `connect` which returns a session for executing sql
 //! queries.
 
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-
-use datafusion_ext::vars::SessionVars;
-use futures::lock::Mutex;
-use ioutil::ensure_dir;
-use pyo3::prelude::*;
-use sqlexec::engine::{Engine, SessionStorageConfig};
-use sqlexec::remote::client::{RemoteClient, RemoteClientType};
-use url::Url;
-
 use crate::connection::Connection;
 use crate::environment::PyEnvironmentReader;
 use crate::error::PyGlareDbError;
 use crate::runtime::wait_for_future;
+use futures::lock::Mutex;
+use std::collections::HashMap;
+use std::{path::PathBuf, sync::Arc};
+use url::Url;
+
+use datafusion_ext::vars::SessionVars;
+use pyo3::prelude::*;
+use sqlexec::{
+    engine::{Engine, SessionStorageConfig},
+    remote::client::{RemoteClient, RemoteClientType},
+};
+
+use ioutil::ensure_dir;
 
 #[derive(Debug, Clone)]
 struct PythonSessionConf {

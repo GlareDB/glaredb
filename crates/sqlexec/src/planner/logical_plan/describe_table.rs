@@ -1,8 +1,9 @@
-use datafusion::arrow::datatypes::{Field, Schema, SchemaRef};
-use datafusion::common::ToDFSchema;
-use protogen::metastore::types::catalog::TableEntry;
-
 use super::*;
+use datafusion::{
+    arrow::datatypes::{Field, Schema, SchemaRef},
+    common::ToDFSchema,
+};
+use protogen::metastore::types::catalog::TableEntry;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DescribeTable {

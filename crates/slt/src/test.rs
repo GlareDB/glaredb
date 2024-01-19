@@ -1,9 +1,11 @@
-use std::collections::HashMap;
-use std::fmt::Debug;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use anyhow::{anyhow, Result};
 use arrow_flight::sql::client::FlightSqlServiceClient;
@@ -12,9 +14,11 @@ use async_trait::async_trait;
 use clap::builder::PossibleValue;
 use clap::ValueEnum;
 use datafusion::arrow::datatypes::Schema;
-use datafusion_ext::vars::SessionVars;
 use futures::StreamExt;
 use glob::Pattern;
+use tonic::transport::{Channel, Endpoint};
+
+use datafusion_ext::vars::SessionVars;
 use metastore::util::MetastoreClientMode;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
@@ -25,21 +29,15 @@ use sqlexec::engine::{Engine, EngineStorageConfig, SessionStorageConfig, Tracked
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClient;
 use sqlexec::session::ExecutionResult;
+
 use sqllogictest::{
-    parse_with_name,
-    AsyncDB,
-    ColumnType,
-    DBOutput,
-    DefaultColumnType,
-    Injected,
-    Record,
-    Runner,
+    parse_with_name, AsyncDB, ColumnType, DBOutput, DefaultColumnType, Injected, Record, Runner,
 };
+
 use telemetry::Tracker;
 use tokio::sync::{oneshot, Mutex};
 use tokio_postgres::types::private::BytesMut;
 use tokio_postgres::{Client, Config, NoTls, SimpleQueryMessage};
-use tonic::transport::{Channel, Endpoint};
 use uuid::Uuid;
 
 #[async_trait]
@@ -212,7 +210,6 @@ pub struct PgTestClient {
 
 impl Deref for PgTestClient {
     type Target = Client;
-
     fn deref(&self) -> &Self::Target {
         &self.client
     }
@@ -334,9 +331,8 @@ impl TestClient {
 
 #[async_trait]
 impl AsyncDB for PgTestClient {
-    type ColumnType = DefaultColumnType;
     type Error = sqlexec::errors::ExecError;
-
+    type ColumnType = DefaultColumnType;
     async fn run(&mut self, sql: &str) -> Result<DBOutput<Self::ColumnType>, Self::Error> {
         let mut output = Vec::new();
         let mut num_columns = 0;
@@ -381,9 +377,8 @@ impl AsyncDB for PgTestClient {
 
 #[async_trait]
 impl AsyncDB for RpcTestClient {
-    type ColumnType = DefaultColumnType;
     type Error = sqlexec::errors::ExecError;
-
+    type ColumnType = DefaultColumnType;
     async fn run(&mut self, sql: &str) -> Result<DBOutput<Self::ColumnType>, Self::Error> {
         let mut output = Vec::new();
         let mut num_columns = 0;
@@ -466,9 +461,8 @@ impl AsyncDB for RpcTestClient {
 
 #[async_trait]
 impl AsyncDB for FlightSqlTestClient {
-    type ColumnType = DefaultColumnType;
     type Error = sqlexec::errors::ExecError;
-
+    type ColumnType = DefaultColumnType;
     async fn run(&mut self, sql: &str) -> Result<DBOutput<Self::ColumnType>, Self::Error> {
         let mut output = Vec::new();
         let mut num_columns = 0;
@@ -538,8 +532,8 @@ impl AsyncDB for FlightSqlTestClient {
 
 #[async_trait]
 impl AsyncDB for TestClient {
-    type ColumnType = DefaultColumnType;
     type Error = sqlexec::errors::ExecError;
+    type ColumnType = DefaultColumnType;
 
     async fn run(&mut self, sql: &str) -> Result<DBOutput<Self::ColumnType>, Self::Error> {
         match self {

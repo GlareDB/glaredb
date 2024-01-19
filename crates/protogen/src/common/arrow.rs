@@ -1,19 +1,12 @@
 //! Arrow type conversions.
 //!
 //! Note this uses the re-exported Arrow types from Datafusion.
-use std::sync::Arc;
-
-use datafusion::arrow::datatypes::{
-    DataType,
-    Field,
-    IntervalUnit,
-    TimeUnit,
-    UnionFields,
-    UnionMode,
-};
-
 use super::super::{FromOptionalField, ProtoConvError};
 use crate::gen::common::arrow;
+use datafusion::arrow::datatypes::{
+    DataType, Field, IntervalUnit, TimeUnit, UnionFields, UnionMode,
+};
+use std::sync::Arc;
 
 impl TryFrom<&arrow::ArrowType> for DataType {
     type Error = ProtoConvError;
@@ -28,7 +21,6 @@ impl TryFrom<&arrow::ArrowType> for DataType {
 
 impl TryFrom<&arrow::arrow_type::ArrowTypeEnum> for DataType {
     type Error = ProtoConvError;
-
     fn try_from(arrow_type_enum: &arrow::arrow_type::ArrowTypeEnum) -> Result<Self, Self::Error> {
         use arrow::arrow_type;
         Ok(match arrow_type_enum {
@@ -218,11 +210,11 @@ impl TryFrom<&DataType> for arrow::arrow_type::ArrowTypeEnum {
                 precision: *precision as u32,
                 scale: *scale as i32,
             }),
-            DataType::Decimal256(..) => {
+            DataType::Decimal256(_, _) => {
                 return Err(ProtoConvError::UnsupportedSerialization("Decimal256"))
             }
-            DataType::Map(..) => return Err(ProtoConvError::UnsupportedSerialization("Map")),
-            DataType::RunEndEncoded(..) => {
+            DataType::Map(_, _) => return Err(ProtoConvError::UnsupportedSerialization("Map")),
+            DataType::RunEndEncoded(_, _) => {
                 return Err(ProtoConvError::UnsupportedSerialization("RunEndEncoded"))
             }
         };
@@ -233,7 +225,6 @@ impl TryFrom<&DataType> for arrow::arrow_type::ArrowTypeEnum {
 
 impl TryFrom<&arrow::Field> for Field {
     type Error = ProtoConvError;
-
     fn try_from(field: &arrow::Field) -> Result<Self, Self::Error> {
         let datatype = field.arrow_type.as_deref().required("arrow_type")?;
 
@@ -243,7 +234,6 @@ impl TryFrom<&arrow::Field> for Field {
 
 impl TryFrom<&Field> for arrow::Field {
     type Error = ProtoConvError;
-
     fn try_from(field: &Field) -> Result<Self, Self::Error> {
         let arrow_type = field.data_type().try_into()?;
         Ok(Self {

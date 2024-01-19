@@ -1,14 +1,12 @@
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-
-use datafusion::arrow::datatypes::Schema;
-use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::{datatypes::Schema, record_batch::RecordBatch};
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::physical_plan::{Partitioning, RecordBatchStream};
 use futures::channel::mpsc;
 use futures::{ready, Stream, StreamExt};
 use parking_lot::Mutex;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use super::pipeline::{ErrorSink, Sink};
 use super::{DistExecError, Result};
