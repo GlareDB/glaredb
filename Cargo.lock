@@ -106,21 +106,6 @@ dependencies = [
 
 [[package]]
 name = "anstream"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ca84f3628370c59db74ee214b3263d58f9aadd9b4fe7e711fd87dc452b7f163"
-dependencies = [
- "anstyle",
- "anstyle-parse",
- "anstyle-query",
- "anstyle-wincon 1.0.2",
- "colorchoice",
- "is-terminal",
- "utf8parse",
-]
-
-[[package]]
-name = "anstream"
 version = "0.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4cd2405b3ac1faab2990b74d728624cd9fd115651fcecc7c2d8daf01376275ba"
@@ -128,7 +113,7 @@ dependencies = [
  "anstyle",
  "anstyle-parse",
  "anstyle-query",
- "anstyle-wincon 3.0.1",
+ "anstyle-wincon",
  "colorchoice",
  "utf8parse",
 ]
@@ -154,16 +139,6 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ca11d4be1bab0c8bc8734a9aa7bf4ee8316d462a08c6ac5052f888fef5b494b"
 dependencies = [
- "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "anstyle-wincon"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c677ab05e09154296dd37acecd46420c17b9713e8366facafa8fc0885167cf4c"
-dependencies = [
- "anstyle",
  "windows-sys 0.48.0",
 ]
 
@@ -1575,7 +1550,7 @@ version = "4.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59cb82d7f531603d2fd1f507441cdd35184fa81beff7bd489570de7f773460bb"
 dependencies = [
- "anstream 0.6.7",
+ "anstream",
  "anstyle",
  "clap_lex",
  "strsim",
@@ -2180,7 +2155,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "rand",
- "sqlparser",
+ "sqlparser 0.38.0",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -2208,7 +2183,7 @@ dependencies = [
  "object_store",
  "parquet",
  "pyo3",
- "sqlparser",
+ "sqlparser 0.38.0",
 ]
 
 [[package]]
@@ -2242,7 +2217,7 @@ dependencies = [
  "arrow",
  "arrow-array",
  "datafusion-common",
- "sqlparser",
+ "sqlparser 0.38.0",
  "strum 0.25.0",
  "strum_macros 0.25.3",
 ]
@@ -2356,7 +2331,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "log",
- "sqlparser",
+ "sqlparser 0.38.0",
 ]
 
 [[package]]
@@ -2506,7 +2481,7 @@ dependencies = [
  "rusoto_sts",
  "serde",
  "serde_json",
- "sqlparser",
+ "sqlparser 0.38.0",
  "thiserror",
  "tokio",
  "url",
@@ -5721,16 +5696,17 @@ dependencies = [
 
 [[package]]
 name = "prql-compiler"
-version = "0.10.1"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89369450e8ed4e569bdd6b109f719a532d18a4b20e5e828bbd9905475c3276b5"
+checksum = "5d57e90671dbcb08b282e91db60837fc43f93a99945c1a44d3fa8e78f5ccd860"
 dependencies = [
- "anstream 0.3.2",
+ "anstream",
  "anyhow",
  "ariadne",
+ "chrono",
  "csv",
  "enum-as-inner 0.6.0",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "log",
  "once_cell",
  "prqlc-ast",
@@ -5740,16 +5716,16 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlformat",
- "sqlparser",
+ "sqlparser 0.41.0",
  "strum 0.25.0",
  "strum_macros 0.25.3",
 ]
 
 [[package]]
 name = "prqlc-ast"
-version = "0.10.1"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e72a8626577e4f8e956c7e17acb909ce49374da61563afa7324feb250dc1bece"
+checksum = "e77bf8e4af75cfe1d055b4a30995466c1cb2726318b8255b4589b6ae177e45b1"
 dependencies = [
  "enum-as-inner 0.6.0",
  "semver 1.0.20",
@@ -5759,12 +5735,12 @@ dependencies = [
 
 [[package]]
 name = "prqlc-parser"
-version = "0.10.1"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e69c749add52b45bf21ec316f489d8dee5eb64a8d65373849fc3176296c1b348"
+checksum = "54a828f1f50699defbfd0bc1dec9368c5b5a1f0e7f12193129ed74160b96415b"
 dependencies = [
  "chumsky",
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "prqlc-ast",
  "semver 1.0.20",
  "stacker",
@@ -7396,11 +7372,11 @@ dependencies = [
 
 [[package]]
 name = "sqlformat"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b7b278788e7be4d0d29c0f39497a0eef3fba6bbc8e70d8bf7fde46edeaa9e85"
+checksum = "ce81b7bd7c4493975347ef60d8c7e8b742d4694f4c49f93e0a12ea263938176c"
 dependencies = [
- "itertools 0.11.0",
+ "itertools 0.12.0",
  "nom",
  "unicode_categories",
 ]
@@ -7436,8 +7412,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0272b7bb0a225320170c99901b4b5fb3a4384e255a7f2cc228f61e2ba3893e75"
 dependencies = [
  "log",
- "serde",
  "sqlparser_derive",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cc2c25a6c66789625ef164b4c7d2e548d627902280c13710d33da8222169964"
+dependencies = [
+ "log",
+ "serde",
 ]
 
 [[package]]
