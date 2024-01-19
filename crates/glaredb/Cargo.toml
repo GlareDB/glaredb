@@ -46,7 +46,7 @@ uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 glob = "0.3.1"
 
 [dev-dependencies]
-predicates = "3.0.4"
+predicates = "3.1.0"
 assert_cmd = "2.0.13"
 tokio-postgres = "0.7.8"
 tempfile = { workspace = true }
