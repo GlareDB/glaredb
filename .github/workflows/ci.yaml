@@ -48,8 +48,8 @@ jobs:
       - name: build
         run: just build
 
-  static-analysis:
-    name: Lint and Format
+  lint:
+    name: Lint (clippy)
     runs-on: ubuntu-latest-8-cores
     needs: ["build"]
     steps:
@@ -74,6 +74,23 @@ jobs:
       - name: clippy
         run: just clippy
 
+  fmt:
+    name: Format (rustfmt +nightly)
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
+      - uses: actions/cache@v3
+        name: nightly toolchain cache
+        with:
+          path: |
+            ~/.rustup/toolchains/
+          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rustfmt.toml') }}
+      - run: rustup install nightly
       - name: format
         run: just fmt-check
 
