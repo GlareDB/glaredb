@@ -8,7 +8,6 @@ on:
     branches:
       - vrongmeal/benchmark-runner
       - main
-      - universalmind303/benchmark-timings
 
 jobs:
   tpch:
