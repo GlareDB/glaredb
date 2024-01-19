@@ -115,6 +115,7 @@ pub struct CopyToFormatOptionsBson {}
 
 impl TryFrom<crate::metastore::types::options::CopyToFormatOptions> for CopyToFormatOptions {
     type Error = crate::errors::ProtoConvError;
+
     fn try_from(
         value: crate::metastore::types::options::CopyToFormatOptions,
     ) -> Result<Self, Self::Error> {
@@ -213,6 +214,7 @@ impl TryFrom<crate::metastore::types::options::CopyToDestinationOptions>
     for CopyToDestinationOptions
 {
     type Error = crate::errors::ProtoConvError;
+
     fn try_from(
         value: crate::metastore::types::options::CopyToDestinationOptions,
     ) -> Result<Self, Self::Error> {

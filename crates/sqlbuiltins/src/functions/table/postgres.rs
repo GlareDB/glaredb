@@ -17,11 +17,12 @@ use crate::functions::ConstBuiltinFunction;
 pub struct ReadPostgres;
 
 impl ConstBuiltinFunction for ReadPostgres {
-    const NAME: &'static str = "read_postgres";
     const DESCRIPTION: &'static str = "Read a Postgres table";
     const EXAMPLE: &'static str =
         "SELECT * FROM read_postgres('postgres://localhost:5432', 'database', 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const NAME: &'static str = "read_postgres";
+
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             3,

@@ -10,10 +10,10 @@ use super::*;
 pub struct ArrowCastFunction;
 
 impl ConstBuiltinFunction for ArrowCastFunction {
-    const NAME: &'static str = "arrow_cast";
     const DESCRIPTION: &'static str = "Casts a value to a specified arrow type.";
     const EXAMPLE: &'static str = "arrow_cast(1, 'Int32')";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+    const NAME: &'static str = "arrow_cast";
 }
 
 document! {

@@ -21,10 +21,10 @@ use crate::functions::ConstBuiltinFunction;
 pub struct IcebergSnapshots;
 
 impl ConstBuiltinFunction for IcebergSnapshots {
-    const NAME: &'static str = "iceberg_snapshots";
     const DESCRIPTION: &'static str = "Scans snapshot information for an iceberg table";
     const EXAMPLE: &'static str = "SELECT * FROM iceberg_snapshots('file:///path/to/table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const NAME: &'static str = "iceberg_snapshots";
 }
 
 #[async_trait]

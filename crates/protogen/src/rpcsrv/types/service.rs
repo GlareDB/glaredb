@@ -18,6 +18,7 @@ pub struct InitializeSessionRequestFromClient {
 
 impl TryFrom<service::InitializeSessionRequestFromClient> for InitializeSessionRequestFromClient {
     type Error = ProtoConvError;
+
     fn try_from(value: service::InitializeSessionRequestFromClient) -> Result<Self, Self::Error> {
         Ok(Self {
             test_db_id: value
@@ -44,6 +45,7 @@ pub struct InitializeSessionRequestFromProxy {
 
 impl TryFrom<service::InitializeSessionRequestFromProxy> for InitializeSessionRequestFromProxy {
     type Error = ProtoConvError;
+
     fn try_from(value: service::InitializeSessionRequestFromProxy) -> Result<Self, Self::Error> {
         Ok(Self {
             storage_conf: value.storage_conf.required("storage configuration")?,
@@ -70,6 +72,7 @@ pub enum InitializeSessionRequest {
 
 impl TryFrom<service::initialize_session_request::Request> for InitializeSessionRequest {
     type Error = ProtoConvError;
+
     fn try_from(value: service::initialize_session_request::Request) -> Result<Self, Self::Error> {
         Ok(match value {
             service::initialize_session_request::Request::Client(c) => {
@@ -93,6 +96,7 @@ impl From<InitializeSessionRequest> for service::initialize_session_request::Req
 
 impl TryFrom<service::InitializeSessionRequest> for InitializeSessionRequest {
     type Error = ProtoConvError;
+
     fn try_from(value: service::InitializeSessionRequest) -> Result<Self, Self::Error> {
         value.request.required("initialize session request")
     }
@@ -114,6 +118,7 @@ pub struct InitializeSessionResponse {
 
 impl TryFrom<service::InitializeSessionResponse> for InitializeSessionResponse {
     type Error = ProtoConvError;
+
     fn try_from(value: service::InitializeSessionResponse) -> Result<Self, Self::Error> {
         Ok(Self {
             database_id: Uuid::from_slice(&value.database_id)?,
@@ -125,6 +130,7 @@ impl TryFrom<service::InitializeSessionResponse> for InitializeSessionResponse {
 
 impl TryFrom<InitializeSessionResponse> for service::InitializeSessionResponse {
     type Error = ProtoConvError;
+
     fn try_from(value: InitializeSessionResponse) -> Result<Self, Self::Error> {
         Ok(Self {
             database_id: value.database_id.into_bytes().into(),
@@ -143,6 +149,7 @@ pub struct FetchCatalogRequest {
 
 impl TryFrom<service::FetchCatalogRequest> for FetchCatalogRequest {
     type Error = ProtoConvError;
+
     fn try_from(value: service::FetchCatalogRequest) -> Result<Self, Self::Error> {
         Ok(Self {
             database_id: Uuid::from_slice(&value.database_id)?,
@@ -164,6 +171,7 @@ pub struct FetchCatalogResponse {
 
 impl TryFrom<service::FetchCatalogResponse> for FetchCatalogResponse {
     type Error = ProtoConvError;
+
     fn try_from(value: service::FetchCatalogResponse) -> Result<Self, Self::Error> {
         Ok(Self {
             catalog: value.catalog.required("catalog state")?,
@@ -173,6 +181,7 @@ impl TryFrom<service::FetchCatalogResponse> for FetchCatalogResponse {
 
 impl TryFrom<FetchCatalogResponse> for service::FetchCatalogResponse {
     type Error = ProtoConvError;
+
     fn try_from(value: FetchCatalogResponse) -> Result<Self, Self::Error> {
         Ok(Self {
             catalog: Some(value.catalog.try_into()?),
@@ -191,6 +200,7 @@ pub struct DispatchAccessRequest {
 
 impl TryFrom<service::DispatchAccessRequest> for DispatchAccessRequest {
     type Error = ProtoConvError;
+
     fn try_from(value: service::DispatchAccessRequest) -> Result<Self, Self::Error> {
         let args = value
             .args
@@ -254,6 +264,7 @@ pub struct PhysicalPlanExecuteRequest {
 
 impl TryFrom<service::PhysicalPlanExecuteRequest> for PhysicalPlanExecuteRequest {
     type Error = ProtoConvError;
+
     fn try_from(value: service::PhysicalPlanExecuteRequest) -> Result<Self, Self::Error> {
         Ok(Self {
             database_id: Uuid::from_slice(&value.database_id)?,
@@ -285,6 +296,7 @@ pub struct TableProviderResponse {
 
 impl TryFrom<service::TableProviderResponse> for TableProviderResponse {
     type Error = ProtoConvError;
+
     fn try_from(value: service::TableProviderResponse) -> Result<Self, Self::Error> {
         let schema = datafusion_proto::protobuf::Schema::decode(value.schema.as_slice())?;
         let schema = (&schema).try_into()?;
@@ -297,6 +309,7 @@ impl TryFrom<service::TableProviderResponse> for TableProviderResponse {
 
 impl TryFrom<TableProviderResponse> for service::TableProviderResponse {
     type Error = ProtoConvError;
+
     fn try_from(value: TableProviderResponse) -> Result<Self, Self::Error> {
         let schema = datafusion_proto::protobuf::Schema::try_from(&value.schema)?;
         Ok(Self {
@@ -337,6 +350,7 @@ impl Display for ResolvedTableReference {
 
 impl TryFrom<service::ResolvedTableReference> for ResolvedTableReference {
     type Error = ProtoConvError;
+
     fn try_from(value: service::ResolvedTableReference) -> Result<Self, Self::Error> {
         let reference = value
             .reference

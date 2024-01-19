@@ -398,8 +398,8 @@ impl Encoder<BackendMessage> for PgCodec {
 }
 
 impl Decoder for PgCodec {
-    type Item = FrontendMessage;
     type Error = PgSrvError;
+    type Item = FrontendMessage;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         // Every message has a type byte, and an i32 for msg length. Return

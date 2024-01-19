@@ -115,15 +115,19 @@ where
     fn name(&self) -> &str {
         Self::NAME
     }
+
     fn sql_example(&self) -> Option<&str> {
         Some(Self::EXAMPLE)
     }
+
     fn description(&self) -> Option<&str> {
         Some(Self::DESCRIPTION)
     }
+
     fn function_type(&self) -> FunctionType {
         Self::FUNCTION_TYPE
     }
+
     fn signature(&self) -> Option<Signature> {
         self.signature()
     }

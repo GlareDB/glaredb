@@ -17,10 +17,10 @@ use crate::functions::{ConstBuiltinFunction, FunctionType};
 pub struct BsonScan;
 
 impl ConstBuiltinFunction for BsonScan {
-    const NAME: &'static str = "read_bson";
     const DESCRIPTION: &'static str = "Reads one or more BSON files. Supports globbing.";
     const EXAMPLE: &'static str = "SELECT * FROM read_bson('./path/to/table*.bson')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const NAME: &'static str = "read_bson";
 }
 
 #[async_trait]

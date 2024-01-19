@@ -111,8 +111,8 @@ struct QueryResponse {
 }
 
 impl QueryResponse {
-    const QUERY_IN_PROGRESS_CODE: &'static str = "333333";
     const ASYNC_QUERY_IN_PROGRESS_CODE: &'static str = "333334";
+    const QUERY_IN_PROGRESS_CODE: &'static str = "333333";
 
     fn is_query_in_progress(&self) -> bool {
         let code = match self.code.as_ref() {
@@ -397,8 +397,8 @@ impl QueryResultChunk {
 }
 
 impl IntoIterator for QueryResultChunk {
-    type Item = Result<RecordBatch>;
     type IntoIter = RecordBatchIter;
+    type Item = Result<RecordBatch>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter
