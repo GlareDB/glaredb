@@ -44,6 +44,7 @@ run n_runs="1" $SCALE_FACTOR="1": requirements
     just _run_private duckdb {{SCALE_FACTOR}}
     ((n++))
   done
+  exit 0
 
 q n system $SCALE_FACTOR="1":
   {{VENV_BIN}}/python -m {{system}}_queries.q{{n}}
@@ -55,4 +56,4 @@ upload_log github_ref github_run scale_factor system_meta="" timings_file="timin
   echo "github_ref,github_run,scale_factor,system_meta" > meta.csv
   echo "{{github_ref}},{{github_run}},{{scale_factor}},{{system_meta}}" >> meta.csv
   # Run the SQL for uploading benchmarks.
-  {{GLARE_BIN}} --query "$(cat upload_bench.sql)"
+  {{GLARE_BIN}} -q upload_bench.sql

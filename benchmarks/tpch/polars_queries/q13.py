@@ -25,14 +25,14 @@ def q():
         .group_by("c_custkey")
         .agg(
             [
-                pl.col("o_orderkey").count().alias("c_count"),
+                pl.col("o_orderkey").len().alias("c_count"),
                 pl.col("o_orderkey").null_count().alias("null_c_count"),
             ]
         )
         .with_columns((pl.col("c_count") - pl.col("null_c_count")).alias("c_count"))
         .group_by("c_count")
-        .count()
-        .select([pl.col("c_count"), pl.col("count").alias("custdist")])
+        .len()
+        .select([pl.col("c_count"), pl.col("len").alias("custdist")])
         .sort(["custdist", "c_count"], descending=[True, True])
     )
     polars_utils.run_query(Q_NUM, q_final)
