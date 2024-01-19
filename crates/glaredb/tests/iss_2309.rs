@@ -10,7 +10,7 @@ fn test_special_characters() {
 
     let assert = cmd
         .timeout(DEFAULT_TIMEOUT)
-        .args(&["-q", r#"select ';'"#])
+        .args(["-q", r#"select ';'"#])
         .assert();
     assert.success().stdout(predicates::str::contains(
         r#"
@@ -31,7 +31,7 @@ fn test_special_characters_2() {
 
     let assert = cmd
         .timeout(DEFAULT_TIMEOUT)
-        .args(&["-q", r#"select ";""#])
+        .args(["-q", r#"select ";""#])
         .assert();
     assert.failure().stderr(predicates::str::contains(
         "Schema error: No field named \";\".",

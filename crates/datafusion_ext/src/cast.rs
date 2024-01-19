@@ -1823,7 +1823,7 @@ mod tests {
         );
 
         let array =
-            scalar_iter_to_array(vec![l1, l2, l3].iter().map(|v| Ok(v.to_owned()))).unwrap();
+            scalar_iter_to_array([l1, l2, l3].iter().map(|v| Ok(v.to_owned()))).unwrap();
         let array = as_list_array(&array).unwrap();
 
         // Construct expected array with array builders

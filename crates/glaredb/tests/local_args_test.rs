@@ -13,7 +13,7 @@ fn test_query_or_file() {
 
     let assert = cmd
         .timeout(DEFAULT_TIMEOUT)
-        .args(&["-q", "SELECT * FROM foo", "foo.sql"])
+        .args(["-q", "SELECT * FROM foo", "foo.sql"])
         .assert();
     assert.failure().stderr(predicates::str::contains(
         "the argument '--query <QUERY>' cannot be used with '[FILE]'",
@@ -28,7 +28,7 @@ fn test_storage_config_require_location() {
 
     let assert = cmd
         .timeout(DEFAULT_TIMEOUT)
-        .args(&["-o", "foo=bar"])
+        .args(["-o", "foo=bar"])
         .assert();
     assert.failure().stderr(
         predicates::str::contains("error: the following required arguments were not provided:")
@@ -44,7 +44,7 @@ fn test_parse_storage_options_not_ok() {
 
     let assert = cmd
         .timeout(DEFAULT_TIMEOUT)
-        .args(&["-l", "foo", "-o", "foobar"])
+        .args(["-l", "foo", "-o", "foobar"])
         .assert();
     assert.failure().stderr(predicates::str::contains(
         "Expected key-value pair delimited by an equals sign, got",
@@ -61,7 +61,7 @@ fn test_parse_storage_options_ok() {
 
     let assert = cmd
         .timeout(DEFAULT_TIMEOUT)
-        .args(&["-l", temp_dir, "-o", "foo=bar", "-q", "select 1"])
+        .args(["-l", temp_dir, "-o", "foo=bar", "-q", "select 1"])
         .assert();
     assert.success();
 }
@@ -77,7 +77,7 @@ fn test_data_dir() {
 
     let assert = cmd
         .timeout(DEFAULT_TIMEOUT)
-        .args(&["-f", path, "-q", "create table test as select 1"])
+        .args(["-f", path, "-q", "create table test as select 1"])
         .assert();
     assert.success();
 
