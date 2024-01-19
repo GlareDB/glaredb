@@ -40,18 +40,16 @@ impl RuntimeGroupPullUp {
                 if children.is_empty() {
                     return Ok(None);
                 }
-                Ok(Some(
-                    if children.len() == 1 {
-                        self.optimize(children.first().unwrap().clone().child, config)?
-                    } else {
-                        Arc::new(UnionExec::new(
-                            children
-                                .into_iter()
-                                .map(|x| self.optimize(x.child, config))
-                                .collect::<Result<_>>()?,
-                        ))
-                    },
-                ))
+                Ok(Some(if children.len() == 1 {
+                    self.optimize(children.first().unwrap().clone().child, config)?
+                } else {
+                    Arc::new(UnionExec::new(
+                        children
+                            .into_iter()
+                            .map(|x| self.optimize(x.child, config))
+                            .collect::<Result<_>>()?,
+                    ))
+                }))
             };
 
         let it = children.into_iter();
