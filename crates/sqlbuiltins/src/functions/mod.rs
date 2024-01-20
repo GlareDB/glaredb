@@ -13,7 +13,11 @@ use protogen::metastore::types::catalog::FunctionType;
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
 use scalars::kdl::{KDLMatches, KDLSelect};
-use scalars::postgres::{CurrentCatalog, CurrentDatabase, CurrentRole, CurrentSchema, CurrentSchemas, CurrentUser, HasDatabasePrivilege, HasSchemaPrivilege, HasTablePrivilege, PgArrayToString, PgEncodingToChar, PgGetUserById, PgTableIsVisible, PgVersion, User};
+use scalars::postgres::{
+    CurrentCatalog, CurrentDatabase, CurrentRole, CurrentSchema, CurrentSchemas, CurrentUser,
+    HasDatabasePrivilege, HasSchemaPrivilege, HasTablePrivilege, PgArrayToString, PgEncodingToChar,
+    PgGetUserById, PgTableIsVisible, PgVersion, User,
+};
 use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
 

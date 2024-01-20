@@ -1,7 +1,11 @@
 use ::kdl::{KdlDocument, KdlNode, KdlQuery};
 use memoize::memoize;
 
-use super::{Arc, BuiltinError, BuiltinScalarUDF, ConstBuiltinFunction, DataFusionError, DataType, Expr, FunctionType, ScalarUDF, ScalarValue, Signature, TypeSignature, Volatility, get_nth_string_fn_arg, get_nth_string_value, kdl};
+use super::{
+    get_nth_string_fn_arg, get_nth_string_value, kdl, Arc, BuiltinError, BuiltinScalarUDF,
+    ConstBuiltinFunction, DataFusionError, DataType, Expr, FunctionType, ScalarUDF, ScalarValue,
+    Signature, TypeSignature, Volatility,
+};
 
 pub struct KDLSelect;
 

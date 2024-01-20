@@ -1,4 +1,7 @@
-use super::{CopyToDestinationOptions, CopyToFormatOptions, DfLogicalPlan, ExtensionNode, GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA, UserDefinedLogicalNodeCore};
+use super::{
+    CopyToDestinationOptions, CopyToFormatOptions, DfLogicalPlan, ExtensionNode,
+    UserDefinedLogicalNodeCore, GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA,
+};
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct CopyTo {

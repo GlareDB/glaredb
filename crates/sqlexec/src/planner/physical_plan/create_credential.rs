@@ -1,4 +1,8 @@
-use super::{Arc, DataFusionError, DataFusionResult, DisplayAs, DisplayFormatType, ExecutionPlan, GENERIC_OPERATION_PHYSICAL_SCHEMA, Partitioning, PhysicalSortExpr, RecordBatch, RecordBatchStreamAdapter, SchemaRef, Statistics, StreamExt, new_operation_batch, stream};
+use super::{
+    new_operation_batch, stream, Arc, DataFusionError, DataFusionResult, DisplayAs,
+    DisplayFormatType, ExecutionPlan, Partitioning, PhysicalSortExpr, RecordBatch,
+    RecordBatchStreamAdapter, SchemaRef, Statistics, StreamExt, GENERIC_OPERATION_PHYSICAL_SCHEMA,
+};
 
 use protogen::metastore::types::{options::CredentialsOptions, service, service::Mutation};
 

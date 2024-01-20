@@ -1,4 +1,7 @@
-use super::{DfLogicalPlan, ExtensionNode, GENERIC_OPERATION_LOGICAL_SCHEMA, OwnedFullSchemaReference, UserDefinedLogicalNodeCore};
+use super::{
+    DfLogicalPlan, ExtensionNode, OwnedFullSchemaReference, UserDefinedLogicalNodeCore,
+    GENERIC_OPERATION_LOGICAL_SCHEMA,
+};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DropSchemas {

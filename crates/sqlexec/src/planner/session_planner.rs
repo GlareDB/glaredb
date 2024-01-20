@@ -71,7 +71,13 @@ use crate::parser::{
     DropCredentialsStmt, DropDatabaseStmt, DropTunnelStmt, StatementWithExtensions,
 };
 use crate::planner::errors::{internal, PlanError, Result};
-use crate::planner::logical_plan::{AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredential, CreateCredentials, CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable, CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews, FullObjectReference, Insert, LogicalPlan, SetVariable, ShowVariable, TransactionPlan, Update};
+use crate::planner::logical_plan::{
+    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredential, CreateCredentials,
+    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
+    CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
+    DropTables, DropTunnel, DropViews, FullObjectReference, Insert, LogicalPlan, SetVariable,
+    ShowVariable, TransactionPlan, Update,
+};
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 use crate::remote::table::StubRemoteTableProvider;
 use crate::resolve::{EntryResolver, ResolvedEntry};

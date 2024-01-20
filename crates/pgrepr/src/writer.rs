@@ -5,7 +5,10 @@ use bytes::BytesMut;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use chrono_tz::Tz;
 use decimal::Decimal128;
-use repr::str::encode::{encode_binary, encode_bool, encode_date, encode_decimal, encode_float, encode_int, encode_string, encode_time, encode_utc_timestamp};
+use repr::str::encode::{
+    encode_binary, encode_bool, encode_date, encode_decimal, encode_float, encode_int,
+    encode_string, encode_time, encode_utc_timestamp,
+};
 use tokio_postgres::types::{IsNull, ToSql, Type as PgType};
 
 /// Writer defines the interface for the different kinds of values that can be
