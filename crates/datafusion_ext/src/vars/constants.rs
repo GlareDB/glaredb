@@ -84,6 +84,14 @@ pub(super) const CLIENT_MIN_MESSAGES: ServerVar<NoticeSeverity> = ServerVar {
     description: "Controls which messages are sent to the client, defaults NOTICE",
 };
 
+pub(super) const STANDARD_CONFORMING_STRINGS: ServerVar<bool> = ServerVar {
+    name: "standard_conforming_strings",
+    value: &true,
+    group: "postgres",
+    user_configurable: false,
+    description: "Treat backslashes literally in string literals",
+};
+
 pub(super) static GLAREDB_VERSION_OWNED: Lazy<String> =
     Lazy::new(|| format!("v{}", env!("CARGO_PKG_VERSION")));
 pub(super) static GLAREDB_VERSION: Lazy<ServerVar<str>> = Lazy::new(|| ServerVar {

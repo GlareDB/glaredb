@@ -1205,7 +1205,7 @@ impl<'a> SessionPlanner<'a> {
 
                 let mut planner = SqlQueryPlanner::new(&mut context_provider);
                 let source = planner
-                    .insert_to_source_plan(&table_name, &columns, source)
+                    .insert_to_source_plan(&table_name, columns, source)
                     .await?;
 
                 let access_mode = self

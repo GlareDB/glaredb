@@ -64,7 +64,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     pub async fn insert_to_source_plan(
         &mut self,
         table_name: &OwnedTableReference,
-        columns: &Vec<String>,
+        columns: Vec<String>,
         source: Box<Query>,
     ) -> Result<LogicalPlan> {
         // Do a table lookup to verify the table exists
