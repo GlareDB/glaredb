@@ -132,9 +132,13 @@ fn print_batch(result: &mut ExecutionResult, py: Python<'_>) -> PyResult<()> {
                     .collect::<Result<Vec<RecordBatch>, _>>()
             })?;
 
-            let disp =
-                pretty::pretty_format_batches(&schema, &batches, Some(pretty::term_width()), None)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            let disp = pretty::pretty_format_batches(
+                &schema,
+                &batches,
+                Some(terminal_util::term_width()),
+                None,
+            )
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
             pyprint(disp, py)
         }

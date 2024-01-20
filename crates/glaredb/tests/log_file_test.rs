@@ -5,7 +5,7 @@ use std::io::Read;
 
 use tempfile::NamedTempFile;
 
-use crate::setup::{make_cli, DEFAULT_TIMEOUT};
+use crate::setup::make_cli;
 
 #[test]
 fn test_log_file() -> Result<(), Box<dyn std::error::Error>> {
@@ -15,8 +15,7 @@ fn test_log_file() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = file_path.canonicalize().unwrap();
     let file_path = file_path.as_os_str().to_str().unwrap();
 
-    cmd.timeout(DEFAULT_TIMEOUT)
-        .arg("--log-file")
+    cmd.arg("--log-file")
         .arg(file_path)
         .arg("-q")
         .arg("select 1;")
@@ -47,8 +46,7 @@ fn test_log_file_verbosity_level() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = file_path.canonicalize().unwrap();
     let file_path = file_path.as_os_str().to_str().unwrap();
 
-    cmd.timeout(DEFAULT_TIMEOUT)
-        .arg("-v")
+    cmd.arg("-v")
         .arg("--log-file")
         .arg(file_path)
         .arg("-q")

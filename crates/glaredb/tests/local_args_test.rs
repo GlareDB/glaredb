@@ -1,7 +1,6 @@
 mod setup;
 
 use predicates::boolean::PredicateBooleanExt;
-use setup::DEFAULT_TIMEOUT;
 
 use crate::setup::make_cli;
 
@@ -11,10 +10,7 @@ use crate::setup::make_cli;
 fn test_query_or_file() {
     let mut cmd = make_cli();
 
-    let assert = cmd
-        .timeout(DEFAULT_TIMEOUT)
-        .args(&["-q", "SELECT * FROM foo", "foo.sql"])
-        .assert();
+    let assert = cmd.args(&["-q", "SELECT * FROM foo", "foo.sql"]).assert();
     assert.failure().stderr(predicates::str::contains(
         "the argument '--query <QUERY>' cannot be used with '[FILE]'",
     ));
@@ -26,10 +22,7 @@ fn test_query_or_file() {
 fn test_storage_config_require_location() {
     let mut cmd = make_cli();
 
-    let assert = cmd
-        .timeout(DEFAULT_TIMEOUT)
-        .args(&["-o", "foo=bar"])
-        .assert();
+    let assert = cmd.args(&["-o", "foo=bar"]).assert();
     assert.failure().stderr(
         predicates::str::contains("error: the following required arguments were not provided:")
             .and(predicates::str::contains("--location <LOCATION>")),
@@ -42,10 +35,7 @@ fn test_storage_config_require_location() {
 fn test_parse_storage_options_not_ok() {
     let mut cmd = make_cli();
 
-    let assert = cmd
-        .timeout(DEFAULT_TIMEOUT)
-        .args(&["-l", "foo", "-o", "foobar"])
-        .assert();
+    let assert = cmd.args(&["-l", "foo", "-o", "foobar"]).assert();
     assert.failure().stderr(predicates::str::contains(
         "Expected key-value pair delimited by an equals sign, got",
     ));
@@ -60,7 +50,6 @@ fn test_parse_storage_options_ok() {
     let temp_dir = temp_dir.path().to_str().unwrap();
 
     let assert = cmd
-        .timeout(DEFAULT_TIMEOUT)
         .args(&["-l", temp_dir, "-o", "foo=bar", "-q", "select 1"])
         .assert();
     assert.success();
@@ -76,7 +65,6 @@ fn test_data_dir() {
     let path = data_dir.to_str().unwrap();
 
     let assert = cmd
-        .timeout(DEFAULT_TIMEOUT)
         .args(&["-f", path, "-q", "create table test as select 1"])
         .assert();
     assert.success();

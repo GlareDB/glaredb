@@ -331,7 +331,7 @@ async fn print_stream(
         OutputMode::Table => {
             // If width not explicitly set by the user, try to get the width of ther
             // terminal.
-            let width = max_width.unwrap_or(pretty::term_width());
+            let width = max_width.unwrap_or(terminal_util::term_width());
             let disp = pretty::pretty_format_batches(&schema, &batches, Some(width), max_rows)?;
             println!("{disp}");
         }
