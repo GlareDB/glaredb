@@ -22,7 +22,7 @@ pub struct SessionMetricsHandler {
     user_id: Uuid,
     database_id: Uuid,
     connection_id: Uuid,
-    tracker: Arc<Tracker>,
+    // tracker: Arc<Tracker>,
 }
 
 impl SessionMetricsHandler {
@@ -30,13 +30,13 @@ impl SessionMetricsHandler {
         user_id: Uuid,
         database_id: Uuid,
         connection_id: Uuid,
-        tracker: Arc<Tracker>,
+        // tracker: Arc<Tracker>,
     ) -> SessionMetricsHandler {
         SessionMetricsHandler {
             user_id,
             database_id,
             connection_id,
-            tracker,
+            // tracker,
         }
     }
 
@@ -44,25 +44,25 @@ impl SessionMetricsHandler {
     ///
     /// This will also push the metric out to Segment.
     pub fn push_metric(&self, metric: QueryMetrics) {
-        self.tracker.track(
-            "Execution metric",
-            self.user_id,
-            json!({
-                // Additional info.
-                "database_id": self.database_id.hyphenated().encode_lower(&mut Uuid::encode_buffer()),
-                "connection_id": self.connection_id.hyphenated().encode_lower(&mut Uuid::encode_buffer()),
+        // self.tracker.track(
+        //     "Execution metric",
+        //     self.user_id,
+        //     json!({
+        //         // Additional info.
+        //         "database_id": self.database_id.hyphenated().encode_lower(&mut Uuid::encode_buffer()),
+        //         "connection_id": self.connection_id.hyphenated().encode_lower(&mut Uuid::encode_buffer()),
 
-                // Metric fields.
-                "query_text": metric.query_text,
-                "telemetry_tag": metric.result_type,
-                "execution_status": metric.execution_status.as_str(),
-                "error_message": metric.error_message,
-                "elapsed_compute_ns": metric.elapsed_compute_ns,
-                "output_rows": metric.output_rows,
-                "bytes_read": metric.bytes_read,
-                "bytes_written": metric.bytes_written,
-            }),
-        );
+        //         // Metric fields.
+        //         "query_text": metric.query_text,
+        //         "telemetry_tag": metric.result_type,
+        //         "execution_status": metric.execution_status.as_str(),
+        //         "error_message": metric.error_message,
+        //         "elapsed_compute_ns": metric.elapsed_compute_ns,
+        //         "output_rows": metric.output_rows,
+        //         "bytes_read": metric.bytes_read,
+        //         "bytes_written": metric.bytes_written,
+        //     }),
+        // );
     }
 }
 

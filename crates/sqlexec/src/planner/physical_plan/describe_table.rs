@@ -1,7 +1,7 @@
 use super::*;
 use std::{any::Any, sync::Arc};
 
-use arrow_util::pretty::fmt_dtype;
+// use arrow_util::pretty::fmt_dtype;
 use datafusion::{
     arrow::{
         array::{BooleanBuilder, StringBuilder},
@@ -85,7 +85,8 @@ impl ExecutionPlan for DescribeTableExec {
 
                 column_names.append_value(name);
 
-                data_types.append_value(fmt_dtype(&data_type));
+                unimplemented!();
+                // data_types.append_value(fmt_dtype(&data_type));
 
                 is_nullables.append_value(col.nullable);
             }

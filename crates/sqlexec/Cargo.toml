@@ -7,13 +7,13 @@ edition = { workspace = true }
 
 [dependencies]
 ioutil = { path = "../ioutil" }
-arrow_util = { path = "../arrow_util" }
+# arrow_util = { path = "../arrow_util" }
 logutil = { path = "../logutil" }
 protogen = { path = "../protogen" }
 catalog = { path = "../catalog" }
 proxyutil = { path = "../proxyutil" }
 pgrepr = { path = "../pgrepr" }
-telemetry = { path = "../telemetry" }
+# telemetry = { path = "../telemetry" }
 sqlbuiltins = { path = "../sqlbuiltins" }
 # datasources = { path = "../datasources" }
 datafusion_ext = { path = "../datafusion_ext" }

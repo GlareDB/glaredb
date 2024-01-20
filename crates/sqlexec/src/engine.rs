@@ -4,12 +4,12 @@ use crate::context::remote::RemoteSessionContext;
 use crate::errors::{ExecError, Result};
 use crate::session::Session;
 use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
-use object_store::azure::AzureConfigKey;
+// use object_store::azure::AzureConfigKey;
 use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
 use std::collections::HashMap;
 
 use ioutil::ensure_dir;
-use object_store::aws::AmazonS3ConfigKey;
+// use object_store::aws::AmazonS3ConfigKey;
 use object_store::{path::Path as ObjectPath, prefix::PrefixStore};
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use std::fs;
@@ -30,7 +30,7 @@ use object_store_util::conf::StorageConfig;
 use object_store_util::shared::SharedObjectStore;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
 use protogen::rpcsrv::types::common;
-use telemetry::Tracker;
+// use telemetry::Tracker;
 use tonic::transport::Channel;
 use tracing::{debug, info};
 use url::Url;
@@ -311,8 +311,8 @@ impl EngineStorageConfig {
 pub struct Engine {
     /// Metastore client supervisor.
     supervisor: MetastoreClientSupervisor,
-    /// Telemetry.
-    tracker: Arc<Tracker>,
+    // /// Telemetry.
+    // tracker: Arc<Tracker>,
     /// Storage configuration.
     storage: EngineStorageConfig,
     /// Path to spill temp files.
@@ -330,7 +330,7 @@ impl Engine {
     pub async fn new(
         metastore: MetastoreServiceClient<Channel>,
         storage: EngineStorageConfig,
-        tracker: Arc<Tracker>,
+        // tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
     ) -> Result<Engine> {
         // let (task_scheduler, executor_builder) = Scheduler::new();
@@ -347,7 +347,7 @@ impl Engine {
 
         Ok(Engine {
             supervisor: MetastoreClientSupervisor::new(metastore, DEFAULT_METASTORE_CLIENT_CONFIG),
-            tracker,
+            // tracker,
             storage,
             spill_path,
             session_counter: Arc::new(AtomicU64::new(0)),
@@ -356,10 +356,10 @@ impl Engine {
         })
     }
 
-    /// Returns the telemetry tracker used by this engine.
-    pub fn get_tracker(&self) -> Arc<Tracker> {
-        self.tracker.clone()
-    }
+    // /// Returns the telemetry tracker used by this engine.
+    // pub fn get_tracker(&self) -> Arc<Tracker> {
+    //     self.tracker.clone()
+    // }
 
     /// Create a new `Engine` instance from the provided storage configuration with a in-process metastore
     pub async fn from_storage_options(
@@ -376,7 +376,7 @@ impl Engine {
             ExecError::String(format!("Failed to start an in-process metastore: {e}"))
         })?;
 
-        Engine::new(client, conf, Arc::new(Tracker::Nop), None).await
+        Engine::new(client, conf, None).await
     }
 
     /// Create a new `Engine` instance from the provided data directory. This can be removed once the
@@ -394,13 +394,13 @@ impl Engine {
             ))
         })?;
 
-        Engine::new(client, conf, Arc::new(Tracker::Nop), None).await
+        Engine::new(client, conf, None).await
     }
 
-    pub fn with_tracker(mut self, tracker: Arc<Tracker>) -> Engine {
-        self.tracker = tracker;
-        self
-    }
+    // pub fn with_tracker(mut self, tracker: Arc<Tracker>) -> Engine {
+    //     self.tracker = tracker;
+    //     self
+    // }
 
     pub fn with_spill_path(mut self, spill_path: Option<PathBuf>) -> Engine {
         self.spill_path = spill_path;

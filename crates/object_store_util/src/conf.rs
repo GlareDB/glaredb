@@ -1,8 +1,11 @@
-use object_store::aws::{AmazonS3Builder, S3CopyIfNotExists};
-use object_store::azure::MicrosoftAzureBuilder;
+// use object_store::aws::{AmazonS3Builder, S3CopyIfNotExists};
+// use object_store::azure::MicrosoftAzureBuilder;
 use object_store::{
-    gcp::GoogleCloudStorageBuilder, local::LocalFileSystem, memory::InMemory,
-    Error as ObjectStoreError, ObjectStore,
+    local::LocalFileSystem,
+    memory::InMemory,
+    // gcp::GoogleCloudStorageBuilder,
+    Error as ObjectStoreError,
+    ObjectStore,
 };
 use once_cell::sync::Lazy;
 use std::path::PathBuf;
@@ -46,59 +49,62 @@ impl StorageConfig {
                 endpoint,
                 bucket,
             } => {
-                let mut builder = AmazonS3Builder::new()
-                    .with_access_key_id(access_key_id)
-                    .with_secret_access_key(secret_access_key)
-                    .with_region(region.clone().unwrap_or_default());
+                unimplemented!()
+                // let mut builder = AmazonS3Builder::new()
+                //     .with_access_key_id(access_key_id)
+                //     .with_secret_access_key(secret_access_key)
+                //     .with_region(region.clone().unwrap_or_default());
 
-                if let Some(endpoint) = endpoint {
-                    if endpoint.starts_with("http://") {
-                        builder = builder.with_allow_http(true);
-                    }
-                    builder = builder.with_endpoint(endpoint);
-                    if endpoint.contains("r2.cloudflarestorage.com") {
-                        // Ensure `ObjectStore::copy_if_not_exists` is enabled on the S3 client for
-                        // Cloudflare R2 with the adequate header
-                        builder = builder.with_copy_if_not_exists(S3CopyIfNotExists::Header(
-                            "cf-copy-destination-if-none-match".to_string(),
-                            "*".to_string(),
-                        ))
-                    }
-                }
+                // if let Some(endpoint) = endpoint {
+                //     if endpoint.starts_with("http://") {
+                //         builder = builder.with_allow_http(true);
+                //     }
+                //     builder = builder.with_endpoint(endpoint);
+                //     if endpoint.contains("r2.cloudflarestorage.com") {
+                //         // Ensure `ObjectStore::copy_if_not_exists` is enabled on the S3 client for
+                //         // Cloudflare R2 with the adequate header
+                //         builder = builder.with_copy_if_not_exists(S3CopyIfNotExists::Header(
+                //             "cf-copy-destination-if-none-match".to_string(),
+                //             "*".to_string(),
+                //         ))
+                //     }
+                // }
 
-                if let Some(bucket) = bucket {
-                    builder = builder.with_bucket_name(bucket);
-                }
+                // if let Some(bucket) = bucket {
+                //     builder = builder.with_bucket_name(bucket);
+                // }
 
-                Arc::new(builder.build()?)
+                // Arc::new(builder.build()?)
             }
             StorageConfig::Gcs {
                 service_account_key,
                 bucket,
             } => {
-                let mut builder =
-                    GoogleCloudStorageBuilder::new().with_service_account_key(service_account_key);
+                unimplemented!()
+                // let mut builder =
+                //     GoogleCloudStorageBuilder::new().with_service_account_key(service_account_key);
 
-                if let Some(bucket) = bucket {
-                    builder = builder.with_bucket_name(bucket);
-                }
+                // if let Some(bucket) = bucket {
+                //     builder = builder.with_bucket_name(bucket);
+                // }
 
-                Arc::new(builder.build()?)
+                // Arc::new(builder.build()?)
             }
             StorageConfig::Azure {
                 account_name,
                 access_key,
                 container_name,
             } => {
-                let mut builder = MicrosoftAzureBuilder::new()
-                    .with_account(account_name)
-                    .with_access_key(access_key);
+                unimplemented!()
+                // let mut builder = MicrosoftAzureBuilder::new()
+                //     .with_account(account_name)
+                //     .with_access_key(access_key);
 
-                if let Some(container_name) = container_name {
-                    builder = builder.with_container_name(container_name);
-                }
+                // if let Some(container_name) = container_name {
+                //     builder = builder.with_container_name(container_name);
+                // }
 
-                Arc::new(builder.build()?)
+                // Arc::new(builder.build()?)
             }
             StorageConfig::Local { path } => Arc::new(LocalFileSystem::new_with_prefix(path)?),
             StorageConfig::Memory => IN_MEMORY_STORE.clone(),

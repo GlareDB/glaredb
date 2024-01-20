@@ -585,30 +585,31 @@ impl<'a> SystemTableDispatcher<'a> {
     }
 }
 fn sig_to_string_repr(sig: &TypeSignature) -> Vec<String> {
-    match sig {
-        TypeSignature::Variadic(types) => {
-            let types = types.iter().map(arrow_util::pretty::fmt_dtype);
-            vec![format!("{}, ..", join_types(types, "/"))]
-        }
-        TypeSignature::Uniform(arg_count, valid_types) => {
-            let types = valid_types.iter().map(arrow_util::pretty::fmt_dtype);
-            vec![std::iter::repeat(join_types(types, "/"))
-                .take(*arg_count)
-                .collect::<Vec<String>>()
-                .join(", ")]
-        }
-        TypeSignature::Exact(types) => {
-            let types = types.iter().map(arrow_util::pretty::fmt_dtype);
-            vec![join_types(types, ", ")]
-        }
-        TypeSignature::Any(arg_count) => {
-            let types = std::iter::repeat("Any").take(*arg_count);
-            vec![join_types(types, ",")]
-        }
-        TypeSignature::VariadicEqual => vec!["T, .., T".to_string()],
-        TypeSignature::VariadicAny => vec!["Any, .., Any".to_string()],
-        TypeSignature::OneOf(sigs) => sigs.iter().flat_map(sig_to_string_repr).collect(),
-    }
+    unimplemented!()
+    // match sig {
+    //     TypeSignature::Variadic(types) => {
+    //         let types = types.iter().map(arrow_util::pretty::fmt_dtype);
+    //         vec![format!("{}, ..", join_types(types, "/"))]
+    //     }
+    //     TypeSignature::Uniform(arg_count, valid_types) => {
+    //         let types = valid_types.iter().map(arrow_util::pretty::fmt_dtype);
+    //         vec![std::iter::repeat(join_types(types, "/"))
+    //             .take(*arg_count)
+    //             .collect::<Vec<String>>()
+    //             .join(", ")]
+    //     }
+    //     TypeSignature::Exact(types) => {
+    //         let types = types.iter().map(arrow_util::pretty::fmt_dtype);
+    //         vec![join_types(types, ", ")]
+    //     }
+    //     TypeSignature::Any(arg_count) => {
+    //         let types = std::iter::repeat("Any").take(*arg_count);
+    //         vec![join_types(types, ",")]
+    //     }
+    //     TypeSignature::VariadicEqual => vec!["T, .., T".to_string()],
+    //     TypeSignature::VariadicAny => vec!["Any, .., Any".to_string()],
+    //     TypeSignature::OneOf(sigs) => sigs.iter().flat_map(sig_to_string_repr).collect(),
+    // }
 }
 
 /// Helper function to join types with specified delimiter.

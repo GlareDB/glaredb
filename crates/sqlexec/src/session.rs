@@ -41,7 +41,7 @@ use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use pgrepr::notice::{Notice, NoticeSeverity, SqlState};
-use telemetry::Tracker;
+// use telemetry::Tracker;
 use uuid::Uuid;
 
 static EMPTY_EXEC_PLAN: Lazy<Arc<dyn ExecutionPlan>> = Lazy::new(|| {
@@ -396,7 +396,7 @@ impl Session {
         catalog: SessionCatalog,
         catalog_mutator: CatalogMutator,
         // native_tables: NativeTableStorage,
-        tracker: Arc<Tracker>,
+        // tracker: Arc<Tracker>,
         spill_path: Option<PathBuf>,
         // task_scheduler: Scheduler,
     ) -> Result<Session> {
@@ -404,7 +404,7 @@ impl Session {
             vars.user_id(),
             vars.database_id(),
             vars.connection_id(),
-            tracker,
+            // tracker,
         );
 
         let ctx = LocalSessionContext::new(

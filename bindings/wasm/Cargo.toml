@@ -11,5 +11,7 @@ crate-type = ["cdylib"]
 wasm-bindgen = "0.2.90"
 wasm-bindgen-futures = "0.4.40"
 console_log = "1.0.0"
+tokio = { version = "*", features = ["sync", "macros", "rt", "time", "io-util"] }
+datafusion = { version = "32.0", default-features = false, features = ["crypto_expressions", "encoding_expressions", "regex_expressions", "unicode_expressions"] }
 sqlexec = { path = "../../crates/sqlexec" }
 getrandom = { version = "*", features = ["js"] }

@@ -32,9 +32,9 @@ use datafusion_ext::AsyncContextProvider;
 // use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 // use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 // use datasources::sqlserver::SqlServerAccess;
-use object_store::aws::AmazonS3ConfigKey;
-use object_store::azure::AzureConfigKey;
-use object_store::gcp::GoogleConfigKey;
+// use object_store::aws::AmazonS3ConfigKey;
+// use object_store::azure::AzureConfigKey;
+// use object_store::gcp::GoogleConfigKey;
 use protogen::metastore::types::catalog::{
     CatalogEntry, DatabaseEntry, RuntimePreference, SourceAccessMode, TableEntry,
 };
@@ -2185,35 +2185,36 @@ fn storage_options_with_credentials(
     storage_options: &mut StorageOptions,
     creds: CredentialsOptions,
 ) {
-    match creds {
-        CredentialsOptions::Debug(_) => {} // Nothing to do here
-        CredentialsOptions::Gcp(creds) => {
-            storage_options.inner.insert(
-                GoogleConfigKey::ServiceAccountKey.as_ref().to_string(),
-                creds.service_account_key,
-            );
-        }
-        CredentialsOptions::Aws(creds) => {
-            storage_options.inner.insert(
-                AmazonS3ConfigKey::AccessKeyId.as_ref().to_string(),
-                creds.access_key_id,
-            );
-            storage_options.inner.insert(
-                AmazonS3ConfigKey::SecretAccessKey.as_ref().to_string(),
-                creds.secret_access_key,
-            );
-        }
-        CredentialsOptions::Azure(creds) => {
-            storage_options.inner.insert(
-                AzureConfigKey::AccountName.as_ref().to_string(),
-                creds.account_name,
-            );
-            storage_options.inner.insert(
-                AzureConfigKey::AccessKey.as_ref().to_string(),
-                creds.access_key,
-            );
-        }
-    }
+    unimplemented!()
+    // match creds {
+    //     CredentialsOptions::Debug(_) => {} // Nothing to do here
+    //     CredentialsOptions::Gcp(creds) => {
+    //         storage_options.inner.insert(
+    //             GoogleConfigKey::ServiceAccountKey.as_ref().to_string(),
+    //             creds.service_account_key,
+    //         );
+    //     }
+    //     CredentialsOptions::Aws(creds) => {
+    //         storage_options.inner.insert(
+    //             AmazonS3ConfigKey::AccessKeyId.as_ref().to_string(),
+    //             creds.access_key_id,
+    //         );
+    //         storage_options.inner.insert(
+    //             AmazonS3ConfigKey::SecretAccessKey.as_ref().to_string(),
+    //             creds.secret_access_key,
+    //         );
+    //     }
+    //     CredentialsOptions::Azure(creds) => {
+    //         storage_options.inner.insert(
+    //             AzureConfigKey::AccountName.as_ref().to_string(),
+    //             creds.account_name,
+    //         );
+    //         storage_options.inner.insert(
+    //             AzureConfigKey::AccessKey.as_ref().to_string(),
+    //             creds.access_key,
+    //         );
+    //     }
+    // }
 }
 
 /// Returns a validated `DataType` for the specified precision and

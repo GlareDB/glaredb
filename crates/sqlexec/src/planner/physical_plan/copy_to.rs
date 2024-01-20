@@ -22,7 +22,7 @@ use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 // use datasources::object_store::s3::S3StoreAccess;
 // use datasources::object_store::ObjStoreAccess;
 use futures::stream;
-use object_store::azure::AzureConfigKey;
+// use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::options::{
     CopyToDestinationOptions, CopyToFormatOptions, StorageOptions,
 };

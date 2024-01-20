@@ -167,8 +167,6 @@ version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ceb7c683b2f8f40970b70e39ff8be514c95b96fcb9c4af87e1ed2cb2e10801a0"
 dependencies = [
- "bzip2",
- "crc32fast",
  "digest 0.10.7",
  "lazy_static",
  "libflate",
@@ -179,14 +177,11 @@ dependencies = [
  "regex-lite",
  "serde",
  "serde_json",
- "snap",
  "strum 0.25.0",
  "strum_macros 0.25.3",
  "thiserror",
  "typed-builder 0.16.2",
  "uuid",
- "xz2",
- "zstd 0.12.4",
 ]
 
 [[package]]
@@ -2132,7 +2127,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7014432223f4d721cb9786cd88bb89e7464e0ba984d4a7f49db7787f5f268674"
 dependencies = [
  "ahash 0.8.6",
- "apache-avro",
  "arrow",
  "arrow-array",
  "arrow-schema",
@@ -2157,7 +2151,6 @@ dependencies = [
  "indexmap 2.0.2",
  "itertools 0.11.0",
  "log",
- "num-traits",
  "num_cpus",
  "object_store",
  "parking_lot",
@@ -2182,7 +2175,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb3903ed8f102892f17b48efa437f3542159241d41c564f0d1e78efdc5e663aa"
 dependencies = [
  "ahash 0.8.6",
- "apache-avro",
  "arrow",
  "arrow-array",
  "arrow-buffer",
@@ -3279,8 +3271,10 @@ name = "glaredb-wasm"
 version = "0.8.1"
 dependencies = [
  "console_log",
+ "datafusion",
  "getrandom",
  "sqlexec",
+ "tokio",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -7328,7 +7322,6 @@ dependencies = [
  "async-trait",
  "datafusion",
  "datafusion_ext",
- "datasources",
  "decimal",
  "fnv",
  "futures",
@@ -7353,7 +7346,6 @@ dependencies = [
 name = "sqlexec"
 version = "0.8.1"
 dependencies = [
- "arrow_util",
  "async-channel",
  "async-trait",
  "bytes",
@@ -7379,7 +7371,6 @@ dependencies = [
  "reqwest",
  "serde",
  "sqlbuiltins",
- "telemetry",
  "tempfile",
  "thiserror",
  "tokio-postgres",
