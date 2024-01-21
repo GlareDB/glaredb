@@ -72,53 +72,10 @@ slt-bin-debug *args:
 
 # Run SQL Logic Tests over RPC
 rpc-tests:
-  just slt --protocol=rpc \
-    'sqllogictests/cast/*' \
-    'sqllogictests/cte/*' \
-    'sqllogictests/functions/arrow_cast' \
-    'sqllogictests/functions/csv_scan' \
-    'sqllogictests/functions/delta_scan' \
-    'sqllogictests/functions/generate_series' \
-    'sqllogictests/functions/version' \
-    'sqllogictests/joins/*' \
-    'sqllogictests/topn/*' \
-    'sqllogictests/window/*' \
-    'sqllogictests/aggregates' \
-    'sqllogictests/alter' \
-    'sqllogictests/create_table' \
-    'sqllogictests/credential' \
-    'sqllogictests/credentials' \
-    'sqllogictests/csv' \
-    'sqllogictests/debug' \
-    'sqllogictests/delete' \
-    'sqllogictests/demo_pg' \
-    'sqllogictests/drop' \
-    'sqllogictests/explain' \
-    'sqllogictests/external_table' \
-    'sqllogictests/http' \
-    'sqllogictests/infer' \
-    'sqllogictests/information_schema' \
-    'sqllogictests/metabase' \
-    'sqllogictests/name' \
-    'sqllogictests/object_names' \
-    'sqllogictests/pg_catalog' \
-    'sqllogictests/rpc' \
-    'sqllogictests/schema' \
-    'sqllogictests/search_path' \
-    'sqllogictests/select' \
-    'sqllogictests/simple' \
-    'sqllogictests/table' \
-    'sqllogictests/temp_table' \
-    'sqllogictests/time' \
-    'sqllogictests/tunnels' \
-    'sqllogictests/update' \
-    'sqllogictests/vars' \
-    'sqllogictests/views' \
-    'sqllogictests/virtual_catalog' \
-    'sqllogictests/xlsx' \
-    'sqllogictests/prql' \
-    'sqllogictests/describe_rpc' \
-    'sqllogictests/allowed_operations'
+  just slt --protocol=rpc "sqllogictests/*" \
+    --exclude "sqllogictests/functions/cache_external_database_tables" \
+    --exclude "sqllogictests/functions/kdl" \
+    --exclude "sqllogictests/functions/postgres"
 
 #  Check formatting.
 fmt-check: protoc
