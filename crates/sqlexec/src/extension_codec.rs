@@ -542,6 +542,14 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 schema_reference: Some(exec.schema_reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
             })
+        } else if let Some(exec) = node.as_any().downcast_ref::<CreateCredentialExec>() {
+            proto::ExecutionPlanExtensionType::CreateCredentialExec(proto::CreateCredentialExec {
+                name: exec.name.clone(),
+                catalog_version: exec.catalog_version,
+                options: Some(exec.options.clone().into()),
+                comment: exec.comment.clone(),
+                or_replace: exec.or_replace,
+            })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateCredentialsExec>() {
             proto::ExecutionPlanExtensionType::CreateCredentialsExec(proto::CreateCredentialsExec {
                 name: exec.name.clone(),

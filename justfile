@@ -84,6 +84,7 @@ rpc-tests:
     'sqllogictests/aggregates' \
     'sqllogictests/alter' \
     'sqllogictests/create_table' \
+    'sqllogictests/credential' \
     'sqllogictests/credentials' \
     'sqllogictests/csv' \
     'sqllogictests/debug' \
