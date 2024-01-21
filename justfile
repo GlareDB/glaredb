@@ -75,6 +75,7 @@ rpc-tests:
   just slt --protocol=rpc \
     'sqllogictests/cast/*' \
     'sqllogictests/cte/*' \
+    'sqllogictests/functions/arrow_cast' \
     'sqllogictests/functions/delta_scan' \
     'sqllogictests/functions/generate_series' \
     'sqllogictests/functions/version' \
