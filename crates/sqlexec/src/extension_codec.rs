@@ -25,7 +25,6 @@ use crate::planner::physical_plan::alter_database::AlterDatabaseExec;
 use crate::planner::physical_plan::alter_table::AlterTableExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::copy_to::CopyToExec;
-use crate::planner::physical_plan::create_credential::CreateCredentialExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
 use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
@@ -170,18 +169,6 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     options: options.try_into()?,
                     comment: create_credentials.comment,
                     or_replace: create_credentials.or_replace,
-                })
-            }
-            proto::ExecutionPlanExtensionType::CreateCredentialExec(create_credential) => {
-                let options = create_credential
-                    .options
-                    .ok_or(DataFusionError::Plan("options is required".to_string()))?;
-                Arc::new(CreateCredentialExec {
-                    name: create_credential.name,
-                    catalog_version: create_credential.catalog_version,
-                    options: options.try_into()?,
-                    comment: create_credential.comment,
-                    or_replace: create_credential.or_replace,
                 })
             }
             proto::ExecutionPlanExtensionType::DescribeTable(describe_table) => {
@@ -541,14 +528,6 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 catalog_version: exec.catalog_version,
                 schema_reference: Some(exec.schema_reference.clone().into()),
                 if_not_exists: exec.if_not_exists,
-            })
-        } else if let Some(exec) = node.as_any().downcast_ref::<CreateCredentialExec>() {
-            proto::ExecutionPlanExtensionType::CreateCredentialExec(proto::CreateCredentialExec {
-                name: exec.name.clone(),
-                catalog_version: exec.catalog_version,
-                options: Some(exec.options.clone().into()),
-                comment: exec.comment.clone(),
-                or_replace: exec.or_replace,
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateCredentialsExec>() {
             proto::ExecutionPlanExtensionType::CreateCredentialsExec(proto::CreateCredentialsExec {
