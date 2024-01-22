@@ -318,11 +318,16 @@ impl<'a> SessionPlanner<'a> {
             }
             DatabaseOptions::CASSANDRA => {
                 let host: String = m.remove_required("host")?;
-
-                let access = CassandraAccess::new(host.clone());
+                let username: Option<String> = m.remove_optional("username")?;
+                let password: Option<String> = m.remove_optional("password")?;
+                let access = CassandraAccess::new(host.clone(), username.clone(), password.clone());
                 access.validate_access().await?;
 
-                DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host })
+                DatabaseOptions::Cassandra(DatabaseOptionsCassandra {
+                    host,
+                    username,
+                    password,
+                })
             }
             DatabaseOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
@@ -544,13 +549,19 @@ impl<'a> SessionPlanner<'a> {
                 let host: String = m.remove_required("host")?;
                 let keyspace: String = m.remove_required("keyspace")?;
                 let table: String = m.remove_required("table")?;
-                let access = CassandraAccessState::try_new(host.clone()).await?;
+                let username: Option<String> = m.remove_optional("username")?;
+                let password: Option<String> = m.remove_optional("password")?;
+                let access =
+                    CassandraAccessState::try_new(host.clone(), username.clone(), password.clone())
+                        .await?;
                 access.validate_table_access(&keyspace, &table).await?;
 
                 TableOptions::Cassandra(TableOptionsCassandra {
                     host,
                     keyspace,
                     table,
+                    username,
+                    password,
                 })
             }
             TableOptions::LOCAL => {
