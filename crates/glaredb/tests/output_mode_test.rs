@@ -1,15 +1,11 @@
 mod setup;
 
-use crate::setup::{make_cli, DEFAULT_TIMEOUT};
+use crate::setup::make_cli;
 
 fn test_output_mode(mode: &str, expected: &str) {
     let mut cmd = make_cli();
 
-    cmd.timeout(DEFAULT_TIMEOUT)
-        .arg("--mode")
-        .arg(mode)
-        .arg("-q")
-        .arg("select 1;");
+    cmd.arg("--mode").arg(mode).arg("-q").arg("select 1;");
     let output = cmd.output().expect("Failed to run command");
     let stdout_str = String::from_utf8(output.stdout).expect("Failed to read stdout");
 
@@ -22,7 +18,7 @@ fn test_output_mode(mode: &str, expected: &str) {
 fn test_output_mode_default() {
     let mut cmd = make_cli();
 
-    cmd.timeout(DEFAULT_TIMEOUT).arg("-q").arg("select 1;");
+    cmd.arg("-q").arg("select 1;");
     let output = cmd.output().expect("Failed to run command");
     let stdout_str = String::from_utf8(output.stdout).expect("Failed to read stdout");
     let expected = r#"

@@ -35,7 +35,7 @@ select count(*) from ndjson_scan([
 ----
 204
 
-statement error at least one url expected
+statement error Expected at least one url.
 select * from ndjson_scan([]);
 
 # Glob patterns not supported on HTTP
