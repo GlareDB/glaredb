@@ -25,6 +25,7 @@ pgrepr = { path = "../../crates/pgrepr" }
 datafusion_ext = { path = "../../crates/datafusion_ext" }
 arrow_util = { path = "../../crates/arrow_util" }
 glaredb = { path = "../../crates/glaredb" }
+terminal_util = { path = "../../crates/terminal_util" }
 futures = { workspace = true }
 uuid = "1.7.0"
 async-trait = { workspace = true }
