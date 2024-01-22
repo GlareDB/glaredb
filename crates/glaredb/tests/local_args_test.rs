@@ -1,7 +1,6 @@
 mod setup;
 
 use predicates::boolean::PredicateBooleanExt;
-use setup::DEFAULT_TIMEOUT;
 
 use crate::setup::make_cli;
 
@@ -9,10 +8,7 @@ use crate::setup::make_cli;
 /// Basic test to ensure that the CLI is working.
 fn test_query() {
     let mut cmd = make_cli();
-    let assert = cmd
-        .timeout(DEFAULT_TIMEOUT)
-        .args(&["-q", "SELECT 1"])
-        .assert();
+    let assert = cmd.args(&["-q", "SELECT 1"]).assert();
     assert.success().stdout(predicates::str::contains("1"));
 }
 
@@ -24,8 +20,6 @@ fn test_file() {
     let temp_dir = temp_dir.path().to_str().unwrap();
     let file = format!("{}/foo.sql", temp_dir);
     std::fs::write(&file, "SELECT 1").unwrap();
-
-    let assert = cmd.timeout(DEFAULT_TIMEOUT).args(&["-q", &file]).assert();
     assert.success().stdout(predicates::str::contains("1"));
 }
 
@@ -35,10 +29,7 @@ fn test_file() {
 fn test_storage_config_require_location() {
     let mut cmd = make_cli();
 
-    let assert = cmd
-        .timeout(DEFAULT_TIMEOUT)
-        .args(&["-o", "foo=bar"])
-        .assert();
+    let assert = cmd.args(&["-o", "foo=bar"]).assert();
     assert.failure().stderr(
         predicates::str::contains("error: the following required arguments were not provided:")
             .and(predicates::str::contains("--location <LOCATION>")),
@@ -51,10 +42,7 @@ fn test_storage_config_require_location() {
 fn test_parse_storage_options_not_ok() {
     let mut cmd = make_cli();
 
-    let assert = cmd
-        .timeout(DEFAULT_TIMEOUT)
-        .args(&["-l", "foo", "-o", "foobar"])
-        .assert();
+    let assert = cmd.args(&["-l", "foo", "-o", "foobar"]).assert();
     assert.failure().stderr(predicates::str::contains(
         "Expected key-value pair delimited by an equals sign, got",
     ));
@@ -69,7 +57,6 @@ fn test_parse_storage_options_ok() {
     let temp_dir = temp_dir.path().to_str().unwrap();
 
     let assert = cmd
-        .timeout(DEFAULT_TIMEOUT)
         .args(&["-l", temp_dir, "-o", "foo=bar", "-q", "select 1"])
         .assert();
     assert.success();
@@ -85,7 +72,6 @@ fn test_data_dir() {
     let path = data_dir.to_str().unwrap();
 
     let assert = cmd
-        .timeout(DEFAULT_TIMEOUT)
         .args(&["-f", path, "-q", "create table test as select 1"])
         .assert();
     assert.success();

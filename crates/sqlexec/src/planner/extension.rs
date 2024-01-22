@@ -7,7 +7,7 @@ use crate::{
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 
 use super::logical_plan::{
-    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredential, CreateCredentials,
+    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
     CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
     DropTables, DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
@@ -21,7 +21,6 @@ pub enum ExtensionType {
     AlterDatabase,
     AlterTable,
     AlterTunnelRotateKeys,
-    CreateCredential,
     CreateCredentials,
     CreateExternalDatabase,
     CreateExternalTable,
@@ -52,7 +51,6 @@ impl FromStr for ExtensionType {
             AlterDatabase::EXTENSION_NAME => Self::AlterDatabase,
             AlterTable::EXTENSION_NAME => Self::AlterTable,
             AlterTunnelRotateKeys::EXTENSION_NAME => Self::AlterTunnelRotateKeys,
-            CreateCredential::EXTENSION_NAME => Self::CreateCredential,
             CreateCredentials::EXTENSION_NAME => Self::CreateCredentials,
             CreateExternalDatabase::EXTENSION_NAME => Self::CreateExternalDatabase,
             CreateExternalTable::EXTENSION_NAME => Self::CreateExternalTable,
