@@ -274,24 +274,32 @@ pub struct CreateCredentialsStmt {
     pub comment: String,
     /// replace if it exists
     pub or_replace: bool,
+    /// Whether or not we're using the old syntax CREATE CREDENTIALS. New syntax
+    /// is just CREATE CREDENTIAL.
+    pub deprecated: bool,
 }
 
 impl fmt::Display for CreateCredentialsStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "CREATE {or_replace}CREDENTIALS {name} PROVIDER {provider}",
-            or_replace = if self.or_replace { "OR REPLACE " } else { "" },
-            name = self.name,
-            provider = self.provider
-        )?;
+        write!(f, "CREATE ")?;
+        if self.or_replace {
+            write!(f, "OR REPLACE ")?;
+        }
+        if self.deprecated {
+            write!(f, "CREDENTIALS ")?;
+        } else {
+            write!(f, "CREDENTIAL ")?;
+        }
+        write!(f, "{} ", self.name)?;
+        write!(f, "PROVIDER {}", self.provider)?;
+
         if !self.options.is_empty() {
             write!(f, " {}", self.options)?;
         }
-
         if !self.comment.is_empty() {
-            write!(f, " COMMENT '{}'", self.comment)?;
+            write!(f, " COMMENT '{}'", self.comment)?
         }
+
         Ok(())
     }
 }
@@ -416,8 +424,6 @@ pub enum StatementWithExtensions {
     /// Alter tunnel extension.
     AlterTunnel(AlterTunnelStmt),
     /// Create credentials extension.
-    CreateCredential(CreateCredentialStmt),
-    /// Create credentials extension.
     CreateCredentials(CreateCredentialsStmt),
     /// Drop credentials extension.
     DropCredentials(DropCredentialsStmt),
@@ -437,7 +443,6 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::AlterTunnel(stmt) => write!(f, "{}", stmt),
-            StatementWithExtensions::CreateCredential(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateCredentials(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropCredentials(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CopyTo(stmt) => write!(f, "{}", stmt),
@@ -772,25 +777,16 @@ impl<'a> CustomParser<'a> {
             "".to_owned()
         };
 
-        let stmt = if deprecated {
-            StatementWithExtensions::CreateCredentials(CreateCredentialsStmt {
+        Ok(StatementWithExtensions::CreateCredentials(
+            CreateCredentialsStmt {
                 name,
                 provider,
                 options,
                 comment,
                 or_replace,
-            })
-        } else {
-            StatementWithExtensions::CreateCredential(CreateCredentialStmt {
-                name,
-                provider,
-                options,
-                comment,
-                or_replace,
-            })
-        };
-
-        Ok(stmt)
+                deprecated,
+            },
+        ))
     }
 
     fn parse_object_type(&mut self, object_type: &str) -> Result<Ident, ParserError> {
@@ -1233,8 +1229,12 @@ mod tests {
     #[test]
     fn create_credentials_roundtrips() {
         let test_cases = [
+            // Deprecated syntax
             "CREATE CREDENTIALS qa PROVIDER debug OPTIONS (table_type = 'never_ending')",
             "CREATE CREDENTIALS qa PROVIDER debug OPTIONS (table_type = 'never_ending') COMMENT 'for debug'",
+            // New syntax
+            "CREATE CREDENTIAL qa PROVIDER debug OPTIONS (table_type = 'never_ending')",
+            "CREATE CREDENTIAL qa PROVIDER debug OPTIONS (table_type = 'never_ending') COMMENT 'for debug'",
         ];
 
         for test_case in test_cases {
