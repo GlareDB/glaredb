@@ -12,14 +12,7 @@ use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::{Column, Expr, SessionContext as DfSessionContext};
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::native::access::NativeTableStorage;
-use protogen::metastore::types::catalog::{
-    CatalogEntry,
-    DatabaseEntry,
-    EntryMeta,
-    EntryType,
-    FunctionEntry,
-    ViewEntry,
-};
+use protogen::metastore::types::catalog::{DatabaseEntry, FunctionEntry, TableEntry, ViewEntry};
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
 
 use self::external::ExternalDispatcher;
@@ -51,20 +44,11 @@ pub enum DispatchError {
     #[error("Missing tunnel connection: {0}")]
     MissingTunnel(u32),
 
-    #[error("Invalid entry for table dispatch: {0}")]
-    InvalidEntryTypeForDispatch(EntryType),
-
-    #[error("Unhandled entry for table dispatch: {0:?}")]
-    UnhandledEntry(EntryMeta),
-
     #[error("failed to plan view: {0}")]
     ViewPlanning(Box<crate::planner::errors::PlanError>),
 
     #[error("Invalid dispatch: {0}")]
     InvalidDispatch(&'static str),
-
-    #[error(transparent)]
-    RemoteDispatch(Box<dyn std::error::Error + Send + Sync>),
 
     #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
@@ -105,22 +89,6 @@ pub enum DispatchError {
 
     #[error("{0}")]
     String(String),
-}
-
-impl DispatchError {
-    /// Whether or not this error should indicate to the planner to try looking
-    /// in a different schema for the requested object.
-    ///
-    /// For example, if a user's search path is '[public, other]', and 'table_a'
-    /// exists in 'other', then the dispatch will fail the first time with
-    /// `MissingEntry` since it will look for 'public.table_a' first. In such
-    /// cases, we should try the next schema.
-    pub fn should_try_next_schema(&self) -> bool {
-        matches!(
-            self,
-            DispatchError::MissingEntry { .. } | DispatchError::InvalidEntryTypeForDispatch(_)
-        )
-    }
 }
 
 /// Trait for planning views.
@@ -196,67 +164,64 @@ impl<'a> Dispatcher<'a> {
         }
     }
 
-    /// Dispatch to a table provider.
-    pub async fn dispatch(&self, ent: CatalogEntry) -> Result<Arc<dyn TableProvider>> {
-        // Only allow dispatching to types we can actually convert to a table
-        // provider.
-        if !matches!(ent.entry_type(), EntryType::View | EntryType::Table) {
-            return Err(DispatchError::InvalidEntryTypeForDispatch(ent.entry_type()));
+    /// Dispatch a table.
+    pub async fn dispatch_table(&self, tbl: &TableEntry) -> Result<Arc<dyn TableProvider>> {
+        // Temp tables
+        if tbl.meta.is_temp {
+            return Ok(self
+                .catalog
+                .get_temp_catalog()
+                .get_temp_table_provider(&tbl.meta.name)
+                .ok_or_else(|| DispatchError::MissingTempTable {
+                    name: tbl.meta.name.to_string(),
+                })?);
         }
 
-        match ent {
-            CatalogEntry::View(view) => self.dispatch_view(&view).await,
-            // Temp tables
-            CatalogEntry::Table(tbl) if tbl.meta.is_temp => {
-                let provider = self
-                    .catalog
-                    .get_temp_catalog()
-                    .get_temp_table_provider(&tbl.meta.name)
-                    .ok_or_else(|| DispatchError::MissingTempTable {
-                        name: tbl.meta.name.to_string(),
-                    })?;
-                Ok(provider)
-            }
-            // Dispatch to builtin tables.
-            CatalogEntry::Table(tbl) if tbl.meta.builtin => {
-                SystemTableDispatcher::new(self.catalog, self.tables)
-                    .dispatch(&tbl)
-                    .await
-            }
-            // Dispatch to external tables.
-            CatalogEntry::Table(tbl) if tbl.meta.external => {
-                ExternalDispatcher::new(self.catalog, self.df_ctx, self.disable_local_fs_access)
-                    .dispatch_external_table(&tbl)
-                    .await
-            }
-            // Dispatch to native tables.
-            CatalogEntry::Table(tbl) => {
-                let table = self.tables.load_table(&tbl).await?;
-                Ok(table.into_table_provider())
-            }
-            other => Err(DispatchError::UnhandledEntry(other.get_meta().clone())),
+        // Builtin tables
+        if tbl.meta.builtin {
+            return SystemTableDispatcher::new(self.catalog, self.tables)
+                .dispatch(tbl)
+                .await;
         }
+
+        // External tables
+        if tbl.meta.external {
+            return ExternalDispatcher::new(
+                self.catalog,
+                self.df_ctx,
+                self.disable_local_fs_access,
+            )
+            .dispatch_external_table(tbl)
+            .await;
+        }
+
+        // Native (user) tables
+        let table = self.tables.load_table(tbl).await?;
+        Ok(table.into_table_provider())
     }
 
-    /// Dispatch to an external system.
-    pub async fn dispatch_external(
-        &self,
-        db_ent: &DatabaseEntry,
-        schema: &str,
-        name: &str,
-    ) -> Result<Arc<dyn TableProvider>> {
-        ExternalDispatcher::new(self.catalog, self.df_ctx, self.disable_local_fs_access)
-            .dispatch_external(&db_ent.meta.name, schema, name)
-            .await
-    }
-
-    async fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
+    /// Dispatch a view.
+    pub async fn dispatch_view(&self, view: &ViewEntry) -> Result<Arc<dyn TableProvider>> {
         let plan = self
             .view_planner
             .plan_view(&view.sql, &view.columns)
             .await
             .map_err(|e| DispatchError::ViewPlanning(Box::new(e)))?;
         Ok(Arc::new(ViewTable::try_new(plan, None)?))
+    }
+
+    /// Dispatch to an external system.
+    pub async fn dispatch_external(
+        &self,
+        db_ent: &DatabaseEntry,
+        schema: impl AsRef<str>,
+        name: impl AsRef<str>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let schema = schema.as_ref();
+        let name = name.as_ref();
+        ExternalDispatcher::new(self.catalog, self.df_ctx, self.disable_local_fs_access)
+            .dispatch_external(&db_ent.meta.name, schema, name)
+            .await
     }
 
     pub async fn dispatch_table_function(
@@ -269,7 +234,7 @@ impl<'a> Dispatcher<'a> {
             Some(func) => func,
             None => {
                 return Err(DispatchError::String(format!(
-                    "'{}' cannot be used in the FROM clause of a query.",
+                    "'{}' is not a table function",
                     func.meta.name
                 )))
             }

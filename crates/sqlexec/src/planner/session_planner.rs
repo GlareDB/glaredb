@@ -211,11 +211,8 @@ impl<'a> SessionPlanner<'a> {
             StatementWithExtensions::CreateTunnel(stmt) => self.plan_create_tunnel(stmt),
             StatementWithExtensions::DropTunnel(stmt) => self.plan_drop_tunnel(stmt),
             StatementWithExtensions::AlterTunnel(stmt) => self.plan_alter_tunnel(stmt),
-            StatementWithExtensions::CreateCredential(stmt) => {
-                self.plan_create_credentials(stmt.into(), false)
-            }
             StatementWithExtensions::CreateCredentials(stmt) => {
-                self.plan_create_credentials(stmt.into(), true)
+                self.plan_create_credentials(stmt.into())
             }
             StatementWithExtensions::DropCredentials(stmt) => self.plan_drop_credentials(stmt),
             StatementWithExtensions::CopyTo(stmt) => self.plan_copy_to(stmt).await,
@@ -880,11 +877,7 @@ impl<'a> SessionPlanner<'a> {
         Ok(plan.into_logical_plan())
     }
 
-    fn plan_create_credentials(
-        &self,
-        mut stmt: PlanCredentialArgs,
-        deprecated: bool,
-    ) -> Result<LogicalPlan> {
+    fn plan_create_credentials(&self, mut stmt: PlanCredentialArgs) -> Result<LogicalPlan> {
         let m = &mut stmt.options;
 
         let provider = normalize_ident(stmt.provider);
@@ -923,25 +916,13 @@ impl<'a> SessionPlanner<'a> {
 
         let name = normalize_ident(stmt.name);
 
-        let plan = if deprecated {
-            CreateCredentials {
-                name,
-                options,
-                comment: stmt.comment,
-                or_replace: stmt.or_replace,
-            }
-            .into_logical_plan()
-        } else {
-            CreateCredential {
-                name,
-                options,
-                comment: stmt.comment,
-                or_replace: stmt.or_replace,
-            }
-            .into_logical_plan()
-        };
-
-        Ok(plan)
+        Ok(CreateCredentials {
+            name,
+            options,
+            comment: stmt.comment,
+            or_replace: stmt.or_replace,
+        }
+        .into_logical_plan())
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
@@ -1205,7 +1186,7 @@ impl<'a> SessionPlanner<'a> {
 
                 let mut planner = SqlQueryPlanner::new(&mut context_provider);
                 let source = planner
-                    .insert_to_source_plan(&table_name, columns, source)
+                    .insert_to_source_plan(&table_name, &columns, source)
                     .await?;
 
                 let access_mode = self
