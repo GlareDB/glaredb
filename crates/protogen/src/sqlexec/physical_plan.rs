@@ -413,6 +413,4 @@ pub enum ExecutionPlanExtensionType {
     DataSourceMetricsExecAdapter(DataSourceMetricsExecAdapter),
     #[prost(message, tag = "31")]
     DescribeTable(DescribeTableExec),
-    #[prost(message, tag = "32")]
-    CreateCredentialExec(CreateCredentialExec),
 }

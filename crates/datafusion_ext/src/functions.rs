@@ -282,6 +282,7 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct IdentValue(String);
 
 impl IdentValue {
