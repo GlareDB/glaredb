@@ -689,7 +689,6 @@ FROM (VALUES (NULL, NULL, NULL, NULL,
     NULL, NULL, NULL, NULL, NULL)) WHERE false",
 });
 
-
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
