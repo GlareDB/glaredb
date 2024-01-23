@@ -197,7 +197,7 @@ impl LocalSession {
         Ok(())
     }
 
-    async fn execute(&mut self, text: &str) -> Result<()> {
+    pub async fn execute(&mut self, text: &str) -> Result<()> {
         if is_client_cmd(text) {
             self.handle_client_cmd(text).await?;
             return Ok(());
