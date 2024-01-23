@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     dispatch::external::ExternalDispatcher,
+    distexec::scheduler::Scheduler,
     errors::{ExecError, Result},
     extension_codec::GlareDBExtensionCodec,
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
@@ -53,6 +54,7 @@ impl RemoteSessionContext {
         catalog_mutator: CatalogMutator,
         native_tables: NativeTableStorage,
         spill_path: Option<PathBuf>,
+        task_scheduler: Scheduler,
     ) -> Result<Self> {
         // TODO: We'll want to remove this eventually. We should be able to
         // create a datafusion context/runtime without needing these vars.
@@ -69,7 +71,8 @@ impl RemoteSessionContext {
         conf = conf
             .with_extension(Arc::new(StagedClientStreams::default()))
             .with_extension(Arc::new(catalog_mutator))
-            .with_extension(Arc::new(native_tables.clone()));
+            .with_extension(Arc::new(native_tables.clone()))
+            .with_extension(Arc::new(task_scheduler.clone()));
 
         let df_ctx = DfSessionContext::new_with_config_rt(conf, Arc::new(runtime));
 

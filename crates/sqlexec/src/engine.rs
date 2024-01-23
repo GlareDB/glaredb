@@ -488,8 +488,13 @@ impl Engine {
             },
         );
 
-        let context =
-            RemoteSessionContext::new(catalog, metastore.into(), native, self.spill_path.clone())?;
+        let context = RemoteSessionContext::new(
+            catalog,
+            metastore.into(),
+            native,
+            self.spill_path.clone(),
+            self.task_scheduler.clone(),
+        )?;
 
         Ok(context)
     }

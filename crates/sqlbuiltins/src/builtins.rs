@@ -613,9 +613,9 @@ FROM glare_catalog.databases;
 ",
 });
 
-pub static PG_TABLE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+pub static PG_TABLES: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     schema: POSTGRES_SCHEMA,
-    name: "pg_table",
+    name: "pg_tables",
     sql: "
 SELECT
     schema_name as schemaname,
@@ -642,6 +642,7 @@ SELECT
 FROM glare_catalog.views;
 ",
 });
+
 pub static PG_TYPE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     schema: POSTGRES_SCHEMA,
     name: "pg_type",
@@ -687,6 +688,7 @@ FROM (VALUES (NULL, NULL, NULL, NULL,
     NULL, NULL, NULL, NULL, NULL, NULL,
     NULL, NULL, NULL, NULL, NULL)) WHERE false",
 });
+
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
@@ -700,7 +702,7 @@ impl BuiltinView {
             &PG_NAMESPACE,
             &PG_DESCRIPTION,
             &PG_DATABASE,
-            &PG_TABLE,
+            &PG_TABLES,
             &PG_VIEWS,
             &PG_TYPE,
         ]
