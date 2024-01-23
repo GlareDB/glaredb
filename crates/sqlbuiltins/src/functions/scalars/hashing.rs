@@ -125,7 +125,7 @@ impl ConstBuiltinFunction for PartitionResults {
 
 impl BuiltinScalarUDF for PartitionResults {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Utf8)));
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
         let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
             if input.len() != 3 {
                 return Err(DataFusionError::Execution(
