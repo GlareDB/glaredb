@@ -469,7 +469,6 @@ name = "arrow_util"
 version = "0.8.1"
 dependencies = [
  "comfy-table",
- "crossterm",
  "datafusion",
  "once_cell",
  "textwrap",
@@ -1614,7 +1613,6 @@ version = "7.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c64043d6c7b7a4c58e39e7efccfdea7b93d885a795d0c054a69dbbf4dd52686"
 dependencies = [
- "crossterm",
  "strum 0.25.0",
  "strum_macros 0.25.3",
  "unicode-width",
@@ -3254,6 +3252,7 @@ dependencies = [
  "sqlexec",
  "telemetry",
  "tempfile",
+ "terminal_util",
  "tokio",
  "tokio-postgres",
  "tonic",
@@ -3736,6 +3735,7 @@ dependencies = [
  "serde_json",
  "sqlexec",
  "telemetry",
+ "terminal_util",
  "thiserror",
  "url",
 ]
@@ -5804,6 +5804,7 @@ dependencies = [
  "pyo3",
  "sqlexec",
  "telemetry",
+ "terminal_util",
  "thiserror",
  "tokio",
  "url",
@@ -7077,9 +7078,9 @@ dependencies = [
 
 [[package]]
 name = "shlex"
-version = "1.2.0"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7cee0529a6d40f580e7a5e6c495c8fbfe21b7b52795ed4bb5e62cdf92bc6380"
+checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "signal-hook"
@@ -7705,6 +7706,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6093bad37da69aab9d123a8091e4be0aa4a03e4d601ec641c327398315f62b64"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "terminal_util"
+version = "0.8.1"
+dependencies = [
+ "crossterm",
 ]
 
 [[package]]
