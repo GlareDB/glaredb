@@ -169,10 +169,11 @@ impl NativeTableStorage {
 
         // Add the table prefix to the shared store and the root URL
         let prefixed = PrefixStore::new(self.store.clone(), prefix.clone());
+        let root_url = self.root_url.join(&prefix).unwrap();
 
         default_logstore(
             Arc::new(prefixed),
-            &self.root_url,
+            &root_url,
             &StorageOptions::default(),
         )
     }
