@@ -171,11 +171,7 @@ impl NativeTableStorage {
         let prefixed = PrefixStore::new(self.store.clone(), prefix.clone());
         let root_url = self.root_url.join(&prefix).unwrap();
 
-        default_logstore(
-            Arc::new(prefixed),
-            &root_url,
-            &StorageOptions::default(),
-        )
+        default_logstore(Arc::new(prefixed), &root_url, &StorageOptions::default())
     }
 
     pub async fn delete_rows_where(

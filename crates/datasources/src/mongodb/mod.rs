@@ -4,7 +4,9 @@ pub mod errors;
 mod exec;
 mod infer;
 
-use bson::RawBson;
+use bson::{DateTime, RawBson};
+use chrono::{Duration, NaiveDateTime};
+use datafusion::arrow::array::{Array, AsArray};
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use errors::{MongoDbError, Result};
@@ -12,7 +14,11 @@ use exec::MongoDbBsonExec;
 use infer::TableSampler;
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
+use datafusion::arrow::datatypes::{
+    DataType, Fields, Float16Type, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type,
+    Int8Type, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit, UInt16Type, UInt32Type,
+    UInt8Type,
+};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
@@ -187,10 +193,15 @@ impl VirtualLister for MongoDbAccessor {
         use ExtensionError::ListingErrBoxed;
 
         let collection = self.client.database(database).collection(collection);
-        let sampler = TableSampler::new(collection);
+        let sampler = TableSampler::new(&collection);
+
+        let count = collection
+            .estimated_document_count(None)
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
         let schema = sampler
-            .infer_schema_from_sample()
+            .infer_schema_from_sample(count)
             .await
             .map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
@@ -228,11 +239,13 @@ impl MongoDbTableAccessor {
             .client
             .database(&self.info.database)
             .collection(&self.info.collection);
-        let sampler = TableSampler::new(collection);
+        let sampler = TableSampler::new(&collection);
 
-        let schema = sampler.infer_schema_from_sample().await?;
+        let exact_count = collection.count_documents(None, None).await?;
+        let schema = sampler.infer_schema_from_sample(exact_count).await?;
 
         Ok(MongoDbTableProvider {
+            exact_count,
             schema: Arc::new(schema),
             collection: self
                 .client
@@ -243,6 +256,7 @@ impl MongoDbTableAccessor {
 }
 
 pub struct MongoDbTableProvider {
+    exact_count: u64,
     schema: Arc<ArrowSchema>,
     collection: Collection<RawDocumentBuf>,
 }
@@ -281,8 +295,11 @@ impl TableProvider for MongoDbTableProvider {
         // is not a way to project nested documents (at least when modelling
         // nested docs as a struct).
         let schema = match projection {
+            // Some(projection) if projection.is_empty() => {
+            //     todo!()
+            // }
             Some(projection) => Arc::new(self.schema.project(projection)?),
-            None => self.schema.clone(),
+            _ => self.schema.clone(),
         };
 
         // Projection document. Project everything that's in the schema.
@@ -311,14 +328,18 @@ impl TableProvider for MongoDbTableProvider {
                 Document::new()
             }
         };
-
         let cursor = Mutex::new(Some(
             self.collection
                 .find(Some(filter), Some(find_opts))
                 .await
                 .map_err(|e| DataFusionError::External(Box::new(e)))?,
         ));
-        Ok(Arc::new(MongoDbBsonExec::new(cursor, schema, limit)))
+        Ok(Arc::new(MongoDbBsonExec::new(
+            cursor,
+            schema,
+            limit,
+            self.exact_count,
+        )))
     }
 }
 
@@ -379,6 +400,347 @@ fn operator_to_mdbq(op: Operator) -> Result<String, ExtensionError> {
         ))),
     }
 }
+macro_rules! array_primitive_to_bson {
+    ($bson_type:expr, $primitive_type:ty,$cast_ty:ty, $arr:expr) => {{
+        let arr = $arr.as_primitive::<$primitive_type>();
+        let mut out = Vec::with_capacity(arr.len());
+        for v in arr {
+            match v {
+                Some(v) => out.push($bson_type(v as $cast_ty)),
+                None => out.push(Bson::Null),
+            }
+        }
+        Ok(out)
+    }};
+}
+
+fn df_array_to_bson_array(arr: &dyn Array) -> Result<Vec<Bson>, ExtensionError> {
+    let dtype = arr.data_type();
+    match dtype {
+        DataType::Null => {
+            let mut out = Vec::with_capacity(arr.len());
+            for _ in 0..arr.len() {
+                out.push(Bson::Null);
+            }
+            Ok(out)
+        }
+        DataType::Boolean => {
+            let arr = arr.as_boolean();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => out.push(Bson::Boolean(v)),
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::Int8 => {
+            array_primitive_to_bson!(Bson::Int32, Int8Type, i32, arr)
+        }
+        DataType::Int16 => {
+            array_primitive_to_bson!(Bson::Int32, Int16Type, i32, arr)
+        }
+        DataType::Int32 => {
+            array_primitive_to_bson!(Bson::Int32, Int32Type, i32, arr)
+        }
+        DataType::Int64 => {
+            array_primitive_to_bson!(Bson::Int64, Int64Type, i64, arr)
+        }
+        DataType::UInt8 => {
+            array_primitive_to_bson!(Bson::Int32, UInt8Type, i32, arr)
+        }
+        DataType::UInt16 => {
+            array_primitive_to_bson!(Bson::Int32, UInt16Type, i32, arr)
+        }
+        DataType::UInt32 => {
+            array_primitive_to_bson!(Bson::Int64, UInt32Type, i64, arr)
+        }
+        DataType::UInt64 => {
+            let arr = arr.as_primitive::<Int64Type>();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => {
+                        if let Ok(v) = i64::try_from(v) {
+                            out.push(Bson::Int64(v))
+                        } else {
+                            return Err(ExtensionError::String(format!(
+                                "u64 value {} is too large to fit in i64",
+                                v
+                            )));
+                        }
+                    }
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::Float16 => {
+            let arr = arr.as_primitive::<Float16Type>();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => out.push(Bson::Double(f64::from(v))),
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::Float32 => {
+            let arr = arr.as_primitive::<Float32Type>();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => out.push(Bson::Double(f64::from(v))),
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::Float64 => {
+            let arr = arr.as_primitive::<Float64Type>();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => out.push(Bson::Double(v)),
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::Timestamp(TimeUnit::Second, _) => {
+            let arr = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::TimestampSecondArray>()
+                .unwrap();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => out.push(Bson::DateTime(DateTime::from_millis(v * 1000))),
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::Timestamp(TimeUnit::Millisecond, _) => {
+            let arr = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::TimestampMillisecondArray>()
+                .unwrap();
+
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => out.push(Bson::DateTime(DateTime::from_millis(v))),
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::Timestamp(TimeUnit::Microsecond, _) => {
+            let arr = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::TimestampMicrosecondArray>()
+                .unwrap();
+
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => out.push(Bson::DateTime(DateTime::from_millis(v / 1000))),
+                    None => out.push(Bson::Null),
+                }
+            }
+
+            Ok(out)
+        }
+        DataType::Timestamp(TimeUnit::Nanosecond, _) => {
+            let arr = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::TimestampNanosecondArray>()
+                .unwrap();
+
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => {
+                        let ts = NaiveDateTime::from_timestamp_opt(0, 0).unwrap();
+                        let ts = ts + Duration::nanoseconds(v);
+                        out.push(Bson::DateTime(DateTime::from_millis(ts.timestamp_millis())))
+                    }
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::Date32 => {
+            let arr = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::Date32Array>()
+                .unwrap();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => {
+                        let ts = NaiveDateTime::from_timestamp_opt(0, 0).unwrap();
+                        let ts = ts + Duration::days(i64::from(v));
+                        out.push(Bson::DateTime(DateTime::from_millis(ts.timestamp_millis())))
+                    }
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::Date64 => {
+            let arr = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::Date64Array>()
+                .unwrap();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => {
+                        let ts = NaiveDateTime::from_timestamp_opt(0, 0).unwrap();
+                        let ts = ts + Duration::days(i64::from(v / 86400000));
+                        out.push(Bson::DateTime(DateTime::from_millis(ts.timestamp_millis())))
+                    }
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::Time32(_) => todo!(),
+        DataType::Time64(_) => todo!(),
+        DataType::Duration(_) => todo!(),
+        DataType::Interval(_) => todo!(),
+        DataType::Binary => {
+            let arr = arr.as_binary::<i32>();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => out.push(Bson::Binary(Binary {
+                        subtype: BinarySubtype::Generic,
+                        bytes: v.to_vec(),
+                    })),
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::FixedSizeBinary(_) => {
+            let arr = arr.as_fixed_size_binary();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => out.push(Bson::Binary(Binary {
+                        subtype: BinarySubtype::Generic,
+                        bytes: v.to_vec(),
+                    })),
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::LargeBinary => {
+            let arr = arr.as_binary::<i64>();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => out.push(Bson::Binary(Binary {
+                        subtype: BinarySubtype::Generic,
+                        bytes: v.to_vec(),
+                    })),
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::Utf8 => {
+            let arr = arr.as_string::<i32>();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => out.push(Bson::String(v.to_string())),
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::LargeUtf8 => {
+            let arr = arr.as_string::<i64>();
+            let mut out = Vec::with_capacity(arr.len());
+            for v in arr {
+                match v {
+                    Some(v) => out.push(Bson::String(v.to_string())),
+                    None => out.push(Bson::Null),
+                }
+            }
+            Ok(out)
+        }
+        DataType::List(_) => {
+            let mut out = Vec::with_capacity(arr.len());
+            let arr = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::ListArray>()
+                .unwrap();
+            for i in 0..arr.len() {
+                let v = arr.value(i);
+                let inner = df_array_to_bson_array(v.as_ref())?;
+                let bson = Bson::Array(inner);
+                out.push(bson);
+            }
+            Ok(out)
+        }
+        DataType::FixedSizeList(_, _) => {
+            let mut out = Vec::with_capacity(arr.len());
+            let arr = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::FixedSizeListArray>()
+                .unwrap();
+            for i in 0..arr.len() {
+                let v = arr.value(i);
+                let inner = df_array_to_bson_array(v.as_ref())?;
+                let bson = Bson::Array(inner);
+                out.push(bson);
+            }
+            Ok(out)
+        }
+        DataType::LargeList(_) => {
+            let mut out = Vec::with_capacity(arr.len());
+            let arr = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::LargeListArray>()
+                .unwrap();
+            for i in 0..arr.len() {
+                let v = arr.value(i);
+                let inner = df_array_to_bson_array(v.as_ref())?;
+                let bson = Bson::Array(inner);
+                out.push(bson);
+            }
+            Ok(out)
+        }
+        DataType::Struct(fields) => {
+            let mut out = Vec::with_capacity(arr.len());
+            let arr = arr
+                .as_any()
+                .downcast_ref::<datafusion::arrow::array::StructArray>()
+                .unwrap();
+
+            for field in fields {
+                let field_arr = arr.column_by_name(field.name()).unwrap();
+                let inner = df_array_to_bson_array(field_arr.as_ref())?;
+                for doc in inner {
+                    out.push(bson!({field.name(): doc}));
+                }
+            }
+            Ok(out)
+        }
+        val => Err(ExtensionError::String(format!(
+            "{} conversion undefined/unsupported",
+            val
+        ))),
+    }
+}
 
 fn df_to_bson(val: ScalarValue) -> Result<Bson, ExtensionError> {
     match val {
@@ -422,13 +784,7 @@ fn df_to_bson(val: ScalarValue) -> Result<Bson, ExtensionError> {
             ))
         }
         ScalarValue::List(arr) => {
-            let out = (0..arr.len())
-                .map(|idx| {
-                    let s = ScalarValue::try_from_array(arr.as_ref(), idx)?;
-                    df_to_bson(s).map_err(ExtensionError::access)
-                })
-                .collect::<Result<Vec<_>, ExtensionError>>()?;
-
+            let out = df_array_to_bson_array(arr.as_ref())?;
             Ok(Bson::Array(out))
         }
         ScalarValue::Null => Ok(Bson::Null),

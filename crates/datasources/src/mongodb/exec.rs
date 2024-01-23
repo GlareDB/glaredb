@@ -8,6 +8,7 @@ use async_stream::stream;
 use datafusion::arrow::array::Array;
 use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::common::stats::Precision;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
@@ -31,6 +32,7 @@ pub struct MongoDbBsonExec {
     schema: Arc<ArrowSchema>,
     limit: Option<usize>,
     metrics: ExecutionPlanMetricsSet,
+    n_rows: u64,
 }
 
 impl MongoDbBsonExec {
@@ -38,12 +40,14 @@ impl MongoDbBsonExec {
         cursor: Mutex<Option<Cursor<RawDocumentBuf>>>,
         schema: Arc<ArrowSchema>,
         limit: Option<usize>,
+        estimated_rows: u64,
     ) -> MongoDbBsonExec {
         MongoDbBsonExec {
             cursor,
             schema,
             limit,
             metrics: ExecutionPlanMetricsSet::new(),
+            n_rows: estimated_rows,
         }
     }
 }
@@ -97,7 +101,6 @@ impl ExecutionPlan for MongoDbBsonExec {
                 ))
             })?
         };
-
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
             BsonStream::new(cursor, self.schema.clone(), self.limit),
             partition,
@@ -106,7 +109,12 @@ impl ExecutionPlan for MongoDbBsonExec {
     }
 
     fn statistics(&self) -> DatafusionResult<Statistics> {
-        Ok(Statistics::new_unknown(self.schema().as_ref()))
+        let statistics = Statistics {
+            num_rows: Precision::Exact(self.n_rows as usize),
+            total_byte_size: Precision::Absent,
+            column_statistics: Statistics::unknown_column(&self.schema),
+        };
+        Ok(statistics)
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
@@ -128,6 +136,7 @@ struct BsonStream {
 impl BsonStream {
     fn new(cursor: Cursor<RawDocumentBuf>, schema: Arc<ArrowSchema>, limit: Option<usize>) -> Self {
         let schema_stream = schema.clone();
+
         let mut row_count = 0;
         // Build "inner" stream.
         let stream = stream! {
