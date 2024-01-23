@@ -20,6 +20,7 @@ fn test_file() {
     let temp_dir = temp_dir.path().to_str().unwrap();
     let file = format!("{}/foo.sql", temp_dir);
     std::fs::write(&file, "SELECT 1").unwrap();
+    let assert = cmd.args(&["-q", &file]).assert();
     assert.success().stdout(predicates::str::contains("1"));
 }
 
