@@ -1,11 +1,11 @@
+use pgrepr::compatible::server_version;
 use pgrepr::notice::NoticeSeverity;
 
 use super::*;
 
-// TODO: Decide proper postgres version to spoof/support
 pub(super) const SERVER_VERSION: ServerVar<str> = ServerVar {
     name: "server_version",
-    value: "15.1",
+    value: server_version(),
     group: "postgres",
     user_configurable: false,
     description: "Version of the server",
