@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Spins up a Cassandra docker container and loads it with test data.
-# To access the database, the use the default user/password 'cassandra'.
+# To access the database, use the default user/password 'cassandra'.
 
 set -e
 CONTAINER_NAME="glaredb_cassandra_test"
@@ -41,14 +41,14 @@ docker run --rm \
 # SEE https://hub.docker.com/_/cassandra
 INIT_TIME=$(date +%s)
 STARTUP=1
-SUPERUSE_ROLE=1
+SUPERUSER_ROLE=1
 
-while [[ $STARTUP -ne 0 ]] && [[ $SUPERUSE_ROLE -ne 0 ]]; do
+while [[ $STARTUP -ne 0 ]] && [[ $SUPERUSER_ROLE -ne 0 ]]; do
   set +e
   docker logs $CONTAINER_NAME 2>&1 | grep -q 'Startup complete'
   STARTUP=$?
   docker logs $CONTAINER_NAME 2>&1 | grep -q "Created default superuser role 'cassandra'"
-  SUPERUSE_ROLE=$?
+  SUPERUSER_ROLE=$?
   set -e
 
   CURRENT_TIME=$(date +%s)

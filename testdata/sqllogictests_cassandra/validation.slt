@@ -1,8 +1,8 @@
-# Validation tests for clickhouse external database and external tables
+# Validation tests for ClickHouse external database and external tables
 
 # Auth validation
 statement error
-CREATE EXTERNAL DATABASE wrong_host
+CREATE EXTERNAL DATABASE missing_auth
 	FROM cassandra
 	OPTIONS (
 		host = '127.0.0.1:9042'
