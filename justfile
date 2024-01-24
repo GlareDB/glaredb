@@ -123,8 +123,7 @@ protoc:
 venv:
   python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
   python3 -m virtualenv {{VENV}} --quiet
-  {{VENV_BIN}}/python -m pip install poetry
-  {{VENV_BIN}}/poetry -C tests install
+
 
 
 # Runs pytest in the tests directory.
