@@ -1,5 +1,5 @@
 use super::{builder::CqlValueArrayBuilder, *};
-use datafusion::arrow::array::ArrayBuilder;
+use datafusion::arrow::{array::ArrayBuilder, record_batch::RecordBatchOptions};
 
 pub(super) struct CassandraExec {
     schema: ArrowSchemaRef,
@@ -139,6 +139,11 @@ fn rows_to_record_batch(
 ) -> Result<RecordBatch, DataFusionError> {
     match rows {
         None => Ok(RecordBatch::new_empty(schema)),
+        Some(rows) if schema.fields().is_empty() => {
+            let options = RecordBatchOptions::new().with_row_count(Some(rows.len() as usize));
+            RecordBatch::try_new_with_options(schema, vec![], &options)
+                .map_err(DataFusionError::from)
+        }
         Some(rows) => {
             let mut builders = schema
                 .fields()

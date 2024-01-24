@@ -6,8 +6,8 @@ use std::task::{Context, Poll};
 
 use async_stream::stream;
 use datafusion::arrow::array::Array;
-use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
-use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
+use datafusion::arrow::record_batch::{RecordBatch, RecordBatchOptions};
 use datafusion::common::stats::Precision;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::TaskContext;
@@ -32,7 +32,7 @@ pub struct MongoDbBsonExec {
     schema: Arc<ArrowSchema>,
     limit: Option<usize>,
     metrics: ExecutionPlanMetricsSet,
-    n_rows: u64,
+    estimated_rows: u64,
 }
 
 impl MongoDbBsonExec {
@@ -47,7 +47,7 @@ impl MongoDbBsonExec {
             schema,
             limit,
             metrics: ExecutionPlanMetricsSet::new(),
-            n_rows: estimated_rows,
+            estimated_rows,
         }
     }
 }
@@ -110,7 +110,7 @@ impl ExecutionPlan for MongoDbBsonExec {
 
     fn statistics(&self) -> DatafusionResult<Statistics> {
         let statistics = Statistics {
-            num_rows: Precision::Exact(self.n_rows as usize),
+            num_rows: Precision::Inexact(self.estimated_rows as usize),
             total_byte_size: Precision::Absent,
             column_statistics: Statistics::unknown_column(&self.schema),
         };
@@ -142,7 +142,7 @@ impl BsonStream {
         let stream = stream! {
             let mut chunked = cursor.chunks(100);
             while let Some(result) = chunked.next().await {
-                let result = document_chunk_to_record_batch(result, schema_stream.fields.clone());
+                let result = document_chunk_to_record_batch(result, schema_stream.clone());
                 match result {
                     Ok(batch) => {
                         let len = batch.num_rows();
@@ -185,22 +185,28 @@ impl RecordBatchStream for BsonStream {
 
 fn document_chunk_to_record_batch<E: Into<MongoDbError>>(
     chunk: Vec<Result<RawDocumentBuf, E>>,
-    fields: Fields,
+    schema: ArrowSchemaRef,
 ) -> Result<RecordBatch> {
     let chunk = chunk
         .into_iter()
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.into())?;
 
+    let fields = schema.fields().clone();
+
+    if fields.is_empty() {
+        let options = RecordBatchOptions::new().with_row_count(Some(chunk.len()));
+        return RecordBatch::try_new_with_options(schema, vec![], &options).map_err(|e| e.into());
+    }
+
     let mut builder = RecordStructBuilder::new_with_capacity(fields, chunk.len())?;
     for doc in chunk {
         builder.append_record(&doc)?;
     }
 
-    let (fields, builders) = builder.into_fields_and_builders();
-    let cols: Vec<Arc<dyn Array>> = builders.into_iter().map(|mut col| col.finish()).collect();
-    let schema = ArrowSchema::new(fields);
+    let mut builders = builder.into_builders();
+    let cols: Vec<Arc<dyn Array>> = builders.iter_mut().map(|col| col.finish()).collect();
 
-    let batch = RecordBatch::try_new(Arc::new(schema), cols)?;
+    let batch = RecordBatch::try_new(schema, cols)?;
     Ok(batch)
 }
