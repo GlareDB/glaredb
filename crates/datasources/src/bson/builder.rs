@@ -226,11 +226,16 @@ macro_rules! append_scalar {
 fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
     // So robust
     match (val, typ) {
+        // null
+        (RawBsonRef::Null, _) => append_null(&typ, col)?,
+        (RawBsonRef::Undefined, _) => append_null(&typ, col)?,
+
         // Boolean
         (RawBsonRef::Boolean(v), DataType::Boolean) => append_scalar!(BooleanBuilder, col, v),
         (RawBsonRef::Boolean(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
         }
+
         // Double
         (RawBsonRef::Double(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
         (RawBsonRef::Double(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),

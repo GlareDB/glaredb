@@ -85,3 +85,22 @@ def test_read_bson(
                 assert len(row) == 5
                 assert row["beatle_name"] in beatles
                 assert beatles.index(row["beatle_name"]) == row["beatle_idx"] - 1
+
+def test_null_handling(
+    glaredb_connection: psycopg2.extensions.connection,
+    tmp_path_factory: pytest.TempPathFactory,
+):
+    tmp_dir = tmp_path_factory.mktemp(basename="null_handling", numbered=True)
+    data_path = tmp_dir.joinpath("mixed.bson")
+    
+    with open(data_path, "wb") as f:
+        for i in range(100):
+            f.write(bson.encode({"a": 1}))
+            
+        for i in range(10):
+            f.write(bson.encode({"a": None}))
+
+    with glaredb_connection.cursor() as curr:
+        curr.execute(f"select count(*) from '{data_path}'")
+        r = curr.fetchone()
+        assert r[0] == 110
