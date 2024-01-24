@@ -88,6 +88,12 @@ impl NativeTableStorage {
     /// Create a native table storage provider from a URL and an object store instance
     /// rooted at that location.
     pub fn new(db_id: Uuid, root_url: Url, store: Arc<dyn ObjectStore>) -> NativeTableStorage {
+        // register the default handlers
+        // TODO, this should only happen once
+        deltalake::azure::register_handlers(None);
+        deltalake::aws::register_handlers(None);
+        deltalake::gcp::register_handlers(None);
+
         let factory = Arc::new(FakeStoreFactory {
             store: store.clone(),
         });
