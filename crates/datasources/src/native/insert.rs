@@ -113,7 +113,7 @@ impl ExecutionPlan for NativeTableInsertExec {
         // plan.
         //
         // TODO: Possibly try avoiding cloning the snapshot.
-        let builder = WriteBuilder::new(self.store.clone(), self.snapshot.clone())
+        let builder = WriteBuilder::new(self.store.clone(), Some(self.snapshot.clone()))
             .with_input_session_state(state)
             .with_save_mode(self.save_mode.clone())
             .with_input_execution_plan(self.input.clone());

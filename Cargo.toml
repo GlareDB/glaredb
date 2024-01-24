@@ -18,7 +18,10 @@ clap = { version = "4.4.18", features = ["derive"] }
 datafusion = { version = "34.0", features = ["avro"] }
 arrow-flight = { version = "49.0.0", features = ["flight-sql-experimental"] }
 datafusion-proto = { version = "34.0" }
-reqwest = { version = "0.11.23", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.11.23", default-features = false, features = [
+  "json",
+  "rustls-tls",
+] }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
@@ -37,6 +40,9 @@ tracing = "0.1"
 url = "2.5.0"
 
 [workspace.dependencies.deltalake]
+
 git = "https://github.com/GlareDB/delta-rs.git"
-rev = "3832c51f30724971a0d794142a3e85f3ae89a45e"
-features = ["s3", "gcs", "azure", "datafusion", "arrow"]
+rev = "4c4bd7d5d4ce47f47f348c2a7d52c009048f841e"
+features = ["s3", "gcs", "azure", "datafusion"]
+
+

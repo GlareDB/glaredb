@@ -97,9 +97,9 @@ SELECT c12 FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dt
 query I
 SELECT c13 FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes');
 ----
-1,2,3
-4,5,6
-7,8,9
+[1, 2, 3]
+[4, 5, 6]
+[7, 8, 9]
 
 
 # FIXME following are skipped for rpc due to 'arrow_typeof' is not serializable

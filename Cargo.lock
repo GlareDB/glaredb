@@ -2451,7 +2451,7 @@ dependencies = [
 [[package]]
 name = "deltalake"
 version = "0.17.0"
-source = "git+https://github.com/GlareDB/delta-rs.git?rev=3832c51f30724971a0d794142a3e85f3ae89a45e#3832c51f30724971a0d794142a3e85f3ae89a45e"
+source = "git+https://github.com/GlareDB/delta-rs.git?rev=4c4bd7d5d4ce47f47f348c2a7d52c009048f841e#4c4bd7d5d4ce47f47f348c2a7d52c009048f841e"
 dependencies = [
  "deltalake-aws",
  "deltalake-azure",
@@ -2462,7 +2462,7 @@ dependencies = [
 [[package]]
 name = "deltalake-aws"
 version = "0.1.0"
-source = "git+https://github.com/GlareDB/delta-rs.git?rev=3832c51f30724971a0d794142a3e85f3ae89a45e#3832c51f30724971a0d794142a3e85f3ae89a45e"
+source = "git+https://github.com/GlareDB/delta-rs.git?rev=4c4bd7d5d4ce47f47f348c2a7d52c009048f841e#4c4bd7d5d4ce47f47f348c2a7d52c009048f841e"
 dependencies = [
  "async-trait",
  "backoff",
@@ -2487,7 +2487,7 @@ dependencies = [
 [[package]]
 name = "deltalake-azure"
 version = "0.1.0"
-source = "git+https://github.com/GlareDB/delta-rs.git?rev=3832c51f30724971a0d794142a3e85f3ae89a45e#3832c51f30724971a0d794142a3e85f3ae89a45e"
+source = "git+https://github.com/GlareDB/delta-rs.git?rev=4c4bd7d5d4ce47f47f348c2a7d52c009048f841e#4c4bd7d5d4ce47f47f348c2a7d52c009048f841e"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2505,13 +2505,15 @@ dependencies = [
 [[package]]
 name = "deltalake-core"
 version = "0.17.0"
-source = "git+https://github.com/GlareDB/delta-rs.git?rev=3832c51f30724971a0d794142a3e85f3ae89a45e#3832c51f30724971a0d794142a3e85f3ae89a45e"
+source = "git+https://github.com/GlareDB/delta-rs.git?rev=4c4bd7d5d4ce47f47f348c2a7d52c009048f841e#4c4bd7d5d4ce47f47f348c2a7d52c009048f841e"
 dependencies = [
  "arrow",
  "arrow-arith",
  "arrow-array",
  "arrow-buffer",
  "arrow-cast",
+ "arrow-ipc",
+ "arrow-json",
  "arrow-ord",
  "arrow-row",
  "arrow-schema",
@@ -2531,6 +2533,7 @@ dependencies = [
  "errno",
  "fix-hidden-lifetime-bug",
  "futures",
+ "hashbrown 0.12.3",
  "itertools 0.12.0",
  "lazy_static",
  "libc",
@@ -2543,6 +2546,7 @@ dependencies = [
  "parking_lot",
  "parquet",
  "percent-encoding",
+ "pin-project-lite",
  "rand",
  "regex",
  "roaring",
@@ -2560,7 +2564,7 @@ dependencies = [
 [[package]]
 name = "deltalake-gcp"
 version = "0.1.0"
-source = "git+https://github.com/GlareDB/delta-rs.git?rev=3832c51f30724971a0d794142a3e85f3ae89a45e#3832c51f30724971a0d794142a3e85f3ae89a45e"
+source = "git+https://github.com/GlareDB/delta-rs.git?rev=4c4bd7d5d4ce47f47f348c2a7d52c009048f841e#4c4bd7d5d4ce47f47f348c2a7d52c009048f841e"
 dependencies = [
  "async-trait",
  "bytes",

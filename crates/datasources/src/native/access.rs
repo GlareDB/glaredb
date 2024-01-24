@@ -11,12 +11,12 @@ use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
-use deltalake::logstore::{default_logstore, LogStore};
+use deltalake::logstore::{default_logstore, logstores, LogStore, LogStoreFactory};
 use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::delete::DeleteBuilder;
 use deltalake::operations::update::UpdateBuilder;
-use deltalake::storage::StorageOptions;
-use deltalake::{DeltaTable, DeltaTableConfig};
+use deltalake::storage::{factories, ObjectStoreFactory, ObjectStoreRef, StorageOptions};
+use deltalake::{DeltaResult, DeltaTable, DeltaTableConfig};
 use futures::StreamExt;
 use object_store::path::Path as ObjectStorePath;
 use object_store::prefix::PrefixStore;
@@ -53,11 +53,50 @@ pub struct NativeTableStorage {
     /// Arcs all the way down...
     store: SharedObjectStore,
 }
+// Deltalake is expecting a factory that implements `ObjectStoreFactory` and `LogStoreFactory`.
+// Since we already have an object store, we don't need to do anything here,
+// but we still need to register the url with delta-rs so it does't error when it tries to validate the object-store.
+// So we just create a fake factory that returns the object store we already have and register it with the root url.
+struct FakeStoreFactory {
+    pub store: ObjectStoreRef,
+}
+
+impl ObjectStoreFactory for FakeStoreFactory {
+    fn parse_url_opts(
+        &self,
+        _url: &Url,
+        _options: &StorageOptions,
+    ) -> DeltaResult<(ObjectStoreRef, ObjectStorePath)> {
+        let store = self.store.clone();
+        let path = ObjectStorePath::default();
+        Ok((Arc::new(store), path))
+    }
+}
+
+impl LogStoreFactory for FakeStoreFactory {
+    fn with_options(
+        &self,
+        store: ObjectStoreRef,
+        location: &Url,
+        options: &StorageOptions,
+    ) -> DeltaResult<Arc<dyn LogStore>> {
+        Ok(default_logstore(store, location, options))
+    }
+}
 
 impl NativeTableStorage {
     /// Create a native table storage provider from a URL and an object store instance
     /// rooted at that location.
     pub fn new(db_id: Uuid, root_url: Url, store: Arc<dyn ObjectStore>) -> NativeTableStorage {
+        let factory = Arc::new(FakeStoreFactory {
+            store: store.clone(),
+        });
+
+        // register our custom handlers
+        // TODO: we should use the native delta-rs handlers here instead.
+        factories().insert(root_url.clone(), factory.clone());
+        logstores().insert(root_url.clone(), factory);
+
         NativeTableStorage {
             db_id,
             root_url,
@@ -169,6 +208,7 @@ impl NativeTableStorage {
 
         // Add the table prefix to the shared store and the root URL
         let prefixed = PrefixStore::new(self.store.clone(), prefix.clone());
+
         let root_url = self.root_url.join(&prefix).unwrap();
 
         default_logstore(Arc::new(prefixed), &root_url, &StorageOptions::default())
@@ -181,11 +221,12 @@ impl NativeTableStorage {
     ) -> Result<usize> {
         let table = self.load_table(table_entry).await?;
         if let Some(where_expr) = where_expr {
-            let deleted_rows = DeleteBuilder::new(table.delta.log_store(), table.delta.state)
-                .with_predicate(where_expr)
-                .await?
-                .1
-                .num_deleted_rows;
+            let deleted_rows =
+                DeleteBuilder::new(table.delta.log_store(), table.delta.state.unwrap())
+                    .with_predicate(where_expr)
+                    .await?
+                    .1
+                    .num_deleted_rows;
             Ok(deleted_rows.unwrap_or_default())
         } else {
             let mut records: usize = 0;
@@ -196,7 +237,7 @@ impl NativeTableStorage {
                     records = *num_rows;
                 }
             }
-            DeleteBuilder::new(table.delta.log_store(), table.delta.state).await?;
+            DeleteBuilder::new(table.delta.log_store(), table.delta.state.unwrap()).await?;
             Ok(records)
         }
     }
@@ -208,7 +249,7 @@ impl NativeTableStorage {
         where_expr: Option<Expr>,
     ) -> Result<usize> {
         let table = self.load_table(table).await?;
-        let mut builder = UpdateBuilder::new(table.delta.log_store(), table.delta.state);
+        let mut builder = UpdateBuilder::new(table.delta.log_store(), table.delta.state.unwrap());
         for update in updates.into_iter() {
             builder = builder.with_update(update.0, update.1);
         }
@@ -252,7 +293,10 @@ impl NativeTable {
         let store = self.delta.log_store();
         let snapshot = self.delta.state.clone();
         Arc::new(NativeTableInsertExec::new(
-            input, store, snapshot, save_mode,
+            input,
+            store,
+            snapshot.unwrap(),
+            save_mode,
         ))
     }
 }
