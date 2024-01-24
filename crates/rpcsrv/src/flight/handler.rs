@@ -194,7 +194,7 @@ impl FlightSqlService for FlightSessionHandler {
                 let ctx = self.get_or_create_ctx(&req).await?;
                 let mut ctx = ctx.lock().await;
 
-                match ctx.execute_sql(sql, None).await {
+                match ctx.execute_sql(sql).await {
                     Ok(stream) => {
                         let schema = stream.schema();
 
