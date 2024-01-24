@@ -9,7 +9,6 @@ VENV_BIN := VENV / "bin"
 ## Set up virtual environment and install requirements
 @requirements: venv
   {{VENV_BIN}}/python -m pip --quiet install --upgrade pip
-  {{VENV_BIN}}/pip --quiet install -r requirements.txt
 
 ## Compile and install py-glaredb for development
 build *args: requirements
