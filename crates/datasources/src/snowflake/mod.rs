@@ -325,17 +325,21 @@ impl TableProvider for SnowflakeTableProvider {
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // Projection
-        let projection_schema = match projection {
+        let projected_schema = match projection {
             Some(projection) => Arc::new(self.arrow_schema.project(projection)?),
             None => Arc::clone(&self.arrow_schema),
         };
 
-        let projection_string = projection_schema
-            .fields
-            .iter()
-            .map(|f| f.name().clone())
-            .collect::<Vec<_>>()
-            .join(",");
+        let projection_string = if projected_schema.fields().is_empty() {
+            "*".to_string()
+        } else {
+            projected_schema
+                .fields
+                .iter()
+                .map(|f| f.name().clone())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
 
         let limit_string = match limit {
             Some(limit) => format!("LIMIT {limit}"),
@@ -374,7 +378,7 @@ impl TableProvider for SnowflakeTableProvider {
 
         Ok(Arc::new(SnowflakeExec {
             predicate: predicate_string,
-            arrow_schema: projection_schema,
+            arrow_schema: projected_schema,
             num_partitions,
             result: Mutex::new(result),
             metrics: ExecutionPlanMetricsSet::new(),
@@ -488,6 +492,7 @@ impl ChunkStream {
                     return;
                 },
             };
+
             for batch in chunk.into_iter() {
                 let batch = batch?;
                 let batch = util::normalize_batch(&batch)?;
