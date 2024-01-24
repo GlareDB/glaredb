@@ -5,15 +5,23 @@ use predicates::boolean::PredicateBooleanExt;
 use crate::setup::make_cli;
 
 #[test]
-/// User shouldn't be able to specify both a query and a file.
-/// Invalid: ./glaredb -q <QUERY> [FILE]
-fn test_query_or_file() {
+/// Basic test to ensure that the CLI is working.
+fn test_query() {
     let mut cmd = make_cli();
+    let assert = cmd.args(&["-q", "SELECT 1"]).assert();
+    assert.success().stdout(predicates::str::contains("1"));
+}
 
-    let assert = cmd.args(&["-q", "SELECT * FROM foo", "foo.sql"]).assert();
-    assert.failure().stderr(predicates::str::contains(
-        "the argument '--query <QUERY>' cannot be used with '[FILE]'",
-    ));
+#[test]
+/// should be able to query using a file too
+fn test_file() {
+    let mut cmd = make_cli();
+    let temp_dir = tempfile::tempdir().unwrap();
+    let temp_dir = temp_dir.path().to_str().unwrap();
+    let file = format!("{}/foo.sql", temp_dir);
+    std::fs::write(&file, "SELECT 1").unwrap();
+    let assert = cmd.args(&["-q", &file]).assert();
+    assert.success().stdout(predicates::str::contains("1"));
 }
 
 #[test]
