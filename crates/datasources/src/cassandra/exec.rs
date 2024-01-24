@@ -140,7 +140,7 @@ fn rows_to_record_batch(
     match rows {
         None => Ok(RecordBatch::new_empty(schema)),
         Some(rows) if schema.fields().is_empty() => {
-            let options = RecordBatchOptions::new().with_row_count(Some(rows.len() as usize));
+            let options = RecordBatchOptions::new().with_row_count(Some(rows.len()));
             RecordBatch::try_new_with_options(schema, vec![], &options)
                 .map_err(DataFusionError::from)
         }

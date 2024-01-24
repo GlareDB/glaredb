@@ -296,7 +296,7 @@ jobs:
             tests/.venv/
           key: ${{ runner.os }}-poetry-${{ hashFiles('**/Cargo.lock') }}
       - name: setup pytest
-        run: just pytest-setup
+        run: just venv
       - name: run pytest
         run: just pytest
 
