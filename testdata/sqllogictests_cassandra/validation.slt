@@ -1,12 +1,21 @@
 # Validation tests for clickhouse external database and external tables
 
-# External database validation
+# Auth validation
+statement error
+CREATE EXTERNAL DATABASE wrong_host
+	FROM cassandra
+	OPTIONS (
+		host = '127.0.0.1:9042'
+	);
 
+# External database validation
 statement error
 CREATE EXTERNAL DATABASE wrong_host
 	FROM cassandra
 	OPTIONS (
 		host = '127.0.0.1:9876',
+		user = 'cassandra',
+		password = 'cassandra'
 	);
 
 # Validation test error with the wrong table name
