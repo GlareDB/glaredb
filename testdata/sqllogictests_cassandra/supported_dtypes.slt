@@ -53,7 +53,7 @@ query I
 SELECT c4::string FROM read_cassandra(
   '${CASSANDRA_CONN_STRING}', 
   'test', 
-  'supported_dtypes'
+  'supported_dtypes',
   'cassandra',
   'cassandra');
 ----
@@ -191,7 +191,13 @@ SELECT
   arrow_typeof(c11),
   arrow_typeof(c12),
   arrow_typeof(c13)
-FROM read_cassandra('${CASSANDRA_CONN_STRING}', 'test', 'supported_dtypes') LIMIT 1;
+FROM read_cassandra(
+  '${CASSANDRA_CONN_STRING}',
+  'test',
+  'supported_dtypes',
+  'cassandra',
+  'cassandra')
+LIMIT 1;
 ----
 Int32 Utf8 Date64 Float64 Duration(Nanosecond) Float32 Int32 Utf8 Timestamp(Millisecond, None) Int16 Int8 Utf8 Int64 List(Field { name: "item", data_type: Int32, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} })
 
