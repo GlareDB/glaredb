@@ -7,7 +7,7 @@ CREATE EXTERNAL TABLE basic
 		host = '${CASSANDRA_CONN_STRING}',
 		keyspace = 'test',
 		table = 'bikeshare_stations',
-		user = 'cassandra',
+		username = 'cassandra',
 		password = 'cassandra'
 	);
 

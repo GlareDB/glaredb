@@ -5,7 +5,7 @@ CREATE EXTERNAL DATABASE EXTERNAL_DB
 	FROM CASSANDRA
 	OPTIONS (
 		HOST = '127.0.0.1:9042',
-		user = 'cassandra',
+		username = 'cassandra',
 		password = 'cassandra'
 	);
 
