@@ -13,7 +13,7 @@ use datafusion::arrow::array::Decimal128Builder;
 use datafusion::arrow::datatypes::{
     DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
-use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::record_batch::{RecordBatch, RecordBatchOptions};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
@@ -613,12 +613,16 @@ impl TableProvider for PostgresTableProvider {
 
         // Get the projected columns, joined by a ','. This will be put in the
         // 'SELECT ...' portion of the query.
-        let projection_string = projected_schema
-            .fields
-            .iter()
-            .map(|f| f.name().clone())
-            .collect::<Vec<_>>()
-            .join(",");
+        let projection_string = if projected_schema.fields().is_empty() {
+            "*".to_string()
+        } else {
+            projected_schema
+                .fields
+                .iter()
+                .map(|f| f.name().clone())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
 
         let limit_string = match limit {
             Some(limit) => format!("LIMIT {}", limit),
@@ -1070,6 +1074,11 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
     rows: Vec<Result<BinaryCopyOutRow, E>>,
     schema: ArrowSchemaRef,
 ) -> Result<RecordBatch> {
+    if schema.fields().is_empty() {
+        let options = RecordBatchOptions::new().with_row_count(Some(rows.len()));
+        return Ok(RecordBatch::try_new_with_options(schema, Vec::new(), &options).unwrap());
+    }
+
     use datafusion::arrow::array::{
         Array, BinaryBuilder, BooleanBuilder, Date32Builder, Float32Builder, Float64Builder,
         Int16Builder, Int32Builder, Int64Builder, StringBuilder, Time64NanosecondBuilder,
