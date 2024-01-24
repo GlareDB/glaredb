@@ -778,15 +778,11 @@ impl Session {
 
     /// Execute a SQL query.
     /// if the query doesn't contain exactly one statement, an error is returned.
-    pub async fn execute_sql(
-        &mut self,
-        query: &str,
-        op_info: Option<OperationInfo>,
-    ) -> Result<SendableRecordBatchStream> {
+    pub async fn execute_sql(&mut self, query: &str) -> Result<SendableRecordBatchStream> {
         let plan = self.create_logical_plan(query).await?;
         let plan = plan.try_into_datafusion_plan()?;
         let plan = self
-            .create_physical_plan(plan, &op_info.unwrap_or_default())
+            .create_physical_plan(plan, &OperationInfo::new().with_query_text(query))
             .await?;
         let stream = self.execute_physical_plan(plan).await?;
 

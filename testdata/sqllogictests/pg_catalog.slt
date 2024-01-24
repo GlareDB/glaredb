@@ -21,7 +21,7 @@ statement ok
 select * from pg_catalog.pg_database;
 
 statement ok
-select * from pg_catalog.pg_table;
+select * from pg_catalog.pg_tables; 
 
 statement ok
 select * from pg_catalog.pg_views;
@@ -48,7 +48,7 @@ statement ok
 select * from pg_database;
 
 statement ok
-select * from pg_table;
+select * from pg_tables;
 
 statement ok
 select * from pg_views;
@@ -117,3 +117,48 @@ AND c.relkind IN ('r', 'S', 'v', 'm', 'f', 'p')
 AND (c.relname) LIKE '%' 
 AND n.nspname = 'pg_catalog' 
 LIMIT 1000;
+
+
+# https://github.com/GlareDB/glaredb/issues/2475
+statement ok
+WITH table_privileges AS (
+  SELECT
+    NULL AS role,
+    t.schemaname AS schema,
+    t.tablename AS table,
+    pg_catalog.has_table_privilege(
+      current_user,
+      concat( '"', t.schemaname, '"', '.', '"', t.tablename, '"' ),
+      'SELECT'
+    ) AS select ,
+    pg_catalog.has_table_privilege(
+      current_user,
+      concat( '"', t.schemaname, '"', '.', '"', t.tablename, '"' ),
+      'UPDATE'
+    ) AS update ,
+    pg_catalog.has_table_privilege(
+      current_user,
+      concat( '"', t.schemaname, '"', '.', '"', t.tablename, '"' ),
+      'INSERT'
+    ) AS insert ,
+    pg_catalog.has_table_privilege(
+      current_user,
+      concat( '"', t.schemaname, '"', '.', '"', t.tablename, '"' ),
+      'DELETE'
+    ) AS delete 
+  FROM
+    pg_catalog.pg_tables AS t
+  WHERE
+    t.schemaname !~ '^pg_'
+    AND t.schemaname <> 'information_schema'
+    AND pg_catalog.has_schema_privilege(current_user, t.schemaname, 'USAGE')
+)
+SELECT
+  t.*
+FROM
+  table_privileges AS t
+WHERE
+  t.select
+  OR t.update
+  OR t.insert
+  OR t.delete

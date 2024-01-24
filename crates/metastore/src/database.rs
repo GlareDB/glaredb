@@ -830,7 +830,6 @@ impl State {
 
                 self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
             }
-
             Mutation::CreateExternalTable(create_ext) => {
                 validate_object_name(&create_ext.name)?;
                 let schema_id = self.get_schema_id(&create_ext.schema)?;

@@ -8,9 +8,7 @@ use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{ClickhouseError, Result};
-use futures::{Stream, StreamExt};
-use klickhouse::block::Block;
-use parking_lot::Mutex;
+use futures::StreamExt;
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{
@@ -70,7 +68,7 @@ impl ClickhouseAccess {
 }
 
 pub struct ClickhouseAccessState {
-    client: Client,
+    pub(crate) client: Client,
     database: String,
 }
 
@@ -354,15 +352,11 @@ impl TableProvider for ClickhouseTableProvider {
             write!(&mut query, " LIMIT {limit}")?;
         }
 
-        // TODO: This should be happening in the exec.
-        let stream = self
-            .state
-            .client
-            .query_raw(query)
-            .await
-            .map_err(|e| DataFusionError::Execution(e.to_string()))?;
-
-        Ok(Arc::new(ClickhouseExec::new(projected_schema, stream)))
+        Ok(Arc::new(ClickhouseExec::new(
+            projected_schema,
+            query,
+            self.state.clone(),
+        )))
     }
 
     async fn insert_into(
@@ -381,22 +375,19 @@ struct ClickhouseExec {
     /// Output schema.
     schema: ArrowSchemaRef,
     /// Stream we're pulling from.
-    stream: Mutex<Option<ConvertStream>>,
+    query: String,
+    /// State for querying the external database.
+    state: Arc<ClickhouseAccessState>,
     /// Execution metrics.
     metrics: ExecutionPlanMetricsSet,
 }
 
 impl ClickhouseExec {
-    fn new(
-        schema: ArrowSchemaRef,
-        stream: impl Stream<Item = Result<Block, KlickhouseError>> + Send + 'static,
-    ) -> Self {
+    fn new(schema: ArrowSchemaRef, query: String, state: Arc<ClickhouseAccessState>) -> Self {
         ClickhouseExec {
-            schema: schema.clone(),
-            stream: Mutex::new(Some(ConvertStream {
-                schema,
-                inner: Box::pin(stream),
-            })),
+            schema,
+            query,
+            state,
             metrics: ExecutionPlanMetricsSet::new(),
         }
     }
@@ -443,16 +434,8 @@ impl ExecutionPlan for ClickhouseExec {
             ));
         }
 
-        // This would need to be updated for if/when we do multiple partitions
-        // (1 convert stream per partition).
-        let stream = match self.stream.lock().take() {
-            Some(stream) => stream,
-            None => {
-                return Err(DataFusionError::Execution(
-                    "stream already taken".to_string(),
-                ))
-            }
-        };
+        let stream =
+            ConvertStream::new(self.schema.clone(), self.state.clone(), self.query.clone());
 
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
             stream,
