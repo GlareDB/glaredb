@@ -1,22 +1,16 @@
-use std::collections::HashMap;
-use std::fmt::{self, Display};
-use std::str::FromStr;
-
-use datafusion::arrow::datatypes::DataType;
-use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
-use proptest_derive::Arbitrary;
-
 use super::options::{
-    CredentialsOptions,
-    DatabaseOptions,
-    InternalColumnDefinition,
-    TableOptions,
-    TableOptionsInternal,
-    TunnelOptions,
+    CredentialsOptions, InternalColumnDefinition, TableOptionsInternal, TunnelOptions,
 };
+use super::options::{DatabaseOptions, TableOptions};
 use crate::gen::common::arrow::ArrowType;
 use crate::gen::metastore::catalog::{self, type_signature};
 use crate::{FromOptionalField, ProtoConvError};
+use datafusion::arrow::datatypes::DataType;
+use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
+use proptest_derive::Arbitrary;
+use std::collections::HashMap;
+use std::fmt::{self, Display};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogState {
@@ -840,10 +834,9 @@ impl From<CredentialsEntry> for catalog::CredentialsEntry {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use proptest::arbitrary::any;
     use proptest::proptest;
-
-    use super::*;
 
     proptest! {
         #[test]

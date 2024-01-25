@@ -1,8 +1,3 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::{env, fs};
-
 use anyhow::{anyhow, Result};
 use metastore::util::MetastoreClientMode;
 use pgsrv::auth::LocalAuthenticator;
@@ -10,9 +5,12 @@ use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
 use protogen::gen::rpcsrv::simple::simple_service_server::SimpleServiceServer;
 use rpcsrv::flight::handler::{FlightServiceServer, FlightSessionHandler};
-use rpcsrv::handler::RpcHandler;
-use rpcsrv::simple::SimpleHandler;
+use rpcsrv::{handler::RpcHandler, simple::SimpleHandler};
 use sqlexec::engine::{Engine, EngineStorageConfig};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::{env, fs};
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
 use tokio::signal;

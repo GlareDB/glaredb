@@ -1,20 +1,12 @@
-use std::ops::Range;
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
-use object_store::path::Path;
 use object_store::{
-    Error as ObjectStoreError,
-    GetOptions,
-    GetResult,
-    ListResult,
-    MultipartId,
-    ObjectMeta,
-    ObjectStore,
-    Result,
+    path::Path, Error as ObjectStoreError, GetResult, ListResult, ObjectMeta, ObjectStore, Result,
 };
+use object_store::{GetOptions, MultipartId, PutOptions, PutResult};
+use std::ops::Range;
+use std::sync::Arc;
 use tokio::io::AsyncWrite;
 
 /// Implements the object store trait on top of Arc.
@@ -44,8 +36,12 @@ impl std::fmt::Display for SharedObjectStore {
 
 #[async_trait]
 impl ObjectStore for SharedObjectStore {
-    async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
+    async fn put(&self, location: &Path, bytes: Bytes) -> Result<PutResult> {
         self.inner.put(location, bytes).await
+    }
+
+    async fn put_opts(&self, location: &Path, bytes: Bytes, opts: PutOptions) -> Result<PutResult> {
+        self.inner.put_opts(location, bytes, opts).await
     }
 
     async fn put_multipart(
@@ -83,8 +79,8 @@ impl ObjectStore for SharedObjectStore {
         self.inner.delete(location).await
     }
 
-    async fn list(&self, prefix: Option<&Path>) -> Result<BoxStream<'_, Result<ObjectMeta>>> {
-        self.inner.list(prefix).await
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, Result<ObjectMeta>> {
+        self.inner.list(prefix)
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> Result<ListResult> {

@@ -1,6 +1,7 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
+use crate::storage::lease::{RemoteLease, RemoteLeaser};
+use crate::storage::{
+    Result, SingletonStorageObject, StorageError, StorageObject, VersionedStorageObject,
+};
 use bytes::BytesMut;
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use pgrepr::oid::FIRST_AVAILABLE_ID;
@@ -8,17 +9,10 @@ use prost::Message;
 use protogen::gen::metastore::storage;
 use protogen::metastore::types::catalog::{CatalogState, DeploymentMetadata};
 use protogen::metastore::types::storage::{CatalogMetadata, ExtraState, PersistedCatalog};
+use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::{debug, error};
 use uuid::Uuid;
-
-use crate::storage::lease::{RemoteLease, RemoteLeaser};
-use crate::storage::{
-    Result,
-    SingletonStorageObject,
-    StorageError,
-    StorageObject,
-    VersionedStorageObject,
-};
 
 /// The metadata object for the catalog.
 const CATALOG_METADATA: SingletonStorageObject = SingletonStorageObject("metadata");
@@ -262,9 +256,8 @@ impl Storage {
 
 #[cfg(test)]
 mod tests {
-    use object_store::memory::InMemory;
-
     use super::*;
+    use object_store::memory::InMemory;
 
     fn new_storage() -> Storage {
         let process_id = Uuid::new_v4();

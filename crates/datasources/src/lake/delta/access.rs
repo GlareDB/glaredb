@@ -1,16 +1,12 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use deltalake::DeltaTable;
-use protogen::metastore::types::options::{
-    DeltaLakeCatalog,
-    DeltaLakeUnityCatalog,
-    StorageOptions,
-};
-use tracing::debug;
-
 use crate::lake::delta::catalog::{DataCatalog, UnityCatalog};
 use crate::lake::delta::errors::Result;
+use deltalake::DeltaTable;
+use protogen::metastore::types::options::{
+    DeltaLakeCatalog, DeltaLakeUnityCatalog, StorageOptions,
+};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tracing::debug;
 
 /// Access a delta lake using a catalog.
 pub struct DeltaLakeAccessor {

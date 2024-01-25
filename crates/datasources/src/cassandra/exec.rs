@@ -1,7 +1,11 @@
-use datafusion::arrow::array::ArrayBuilder;
-
-use super::builder::CqlValueArrayBuilder;
-use super::*;
+use super::{
+    builder::CqlValueArrayBuilder, fmt, stream, Any, Arc, ArrowSchemaRef, Context, DataFusionError,
+    DataSourceMetricsStreamAdapter, DatafusionResult, DisplayAs, DisplayFormatType, ExecutionPlan,
+    ExecutionPlanMetricsSet, MetricsSet, Partitioning, PhysicalSortExpr, Pin, Poll, RecordBatch,
+    RecordBatchStream, Result, Row, SendableRecordBatchStream, Session, Statistics, Stream,
+    StreamExt, TaskContext,
+};
+use datafusion::arrow::{array::ArrayBuilder, record_batch::RecordBatchOptions};
 
 pub(super) struct CassandraExec {
     schema: ArrowSchemaRef,
@@ -71,8 +75,9 @@ impl ExecutionPlan for CassandraExec {
             &self.metrics,
         )))
     }
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+
+    fn statistics(&self) -> DatafusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
@@ -140,6 +145,11 @@ fn rows_to_record_batch(
 ) -> Result<RecordBatch, DataFusionError> {
     match rows {
         None => Ok(RecordBatch::new_empty(schema)),
+        Some(rows) if schema.fields().is_empty() => {
+            let options = RecordBatchOptions::new().with_row_count(Some(rows.len()));
+            RecordBatch::try_new_with_options(schema, vec![], &options)
+                .map_err(DataFusionError::from)
+        }
         Some(rows) => {
             let mut builders = schema
                 .fields()

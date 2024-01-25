@@ -1,15 +1,12 @@
+use crate::messages::{Bind, ClosePortal, CloseStatement, Execute, Parse, Query, SerializedMessage};
+use anyhow::{anyhow, Result};
+use bytes::{BufMut, BytesMut};
+use postgres_protocol::message::{backend::Message, frontend};
+use postgres_protocol::IsNull;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::time::{Duration, Instant};
-
-use anyhow::{anyhow, Result};
-use bytes::{BufMut, BytesMut};
-use postgres_protocol::message::backend::Message;
-use postgres_protocol::message::frontend;
-use postgres_protocol::IsNull;
-
-use crate::messages::*;
 
 /// Walk the directory, running each test file against some Postgres compatible
 /// server.

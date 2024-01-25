@@ -2,28 +2,13 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use bitvec::order::Lsb0;
-use bitvec::vec::BitVec;
+use bitvec::{order::Lsb0, vec::BitVec};
 use bson::{RawBsonRef, RawDocument};
 use datafusion::arrow::array::{
-    Array,
-    ArrayBuilder,
-    ArrayRef,
-    BinaryBuilder,
-    BooleanBuilder,
-    Date32Builder,
-    Date64Builder,
-    Decimal128Builder,
-    Float64Builder,
-    Int32Builder,
-    Int64Builder,
-    LargeBinaryBuilder,
-    LargeStringBuilder,
-    StringBuilder,
-    StructArray,
-    TimestampMicrosecondBuilder,
-    TimestampMillisecondBuilder,
-    TimestampSecondBuilder,
+    Array, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanBuilder, Date32Builder, Date64Builder,
+    Decimal128Builder, Float64Builder, Int32Builder, Int64Builder, LargeBinaryBuilder,
+    LargeStringBuilder, StringBuilder, StructArray, TimestampMicrosecondBuilder,
+    TimestampMillisecondBuilder, TimestampSecondBuilder,
 };
 use datafusion::arrow::datatypes::{DataType, Field, Fields, TimeUnit};
 
@@ -161,8 +146,8 @@ impl RecordStructBuilder {
         Ok(())
     }
 
-    pub fn into_fields_and_builders(self) -> (Fields, Vec<Box<dyn ArrayBuilder>>) {
-        (self.fields, self.builders)
+    pub fn into_builders(self) -> Vec<Box<dyn ArrayBuilder>> {
+        self.builders
     }
 
     fn add_value_at_index(&mut self, idx: usize, val: Option<RawBsonRef>) -> Result<()> {
@@ -191,7 +176,7 @@ impl ArrayBuilder for RecordStructBuilder {
         let arrays = builders.into_iter().map(|mut b| b.finish());
 
         let pairs: Vec<(Arc<Field>, Arc<dyn Array>)> =
-            fields.into_iter().map(Arc::clone).zip(arrays).collect();
+            fields.into_iter().cloned().zip(arrays).collect();
 
         let array: StructArray = pairs.into();
 
@@ -202,7 +187,7 @@ impl ArrayBuilder for RecordStructBuilder {
         let arrays: Vec<Arc<dyn Array>> = self.builders.iter().map(|b| b.finish_cloned()).collect();
 
         let pairs: Vec<(Arc<Field>, Arc<dyn Array>)> =
-            self.fields.iter().map(Arc::clone).zip(arrays).collect();
+            self.fields.iter().cloned().zip(arrays).collect();
 
         let array: StructArray = pairs.into();
 

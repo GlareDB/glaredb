@@ -4,23 +4,26 @@ mod error;
 mod inner;
 mod utils;
 mod value;
+use constants::IMPLICIT_SCHEMAS;
+use datafusion::arrow::array::{ListBuilder, StringBuilder};
+use datafusion::arrow::datatypes::{DataType, Field};
+use datafusion::config::{ConfigExtension, ExtensionOptions};
+use datafusion::scalar::ScalarValue;
+use pgrepr::notice::NoticeSeverity;
+use utils::split_comma_delimited;
+
+use datafusion::variable::{VarProvider, VarType};
+use inner::ServerVar;
+use uuid::Uuid;
+
+pub use inner::Dialect;
+pub use inner::SessionVarsInner;
+use once_cell::sync::Lazy;
+use parking_lot::{RwLock, RwLockReadGuard};
 use std::borrow::ToOwned;
 use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
-
-use constants::*;
-use datafusion::arrow::datatypes::{DataType, Field};
-use datafusion::config::{ConfigExtension, ExtensionOptions};
-use datafusion::scalar::ScalarValue;
-use datafusion::variable::{VarProvider, VarType};
-use inner::*;
-pub use inner::{Dialect, SessionVarsInner};
-use once_cell::sync::Lazy;
-use parking_lot::{RwLock, RwLockReadGuard};
-use pgrepr::notice::NoticeSeverity;
-use utils::*;
-use uuid::Uuid;
 
 use self::error::VarError;
 
@@ -247,25 +250,27 @@ impl VarProvider for SessionVars {
             "current_schema" => ScalarValue::Utf8(self.search_path().first().cloned()),
             "connection_id" => ScalarValue::Utf8(Some(self.connection_id().to_string())),
             "current_schemas" => {
-                let schemas = self
-                    .search_path()
-                    .into_iter()
-                    .map(|path| ScalarValue::Utf8(Some(path)))
-                    .collect::<Vec<_>>();
-                ScalarValue::List(
-                    Some(schemas),
-                    Field::new("item", DataType::Utf8, true).into(),
-                )
+                let search_path = self.search_path();
+                let mut list = ListBuilder::with_capacity(
+                    StringBuilder::with_capacity(search_path.len(), search_path.len() * 10),
+                    /* list capacity = */ 1,
+                );
+                list.append_value(search_path.into_iter().map(Some));
+                let list = list.finish();
+                ScalarValue::List(Arc::new(list))
             }
             "current_schemas_include_implicit" => {
-                let schemas = self
-                    .implicit_search_path_iter()
-                    .map(|path| ScalarValue::Utf8(Some(path)))
-                    .collect::<Vec<_>>();
-                ScalarValue::List(
-                    Some(schemas),
-                    Field::new("item", DataType::Utf8, true).into(),
-                )
+                let implicit_search_path = self.implicit_search_path();
+                let mut list = ListBuilder::with_capacity(
+                    StringBuilder::with_capacity(
+                        implicit_search_path.len(),
+                        implicit_search_path.len() * 10,
+                    ),
+                    /* list capacity = */ 1,
+                );
+                list.append_value(implicit_search_path.into_iter().map(Some));
+                let list = list.finish();
+                ScalarValue::List(Arc::new(list))
             }
             s => Err(datafusion::error::DataFusionError::External(
                 VarError::UnknownVariable(s.to_string()).into(),

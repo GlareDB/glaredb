@@ -1,13 +1,13 @@
+use anyhow::Result;
+use clap::{Parser, Subcommand};
 use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
-
-use anyhow::Result;
-use clap::{Parser, Subcommand};
 use xshell::Shell;
 use zip::write::FileOptions;
 use zip::ZipWriter;
 
+#[allow(clippy::pedantic)]
 #[derive(Parser)]
 #[clap(name = "xtask")]
 #[clap(about = "Additional cargo tasks", long_about = None)]
@@ -16,6 +16,7 @@ struct Cli {
     command: Commands,
 }
 
+#[allow(clippy::pedantic)]
 #[derive(Subcommand)]
 enum Commands {
     /// Zip a folder to some destination.

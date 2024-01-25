@@ -1,36 +1,36 @@
-use std::collections::HashMap;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-
+use crate::{
+    errors::{Result, RpcsrvError},
+    session::RemoteSession,
+};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion_ext::session_metrics::{
-    BatchStreamWithMetricSender,
-    QueryMetrics,
-    SessionMetricsHandler,
+    BatchStreamWithMetricSender, QueryMetrics, SessionMetricsHandler,
 };
 use futures::{Stream, StreamExt};
-use protogen::gen::rpcsrv::{common, service};
-use protogen::rpcsrv::types::service::{
-    DispatchAccessRequest,
-    FetchCatalogRequest,
-    FetchCatalogResponse,
-    InitializeSessionRequest,
-    InitializeSessionResponse,
-    PhysicalPlanExecuteRequest,
-    TableProviderResponse,
+use protogen::{
+    gen::rpcsrv::common,
+    gen::rpcsrv::service,
+    rpcsrv::types::service::{
+        DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse, InitializeSessionRequest,
+        InitializeSessionResponse, PhysicalPlanExecuteRequest, TableProviderResponse,
+    },
 };
-use sqlexec::engine::{Engine, SessionStorageConfig};
-use sqlexec::remote::batch_stream::ExecutionBatchStream;
+use sqlexec::{
+    engine::{Engine, SessionStorageConfig},
+    remote::batch_stream::ExecutionBatchStream,
+};
+use std::{
+    collections::HashMap,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
 use tonic::{Request, Response, Status, Streaming};
 use tracing::info;
 use uuid::Uuid;
-
-use crate::errors::{Result, RpcsrvError};
-use crate::session::RemoteSession;
 
 pub struct RpcHandler {
     /// Core db engine for creating sessions.

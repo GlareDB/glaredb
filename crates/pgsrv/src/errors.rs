@@ -1,6 +1,5 @@
-use std::io;
-
 use crate::messages::{BackendMessage, FrontendMessage, StartupMessage};
+use std::io;
 
 pub type Result<T, E = PgSrvError> = std::result::Result<T, E>;
 

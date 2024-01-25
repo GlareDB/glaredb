@@ -18,15 +18,17 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::functions::FuncParamValue;
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, OwnedTableReference, Result};
+
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
+
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast;
-
-use crate::functions::FuncParamValue;
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 mod join;
 
@@ -57,8 +59,8 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                         path.clone(),
                     )))];
                     let func = self
-                        .schema_provider
-                        .get_table_func(func_ref, args, HashMap::new())
+                        .context_provider
+                        .get_table_function_source(func_ref, args, HashMap::new())
                         .await?;
 
                     let table_ref = OwnedTableReference::Bare { table: path.into() };
@@ -88,8 +90,12 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                                 }
                             }
                             let provider = self
-                                .schema_provider
-                                .get_table_func(table_ref.clone(), unnamed_args, named_args)
+                                .context_provider
+                                .get_table_function_source(
+                                    table_ref.clone(),
+                                    unnamed_args,
+                                    named_args,
+                                )
                                 .await?;
 
                             let plan_builder = LogicalPlanBuilder::scan(table_ref, provider, None)?;
@@ -106,8 +112,8 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                                 cte_plan.clone()
                             } else {
                                 let provider = self
-                                    .schema_provider
-                                    .get_table_provider(table_ref.clone())
+                                    .context_provider
+                                    .get_table_source(table_ref.clone())
                                     .await?;
                                 let plan_builder =
                                     LogicalPlanBuilder::scan(table_ref, provider, None)?;

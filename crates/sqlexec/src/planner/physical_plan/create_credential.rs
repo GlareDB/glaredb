@@ -1,9 +1,8 @@
-use catalog::mutator::CatalogMutator;
-use protogen::metastore::types::options::CredentialsOptions;
-use protogen::metastore::types::service;
-use protogen::metastore::types::service::Mutation;
-
 use super::*;
+
+use protogen::metastore::types::{options::CredentialsOptions, service, service::Mutation};
+
+use catalog::mutator::CatalogMutator;
 
 #[derive(Clone, Debug)]
 pub struct CreateCredentialExec {
@@ -66,8 +65,8 @@ impl ExecutionPlan for CreateCredentialExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

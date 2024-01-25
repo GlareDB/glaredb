@@ -1,9 +1,8 @@
-use std::collections::HashMap;
-
 use datafusion::arrow::record_batch::RecordBatch;
 use pgrepr::error::PgReprError;
 use pgrepr::format::Format;
 use sqlexec::errors::ExecError;
+use std::collections::HashMap;
 use tokio_postgres::types::Type as PgType;
 
 use crate::errors::{PgSrvError, Result};

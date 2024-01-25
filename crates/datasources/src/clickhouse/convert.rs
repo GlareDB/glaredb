@@ -1,68 +1,89 @@
+use chrono::{DateTime, NaiveDate};
+use chrono_tz::Tz;
+use datafusion::{
+    arrow::{
+        array::{
+            Array, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
+            UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        },
+        datatypes::{DataType, Schema, TimeUnit},
+        record_batch::{RecordBatch, RecordBatchOptions},
+    },
+    physical_plan::RecordBatchStream,
+};
+use datafusion::{
+    arrow::{
+        array::{BooleanBuilder, Date32Builder, StringBuilder, TimestampNanosecondBuilder},
+        datatypes::SchemaRef,
+    },
+    error::DataFusionError,
+};
+use futures::{Stream, StreamExt};
+use klickhouse::{block::Block, KlickhouseError, Value};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use chrono::{DateTime, NaiveDate};
-use chrono_tz::Tz;
-use datafusion::arrow::array::{
-    Array,
-    BooleanBuilder,
-    Date32Builder,
-    Float32Array,
-    Float64Array,
-    Int16Array,
-    Int32Array,
-    Int64Array,
-    Int8Array,
-    StringBuilder,
-    TimestampNanosecondBuilder,
-    UInt16Array,
-    UInt32Array,
-    UInt64Array,
-    UInt8Array,
-};
-use datafusion::arrow::datatypes::{DataType, Schema, TimeUnit};
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::error::DataFusionError;
-use datafusion::physical_plan::RecordBatchStream;
-use futures::{Stream, StreamExt};
-use klickhouse::block::Block;
-use klickhouse::{KlickhouseError, Value};
-
-use super::errors::Result;
 use crate::clickhouse::errors::ClickhouseError;
+
+use super::{errors::Result, ClickhouseAccessState};
+
+type PinnedStream = Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send + Sync>>;
 
 /// Convert a stream of blocks from clickhouse to a stream of record batches.
 pub struct ConvertStream {
-    pub schema: Arc<Schema>,
-    pub inner: Pin<Box<dyn Stream<Item = Result<Block, KlickhouseError>> + Send + 'static>>,
+    schema: SchemaRef,
+    inner: PinnedStream,
+}
+
+impl ConvertStream {
+    pub fn new(schema: SchemaRef, state: Arc<ClickhouseAccessState>, query: String) -> Self {
+        let schema_clone = schema.clone();
+        let stream = async_stream::stream! {
+            let query = state.client.query_raw(query);
+            let mut stream = match query.await {
+                Ok(s) => s,
+                Err(e) => {
+                    yield Err(DataFusionError::Execution(format!(
+                        "cannot run clickhouse query: {e}",
+                    )));
+                    return;
+                }
+            };
+
+            while let Some(block) = stream.next().await {
+                let block = match block {
+                    Ok(b) => b,
+                    Err(e) => {
+                        yield Err(DataFusionError::Execution(format!(
+                            "cannot extract clickhouse block: {e}",
+                        )));
+                        return;
+                    }
+                };
+
+                if block.rows == 0 {
+                    // Empty blocks error...
+                    continue;
+                }
+
+                let batch = block_to_batch(schema_clone.clone(), block)
+                    .map_err(|e| DataFusionError::Execution(format!(
+                        "error converting clickhouse block to record batch: {e}",
+                    )));
+                yield batch;
+            }
+        };
+        let inner = Box::pin(stream);
+        Self { schema, inner }
+    }
 }
 
 impl Stream for ConvertStream {
     type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        loop {
-            match self.inner.poll_next_unpin(cx) {
-                Poll::Ready(Some(Ok(block))) => {
-                    // Clickhouse can return empty blocks. Try polling for the
-                    // next block in that case.
-                    if block.rows == 0 {
-                        continue;
-                    }
-
-                    return Poll::Ready(Some(
-                        block_to_batch(self.schema.clone(), block)
-                            .map_err(|e| DataFusionError::Execution(e.to_string())),
-                    ));
-                }
-                Poll::Ready(Some(Err(e))) => {
-                    return Poll::Ready(Some(Err(DataFusionError::Execution(e.to_string()))))
-                }
-                Poll::Ready(None) => return Poll::Ready(None),
-                Poll::Pending => return Poll::Pending,
-            }
-        }
+        self.inner.poll_next_unpin(cx)
     }
 }
 
@@ -74,6 +95,12 @@ impl RecordBatchStream for ConvertStream {
 
 /// Convert a block to a record batch.
 fn block_to_batch(schema: Arc<Schema>, block: Block) -> Result<RecordBatch> {
+    if schema.fields.is_empty() {
+        let options = RecordBatchOptions::new().with_row_count(Some(block.rows as usize));
+        return RecordBatch::try_new_with_options(schema, vec![], &options).map_err(|e| {
+            ClickhouseError::String(format!("cannot create empty record batch: {e}",))
+        });
+    }
     if schema.fields.len() != block.column_data.len() {
         return Err(ClickhouseError::String(format!(
             "expected {} columns, got {}",

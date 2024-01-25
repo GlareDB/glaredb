@@ -1,19 +1,18 @@
 pub mod options;
 
-use std::collections::{BTreeMap, VecDeque};
-use std::fmt;
-
+use crate::errors::Result;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName};
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError, ParserOptions};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer, Word};
 use datafusion_ext::vars::Dialect;
-use prql_compiler::sql::Dialect as PrqlDialect;
-use prql_compiler::{compile, Options, Target};
+use prql_compiler::{compile, sql::Dialect as PrqlDialect, Options, Target};
+use std::collections::BTreeMap;
+use std::collections::VecDeque;
+use std::fmt;
 
 use self::options::{OptionValue, StmtOptions};
-use crate::errors::Result;
 
 /// Wrapper around our custom parse for parsing a sql statement.
 pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {

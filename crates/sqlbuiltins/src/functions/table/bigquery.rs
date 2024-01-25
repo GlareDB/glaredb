@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+
 use datafusion::arrow::datatypes::DataType;
 use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};

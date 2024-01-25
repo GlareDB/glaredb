@@ -20,46 +20,29 @@ mod binary_op;
 mod function;
 mod grouping_set;
 mod identifier;
+mod json_access;
 mod order_by;
 mod subquery;
 mod substring;
 mod unary_op;
 mod value;
 
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use async_recursion::async_recursion;
-use datafusion::arrow::datatypes::DataType;
+use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::tree_node::{Transformed, TreeNode};
-use datafusion::common::{Column, DFSchema, DataFusionError, Result, ScalarValue};
-use datafusion::logical_expr::expr::{InList, Placeholder, ScalarFunction};
+use datafusion::common::{plan_err, Column, DFSchema, DataFusionError, Result, ScalarValue};
+use datafusion::logical_expr::expr::{AggregateFunctionDefinition, ScalarFunction};
+use datafusion::logical_expr::expr::{InList, Placeholder};
 use datafusion::logical_expr::{
-    col,
-    expr,
-    lit,
-    AggregateFunction,
-    Between,
-    BinaryExpr,
-    BuiltinScalarFunction,
-    Cast,
-    Expr,
-    ExprSchemable,
-    GetFieldAccess,
-    GetIndexedField,
-    Like,
-    Operator,
-    TryCast,
+    col, expr, lit, AggregateFunction, Between, BinaryExpr, BuiltinScalarFunction, Cast, Expr,
+    ExprSchemable, GetFieldAccess, GetIndexedField, Like, Operator, TryCast,
 };
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
-    ArrayAgg,
-    Expr as SQLExpr,
-    Interval,
-    JsonOperator,
-    TrimWhereField,
-    Value,
+    ArrayAgg, Expr as SQLExpr, Interval, JsonOperator, TrimWhereField, Value,
 };
 use datafusion::sql::sqlparser::parser::ParserError::ParserError;
-
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     #[async_recursion]
@@ -89,6 +72,16 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                             // Note the order that we push the entries to the stack
                             // is important. We want to visit the left node first.
                             let op = self.parse_sql_binary_op(op)?;
+                            stack.push(StackEntry::Operator(op));
+                            stack.push(StackEntry::SQLExpr(right));
+                            stack.push(StackEntry::SQLExpr(left));
+                        }
+                        SQLExpr::JsonAccess {
+                            left,
+                            operator,
+                            right,
+                        } => {
+                            let op = self.parse_sql_json_access(operator)?;
                             stack.push(StackEntry::Operator(op));
                             stack.push(StackEntry::SQLExpr(right));
                             stack.push(StackEntry::SQLExpr(left));
@@ -255,15 +248,34 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 .await
             }
 
-            SQLExpr::Cast { expr, data_type } => Ok(Expr::Cast(Cast::new(
-                Box::new(
-                    self.sql_expr_to_logical_expr(*expr, schema, planner_context)
-                        .await?,
-                ),
-                self.convert_data_type(&data_type)?,
-            ))),
+            SQLExpr::Cast {
+                expr, data_type, ..
+            } => {
+                let dt = self.convert_data_type(&data_type)?;
+                let expr = self
+                    .sql_expr_to_logical_expr(*expr, schema, planner_context)
+                    .await?;
 
-            SQLExpr::TryCast { expr, data_type } => Ok(Expr::TryCast(TryCast::new(
+                // numeric constants are treated as seconds (rather as nanoseconds)
+                // to align with postgres / duckdb semantics
+                let expr = match &dt {
+                    DataType::Timestamp(TimeUnit::Nanosecond, tz)
+                        if expr.get_type(schema)? == DataType::Int64 =>
+                    {
+                        Expr::Cast(Cast::new(
+                            Box::new(expr),
+                            DataType::Timestamp(TimeUnit::Second, tz.clone()),
+                        ))
+                    }
+                    _ => expr,
+                };
+
+                Ok(Expr::Cast(Cast::new(Box::new(expr), dt)))
+            }
+
+            SQLExpr::TryCast {
+                expr, data_type, ..
+            } => Ok(Expr::TryCast(TryCast::new(
                 Box::new(
                     self.sql_expr_to_logical_expr(*expr, schema, planner_context)
                         .await?,
@@ -452,6 +464,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 expr,
                 trim_where,
                 trim_what,
+                ..
             } => {
                 self.sql_trim_to_expr(*expr, trim_where, trim_what, schema, planner_context)
                     .await
@@ -552,7 +565,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 
         let order_by = if let Some(order_by) = order_by {
             Some(
-                self.order_by_to_sort_expr(&order_by, input_schema, planner_context)
+                self.order_by_to_sort_expr(&order_by, input_schema, planner_context, true)
                     .await?,
             )
         } else {
@@ -712,7 +725,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             .await?
         {
             Expr::AggregateFunction(expr::AggregateFunction {
-                fun,
+                func_def: AggregateFunctionDefinition::BuiltIn(fun),
                 args,
                 distinct,
                 order_by,
@@ -727,9 +740,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 )),
                 order_by,
             ))),
-            _ => Err(DataFusionError::Internal(
-                "AggregateExpressionWithFilter expression was not an AggregateFunction".to_string(),
-            )),
+            _ => plan_err!("AggregateExpressionWithFilter expression was not an AggregateFunction"),
         }
     }
 

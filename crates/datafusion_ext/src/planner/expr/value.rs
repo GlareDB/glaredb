@@ -15,19 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashSet;
-
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use async_recursion::async_recursion;
 use datafusion::arrow::compute::kernels::cast_utils::parse_interval_month_day_nano;
 use datafusion::arrow::datatypes::DataType;
-use datafusion::common::{DFSchema, DataFusionError, Result, ScalarValue};
-use datafusion::logical_expr::expr::{BinaryExpr, Placeholder};
-use datafusion::logical_expr::{lit, Expr, Operator};
+use datafusion::common::{not_impl_err, DFSchema, DataFusionError, Result, ScalarValue};
+use datafusion::logical_expr::expr::{BinaryExpr, Placeholder, ScalarFunction};
+use datafusion::logical_expr::{
+    lit, BuiltinScalarFunction, Expr, Operator, ScalarFunctionDefinition,
+};
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{BinaryOperator, DateTimeField, Expr as SQLExpr, Value};
 use datafusion::sql::sqlparser::parser::ParserError::ParserError;
-
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     pub(crate) fn parse_value(&self, value: Value, param_data_types: &[DataType]) -> Result<Expr> {
@@ -120,31 +119,35 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             let value = self
                 .sql_expr_to_logical_expr(element, schema, &mut PlannerContext::new())
                 .await?;
+
             match value {
-                Expr::Literal(scalar) => {
-                    values.push(scalar);
+                Expr::Literal(_) => {
+                    values.push(value);
+                }
+                Expr::ScalarFunction(ScalarFunction {
+                    func_def: ScalarFunctionDefinition::BuiltIn(fun),
+                    ..
+                }) => {
+                    if fun == BuiltinScalarFunction::MakeArray {
+                        values.push(value);
+                    } else {
+                        return not_impl_err!(
+                            "ScalarFunctions without MakeArray are not supported: {value}"
+                        );
+                    }
                 }
                 _ => {
-                    return Err(DataFusionError::NotImplemented(format!(
+                    return not_impl_err!(
                         "Arrays with elements other than literal are not supported: {value}"
-                    )));
+                    );
                 }
             }
         }
 
-        let data_types: HashSet<DataType> = values.iter().map(|e| e.data_type()).collect();
-
-        if data_types.is_empty() {
-            Ok(lit(ScalarValue::new_list(None, DataType::Utf8)))
-        } else if data_types.len() > 1 {
-            Err(DataFusionError::NotImplemented(format!(
-                "Arrays with different types are not supported: {data_types:?}",
-            )))
-        } else {
-            let data_type = values[0].data_type();
-
-            Ok(lit(ScalarValue::new_list(Some(values), data_type)))
-        }
+        Ok(Expr::ScalarFunction(ScalarFunction::new(
+            BuiltinScalarFunction::MakeArray,
+            values,
+        )))
     }
 
     /// Convert a SQL interval expression to a DataFusion logical plan

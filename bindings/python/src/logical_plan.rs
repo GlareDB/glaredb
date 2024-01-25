@@ -1,20 +1,21 @@
-use std::any::Any;
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 
-use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::datasource::TableProvider;
-use datafusion::error::Result as DatafusionResult;
-use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::{LogicalPlanBuilder, TableProviderFilterPushDown, TableType};
-use datafusion::physical_plan::ExecutionPlan;
-use datafusion::prelude::Expr;
+use datafusion::{
+    arrow::datatypes::SchemaRef,
+    datasource::TableProvider,
+    execution::context::SessionState,
+    logical_expr::{LogicalPlanBuilder, TableProviderFilterPushDown, TableType},
+    physical_plan::ExecutionPlan,
+    prelude::Expr,
+};
 use pyo3::prelude::*;
 use sqlexec::{LogicalPlan, OperationInfo};
 
-use crate::connection::PyTrackedSession;
-use crate::error::PyGlareDbError;
-use crate::execution_result::PyExecutionResult;
-use crate::runtime::wait_for_future;
+use crate::{
+    connection::PyTrackedSession, error::PyGlareDbError, execution_result::PyExecutionResult,
+    runtime::wait_for_future,
+};
+use datafusion::error::Result as DatafusionResult;
 
 #[pyclass]
 #[derive(Clone, Debug)]

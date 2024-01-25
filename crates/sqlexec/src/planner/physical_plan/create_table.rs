@@ -1,35 +1,33 @@
 use std::sync::Arc;
 
-use catalog::mutator::CatalogMutator;
-use catalog::session_catalog::{ResolveConfig, SessionCatalog};
-use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::datasource::TableProvider;
-use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::execution::TaskContext;
-use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
-use datafusion::physical_plan::empty::EmptyExec;
-use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    SendableRecordBatchStream,
-    Statistics,
+use catalog::{
+    mutator::CatalogMutator,
+    session_catalog::{ResolveConfig, SessionCatalog},
+};
+use datafusion::{
+    arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
+    datasource::TableProvider,
+    error::{DataFusionError, Result as DataFusionResult},
+    execution::TaskContext,
+    physical_expr::PhysicalSortExpr,
+    physical_plan::{
+        coalesce_partitions::CoalescePartitionsExec, empty::EmptyExec,
+        stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan,
+        Partitioning, SendableRecordBatchStream, Statistics,
+    },
 };
 use datasources::native::access::{NativeTable, NativeTableStorage, SaveMode};
-use futures::{stream, StreamExt};
-use protogen::metastore::types::service;
-use protogen::metastore::types::service::Mutation;
+use futures::stream;
+use protogen::metastore::types::{service, service::Mutation};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use tracing::debug;
 
 use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
-use crate::errors::ExecError;
-use crate::planner::logical_plan::OwnedFullObjectReference;
-use crate::planner::physical_plan::new_operation_batch;
+use crate::{
+    errors::ExecError,
+    planner::{logical_plan::OwnedFullObjectReference, physical_plan::new_operation_batch},
+};
+use futures::StreamExt;
 
 #[derive(Debug, Clone)]
 pub struct CreateTableExec {
@@ -108,8 +106,8 @@ impl ExecutionPlan for CreateTableExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 
@@ -197,7 +195,7 @@ impl CreateTableExec {
 
             // if it's a 'replace' and there is no insert, we overwrite with an empty table
             (None, true) => {
-                let input = Arc::new(EmptyExec::new(false, TableProvider::schema(&table)));
+                let input = Arc::new(EmptyExec::new(TableProvider::schema(&table)));
                 insert(&table, input, true, context).await?
             }
             (None, false) => {}

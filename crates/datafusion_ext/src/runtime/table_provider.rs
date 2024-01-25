@@ -1,15 +1,15 @@
-use std::any::Any;
-use std::sync::Arc;
-
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::datasource::TableProvider;
 use datafusion::error::Result;
-use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableType};
-use datafusion::physical_plan::{ExecutionPlan, Statistics};
-use datafusion::prelude::Expr;
+use datafusion::{
+    arrow::datatypes::SchemaRef,
+    datasource::TableProvider,
+    execution::context::SessionState,
+    logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableType},
+    physical_plan::{ExecutionPlan, Statistics},
+    prelude::Expr,
+};
 use protogen::metastore::types::catalog::RuntimePreference;
+use std::{any::Any, sync::Arc};
 
 use super::runtime_group::RuntimeGroupExec;
 

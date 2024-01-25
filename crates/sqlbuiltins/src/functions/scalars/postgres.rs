@@ -1,9 +1,24 @@
-use datafusion::logical_expr::expr::ScalarFunction;
-use pgrepr::compatible::server_version_with_build_info;
+use std::sync::Arc;
 
-use super::df_scalars::array_to_string;
-use super::*;
-use crate::functions::FunctionNamespace;
+use datafusion::{
+    arrow::datatypes::{DataType, Field},
+    logical_expr::{
+        expr::ScalarFunction, BuiltinScalarFunction, ReturnTypeFunction,
+        ScalarFunctionImplementation, ScalarUDF, Signature, TypeSignature, Volatility,
+    },
+    physical_plan::ColumnarValue,
+    prelude::Expr,
+    scalar::ScalarValue,
+};
+use pgrepr::compatible::server_version_with_build_info;
+use protogen::metastore::types::catalog::FunctionType;
+
+use crate::{
+    errors::BuiltinError,
+    functions::{BuiltinScalarUDF, ConstBuiltinFunction, FunctionNamespace},
+};
+
+use super::{df_scalars::array_to_string, get_nth_scalar_value, session_var};
 
 const PG_CATALOG_NAMESPACE: FunctionNamespace = FunctionNamespace::Optional("pg_catalog");
 
@@ -25,20 +40,19 @@ impl ConstBuiltinFunction for PgGetUserById {
 
 impl BuiltinScalarUDF for PgGetUserById {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |_| {
-                Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
-                    "unknown".to_string(),
-                ))))
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(udf),
-            args,
-        ))
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Utf8)));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |_| {
+            Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
+                "unknown".to_string(),
+            ))))
+        });
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
     }
 
     fn namespace(&self) -> FunctionNamespace {
@@ -64,27 +78,27 @@ impl ConstBuiltinFunction for PgTableIsVisible {
 
 impl BuiltinScalarUDF for PgTableIsVisible {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
-            fun: Arc::new(move |input| {
-                Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
-                    ScalarValue,
-                    BuiltinError,
-                > {
-                    match value {
-                        ScalarValue::Int64(Some(_)) => Ok(ScalarValue::Boolean(Some(true))),
-                        _ => Ok(ScalarValue::Boolean(None)),
-                    }
-                })?)
-            }),
-        };
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
+            Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
+                ScalarValue,
+                BuiltinError,
+            > {
+                match value {
+                    ScalarValue::Int64(Some(_)) => Ok(ScalarValue::Boolean(Some(true))),
+                    _ => Ok(ScalarValue::Boolean(None)),
+                }
+            })?)
+        });
 
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(udf),
-            args,
-        ))
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+
+        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
     }
 
     fn namespace(&self) -> FunctionNamespace {
@@ -110,29 +124,26 @@ impl ConstBuiltinFunction for PgEncodingToChar {
 
 impl BuiltinScalarUDF for PgEncodingToChar {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |input| {
-                Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
-                    ScalarValue,
-                    BuiltinError,
-                > {
-                    match value {
-                        ScalarValue::Int64(Some(6)) => {
-                            Ok(ScalarValue::Utf8(Some("UTF8".to_string())))
-                        }
-                        ScalarValue::Int64(Some(_)) => Ok(ScalarValue::Utf8(Some("".to_string()))),
-                        _ => Ok(ScalarValue::Utf8(None)),
-                    }
-                })?)
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(udf),
-            args,
-        ))
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Utf8)));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
+            Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
+                ScalarValue,
+                BuiltinError,
+            > {
+                match value {
+                    ScalarValue::Int64(Some(6)) => Ok(ScalarValue::Utf8(Some("UTF8".to_string()))),
+                    ScalarValue::Int64(Some(_)) => Ok(ScalarValue::Utf8(Some("".to_string()))),
+                    _ => Ok(ScalarValue::Utf8(None)),
+                }
+            })?)
+        });
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
     }
 
     fn namespace(&self) -> FunctionNamespace {
@@ -161,18 +172,16 @@ impl ConstBuiltinFunction for HasSchemaPrivilege {
 
 impl BuiltinScalarUDF for HasSchemaPrivilege {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
-            fun: Arc::new(move |_input| {
-                Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(udf),
-            args,
-        ))
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
+        let scalar_fn_impl: ScalarFunctionImplementation =
+            Arc::new(move |_input| Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true)))));
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
     }
 
     fn namespace(&self) -> FunctionNamespace {
@@ -201,18 +210,16 @@ impl ConstBuiltinFunction for HasDatabasePrivilege {
 
 impl BuiltinScalarUDF for HasDatabasePrivilege {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
-            fun: Arc::new(move |_input| {
-                Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(udf),
-            args,
-        ))
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
+        let scalar_fn_impl: ScalarFunctionImplementation =
+            Arc::new(move |_input| Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true)))));
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
     }
 
     fn namespace(&self) -> FunctionNamespace {
@@ -240,18 +247,16 @@ impl ConstBuiltinFunction for HasTablePrivilege {
 
 impl BuiltinScalarUDF for HasTablePrivilege {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
-            fun: Arc::new(move |_input| {
-                Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(udf),
-            args,
-        ))
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
+        let scalar_fn_impl: ScalarFunctionImplementation =
+            Arc::new(move |_| Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true)))));
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
     }
 
     fn namespace(&self) -> FunctionNamespace {

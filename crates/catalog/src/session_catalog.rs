@@ -1,32 +1,18 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
+use crate::errors::Result;
 use datafusion::datasource::{MemTable, TableProvider};
 use parking_lot::Mutex;
 use protogen::metastore::types::catalog::{
-    CatalogEntry,
-    CatalogState,
-    CredentialsEntry,
-    DatabaseEntry,
-    DeploymentMetadata,
-    EntryMeta,
-    EntryType,
-    FunctionEntry,
-    FunctionType,
-    SchemaEntry,
-    SourceAccessMode,
-    TableEntry,
-    TunnelEntry,
+    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
+    EntryType, FunctionEntry, FunctionType, SchemaEntry, SourceAccessMode, TableEntry, TunnelEntry,
 };
 use protogen::metastore::types::options::{
-    InternalColumnDefinition,
-    TableOptions,
-    TableOptionsInternal,
+    InternalColumnDefinition, TableOptions, TableOptionsInternal,
 };
+use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::debug;
 
 use super::client::MetastoreClientHandle;
-use crate::errors::Result;
 
 /// Configuration for letting the catalog know how to resolve certain items.
 ///

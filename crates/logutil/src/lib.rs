@@ -1,22 +1,16 @@
 //! Utilities for logging and tracing.
-use std::fs::File;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{fs::File, path::PathBuf, sync::Arc};
 
 use tracing::{subscriber, trace, Level};
-use tracing_subscriber::filter::EnvFilter;
-use tracing_subscriber::fmt::format::{
-    Compact,
-    DefaultFields,
-    Format,
-    Json,
-    JsonFields,
-    Pretty,
-    Writer,
+use tracing_subscriber::{
+    filter::EnvFilter,
+    fmt::{
+        format::{Compact, DefaultFields, Format, Json, JsonFields, Pretty, Writer},
+        time::FormatTime,
+        SubscriberBuilder,
+    },
+    FmtSubscriber,
 };
-use tracing_subscriber::fmt::time::FormatTime;
-use tracing_subscriber::fmt::SubscriberBuilder;
-use tracing_subscriber::FmtSubscriber;
 
 #[derive(Debug)]
 pub enum Verbosity {

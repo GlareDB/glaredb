@@ -1,13 +1,14 @@
-use std::collections::BTreeMap;
-use std::fmt;
-
-use datafusion::arrow::datatypes::{DataType, Field, SchemaRef};
-use datafusion::common::DFSchemaRef;
-use proptest_derive::Arbitrary;
-
 use crate::gen::common::arrow;
 use crate::gen::metastore::options;
 use crate::{FromOptionalField, ProtoConvError};
+use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::{
+    arrow::datatypes::{DataType, Field},
+    common::DFSchemaRef,
+};
+use proptest_derive::Arbitrary;
+use std::collections::BTreeMap;
+use std::fmt;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct InternalColumnDefinition {
@@ -376,18 +377,28 @@ impl From<DatabaseOptionsClickhouse> for options::DatabaseOptionsClickhouse {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsCassandra {
     pub host: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
 }
 
 impl TryFrom<options::DatabaseOptionsCassandra> for DatabaseOptionsCassandra {
     type Error = ProtoConvError;
     fn try_from(value: options::DatabaseOptionsCassandra) -> Result<Self, Self::Error> {
-        Ok(DatabaseOptionsCassandra { host: value.host })
+        Ok(DatabaseOptionsCassandra {
+            host: value.host,
+            username: value.username,
+            password: value.password,
+        })
     }
 }
 
 impl From<DatabaseOptionsCassandra> for options::DatabaseOptionsCassandra {
     fn from(value: DatabaseOptionsCassandra) -> Self {
-        options::DatabaseOptionsCassandra { host: value.host }
+        options::DatabaseOptionsCassandra {
+            host: value.host,
+            username: value.username,
+            password: value.password,
+        }
     }
 }
 
@@ -1063,6 +1074,8 @@ pub struct TableOptionsCassandra {
     pub host: String,
     pub keyspace: String,
     pub table: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
 }
 
 impl TryFrom<options::TableOptionsCassandra> for TableOptionsCassandra {
@@ -1072,6 +1085,8 @@ impl TryFrom<options::TableOptionsCassandra> for TableOptionsCassandra {
             host: value.host,
             keyspace: value.keyspace,
             table: value.table,
+            username: value.username,
+            password: value.password,
         })
     }
 }
@@ -1082,6 +1097,8 @@ impl From<TableOptionsCassandra> for options::TableOptionsCassandra {
             host: value.host,
             keyspace: value.keyspace,
             table: value.table,
+            username: value.username,
+            password: value.password,
         }
     }
 }
@@ -1285,10 +1302,9 @@ impl From<TunnelOptionsSsh> for options::TunnelOptionsSsh {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use proptest::arbitrary::any;
     use proptest::proptest;
-
-    use super::*;
 
     proptest! {
         #[test]

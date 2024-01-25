@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::Schema;
@@ -20,33 +18,14 @@ use protogen::metastore::types::options::CopyToDestinationOptions;
 use tracing::debug;
 use uuid::Uuid;
 
-use super::client::RemoteSessionClient;
+use std::sync::Arc;
+
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
-    AlterDatabase,
-    AlterTable,
-    AlterTunnelRotateKeys,
-    CopyTo,
-    CreateCredentials,
-    CreateExternalDatabase,
-    CreateExternalTable,
-    CreateSchema,
-    CreateTable,
-    CreateTempTable,
-    CreateTunnel,
-    CreateView,
-    Delete,
-    DescribeTable,
-    DropCredentials,
-    DropDatabase,
-    DropSchemas,
-    DropTables,
-    DropTunnel,
-    DropViews,
-    Insert,
-    SetVariable,
-    ShowVariable,
-    Update,
+    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
+    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
+    CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
+    DropTables, DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
 };
 use crate::planner::physical_plan::alter_database::AlterDatabaseExec;
 use crate::planner::physical_plan::alter_table::AlterTableExec;
@@ -78,6 +57,8 @@ use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
 use crate::planner::physical_plan::set_var::SetVarExec;
 use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
+
+use super::client::RemoteSessionClient;
 
 pub struct DDLExtensionPlanner {
     catalog: SessionCatalog,
@@ -232,17 +213,18 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::DropTables => {
                 let plan = require_downcast_lp::<DropTables>(node);
                 let mut drops = Vec::with_capacity(plan.tbl_references.len());
+                let mut tbl_entries = Vec::with_capacity(plan.tbl_references.len());
                 let mut temp_table_drops = Vec::with_capacity(plan.tbl_references.len());
 
                 for r in &plan.tbl_references {
                     if self.catalog.get_temp_catalog().contains_table(&r.name) {
                         temp_table_drops.push(r.clone());
-                    } else if self
-                        .catalog
-                        .resolve_table(&r.database, &r.schema, &r.name)
-                        .is_some()
-                        || plan.if_exists
+                    } else if let Some(entry) =
+                        self.catalog.resolve_table(&r.database, &r.schema, &r.name)
                     {
+                        drops.push(r.clone());
+                        tbl_entries.push(entry.clone());
+                    } else if plan.if_exists {
                         drops.push(r.clone());
                     } else {
                         return Err(DataFusionError::Plan(format!(
@@ -270,6 +252,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                         let exec = Arc::new(DropTablesExec {
                             catalog_version: self.catalog.version(),
                             tbl_references: drops,
+                            tbl_entries,
                             if_exists: plan.if_exists,
                         });
                         RuntimeGroupExec::new(RuntimePreference::Remote, exec)

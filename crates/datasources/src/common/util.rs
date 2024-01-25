@@ -1,17 +1,20 @@
-use std::fmt::Write;
-use std::sync::Arc;
+use std::{fmt::Write, sync::Arc};
 
 use chrono::{Duration, TimeZone, Utc};
-use datafusion::arrow::array::{Array, ArrayRef, UInt64Array};
-use datafusion::arrow::compute::{cast_with_options, CastOptions};
-use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
-use datafusion::arrow::error::ArrowError;
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::arrow::util::display::FormatOptions;
-use datafusion::scalar::ScalarValue;
+use datafusion::{
+    arrow::{
+        array::{Array, ArrayRef, UInt64Array},
+        compute::{cast_with_options, CastOptions},
+        datatypes::{DataType, Field, Schema, TimeUnit},
+        error::ArrowError,
+        record_batch::RecordBatch,
+        util::display::FormatOptions,
+    },
+    scalar::ScalarValue,
+};
 use decimal::Decimal128;
 use once_cell::sync::Lazy;
-use repr::str::encode::*;
+use repr::str::encode::{encode_binary, encode_binary_mysql, encode_binary_snowflake, encode_date, encode_decimal, encode_float, encode_int, encode_string, encode_time, encode_utc_timestamp};
 
 use super::errors::{DatasourceCommonError, Result};
 
@@ -193,14 +196,13 @@ pub fn create_count_record_batch(count: u64) -> RecordBatch {
 
 #[cfg(test)]
 mod tests {
-    use datafusion::arrow::array::{
-        Int32Builder,
-        Time64MicrosecondBuilder,
-        Time64NanosecondBuilder,
-        TimestampMicrosecondBuilder,
-        TimestampNanosecondBuilder,
+    use datafusion::arrow::{
+        array::{
+            Int32Builder, Time64MicrosecondBuilder, Time64NanosecondBuilder,
+            TimestampMicrosecondBuilder, TimestampNanosecondBuilder,
+        },
+        datatypes::Schema,
     };
-    use datafusion::arrow::datatypes::Schema;
 
     use super::*;
 

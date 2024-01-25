@@ -17,14 +17,15 @@
 
 //! SQL Utility Functions
 
-use std::collections::HashMap;
-
 use datafusion::arrow::datatypes::{DataType, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE};
+
 use datafusion::common::tree_node::{Transformed, TreeNode};
 use datafusion::common::{DataFusionError, Result, ScalarValue};
-use datafusion::logical_expr::expr::{Alias, GroupingSet, WindowFunction};
+use datafusion::logical_expr::expr::{GroupingSet, WindowFunction};
 use datafusion::logical_expr::utils::{expr_as_column_expr, find_column_exprs};
-use datafusion::logical_expr::{Expr, LogicalPlan};
+use datafusion::logical_expr::{expr::Alias, Expr, LogicalPlan};
+use datafusion::sql::sqlparser::ast::Ident;
+use std::collections::HashMap;
 
 /// Make a best-effort attempt at resolving all columns in the expression tree
 pub(crate) fn resolve_columns(expr: &Expr, plan: &LogicalPlan) -> Result<Expr> {
@@ -219,5 +220,13 @@ pub(crate) fn make_decimal_type(precision: Option<u64>, scale: Option<u64>) -> R
         )))
     } else {
         Ok(DataType::Decimal128(precision, scale))
+    }
+}
+
+// Normalize an owned identifier to a lowercase string unless the identifier is quoted.
+pub(crate) fn normalize_ident(id: Ident) -> String {
+    match id.quote_style {
+        Some(_) => id.value,
+        None => id.value.to_ascii_lowercase(),
     }
 }

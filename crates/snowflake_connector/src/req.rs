@@ -1,17 +1,18 @@
-use std::collections::HashMap;
-use std::io::Read;
-use std::time::Duration;
+use std::{collections::HashMap, io::Read, time::Duration};
 
 use flate2::read::GzDecoder;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE};
-use reqwest::{Client, IntoUrl, StatusCode, Url};
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE},
+    Client, IntoUrl, StatusCode, Url,
+};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::{trace, warn};
 use uuid::Uuid;
 
-use crate::auth::Token;
-use crate::errors::{Result, SnowflakeError};
+use crate::{
+    auth::Token,
+    errors::{Result, SnowflakeError},
+};
 
 const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 const BODY_CONTENT_TYPE: &str = "application/json";

@@ -1,15 +1,10 @@
-use proptest_derive::Arbitrary;
-
 use super::catalog::SourceAccessMode;
 use super::options::{
-    CredentialsOptions,
-    DatabaseOptions,
-    TableOptions,
-    TableOptionsInternal,
-    TunnelOptions,
+    CredentialsOptions, DatabaseOptions, TableOptions, TableOptionsInternal, TunnelOptions,
 };
 use crate::gen::metastore::service;
 use crate::{FromOptionalField, ProtoConvError};
+use proptest_derive::Arbitrary;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub enum Mutation {
@@ -694,10 +689,9 @@ impl From<UpdateDeploymentStorage> for service::UpdateDeploymentStorage {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use proptest::arbitrary::any;
     use proptest::proptest;
-
-    use super::*;
 
     proptest! {
         #[test]

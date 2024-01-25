@@ -1,7 +1,5 @@
-use std::fmt::{Debug, Display};
-use std::io::Write;
-use std::sync::Arc;
-
+use crate::bson;
+use crate::common::errors::Result;
 use async_trait::async_trait;
 use datafusion::arrow::array::StructArray;
 use datafusion::arrow::error::ArrowError;
@@ -10,15 +8,16 @@ use datafusion::common::Result as DfResult;
 use datafusion::error::DataFusionError;
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::insert::DataSink;
-use datafusion::physical_plan::{DisplayAs, DisplayFormatType, SendableRecordBatchStream};
+use datafusion::physical_plan::metrics::MetricsSet;
+use datafusion::physical_plan::DisplayAs;
+use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
-use object_store::path::Path as ObjectPath;
-use object_store::ObjectStore;
+use object_store::{path::Path as ObjectPath, ObjectStore};
+use std::any::Any;
+use std::{fmt::Debug, fmt::Display, io::Write, sync::Arc};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use super::SharedBuffer;
-use crate::bson;
-use crate::common::errors::Result;
 
 const BUFFER_SIZE: usize = 2 * 1024 * 1024;
 
@@ -68,20 +67,23 @@ impl BsonSink {
 
 #[async_trait]
 impl DataSink for BsonSink {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        None
+    }
+
     async fn write_all(
         &self,
-        data: Vec<SendableRecordBatchStream>,
+        data: SendableRecordBatchStream,
         _context: &Arc<TaskContext>,
     ) -> DfResult<u64> {
-        let mut count = 0;
-        for stream in data {
-            count += self
-                .stream_into_inner(stream)
-                .await
-                .map(|x| x as u64)
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        }
-        Ok(count)
+        self.stream_into_inner(data)
+            .await
+            .map(|x| x as u64)
+            .map_err(|e| DataFusionError::External(Box::new(e)))
     }
 }
 

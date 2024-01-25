@@ -1,11 +1,12 @@
-use std::collections::HashMap;
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use tokio::net::TcpListener;
-use tokio::process::Command;
-use tokio::time::{sleep as tokio_sleep, Instant};
+use tokio::{
+    net::TcpListener,
+    process::Command,
+    time::{sleep as tokio_sleep, Instant},
+};
 use tokio_postgres::{Client, Config};
 use tracing::warn;
 

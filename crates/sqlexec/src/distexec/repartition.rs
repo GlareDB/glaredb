@@ -1,13 +1,11 @@
-use std::collections::VecDeque;
-use std::task::{Context, Poll, Waker};
-
+use super::pipeline::{Sink, Source};
+use super::Result;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::repartition::BatchPartitioner;
 use datafusion::physical_plan::Partitioning;
 use parking_lot::Mutex;
-
-use super::pipeline::{Sink, Source};
-use super::Result;
+use std::collections::VecDeque;
+use std::task::{Context, Poll, Waker};
 
 #[derive(Debug)]
 pub struct RepartitionPipeline {

@@ -2,47 +2,39 @@ pub mod errors;
 
 mod convert;
 
-use std::any::Any;
-use std::borrow::Cow;
-use std::fmt::{self, Display, Write};
-use std::sync::Arc;
-use std::time::Duration;
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
+use errors::{ClickhouseError, Result};
+use futures::StreamExt;
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{
-    Field,
-    Fields,
-    Schema as ArrowSchema,
-    SchemaRef as ArrowSchemaRef,
+    Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef,
 };
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
-use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    SendableRecordBatchStream,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
-use datafusion_ext::errors::ExtensionError;
-use datafusion_ext::functions::VirtualLister;
-use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
-use errors::{ClickhouseError, Result};
-use futures::{Stream, StreamExt};
-use klickhouse::block::Block;
 use klickhouse::{Client, ClientOptions, KlickhouseError};
-use parking_lot::Mutex;
 use rustls::ServerName;
+use std::any::Any;
+use std::borrow::Cow;
+use std::fmt::{self, Display, Write};
+use std::sync::Arc;
+use std::time::Duration;
 use tokio_rustls::TlsConnector;
 use url::Url;
 
-use self::convert::ConvertStream;
 use crate::common::util;
+
+use self::convert::ConvertStream;
 
 #[derive(Debug, Clone)]
 pub struct ClickhouseAccess {
@@ -76,7 +68,7 @@ impl ClickhouseAccess {
 }
 
 pub struct ClickhouseAccessState {
-    client: Client,
+    pub(crate) client: Client,
     database: String,
 }
 
@@ -339,12 +331,16 @@ impl TableProvider for ClickhouseTableProvider {
 
         // Get the projected columns, joined by a ','. This will be put in the
         // 'SELECT ...' portion of the query.
-        let projection_string = projected_schema
-            .fields
-            .iter()
-            .map(|f| f.name().clone())
-            .collect::<Vec<_>>()
-            .join(",");
+        let projection_string = if projected_schema.fields().is_empty() {
+            "*".to_string()
+        } else {
+            projected_schema
+                .fields
+                .iter()
+                .map(|f| f.name().clone())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
 
         let mut query = format!("SELECT {} FROM {}", projection_string, self.table_ref);
 
@@ -360,15 +356,11 @@ impl TableProvider for ClickhouseTableProvider {
             write!(&mut query, " LIMIT {limit}")?;
         }
 
-        // TODO: This should be happening in the exec.
-        let stream = self
-            .state
-            .client
-            .query_raw(query)
-            .await
-            .map_err(|e| DataFusionError::Execution(e.to_string()))?;
-
-        Ok(Arc::new(ClickhouseExec::new(projected_schema, stream)))
+        Ok(Arc::new(ClickhouseExec::new(
+            projected_schema,
+            query,
+            self.state.clone(),
+        )))
     }
 
     async fn insert_into(
@@ -387,22 +379,19 @@ struct ClickhouseExec {
     /// Output schema.
     schema: ArrowSchemaRef,
     /// Stream we're pulling from.
-    stream: Mutex<Option<ConvertStream>>,
+    query: String,
+    /// State for querying the external database.
+    state: Arc<ClickhouseAccessState>,
     /// Execution metrics.
     metrics: ExecutionPlanMetricsSet,
 }
 
 impl ClickhouseExec {
-    fn new(
-        schema: ArrowSchemaRef,
-        stream: impl Stream<Item = Result<Block, KlickhouseError>> + Send + 'static,
-    ) -> Self {
+    fn new(schema: ArrowSchemaRef, query: String, state: Arc<ClickhouseAccessState>) -> Self {
         ClickhouseExec {
-            schema: schema.clone(),
-            stream: Mutex::new(Some(ConvertStream {
-                schema,
-                inner: Box::pin(stream),
-            })),
+            schema,
+            query,
+            state,
             metrics: ExecutionPlanMetricsSet::new(),
         }
     }
@@ -449,16 +438,8 @@ impl ExecutionPlan for ClickhouseExec {
             ));
         }
 
-        // This would need to be updated for if/when we do multiple partitions
-        // (1 convert stream per partition).
-        let stream = match self.stream.lock().take() {
-            Some(stream) => stream,
-            None => {
-                return Err(DataFusionError::Execution(
-                    "stream already taken".to_string(),
-                ))
-            }
-        };
+        let stream =
+            ConvertStream::new(self.schema.clone(), self.state.clone(), self.query.clone());
 
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
             stream,
@@ -467,8 +448,8 @@ impl ExecutionPlan for ClickhouseExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DatafusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 
     fn metrics(&self) -> Option<MetricsSet> {

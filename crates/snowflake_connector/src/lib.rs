@@ -1,14 +1,12 @@
 use crate::auth::{AuthOptions, Authenticator, DefaultAuthenticator, Session};
 use crate::errors::{Result, SnowflakeError};
 use crate::query::Query;
+use crate::req::SnowflakeClient;
+
 pub use crate::query::{
-    snowflake_to_arrow_datatype,
-    QueryBindParameter,
-    QueryResult,
-    QueryResultChunk,
+    snowflake_to_arrow_datatype, QueryBindParameter, QueryResult, QueryResultChunk,
     QueryResultChunkMeta,
 };
-use crate::req::SnowflakeClient;
 
 mod auth;
 mod query;

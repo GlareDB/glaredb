@@ -1,7 +1,5 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-
+use crate::error::JsGlareDbError;
+use crate::logical_plan::JsLogicalPlan;
 use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
 use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
@@ -9,10 +7,10 @@ use ioutil::ensure_dir;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::{LogicalPlan, OperationInfo};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
 use url::Url;
-
-use crate::error::JsGlareDbError;
-use crate::logical_plan::JsLogicalPlan;
 
 pub(super) type JsTrackedSession = Arc<Mutex<TrackedSession>>;
 

@@ -83,6 +83,8 @@ message DatabaseOptionsClickhouse {
 
 message DatabaseOptionsCassandra {
   string host = 1;
+  optional string username = 2;
+  optional string password = 3;
 }
 
 message DatabaseOptionsSnowflake {
@@ -240,6 +242,8 @@ message TableOptionsCassandra {
   string host = 1;
   string keyspace = 2;
   string table = 3;
+  optional string username = 4;
+  optional string password = 5;
 }
 
 // Tunnel options

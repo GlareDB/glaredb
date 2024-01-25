@@ -1,9 +1,3 @@
-use std::collections::VecDeque;
-use std::io::Cursor;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::ipc::reader::FileReader as IpcFileReader;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -11,6 +5,10 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::physical_plan::RecordBatchStream;
 use futures::{Stream, StreamExt};
 use protogen::gen::rpcsrv::common;
+use std::io::Cursor;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::{collections::VecDeque, sync::Arc};
 use tonic::Streaming;
 use uuid::Uuid;
 

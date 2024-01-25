@@ -1,40 +1,38 @@
-use std::pin::Pin;
-use std::sync::Arc;
-
-use arrow_flight::encode::FlightDataEncoderBuilder;
-use arrow_flight::error::FlightError::ExternalError;
-use arrow_flight::flight_service_server::FlightService;
-pub use arrow_flight::flight_service_server::FlightServiceServer;
-use arrow_flight::sql::metadata::{SqlInfoData, SqlInfoDataBuilder};
-use arrow_flight::sql::server::FlightSqlService;
-use arrow_flight::sql::*;
-use arrow_flight::{
-    Action,
-    FlightDescriptor,
-    FlightEndpoint,
-    FlightInfo,
-    HandshakeRequest,
-    HandshakeResponse,
-    IpcMessage,
-    SchemaAsIpc,
-    Ticket,
+use crate::{
+    errors::{Result, RpcsrvError},
+    util::ConnKey,
 };
+
 use dashmap::DashMap;
-use datafusion::arrow::ipc::writer::IpcWriteOptions;
-use datafusion::logical_expr::LogicalPlan;
+use datafusion::{arrow::ipc::writer::IpcWriteOptions, logical_expr::LogicalPlan};
 use datafusion_ext::vars::SessionVars;
-use futures::{Stream, TryStreamExt};
 use once_cell::sync::Lazy;
-use prost::Message;
-use sqlexec::engine::{Engine, SessionStorageConfig};
-use sqlexec::session::Session;
-use sqlexec::OperationInfo;
+use sqlexec::{
+    engine::{Engine, SessionStorageConfig},
+    session::Session,
+    OperationInfo,
+};
+use std::{pin::Pin, sync::Arc};
 use tokio::sync::{Mutex, MutexGuard};
-use tonic::{Request, Response, Status, Streaming};
 use uuid::Uuid;
 
-use crate::errors::{Result, RpcsrvError};
-use crate::util::ConnKey;
+pub use arrow_flight::flight_service_server::FlightServiceServer;
+use arrow_flight::{
+    encode::FlightDataEncoderBuilder, error::FlightError::ExternalError,
+    flight_service_server::FlightService, sql::{ActionClosePreparedStatementRequest, ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any, CommandGetSqlInfo, CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt, SqlInfo}, Action, FlightDescriptor, FlightEndpoint,
+    FlightInfo, IpcMessage, SchemaAsIpc, Ticket,
+};
+use arrow_flight::{
+    sql::{
+        metadata::{SqlInfoData, SqlInfoDataBuilder},
+        server::FlightSqlService,
+    },
+    HandshakeRequest, HandshakeResponse,
+};
+use futures::Stream;
+use futures::TryStreamExt;
+use prost::Message;
+use tonic::{Request, Response, Status, Streaming};
 
 static INSTANCE_SQL_DATA: Lazy<SqlInfoData> = Lazy::new(|| {
     let mut builder = SqlInfoDataBuilder::new();
@@ -196,7 +194,7 @@ impl FlightSqlService for FlightSessionHandler {
                 let ctx = self.get_or_create_ctx(&req).await?;
                 let mut ctx = ctx.lock().await;
 
-                match ctx.execute_sql(sql, None).await {
+                match ctx.execute_sql(sql).await {
                     Ok(stream) => {
                         let schema = stream.schema();
 

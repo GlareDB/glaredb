@@ -1,12 +1,11 @@
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::time::{Duration, SystemTime};
-
 use anyhow::Result;
 use clap::Parser;
 use glaredb::server::ComputeServer;
 use glob::glob;
 use pgsrv::auth::SingleUserAuthenticator;
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::time::{Duration, SystemTime};
 use tokio::net::TcpListener;
 use tokio::runtime::Builder;
 use tokio::sync::oneshot;

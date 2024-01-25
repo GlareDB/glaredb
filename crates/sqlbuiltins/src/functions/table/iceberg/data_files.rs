@@ -1,19 +1,25 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use datafusion::arrow::array::{Int64Builder, StringBuilder, UInt64Builder};
-use datafusion::arrow::datatypes::{DataType, Field, Schema};
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::datasource::{MemTable, TableProvider};
-use datafusion_ext::errors::{ExtensionError, Result};
-use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::lake::iceberg::table::IcebergTable;
-use datasources::lake::storage_options_into_object_store;
+use datafusion::{
+    arrow::{
+        array::{Int64Builder, StringBuilder, UInt64Builder},
+        datatypes::{DataType, Field, Schema},
+        record_batch::RecordBatch,
+    },
+    datasource::{MemTable, TableProvider},
+};
+use datafusion_ext::{
+    errors::{ExtensionError, Result},
+    functions::{FuncParamValue, TableFuncContextProvider},
+};
+use datasources::lake::{iceberg::table::IcebergTable, storage_options_into_object_store};
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
-use crate::functions::table::{table_location_and_opts, TableFunc};
-use crate::functions::ConstBuiltinFunction;
+use crate::functions::{
+    table::{table_location_and_opts, TableFunc},
+    ConstBuiltinFunction,
+};
 
 /// Scan data file metadata for the current snapshot of an iceberg table. Will
 /// not attempt to read data files.

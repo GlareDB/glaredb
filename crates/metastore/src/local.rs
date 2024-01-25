@@ -1,16 +1,13 @@
-use std::path::Path;
-use std::sync::Arc;
-
-use object_store::local::LocalFileSystem;
-use object_store::memory::InMemory;
-use object_store::ObjectStore;
-use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
-use protogen::gen::metastore::service::metastore_service_server::MetastoreServiceServer;
-use tonic::transport::{Channel, Endpoint, Server, Uri};
-use tracing::info;
-
 use crate::errors::{MetastoreError, Result};
 use crate::srv::Service;
+use object_store::local::LocalFileSystem;
+use object_store::{memory::InMemory, ObjectStore};
+use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
+use protogen::gen::metastore::service::metastore_service_server::MetastoreServiceServer;
+use std::path::Path;
+use std::sync::Arc;
+use tonic::transport::{Channel, Endpoint, Server, Uri};
+use tracing::info;
 
 /// Starts an in-process, in-memory metastore.
 pub async fn start_inprocess_inmemory() -> Result<MetastoreServiceClient<Channel>> {

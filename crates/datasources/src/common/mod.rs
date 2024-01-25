@@ -2,14 +2,12 @@
 
 use std::sync::Arc;
 
-use datafusion::arrow::datatypes::Schema;
 use datafusion::common::ToDFSchema;
 use datafusion::error::Result;
-use datafusion::execution::context::SessionState;
-use datafusion::optimizer::utils::conjunction;
-use datafusion::physical_expr::create_physical_expr;
-use datafusion::physical_plan::PhysicalExpr;
-use datafusion::prelude::Expr;
+use datafusion::{
+    arrow::datatypes::Schema, execution::context::SessionState, logical_expr::utils::conjunction,
+    physical_expr::create_physical_expr, physical_plan::PhysicalExpr, prelude::Expr,
+};
 
 pub mod errors;
 pub mod sink;

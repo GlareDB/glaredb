@@ -15,12 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use datafusion::common::{DFSchema, Result};
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::Values as SQLValues;
-
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     pub(super) async fn sql_values_to_plan(

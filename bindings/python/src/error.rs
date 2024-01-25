@@ -2,8 +2,11 @@ use std::fmt::Display;
 
 use datafusion::arrow::error::ArrowError;
 use metastore::errors::MetastoreError;
-use pyo3::exceptions::{PyException, PyRuntimeError};
-use pyo3::{create_exception, PyErr};
+use pyo3::create_exception;
+use pyo3::{
+    exceptions::{PyException, PyRuntimeError},
+    PyErr,
+};
 use sqlexec::errors::ExecError;
 
 #[derive(Debug, thiserror::Error)]

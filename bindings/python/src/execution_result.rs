@@ -1,18 +1,15 @@
-use std::sync::Arc;
-
+use crate::util::pyprint;
 use anyhow::Result;
 use arrow_util::pretty;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::pyarrow::ToPyArrow;
 use datafusion::arrow::record_batch::RecordBatch;
 use futures::StreamExt;
-use pyo3::exceptions::PyRuntimeError;
-use pyo3::prelude::*;
-use pyo3::types::PyTuple;
+use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyTuple};
 use sqlexec::session::ExecutionResult;
+use std::sync::Arc;
 
 use crate::runtime::wait_for_future;
-use crate::util::pyprint;
 
 /// The result of an executed query.
 #[pyclass]

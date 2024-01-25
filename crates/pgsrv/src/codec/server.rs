@@ -1,28 +1,20 @@
-use std::collections::HashMap;
-use std::mem::{size_of, size_of_val};
-
+use crate::errors::{PgSrvError, Result};
+use crate::messages::{
+    BackendMessage, FrontendMessage, StartupMessage, TransactionStatus, VERSION_CANCEL,
+    VERSION_SSL, VERSION_V3,
+};
+use crate::ssl::Connection;
 use bytes::{Buf, BufMut, BytesMut};
 use bytesutil::{BufStringMut, Cursor};
-use futures::sink::Buffer;
-use futures::{SinkExt, TryStreamExt};
+use futures::{sink::Buffer, SinkExt, TryStreamExt};
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
+use std::collections::HashMap;
+use std::mem::{size_of, size_of_val};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio_postgres::types::Type as PgType;
 use tokio_util::codec::{Decoder, Encoder, Framed};
 use tracing::{debug, trace};
-
-use crate::errors::{PgSrvError, Result};
-use crate::messages::{
-    BackendMessage,
-    FrontendMessage,
-    StartupMessage,
-    TransactionStatus,
-    VERSION_CANCEL,
-    VERSION_SSL,
-    VERSION_V3,
-};
-use crate::ssl::Connection;
 
 /// A connection that can encode and decode postgres protocol messages.
 pub struct FramedConn<C> {

@@ -1,6 +1,3 @@
-use std::any::Any;
-use std::sync::Arc;
-
 use datafusion::arrow::array::UInt64Array;
 use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -10,25 +7,22 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    Distribution,
-    ExecutionPlan,
-    Partitioning,
-    SendableRecordBatchStream,
-    Statistics,
+    DisplayAs, DisplayFormatType, Distribution, ExecutionPlan, Partitioning,
+    SendableRecordBatchStream, Statistics,
 };
+use deltalake::logstore::LogStore;
 use deltalake::operations::write::WriteBuilder;
 use deltalake::protocol::SaveMode;
-use deltalake::storage::DeltaObjectStore;
 use deltalake::table::state::DeltaTableState;
 use futures::StreamExt;
+use std::any::Any;
+use std::sync::Arc;
 
 /// An execution plan for inserting data into a delta table.
 #[derive(Debug)]
 pub struct NativeTableInsertExec {
     input: Arc<dyn ExecutionPlan>,
-    store: Arc<DeltaObjectStore>,
+    store: Arc<dyn LogStore>,
     snapshot: DeltaTableState,
     save_mode: SaveMode,
 }
@@ -36,7 +30,7 @@ pub struct NativeTableInsertExec {
 impl NativeTableInsertExec {
     pub fn new(
         input: Arc<dyn ExecutionPlan>,
-        store: Arc<DeltaObjectStore>,
+        store: Arc<dyn LogStore>,
         snapshot: DeltaTableState,
         save_mode: SaveMode,
     ) -> Self {
@@ -119,7 +113,7 @@ impl ExecutionPlan for NativeTableInsertExec {
         // plan.
         //
         // TODO: Possibly try avoiding cloning the snapshot.
-        let builder = WriteBuilder::new(self.store.clone(), self.snapshot.clone())
+        let builder = WriteBuilder::new(self.store.clone(), Some(self.snapshot.clone()))
             .with_input_session_state(state)
             .with_save_mode(self.save_mode.clone())
             .with_input_execution_plan(self.input.clone());
@@ -148,8 +142,8 @@ impl ExecutionPlan for NativeTableInsertExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

@@ -1,13 +1,12 @@
 //! Utility for source "URLs".
-use std::borrow::Cow;
-use std::fmt::Display;
-use std::path::PathBuf;
+use std::{borrow::Cow, fmt::Display, path::PathBuf};
 
 use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
+use url::Url;
+
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::FuncParamValue;
-use url::Url;
 
 use super::errors::{DatasourceCommonError, Result};
 

@@ -1,14 +1,14 @@
+use futures::{Future, FutureExt};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::{Future, FutureExt};
+use crate::errors::{internal, Result};
 use parking_lot::Mutex;
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
 use super::batch_stream::ExecutionBatchStream;
-use crate::errors::{internal, Result};
 
 pub type StagedClientStreams = StagedStreams<ExecutionBatchStream>;
 
@@ -123,9 +123,8 @@ impl<S: Unpin> Future for ResolveStreamFut<S> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::*;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn client_puts_stream_first() {

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::sync::Arc;
-use std::vec;
+use std::{sync::Arc, vec};
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field, Fields};
@@ -15,6 +14,7 @@ use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
+
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::generic::GenericStoreAccess;
@@ -22,6 +22,7 @@ use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess};
+
 use futures::TryStreamExt;
 use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};

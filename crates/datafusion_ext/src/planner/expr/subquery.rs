@@ -15,15 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use datafusion::common::{DFSchema, Result};
-use datafusion::logical_expr::expr::{Exists, InSubquery};
+use datafusion::logical_expr::expr::Exists;
+use datafusion::logical_expr::expr::InSubquery;
 use datafusion::logical_expr::{Expr, Subquery};
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{Expr as SQLExpr, Query};
-
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+use datafusion::sql::sqlparser::ast::Expr as SQLExpr;
+use datafusion::sql::sqlparser::ast::Query;
+use std::sync::Arc;
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     pub(super) async fn parse_exists_subquery(

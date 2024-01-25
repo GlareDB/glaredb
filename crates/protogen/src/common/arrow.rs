@@ -1,19 +1,12 @@
 //! Arrow type conversions.
 //!
 //! Note this uses the re-exported Arrow types from Datafusion.
-use std::sync::Arc;
-
-use datafusion::arrow::datatypes::{
-    DataType,
-    Field,
-    IntervalUnit,
-    TimeUnit,
-    UnionFields,
-    UnionMode,
-};
-
 use super::super::{FromOptionalField, ProtoConvError};
 use crate::gen::common::arrow;
+use datafusion::arrow::datatypes::{
+    DataType, Field, IntervalUnit, TimeUnit, UnionFields, UnionMode,
+};
+use std::sync::Arc;
 
 impl TryFrom<&arrow::ArrowType> for DataType {
     type Error = ProtoConvError;

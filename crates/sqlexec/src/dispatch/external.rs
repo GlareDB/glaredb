@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use catalog::session_catalog::SessionCatalog;
 use datafusion::common::FileType;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
@@ -31,42 +30,22 @@ use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use datasources::sqlserver::{
-    SqlServerAccess,
-    SqlServerTableProvider,
-    SqlServerTableProviderConfig,
+    SqlServerAccess, SqlServerTableProvider, SqlServerTableProviderConfig,
 };
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionEntry, TableEntry};
 use protogen::metastore::types::options::{
-    DatabaseOptions,
-    DatabaseOptionsBigQuery,
-    DatabaseOptionsCassandra,
-    DatabaseOptionsClickhouse,
-    DatabaseOptionsDebug,
-    DatabaseOptionsDeltaLake,
-    DatabaseOptionsMongoDb,
-    DatabaseOptionsMysql,
-    DatabaseOptionsPostgres,
-    DatabaseOptionsSnowflake,
-    DatabaseOptionsSqlServer,
-    TableOptions,
-    TableOptionsBigQuery,
-    TableOptionsCassandra,
-    TableOptionsClickhouse,
-    TableOptionsDebug,
-    TableOptionsGcs,
-    TableOptionsInternal,
-    TableOptionsLocal,
-    TableOptionsMongoDb,
-    TableOptionsMysql,
-    TableOptionsObjectStore,
-    TableOptionsPostgres,
-    TableOptionsS3,
-    TableOptionsSnowflake,
-    TableOptionsSqlServer,
-    TunnelOptions,
+    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsCassandra, DatabaseOptionsClickhouse,
+    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
+    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, TableOptions,
+    TableOptionsBigQuery, TableOptionsCassandra, TableOptionsClickhouse, TableOptionsDebug,
+    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongoDb,
+    TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3,
+    TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
+
+use catalog::session_catalog::SessionCatalog;
 
 use super::{DispatchError, Result};
 
@@ -250,11 +229,17 @@ impl<'a> ExternalDispatcher<'a> {
                 let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
                 Ok(Arc::new(table))
             }
-            DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host }) => {
+            DatabaseOptions::Cassandra(DatabaseOptionsCassandra {
+                host,
+                username,
+                password,
+            }) => {
                 let table = CassandraTableProvider::try_new(
                     host.clone(),
                     schema.to_string(),
                     name.to_string(),
+                    username.to_owned(),
+                    password.to_owned(),
                 )
                 .await?;
                 Ok(Arc::new(table))
@@ -536,10 +521,17 @@ impl<'a> ExternalDispatcher<'a> {
                 host,
                 keyspace,
                 table,
+                username,
+                password,
             }) => {
-                let table =
-                    CassandraTableProvider::try_new(host.clone(), keyspace.clone(), table.clone())
-                        .await?;
+                let table = CassandraTableProvider::try_new(
+                    host.clone(),
+                    keyspace.clone(),
+                    table.clone(),
+                    username.clone(),
+                    password.clone(),
+                )
+                .await?;
 
                 Ok(Arc::new(table))
             }

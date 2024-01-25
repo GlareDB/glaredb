@@ -3,5 +3,8 @@ name = "terminal_util"
 version.workspace = true
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 crossterm = "0.27.0"
