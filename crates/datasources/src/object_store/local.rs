@@ -30,6 +30,7 @@ impl LocalStoreAccess {
             last_modified: meta.modified()?.into(),
             size: meta.len() as usize,
             e_tag: None,
+            version: None,
         })
     }
 }
