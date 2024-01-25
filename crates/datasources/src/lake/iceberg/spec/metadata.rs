@@ -1,10 +1,12 @@
-use super::Schema;
+use std::collections::HashMap;
+use std::str::FromStr;
 
-use crate::lake::iceberg::errors::{IcebergError, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
-use std::{collections::HashMap, str::FromStr};
+
+use super::Schema;
+use crate::lake::iceberg::errors::{IcebergError, Result};
 
 /// On disk table metadata.
 ///

@@ -10,14 +10,17 @@
 //! more ergnomic interface that decouples stream lifetimes from the client
 //! lifetime.
 
-use super::errors::{Result, SqlServerError};
-use futures::{AsyncRead, AsyncWrite, Stream, StreamExt};
+use std::borrow::Cow;
+use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::{borrow::Cow, collections::VecDeque};
+
+use futures::{AsyncRead, AsyncWrite, Stream, StreamExt};
 use tiberius::{Column, QueryItem, ResultMetadata, Row};
 use tokio::sync::mpsc;
 use tracing::debug;
+
+use super::errors::{Result, SqlServerError};
 
 /// Connect to a SQL Server database using the provided tiberius config and stream.
 ///

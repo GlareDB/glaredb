@@ -1,12 +1,22 @@
+use std::ops::Range;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
+use object_store::path::Path;
 use object_store::{
-    path::Path, Error as ObjectStoreError, GetResult, ListResult, ObjectMeta, ObjectStore, Result,
+    Error as ObjectStoreError,
+    GetOptions,
+    GetResult,
+    ListResult,
+    MultipartId,
+    ObjectMeta,
+    ObjectStore,
+    PutOptions,
+    PutResult,
+    Result,
 };
-use object_store::{GetOptions, MultipartId, PutOptions, PutResult};
-use std::ops::Range;
-use std::sync::Arc;
 use tokio::io::AsyncWrite;
 
 /// Implements the object store trait on top of Arc.

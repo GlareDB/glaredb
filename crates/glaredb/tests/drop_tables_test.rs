@@ -1,8 +1,6 @@
-use glaredb::{
-    args::{LocalClientOpts, StorageConfigArgs},
-    local::LocalSession,
-    server::ComputeServer,
-};
+use glaredb::args::{LocalClientOpts, StorageConfigArgs};
+use glaredb::local::LocalSession;
+use glaredb::server::ComputeServer;
 use tokio::net::TcpListener;
 
 #[tokio::test]

@@ -1,5 +1,6 @@
-use clap::Parser;
 use std::time::Duration;
+
+use clap::Parser;
 
 mod messages;
 mod proto;

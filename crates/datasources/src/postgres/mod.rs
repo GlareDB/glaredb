@@ -3,45 +3,54 @@ pub mod errors;
 mod query_exec;
 mod tls;
 
-use crate::common::ssh::session::SshTunnelSession;
-use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
-use crate::common::util::{self, create_count_record_batch};
-use async_trait::async_trait;
-use chrono::naive::{NaiveDateTime, NaiveTime};
-use chrono::{DateTime, NaiveDate, Timelike, Utc};
-use datafusion::arrow::array::Decimal128Builder;
-use datafusion::arrow::datatypes::{
-    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
-};
-use datafusion::arrow::record_batch::{RecordBatch, RecordBatchOptions};
-use datafusion::datasource::TableProvider;
-use datafusion::error::{DataFusionError, Result as DatafusionResult};
-use datafusion::execution::context::SessionState;
-use datafusion::execution::context::TaskContext;
-use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
-use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::memory::MemoryExec;
-use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
-use datafusion::physical_plan::metrics::MetricsSet;
-use datafusion::physical_plan::{
-    execute_stream, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
-};
-use datafusion::scalar::ScalarValue;
-use datafusion_ext::errors::ExtensionError;
-use datafusion_ext::functions::VirtualLister;
-use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
-use errors::{PostgresError, Result};
-use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
-use protogen::metastore::types::options::TunnelOptions;
-use protogen::{FromOptionalField, ProtoConvError};
-use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::borrow::{Borrow, Cow};
 use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+
+use async_trait::async_trait;
+use chrono::naive::{NaiveDateTime, NaiveTime};
+use chrono::{DateTime, NaiveDate, Timelike, Utc};
+use datafusion::arrow::array::Decimal128Builder;
+use datafusion::arrow::datatypes::{
+    DataType,
+    Field,
+    Fields,
+    Schema as ArrowSchema,
+    SchemaRef as ArrowSchemaRef,
+    TimeUnit,
+};
+use datafusion::arrow::record_batch::{RecordBatch, RecordBatchOptions};
+use datafusion::datasource::TableProvider;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::execution::context::{SessionState, TaskContext};
+use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::memory::MemoryExec;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion::physical_plan::{
+    execute_stream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    RecordBatchStream,
+    SendableRecordBatchStream,
+    Statistics,
+};
+use datafusion::scalar::ScalarValue;
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
+use errors::{PostgresError, Result};
+use futures::future::BoxFuture;
+use futures::stream::BoxStream;
+use futures::{ready, FutureExt, Stream, StreamExt};
+use protogen::metastore::types::options::TunnelOptions;
+use protogen::{FromOptionalField, ProtoConvError};
+use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
@@ -53,6 +62,9 @@ use tokio_postgres::{Client, Config, Connection, CopyOutStream, NoTls, Socket};
 use tracing::{debug, warn};
 
 use self::query_exec::PostgresQueryExec;
+use crate::common::ssh::key::SshKey;
+use crate::common::ssh::session::{SshTunnelAccess, SshTunnelSession};
+use crate::common::util::{self, create_count_record_batch};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PostgresDbConnection {
@@ -1080,8 +1092,17 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
     }
 
     use datafusion::arrow::array::{
-        Array, BinaryBuilder, BooleanBuilder, Date32Builder, Float32Builder, Float64Builder,
-        Int16Builder, Int32Builder, Int64Builder, StringBuilder, Time64NanosecondBuilder,
+        Array,
+        BinaryBuilder,
+        BooleanBuilder,
+        Date32Builder,
+        Float32Builder,
+        Float64Builder,
+        Int16Builder,
+        Int32Builder,
+        Int64Builder,
+        StringBuilder,
+        Time64NanosecondBuilder,
         TimestampNanosecondBuilder,
     };
 
@@ -1330,10 +1351,11 @@ fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use datafusion::common::Column;
     use datafusion::logical_expr::expr::Sort;
     use datafusion::logical_expr::{BinaryExpr, Operator};
+
+    use super::*;
 
     #[test]
     fn connection_string() {

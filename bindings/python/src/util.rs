@@ -1,6 +1,7 @@
+use std::fmt::Display;
+
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use std::fmt::Display;
 
 /// Use python's builtin `print` to display an item.
 pub fn pyprint(item: impl Display, py: Python) -> PyResult<()> {

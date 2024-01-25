@@ -1,24 +1,26 @@
 use std::sync::Arc;
 
-use datafusion::{
-    arrow::datatypes::{DataType, Field},
-    logical_expr::{
-        expr::ScalarFunction, BuiltinScalarFunction, ReturnTypeFunction,
-        ScalarFunctionImplementation, ScalarUDF, Signature, TypeSignature, Volatility,
-    },
-    physical_plan::ColumnarValue,
-    prelude::Expr,
-    scalar::ScalarValue,
+use datafusion::arrow::datatypes::{DataType, Field};
+use datafusion::logical_expr::expr::ScalarFunction;
+use datafusion::logical_expr::{
+    BuiltinScalarFunction,
+    ReturnTypeFunction,
+    ScalarFunctionImplementation,
+    ScalarUDF,
+    Signature,
+    TypeSignature,
+    Volatility,
 };
+use datafusion::physical_plan::ColumnarValue;
+use datafusion::prelude::Expr;
+use datafusion::scalar::ScalarValue;
 use pgrepr::compatible::server_version_with_build_info;
 use protogen::metastore::types::catalog::FunctionType;
 
-use crate::{
-    errors::BuiltinError,
-    functions::{BuiltinScalarUDF, ConstBuiltinFunction, FunctionNamespace},
-};
-
-use super::{df_scalars::array_to_string, get_nth_scalar_value, session_var};
+use super::df_scalars::array_to_string;
+use super::{get_nth_scalar_value, session_var};
+use crate::errors::BuiltinError;
+use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction, FunctionNamespace};
 
 const PG_CATALOG_NAMESPACE: FunctionNamespace = FunctionNamespace::Optional("pg_catalog");
 

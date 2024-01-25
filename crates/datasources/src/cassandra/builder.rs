@@ -1,7 +1,26 @@
-use super::{Any, Arc, ArrayRef, CqlValue, DataType, Float32Builder, Float64Builder, Int16Builder, Int32Builder, Int8Builder, StringBuilder, TimeUnit, TimestampMillisecondBuilder};
 use chrono::{DateTime, NaiveTime, Utc};
 use datafusion::arrow::array::{
-    ArrayBuilder, Date64Builder, DurationNanosecondBuilder, Int64Builder, ListBuilder,
+    ArrayBuilder,
+    Date64Builder,
+    DurationNanosecondBuilder,
+    Int64Builder,
+    ListBuilder,
+};
+
+use super::{
+    Any,
+    Arc,
+    ArrayRef,
+    CqlValue,
+    DataType,
+    Float32Builder,
+    Float64Builder,
+    Int16Builder,
+    Int32Builder,
+    Int8Builder,
+    StringBuilder,
+    TimeUnit,
+    TimestampMillisecondBuilder,
 };
 #[derive(Debug)]
 pub(super) enum CqlValueArrayBuilder {

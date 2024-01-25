@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use datafusion::common::{DataFusionError, Result};
 use datafusion::logical_expr::Operator;
 use datafusion::sql::sqlparser::ast::BinaryOperator;
+
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     pub(crate) fn parse_sql_binary_op(&self, op: BinaryOperator) -> Result<Operator> {

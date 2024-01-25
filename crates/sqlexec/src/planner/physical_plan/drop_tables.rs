@@ -1,24 +1,30 @@
-use crate::planner::logical_plan::OwnedFullObjectReference;
+use std::any::Any;
+use std::fmt;
+use std::sync::Arc;
 
-use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 use catalog::mutator::CatalogMutator;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use futures::{stream, StreamExt};
 use protogen::metastore::types::catalog::TableEntry;
 use protogen::metastore::types::service::{self, Mutation};
 use sqlbuiltins::functions::table::system::remove_delta_tables::DeleteDeltaTablesOperation;
 use sqlbuiltins::functions::table::system::SystemOperationExec;
-use std::any::Any;
-use std::fmt;
-use std::sync::Arc;
+
+use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
+use crate::planner::logical_plan::OwnedFullObjectReference;
 
 #[derive(Debug, Clone)]
 pub struct DropTablesExec {
