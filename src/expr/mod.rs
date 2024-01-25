@@ -1,7 +1,9 @@
 pub mod binary;
+pub mod column;
 pub mod literal;
 pub mod logical;
 pub mod scalar;
+pub mod table;
 
 use arrow_array::{ArrayRef, BooleanArray, RecordBatch};
 use arrow_schema::{DataType, Schema};

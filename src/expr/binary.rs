@@ -1,5 +1,5 @@
 use crate::errors::Result;
-use arrow_array::{new_empty_array, ArrayRef, BooleanArray, RecordBatch};
+use arrow_array::{new_empty_array, ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Schema};
 use std::fmt;
 use std::sync::Arc;

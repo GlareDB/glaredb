@@ -1,35 +1,40 @@
 use super::{scalar::ScalarValue, PhysicalExpr};
 use crate::errors::Result;
-use arrow_array::{new_empty_array, ArrayRef, BooleanArray, RecordBatch};
+use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Schema};
 use std::fmt;
 
+/// An expression whose return value is always a literal.
+///
+/// When evaluating against a record batch, returned array's length will match
+/// the number of rows in the batch.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LiteralExpr {
     pub value: ScalarValue,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct PhysicalLiteralExpr {
-    pub value: ScalarValue,
+impl LiteralExpr {
+    pub fn new(value: ScalarValue) -> Self {
+        LiteralExpr { value }
+    }
 }
 
-impl fmt::Display for PhysicalLiteralExpr {
+impl fmt::Display for LiteralExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.value)
     }
 }
 
-impl PhysicalExpr for PhysicalLiteralExpr {
-    fn data_type(&self, input: &Schema) -> Result<DataType> {
-        unimplemented!()
+impl PhysicalExpr for LiteralExpr {
+    fn data_type(&self, _input: &Schema) -> Result<DataType> {
+        Ok(self.value.data_type())
     }
 
-    fn nullable(&self, input: &Schema) -> Result<bool> {
-        unimplemented!()
+    fn nullable(&self, _input: &Schema) -> Result<bool> {
+        Ok(self.value.is_null())
     }
 
     fn eval(&self, batch: &RecordBatch) -> Result<ArrayRef> {
-        unimplemented!()
+        self.value.as_array(batch.num_rows())
     }
 }

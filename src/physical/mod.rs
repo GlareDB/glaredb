@@ -7,6 +7,7 @@ pub mod hash_join;
 pub mod order;
 pub mod projection;
 pub mod ungrouped_aggregate;
+pub mod values;
 
 #[cfg(test)]
 mod test_util;

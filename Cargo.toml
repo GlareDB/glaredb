@@ -15,7 +15,9 @@ arrow-ipc = { version = "50.0.0", default-features = false, features = ["lz4"] }
 arrow-ord = { version = "50.0.0", default-features = false }
 arrow-schema = { version = "50.0.0", default-features = false }
 chrono = { version = "0.4.31", default-features = false }
+futures = "0.3.30"
 hashbrown = "0.14.3"
+once_cell = "1.19.0"
 parking_lot = "0.12"
 parquet = { version = "50.0.0", default-features = false }
 rayon = "1.8.1"

@@ -60,3 +60,72 @@ impl Sink for Filter {
         self.buffer.finish(child, partition)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        expr::{
+            binary::{Operator, PhysicalBinaryExpr},
+            column::ColumnExpr,
+            literal::LiteralExpr,
+            scalar::ScalarValue,
+        },
+        physical::test_util::{noop_context, unwrap_poll_partition},
+    };
+
+    use super::*;
+    use arrow_array::{Int32Array, StringArray};
+    use arrow_schema::Field;
+    use std::sync::Arc;
+
+    fn test_batch() -> RecordBatch {
+        let schema = Schema::new(vec![
+            Field::new("a", DataType::Int32, false),
+            Field::new("b", DataType::Utf8, false),
+        ]);
+
+        RecordBatch::try_new(
+            Arc::new(schema),
+            vec![
+                Arc::new(Int32Array::from(vec![1, 2, 3, 4, 5])),
+                Arc::new(StringArray::from(vec!["1", "2", "3", "4", "5"])),
+            ],
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn basic() {
+        let batch1 = test_batch();
+        let batch2 = test_batch();
+        let schema = batch1.schema();
+
+        let pred = PhysicalBinaryExpr {
+            left: Box::new(ColumnExpr::Index(0)),
+            op: Operator::Gt,
+            right: Box::new(LiteralExpr::new(ScalarValue::Int32(Some(3)))),
+        };
+
+        let plan = Filter::try_new(Box::new(pred), &schema).unwrap();
+
+        plan.push(batch1, 0, 0).unwrap();
+        plan.push(batch2, 0, 0).unwrap();
+
+        let got1 = unwrap_poll_partition(plan.poll_partition(&mut noop_context(), 0));
+        let got2 = unwrap_poll_partition(plan.poll_partition(&mut noop_context(), 0));
+
+        // Both input batches contain the same data, so both outputs should
+        // match this expected batch.
+        let expected = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(Int32Array::from(vec![4, 5])),
+                Arc::new(StringArray::from(vec!["4", "5"])),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(expected, got1);
+        assert_eq!(expected, got2);
+    }
+}
