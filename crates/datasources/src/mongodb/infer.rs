@@ -14,12 +14,12 @@ const MAX_SAMPLE_SIZE: usize = 100;
 const MIN_SAMPLE_SIZE: usize = 10;
 
 /// Sample a table to allow inferring the table's schema.
-pub struct TableSampler {
-    collection: Collection<Document>,
+pub struct TableSampler<'a> {
+    collection: &'a Collection<Document>,
 }
 
-impl TableSampler {
-    pub fn new(collection: Collection<Document>) -> TableSampler {
+impl<'a> TableSampler<'a> {
+    pub fn new(collection: &'a Collection<Document>) -> TableSampler {
         TableSampler { collection }
     }
 
@@ -30,8 +30,7 @@ impl TableSampler {
     /// and a "Utf8", the type will be automatically widened to "Utf8" in the
     /// final schema.
     #[tracing::instrument(skip(self))]
-    pub async fn infer_schema_from_sample(&self) -> Result<ArrowSchema> {
-        let count = self.collection.estimated_document_count(None).await?;
+    pub async fn infer_schema_from_sample(&self, count: u64) -> Result<ArrowSchema> {
         let sample_count = Self::sample_size(count as usize) as i64;
 
         let sample_pipeline = [doc! {

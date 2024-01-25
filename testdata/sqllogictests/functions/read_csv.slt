@@ -4,7 +4,7 @@
 query T
 select parameters from glare_catalog.functions where function_name = 'read_csv';
 ----
-Utf8,Utf8, delimiter: Utf8, has_header: Boolean,List<Utf8>,List<Utf8>, delimiter: Utf8, has_header: Boolean
+[Utf8, Utf8, delimiter: Utf8, has_header: Boolean, List<Utf8>, List<Utf8>, delimiter: Utf8, has_header: Boolean]
 
 # Absolute path
 query I

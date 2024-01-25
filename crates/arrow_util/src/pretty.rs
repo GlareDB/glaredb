@@ -698,7 +698,7 @@ mod tests {
         .unwrap();
 
         let mut test_cases: Vec<TestCase> = Vec::new();
-        for (_idx, xcol) in test_batch.columns().iter().enumerate() {
+        for xcol in test_batch.columns().iter() {
             let tc = TestCase {
                 input: xcol,
                 truncate: Some(10), // doesn't matter for floats.

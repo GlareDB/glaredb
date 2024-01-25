@@ -13,6 +13,6 @@ query TTIRTTTTTTT
 SELECT * FROM datatypes;
 ----
 t     abc      123   123.456  Ymlu     938709124
-NULL  (empty)  NULL  NULL     (empty)  NULL
+NULL  NULL     NULL  NULL     NULL     NULL
 
 # TODO add tests for all parquet data types

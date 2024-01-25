@@ -143,7 +143,7 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
                 .transpose()?;
 
             let objects = {
-                let mut object_futs = store.list(prefix.as_ref()).await?;
+                let mut object_futs = store.list(prefix.as_ref());
 
                 let pattern = Pattern::new(pattern)?;
                 const MATCH_OPTS: MatchOptions = MatchOptions {

@@ -331,12 +331,16 @@ impl TableProvider for ClickhouseTableProvider {
 
         // Get the projected columns, joined by a ','. This will be put in the
         // 'SELECT ...' portion of the query.
-        let projection_string = projected_schema
-            .fields
-            .iter()
-            .map(|f| f.name().clone())
-            .collect::<Vec<_>>()
-            .join(",");
+        let projection_string = if projected_schema.fields().is_empty() {
+            "*".to_string()
+        } else {
+            projected_schema
+                .fields
+                .iter()
+                .map(|f| f.name().clone())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
 
         let mut query = format!("SELECT {} FROM {}", projection_string, self.table_ref);
 
@@ -444,8 +448,8 @@ impl ExecutionPlan for ClickhouseExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DatafusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 
     fn metrics(&self) -> Option<MetricsSet> {

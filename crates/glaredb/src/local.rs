@@ -335,7 +335,7 @@ async fn print_stream(
         OutputMode::Csv => {
             let stdout = std::io::stdout();
             let buf = std::io::BufWriter::new(stdout);
-            let mut writer = CsvWriterBuilder::new().has_headers(true).build(buf);
+            let mut writer = CsvWriterBuilder::new().with_header(true).build(buf);
             for batch in batches {
                 writer.write(&batch)?; // CSV writer flushes per write.
             }

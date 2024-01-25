@@ -45,7 +45,7 @@ impl BsonStream {
 
         let stream = docs
             .chunks(100)
-            .map(move |results| Self::convert_chunk(results, &stream_schema))
+            .map(move |results| Self::convert_chunk(results, stream_schema.clone()))
             .boxed();
 
         Self { schema, stream }
@@ -53,18 +53,18 @@ impl BsonStream {
 
     fn convert_chunk(
         results: Vec<Result<RawDocumentBuf, BsonError>>,
-        schema: &Arc<Schema>,
+        schema: Arc<Schema>,
     ) -> Result<RecordBatch, BsonError> {
-        let mut builder = RecordStructBuilder::new_with_capacity(schema.fields().to_owned(), 100)?;
+        let mut builder = RecordStructBuilder::new_with_capacity(schema.fields().clone(), 100)?;
 
         for result in results {
             builder.project_and_append(&result?)?;
         }
 
-        let (fields, builders) = builder.into_fields_and_builders();
+        let mut builders = builder.into_builders();
         let batch = RecordBatch::try_new(
-            Arc::new(Schema::new(fields)),
-            builders.into_iter().map(|mut col| col.finish()).collect(),
+            schema,
+            builders.iter_mut().map(|col| col.finish()).collect(),
         )?;
 
         Ok(batch)

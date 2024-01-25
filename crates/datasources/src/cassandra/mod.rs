@@ -45,18 +45,26 @@ use self::exec::CassandraExec;
 
 pub struct CassandraAccess {
     host: String,
+    user: Option<String>,
+    password: Option<String>,
 }
 impl CassandraAccess {
-    pub fn new(host: String) -> Self {
-        Self { host }
+    pub fn new(host: String, user: Option<String>, password: Option<String>) -> Self {
+        Self {
+            host,
+            user,
+            password,
+        }
     }
     pub async fn validate_access(&self) -> Result<()> {
-        let _access = CassandraAccessState::try_new(&self.host).await?;
+        let _access =
+            CassandraAccessState::try_new(&self.host, self.user.clone(), self.password.clone())
+                .await?;
 
         Ok(())
     }
     pub async fn connect(&self) -> Result<CassandraAccessState> {
-        CassandraAccessState::try_new(&self.host).await
+        CassandraAccessState::try_new(&self.host, self.user.clone(), self.password.clone()).await
     }
 }
 pub struct CassandraAccessState {
@@ -114,12 +122,18 @@ fn try_convert_dtype_string(ty: &str) -> Result<DataType> {
 }
 
 impl CassandraAccessState {
-    pub async fn try_new(host: impl AsRef<str>) -> Result<Self> {
-        let session = SessionBuilder::new()
+    pub async fn try_new(
+        host: impl AsRef<str>,
+        user: Option<String>,
+        password: Option<String>,
+    ) -> Result<Self> {
+        let mut session = SessionBuilder::new()
             .known_node(host)
-            .connection_timeout(Duration::from_secs(10))
-            .build()
-            .await?;
+            .connection_timeout(Duration::from_secs(10));
+        if user.is_some() {
+            session = session.user(user.unwrap_or_default(), password.unwrap_or_default())
+        };
+        let session = session.build().await?;
         Ok(Self { session })
     }
     async fn get_schema(&self, ks: &str, table: &str) -> Result<ArrowSchema> {
@@ -159,8 +173,14 @@ pub struct CassandraTableProvider {
 }
 
 impl CassandraTableProvider {
-    pub async fn try_new(host: String, ks: String, table: String) -> Result<Self> {
-        let access = CassandraAccessState::try_new(host).await?;
+    pub async fn try_new(
+        host: String,
+        ks: String,
+        table: String,
+        user: Option<String>,
+        pass: Option<String>,
+    ) -> Result<Self> {
+        let access = CassandraAccessState::try_new(host, user, pass).await?;
         let schema = access.get_schema(&ks, &table).await?;
         Ok(Self {
             schema: Arc::new(schema),
@@ -206,16 +226,21 @@ impl TableProvider for CassandraTableProvider {
 
         // Get the projected columns, joined by a ','. This will be put in the
         // 'SELECT ...' portion of the query.
-        let projection_string = projected_schema
-            .fields
-            .iter()
-            .map(|f| f.name().clone())
-            .collect::<Vec<_>>()
-            .join(",");
+        let projection_string = if projected_schema.fields().is_empty() {
+            "*".to_string()
+        } else {
+            projected_schema
+                .fields
+                .iter()
+                .map(|f| f.name().clone())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
         let mut query = format!(
             "SELECT {} FROM {}.{}",
             projection_string, self.ks, self.table
         );
+
         if let Some(limit) = limit {
             query.push_str(&format!(" LIMIT {}", limit));
         }

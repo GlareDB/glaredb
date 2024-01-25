@@ -300,7 +300,7 @@ impl ExecutionPlan for ProxyExecutionPlan {
         self.inner.metrics()
     }
 
-    fn statistics(&self) -> Statistics {
+    fn statistics(&self) -> DataFusionResult<Statistics> {
         self.inner.statistics()
     }
 }

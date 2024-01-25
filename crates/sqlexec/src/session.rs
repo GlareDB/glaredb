@@ -45,12 +45,8 @@ use pgrepr::notice::{Notice, NoticeSeverity, SqlState};
 use telemetry::Tracker;
 use uuid::Uuid;
 
-static EMPTY_EXEC_PLAN: Lazy<Arc<dyn ExecutionPlan>> = Lazy::new(|| {
-    Arc::new(EmptyExec::new(
-        /* produce_one_row = */ false,
-        Arc::new(Schema::empty()),
-    ))
-});
+static EMPTY_EXEC_PLAN: Lazy<Arc<dyn ExecutionPlan>> =
+    Lazy::new(|| Arc::new(EmptyExec::new(Arc::new(Schema::empty()))));
 
 /// Results from a sql statement execution.
 pub enum ExecutionResult {

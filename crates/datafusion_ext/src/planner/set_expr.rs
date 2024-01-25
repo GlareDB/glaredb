@@ -17,7 +17,7 @@
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use async_recursion::async_recursion;
-use datafusion::common::{DataFusionError, Result};
+use datafusion::common::{not_impl_err, DataFusionError, Result};
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{SetExpr, SetOperator, SetQuantifier};
@@ -42,14 +42,13 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     SetQuantifier::All => true,
                     SetQuantifier::Distinct | SetQuantifier::None => false,
                     SetQuantifier::ByName => {
-                        return Err(DataFusionError::NotImplemented(
-                            "UNION BY NAME not implemented".to_string(),
-                        ));
+                        return not_impl_err!("UNION BY NAME not implemented");
                     }
                     SetQuantifier::AllByName => {
-                        return Err(DataFusionError::NotImplemented(
-                            "UNION ALL BY NAME not implemented".to_string(),
-                        ))
+                        return not_impl_err!("UNION ALL BY NAME not implemented");
+                    }
+                    SetQuantifier::DistinctByName => {
+                        return not_impl_err!("UNION DISTINCT BY NAME not implemented");
                     }
                 };
 
