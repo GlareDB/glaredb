@@ -1,0 +1,24 @@
+[package]
+name = "rayexec"
+version = "0.0.1"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ahash = "0.8.7"
+arrow = { version = "50.0.0", features = ["prettyprint"] }
+arrow-array = { version = "50.0.0", default-features = false, features = ["chrono-tz"] }
+arrow-buffer = { version = "50.0.0", default-features = false }
+arrow-cast = { version = "50.0.0", default-features = false }
+arrow-flight = { version = "50.0.0", features = ["flight-sql-experimental"] }
+arrow-ipc = { version = "50.0.0", default-features = false, features = ["lz4"] }
+arrow-ord = { version = "50.0.0", default-features = false }
+arrow-schema = { version = "50.0.0", default-features = false }
+chrono = { version = "0.4.31", default-features = false }
+hashbrown = "0.14.3"
+parking_lot = "0.12"
+parquet = { version = "50.0.0", default-features = false }
+rayon = "1.8.1"
+smallvec = "1.13.1"
+thiserror = "1.0.44"

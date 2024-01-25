@@ -1,0 +1,5 @@
+# Cargo target directories.
+/*target
+
+# Outputs from cargo flamegraph
+flamegraph.svg
