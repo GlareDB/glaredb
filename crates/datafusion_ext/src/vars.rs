@@ -4,16 +4,16 @@ mod error;
 mod inner;
 mod utils;
 mod value;
-use constants::*;
+use constants::IMPLICIT_SCHEMAS;
 use datafusion::arrow::array::{ListBuilder, StringBuilder};
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::config::{ConfigExtension, ExtensionOptions};
 use datafusion::scalar::ScalarValue;
 use pgrepr::notice::NoticeSeverity;
-use utils::*;
+use utils::split_comma_delimited;
 
 use datafusion::variable::{VarProvider, VarType};
-use inner::*;
+use inner::ServerVar;
 use uuid::Uuid;
 
 pub use inner::Dialect;

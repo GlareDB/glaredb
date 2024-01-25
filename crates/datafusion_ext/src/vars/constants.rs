@@ -1,4 +1,4 @@
-use super::*;
+use super::{Dialect, Lazy, ServerVar, ToOwned, Uuid};
 
 use pgrepr::compatible::server_version;
 use pgrepr::notice::NoticeSeverity;
