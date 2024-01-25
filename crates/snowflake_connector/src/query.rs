@@ -16,7 +16,7 @@ use datafusion::{
         datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
         error::ArrowError,
         ipc::reader::StreamReader,
-        record_batch::RecordBatch,
+        record_batch::{RecordBatch, RecordBatchOptions},
     },
     scalar::ScalarValue,
 };
@@ -707,6 +707,12 @@ impl Query {
 }
 
 fn json_to_arrow(schema: SchemaRef, rows: Vec<Vec<Option<String>>>) -> Result<RecordBatchIter> {
+    if schema.fields().is_empty() {
+        let options = RecordBatchOptions::new().with_row_count(Some(rows.len()));
+        let record_batch = RecordBatch::try_new_with_options(schema, Vec::new(), &options);
+        return Ok(RecordBatchIter::Exact(record_batch.ok()));
+    }
+
     let mut columns: Vec<ArrayRef> = Vec::with_capacity(schema.fields.len());
     for (col_idx, field) in schema.fields.iter().enumerate() {
         let col: ArrayRef = match field.data_type() {

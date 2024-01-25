@@ -198,7 +198,7 @@ mod tests {
                 Arc::new(Column::new("c", 0)),
                 Arc::new(RuntimeGroupExec::new(
                     RuntimePreference::Remote,
-                    Arc::new(EmptyExec::new(true, test_schema())),
+                    Arc::new(EmptyExec::new(test_schema())),
                 )),
             )
             .unwrap(),
@@ -213,7 +213,7 @@ mod tests {
             Arc::new(
                 FilterExec::try_new(
                     Arc::new(Column::new("c", 0)),
-                    Arc::new(EmptyExec::new(true, test_schema())),
+                    Arc::new(EmptyExec::new(test_schema())),
                 )
                 .unwrap(),
             ),
@@ -230,7 +230,7 @@ mod tests {
                     Arc::new(Column::new("c", 0)),
                     Arc::new(RuntimeGroupExec::new(
                         RuntimePreference::Remote,
-                        Arc::new(EmptyExec::new(true, test_schema())),
+                        Arc::new(EmptyExec::new(test_schema())),
                     )),
                 )
                 .unwrap(),
@@ -240,7 +240,7 @@ mod tests {
                     Arc::new(Column::new("c", 0)),
                     Arc::new(RuntimeGroupExec::new(
                         RuntimePreference::Remote,
-                        Arc::new(EmptyExec::new(true, test_schema())),
+                        Arc::new(EmptyExec::new(test_schema())),
                     )),
                 )
                 .unwrap(),
@@ -257,14 +257,14 @@ mod tests {
                 Arc::new(
                     FilterExec::try_new(
                         Arc::new(Column::new("c", 0)),
-                        Arc::new(EmptyExec::new(true, test_schema())),
+                        Arc::new(EmptyExec::new(test_schema())),
                     )
                     .unwrap(),
                 ),
                 Arc::new(
                     FilterExec::try_new(
                         Arc::new(Column::new("c", 0)),
-                        Arc::new(EmptyExec::new(true, test_schema())),
+                        Arc::new(EmptyExec::new(test_schema())),
                     )
                     .unwrap(),
                 ),
@@ -283,7 +283,7 @@ mod tests {
                     Arc::new(Column::new("c", 0)),
                     Arc::new(RuntimeGroupExec::new(
                         RuntimePreference::Local,
-                        Arc::new(EmptyExec::new(true, test_schema())),
+                        Arc::new(EmptyExec::new(test_schema())),
                     )),
                 )
                 .unwrap(),
@@ -293,7 +293,7 @@ mod tests {
                     Arc::new(Column::new("c", 0)),
                     Arc::new(RuntimeGroupExec::new(
                         RuntimePreference::Remote,
-                        Arc::new(EmptyExec::new(true, test_schema())),
+                        Arc::new(EmptyExec::new(test_schema())),
                     )),
                 )
                 .unwrap(),
@@ -310,7 +310,7 @@ mod tests {
                 Arc::new(
                     FilterExec::try_new(
                         Arc::new(Column::new("c", 0)),
-                        Arc::new(EmptyExec::new(true, test_schema())),
+                        Arc::new(EmptyExec::new(test_schema())),
                     )
                     .unwrap(),
                 ),
@@ -320,7 +320,7 @@ mod tests {
                 Arc::new(
                     FilterExec::try_new(
                         Arc::new(Column::new("c", 0)),
-                        Arc::new(EmptyExec::new(true, test_schema())),
+                        Arc::new(EmptyExec::new(test_schema())),
                     )
                     .unwrap(),
                 ),
@@ -339,7 +339,7 @@ mod tests {
                     Arc::new(Column::new("c", 0)),
                     Arc::new(RuntimeGroupExec::new(
                         RuntimePreference::Local,
-                        Arc::new(EmptyExec::new(true, test_schema())),
+                        Arc::new(EmptyExec::new(test_schema())),
                     )),
                 )
                 .unwrap(),
@@ -349,7 +349,7 @@ mod tests {
                     Arc::new(Column::new("c", 0)),
                     Arc::new(RuntimeGroupExec::new(
                         RuntimePreference::Local,
-                        Arc::new(EmptyExec::new(true, test_schema())),
+                        Arc::new(EmptyExec::new(test_schema())),
                     )),
                 )
                 .unwrap(),
@@ -359,7 +359,7 @@ mod tests {
                     Arc::new(Column::new("c", 0)),
                     Arc::new(RuntimeGroupExec::new(
                         RuntimePreference::Remote,
-                        Arc::new(EmptyExec::new(true, test_schema())),
+                        Arc::new(EmptyExec::new(test_schema())),
                     )),
                 )
                 .unwrap(),
@@ -376,14 +376,14 @@ mod tests {
                     Arc::new(
                         FilterExec::try_new(
                             Arc::new(Column::new("c", 0)),
-                            Arc::new(EmptyExec::new(true, test_schema())),
+                            Arc::new(EmptyExec::new(test_schema())),
                         )
                         .unwrap(),
                     ),
                     Arc::new(
                         FilterExec::try_new(
                             Arc::new(Column::new("c", 0)),
-                            Arc::new(EmptyExec::new(true, test_schema())),
+                            Arc::new(EmptyExec::new(test_schema())),
                         )
                         .unwrap(),
                     ),
@@ -394,7 +394,7 @@ mod tests {
                 Arc::new(
                     FilterExec::try_new(
                         Arc::new(Column::new("c", 0)),
-                        Arc::new(EmptyExec::new(true, test_schema())),
+                        Arc::new(EmptyExec::new(test_schema())),
                     )
                     .unwrap(),
                 ),

@@ -31,6 +31,8 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use tracing::debug;
 
+use crate::bson::array_to_bson;
+
 /// Field name in mongo for uniquely identifying a record. Some special handling
 /// needs to be done with the field when projecting.
 const ID_FIELD_NAME: &str = "_id";
@@ -187,10 +189,15 @@ impl VirtualLister for MongoDbAccessor {
         use ExtensionError::ListingErrBoxed;
 
         let collection = self.client.database(database).collection(collection);
-        let sampler = TableSampler::new(collection);
+        let sampler = TableSampler::new(&collection);
+
+        let count = collection
+            .estimated_document_count(None)
+            .await
+            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
         let schema = sampler
-            .infer_schema_from_sample()
+            .infer_schema_from_sample(count)
             .await
             .map_err(|e| ListingErrBoxed(Box::new(e)))?;
 
@@ -228,11 +235,13 @@ impl MongoDbTableAccessor {
             .client
             .database(&self.info.database)
             .collection(&self.info.collection);
-        let sampler = TableSampler::new(collection);
+        let sampler = TableSampler::new(&collection);
 
-        let schema = sampler.infer_schema_from_sample().await?;
+        let estimated_count = collection.estimated_document_count(None).await?;
+        let schema = sampler.infer_schema_from_sample(estimated_count).await?;
 
         Ok(MongoDbTableProvider {
+            estimated_count,
             schema: Arc::new(schema),
             collection: self
                 .client
@@ -243,6 +252,7 @@ impl MongoDbTableAccessor {
 }
 
 pub struct MongoDbTableProvider {
+    estimated_count: u64,
     schema: Arc<ArrowSchema>,
     collection: Collection<RawDocumentBuf>,
 }
@@ -282,7 +292,7 @@ impl TableProvider for MongoDbTableProvider {
         // nested docs as a struct).
         let schema = match projection {
             Some(projection) => Arc::new(self.schema.project(projection)?),
-            None => self.schema.clone(),
+            _ => self.schema.clone(),
         };
 
         // Projection document. Project everything that's in the schema.
@@ -311,14 +321,18 @@ impl TableProvider for MongoDbTableProvider {
                 Document::new()
             }
         };
-
         let cursor = Mutex::new(Some(
             self.collection
                 .find(Some(filter), Some(find_opts))
                 .await
                 .map_err(|e| DataFusionError::External(Box::new(e)))?,
         ));
-        Ok(Arc::new(MongoDbBsonExec::new(cursor, schema, limit)))
+        Ok(Arc::new(MongoDbBsonExec::new(
+            cursor,
+            schema,
+            limit,
+            self.estimated_count,
+        )))
     }
 }
 
@@ -421,16 +435,9 @@ fn df_to_bson(val: ScalarValue) -> Result<Bson, ExtensionError> {
                     .map_err(|e| DataFusionError::External(Box::new(e)))?,
             ))
         }
-        ScalarValue::List(v, _) => {
-            if let Some(val) = v {
-                let mut out = Vec::with_capacity(val.len());
-                for elem in val.into_iter() {
-                    out.push(df_to_bson(elem)?);
-                }
-                Ok(Bson::Array(out))
-            } else {
-                Ok(Bson::Array(Vec::new()))
-            }
+        ScalarValue::List(arr) => {
+            let out = array_to_bson(arr.as_ref())?;
+            Ok(Bson::Array(out))
         }
         ScalarValue::Null => Ok(Bson::Null),
         _ => Err(ExtensionError::String(format!(

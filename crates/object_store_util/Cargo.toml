@@ -7,7 +7,7 @@ edition = { workspace = true }
 
 [dependencies]
 logutil = { path = "../logutil" }
-object_store = { workspace = true }
+object_store = { workspace = true, features = ["azure"] }
 futures = { workspace = true }
 async-trait = { workspace = true }
 thiserror.workspace = true

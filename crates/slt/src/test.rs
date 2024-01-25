@@ -9,11 +9,9 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use arrow_flight::sql::client::FlightSqlServiceClient;
-use arrow_flight::utils::flight_data_to_arrow_batch;
 use async_trait::async_trait;
 use clap::builder::PossibleValue;
 use clap::ValueEnum;
-use datafusion::arrow::datatypes::Schema;
 use futures::StreamExt;
 use glob::Pattern;
 use tonic::transport::{Channel, Endpoint};
@@ -476,17 +474,13 @@ impl AsyncDB for FlightSqlTestClient {
             .clone();
         let ticket = ticket.ticket.unwrap();
         let mut stream = client.do_get(ticket).await?;
-        // the schema should be the first message returned, else client should error
-        let flight_data = stream.message().await?.unwrap();
-
-        // convert FlightData to a stream
-        let schema = Arc::new(Schema::try_from(&flight_data)?);
 
         // all the remaining stream messages should be dictionary and record batches
-        let dictionaries_by_field = HashMap::new();
-        while let Some(flight_data) = stream.message().await? {
-            let batch =
-                flight_data_to_arrow_batch(&flight_data, schema.clone(), &dictionaries_by_field)?;
+        while let Some(batch) = stream.next().await {
+            let batch = batch.map_err(|e| {
+                Self::Error::String(format!("error getting batch from flight: {e}"))
+            })?;
+
             if num_columns == 0 {
                 num_columns = batch.num_columns();
             }

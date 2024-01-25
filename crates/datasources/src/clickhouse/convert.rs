@@ -7,7 +7,7 @@ use datafusion::{
             UInt16Array, UInt32Array, UInt64Array, UInt8Array,
         },
         datatypes::{DataType, Schema, TimeUnit},
-        record_batch::RecordBatch,
+        record_batch::{RecordBatch, RecordBatchOptions},
     },
     physical_plan::RecordBatchStream,
 };
@@ -95,6 +95,12 @@ impl RecordBatchStream for ConvertStream {
 
 /// Convert a block to a record batch.
 fn block_to_batch(schema: Arc<Schema>, block: Block) -> Result<RecordBatch> {
+    if schema.fields.is_empty() {
+        let options = RecordBatchOptions::new().with_row_count(Some(block.rows as usize));
+        return RecordBatch::try_new_with_options(schema, vec![], &options).map_err(|e| {
+            ClickhouseError::String(format!("cannot create empty record batch: {e}",))
+        });
+    }
     if schema.fields.len() != block.column_data.len() {
         return Err(ClickhouseError::String(format!(
             "expected {} columns, got {}",
