@@ -1,25 +1,34 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
+use std::sync::Arc;
 
-use datafusion::{
-    common::{
-        plan_datafusion_err, plan_err, unqualified_field_not_found, DFField, DFSchema,
-        DataFusionError, OwnedTableReference, Result, ToDFSchema,
-    },
-    logical_expr::{
-        builder::project, Analyze, Explain, ExprSchemable, LogicalPlan, PlanType, ToStringifiedPlan,
-    },
-    scalar::ScalarValue,
-    sql::{
-        planner::PlannerContext,
-        sqlparser::ast::{self, Query, SetExpr, Statement, Value},
-    },
+use datafusion::common::{
+    plan_datafusion_err,
+    plan_err,
+    unqualified_field_not_found,
+    DFField,
+    DFSchema,
+    DataFusionError,
+    OwnedTableReference,
+    Result,
+    ToDFSchema,
 };
+use datafusion::logical_expr::builder::project;
+use datafusion::logical_expr::{
+    Analyze,
+    Explain,
+    ExprSchemable,
+    LogicalPlan,
+    PlanType,
+    ToStringifiedPlan,
+};
+use datafusion::scalar::ScalarValue;
+use datafusion::sql::planner::PlannerContext;
+use datafusion::sql::sqlparser::ast::{self, Query, SetExpr, Statement, Value};
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     /// Generate a plan for EXPLAIN ... that will print out a plan
-    ///
     pub async fn explain_statement_to_plan(
         &mut self,
         verbose: bool,

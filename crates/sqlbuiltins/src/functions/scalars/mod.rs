@@ -7,8 +7,7 @@ use std::sync::Arc;
 
 use datafusion::arrow::array::Array;
 use datafusion::arrow::datatypes::DataType;
-use datafusion::logical_expr::BuiltinScalarFunction;
-use datafusion::logical_expr::{Expr, Signature, Volatility};
+use datafusion::logical_expr::{BuiltinScalarFunction, Expr, Signature, Volatility};
 use datafusion::physical_plan::ColumnarValue;
 use datafusion::scalar::ScalarValue;
 use num_traits::ToPrimitive;

@@ -1,17 +1,17 @@
-use crate::codec::{
-    client::FramedClientConn,
-    server::{FramedConn, PgCodec},
-};
-use crate::errors::{PgSrvError, Result};
-use crate::messages::{BackendMessage, ErrorResponse, FrontendMessage, StartupMessage, VERSION_V3};
-use crate::ssl::Connection;
-use crate::ssl::SslConfig;
+use std::borrow::Cow;
+use std::collections::HashMap;
+
 use proxyutil::cloudauth::{AuthParams, DatabaseDetails, ProxyAuthenticator, ServiceProtocol};
-use std::{borrow::Cow, collections::HashMap};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tracing::debug;
 use uuid::Uuid;
+
+use crate::codec::client::FramedClientConn;
+use crate::codec::server::{FramedConn, PgCodec};
+use crate::errors::{PgSrvError, Result};
+use crate::messages::{BackendMessage, ErrorResponse, FrontendMessage, StartupMessage, VERSION_V3};
+use crate::ssl::{Connection, SslConfig};
 
 /// Constant id for a database if running locally.
 pub const LOCAL_DATABASE_ID: Uuid = Uuid::nil();

@@ -3,9 +3,13 @@ use std::hash::Hash;
 
 use protogen::metastore::types::catalog::RuntimePreference;
 
+use super::{
+    DfLogicalPlan,
+    ExtensionNode,
+    UserDefinedLogicalNodeCore,
+    GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA,
+};
 use crate::planner::physical_plan::remote_scan::ProviderReference;
-
-use super::{DfLogicalPlan, ExtensionNode, GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA, UserDefinedLogicalNodeCore};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Insert {

@@ -1,28 +1,26 @@
-use std::{
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
-use datafusion::{
-    arrow::datatypes::DataType,
-    error::DataFusionError,
-    logical_expr::{
-        expr::ScalarFunction, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF,
-        Signature, TypeSignature, Volatility,
-    },
-    prelude::Expr,
-    scalar::ScalarValue,
+use datafusion::arrow::datatypes::DataType;
+use datafusion::error::DataFusionError;
+use datafusion::logical_expr::expr::ScalarFunction;
+use datafusion::logical_expr::{
+    ReturnTypeFunction,
+    ScalarFunctionImplementation,
+    ScalarUDF,
+    Signature,
+    TypeSignature,
+    Volatility,
 };
+use datafusion::prelude::Expr;
+use datafusion::scalar::ScalarValue;
 use fnv::FnvHasher;
 use protogen::metastore::types::catalog::FunctionType;
 use siphasher::sip::SipHasher24;
 
-use crate::{
-    errors::BuiltinError,
-    functions::{BuiltinScalarUDF, ConstBuiltinFunction},
-};
-
 use super::{get_nth_scalar_value, get_nth_u64_fn_arg};
+use crate::errors::BuiltinError;
+use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
 
 pub struct SipHash;
 

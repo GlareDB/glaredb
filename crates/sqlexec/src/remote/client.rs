@@ -1,35 +1,40 @@
-use crate::{
-    errors::{ExecError, Result},
-    extension_codec::GlareDBExtensionCodec,
-};
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
+
 use catalog::session_catalog::{ResolveConfig, SessionCatalog};
-use datafusion::{datasource::TableProvider, physical_plan::ExecutionPlan};
+use datafusion::datasource::TableProvider;
+use datafusion::physical_plan::ExecutionPlan;
 use datafusion_ext::functions::FuncParamValue;
-use datafusion_proto::{physical_plan::AsExecutionPlan, protobuf::PhysicalPlanNode};
-use protogen::{
-    gen::rpcsrv::common,
-    gen::rpcsrv::service::{self, execution_service_client::ExecutionServiceClient},
-    metastore::types::catalog::CatalogState,
-    rpcsrv::types::service::{
-        DispatchAccessRequest, FetchCatalogRequest, FetchCatalogResponse, InitializeSessionRequest,
-        InitializeSessionResponse, PhysicalPlanExecuteRequest, ResolvedTableReference,
-        TableProviderResponse,
-    },
+use datafusion_proto::physical_plan::AsExecutionPlan;
+use datafusion_proto::protobuf::PhysicalPlanNode;
+use protogen::gen::rpcsrv::common;
+use protogen::gen::rpcsrv::service::execution_service_client::ExecutionServiceClient;
+use protogen::gen::rpcsrv::service::{self};
+use protogen::metastore::types::catalog::CatalogState;
+use protogen::rpcsrv::types::service::{
+    DispatchAccessRequest,
+    FetchCatalogRequest,
+    FetchCatalogResponse,
+    InitializeSessionRequest,
+    InitializeSessionResponse,
+    PhysicalPlanExecuteRequest,
+    ResolvedTableReference,
+    TableProviderResponse,
 };
 use proxyutil::metadata_constants::{DB_NAME_KEY, ORG_KEY, PASSWORD_KEY, USER_KEY};
 use serde::Deserialize;
 use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
-use std::{collections::HashMap, fmt, sync::Arc};
-use tonic::{
-    metadata::MetadataMap,
-    transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
-    IntoRequest, Streaming,
-};
+use tonic::metadata::MetadataMap;
+use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
+use tonic::{IntoRequest, Streaming};
 use tracing::debug;
 use url::Url;
 use uuid::Uuid;
 
 use super::table::StubRemoteTableProvider;
+use crate::errors::{ExecError, Result};
+use crate::extension_codec::GlareDBExtensionCodec;
 
 const DEFAULT_RPC_PROXY_PORT: u16 = 6443;
 

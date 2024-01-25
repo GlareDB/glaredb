@@ -1,9 +1,16 @@
-use super::{Arc, DFSchemaRef, DataType, DfLogicalPlan, ExtensionNode, Lazy, UserDefinedLogicalNodeCore};
-use datafusion::{
-    arrow::datatypes::{Field, Schema, SchemaRef},
-    common::ToDFSchema,
-};
+use datafusion::arrow::datatypes::{Field, Schema, SchemaRef};
+use datafusion::common::ToDFSchema;
 use protogen::metastore::types::catalog::TableEntry;
+
+use super::{
+    Arc,
+    DFSchemaRef,
+    DataType,
+    DfLogicalPlan,
+    ExtensionNode,
+    Lazy,
+    UserDefinedLogicalNodeCore,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DescribeTable {

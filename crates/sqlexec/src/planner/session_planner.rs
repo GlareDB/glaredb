@@ -3,7 +3,12 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema, TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE,
+    DataType,
+    Field,
+    Schema,
+    TimeUnit,
+    DECIMAL128_MAX_PRECISION,
+    DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::parsers::CompressionTypeVariant;
 use datafusion::common::{FileType, OwnedSchemaReference, OwnedTableReference, ToDFSchema};
@@ -16,7 +21,8 @@ use datafusion_ext::AsyncContextProvider;
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::cassandra::{CassandraAccess, CassandraAccessState};
 use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableRef};
-use datasources::common::ssh::{key::SshKey, SshConnection, SshConnectionParameters};
+use datasources::common::ssh::key::SshKey;
+use datasources::common::ssh::{SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
@@ -36,49 +42,131 @@ use object_store::aws::AmazonS3ConfigKey;
 use object_store::azure::AzureConfigKey;
 use object_store::gcp::GoogleConfigKey;
 use protogen::metastore::types::catalog::{
-    CatalogEntry, DatabaseEntry, RuntimePreference, SourceAccessMode, TableEntry,
+    CatalogEntry,
+    DatabaseEntry,
+    RuntimePreference,
+    SourceAccessMode,
+    TableEntry,
 };
 use protogen::metastore::types::options::{
-    CopyToDestinationOptions, CopyToDestinationOptionsAzure, CopyToDestinationOptionsGcs,
-    CopyToDestinationOptionsLocal, CopyToDestinationOptionsS3, CopyToFormatOptions,
-    CopyToFormatOptionsCsv, CopyToFormatOptionsJson, CopyToFormatOptionsLance,
-    CopyToFormatOptionsParquet, CredentialsOptions, CredentialsOptionsAws, CredentialsOptionsAzure,
-    CredentialsOptionsDebug, CredentialsOptionsGcp, DatabaseOptions, DatabaseOptionsBigQuery,
-    DatabaseOptionsCassandra, DatabaseOptionsClickhouse, DatabaseOptionsDebug,
-    DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, DeltaLakeCatalog,
-    DeltaLakeUnityCatalog, StorageOptions, TableOptions, TableOptionsBigQuery,
-    TableOptionsCassandra, TableOptionsClickhouse, TableOptionsDebug, TableOptionsGcs,
-    TableOptionsLocal, TableOptionsMongoDb, TableOptionsMysql, TableOptionsObjectStore,
-    TableOptionsPostgres, TableOptionsS3, TableOptionsSnowflake, TableOptionsSqlServer,
-    TunnelOptions, TunnelOptionsDebug, TunnelOptionsInternal, TunnelOptionsSsh,
+    CopyToDestinationOptions,
+    CopyToDestinationOptionsAzure,
+    CopyToDestinationOptionsGcs,
+    CopyToDestinationOptionsLocal,
+    CopyToDestinationOptionsS3,
+    CopyToFormatOptions,
+    CopyToFormatOptionsCsv,
+    CopyToFormatOptionsJson,
+    CopyToFormatOptionsLance,
+    CopyToFormatOptionsParquet,
+    CredentialsOptions,
+    CredentialsOptionsAws,
+    CredentialsOptionsAzure,
+    CredentialsOptionsDebug,
+    CredentialsOptionsGcp,
+    DatabaseOptions,
+    DatabaseOptionsBigQuery,
+    DatabaseOptionsCassandra,
+    DatabaseOptionsClickhouse,
+    DatabaseOptionsDebug,
+    DatabaseOptionsDeltaLake,
+    DatabaseOptionsMongoDb,
+    DatabaseOptionsMysql,
+    DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake,
+    DatabaseOptionsSqlServer,
+    DeltaLakeCatalog,
+    DeltaLakeUnityCatalog,
+    StorageOptions,
+    TableOptions,
+    TableOptionsBigQuery,
+    TableOptionsCassandra,
+    TableOptionsClickhouse,
+    TableOptionsDebug,
+    TableOptionsGcs,
+    TableOptionsLocal,
+    TableOptionsMongoDb,
+    TableOptionsMysql,
+    TableOptionsObjectStore,
+    TableOptionsPostgres,
+    TableOptionsS3,
+    TableOptionsSnowflake,
+    TableOptionsSqlServer,
+    TunnelOptions,
+    TunnelOptionsDebug,
+    TunnelOptionsInternal,
+    TunnelOptionsSsh,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use sqlbuiltins::validation::{
-    validate_copyto_dest_creds_support, validate_copyto_dest_format_support,
-    validate_database_creds_support, validate_database_tunnel_support,
-    validate_table_creds_support, validate_table_tunnel_support,
+    validate_copyto_dest_creds_support,
+    validate_copyto_dest_format_support,
+    validate_database_creds_support,
+    validate_database_tunnel_support,
+    validate_table_creds_support,
+    validate_table_tunnel_support,
 };
 use tracing::debug;
-
-use crate::context::local::LocalSessionContext;
-use crate::parser::options::StmtOptions;
-use crate::parser::{
-    self, validate_ident, validate_object_name, AlterDatabaseStmt, AlterTableStmtExtension,
-    AlterTunnelAction, AlterTunnelStmt, CopyToSource, CopyToStmt, CreateCredentialStmt,
-    CreateCredentialsStmt, CreateExternalDatabaseStmt, CreateExternalTableStmt, CreateTunnelStmt,
-    DropCredentialsStmt, DropDatabaseStmt, DropTunnelStmt, StatementWithExtensions,
-};
-use crate::planner::errors::{internal, PlanError, Result};
-use crate::planner::logical_plan::{AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredentials, CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable, CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews, FullObjectReference, Insert, LogicalPlan, SetVariable, ShowVariable, TransactionPlan, Update};
-use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
-use crate::remote::table::StubRemoteTableProvider;
-use crate::resolve::{EntryResolver, ResolvedEntry};
 
 use super::context_builder::PartialContextProvider;
 use super::extension::ExtensionNode;
 use super::physical_plan::remote_scan::ProviderReference;
+use crate::context::local::LocalSessionContext;
+use crate::parser::options::StmtOptions;
+use crate::parser::{
+    self,
+    validate_ident,
+    validate_object_name,
+    AlterDatabaseStmt,
+    AlterTableStmtExtension,
+    AlterTunnelAction,
+    AlterTunnelStmt,
+    CopyToSource,
+    CopyToStmt,
+    CreateCredentialStmt,
+    CreateCredentialsStmt,
+    CreateExternalDatabaseStmt,
+    CreateExternalTableStmt,
+    CreateTunnelStmt,
+    DropCredentialsStmt,
+    DropDatabaseStmt,
+    DropTunnelStmt,
+    StatementWithExtensions,
+};
+use crate::planner::errors::{internal, PlanError, Result};
+use crate::planner::logical_plan::{
+    AlterDatabase,
+    AlterTable,
+    AlterTunnelRotateKeys,
+    CopyTo,
+    CreateCredentials,
+    CreateExternalDatabase,
+    CreateExternalTable,
+    CreateSchema,
+    CreateTable,
+    CreateTempTable,
+    CreateTunnel,
+    CreateView,
+    Delete,
+    DescribeTable,
+    DropCredentials,
+    DropDatabase,
+    DropSchemas,
+    DropTables,
+    DropTunnel,
+    DropViews,
+    FullObjectReference,
+    Insert,
+    LogicalPlan,
+    SetVariable,
+    ShowVariable,
+    TransactionPlan,
+    Update,
+};
+use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
+use crate::remote::table::StubRemoteTableProvider;
+use crate::resolve::{EntryResolver, ResolvedEntry};
 
 /// Plan SQL statements for a session.
 pub struct SessionPlanner<'a> {

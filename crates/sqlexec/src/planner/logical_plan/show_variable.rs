@@ -1,4 +1,14 @@
-use super::{Arc, DFField, DFSchema, DFSchemaRef, DataType, DfLogicalPlan, ExtensionNode, HashMap, UserDefinedLogicalNodeCore};
+use super::{
+    Arc,
+    DFField,
+    DFSchema,
+    DFSchemaRef,
+    DataType,
+    DfLogicalPlan,
+    ExtensionNode,
+    HashMap,
+    UserDefinedLogicalNodeCore,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ShowVariable {

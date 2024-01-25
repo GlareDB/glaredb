@@ -1,16 +1,12 @@
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use std::sync::Arc;
 
 use calamine::{open_workbook, Range, Reader, Xlsx};
-use datafusion::arrow::{
-    array::{ArrayRef, BooleanArray, Date64Array, PrimitiveArray, StringArray},
-    datatypes::{DataType, Field, Float64Type, Int64Type, Schema},
-    record_batch::RecordBatch,
-};
+use datafusion::arrow::array::{ArrayRef, BooleanArray, Date64Array, PrimitiveArray, StringArray};
+use datafusion::arrow::datatypes::{DataType, Field, Float64Type, Int64Type, Schema};
+use datafusion::arrow::record_batch::RecordBatch;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
