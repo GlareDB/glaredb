@@ -37,15 +37,18 @@ use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::datatypes::TimeUnit;
 use datafusion::common::config::ConfigOptions;
 use datafusion::common::field_not_found;
+use datafusion::common::not_impl_err;
 use datafusion::common::{unqualified_field_not_found, DFSchema, DataFusionError, Result};
 use datafusion::common::{OwnedTableReference, TableReference};
 use datafusion::logical_expr::logical_plan::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::logical_expr::utils::find_column_exprs;
 use datafusion::logical_expr::TableSource;
+use datafusion::logical_expr::WindowUDF;
 use datafusion::logical_expr::{col, AggregateUDF, Expr, SubqueryAlias};
 use datafusion::sql::planner::object_name_to_table_reference;
 use datafusion::sql::planner::IdentNormalizer;
 use datafusion::sql::planner::ParserOptions;
+use datafusion::sql::sqlparser::ast::ArrayElemTypeDef;
 use datafusion::sql::sqlparser::ast::ExactNumberInfo;
 use datafusion::sql::sqlparser::ast::TimezoneInfo;
 use datafusion::sql::sqlparser::ast::{ColumnDef as SQLColumnDef, ColumnOption};
@@ -58,28 +61,31 @@ use crate::utils::make_decimal_type;
 #[async_trait]
 pub trait AsyncContextProvider: Send + Sync {
     /// Getter for a datasource
-    async fn get_table_provider(
-        &mut self,
-        name: TableReference<'_>,
-    ) -> Result<Arc<dyn TableSource>>;
-
-    /// Getter for a UDF description
-    fn get_scalar_udf(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr>;
-    /// Getter for a UDAF description
-    async fn get_aggregate_meta(&mut self, name: &str) -> Option<Arc<AggregateUDF>>;
-    /// Getter for system/user-defined variable type
-    async fn get_variable_type(&mut self, variable_names: &[String]) -> Option<DataType>;
+    async fn get_table_source(&mut self, name: TableReference<'_>) -> Result<Arc<dyn TableSource>>;
 
     /// Get a table returning function.
     ///
     /// Note that this accepts a table reference since these functions are
     /// namespaced similiarly to tables.
-    async fn get_table_func(
+    async fn get_table_function_source(
         &mut self,
         name: TableReference<'_>,
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableSource>>;
+
+    /// Getter for a UDF description
+    ///
+    /// NOTE: This is a modified version of `get_function_meta` that takes
+    /// arguments and reutrns an `Expr` instead of `ScalarUDF`. This is so that
+    /// we can return any kind of Expr from scalar UDFs.
+    async fn get_function_meta(&mut self, name: &str, args: &[Expr]) -> Option<Expr>;
+    /// Getter for a UDAF description
+    async fn get_aggregate_meta(&mut self, name: &str) -> Option<Arc<AggregateUDF>>;
+    /// Getter for a UDWF
+    async fn get_window_meta(&mut self, name: &str) -> Option<Arc<WindowUDF>>;
+    /// Getter for system/user-defined variable type
+    async fn get_variable_type(&mut self, variable_names: &[String]) -> Option<DataType>;
 
     /// Get configuration options.
     fn options(&self) -> &ConfigOptions;
@@ -87,7 +93,7 @@ pub trait AsyncContextProvider: Send + Sync {
 
 /// SQL query planner
 pub struct SqlQueryPlanner<'a, S: AsyncContextProvider> {
-    pub(crate) schema_provider: &'a mut S,
+    pub(crate) context_provider: &'a mut S,
     pub(crate) options: ParserOptions,
     pub(crate) normalizer: IdentNormalizer,
 }
@@ -102,7 +108,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     pub fn new_with_options(schema_provider: &'a mut S, options: ParserOptions) -> Self {
         let normalize = options.enable_ident_normalization;
         SqlQueryPlanner {
-            schema_provider,
+            context_provider: schema_provider,
             options,
             normalizer: IdentNormalizer::new(normalize),
         }
@@ -195,16 +201,17 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 
     pub(crate) fn convert_data_type(&self, sql_type: &SQLDataType) -> Result<DataType> {
         match sql_type {
-            SQLDataType::Array(Some(inner_sql_type)) => {
+            SQLDataType::Array(ArrayElemTypeDef::AngleBracket(inner_sql_type))
+            | SQLDataType::Array(ArrayElemTypeDef::SquareBracket(inner_sql_type)) => {
                 let data_type = self.convert_simple_data_type(inner_sql_type)?;
 
                 Ok(DataType::List(Arc::new(Field::new(
                     "field", data_type, true,
                 ))))
             }
-            SQLDataType::Array(None) => Err(DataFusionError::NotImplemented(
-                "Arrays with unspecified type is not supported".to_string(),
-            )),
+            SQLDataType::Array(ArrayElemTypeDef::None) => {
+                not_impl_err!("Arrays with unspecified type is not supported")
+            }
             other => self.convert_simple_data_type(other),
         }
     }
@@ -228,7 +235,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             SQLDataType::Char(_)
             | SQLDataType::Varchar(_)
             | SQLDataType::Text
-            | SQLDataType::String => Ok(DataType::Utf8),
+            | SQLDataType::String(_) => Ok(DataType::Utf8),
             SQLDataType::Timestamp(None, tz_info) => {
                 let tz = if matches!(tz_info, TimezoneInfo::Tz)
                     || matches!(tz_info, TimezoneInfo::WithTimeZone)
@@ -236,7 +243,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     // Timestamp With Time Zone
                     // INPUT : [SQLDataType]   TimestampTz + [RuntimeConfig] Time Zone
                     // OUTPUT: [ArrowDataType] Timestamp<TimeUnit, Some(Time Zone)>
-                    self.schema_provider.options().execution.time_zone.clone()
+                    self.context_provider.options().execution.time_zone.clone()
                 } else {
                     // Timestamp Without Time zone
                     None
@@ -251,9 +258,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     Ok(DataType::Time64(TimeUnit::Nanosecond))
                 } else {
                     // We dont support TIMETZ and TIME WITH TIME ZONE for now
-                    Err(DataFusionError::NotImplemented(format!(
+                    not_impl_err!(
                         "Unsupported SQL type {sql_type:?}"
-                    )))
+                    )
                 }
             }
             SQLDataType::Numeric(exact_number_info)
@@ -269,6 +276,16 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             }
             SQLDataType::Bytea => Ok(DataType::Binary),
             SQLDataType::Interval => Ok(DataType::Interval(IntervalUnit::MonthDayNano)),
+            SQLDataType::Custom(obj, _) => {
+                let obj = obj.to_string();
+                match obj.as_str() {
+                    // PSQL uses `pg_catalog.text` for `text` type in some cases
+                    "pg_catalog.text" => Ok(DataType::Utf8),
+                    _ => Err(DataFusionError::NotImplemented(format!(
+                        "Unsupported SQL type {sql_type:?}"
+                    ))),
+                }
+            }
             // Explicitly list all other types so that if sqlparser
             // adds/changes the `SQLDataType` the compiler will tell us on upgrade
             // and avoid bugs like https://github.com/apache/arrow-datafusion/issues/3059
@@ -280,7 +297,6 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             | SQLDataType::Blob(_)
             | SQLDataType::Datetime(_)
             | SQLDataType::Regclass
-            | SQLDataType::Custom(_, _)
             | SQLDataType::Array(_)
             | SQLDataType::Enum(_)
             | SQLDataType::Set(_)
@@ -298,9 +314,14 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             | SQLDataType::Dec(_)
             | SQLDataType::BigNumeric(_)
             | SQLDataType::BigDecimal(_)
-            | SQLDataType::Clob(_) => Err(DataFusionError::NotImplemented(format!(
+            | SQLDataType::Clob(_)
+            | SQLDataType::Bytes(_)
+            | SQLDataType::Int64
+            | SQLDataType::Float64
+            | SQLDataType::Struct(_)
+            => not_impl_err!(
                 "Unsupported SQL type {sql_type:?}"
-            ))),
+            ),
         }
     }
 

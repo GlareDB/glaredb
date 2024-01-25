@@ -19,7 +19,7 @@ use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, Result, ScalarValue};
-use datafusion::logical_expr::{Expr, LogicalPlan, LogicalPlanBuilder};
+use datafusion::logical_expr::{Distinct, Expr, LogicalPlan, LogicalPlanBuilder};
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
     Expr as SQLExpr, Offset as SQLOffset, OrderByExpr, Query, Value,
@@ -149,8 +149,16 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         }
 
         let order_by_rex = self
-            .order_by_to_sort_expr(&order_by, plan.schema(), planner_context)
+            .order_by_to_sort_expr(&order_by, plan.schema(), planner_context, true)
             .await?;
-        LogicalPlanBuilder::from(plan).sort(order_by_rex)?.build()
+
+        if let LogicalPlan::Distinct(Distinct::On(ref distinct_on)) = plan {
+            // In case of `DISTINCT ON` we must capture the sort expressions since during the plan
+            // optimization we're effectively doing a `first_value` aggregation according to them.
+            let distinct_on = distinct_on.clone().with_sort_expr(order_by_rex)?;
+            Ok(LogicalPlan::Distinct(Distinct::On(distinct_on)))
+        } else {
+            LogicalPlanBuilder::from(plan).sort(order_by_rex)?.build()
+        }
     }
 }

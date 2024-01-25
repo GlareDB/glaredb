@@ -20,7 +20,7 @@ def q():
         .filter(pl.col("l_commitdate") < pl.col("l_receiptdate"))
         .unique(subset=["o_orderpriority", "l_orderkey"])
         .group_by("o_orderpriority")
-        .agg(pl.count().alias("order_count"))
+        .agg(pl.len().alias("order_count"))
         .sort(by="o_orderpriority")
         .with_columns(pl.col("order_count").cast(pl.datatypes.Int64))
     )

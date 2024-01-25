@@ -24,4 +24,4 @@ CONTAINER_ID="$(docker run \
 curl --retry 5 -f --retry-all-errors --retry-delay 1 \
     -X POST --data-binary "{\"name\":\"$TEST_BUCKET\"}" -H "Content-Type: application/json" "http://localhost:4443/storage/v1/b"
 
-echo '{"gcs_base_url": "http://localhost:4443", "disable_oauth": true, "client_email": "", "private_key": ""}' > /tmp/fake-gcs-creds.json
+echo '{"gcs_base_url": "http://localhost:4443", "disable_oauth": true, "client_email": "", "private_key": "", "private_key_id": ""}' > /tmp/fake-gcs-creds.json

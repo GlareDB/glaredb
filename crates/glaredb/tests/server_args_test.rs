@@ -49,7 +49,7 @@ fn test_user_requires_password() {
         .arg("server")
         .arg("--bind")
         .arg("0.0.0.0:0")
-        .args(&["-u", "test"])
+        .args(["-u", "test"])
         .assert();
 
     assert.failure().stderr(

@@ -229,11 +229,17 @@ impl<'a> ExternalDispatcher<'a> {
                 let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
                 Ok(Arc::new(table))
             }
-            DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host }) => {
+            DatabaseOptions::Cassandra(DatabaseOptionsCassandra {
+                host,
+                username,
+                password,
+            }) => {
                 let table = CassandraTableProvider::try_new(
                     host.clone(),
                     schema.to_string(),
                     name.to_string(),
+                    username.to_owned(),
+                    password.to_owned(),
                 )
                 .await?;
                 Ok(Arc::new(table))
@@ -515,10 +521,17 @@ impl<'a> ExternalDispatcher<'a> {
                 host,
                 keyspace,
                 table,
+                username,
+                password,
             }) => {
-                let table =
-                    CassandraTableProvider::try_new(host.clone(), keyspace.clone(), table.clone())
-                        .await?;
+                let table = CassandraTableProvider::try_new(
+                    host.clone(),
+                    keyspace.clone(),
+                    table.clone(),
+                    username.clone(),
+                    password.clone(),
+                )
+                .await?;
 
                 Ok(Arc::new(table))
             }

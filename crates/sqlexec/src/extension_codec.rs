@@ -341,6 +341,12 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::DropTablesExec(ext) => Arc::new(DropTablesExec {
                 catalog_version: ext.catalog_version,
                 tbl_references: ext.tbl_references.into_iter().map(|r| r.into()).collect(),
+                tbl_entries: ext
+                    .tbl_entries
+                    .into_iter()
+                    .map(|r| r.try_into())
+                    .collect::<Result<_, _>>()
+                    .expect("failed to decode table entries"),
                 if_exists: ext.if_exists,
             }),
             proto::ExecutionPlanExtensionType::SetVarExec(ext) => Arc::new(SetVarExec {
@@ -664,6 +670,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .into_iter()
                     .map(|r| r.into())
                     .collect(),
+                tbl_entries: exec
+                    .tbl_entries
+                    .clone()
+                    .into_iter()
+                    .map(|r| r.try_into())
+                    .collect::<Result<_, _>>()
+                    .expect("failed to encode table entries"),
                 if_exists: exec.if_exists,
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<SetVarExec>() {

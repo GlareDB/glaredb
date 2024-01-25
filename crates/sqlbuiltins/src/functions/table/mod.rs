@@ -14,7 +14,7 @@ mod object_store;
 mod postgres;
 mod snowflake;
 mod sqlserver;
-mod system;
+pub mod system;
 mod virtual_listing;
 
 use ::object_store::aws::AmazonS3ConfigKey;
@@ -255,7 +255,7 @@ mod tests {
             builtin
                 .funcs
                 .get(name)
-                .expect(&format!("function with name '{name}' should exist"));
+                .unwrap_or_else(|| panic!("function with name '{name}' should exist"));
         }
     }
 }

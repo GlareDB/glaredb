@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
@@ -7,6 +8,7 @@ use datafusion::common::Result as DfResult;
 use datafusion::error::DataFusionError;
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::insert::DataSink;
+use datafusion::physical_plan::metrics::MetricsSet;
 use datafusion::physical_plan::DisplayAs;
 use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
@@ -64,7 +66,6 @@ impl LanceSink {
     async fn stream_into_inner(
         &self,
         stream: SendableRecordBatchStream,
-        mut ds: Option<Dataset>,
     ) -> DfResult<Option<Dataset>> {
         let table = match self.opts.url.clone() {
             Some(opts_url) => opts_url.join(self.loc.as_ref()),
@@ -78,6 +79,8 @@ impl LanceSink {
             mode: WriteMode::Overwrite,
             ..Default::default()
         };
+
+        let mut ds: Option<Dataset> = None;
 
         while let Some(batches) = chunks.next().await {
             let batch_iter =
@@ -102,6 +105,14 @@ impl LanceSink {
 
 #[async_trait]
 impl DataSink for LanceSink {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        None
+    }
+
     // the dataset is the handle to the lance database.
     //
     // there's no way to construct an empty dataset except by writing
@@ -111,16 +122,12 @@ impl DataSink for LanceSink {
     // and pass it into the next call.
     async fn write_all(
         &self,
-        data: Vec<SendableRecordBatchStream>,
+        data: SendableRecordBatchStream,
         _context: &Arc<TaskContext>,
     ) -> DfResult<u64> {
-        let mut ds: Option<Dataset> = None;
-        for stream in data {
-            ds = self.stream_into_inner(stream, ds).await?;
-        }
-        match ds {
-            Some(ds) => Ok(ds.count_rows().await? as u64),
-            None => Ok(0),
-        }
+        Ok(match self.stream_into_inner(data).await? {
+            Some(ds) => ds.count_rows().await? as u64,
+            None => 0,
+        })
     }
 }

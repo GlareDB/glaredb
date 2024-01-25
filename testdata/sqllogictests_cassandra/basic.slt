@@ -6,7 +6,9 @@ CREATE EXTERNAL TABLE basic
 	OPTIONS (
 		host = '${CASSANDRA_CONN_STRING}',
 		keyspace = 'test',
-		table = 'bikeshare_stations'
+		table = 'bikeshare_stations',
+		username = 'cassandra',
+		password = 'cassandra'
 	);
 
 include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti

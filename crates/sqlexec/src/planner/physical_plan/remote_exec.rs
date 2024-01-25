@@ -101,7 +101,7 @@ impl ExecutionPlan for RemoteExecutionExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
+    fn statistics(&self) -> DataFusionResult<Statistics> {
         self.plan.statistics()
     }
 }
