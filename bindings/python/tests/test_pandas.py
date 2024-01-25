@@ -115,3 +115,25 @@ def test_execute():
 
     assert out.equals(expected)
     con.close()
+
+def test_create_from_dataframe():
+    con = glaredb.connect()
+    
+    df = pd.DataFrame(
+        {
+            "fruits": ["banana"],
+        }
+    )
+
+    con.execute("CREATE TEMP TABLE test_pandas_df AS SELECT * FROM df;")
+
+    out = con.execute("SELECT * FROM test_pandas_df").to_pandas()
+    
+    expected = pd.DataFrame(
+        {
+            "fruits": ["banana"],
+        }
+    )
+
+    assert out.equals(expected)
+    con.close()
