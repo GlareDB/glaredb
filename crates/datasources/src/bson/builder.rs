@@ -227,8 +227,8 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
     // So robust
     match (val, typ) {
         // null
-        (RawBsonRef::Null, _) => append_null(&typ, col)?,
-        (RawBsonRef::Undefined, _) => append_null(&typ, col)?,
+        (RawBsonRef::Null, _) => append_null(typ, col)?,
+        (RawBsonRef::Undefined, _) => append_null(typ, col)?,
 
         // Boolean
         (RawBsonRef::Boolean(v), DataType::Boolean) => append_scalar!(BooleanBuilder, col, v),
