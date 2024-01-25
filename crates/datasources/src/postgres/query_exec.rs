@@ -1,28 +1,30 @@
-use std::{
-    any::Any,
-    fmt,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
-};
+use std::any::Any;
+use std::fmt;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 
-use datafusion::{
-    arrow::{datatypes::Schema as ArrowSchema, record_batch::RecordBatch},
-    error::{DataFusionError, Result as DataFusionResult},
-    execution::TaskContext,
-    physical_expr::PhysicalSortExpr,
-    physical_plan::{
-        metrics::{ExecutionPlanMetricsSet, MetricsSet},
-        DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-        SendableRecordBatchStream, Statistics,
-    },
+use datafusion::arrow::datatypes::Schema as ArrowSchema;
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::execution::TaskContext;
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion::physical_plan::{
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    RecordBatchStream,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
-use futures::{future::BoxFuture, ready, FutureExt, Stream};
-
-use crate::common::util::{create_count_record_batch, COUNT_SCHEMA};
+use futures::future::BoxFuture;
+use futures::{ready, FutureExt, Stream};
 
 use super::PostgresAccessState;
+use crate::common::util::{create_count_record_batch, COUNT_SCHEMA};
 
 #[derive(Debug)]
 pub struct PostgresQueryExec {

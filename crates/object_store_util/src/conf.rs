@@ -1,12 +1,13 @@
-use object_store::aws::{AmazonS3Builder, S3CopyIfNotExists};
-use object_store::azure::MicrosoftAzureBuilder;
-use object_store::{
-    gcp::GoogleCloudStorageBuilder, local::LocalFileSystem, memory::InMemory,
-    Error as ObjectStoreError, ObjectStore,
-};
-use once_cell::sync::Lazy;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+use object_store::aws::{AmazonS3Builder, S3CopyIfNotExists};
+use object_store::azure::MicrosoftAzureBuilder;
+use object_store::gcp::GoogleCloudStorageBuilder;
+use object_store::local::LocalFileSystem;
+use object_store::memory::InMemory;
+use object_store::{Error as ObjectStoreError, ObjectStore};
+use once_cell::sync::Lazy;
 
 static IN_MEMORY_STORE: Lazy<Arc<InMemory>> = Lazy::new(|| Arc::new(InMemory::new()));
 

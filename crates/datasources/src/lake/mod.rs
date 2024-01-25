@@ -3,14 +3,15 @@
 pub mod delta;
 pub mod iceberg;
 
+use std::str::FromStr;
+use std::sync::Arc;
+
 use object_store::aws::{AmazonS3Builder, AmazonS3ConfigKey};
 use object_store::azure::{AzureConfigKey, MicrosoftAzureBuilder};
 use object_store::gcp::{GoogleCloudStorageBuilder, GoogleConfigKey};
 use object_store::local::LocalFileSystem;
 use object_store::ObjectStore;
 use protogen::metastore::types::options::StorageOptions;
-use std::str::FromStr;
-use std::sync::Arc;
 
 use crate::common::url::{DatasourceUrl, DatasourceUrlType};
 

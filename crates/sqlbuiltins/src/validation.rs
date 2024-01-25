@@ -1,5 +1,9 @@
 use protogen::metastore::types::options::{
-    CopyToDestinationOptions, CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
+    CopyToDestinationOptions,
+    CredentialsOptions,
+    DatabaseOptions,
+    TableOptions,
+    TunnelOptions,
 };
 
 #[derive(thiserror::Error, Debug)]

@@ -27,22 +27,45 @@ mod substring;
 mod unary_op;
 mod value;
 
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use async_recursion::async_recursion;
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::tree_node::{Transformed, TreeNode};
 use datafusion::common::{plan_err, Column, DFSchema, DataFusionError, Result, ScalarValue};
-use datafusion::logical_expr::expr::{AggregateFunctionDefinition, ScalarFunction};
-use datafusion::logical_expr::expr::{InList, Placeholder};
+use datafusion::logical_expr::expr::{
+    AggregateFunctionDefinition,
+    InList,
+    Placeholder,
+    ScalarFunction,
+};
 use datafusion::logical_expr::{
-    col, expr, lit, AggregateFunction, Between, BinaryExpr, BuiltinScalarFunction, Cast, Expr,
-    ExprSchemable, GetFieldAccess, GetIndexedField, Like, Operator, TryCast,
+    col,
+    expr,
+    lit,
+    AggregateFunction,
+    Between,
+    BinaryExpr,
+    BuiltinScalarFunction,
+    Cast,
+    Expr,
+    ExprSchemable,
+    GetFieldAccess,
+    GetIndexedField,
+    Like,
+    Operator,
+    TryCast,
 };
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
-    ArrayAgg, Expr as SQLExpr, Interval, JsonOperator, TrimWhereField, Value,
+    ArrayAgg,
+    Expr as SQLExpr,
+    Interval,
+    JsonOperator,
+    TrimWhereField,
+    Value,
 };
 use datafusion::sql::sqlparser::parser::ParserError::ParserError;
+
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     #[async_recursion]

@@ -3,6 +3,9 @@ name = "decimal"
 version = {workspace = true}
 edition = {workspace = true}
 
+[lints]
+workspace = true
+
 [dependencies]
 thiserror.workspace = true
 num-traits = "0.2.17"

@@ -84,11 +84,11 @@ rpc-tests:
 
 #  Check formatting.
 fmt-check: protoc
-  cargo fmt --check
+  cargo +nightly fmt --check
 
 # Apply formatting.
 fmt *args: protoc
-  cargo fmt {{args}}
+  cargo +nightly fmt {{args}}
 
 # Run clippy.
 clippy: protoc
