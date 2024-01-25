@@ -106,8 +106,8 @@ impl ExecutionPlan for CreateTableExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 
@@ -195,7 +195,7 @@ impl CreateTableExec {
 
             // if it's a 'replace' and there is no insert, we overwrite with an empty table
             (None, true) => {
-                let input = Arc::new(EmptyExec::new(false, TableProvider::schema(&table)));
+                let input = Arc::new(EmptyExec::new(TableProvider::schema(&table)));
                 insert(&table, input, true, context).await?
             }
             (None, false) => {}

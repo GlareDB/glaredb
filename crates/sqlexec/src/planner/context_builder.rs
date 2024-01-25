@@ -14,6 +14,7 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::AggregateUDF;
 use datafusion::logical_expr::TableSource;
+use datafusion::logical_expr::WindowUDF;
 use datafusion::prelude::Expr;
 use datafusion::sql::TableReference;
 use datafusion_ext::functions::FuncParamValue;
@@ -268,7 +269,7 @@ impl<'a> PartialContextProvider<'a> {
 
 #[async_trait]
 impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
-    async fn get_table_provider(
+    async fn get_table_source(
         &mut self,
         name: TableReference<'_>,
     ) -> DataFusionResult<Arc<dyn TableSource>> {
@@ -281,10 +282,22 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         Ok(Arc::new(DefaultTableSource::new(Arc::new(provider))))
     }
 
-    fn get_scalar_udf(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr> {
+    async fn get_table_function_source(
+        &mut self,
+        name: TableReference<'_>,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> DataFusionResult<Arc<dyn TableSource>> {
+        self.resolve_reference(name.to_owned_reference(), Some(args), Some(opts))
+            .await
+            .map(|p| Arc::new(DefaultTableSource::new(Arc::new(p))) as _)
+            .map_err(|e| DataFusionError::External(Box::new(e)))
+    }
+
+    async fn get_function_meta(&mut self, name: &str, args: &[Expr]) -> Option<Expr> {
         FUNCTION_REGISTRY
             .get_scalar_udf(name)
-            .map(|f| f.as_expr(args))
+            .map(|f| f.as_expr(args.to_vec()))
     }
 
     async fn get_variable_type(&mut self, _variable_names: &[String]) -> Option<DataType> {
@@ -295,16 +308,8 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         None
     }
 
-    async fn get_table_func(
-        &mut self,
-        name: TableReference<'_>,
-        args: Vec<FuncParamValue>,
-        opts: HashMap<String, FuncParamValue>,
-    ) -> DataFusionResult<Arc<dyn TableSource>> {
-        self.resolve_reference(name.to_owned_reference(), Some(args), Some(opts))
-            .await
-            .map(|p| Arc::new(DefaultTableSource::new(Arc::new(p))) as _)
-            .map_err(|e| DataFusionError::External(Box::new(e)))
+    async fn get_window_meta(&mut self, _name: &str) -> Option<Arc<WindowUDF>> {
+        None
     }
 
     fn options(&self) -> &ConfigOptions {

@@ -10,7 +10,7 @@ pub trait TreeNodeExt: TreeNode {
     where
         F: FnMut(Self) -> Result<Transformed<Self>>,
     {
-        let after_op_children = self.map_children(|node| node.transform_up_mut(op))?;
+        let after_op_children = self.map_children(|node| TreeNode::transform_up_mut(node, op))?;
 
         let new_node = op(after_op_children)?.into();
         Ok(new_node)
@@ -23,7 +23,7 @@ pub trait TreeNodeExt: TreeNode {
         F: FnMut(Self) -> Result<Transformed<Self>>,
     {
         let after_op = op(self)?.into();
-        after_op.map_children(|node| node.transform_down_mut(op))
+        after_op.map_children(|node| TreeNode::transform_down_mut(node, op))
     }
 }
 

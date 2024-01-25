@@ -37,6 +37,7 @@ _run_private name $SCALE_FACTOR="1":
 
 run n_runs="1" $SCALE_FACTOR="1": requirements
   #!/usr/bin/env bash
+  set -e
   n=0
   while [ $n -lt {{n_runs}}  ]; do
     just _run_private glaredb {{SCALE_FACTOR}}
@@ -44,6 +45,7 @@ run n_runs="1" $SCALE_FACTOR="1": requirements
     just _run_private duckdb {{SCALE_FACTOR}}
     ((n++))
   done
+  exit 0
 
 q n system $SCALE_FACTOR="1":
   {{VENV_BIN}}/python -m {{system}}_queries.q{{n}}

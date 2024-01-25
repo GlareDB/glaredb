@@ -12,6 +12,7 @@ pymongo = "^4.6.1"
 psycopg2 = "^2.9.9"
 pyarrow = "^14.0.2"
 pylance = "^0.9.6"
+ruff = "0.1.14"
 
 [build-system]
 requires = ["poetry-core"]

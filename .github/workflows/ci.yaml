@@ -296,7 +296,7 @@ jobs:
             tests/.venv/
           key: ${{ runner.os }}-poetry-${{ hashFiles('**/Cargo.lock') }}
       - name: setup pytest
-        run: just pytest-setup
+        run: just venv
       - name: run pytest
         run: just pytest
 
@@ -526,13 +526,7 @@ jobs:
 
           just slt-bin ${{matrix.settings.path}}
           just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
-
-          # Run flight SLTs for everything except clickhouse.
-          #
-          # <https://github.com/GlareDB/glaredb/issues/2389>
-          if [[ "${{ matrix.settings.name }}" != 'Clickhouse' ]]; then
-             just slt-bin --protocol=flightsql --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
-          fi
+          just slt-bin --protocol=flightsql --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
 
   service-integration-tests-snowflake:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'

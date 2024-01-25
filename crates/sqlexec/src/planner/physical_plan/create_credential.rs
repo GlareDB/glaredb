@@ -5,7 +5,7 @@ use protogen::metastore::types::{options::CredentialsOptions, service, service::
 use catalog::mutator::CatalogMutator;
 
 #[derive(Clone, Debug)]
-pub struct CreateCredentialsExec {
+pub struct CreateCredentialExec {
     pub name: String,
     pub catalog_version: u64,
     pub options: CredentialsOptions,
@@ -13,13 +13,13 @@ pub struct CreateCredentialsExec {
     pub or_replace: bool,
 }
 
-impl DisplayAs for CreateCredentialsExec {
+impl DisplayAs for CreateCredentialExec {
     fn fmt_as(&self, _: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "CreateCredentialsExec")
+        write!(f, "CreateCredentialExec")
     }
 }
 
-impl ExecutionPlan for CreateCredentialsExec {
+impl ExecutionPlan for CreateCredentialExec {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -71,7 +71,7 @@ impl ExecutionPlan for CreateCredentialsExec {
 }
 
 async fn create_credentials(
-    plan: CreateCredentialsExec,
+    plan: CreateCredentialExec,
     mutator: Arc<CatalogMutator>,
 ) -> DataFusionResult<RecordBatch> {
     mutator
@@ -85,7 +85,7 @@ async fn create_credentials(
             })],
         )
         .await
-        .map_err(|e| DataFusionError::Execution(format!("failed to create credentials: {e}")))?;
+        .map_err(|e| DataFusionError::Execution(format!("failed to create credential: {e}")))?;
 
-    Ok(new_operation_batch("create_credentials"))
+    Ok(new_operation_batch("create_credential"))
 }

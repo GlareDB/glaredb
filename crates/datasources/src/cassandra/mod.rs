@@ -226,16 +226,21 @@ impl TableProvider for CassandraTableProvider {
 
         // Get the projected columns, joined by a ','. This will be put in the
         // 'SELECT ...' portion of the query.
-        let projection_string = projected_schema
-            .fields
-            .iter()
-            .map(|f| f.name().clone())
-            .collect::<Vec<_>>()
-            .join(",");
+        let projection_string = if projected_schema.fields().is_empty() {
+            "*".to_string()
+        } else {
+            projected_schema
+                .fields
+                .iter()
+                .map(|f| f.name().clone())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
         let mut query = format!(
             "SELECT {} FROM {}.{}",
             projection_string, self.ks, self.table
         );
+
         if let Some(limit) = limit {
             query.push_str(&format!(" LIMIT {}", limit));
         }

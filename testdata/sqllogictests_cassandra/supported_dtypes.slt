@@ -167,9 +167,9 @@ SELECT c13 FROM read_cassandra(
   'cassandra',
   'cassandra');
 ----
-1,2,3
-4,5,6
-7,8,9
+[1, 2, 3]
+[4, 5, 6]
+[7, 8, 9]
 
 
 # FIXME following are skipped for rpc due to 'arrow_typeof' is not serializable
