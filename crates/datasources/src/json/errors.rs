@@ -17,4 +17,10 @@ pub enum JsonError {
 
     #[error(transparent)]
     ObjectStore(#[from] ObjectStoreError),
+
+    #[error(transparent)]
+    Arrow(#[from] datafusion::arrow::error::ArrowError),
+
+    #[error(transparent)]
+    Datafusion(#[from] datafusion::error::DataFusionError),
 }

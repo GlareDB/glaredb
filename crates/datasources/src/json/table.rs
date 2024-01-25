@@ -1,15 +1,18 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::vec::Vec;
 
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
+use datafusion::physical_plan::streaming::PartitionStream;
 use serde_json::{Map, Value};
 
 use crate::common::url::DatasourceUrl;
 use crate::json::errors::JsonError;
 use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::ObjStoreAccess;
+
+use super::stream::JsonPartitionStream;
 
 pub async fn json_streaming_table(
     store_access: GenericStoreAccess,
@@ -39,7 +42,7 @@ pub async fn json_streaming_table(
     }
 
     let mut field_set = indexmap::IndexMap::<String, DataType>::new();
-    for obj in data {
+    for obj in &data {
         for key in obj.keys() {
             if field_set.contains_key(key) {
                 continue;
@@ -48,7 +51,24 @@ pub async fn json_streaming_table(
         }
     }
 
-    Err(JsonError::NotFound("/usr/bin/bleh".to_string()))
+    let schema = Arc::new(Schema::new(
+        field_set
+            .iter()
+            .map(|(k, v)| Field::new(k, v.to_owned(), true))
+            .collect::<Vec<_>>(),
+    ));
+
+    let chunks = data
+        .chunks(100)
+        .map(|chunk| -> Arc<dyn PartitionStream> {
+            Arc::new(JsonPartitionStream::new(
+                schema.clone(),
+                chunk.to_vec().to_owned(),
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    Ok(Arc::new(StreamingTable::try_new(schema.clone(), chunks)?))
 }
 
 fn push_unwind_json_values(
