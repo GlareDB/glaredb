@@ -33,7 +33,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             // TODO: figure out if ScalarVariables should be insensitive.
             let var_names = vec![id.value];
             let ty = self
-                .schema_provider
+                .context_provider
                 .get_variable_type(&var_names)
                 .await
                 .ok_or_else(|| {
@@ -99,7 +99,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 .map(|id| self.normalizer.normalize(id))
                 .collect();
             let ty = self
-                .schema_provider
+                .context_provider
                 .get_variable_type(&var_names)
                 .await
                 .ok_or_else(|| {

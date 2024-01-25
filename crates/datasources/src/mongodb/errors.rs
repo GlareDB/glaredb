@@ -9,6 +9,9 @@ pub enum MongoDbError {
     #[error("Invalid protocol: {0}")]
     InvalidProtocol(String),
 
+    #[error("Internal: {0}")]
+    Internal(String),
+
     #[error(transparent)]
     MongoDB(#[from] mongodb::error::Error),
 

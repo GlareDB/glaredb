@@ -252,7 +252,7 @@ impl<T: DataSourceMetricsOptsType> ExecutionPlan for DataSourceMetricsExecAdapte
         )))
     }
 
-    fn statistics(&self) -> Statistics {
+    fn statistics(&self) -> Result<Statistics> {
         self.child.statistics()
     }
 

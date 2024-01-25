@@ -184,6 +184,12 @@ document! {
 }
 
 document! {
+    doc => "Returns a string by joining all strings in the column using the given seperator",
+    example => "string_agg(a, '_')",
+    name => string_agg
+}
+
+document! {
     doc => "Returns the sum of a column",
     example => "sum(a)",
     name => sum
@@ -240,6 +246,7 @@ impl BuiltinFunction for AggregateFunction {
             RegrSYY => regr_syy::NAME,
             Stddev => stddev::NAME,
             StddevPop => stddev_pop::NAME,
+            StringAgg => string_agg::NAME,
             Sum => sum::NAME,
             Variance => variance::NAME,
             VariancePop => variance_pop::NAME,
@@ -285,6 +292,7 @@ impl BuiltinFunction for AggregateFunction {
             RegrSYY => regr_syy::EXAMPLE,
             Stddev => stddev::EXAMPLE,
             StddevPop => stddev_pop::EXAMPLE,
+            StringAgg => string_agg::EXAMPLE,
             Sum => sum::EXAMPLE,
             Variance => variance::EXAMPLE,
             VariancePop => variance_pop::EXAMPLE,
@@ -326,6 +334,7 @@ impl BuiltinFunction for AggregateFunction {
             RegrSYY => regr_syy::DESCRIPTION,
             Stddev => stddev::DESCRIPTION,
             StddevPop => stddev_pop::DESCRIPTION,
+            StringAgg => string_agg::DESCRIPTION,
             Sum => sum::DESCRIPTION,
             Variance => variance::DESCRIPTION,
             VariancePop => variance_pop::DESCRIPTION,

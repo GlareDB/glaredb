@@ -258,7 +258,7 @@ mod tests {
             builtin
                 .funcs
                 .get(name)
-                .expect(&format!("function with name '{name}' should exist"));
+                .unwrap_or_else(|| panic!("function with name '{name}' should exist"));
         }
     }
 }

@@ -318,6 +318,7 @@ impl TableProvider for IcebergTableReader {
                     last_modified: DateTime::<Utc>::MIN_UTC, // TODO: Get the actual time.
                     size: f.file_size_in_bytes as usize,
                     e_tag: None,
+                    version: None,
                 };
 
                 Ok(PartitionedFile {
@@ -330,11 +331,14 @@ impl TableProvider for IcebergTableReader {
             .collect::<Result<Vec<PartitionedFile>>>()
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
+        let file_schema = self.schema();
+        let statistics = Statistics::new_unknown(file_schema.as_ref());
+
         let conf = FileScanConfig {
             object_store_url: object_url,
-            file_schema: self.schema(),
+            file_schema,
             projection: projection.cloned(),
-            statistics: Statistics::default(),
+            statistics,
             file_groups: vec![partitioned_files],
             limit,
             table_partition_cols: Vec::new(),
@@ -406,8 +410,8 @@ impl ExecutionPlan for IcebergTableScan {
         self.parquet_scan.execute(partition, context)
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 
