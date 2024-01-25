@@ -1,5 +1,6 @@
 import glaredb
 import pandas as pd
+import pytest
 
 
 def test_sql():
@@ -114,4 +115,45 @@ def test_execute():
     )
 
     assert out.equals(expected)
+    con.close()
+
+@pytest.mark.skip(reason="See Issue #2487")
+def test_create_table_from_dataframe():
+    con = glaredb.connect()
+    
+    df = pd.DataFrame(
+        {
+            "fruits": ["banana"],
+        }
+    )
+    expected = pd.DataFrame(
+        {
+            "fruits": ["banana"],
+        }
+    )
+
+    con.execute("CREATE TABLE test_table AS SELECT * FROM df;")
+    out = con.execute("SELECT * FROM test_table;").to_pandas()
+    assert out.equals(expected)
+
+    con.close()
+
+def test_create_temp_table_from_dataframe():
+    con = glaredb.connect()
+
+    df = pd.DataFrame(
+        {
+            "fruits": ["banana"],
+        }
+    )
+    expected = pd.DataFrame(
+        {
+            "fruits": ["banana"],
+        }
+    )
+
+    con.execute("CREATE TEMP TABLE test_temp_table AS SELECT * FROM df;")
+    out = con.execute("SELECT * FROM test_temp_table;").to_pandas()
+    assert out.equals(expected)
+
     con.close()
