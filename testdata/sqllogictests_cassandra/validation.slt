@@ -1,12 +1,49 @@
-# Validation tests for clickhouse external database and external tables
+# Validation tests for ClickHouse external database and external tables
+
+# Auth validation - missing auth when required
+statement error
+CREATE EXTERNAL DATABASE missing_auth
+	FROM cassandra
+	OPTIONS (
+		host = '127.0.0.1:9042'
+	);
+
+# Auth validation - missing password
+statement error
+CREATE EXTERNAL DATABASE missing_password
+	FROM cassandra
+	OPTIONS (
+		host = '127.0.0.1:9042',
+		username = 'cassandra'
+	);
+
+# Auth validation - missing username
+statement error
+CREATE EXTERNAL DATABASE missing_username
+	FROM cassandra
+	OPTIONS (
+		host = '127.0.0.1:9042',
+		password = 'cassandra'
+	);
+
+# Auth validation - incorrect password
+statement error
+CREATE EXTERNAL DATABASE incorrect_password
+	FROM cassandra
+	OPTIONS (
+		host = '127.0.0.1:9042',
+		username = 'cassandra',
+		password = 'cassandra_wrong'
+	);
 
 # External database validation
-
 statement error
 CREATE EXTERNAL DATABASE wrong_host
 	FROM cassandra
 	OPTIONS (
 		host = '127.0.0.1:9876',
+		username = 'cassandra',
+		password = 'cassandra'
 	);
 
 # Validation test error with the wrong table name
@@ -16,6 +53,8 @@ CREATE EXTERNAL TABLE missing_table
 	OPTIONS (
 		host = '${CASSANDRA_CONN_STRING}',
 		keyspace = 'test',
-		table = 'missing_table'
+		table = 'missing_table',
+		username = 'cassandra',
+		password = 'cassandra'
 	);
 

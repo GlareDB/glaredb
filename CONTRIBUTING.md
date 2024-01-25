@@ -63,6 +63,25 @@ provide insight as to whether the system as a whole is working as intended.
 There are two types of functional tests in this repo: **SQL Logic Tests** and
 **Postgres Protocol Tests**.
 
+### Python (pytest) Integration Tests
+
+The `tests` directory contains a pytest environment useful for
+creating black box tests and ecosystem integration tests, and
+providing a low-friction way to exercise parts of the codebase that
+are difficult to interact with in any other way. To use these tests,
+you must:
+
+- build `glaredb` using `just build` or `cargo build --bin glaredb`
+
+- run `just pytest-setup` to configure a virtual environment and
+  install dependencies.
+
+Then run the tests, using:
+
+```shell
+just pytest
+```
+
 #### SQL Logic Tests
 
 SQL logic tests run end-to-end tests that execute actual SQL queries against a
