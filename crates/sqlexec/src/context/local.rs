@@ -2,10 +2,7 @@ use crate::distexec::scheduler::Scheduler;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::parser::StatementWithExtensions;
-use crate::planner::logical_plan::{
-    FullObjectReference, FullSchemaReference, LogicalPlan, OwnedFullObjectReference,
-    OwnedFullSchemaReference,
-};
+use crate::planner::logical_plan::*;
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
 use catalog::mutator::CatalogMutator;
@@ -88,12 +85,14 @@ impl LocalSessionContext {
         let opts = new_datafusion_session_config_opts(&vars);
 
         let mut conf: SessionConfig = opts.into();
+
         // TODO: Can we remove the temp catalog here? It's pretty disgusting,
         // but it's needed for the create temp table execution plan.
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(catalog.get_temp_catalog().clone()));
+            .with_extension(Arc::new(catalog.get_temp_catalog().clone()))
+            .with_extension(Arc::new(task_scheduler.clone()));
 
         let state = SessionState::new_with_config_rt(conf, Arc::new(runtime))
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));

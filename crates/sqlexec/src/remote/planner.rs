@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use crate::planner::extension::ExtensionType;
 use crate::planner::logical_plan::{
-    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredential, CreateCredentials,
+    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredentials,
     CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
     CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
     DropTables, DropTunnel, DropViews, Insert, SetVariable, ShowVariable, Update,
@@ -33,7 +33,6 @@ use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKe
 use crate::planner::physical_plan::client_recv::ClientExchangeRecvExec;
 use crate::planner::physical_plan::client_send::ClientExchangeSendExec;
 use crate::planner::physical_plan::copy_to::CopyToExec;
-use crate::planner::physical_plan::create_credential::CreateCredentialExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
 use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
@@ -109,17 +108,6 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     name: lp.name.to_string(),
                     if_exists: lp.if_exists,
                     new_ssh_key: lp.new_ssh_key.clone(),
-                };
-                RuntimeGroupExec::new(RuntimePreference::Remote, Arc::new(exec))
-            }
-            ExtensionType::CreateCredential => {
-                let lp = require_downcast_lp::<CreateCredential>(node);
-                let exec = CreateCredentialExec {
-                    catalog_version: self.catalog.version(),
-                    name: lp.name.clone(),
-                    options: lp.options.clone(),
-                    comment: lp.comment.clone(),
-                    or_replace: lp.or_replace,
                 };
                 RuntimeGroupExec::new(RuntimePreference::Remote, Arc::new(exec))
             }
@@ -225,17 +213,18 @@ impl ExtensionPlanner for DDLExtensionPlanner {
             ExtensionType::DropTables => {
                 let plan = require_downcast_lp::<DropTables>(node);
                 let mut drops = Vec::with_capacity(plan.tbl_references.len());
+                let mut tbl_entries = Vec::with_capacity(plan.tbl_references.len());
                 let mut temp_table_drops = Vec::with_capacity(plan.tbl_references.len());
 
                 for r in &plan.tbl_references {
                     if self.catalog.get_temp_catalog().contains_table(&r.name) {
                         temp_table_drops.push(r.clone());
-                    } else if self
-                        .catalog
-                        .resolve_table(&r.database, &r.schema, &r.name)
-                        .is_some()
-                        || plan.if_exists
+                    } else if let Some(entry) =
+                        self.catalog.resolve_table(&r.database, &r.schema, &r.name)
                     {
+                        drops.push(r.clone());
+                        tbl_entries.push(entry.clone());
+                    } else if plan.if_exists {
                         drops.push(r.clone());
                     } else {
                         return Err(DataFusionError::Plan(format!(
@@ -263,6 +252,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                         let exec = Arc::new(DropTablesExec {
                             catalog_version: self.catalog.version(),
                             tbl_references: drops,
+                            tbl_entries,
                             if_exists: plan.if_exists,
                         });
                         RuntimeGroupExec::new(RuntimePreference::Remote, exec)

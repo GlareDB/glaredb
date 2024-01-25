@@ -14,7 +14,7 @@ mod object_store;
 mod postgres;
 mod snowflake;
 mod sqlserver;
-mod system;
+pub mod system;
 mod virtual_listing;
 
 use ::object_store::aws::AmazonS3ConfigKey;

@@ -1,6 +1,6 @@
 use clap::Args;
 
-use super::{PathBuf, StorageConfigArgs};
+use super::*;
 
 #[derive(Args)]
 pub struct ServerArgs {

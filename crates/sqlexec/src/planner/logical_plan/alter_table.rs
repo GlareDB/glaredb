@@ -1,8 +1,6 @@
 use protogen::metastore::types::service::AlterTableOperation;
 
-use super::{
-    DfLogicalPlan, ExtensionNode, UserDefinedLogicalNodeCore, GENERIC_OPERATION_LOGICAL_SCHEMA,
-};
+use super::*;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct AlterTable {

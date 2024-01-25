@@ -2,7 +2,6 @@ mod alter_database;
 mod alter_table;
 mod alter_tunnel_rotate_keys;
 mod copy_to;
-mod create_credential;
 mod create_credentials;
 mod create_external_database;
 mod create_external_table;
@@ -28,7 +27,7 @@ use crate::errors::{internal, Result};
 use crate::planner::extension::ExtensionNode;
 
 use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema};
-use datafusion::common::{DFField, DFSchema, DFSchemaRef};
+use datafusion::common::{DFField, DFSchema, DFSchemaRef, ParamValues};
 use datafusion::logical_expr::UserDefinedLogicalNodeCore;
 use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
 use datafusion::scalar::ScalarValue;
@@ -48,7 +47,6 @@ pub use alter_database::*;
 pub use alter_table::*;
 pub use alter_tunnel_rotate_keys::*;
 pub use copy_to::*;
-pub use create_credential::*;
 pub use create_credentials::*;
 pub use create_external_database::*;
 pub use create_external_table::*;
@@ -161,6 +159,8 @@ impl LogicalPlan {
     ///
     /// Note this currently only replaces placeholders for datafusion plans.
     pub fn replace_placeholders(&mut self, scalars: Vec<ScalarValue>) -> Result<()> {
+        let param_values = ParamValues::LIST(scalars);
+
         if let LogicalPlan::Datafusion(plan) = self {
             // Replace placeholders in the inner plan if the wrapped in an
             // EXPLAIN.
@@ -172,7 +172,7 @@ impl LogicalPlan {
 
                 *plan = DfLogicalPlan::Explain(Explain {
                     verbose: explain.verbose,
-                    plan: Arc::new(inner.replace_params_with_values(&scalars)?),
+                    plan: Arc::new(inner.replace_params_with_values(&param_values)?),
                     stringified_plans: explain.stringified_plans.clone(),
                     schema: explain.schema.clone(),
                     logical_optimization_succeeded: explain.logical_optimization_succeeded,
@@ -181,7 +181,7 @@ impl LogicalPlan {
                 return Ok(());
             }
 
-            *plan = plan.replace_params_with_values(&scalars)?;
+            *plan = plan.replace_params_with_values(&param_values)?;
         }
 
         Ok(())

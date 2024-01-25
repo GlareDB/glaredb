@@ -1,8 +1,4 @@
-use super::{
-    new_operation_batch, stream, Arc, DataFusionError, DataFusionResult, DisplayAs,
-    DisplayFormatType, ExecutionPlan, Partitioning, PhysicalSortExpr, RecordBatch,
-    RecordBatchStreamAdapter, SchemaRef, Statistics, StreamExt, GENERIC_OPERATION_PHYSICAL_SCHEMA,
-};
+use super::*;
 
 use protogen::metastore::types::{options::CredentialsOptions, service, service::Mutation};
 
@@ -69,8 +65,8 @@ impl ExecutionPlan for CreateCredentialExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

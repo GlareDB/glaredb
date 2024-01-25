@@ -18,15 +18,9 @@ use uuid::Uuid;
 
 pub use arrow_flight::flight_service_server::FlightServiceServer;
 use arrow_flight::{
-    encode::FlightDataEncoderBuilder,
-    error::FlightError::ExternalError,
-    flight_service_server::FlightService,
-    sql::{
-        ActionClosePreparedStatementRequest, ActionCreatePreparedStatementRequest,
-        ActionCreatePreparedStatementResult, Any, CommandGetSqlInfo, CommandPreparedStatementQuery,
-        CommandStatementQuery, ProstMessageExt, SqlInfo,
-    },
-    Action, FlightDescriptor, FlightEndpoint, FlightInfo, IpcMessage, SchemaAsIpc, Ticket,
+    encode::FlightDataEncoderBuilder, error::FlightError::ExternalError,
+    flight_service_server::FlightService, sql::*, Action, FlightDescriptor, FlightEndpoint,
+    FlightInfo, IpcMessage, SchemaAsIpc, Ticket,
 };
 use arrow_flight::{
     sql::{
@@ -200,7 +194,7 @@ impl FlightSqlService for FlightSessionHandler {
                 let ctx = self.get_or_create_ctx(&req).await?;
                 let mut ctx = ctx.lock().await;
 
-                match ctx.execute_sql(sql, None).await {
+                match ctx.execute_sql(sql).await {
                     Ok(stream) => {
                         let schema = stream.schema();
 

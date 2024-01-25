@@ -34,8 +34,8 @@ fn test_server_bind_addr_conflict() {
         .arg("--disable-postgres-api")
         .assert();
 
-    assert.failure(/* We expect a timeout here */).stderr(contains(
-      "the argument '--bind <PORT>' cannot be used with '--disable-postgres-api'",
+    assert.failure().stderr(contains(
+        "the argument '--bind <PORT>' cannot be used with '--disable-postgres-api'",
     ));
 }
 
@@ -52,11 +52,10 @@ fn test_user_requires_password() {
         .args(["-u", "test"])
         .assert();
 
-    assert.failure(/* We expect a timeout here */).stderr(contains(
-      "the following required arguments were not provided:",
-    ).and(contains(
-      "--password <PASSWORD>",
-    )));
+    assert.failure().stderr(
+        contains("the following required arguments were not provided:")
+            .and(contains("--password <PASSWORD>")),
+    );
 }
 
 #[test]

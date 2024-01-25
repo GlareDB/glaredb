@@ -252,6 +252,8 @@ pub struct DropTablesExec {
     pub tbl_references: Vec<FullObjectReference>,
     #[prost(bool, tag = "3")]
     pub if_exists: bool,
+    #[prost(message, repeated, tag = "4")]
+    pub tbl_entries: Vec<TableEntry>,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -416,6 +418,4 @@ pub enum ExecutionPlanExtensionType {
     DataSourceMetricsExecAdapter(DataSourceMetricsExecAdapter),
     #[prost(message, tag = "31")]
     DescribeTable(DescribeTableExec),
-    #[prost(message, tag = "32")]
-    CreateCredentialExec(CreateCredentialExec),
 }

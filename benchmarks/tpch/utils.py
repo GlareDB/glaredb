@@ -10,7 +10,7 @@ from linetimer import CodeTimer, linetimer
 FILE_TYPE = os.environ.get("FILE_TYPE", "parquet")
 SHOW_OUTPUT = bool(os.environ.get("TPCH_SHOW_OUTPUT", False))
 SCALE_FACTOR = int(os.environ.get("SCALE_FACTOR", "1"))
-LOG_TIMINGS = bool(os.environ.get("LOG_TIMINGS", False))
+LOG_TIMINGS = bool(os.environ.get("LOG_TIMINGS", True))
 
 CWD = os.path.dirname(os.path.realpath(__file__))
 DATASET_BASE_DIR = os.path.join(CWD, f"tables_scale/{SCALE_FACTOR}")

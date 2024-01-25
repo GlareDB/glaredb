@@ -3,7 +3,6 @@ use clap::Args;
 use super::*;
 
 #[derive(Args, Debug)]
-#[group(id="query_input", args = ["query", "file"], multiple = false)]
 pub struct LocalArgs {
     /// Execute a query, exiting upon completion.
     ///
@@ -14,9 +13,6 @@ pub struct LocalArgs {
 
     #[clap(flatten)]
     pub opts: LocalClientOpts,
-
-    /// Execute an SQL file.
-    pub file: Option<String>,
 
     /// File for logs to be written to
     #[arg(long, value_parser)]

@@ -1,13 +1,28 @@
-use std::hash::{Hash, Hasher};
+use std::{
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
+use datafusion::{
+    arrow::datatypes::DataType,
+    error::DataFusionError,
+    logical_expr::{
+        expr::ScalarFunction, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF,
+        Signature, TypeSignature, Volatility,
+    },
+    prelude::Expr,
+    scalar::ScalarValue,
+};
 use fnv::FnvHasher;
+use protogen::metastore::types::catalog::FunctionType;
 use siphasher::sip::SipHasher24;
 
-use super::{
-    get_nth_scalar_value, get_nth_u64_fn_arg, Arc, BuiltinError, BuiltinScalarUDF,
-    ConstBuiltinFunction, DataFusionError, DataType, Expr, FunctionType, ScalarUDF, ScalarValue,
-    Signature, TypeSignature, Volatility,
+use crate::{
+    errors::BuiltinError,
+    functions::{BuiltinScalarUDF, ConstBuiltinFunction},
 };
+
+use super::{get_nth_scalar_value, get_nth_u64_fn_arg};
 
 pub struct SipHash;
 
@@ -26,28 +41,26 @@ impl ConstBuiltinFunction for SipHash {
         ))
     }
 }
-
 impl BuiltinScalarUDF for SipHash {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::UInt64))),
-            fun: Arc::new(move |input| {
-                Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
-                    ScalarValue,
-                    BuiltinError,
-                > {
-                    let mut hasher = SipHasher24::new();
-                    value.hash(&mut hasher);
-                    Ok(ScalarValue::UInt64(Some(hasher.finish())))
-                })?)
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(udf),
-            args,
-        ))
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::UInt64)));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
+            Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
+                ScalarValue,
+                BuiltinError,
+            > {
+                let mut hasher = SipHasher24::new();
+                value.hash(&mut hasher);
+                Ok(ScalarValue::UInt64(Some(hasher.finish())))
+            })?)
+        });
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
     }
 }
 
@@ -71,25 +84,24 @@ impl ConstBuiltinFunction for FnvHash {
 
 impl BuiltinScalarUDF for FnvHash {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::UInt64))),
-            fun: Arc::new(move |input| {
-                Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
-                    ScalarValue,
-                    BuiltinError,
-                > {
-                    let mut hasher = FnvHasher::default();
-                    value.hash(&mut hasher);
-                    Ok(ScalarValue::UInt64(Some(hasher.finish())))
-                })?)
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(udf),
-            args,
-        ))
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::UInt64)));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
+            Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
+                ScalarValue,
+                BuiltinError,
+            > {
+                let mut hasher = FnvHasher::default();
+                value.hash(&mut hasher);
+                Ok(ScalarValue::UInt64(Some(hasher.finish())))
+            })?)
+        });
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
     }
 }
 
@@ -113,48 +125,47 @@ impl ConstBuiltinFunction for PartitionResults {
 
 impl BuiltinScalarUDF for PartitionResults {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |input| {
-                if input.len() != 3 {
-                    return Err(DataFusionError::Execution(
-                        "must specify exactly three arguments".to_string(),
-                    ));
-                }
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
+            if input.len() != 3 {
+                return Err(DataFusionError::Execution(
+                    "must specify exactly three arguments".to_string(),
+                ));
+            }
 
-                let num_partitions = get_nth_u64_fn_arg(input, 1)?;
-                let partition_id = get_nth_u64_fn_arg(input, 2)?;
+            let num_partitions = get_nth_u64_fn_arg(input, 1)?;
+            let partition_id = get_nth_u64_fn_arg(input, 2)?;
 
-                if partition_id >= num_partitions {
-                    return Err(DataFusionError::Execution(
-                        format!(
-                            "id {} must be less than number of partitions {}",
-                            partition_id, num_partitions,
-                        )
-                        .to_string(),
-                    ));
-                }
+            if partition_id >= num_partitions {
+                return Err(DataFusionError::Execution(
+                    format!(
+                        "id {} must be less than number of partitions {}",
+                        partition_id, num_partitions,
+                    )
+                    .to_string(),
+                ));
+            }
 
-                // hash at the end once the other arguments are
-                // validated because the hashing is potentially the
-                // expensive part
-                Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
-                    ScalarValue,
-                    BuiltinError,
-                > {
-                    let mut hasher = FnvHasher::default();
-                    value.hash(&mut hasher);
-                    Ok(ScalarValue::Boolean(Some(
-                        hasher.finish() % num_partitions == partition_id,
-                    )))
-                })?)
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(udf),
-            args,
-        ))
+            // hash at the end once the other arguments are
+            // validated because the hashing is potentially the
+            // expensive part
+            Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
+                ScalarValue,
+                BuiltinError,
+            > {
+                let mut hasher = FnvHasher::default();
+                value.hash(&mut hasher);
+                Ok(ScalarValue::Boolean(Some(
+                    hasher.finish() % num_partitions == partition_id,
+                )))
+            })?)
+        });
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
     }
 }

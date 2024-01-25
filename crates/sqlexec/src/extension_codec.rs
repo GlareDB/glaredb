@@ -25,7 +25,6 @@ use crate::planner::physical_plan::alter_database::AlterDatabaseExec;
 use crate::planner::physical_plan::alter_table::AlterTableExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
 use crate::planner::physical_plan::copy_to::CopyToExec;
-use crate::planner::physical_plan::create_credential::CreateCredentialExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
 use crate::planner::physical_plan::create_external_table::CreateExternalTableExec;
@@ -170,18 +169,6 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     options: options.try_into()?,
                     comment: create_credentials.comment,
                     or_replace: create_credentials.or_replace,
-                })
-            }
-            proto::ExecutionPlanExtensionType::CreateCredentialExec(create_credential) => {
-                let options = create_credential
-                    .options
-                    .ok_or(DataFusionError::Plan("options is required".to_string()))?;
-                Arc::new(CreateCredentialExec {
-                    name: create_credential.name,
-                    catalog_version: create_credential.catalog_version,
-                    options: options.try_into()?,
-                    comment: create_credential.comment,
-                    or_replace: create_credential.or_replace,
                 })
             }
             proto::ExecutionPlanExtensionType::DescribeTable(describe_table) => {
@@ -354,6 +341,12 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::DropTablesExec(ext) => Arc::new(DropTablesExec {
                 catalog_version: ext.catalog_version,
                 tbl_references: ext.tbl_references.into_iter().map(|r| r.into()).collect(),
+                tbl_entries: ext
+                    .tbl_entries
+                    .into_iter()
+                    .map(|r| r.try_into())
+                    .collect::<Result<_, _>>()
+                    .expect("failed to decode table entries"),
                 if_exists: ext.if_exists,
             }),
             proto::ExecutionPlanExtensionType::SetVarExec(ext) => Arc::new(SetVarExec {
@@ -677,6 +670,13 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .into_iter()
                     .map(|r| r.into())
                     .collect(),
+                tbl_entries: exec
+                    .tbl_entries
+                    .clone()
+                    .into_iter()
+                    .map(|r| r.try_into())
+                    .collect::<Result<_, _>>()
+                    .expect("failed to encode table entries"),
                 if_exists: exec.if_exists,
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<SetVarExec>() {

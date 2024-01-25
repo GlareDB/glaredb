@@ -8,6 +8,10 @@ alias slt := sql-logic-tests
 
 os_arch := os() + '-' + arch()
 
+
+VENV_BIN := VENV / "bin"
+VENV := env_var_or_default("VENV", ".venv")
+
 # Run benchmarks subcommands. see `benchmarks/justfile` for more details.
 bench cmd *args:
   just benchmarks/{{cmd}} {{args}}
@@ -67,55 +71,16 @@ sql-logic-tests *args: build
 
 slt-bin *args:
   ./target/debug/glaredb sql-logic-tests {{args}}
+
 slt-bin-debug *args:
   ./target/debug/glaredb -v sql-logic-tests {{args}}
 
 # Run SQL Logic Tests over RPC
 rpc-tests:
-  just slt --protocol=rpc \
-    'sqllogictests/cast/*' \
-    'sqllogictests/cte/*' \
-    'sqllogictests/functions/delta_scan' \
-    'sqllogictests/functions/generate_series' \
-    'sqllogictests/functions/version' \
-    'sqllogictests/joins/*' \
-    'sqllogictests/topn/*' \
-    'sqllogictests/window/*' \
-    'sqllogictests/aggregates' \
-    'sqllogictests/alter' \
-    'sqllogictests/create_table' \
-    'sqllogictests/credentials' \
-    'sqllogictests/csv' \
-    'sqllogictests/debug' \
-    'sqllogictests/delete' \
-    'sqllogictests/demo_pg' \
-    'sqllogictests/drop' \
-    'sqllogictests/explain' \
-    'sqllogictests/external_table' \
-    'sqllogictests/http' \
-    'sqllogictests/infer' \
-    'sqllogictests/information_schema' \
-    'sqllogictests/metabase' \
-    'sqllogictests/name' \
-    'sqllogictests/object_names' \
-    'sqllogictests/pg_catalog' \
-    'sqllogictests/rpc' \
-    'sqllogictests/schema' \
-    'sqllogictests/search_path' \
-    'sqllogictests/select' \
-    'sqllogictests/simple' \
-    'sqllogictests/table' \
-    'sqllogictests/temp_table' \
-    'sqllogictests/time' \
-    'sqllogictests/tunnels' \
-    'sqllogictests/update' \
-    'sqllogictests/vars' \
-    'sqllogictests/views' \
-    'sqllogictests/virtual_catalog' \
-    'sqllogictests/xlsx' \
-    'sqllogictests/prql' \
-    'sqllogictests/describe_rpc' \
-    'sqllogictests/allowed_operations'
+  just slt --protocol=rpc "sqllogictests/*" \
+    --exclude "sqllogictests/functions/cache_external_database_tables" \
+    --exclude "sqllogictests/functions/kdl" \
+    --exclude "sqllogictests/functions/postgres"
 
 #  Check formatting.
 fmt-check: protoc
@@ -153,13 +118,18 @@ protoc:
     rm protoc.zip
   fi
 
+
 # Installs python dependencies for testing
-pytest-setup:
-	poetry -C tests install
+venv:
+  python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
+  python3 -m virtualenv {{VENV}} --quiet
+  {{VENV_BIN}}/python -m pip install poetry
+  {{VENV_BIN}}/poetry -C tests install
+
 
 # Runs pytest in the tests directory.
-pytest *args:
-	poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
+pytest *args: 
+	{{VENV_BIN}}/poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
 
 # private helpers below
 # ---------------------

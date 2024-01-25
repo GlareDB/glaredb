@@ -93,8 +93,8 @@ impl ExecutionPlan for CopyToExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 
@@ -170,7 +170,7 @@ impl CopyToExec {
         };
 
         let stream = execute_stream(self.source, context.clone())?;
-        let count = sink.write_all(vec![stream], &context).await?;
+        let count = sink.write_all(stream, &context).await?;
 
         Ok(new_operation_with_count_batch("copy", count))
     }

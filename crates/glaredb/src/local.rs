@@ -197,7 +197,7 @@ impl LocalSession {
         Ok(())
     }
 
-    async fn execute(&mut self, text: &str) -> Result<()> {
+    pub async fn execute(&mut self, text: &str) -> Result<()> {
         if is_client_cmd(text) {
             self.handle_client_cmd(text).await?;
             return Ok(());
@@ -328,14 +328,14 @@ async fn print_stream(
         OutputMode::Table => {
             // If width not explicitly set by the user, try to get the width of ther
             // terminal.
-            let width = max_width.unwrap_or(pretty::term_width());
+            let width = max_width.unwrap_or(terminal_util::term_width());
             let disp = pretty::pretty_format_batches(&schema, &batches, Some(width), max_rows)?;
             println!("{disp}");
         }
         OutputMode::Csv => {
             let stdout = std::io::stdout();
             let buf = std::io::BufWriter::new(stdout);
-            let mut writer = CsvWriterBuilder::new().has_headers(true).build(buf);
+            let mut writer = CsvWriterBuilder::new().with_header(true).build(buf);
             for batch in batches {
                 writer.write(&batch)?; // CSV writer flushes per write.
             }

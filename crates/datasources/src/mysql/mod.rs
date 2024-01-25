@@ -15,7 +15,7 @@ use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use datafusion::arrow::datatypes::{
     DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
-use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::record_batch::{RecordBatch, RecordBatchOptions};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
@@ -331,12 +331,16 @@ impl TableProvider for MysqlTableProvider {
 
         // Get the projected columns, joined by a ','. This will be put in the
         // 'SELECT ...' portion of the query.
-        let projection_string = projected_schema
-            .fields
-            .iter()
-            .map(|f| f.name().clone())
-            .collect::<Vec<_>>()
-            .join(",");
+        let projection_string = if projected_schema.fields().is_empty() {
+            "*".to_string()
+        } else {
+            projected_schema
+                .fields
+                .iter()
+                .map(|f| f.name().clone())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
 
         let limit_string = match limit {
             Some(limit) => format!("LIMIT {limit}"),
@@ -501,8 +505,8 @@ impl ExecutionPlan for MysqlExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DatafusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
@@ -634,6 +638,12 @@ macro_rules! make_column {
 
 /// Convert mysql rows into a single record batch.
 fn mysql_row_to_record_batch(rows: Vec<MysqlRow>, schema: ArrowSchemaRef) -> Result<RecordBatch> {
+    if schema.fields.is_empty() {
+        let options = RecordBatchOptions::new().with_row_count(Some(rows.len()));
+
+        return Ok(RecordBatch::try_new_with_options(schema, Vec::new(), &options).unwrap());
+    }
+
     use datafusion::arrow::array::{
         Array, BinaryBuilder, Date32Builder, Decimal128Builder, Float32Builder, Float64Builder,
         Int16Builder, Int32Builder, Int64Builder, Int8Builder, StringBuilder,

@@ -7,6 +7,8 @@ CREATE EXTERNAL TABLE external_table
 		host = '${CASSANDRA_CONN_STRING}',
 		keyspace = 'test',
 		table = 'bikeshare_stations',
+		username = 'cassandra',
+		password = 'cassandra'
 	);
 
 query I

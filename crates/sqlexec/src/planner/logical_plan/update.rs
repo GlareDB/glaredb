@@ -1,9 +1,6 @@
 use protogen::metastore::types::catalog::TableEntry;
 
-use super::{
-    DfLogicalPlan, Expr, ExtensionNode, UserDefinedLogicalNodeCore,
-    GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA,
-};
+use super::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Update {

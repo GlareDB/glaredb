@@ -71,13 +71,7 @@ use crate::parser::{
     DropCredentialsStmt, DropDatabaseStmt, DropTunnelStmt, StatementWithExtensions,
 };
 use crate::planner::errors::{internal, PlanError, Result};
-use crate::planner::logical_plan::{
-    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredential, CreateCredentials,
-    CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable,
-    CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas,
-    DropTables, DropTunnel, DropViews, FullObjectReference, Insert, LogicalPlan, SetVariable,
-    ShowVariable, TransactionPlan, Update,
-};
+use crate::planner::logical_plan::*;
 use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
 use crate::remote::table::StubRemoteTableProvider;
 use crate::resolve::{EntryResolver, ResolvedEntry};
@@ -157,11 +151,8 @@ impl<'a> SessionPlanner<'a> {
             StatementWithExtensions::CreateTunnel(stmt) => self.plan_create_tunnel(stmt),
             StatementWithExtensions::DropTunnel(stmt) => self.plan_drop_tunnel(stmt),
             StatementWithExtensions::AlterTunnel(stmt) => self.plan_alter_tunnel(stmt),
-            StatementWithExtensions::CreateCredential(stmt) => {
-                self.plan_create_credentials(stmt.into(), false)
-            }
             StatementWithExtensions::CreateCredentials(stmt) => {
-                self.plan_create_credentials(stmt.into(), true)
+                self.plan_create_credentials(stmt.into())
             }
             StatementWithExtensions::DropCredentials(stmt) => self.plan_drop_credentials(stmt),
             StatementWithExtensions::CopyTo(stmt) => self.plan_copy_to(stmt).await,
@@ -327,11 +318,16 @@ impl<'a> SessionPlanner<'a> {
             }
             DatabaseOptions::CASSANDRA => {
                 let host: String = m.remove_required("host")?;
-
-                let access = CassandraAccess::new(host.clone());
+                let username: Option<String> = m.remove_optional("username")?;
+                let password: Option<String> = m.remove_optional("password")?;
+                let access = CassandraAccess::new(host.clone(), username.clone(), password.clone());
                 access.validate_access().await?;
 
-                DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host })
+                DatabaseOptions::Cassandra(DatabaseOptionsCassandra {
+                    host,
+                    username,
+                    password,
+                })
             }
             DatabaseOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
@@ -553,13 +549,19 @@ impl<'a> SessionPlanner<'a> {
                 let host: String = m.remove_required("host")?;
                 let keyspace: String = m.remove_required("keyspace")?;
                 let table: String = m.remove_required("table")?;
-                let access = CassandraAccessState::try_new(host.clone()).await?;
+                let username: Option<String> = m.remove_optional("username")?;
+                let password: Option<String> = m.remove_optional("password")?;
+                let access =
+                    CassandraAccessState::try_new(host.clone(), username.clone(), password.clone())
+                        .await?;
                 access.validate_table_access(&keyspace, &table).await?;
 
                 TableOptions::Cassandra(TableOptionsCassandra {
                     host,
                     keyspace,
                     table,
+                    username,
+                    password,
                 })
             }
             TableOptions::LOCAL => {
@@ -826,11 +828,7 @@ impl<'a> SessionPlanner<'a> {
         Ok(plan.into_logical_plan())
     }
 
-    fn plan_create_credentials(
-        &self,
-        mut stmt: PlanCredentialArgs,
-        deprecated: bool,
-    ) -> Result<LogicalPlan> {
+    fn plan_create_credentials(&self, mut stmt: PlanCredentialArgs) -> Result<LogicalPlan> {
         let m = &mut stmt.options;
 
         let provider = normalize_ident(stmt.provider);
@@ -869,25 +867,13 @@ impl<'a> SessionPlanner<'a> {
 
         let name = normalize_ident(stmt.name);
 
-        let plan = if deprecated {
-            CreateCredentials {
-                name,
-                options,
-                comment: stmt.comment,
-                or_replace: stmt.or_replace,
-            }
-            .into_logical_plan()
-        } else {
-            CreateCredential {
-                name,
-                options,
-                comment: stmt.comment,
-                or_replace: stmt.or_replace,
-            }
-            .into_logical_plan()
-        };
-
-        Ok(plan)
+        Ok(CreateCredentials {
+            name,
+            options,
+            comment: stmt.comment,
+            or_replace: stmt.or_replace,
+        }
+        .into_logical_plan())
     }
 
     async fn plan_statement(&self, statement: ast::Statement) -> Result<LogicalPlan> {
@@ -1137,7 +1123,12 @@ impl<'a> SessionPlanner<'a> {
                 table: false,
                 on: None,
                 returning: None,
+                ignore: _,
             } if after_columns.is_empty() => {
+                let source = source.ok_or(PlanError::InvalidInsertStatement {
+                    msg: "Nothing to insert: source empty",
+                })?;
+
                 validate_object_name(&table_name)?;
                 let table_name = object_name_to_table_ref(table_name)?;
 
@@ -1346,6 +1337,9 @@ impl<'a> SessionPlanner<'a> {
                 using: None,
                 selection,
                 returning: None,
+                // TODO: Order by and limit
+                order_by: _,
+                limit: _,
             } if tables.is_empty() => {
                 let (table_name, schema) = match from.len() {
                     0 => {
@@ -1367,7 +1361,7 @@ impl<'a> SessionPlanner<'a> {
                         let table_name = object_name_to_table_ref(table_name)?;
 
                         let table_source = context_provider
-                            .get_table_provider(table_name.clone())
+                            .get_table_source(table_name.clone())
                             .await?;
                         let schema = table_source.schema().to_dfschema()?;
                         (table_name, schema)
@@ -1422,7 +1416,7 @@ impl<'a> SessionPlanner<'a> {
                 let table_name = object_name_to_table_ref(table_name)?;
 
                 let table_source = context_provider
-                    .get_table_provider(table_name.clone())
+                    .get_table_source(table_name.clone())
                     .await?;
                 let schema = table_source.schema().to_dfschema()?;
 
@@ -1984,14 +1978,15 @@ fn object_name_to_schema_ref(name: ObjectName) -> Result<OwnedSchemaReference> {
 /// modifications were made to fit our use case.
 fn convert_data_type(sql_type: &ast::DataType) -> Result<DataType> {
     match sql_type {
-        ast::DataType::Array(Some(inner_sql_type)) => {
+        ast::DataType::Array(ast::ArrayElemTypeDef::AngleBracket(inner_sql_type))
+        | ast::DataType::Array(ast::ArrayElemTypeDef::SquareBracket(inner_sql_type)) => {
             let data_type = convert_simple_data_type(inner_sql_type)?;
 
             Ok(DataType::List(Arc::new(Field::new(
                 "field", data_type, true,
             ))))
         }
-        ast::DataType::Array(None) => {
+        ast::DataType::Array(ast::ArrayElemTypeDef::None) => {
             Err(internal!("Arrays with unspecified type is not supported",))
         }
         other => convert_simple_data_type(other),
@@ -2019,7 +2014,7 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
             ast::DataType::Char(_)
             | ast::DataType::Varchar(_)
             | ast::DataType::Text
-            | ast::DataType::String => Ok(DataType::Utf8),
+            | ast::DataType::String(_) => Ok(DataType::Utf8),
             ast::DataType::Timestamp(None, tz_info) => {
                 let tz = if matches!(tz_info, ast::TimezoneInfo::Tz)
                     || matches!(tz_info, ast::TimezoneInfo::WithTimeZone)
@@ -2063,10 +2058,13 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
             // Explicitly list all other types so that if sqlparser
             // adds/changes the `ast::DataType` the compiler will tell us on upgrade
             // and avoid bugs like https://github.com/apache/arrow-datafusion/issues/3059
-            ast::DataType::Nvarchar(_)
+            ast::DataType::Int64
+            | ast::DataType::Float64
+            | ast::DataType::Nvarchar(_)
             | ast::DataType::JSON
             | ast::DataType::Uuid
             | ast::DataType::Binary(_)
+            | ast::DataType::Bytes(_)
             | ast::DataType::Varbinary(_)
             | ast::DataType::Blob(_)
             | ast::DataType::Datetime(_)
@@ -2090,6 +2088,7 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
             | ast::DataType::Dec(_)
             | ast::DataType::BigNumeric(_)
             | ast::DataType::BigDecimal(_)
+            | ast::DataType::Struct(_)
             | ast::DataType::Clob(_) => Err(internal!(
                 "Unsupported SQL type {:?}",
                 sql_type

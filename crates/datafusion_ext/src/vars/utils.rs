@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use super::Lazy;
+use super::*;
 
 /// Regex for matching strings delineated by commas. Will match full quoted
 /// strings as well.
@@ -23,9 +23,6 @@ mod tests {
     use datafusion::variable::VarType;
 
     use super::*;
-
-    use crate::vars::inner::SessionVar;
-    use crate::vars::ServerVar;
 
     #[test]
     fn split_on_commas() {

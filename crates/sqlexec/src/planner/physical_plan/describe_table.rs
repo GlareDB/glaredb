@@ -1,4 +1,4 @@
-use super::SchemaRef;
+use super::*;
 use std::{any::Any, sync::Arc};
 
 use arrow_util::pretty::fmt_dtype;
@@ -109,7 +109,7 @@ impl ExecutionPlan for DescribeTableExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }

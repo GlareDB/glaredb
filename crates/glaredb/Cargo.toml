@@ -7,9 +7,6 @@ edition = { workspace = true }
 name = "glaredb"
 path = "src/bin/main.rs"
 
-[lints]
-workspace = true
-
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }
@@ -37,6 +34,7 @@ sqlexec = { path = "../sqlexec" }
 telemetry = { path = "../telemetry" }
 sqlbuiltins = { path = "../sqlbuiltins" }
 arrow_util = { path = "../arrow_util" }
+terminal_util = { path = "../terminal_util" }
 
 num_cpus = "1.16.0"
 colored = "2.1.0"

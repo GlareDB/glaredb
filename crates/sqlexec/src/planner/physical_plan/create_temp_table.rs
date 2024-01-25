@@ -8,11 +8,7 @@ use futures::StreamExt;
 use crate::planner::logical_plan::OwnedFullObjectReference;
 use catalog::session_catalog::TempCatalog;
 
-use super::{
-    new_operation_batch, stream, Arc, DataFusionError, DataFusionResult, DisplayAs,
-    DisplayFormatType, ExecutionPlan, Partitioning, PhysicalSortExpr, RecordBatch,
-    RecordBatchStreamAdapter, SchemaRef, Statistics, GENERIC_OPERATION_PHYSICAL_SCHEMA,
-};
+use super::*;
 
 #[derive(Debug, Clone)]
 pub struct CreateTempTableExec {
@@ -78,8 +74,8 @@ impl ExecutionPlan for CreateTempTableExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

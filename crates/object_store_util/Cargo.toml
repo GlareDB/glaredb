@@ -3,12 +3,11 @@ name = "object_store_util"
 version = { workspace = true }
 edition = { workspace = true }
 
-[lints]
-workspace = true
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 logutil = { path = "../logutil" }
-object_store = { workspace = true }
+object_store = { workspace = true, features = ["azure"] }
 futures = { workspace = true }
 async-trait = { workspace = true }
 thiserror.workspace = true
