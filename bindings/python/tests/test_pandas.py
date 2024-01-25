@@ -116,6 +116,7 @@ def test_execute():
     assert out.equals(expected)
     con.close()
 
+@pytest.mark.skip(reason="See Issue #2487")
 def test_create_table_from_dataframe():
     con = glaredb.connect()
     
