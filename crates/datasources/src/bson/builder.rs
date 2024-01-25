@@ -176,7 +176,7 @@ impl ArrayBuilder for RecordStructBuilder {
         let arrays = builders.into_iter().map(|mut b| b.finish());
 
         let pairs: Vec<(Arc<Field>, Arc<dyn Array>)> =
-            fields.into_iter().map(Arc::clone).zip(arrays).collect();
+            fields.into_iter().cloned().zip(arrays).collect();
 
         let array: StructArray = pairs.into();
 
@@ -187,7 +187,7 @@ impl ArrayBuilder for RecordStructBuilder {
         let arrays: Vec<Arc<dyn Array>> = self.builders.iter().map(|b| b.finish_cloned()).collect();
 
         let pairs: Vec<(Arc<Field>, Arc<dyn Array>)> =
-            self.fields.iter().map(Arc::clone).zip(arrays).collect();
+            self.fields.iter().cloned().zip(arrays).collect();
 
         let array: StructArray = pairs.into();
 
