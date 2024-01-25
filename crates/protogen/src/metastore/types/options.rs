@@ -377,18 +377,28 @@ impl From<DatabaseOptionsClickhouse> for options::DatabaseOptionsClickhouse {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsCassandra {
     pub host: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
 }
 
 impl TryFrom<options::DatabaseOptionsCassandra> for DatabaseOptionsCassandra {
     type Error = ProtoConvError;
     fn try_from(value: options::DatabaseOptionsCassandra) -> Result<Self, Self::Error> {
-        Ok(DatabaseOptionsCassandra { host: value.host })
+        Ok(DatabaseOptionsCassandra {
+            host: value.host,
+            username: value.username,
+            password: value.password,
+        })
     }
 }
 
 impl From<DatabaseOptionsCassandra> for options::DatabaseOptionsCassandra {
     fn from(value: DatabaseOptionsCassandra) -> Self {
-        options::DatabaseOptionsCassandra { host: value.host }
+        options::DatabaseOptionsCassandra {
+            host: value.host,
+            username: value.username,
+            password: value.password,
+        }
     }
 }
 
@@ -1064,6 +1074,8 @@ pub struct TableOptionsCassandra {
     pub host: String,
     pub keyspace: String,
     pub table: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
 }
 
 impl TryFrom<options::TableOptionsCassandra> for TableOptionsCassandra {
@@ -1073,6 +1085,8 @@ impl TryFrom<options::TableOptionsCassandra> for TableOptionsCassandra {
             host: value.host,
             keyspace: value.keyspace,
             table: value.table,
+            username: value.username,
+            password: value.password,
         })
     }
 }
@@ -1083,6 +1097,8 @@ impl From<TableOptionsCassandra> for options::TableOptionsCassandra {
             host: value.host,
             keyspace: value.keyspace,
             table: value.table,
+            username: value.username,
+            password: value.password,
         }
     }
 }
