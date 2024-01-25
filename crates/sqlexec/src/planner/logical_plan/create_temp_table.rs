@@ -1,4 +1,4 @@
-use super::*;
+use super::{DFSchemaRef, DfLogicalPlan, ExtensionNode, GENERIC_OPERATION_LOGICAL_SCHEMA, OwnedFullObjectReference, UserDefinedLogicalNodeCore};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CreateTempTable {

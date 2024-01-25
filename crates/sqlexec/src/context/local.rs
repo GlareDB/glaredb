@@ -2,7 +2,7 @@ use crate::distexec::scheduler::Scheduler;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::parser::StatementWithExtensions;
-use crate::planner::logical_plan::*;
+use crate::planner::logical_plan::{FullObjectReference, FullSchemaReference, LogicalPlan, OwnedFullObjectReference, OwnedFullSchemaReference};
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::{RemoteClient, RemoteSessionClient};
 use catalog::mutator::CatalogMutator;
