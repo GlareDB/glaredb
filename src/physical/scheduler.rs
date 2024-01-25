@@ -67,7 +67,8 @@ impl OperatorPartitionTask {
                 .poll_partition(&mut cx, self.waker.partition)
             {
                 Poll::Ready(Some(Ok(batch))) => {
-                    // Partition for this operator is done.
+                    // Partition for this operator produced a batch, send to the
+                    // destination operator.
                     match linked.dest {
                         Destination::Operator { operator, child } => {
                             self.waker.pipeline.operators[operator]
