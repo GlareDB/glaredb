@@ -1,57 +1,43 @@
-//! Physical plans.
+//! Planning and execution of physical plans.
 
-pub mod buffer;
-pub mod filter;
-pub mod hash_aggregate;
-pub mod hash_join;
-pub mod order;
-pub mod projection;
-pub mod ungrouped_aggregate;
-pub mod values;
+pub mod plans;
+pub mod scheduler;
 
-#[cfg(test)]
-mod test_util;
-
-use arrow_array::RecordBatch;
-use std::fmt::{self, Debug};
+use plans::{Sink, Source};
 use std::sync::Arc;
-use std::task::{Context, Poll};
-
-use crate::errors::Result;
-
-pub trait Source: Sync + Send + Debug {
-    /// Return the number of partitions this source outputs.
-    fn output_partitions(&self) -> usize;
-
-    /// Poll for the next batch for a partition.
-    fn poll_partition(
-        &self,
-        cx: &mut Context<'_>,
-        partition: usize,
-    ) -> Poll<Option<Result<RecordBatch>>>;
-}
-
-pub trait Sink: Sync + Send + Debug {
-    /// Push a partition batch to the sink.
-    ///
-    /// Child indicates which of the children of the pipeline are pushing to the
-    /// sink. Most sinks accept only a single child, but sinks like hash join
-    /// accept two children (0 -> left, 1 -> right).
-    fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()>;
-
-    /// Mark the partition as finished for the specific child.
-    fn finish(&self, child: usize, partition: usize) -> Result<()>;
-}
 
 pub trait Operator: Source + Sink {}
 
+#[derive(Debug)]
 pub struct Pipeline {
-    /// Destiantion for all resulting record batches.
-    destination: Box<dyn Sink>,
+    /// Destination for all resulting record batches.
+    pub destination: Box<dyn Sink>,
 
-    /// Intermediate operators for the pipeline.
-    operators: Vec<Arc<dyn Operator>>,
+    /// Linked operators for the pipeline.
+    // TODO: This also includes data sources (stuff we're not pushing to).
+    // Currently unsure how we want to split this up.
+    pub operators: Vec<LinkedOperator>,
+}
 
-    /// Data sources for the pipeline.
-    sources: Vec<Box<dyn Source>>,
+/// Where to send an operator's output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Destination {
+    /// Send to another operator in the pipeline.
+    Operator {
+        /// Which operator we're sending to.
+        operator: usize,
+
+        /// For operators that accept batches from multiple children (joins),
+        /// indicate which child we're sending from.
+        child: usize,
+    },
+    /// Send to the pipelines configured output.
+    PipelineOutput,
+}
+
+/// An operator in the pipeline that will send its output to some destination.
+#[derive(Debug)]
+pub struct LinkedOperator {
+    pub operator: Box<dyn Operator>,
+    pub dest: Destination,
 }

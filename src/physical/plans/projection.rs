@@ -94,7 +94,7 @@ mod tests {
             literal::LiteralExpr,
             scalar::ScalarValue,
         },
-        physical::test_util::{noop_context, unwrap_poll_partition},
+        physical::plans::test_util::{noop_context, unwrap_poll_partition},
     };
 
     use super::*;
