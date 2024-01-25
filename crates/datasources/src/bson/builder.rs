@@ -146,8 +146,8 @@ impl RecordStructBuilder {
         Ok(())
     }
 
-    pub fn into_fields_and_builders(self) -> (Fields, Vec<Box<dyn ArrayBuilder>>) {
-        (self.fields, self.builders)
+    pub fn into_builders(self) -> Vec<Box<dyn ArrayBuilder>> {
+        self.builders
     }
 
     fn add_value_at_index(&mut self, idx: usize, val: Option<RawBsonRef>) -> Result<()> {

@@ -5,7 +5,7 @@ pub mod stream;
 pub mod table;
 
 use datafusion::arrow::array::cast::as_string_array;
-use datafusion::arrow::array::{types::*, Array, ArrayRef, AsArray, StructArray};
+use datafusion::arrow::array::{types::*, Array, AsArray, StructArray};
 use datafusion::arrow::datatypes::{DataType, Fields, IntervalUnit, TimeUnit};
 use datafusion::arrow::error::ArrowError;
 
@@ -67,7 +67,7 @@ impl Iterator for BsonBatchConverter {
     }
 }
 
-fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
+pub fn array_to_bson(array: &dyn Array) -> Result<Vec<bson::Bson>, ArrowError> {
     let mut out = Vec::<bson::Bson>::with_capacity(array.len());
     let dt = array.data_type().to_owned();
     match dt {

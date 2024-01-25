@@ -67,8 +67,12 @@ impl ExecutionPlan for ExtValuesExec {
         )?))
     }
 
-    fn statistics(&self) -> Statistics {
-        compute_record_batch_statistics(&[self.data.clone()], &self.schema, None)
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(compute_record_batch_statistics(
+            &[self.data.clone()],
+            &self.schema,
+            None,
+        ))
     }
 }
 

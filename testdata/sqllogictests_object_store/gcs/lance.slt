@@ -7,8 +7,8 @@ CREATE CREDENTIALS gcp_creds PROVIDER gcp
 query IT
 select * from lance_scan('gs://${GCS_BUCKET_NAME}/lance/table1', gcp_creds) order by point.lat;
 ----
-0.2,1.8 {lat:42.1,long:-74.1}
-1.1,1.2 {lat:45.5,long:-122.7}
+[0.2, 1.8] {lat:42.1,long:-74.1}
+[1.1, 1.2] {lat:45.5,long:-122.7}
 
 
 # Tests external lance table in gcs with credentials object.
@@ -23,8 +23,8 @@ options (
 query IT
 select * from lance_gcs_creds_and_opts order by point.lat;
 ----
-0.2,1.8 {lat:42.1,long:-74.1}
-1.1,1.2 {lat:45.5,long:-122.7}
+[0.2, 1.8] {lat:42.1,long:-74.1}
+[1.1, 1.2] {lat:45.5,long:-122.7}
 
 # Tests external lance table in gcs with explicit config options.
 statement ok
@@ -38,8 +38,8 @@ options (
 query IT
 select * from lance_gcs_opts order by point.lat;
 ----
-0.2,1.8 {lat:42.1,long:-74.1}
-1.1,1.2 {lat:45.5,long:-122.7}
+[0.2, 1.8] {lat:42.1,long:-74.1}
+[1.1, 1.2] {lat:45.5,long:-122.7}
 
 
 # Tests connection options validation during initial setup

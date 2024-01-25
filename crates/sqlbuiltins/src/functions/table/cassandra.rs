@@ -47,20 +47,28 @@ impl TableFunc for ReadCassandra {
         args: Vec<FuncParamValue>,
         _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        match args.len() {
-            3 => {
-                let mut args = args.into_iter();
-                let conn_string: String = args.next().unwrap().try_into()?;
-                let ks: String = args.next().unwrap().try_into()?;
-                let table: String = args.next().unwrap().try_into()?;
+        if args.len() >= 3 {
+            let mut args = args.into_iter();
+            let conn_string: String = args.next().unwrap().try_into()?;
+            let ks: String = args.next().unwrap().try_into()?;
+            let table: String = args.next().unwrap().try_into()?;
 
-                let prov = CassandraTableProvider::try_new(conn_string, ks, table)
-                    .await
-                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+            let user: Option<String> = args
+                .next()
+                .map(|v| -> Option<String> { v.into() })
+                .unwrap_or(None);
+            let password: Option<String> = args
+                .next()
+                .map(|v| -> Option<String> { v.into() })
+                .unwrap_or(None);
 
-                Ok(Arc::new(prov))
-            }
-            _ => Err(ExtensionError::InvalidNumArgs),
+            let prov = CassandraTableProvider::try_new(conn_string, ks, table, user, password)
+                .await
+                .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+
+            Ok(Arc::new(prov))
+        } else {
+            Err(ExtensionError::InvalidNumArgs)
         }
     }
 }
