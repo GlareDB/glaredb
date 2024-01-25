@@ -1,4 +1,3 @@
-use crate::distexec::scheduler::Scheduler;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::parser::StatementWithExtensions;
@@ -14,14 +13,14 @@ use datafusion::execution::context::{
 };
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
+use datafusion::variable::VarType;
 use datafusion_ext::session_metrics::SessionMetricsHandler;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
+use distexec::scheduler::Scheduler;
 use pgrepr::format::Format;
 use pgrepr::notice::Notice;
 use pgrepr::types::arrow_to_pg_type;
-
-use datafusion::variable::VarType;
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest, InitializeSessionRequestFromClient,
 };

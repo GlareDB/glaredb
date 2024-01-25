@@ -1,5 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::SessionCatalog;
 use datafusion::{
     datasource::TableProvider,
     execution::context::{SessionConfig, SessionContext as DfSessionContext},
@@ -7,6 +9,7 @@ use datafusion::{
 };
 use datafusion_ext::{functions::FuncParamValue, vars::SessionVars};
 use datasources::native::access::NativeTableStorage;
+use distexec::scheduler::Scheduler;
 use protogen::{
     metastore::types::catalog::{CatalogEntry, CatalogState},
     rpcsrv::types::service::ResolvedTableReference,
@@ -16,13 +19,10 @@ use uuid::Uuid;
 
 use crate::{
     dispatch::external::ExternalDispatcher,
-    distexec::scheduler::Scheduler,
     errors::{ExecError, Result},
     extension_codec::GlareDBExtensionCodec,
     remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
 };
-use catalog::mutator::CatalogMutator;
-use catalog::session_catalog::SessionCatalog;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 

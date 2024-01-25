@@ -6,8 +6,6 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
-use crate::distexec::scheduler::{OutputSink, Scheduler};
-use crate::distexec::stream::create_coalescing_adapter;
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
 use crate::parser::StatementWithExtensions;
@@ -19,6 +17,7 @@ use crate::planner::physical_plan::{
 use crate::planner::session_planner::SessionPlanner;
 use crate::remote::client::RemoteClient;
 use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
+
 use catalog::mutator::CatalogMutator;
 use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::Schema;
@@ -37,6 +36,8 @@ use datafusion_ext::session_metrics::{
 };
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
+use distexec::scheduler::{OutputSink, Scheduler};
+use distexec::stream::create_coalescing_adapter;
 use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
 use pgrepr::format::Format;

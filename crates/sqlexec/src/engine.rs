@@ -1,6 +1,4 @@
 use crate::context::remote::RemoteSessionContext;
-use crate::distexec::executor::TaskExecutor;
-use crate::distexec::scheduler::Scheduler;
 use crate::errors::{ExecError, Result};
 use crate::session::Session;
 use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
@@ -24,6 +22,8 @@ use datafusion_ext::vars::SessionVars;
 use datasources::common::errors::DatasourceCommonError;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::native::access::NativeTableStorage;
+use distexec::executor::TaskExecutor;
+use distexec::scheduler::Scheduler;
 use metastore::local::start_inprocess;
 use metastore::util::MetastoreClientMode;
 use object_store_util::conf::StorageConfig;
