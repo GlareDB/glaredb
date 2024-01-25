@@ -1,5 +1,5 @@
 use crate::errors::{err, Result};
-use crate::expr::Expr;
+use crate::expr::PhysicalExpr;
 use arrow::compute::filter_record_batch;
 use arrow_array::cast::AsArray;
 use arrow_array::RecordBatch;
@@ -10,12 +10,12 @@ use super::{buffer::BatchBuffer, Sink, Source};
 
 #[derive(Debug)]
 pub struct Filter {
-    predicate: Box<dyn Expr>,
+    predicate: Box<dyn PhysicalExpr>,
     buffer: BatchBuffer,
 }
 
 impl Filter {
-    pub fn try_new(predicate: Box<dyn Expr>, input_schema: &Schema) -> Result<Self> {
+    pub fn try_new(predicate: Box<dyn PhysicalExpr>, input_schema: &Schema) -> Result<Self> {
         let ret_type = predicate.data_type(input_schema)?;
         if ret_type != DataType::Boolean {
             return Err(err("expr {expr} does not return a boolean"));

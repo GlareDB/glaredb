@@ -1,5 +1,5 @@
 use crate::errors::{err, Result};
-use crate::expr::Expr;
+use crate::expr::PhysicalExpr;
 use arrow_array::RecordBatch;
 use arrow_schema::{Field, Schema};
 use std::sync::Arc;
@@ -9,14 +9,14 @@ use super::{buffer::BatchBuffer, Sink, Source};
 
 #[derive(Debug)]
 pub struct Projection {
-    exprs: Vec<Box<dyn Expr>>,
+    exprs: Vec<Box<dyn PhysicalExpr>>,
     schema: Arc<Schema>,
     buffer: BatchBuffer,
 }
 
 impl Projection {
     pub fn try_new(
-        exprs: Vec<Box<dyn Expr>>,
+        exprs: Vec<Box<dyn PhysicalExpr>>,
         output_names: Vec<String>,
         input_schema: &Schema,
     ) -> Result<Self> {

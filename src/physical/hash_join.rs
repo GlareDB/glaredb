@@ -1,5 +1,5 @@
 use crate::errors::{err, Result};
-use crate::expr::Expr;
+use crate::expr::PhysicalExpr;
 use crate::hash::build_hashes;
 use arrow_array::cast::AsArray;
 use arrow_array::{ArrayRef, BooleanArray, RecordBatch, UInt32Array, UInt64Array};
