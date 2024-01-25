@@ -7,6 +7,7 @@ mod delta;
 mod excel;
 mod generate_series;
 mod iceberg;
+mod json;
 mod lance;
 mod mongodb;
 mod mysql;
@@ -38,6 +39,7 @@ use self::delta::DeltaScan;
 use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
 use self::iceberg::{data_files::IcebergDataFiles, scan::IcebergScan, snapshots::IcebergSnapshots};
+use self::json::JsonScan;
 use self::lance::LanceScan;
 use self::mongodb::ReadMongoDb;
 use self::mysql::ReadMysql;
@@ -95,6 +97,7 @@ impl BuiltinTableFuncs {
             Arc::new(READ_CSV),
             Arc::new(READ_JSON),
             Arc::new(BsonScan),
+            Arc::new(JsonScan),
             // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),

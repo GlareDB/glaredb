@@ -1,5 +1,7 @@
-use crate::object_store::errors::ObjectStoreSourceError;
+use datafusion_ext::errors::ExtensionError;
 use object_store::Error as ObjectStoreError;
+
+use crate::object_store::errors::ObjectStoreSourceError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum JsonError {
@@ -23,4 +25,10 @@ pub enum JsonError {
 
     #[error(transparent)]
     Datafusion(#[from] datafusion::error::DataFusionError),
+}
+
+impl From<JsonError> for ExtensionError {
+    fn from(e: JsonError) -> Self {
+        ExtensionError::String(e.to_string())
+    }
 }
