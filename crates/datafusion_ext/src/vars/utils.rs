@@ -24,6 +24,7 @@ mod tests {
 
     use super::*;
     use crate::vars::inner::SessionVar;
+    use crate::vars::ServerVar;
 
     #[test]
     fn split_on_commas() {
