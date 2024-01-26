@@ -76,4 +76,4 @@ glob = "0.3.1"
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
-openssh = "0.10.2"
+openssh = "0.10.3"
