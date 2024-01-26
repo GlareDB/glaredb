@@ -8,7 +8,10 @@ use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::common::SchemaReference;
 use datafusion::execution::context::{
-    SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
+    SessionConfig,
+    SessionContext as DfSessionContext,
+    SessionState,
+    TaskContext,
 };
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
@@ -22,7 +25,8 @@ use pgrepr::format::Format;
 use pgrepr::notice::Notice;
 use pgrepr::types::arrow_to_pg_type;
 use protogen::rpcsrv::types::service::{
-    InitializeSessionRequest, InitializeSessionRequestFromClient,
+    InitializeSessionRequest,
+    InitializeSessionRequestFromClient,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use tokio_postgres::types::Type as PgType;
@@ -33,7 +37,10 @@ use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::{
-    FullObjectReference, FullSchemaReference, LogicalPlan, OwnedFullObjectReference,
+    FullObjectReference,
+    FullSchemaReference,
+    LogicalPlan,
+    OwnedFullObjectReference,
     OwnedFullSchemaReference,
 };
 use crate::planner::session_planner::SessionPlanner;

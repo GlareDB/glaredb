@@ -13,13 +13,19 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{
-    execute_stream, ExecutionPlan, RecordBatchStream, SendableRecordBatchStream,
+    execute_stream,
+    ExecutionPlan,
+    RecordBatchStream,
+    SendableRecordBatchStream,
 };
 use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::metrics::AggregatedMetrics;
 use datafusion_ext::session_metrics::{
-    BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetricsHandler,
+    BatchStreamWithMetricSender,
+    ExecutionStatus,
+    QueryMetrics,
+    SessionMetricsHandler,
 };
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
@@ -38,7 +44,9 @@ use crate::errors::{ExecError, Result};
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::{LogicalPlan, OperationInfo, TransactionPlan};
 use crate::planner::physical_plan::{
-    get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
+    get_count_from_batch,
+    get_operation_from_batch,
+    GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
     GENERIC_OPERATION_PHYSICAL_SCHEMA,
 };
 use crate::planner::session_planner::SessionPlanner;
