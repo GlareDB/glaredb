@@ -7,17 +7,14 @@ use anyhow::{anyhow, Result};
 use atty::Stream;
 use clap::Subcommand;
 use ioutil::ensure_dir;
+use object_store_util::conf::StorageConfig;
+use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
+use slt::discovery::SltDiscovery;
+use slt::hooks::{AllTestsHook, SshTunnelHook};
+use slt::tests::{PgBinaryEncoding, SshKeysTest};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
 use tracing::info;
-
-use object_store_util::conf::StorageConfig;
-use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
-use slt::{
-    discovery::SltDiscovery,
-    hooks::{AllTestsHook, SshTunnelHook},
-    tests::{PgBinaryEncoding, SshKeysTest},
-};
 
 use crate::args::server::ServerArgs;
 use crate::args::{LocalArgs, MetastoreArgs, PgProxyArgs, RpcProxyArgs, SltArgs};

@@ -1,7 +1,5 @@
 use std::fmt::{self, Display};
 
-use crate::errors::{ExtensionError, Result};
-use crate::vars::SessionVars;
 use async_trait::async_trait;
 use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::{Field, Fields};
@@ -11,9 +9,13 @@ use datafusion::scalar::ScalarValue;
 use decimal::Decimal128;
 use protogen::metastore::types::catalog::EntryType;
 use protogen::rpcsrv::types::func_param_value::{
-    FuncParamValue as ProtoFuncParamValue, FuncParamValueArrayVariant,
+    FuncParamValue as ProtoFuncParamValue,
+    FuncParamValueArrayVariant,
     FuncParamValueEnum as ProtoFuncParamValueEnum,
 };
+
+use crate::errors::{ExtensionError, Result};
+use crate::vars::SessionVars;
 
 pub trait TableFuncContextProvider: Sync + Send {
     /// Get a reference to the session catalog.

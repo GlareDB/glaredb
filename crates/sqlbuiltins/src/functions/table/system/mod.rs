@@ -3,6 +3,11 @@
 pub mod cache_external_tables;
 pub mod remove_delta_tables;
 
+use std::any::Any;
+use std::fmt;
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use async_trait::async_trait;
 use cache_external_tables::CacheExternalDatabaseTablesOperation;
 use datafusion::arrow::array::{Date64Builder, StringBuilder};
@@ -14,17 +19,18 @@ use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
 use datafusion::logical_expr::TableType;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use datafusion::prelude::Expr;
 use futures::stream;
 use once_cell::sync::Lazy;
-use std::any::Any;
-use std::fmt;
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use self::remove_delta_tables::DeleteDeltaTablesOperation;
 

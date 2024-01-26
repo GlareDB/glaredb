@@ -17,6 +17,9 @@ mod sqlserver;
 pub mod system;
 mod virtual_listing;
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use ::object_store::aws::AmazonS3ConfigKey;
 use ::object_store::azure::AzureConfigKey;
 use ::object_store::gcp::GoogleConfigKey;
@@ -27,8 +30,6 @@ use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProv
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
-use std::collections::HashMap;
-use std::sync::Arc;
 
 use self::bigquery::ReadBigQuery;
 use self::bson::BsonScan;
@@ -37,7 +38,9 @@ use self::clickhouse::ReadClickhouse;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
-use self::iceberg::{data_files::IcebergDataFiles, scan::IcebergScan, snapshots::IcebergSnapshots};
+use self::iceberg::data_files::IcebergDataFiles;
+use self::iceberg::scan::IcebergScan;
+use self::iceberg::snapshots::IcebergSnapshots;
 use self::lance::LanceScan;
 use self::mongodb::ReadMongoDb;
 use self::mysql::ReadMysql;
@@ -47,7 +50,6 @@ use self::snowflake::ReadSnowflake;
 use self::sqlserver::ReadSqlServer;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
-
 use super::alias_map::AliasMap;
 use super::BuiltinFunction;
 

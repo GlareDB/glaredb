@@ -1,5 +1,37 @@
-use super::{builder::CqlValueArrayBuilder, *};
-use datafusion::arrow::{array::ArrayBuilder, record_batch::RecordBatchOptions};
+use datafusion::arrow::array::ArrayBuilder;
+use datafusion::arrow::record_batch::RecordBatchOptions;
+
+use super::builder::CqlValueArrayBuilder;
+use super::{
+    fmt,
+    stream,
+    Any,
+    Arc,
+    ArrowSchemaRef,
+    Context,
+    DataFusionError,
+    DataSourceMetricsStreamAdapter,
+    DatafusionResult,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    ExecutionPlanMetricsSet,
+    MetricsSet,
+    Partitioning,
+    PhysicalSortExpr,
+    Pin,
+    Poll,
+    RecordBatch,
+    RecordBatchStream,
+    Result,
+    Row,
+    SendableRecordBatchStream,
+    Session,
+    Statistics,
+    Stream,
+    StreamExt,
+    TaskContext,
+};
 
 pub(super) struct CassandraExec {
     schema: ArrowSchemaRef,

@@ -8,7 +8,9 @@ use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::sqlserver::{
-    SqlServerAccess, SqlServerTableProvider, SqlServerTableProviderConfig,
+    SqlServerAccess,
+    SqlServerTableProvider,
+    SqlServerTableProviderConfig,
 };
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 

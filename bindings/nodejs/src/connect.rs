@@ -3,9 +3,9 @@
 //! User's will call `connect` which returns a session for executing sql
 //! queries.
 
-use crate::connection::Connection;
-
 use std::collections::HashMap;
+
+use crate::connection::Connection;
 
 #[napi(object)]
 #[derive(Default)]

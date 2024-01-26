@@ -1,8 +1,10 @@
+use std::time::SystemTime;
+
+use uuid::Uuid;
+
 use super::catalog::CatalogState;
 use crate::gen::metastore::storage;
 use crate::{FromOptionalField, ProtoConvError};
-use std::time::SystemTime;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LeaseState {
