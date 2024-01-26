@@ -1,14 +1,10 @@
-use std::{
-    cmp::Ordering,
-    fmt::{Debug, Display},
-    ops::{Add, AddAssign, DivAssign, MulAssign},
-    str::FromStr,
-};
+use std::cmp::Ordering;
+use std::fmt::{Debug, Display};
+use std::ops::{Add, AddAssign, DivAssign, MulAssign};
+use std::str::FromStr;
 
-use num_traits::{
-    one, ops::overflowing::OverflowingMul, zero, CheckedMul, Float, NumCast, One, PrimInt, Signed,
-    Zero,
-};
+use num_traits::ops::overflowing::OverflowingMul;
+use num_traits::{one, zero, CheckedMul, Float, NumCast, One, PrimInt, Signed, Zero};
 use regex::Regex;
 
 #[derive(Debug, thiserror::Error)]

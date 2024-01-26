@@ -1,25 +1,25 @@
 use std::sync::Arc;
 
 use ::kdl::{KdlNode, KdlQuery};
-use datafusion::{
-    arrow::datatypes::DataType,
-    error::DataFusionError,
-    logical_expr::{
-        expr::ScalarFunction, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF,
-        Signature, TypeSignature, Volatility,
-    },
-    prelude::Expr,
-    scalar::ScalarValue,
+use datafusion::arrow::datatypes::DataType;
+use datafusion::error::DataFusionError;
+use datafusion::logical_expr::expr::ScalarFunction;
+use datafusion::logical_expr::{
+    ReturnTypeFunction,
+    ScalarFunctionImplementation,
+    ScalarUDF,
+    Signature,
+    TypeSignature,
+    Volatility,
 };
+use datafusion::prelude::Expr;
+use datafusion::scalar::ScalarValue;
 use memoize::memoize;
 use protogen::metastore::types::catalog::FunctionType;
 
-use crate::{
-    errors::BuiltinError,
-    functions::{BuiltinScalarUDF, ConstBuiltinFunction},
-};
-
 use super::{get_nth_string_fn_arg, get_nth_string_value};
+use crate::errors::BuiltinError;
+use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
 
 pub struct KDLSelect;
 

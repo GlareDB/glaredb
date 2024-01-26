@@ -14,16 +14,20 @@ use datafusion::physical_plan::values::ValuesExec;
 use datafusion::physical_plan::{displayable, ExecutionPlan};
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::{
-    ReadOnlyDataSourceMetricsExecAdapter, WriteOnlyDataSourceMetricsExecAdapter,
+    ReadOnlyDataSourceMetricsExecAdapter,
+    WriteOnlyDataSourceMetricsExecAdapter,
 };
+use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
 use datafusion_proto::logical_plan::from_proto::parse_expr;
 use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 use prost::Message;
+use protogen::metastore::types::catalog::RuntimePreference;
 use uuid::Uuid;
 
 use crate::planner::physical_plan::alter_database::AlterDatabaseExec;
 use crate::planner::physical_plan::alter_table::AlterTableExec;
 use crate::planner::physical_plan::alter_tunnel_rotate_keys::AlterTunnelRotateKeysExec;
+use crate::planner::physical_plan::client_recv::ClientExchangeRecvExec;
 use crate::planner::physical_plan::copy_to::CopyToExec;
 use crate::planner::physical_plan::create_credentials::CreateCredentialsExec;
 use crate::planner::physical_plan::create_external_database::CreateExternalDatabaseExec;
@@ -42,17 +46,12 @@ use crate::planner::physical_plan::drop_tables::DropTablesExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::insert::InsertExec;
-use crate::planner::physical_plan::remote_scan::ProviderReference;
+use crate::planner::physical_plan::remote_scan::{ProviderReference, RemoteScanExec};
 use crate::planner::physical_plan::set_var::SetVarExec;
 use crate::planner::physical_plan::show_var::ShowVarExec;
 use crate::planner::physical_plan::update::UpdateExec;
 use crate::planner::physical_plan::values::ExtValuesExec;
-use crate::planner::physical_plan::{
-    client_recv::ClientExchangeRecvExec, remote_scan::RemoteScanExec,
-};
 use crate::remote::provider_cache::ProviderCache;
-use datafusion_ext::runtime::runtime_group::RuntimeGroupExec;
-use protogen::metastore::types::catalog::RuntimePreference;
 
 pub struct GlareDBExtensionCodec<'a> {
     table_providers: Option<&'a ProviderCache>,

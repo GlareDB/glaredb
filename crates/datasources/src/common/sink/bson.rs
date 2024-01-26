@@ -1,5 +1,8 @@
-use crate::bson;
-use crate::common::errors::Result;
+use std::any::Any;
+use std::fmt::{Debug, Display};
+use std::io::Write;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use datafusion::arrow::array::StructArray;
 use datafusion::arrow::error::ArrowError;
@@ -9,15 +12,15 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::metrics::MetricsSet;
-use datafusion::physical_plan::DisplayAs;
-use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
+use datafusion::physical_plan::{DisplayAs, DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
-use object_store::{path::Path as ObjectPath, ObjectStore};
-use std::any::Any;
-use std::{fmt::Debug, fmt::Display, io::Write, sync::Arc};
+use object_store::path::Path as ObjectPath;
+use object_store::ObjectStore;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use super::SharedBuffer;
+use crate::bson;
+use crate::common::errors::Result;
 
 const BUFFER_SIZE: usize = 2 * 1024 * 1024;
 

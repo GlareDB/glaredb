@@ -3,7 +3,8 @@ name = "object_store_util"
 version = { workspace = true }
 edition = { workspace = true }
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lints]
+workspace = true
 
 [dependencies]
 logutil = { path = "../logutil" }

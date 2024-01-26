@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+use std::collections::HashSet;
+
 use datafusion::common::{Column, DataFusionError, Result};
 use datafusion::logical_expr::{JoinType, LogicalPlan, LogicalPlanBuilder};
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{Join, JoinConstraint, JoinOperator, TableWithJoins};
-use std::collections::HashSet;
+
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     pub(crate) async fn plan_table_with_joins(

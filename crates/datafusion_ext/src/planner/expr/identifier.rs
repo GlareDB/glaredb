@@ -15,12 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use datafusion::common::{Column, DFField, DFSchema, DataFusionError, Result, TableReference};
 use datafusion::logical_expr::{Case, Expr};
 use datafusion::physical_plan::internal_err;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{Expr as SQLExpr, Ident};
+
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     pub(super) async fn sql_identifier_to_expr(

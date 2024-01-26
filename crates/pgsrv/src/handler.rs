@@ -1,16 +1,7 @@
-use crate::auth::{LocalAuthenticator, PasswordMode};
-use crate::codec::server::{FramedConn, PgCodec};
-use crate::errors::{PgSrvError, Result};
-use crate::messages::{
-    BackendMessage, DescribeObjectType, ErrorResponse, FieldDescriptionBuilder, FrontendMessage,
-    StartupMessage, TransactionStatus,
-};
-use crate::proxy::{
-    ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_GCS_STORAGE_BUCKET_KEY,
-    GLAREDB_MAX_CREDENTIALS_COUNT_KEY, GLAREDB_MAX_DATASOURCE_COUNT_KEY,
-    GLAREDB_MAX_TUNNEL_COUNT_KEY, GLAREDB_MEMORY_LIMIT_BYTES_KEY, GLAREDB_USER_ID_KEY,
-};
-use crate::ssl::{Connection, SslConfig};
+use std::collections::{HashMap, VecDeque};
+use std::ops::DerefMut;
+use std::sync::Arc;
+
 use datafusion::arrow::datatypes::DataType;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::scalar::ScalarValue;
@@ -20,20 +11,37 @@ use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use sqlexec::context::local::{OutputFields, Portal, PreparedStatement};
-use sqlexec::engine::SessionStorageConfig;
-use sqlexec::{
-    engine::Engine,
-    parser::{self, StatementWithExtensions},
-    session::{ExecutionResult, Session},
-};
-use std::collections::HashMap;
-use std::collections::VecDeque;
-use std::ops::DerefMut;
-use std::sync::Arc;
+use sqlexec::engine::{Engine, SessionStorageConfig};
+use sqlexec::parser::{self, StatementWithExtensions};
+use sqlexec::session::{ExecutionResult, Session};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_postgres::types::Type as PgType;
 use tracing::{debug, debug_span, warn, Instrument};
 use uuid::Uuid;
+
+use crate::auth::{LocalAuthenticator, PasswordMode};
+use crate::codec::server::{FramedConn, PgCodec};
+use crate::errors::{PgSrvError, Result};
+use crate::messages::{
+    BackendMessage,
+    DescribeObjectType,
+    ErrorResponse,
+    FieldDescriptionBuilder,
+    FrontendMessage,
+    StartupMessage,
+    TransactionStatus,
+};
+use crate::proxy::{
+    ProxyKey,
+    GLAREDB_DATABASE_ID_KEY,
+    GLAREDB_GCS_STORAGE_BUCKET_KEY,
+    GLAREDB_MAX_CREDENTIALS_COUNT_KEY,
+    GLAREDB_MAX_DATASOURCE_COUNT_KEY,
+    GLAREDB_MAX_TUNNEL_COUNT_KEY,
+    GLAREDB_MEMORY_LIMIT_BYTES_KEY,
+    GLAREDB_USER_ID_KEY,
+};
+use crate::ssl::{Connection, SslConfig};
 
 pub struct ProtocolHandlerConfig {
     /// Authenticor to use on the server side.

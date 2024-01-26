@@ -1,20 +1,15 @@
+use std::fmt::Debug;
 use std::sync::Arc;
-use std::task::Poll;
-use std::{
-    fmt::Debug,
-    task::{Context, Wake},
-};
+use std::task::{Context, Poll, Wake};
+
 use tokio::select;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tracing::{debug, error};
 
-use super::pipeline::ErrorSink;
+use super::pipeline::{ErrorSink, Sink, Source};
 use super::scheduler::Scheduler;
-use super::{
-    pipeline::{Sink, Source},
-    DistExecError,
-};
+use super::DistExecError;
 
 #[derive(Debug, Clone)]
 pub struct Task {

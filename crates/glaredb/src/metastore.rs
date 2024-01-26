@@ -1,9 +1,10 @@
+use std::net::SocketAddr;
+use std::sync::Arc;
+
 use anyhow::Result;
 use metastore::srv::Service;
 use object_store::ObjectStore;
 use protogen::gen::metastore::service::metastore_service_server::MetastoreServiceServer;
-use std::net::SocketAddr;
-use std::sync::Arc;
 use tonic::transport::Server;
 use tracing::{debug_span, info};
 

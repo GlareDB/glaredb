@@ -1,12 +1,17 @@
-use crate::lake::iceberg::errors::{IcebergError, Result};
+use std::str::FromStr;
+use std::sync::Arc;
+
 use datafusion::arrow::datatypes::{
-    DataType, Field as ArrowField, Schema as ArrowSchema, TimeUnit,
+    DataType,
+    Field as ArrowField,
+    Schema as ArrowSchema,
+    TimeUnit,
 };
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
-use std::str::FromStr;
-use std::sync::Arc;
+
+use crate::lake::iceberg::errors::{IcebergError, Result};
 
 /// Primitive types supported in iceberg tables.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

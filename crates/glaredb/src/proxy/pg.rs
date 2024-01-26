@@ -1,11 +1,12 @@
+use std::io;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
 use anyhow::{anyhow, Result};
 use pgsrv::errors::PgSrvError;
 use pgsrv::proxy::ProxyHandler;
 use pgsrv::ssl::SslConfig;
 use proxyutil::cloudauth::CloudAuthenticator;
-use std::io;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::sync::oneshot;
