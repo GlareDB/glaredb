@@ -21,7 +21,11 @@ use datafusion::logical_expr::TableType;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
     Statistics,
 };
 use datafusion::prelude::Expr;

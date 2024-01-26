@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
-
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};

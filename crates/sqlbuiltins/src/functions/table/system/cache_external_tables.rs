@@ -13,7 +13,11 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
     Statistics,
 };
 use datafusion_ext::errors::{ExtensionError, Result};
@@ -21,7 +25,10 @@ use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, Virtua
 use datasources::native::access::{NativeTableStorage, SaveMode};
 use futures::{stream, StreamExt};
 use protogen::metastore::types::catalog::{
-    CatalogEntry, FunctionType, RuntimePreference, TableEntry,
+    CatalogEntry,
+    FunctionType,
+    RuntimePreference,
+    TableEntry,
 };
 use tracing::warn;
 
