@@ -5,33 +5,20 @@ use std::sync::Arc;
 use catalog::mutator::CatalogMutator;
 use catalog::session_catalog::SessionCatalog;
 use datafusion::datasource::TableProvider;
-use datafusion::execution::context::{
-    SessionConfig,
-    SessionConfig,
-    SessionContext as DfSessionContext,
-    SessionContext as DfSessionContext,
-};
-use datafusion::physical_plan::{
-    execute_stream,
-    execute_stream,
-    ExecutionPlan,
-    ExecutionPlan,
-    SendableRecordBatchStream,
-    SendableRecordBatchStream,
-};
+use datafusion::execution::context::{SessionConfig, SessionContext as DfSessionContext};
+use datafusion::physical_plan::{execute_stream, ExecutionPlan, SendableRecordBatchStream};
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
 use distexec::scheduler::Scheduler;
-use protogen::metastore::types::catalog::{CatalogEntry, CatalogEntry, CatalogState, CatalogState};
+use protogen::metastore::types::catalog::{CatalogEntry, CatalogState};
 use protogen::rpcsrv::types::service::ResolvedTableReference;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 use crate::dispatch::external::ExternalDispatcher;
-use crate::distexec::scheduler::Scheduler;
-use crate::errors::{ExecError, ExecError, Result, Result};
+use crate::errors::{ExecError, Result};
 use crate::extension_codec::GlareDBExtensionCodec;
 use crate::remote::provider_cache::ProviderCache;
 use crate::remote::staged_stream::StagedClientStreams;

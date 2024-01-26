@@ -5,12 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use catalog::client::{
-    MetastoreClientSupervisor,
-    MetastoreClientSupervisor,
-    DEFAULT_METASTORE_CLIENT_CONFIG,
-    DEFAULT_METASTORE_CLIENT_CONFIG,
-};
+use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
 use catalog::session_catalog::{ResolveConfig, SessionCatalog};
 use datafusion_ext::vars::SessionVars;
 use datasources::common::errors::DatasourceCommonError;
@@ -30,12 +25,7 @@ use object_store_util::conf::StorageConfig;
 use object_store_util::shared::SharedObjectStore;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
 use protogen::rpcsrv::types::common;
-use sqlbuiltins::builtins::{
-    SCHEMA_CURRENT_SESSION,
-    SCHEMA_CURRENT_SESSION,
-    SCHEMA_DEFAULT,
-    SCHEMA_DEFAULT,
-};
+use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
 use telemetry::Tracker;
 use tonic::transport::Channel;
 use tracing::{debug, info};
@@ -43,9 +33,7 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::context::remote::RemoteSessionContext;
-use crate::distexec::executor::TaskExecutor;
-use crate::distexec::scheduler::Scheduler;
-use crate::errors::{ExecError, ExecError, Result, Result};
+use crate::errors::{ExecError, Result};
 use crate::session::Session;
 
 #[derive(Debug, Clone, Default)]
