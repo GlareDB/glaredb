@@ -60,10 +60,7 @@ pub async fn json_streaming_table(
     let chunks = data
         .chunks(100)
         .map(|chunk| -> Arc<dyn PartitionStream> {
-            Arc::new(JsonPartitionStream::new(
-                schema.clone(),
-                chunk.to_vec().to_owned(),
-            ))
+            Arc::new(JsonPartitionStream::new(schema.clone(), chunk.to_vec()))
         })
         .collect::<Vec<_>>();
 
