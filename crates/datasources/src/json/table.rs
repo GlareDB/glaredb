@@ -7,12 +7,11 @@ use datafusion::datasource::TableProvider;
 use datafusion::physical_plan::streaming::PartitionStream;
 use serde_json::{Map, Value};
 
+use super::stream::JsonPartitionStream;
 use crate::common::url::DatasourceUrl;
 use crate::json::errors::JsonError;
 use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::ObjStoreAccess;
-
-use super::stream::JsonPartitionStream;
 
 pub async fn json_streaming_table(
     store_access: GenericStoreAccess,
@@ -75,7 +74,7 @@ fn push_unwind_json_values(
     data: &mut Vec<Map<String, Value>>,
     val: Value,
 ) -> Result<(), JsonError> {
-    Ok(match val {
+    match val {
         Value::Array(vals) => {
             for v in vals {
                 match v {
@@ -96,7 +95,8 @@ fn push_unwind_json_values(
                 "only objects and arrays of objects are supported",
             ))
         }
-    })
+    };
+    Ok(())
 }
 
 fn type_for_value(value: &Value) -> DataType {
@@ -107,7 +107,7 @@ fn type_for_value(value: &Value) -> DataType {
             } else {
                 DataType::List(Arc::new(Field::new(
                     "",
-                    type_for_value(&v.get(0).unwrap()),
+                    type_for_value(v.first().unwrap()),
                     true,
                 )))
             }

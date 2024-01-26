@@ -1,6 +1,5 @@
 use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
@@ -10,13 +9,15 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
-use futures::Stream;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use serde_json::{Map, Value};
+
+type SendableCheckedRecordBatchStrem =
+    Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>;
 
 pub struct JsonStream {
     schema: Arc<Schema>,
-    stream: Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>,
+    stream: SendableCheckedRecordBatchStrem,
 }
 
 impl Stream for JsonStream {
@@ -35,7 +36,7 @@ impl RecordBatchStream for JsonStream {
 
 pub struct JsonPartitionStream {
     schema: Arc<Schema>,
-    stream: Mutex<Option<Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>>>,
+    stream: Mutex<Option<SendableCheckedRecordBatchStrem>>,
 }
 
 impl PartitionStream for JsonPartitionStream {
@@ -49,7 +50,7 @@ impl PartitionStream for JsonPartitionStream {
             .lock()
             .unwrap()
             .take()
-            .expect("stream can only be used once")
+            .expect("stream to only be called once")
             .boxed();
 
         Box::pin(JsonStream {
@@ -62,7 +63,7 @@ impl PartitionStream for JsonPartitionStream {
 impl JsonPartitionStream {
     pub fn new(schema: Arc<Schema>, chunk: Vec<Map<String, Value>>) -> Self {
         let stream_schema = schema.clone();
-        let stream = futures::stream::iter(chunk.into_iter())
+        let stream = futures::stream::iter(chunk)
             .chunks(25)
             .map(move |objs| {
                 let mut decoder =

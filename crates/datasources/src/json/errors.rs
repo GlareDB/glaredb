@@ -1,5 +1,4 @@
 use datafusion_ext::errors::ExtensionError;
-use object_store::Error as ObjectStoreError;
 
 use crate::object_store::errors::ObjectStoreSourceError;
 
@@ -9,7 +8,7 @@ pub enum JsonError {
     UnspportedType(&'static str),
 
     #[error(transparent)]
-    SerdeJsonError(#[from] serde_json::Error),
+    SerdeJson(#[from] serde_json::Error),
 
     #[error("no objects found {0}")]
     NotFound(String),
@@ -18,7 +17,7 @@ pub enum JsonError {
     ObjectStoreSource(#[from] ObjectStoreSourceError),
 
     #[error(transparent)]
-    ObjectStore(#[from] ObjectStoreError),
+    ObjectStore(#[from] object_store::Error),
 
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
