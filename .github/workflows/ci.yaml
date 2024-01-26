@@ -48,6 +48,7 @@ jobs:
       - name: build
         run: just build
 
+
   fmt:
     name: Format (rustfmt +nightly)
     runs-on: ubuntu-latest
@@ -58,7 +59,7 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: nightly toolchain cache
         with:
           path: |
