@@ -1,3 +1,6 @@
+use std::borrow::Borrow;
+use std::sync::Arc;
+
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -5,14 +8,40 @@ use datafusion::config::ConfigEntry;
 use datafusion::error::Result;
 use datafusion::variable::VarType;
 use pgrepr::notice::NoticeSeverity;
-use std::borrow::Borrow;
-
-use super::constants::*;
-use super::error::VarError;
-use super::value::Value;
-use std::sync::Arc;
 use tracing::error;
 use uuid::Uuid;
+
+use super::constants::{
+    APPLICATION_NAME,
+    CLIENT_ENCODING,
+    CLIENT_MIN_MESSAGES,
+    CONNECTION_ID,
+    DATABASE_ID,
+    DATABASE_NAME,
+    DATESTYLE,
+    DIALECT,
+    ENABLE_DEBUG_DATASOURCES,
+    ENABLE_EXPERIMENTAL_SCHEDULER,
+    EXTRA_FLOAT_DIGITS,
+    FORCE_CATALOG_REFRESH,
+    GLAREDB_VERSION,
+    IS_CLOUD_INSTANCE,
+    MAX_CREDENTIALS_COUNT,
+    MAX_DATASOURCE_COUNT,
+    MAX_TUNNEL_COUNT,
+    MEMORY_LIMIT_BYTES,
+    REMOTE_SESSION_ID,
+    SEARCH_PATH,
+    SERVER_VERSION,
+    STANDARD_CONFORMING_STRINGS,
+    STATEMENT_TIMEOUT,
+    TIMEZONE,
+    TRANSACTION_ISOLATION,
+    USER_ID,
+    USER_NAME,
+};
+use super::error::VarError;
+use super::value::Value;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub enum Dialect {

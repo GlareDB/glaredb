@@ -1,3 +1,7 @@
+use std::fmt;
+use std::ops::Range;
+use std::sync::Arc;
+
 use comfy_table::{Cell, CellAlignment, ColumnConstraint, ContentArrangement, Table};
 use datafusion::arrow::array::{Array, Float64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
@@ -5,10 +9,8 @@ use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow::util::display::{ArrayFormatter, FormatOptions};
 use once_cell::sync::Lazy;
-use std::fmt;
-use std::ops::Range;
-use std::sync::Arc;
-use textwrap::{core::display_width, fill_inplace, wrap};
+use textwrap::core::display_width;
+use textwrap::{fill_inplace, wrap};
 
 const DEFAULT_PRESET: &str = "││──╞═╪╡│    ┬┴┌┐└┘";
 const DEFAULT_MAX_ROWS: usize = 20;

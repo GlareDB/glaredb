@@ -14,14 +14,18 @@ use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    RecordBatchStream,
+    SendableRecordBatchStream,
+    Statistics,
 };
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{Stream, StreamExt};
 use mongodb::bson::RawDocumentBuf;
 use mongodb::Cursor;
-
-use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 
 use super::errors::{MongoDbError, Result};
 use crate::bson::builder::RecordStructBuilder;

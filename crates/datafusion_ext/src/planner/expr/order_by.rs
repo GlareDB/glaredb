@@ -15,12 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use datafusion::common::{plan_datafusion_err, plan_err, DFSchema, DataFusionError, Result};
 use datafusion::logical_expr::expr::Sort;
 use datafusion::logical_expr::Expr;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{Expr as SQLExpr, OrderByExpr, Value};
+
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     /// Convert sql [OrderByExpr] to `Vec<Expr>`.

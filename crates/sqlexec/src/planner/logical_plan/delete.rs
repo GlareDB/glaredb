@@ -1,6 +1,12 @@
 use protogen::metastore::types::catalog::TableEntry;
 
-use super::*;
+use super::{
+    DfLogicalPlan,
+    Expr,
+    ExtensionNode,
+    UserDefinedLogicalNodeCore,
+    GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Delete {

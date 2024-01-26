@@ -1,5 +1,8 @@
-use crate::functions::table::TableFunc;
-use crate::functions::ConstBuiltinFunction;
+use std::any::Any;
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use datafusion::arrow::array::{StringBuilder, UInt32Builder};
 use datafusion::arrow::datatypes::Schema;
@@ -17,17 +20,16 @@ use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, VirtualLister};
 use datasources::native::access::{NativeTableStorage, SaveMode};
 use futures::{stream, StreamExt};
-use protogen::metastore::types::catalog::FunctionType;
-use protogen::metastore::types::catalog::{CatalogEntry, RuntimePreference, TableEntry};
-use std::any::Any;
-use std::collections::HashMap;
-use std::fmt;
-use std::sync::Arc;
+use protogen::metastore::types::catalog::{
+    CatalogEntry, FunctionType, RuntimePreference, TableEntry,
+};
 use tracing::warn;
 
 use super::{SystemOperation, SystemOperationTableProvider};
 use crate::builtins::GLARE_CACHED_EXTERNAL_DATABASE_TABLES;
 use crate::functions::table::virtual_listing::get_virtual_lister_for_external_db;
+use crate::functions::table::TableFunc;
+use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CacheExternalDatabaseTables;

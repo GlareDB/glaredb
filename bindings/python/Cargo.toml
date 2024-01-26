@@ -3,8 +3,11 @@ name = "py-glaredb"
 version.workspace = true
 edition = "2021"
 
+[lints]
+workspace = true
+
 # [workspace]
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [lib]
 name = "glaredb"
 crate-type = ["cdylib"]

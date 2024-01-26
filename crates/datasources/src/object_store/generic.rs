@@ -1,9 +1,6 @@
 use std::fmt::Display;
 use std::sync::Arc;
 
-use crate::common::url::DatasourceUrl;
-use crate::lake::storage_options_into_object_store;
-use crate::object_store::errors::ObjectStoreSourceError;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use object_store::path::Path as ObjectStorePath;
 use object_store::ObjectStore;
@@ -11,6 +8,9 @@ use protogen::metastore::types::options::StorageOptions;
 
 use super::errors::Result;
 use super::ObjStoreAccess;
+use crate::common::url::DatasourceUrl;
+use crate::lake::storage_options_into_object_store;
+use crate::object_store::errors::ObjectStoreSourceError;
 
 /// A generic access implementation that supports a number of different object stores, as determined
 /// by the provided storage options.

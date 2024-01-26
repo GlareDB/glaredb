@@ -1,8 +1,8 @@
 use sqlexec::{LogicalPlan, OperationInfo};
 
-use crate::{
-    connection::JsTrackedSession, error::JsGlareDbError, execution_result::JsExecutionResult,
-};
+use crate::connection::JsTrackedSession;
+use crate::error::JsGlareDbError;
+use crate::execution_result::JsExecutionResult;
 
 #[napi]
 #[derive(Clone, Debug)]
