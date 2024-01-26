@@ -2693,6 +2693,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "distexec"
+version = "0.8.1"
+dependencies = [
+ "async-channel",
+ "datafusion",
+ "futures",
+ "parking_lot",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "doc-comment"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7478,7 +7491,6 @@ name = "sqlexec"
 version = "0.8.1"
 dependencies = [
  "arrow_util",
- "async-channel",
  "async-trait",
  "bytes",
  "catalog",
@@ -7487,6 +7499,7 @@ dependencies = [
  "datafusion-proto",
  "datafusion_ext",
  "datasources",
+ "distexec",
  "futures",
  "ioutil",
  "logutil",

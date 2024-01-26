@@ -11,6 +11,8 @@ use datafusion_ext::vars::SessionVars;
 use datasources::common::errors::DatasourceCommonError;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::native::access::NativeTableStorage;
+use distexec::executor::TaskExecutor;
+use distexec::scheduler::Scheduler;
 use ioutil::ensure_dir;
 use metastore::local::start_inprocess;
 use metastore::util::MetastoreClientMode;
@@ -31,8 +33,6 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::context::remote::RemoteSessionContext;
-use crate::distexec::executor::TaskExecutor;
-use crate::distexec::scheduler::Scheduler;
 use crate::errors::{ExecError, Result};
 use crate::session::Session;
 
