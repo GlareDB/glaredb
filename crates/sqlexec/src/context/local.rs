@@ -20,6 +20,7 @@ use datafusion_ext::runtime::group_pull_up::RuntimeGroupPullUp;
 use datafusion_ext::session_metrics::SessionMetricsHandler;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
+use distexec::scheduler::Scheduler;
 use pgrepr::format::Format;
 use pgrepr::notice::Notice;
 use pgrepr::types::arrow_to_pg_type;
@@ -32,7 +33,6 @@ use tokio_postgres::types::Type as PgType;
 use uuid::Uuid;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
-use crate::distexec::scheduler::Scheduler;
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
 use crate::parser::StatementWithExtensions;
