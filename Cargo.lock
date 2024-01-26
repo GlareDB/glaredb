@@ -2533,7 +2533,7 @@ dependencies = [
  "errno",
  "fix-hidden-lifetime-bug",
  "futures",
- "hashbrown 0.12.3",
+ "hashbrown 0.14.2",
  "itertools 0.12.0",
  "lazy_static",
  "libc",
@@ -5153,11 +5153,10 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
 name = "openssh"
-version = "0.10.2"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8274f2bf1fc3785406a3ff07c92c15590c00e84efb883da77b671562ca9a6115"
+checksum = "cab71dc3fc68747816c7eecdffcede064d6bac9621fd658bf1ab5414e91558a3"
 dependencies = [
- "dirs",
  "libc",
  "once_cell",
  "shell-escape",
