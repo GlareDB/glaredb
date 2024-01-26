@@ -2533,7 +2533,7 @@ dependencies = [
  "errno",
  "fix-hidden-lifetime-bug",
  "futures",
- "hashbrown 0.12.3",
+ "hashbrown 0.14.2",
  "itertools 0.12.0",
  "lazy_static",
  "libc",
@@ -3335,7 +3335,7 @@ dependencies = [
  "ioutil",
  "logutil",
  "metastore",
- "nu-ansi-term 0.49.0",
+ "nu-ansi-term 0.50.0",
  "num_cpus",
  "object_store 0.8.0",
  "object_store_util",
@@ -4903,6 +4903,15 @@ name = "nu-ansi-term"
 version = "0.49.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c073d3c1930d0751774acf49e66653acecb416c3a54c6ec095a9b11caddb5a68"
+dependencies = [
+ "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "nu-ansi-term"
+version = "0.50.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd2800e1520bdc966782168a627aa5d1ad92e33b984bf7c7615d31280c83ff14"
 dependencies = [
  "windows-sys 0.48.0",
 ]
