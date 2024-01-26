@@ -64,10 +64,9 @@ impl JsonPartitionStream {
     pub fn new(schema: Arc<Schema>, chunk: Vec<Map<String, Value>>) -> Self {
         let stream_schema = schema.clone();
         let stream = futures::stream::iter(chunk)
-            .chunks(25)
+            .chunks(1000)
             .map(move |objs| {
-                let mut decoder =
-                    ReaderBuilder::new(stream_schema.clone().to_owned()).build_decoder()?;
+                let mut decoder = ReaderBuilder::new(stream_schema.to_owned()).build_decoder()?;
                 decoder
                     .serialize(&objs)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;

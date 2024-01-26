@@ -36,7 +36,7 @@ pub async fn json_streaming_table(
     let mut data = Vec::new();
     for obj in list {
         let blob = store.get(&obj.location).await?.bytes().await?.to_vec();
-        let dejson = serde_json::from_slice::<serde_json::Value>(blob.as_slice())?.to_owned();
+        let dejson = serde_json::from_slice::<serde_json::Value>(&blob)?;
         push_unwind_json_values(&mut data, dejson)?;
     }
 
@@ -52,13 +52,13 @@ pub async fn json_streaming_table(
 
     let schema = Arc::new(Schema::new(
         field_set
-            .iter()
-            .map(|(k, v)| Field::new(k, v.to_owned(), true))
+            .into_iter()
+            .map(|(k, v)| Field::new(k, v, true))
             .collect::<Vec<_>>(),
     ));
 
     let chunks = data
-        .chunks(100)
+        .chunks(10000)
         .map(|chunk| -> Arc<dyn PartitionStream> {
             Arc::new(JsonPartitionStream::new(schema.clone(), chunk.to_vec()))
         })
@@ -103,7 +103,7 @@ fn type_for_value(value: &Value) -> DataType {
                 DataType::List(Arc::new(Field::new("", DataType::Null, true)))
             } else {
                 DataType::List(Arc::new(Field::new(
-                    "",
+                    "item",
                     type_for_value(v.first().unwrap()),
                     true,
                 )))
