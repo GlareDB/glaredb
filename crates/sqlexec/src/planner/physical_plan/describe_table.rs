@@ -1,25 +1,27 @@
-use super::*;
-use std::{any::Any, sync::Arc};
+use std::any::Any;
+use std::sync::Arc;
 
 use arrow_util::pretty::fmt_dtype;
-use datafusion::{
-    arrow::{
-        array::{BooleanBuilder, StringBuilder},
-        record_batch::RecordBatch,
-    },
-    error::DataFusionError,
-    error::Result,
-    execution::TaskContext,
-    physical_expr::PhysicalSortExpr,
-    physical_plan::{
-        stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan,
-        Partitioning, SendableRecordBatchStream, Statistics,
-    },
+use datafusion::arrow::array::{BooleanBuilder, StringBuilder};
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::error::{DataFusionError, Result};
+use datafusion::execution::TaskContext;
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use datafusion::physical_plan::{
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use futures::stream;
 use protogen::metastore::types::catalog::TableEntry;
 
-use crate::planner::{errors::PlanError, logical_plan::DESCRIBE_TABLE_SCHEMA};
+use super::{DataFusionResult, SchemaRef};
+use crate::planner::errors::PlanError;
+use crate::planner::logical_plan::DESCRIBE_TABLE_SCHEMA;
 
 #[derive(Debug, Clone)]
 pub struct DescribeTableExec {

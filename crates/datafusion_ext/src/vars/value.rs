@@ -1,6 +1,6 @@
 use pgrepr::notice::NoticeSeverity;
 
-use super::*;
+use super::{split_comma_delimited, Dialect, Display, FromStr, ToOwned, Uuid};
 
 pub trait Value: ToOwned + std::fmt::Debug {
     fn try_parse(s: &str) -> Option<Self::Owned>;

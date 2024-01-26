@@ -6,23 +6,21 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use catalog::session_catalog::SessionCatalog;
 use datafusion::datasource::{TableProvider, ViewTable};
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
-use datafusion::prelude::SessionContext as DfSessionContext;
-use datafusion::prelude::{Column, Expr};
+use datafusion::prelude::{Column, Expr, SessionContext as DfSessionContext};
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{DatabaseEntry, FunctionEntry, TableEntry, ViewEntry};
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
 
+use self::external::ExternalDispatcher;
 use crate::context::local::LocalSessionContext;
 use crate::dispatch::system::SystemTableDispatcher;
 use crate::parser::CustomParser;
 use crate::planner::errors::PlanError;
 use crate::planner::session_planner::SessionPlanner;
-use catalog::session_catalog::SessionCatalog;
-
-use self::external::ExternalDispatcher;
 
 type Result<T, E = DispatchError> = std::result::Result<T, E>;
 

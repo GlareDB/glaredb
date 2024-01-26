@@ -1,7 +1,5 @@
-use protogen::metastore::{
-    strategy::{ResolveErrorStrategy, RESOLVE_ERROR_STRATEGY_META},
-    types::catalog::CatalogEntry,
-};
+use protogen::metastore::strategy::{ResolveErrorStrategy, RESOLVE_ERROR_STRATEGY_META};
+use protogen::metastore::types::catalog::CatalogEntry;
 
 #[derive(thiserror::Error, Debug)]
 pub enum MetastoreError {

@@ -1,7 +1,7 @@
 //! Extensions to various byte traits.
+use std::{io, str};
+
 use bytes::{Buf, BufMut};
-use std::io;
-use std::str;
 
 pub trait BufStringMut: BufMut {
     /// Put a null-terminated string in the buffer.
@@ -67,8 +67,9 @@ impl<'a> Buf for Cursor<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::BytesMut;
+
+    use super::*;
 
     #[test]
     fn can_read_string() {

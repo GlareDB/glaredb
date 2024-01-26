@@ -1,14 +1,11 @@
 mod postgres;
-pub use postgres::*;
-
-use crate::gen::metastore::catalog::TableEntry;
 use datafusion_proto::protobuf::{LogicalExprNode, Schema};
+pub use postgres::*;
 use prost::{Message, Oneof};
 
-use super::{
-    common::{FullObjectReference, FullSchemaReference},
-    copy_to::{CopyToDestinationOptions, CopyToFormatOptions},
-};
+use super::common::{FullObjectReference, FullSchemaReference};
+use super::copy_to::{CopyToDestinationOptions, CopyToFormatOptions};
+use crate::gen::metastore::catalog::TableEntry;
 
 #[derive(Clone, PartialEq, Message)]
 pub struct ClientExchangeRecvExec {

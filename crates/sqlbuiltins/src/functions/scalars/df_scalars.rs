@@ -4,7 +4,7 @@
 
 #![allow(non_camel_case_types)]
 
-use super::*;
+use super::{document, BuiltinFunction, BuiltinScalarFunction, ConstBuiltinFunction, FunctionType};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ArrowCastFunction;

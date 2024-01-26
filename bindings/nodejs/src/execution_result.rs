@@ -1,9 +1,7 @@
 use arrow_util::pretty;
-
 use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
 use futures::StreamExt;
-
 use sqlexec::session::ExecutionResult;
 
 use crate::error::JsGlareDbError;

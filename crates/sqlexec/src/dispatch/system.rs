@@ -11,9 +11,20 @@ use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType, SourceAccessMode, TableEntry};
 use protogen::metastore::types::options::TunnelOptions;
 use sqlbuiltins::builtins::{
-    BuiltinTable, DATABASE_DEFAULT, GLARE_CACHED_EXTERNAL_DATABASE_TABLES, GLARE_COLUMNS,
-    GLARE_CREDENTIALS, GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA, GLARE_FUNCTIONS, GLARE_SCHEMAS,
-    GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
+    BuiltinTable,
+    DATABASE_DEFAULT,
+    GLARE_CACHED_EXTERNAL_DATABASE_TABLES,
+    GLARE_COLUMNS,
+    GLARE_CREDENTIALS,
+    GLARE_DATABASES,
+    GLARE_DEPLOYMENT_METADATA,
+    GLARE_FUNCTIONS,
+    GLARE_SCHEMAS,
+    GLARE_SSH_KEYS,
+    GLARE_TABLES,
+    GLARE_TUNNELS,
+    GLARE_VIEWS,
+    SCHEMA_CURRENT_SESSION,
 };
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
 

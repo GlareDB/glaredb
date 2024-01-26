@@ -1,32 +1,37 @@
-use chrono::{DateTime, NaiveDate};
-use chrono_tz::Tz;
-use datafusion::{
-    arrow::{
-        array::{
-            Array, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
-            UInt16Array, UInt32Array, UInt64Array, UInt8Array,
-        },
-        datatypes::{DataType, Schema, TimeUnit},
-        record_batch::{RecordBatch, RecordBatchOptions},
-    },
-    physical_plan::RecordBatchStream,
-};
-use datafusion::{
-    arrow::{
-        array::{BooleanBuilder, Date32Builder, StringBuilder, TimestampNanosecondBuilder},
-        datatypes::SchemaRef,
-    },
-    error::DataFusionError,
-};
-use futures::{Stream, StreamExt};
-use klickhouse::{block::Block, KlickhouseError, Value};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::clickhouse::errors::ClickhouseError;
+use chrono::{DateTime, NaiveDate};
+use chrono_tz::Tz;
+use datafusion::arrow::array::{
+    Array,
+    BooleanBuilder,
+    Date32Builder,
+    Float32Array,
+    Float64Array,
+    Int16Array,
+    Int32Array,
+    Int64Array,
+    Int8Array,
+    StringBuilder,
+    TimestampNanosecondBuilder,
+    UInt16Array,
+    UInt32Array,
+    UInt64Array,
+    UInt8Array,
+};
+use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef, TimeUnit};
+use datafusion::arrow::record_batch::{RecordBatch, RecordBatchOptions};
+use datafusion::error::DataFusionError;
+use datafusion::physical_plan::RecordBatchStream;
+use futures::{Stream, StreamExt};
+use klickhouse::block::Block;
+use klickhouse::{KlickhouseError, Value};
 
-use super::{errors::Result, ClickhouseAccessState};
+use super::errors::Result;
+use super::ClickhouseAccessState;
+use crate::clickhouse::errors::ClickhouseError;
 
 type PinnedStream = Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send + Sync>>;
 

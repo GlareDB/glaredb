@@ -1,11 +1,12 @@
-use crate::errors::{CatalogError, Result};
+use std::sync::Arc;
+
 use protogen::metastore::strategy::ResolveErrorStrategy;
 use protogen::metastore::types::catalog::CatalogState;
 use protogen::metastore::types::service::Mutation;
-use std::sync::Arc;
 use tracing::debug;
 
 use super::client::MetastoreClientHandle;
+use crate::errors::{CatalogError, Result};
 
 /// Wrapper around a metastore client for mutating the catalog.
 #[derive(Clone)]

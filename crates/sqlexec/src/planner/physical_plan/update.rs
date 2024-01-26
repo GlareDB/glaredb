@@ -1,19 +1,25 @@
+use std::any::Any;
+use std::fmt;
+use std::sync::Arc;
+
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use datafusion::prelude::Expr;
 use datasources::native::access::NativeTableStorage;
 use futures::stream;
 use protogen::metastore::types::catalog::TableEntry;
-use std::any::Any;
-use std::fmt;
-use std::sync::Arc;
 
 use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA};
 

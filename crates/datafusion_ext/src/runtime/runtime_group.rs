@@ -1,16 +1,21 @@
+use std::any::Any;
+use std::fmt;
+use std::sync::Arc;
+
 use datafusion::arrow::datatypes::Schema;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::MetricsSet;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
     Statistics,
 };
 use protogen::metastore::types::catalog::RuntimePreference;
-use std::any::Any;
-use std::fmt;
-use std::sync::Arc;
 
 /// An execution plan with an associated runtime preference.
 ///

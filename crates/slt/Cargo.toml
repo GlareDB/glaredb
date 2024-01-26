@@ -3,6 +3,9 @@ name = "slt"
 version = { workspace = true }
 edition = { workspace = true }
 
+[lints]
+workspace = true
+
 [dependencies]
 clap = { workspace = true }
 tokio = { workspace = true }

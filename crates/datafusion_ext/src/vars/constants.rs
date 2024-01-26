@@ -1,7 +1,7 @@
-use super::*;
-
 use pgrepr::compatible::server_version;
 use pgrepr::notice::NoticeSeverity;
+
+use super::{Dialect, Lazy, ServerVar, ToOwned, Uuid};
 
 pub(super) const SERVER_VERSION: ServerVar<str> = ServerVar {
     name: "server_version",

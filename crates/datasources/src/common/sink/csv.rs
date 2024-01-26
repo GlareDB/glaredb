@@ -10,16 +10,14 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::metrics::MetricsSet;
-use datafusion::physical_plan::DisplayAs;
-use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
+use datafusion::physical_plan::{DisplayAs, DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
 use object_store::path::Path as ObjectPath;
 use object_store::ObjectStore;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
-use crate::common::errors::Result;
-
 use super::SharedBuffer;
+use crate::common::errors::Result;
 
 const BUFFER_SIZE: usize = 2 * 1024 * 1024;
 
