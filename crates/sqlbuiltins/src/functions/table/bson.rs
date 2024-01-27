@@ -46,8 +46,6 @@ impl TableFunc for BsonScan {
         }
     }
 
-    // TODO: most of this should be implemented as a TableProvider in
-    // the datasources bson package and just wrapped here.
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
