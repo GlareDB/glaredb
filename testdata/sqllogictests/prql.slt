@@ -178,7 +178,8 @@ from glare_catalog.tables | take 1
 # Begin integration tests copied from prql.
 
 # https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/aggregation.prql
-skipif glaredb_rpc # See <https://github.com/apache/arrow-datafusion/pull/9027>
+# See <https://github.com/apache/arrow-datafusion/pull/9027>
+skipif glaredb_rpc
 query TTTT
 from tracks
 filter genre_id == 100
