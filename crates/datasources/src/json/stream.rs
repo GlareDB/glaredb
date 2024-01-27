@@ -10,9 +10,13 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use futures::{Stream, StreamExt};
+use object_store::{ObjectMeta, ObjectStore};
 use serde_json::{Map, Value};
 
-type SendableCheckedRecordBatchStrem =
+use crate::json::errors::JsonError;
+use crate::json::table::push_unwind_json_values;
+
+pub type SendableCheckedRecordBatchStrem =
     Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>;
 
 pub struct JsonStream {
@@ -50,7 +54,7 @@ impl PartitionStream for JsonPartitionStream {
             .lock()
             .unwrap()
             .take()
-            .expect("stream to only be called once")
+            .expect("stream can only be used once")
             .boxed();
 
         Box::pin(JsonStream {
@@ -78,5 +82,71 @@ impl JsonPartitionStream {
             schema: schema.clone(),
             stream: Mutex::new(Some(stream)),
         }
+    }
+}
+
+pub(crate) struct LazyJsonPartitionStream {
+    schema: Arc<Schema>,
+    store: Arc<dyn ObjectStore>,
+    obj: ObjectMeta,
+}
+
+impl PartitionStream for LazyJsonPartitionStream {
+    fn schema(&self) -> &SchemaRef {
+        &self.schema
+    }
+
+    fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
+        let stream_schema = self.schema.to_owned();
+        let store = self.store.clone();
+        let obj = self.obj.clone();
+
+        let partition = futures::stream::once(async move {
+            futures::stream::iter(
+                match Self::build(stream_schema, store, obj).await {
+                    Err(e) => vec![Err(DataFusionError::External(Box::new(e)))],
+                    Ok(batches) => batches,
+                }
+                .into_iter(),
+            )
+        })
+        .flatten()
+        .boxed();
+
+        Box::pin(JsonStream {
+            schema: self.schema.clone(),
+            stream: partition,
+        })
+    }
+}
+
+impl LazyJsonPartitionStream {
+    pub fn new(schema: Arc<Schema>, store: Arc<dyn ObjectStore>, obj: ObjectMeta) -> Self {
+        Self { schema, store, obj }
+    }
+
+    async fn build(
+        schema: Arc<Schema>,
+        store: Arc<dyn ObjectStore>,
+        obj: ObjectMeta,
+    ) -> Result<Vec<Result<RecordBatch, DataFusionError>>, JsonError> {
+        let mut data = Vec::new();
+        push_unwind_json_values(
+            &mut data,
+            serde_json::from_slice::<Value>(
+                &store.get(&obj.location).await?.bytes().await?.to_vec(),
+            ),
+        )?;
+
+        Ok(data
+            .chunks(1000)
+            .map(|chunk| {
+                let mut decoder = ReaderBuilder::new(schema.clone()).build_decoder()?;
+                decoder
+                    .serialize(&chunk)
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                Ok(decoder.flush()?.unwrap())
+            })
+            .collect())
     }
 }

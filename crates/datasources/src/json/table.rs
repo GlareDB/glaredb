@@ -5,11 +5,12 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
 use datafusion::physical_plan::streaming::PartitionStream;
+use object_store::ObjectStore;
 use serde_json::{Map, Value};
 
-use super::stream::JsonPartitionStream;
 use crate::common::url::DatasourceUrl;
 use crate::json::errors::JsonError;
+use crate::json::stream::{JsonPartitionStream, LazyJsonPartitionStream};
 use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::ObjStoreAccess;
 
@@ -34,22 +35,36 @@ pub async fn json_streaming_table(
     list.sort_by(|a, b| a.location.cmp(&b.location));
 
     let mut data = Vec::new();
-    for obj in list {
-        let blob = store.get(&obj.location).await?.bytes().await?.to_vec();
-        let dejson = serde_json::from_slice::<serde_json::Value>(&blob)?;
-        push_unwind_json_values(&mut data, dejson)?;
+    {
+        let first_obj = list
+            .pop()
+            .ok_or_else(|| JsonError::NotFound(path.into_owned()))?;
+        let blob = store
+            .get(&first_obj.location)
+            .await?
+            .bytes()
+            .await?
+            .to_vec();
+
+        push_unwind_json_values(
+            &mut data,
+            serde_json::from_slice::<serde_json::Value>(&blob),
+        )?;
     }
 
     let mut field_set = indexmap::IndexMap::<String, DataType>::new();
     for obj in &data {
-        for key in obj.keys() {
-            if field_set.contains_key(key) {
-                continue;
-            }
-            field_set.insert(key.to_string(), type_for_value(obj.get(key).unwrap()));
+        for (key, value) in obj.into_iter() {
+            let typ = type_for_value(value);
+            match field_set.get(key) {
+                Some(v) => match widen_type(v, typ) {
+                    Some(wider) => field_set.insert(key.to_string(), wider),
+                    None => None,
+                },
+                None => field_set.insert(key.to_string(), typ),
+            };
         }
     }
-
     let schema = Arc::new(Schema::new(
         field_set
             .into_iter()
@@ -57,21 +72,24 @@ pub async fn json_streaming_table(
             .collect::<Vec<_>>(),
     ));
 
-    let chunks = data
-        .chunks(10000)
-        .map(|chunk| -> Arc<dyn PartitionStream> {
-            Arc::new(JsonPartitionStream::new(schema.clone(), chunk.to_vec()))
-        })
-        .collect::<Vec<_>>();
+    let mut streams = Vec::<Arc<dyn PartitionStream>>::with_capacity(list.len());
+    streams.push(Arc::new(JsonPartitionStream::new(schema.clone(), data)));
+    for obj in list {
+        streams.push(Arc::new(LazyJsonPartitionStream::new(
+            schema.clone(),
+            store.clone(),
+            obj,
+        )));
+    }
 
-    Ok(Arc::new(StreamingTable::try_new(schema.clone(), chunks)?))
+    Ok(Arc::new(StreamingTable::try_new(schema.clone(), streams)?))
 }
 
-fn push_unwind_json_values(
+pub(crate) fn push_unwind_json_values(
     data: &mut Vec<Map<String, Value>>,
-    val: Value,
+    val: Result<Value, serde_json::Error>,
 ) -> Result<(), JsonError> {
-    match val {
+    match val? {
         Value::Array(vals) => {
             for v in vals {
                 match v {
@@ -94,6 +112,14 @@ fn push_unwind_json_values(
         }
     };
     Ok(())
+}
+
+fn widen_type(left: &DataType, right: DataType) -> Option<DataType> {
+    match (left, right) {
+        (&DataType::Null, right) => Some(right),
+        (&DataType::Int64 | &DataType::UInt64, DataType::Float64) => Some(DataType::Float64),
+        _ => None,
+    }
 }
 
 fn type_for_value(value: &Value) -> DataType {
