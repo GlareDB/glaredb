@@ -101,21 +101,19 @@ impl PartitionStream for LazyJsonPartitionStream {
         let store = self.store.clone();
         let obj = self.obj.clone();
 
-        let partition = futures::stream::once(async move {
-            futures::stream::iter(
-                match Self::build(stream_schema, store, obj).await {
-                    Err(e) => vec![Err(DataFusionError::External(Box::new(e)))],
-                    Ok(batches) => batches,
-                }
-                .into_iter(),
-            )
-        })
-        .flatten()
-        .boxed();
-
         Box::pin(JsonStream {
             schema: self.schema.clone(),
-            stream: partition,
+            stream: futures::stream::once(async move {
+                futures::stream::iter(
+                    match Self::build(stream_schema, store, obj).await {
+                        Ok(batches) => batches,
+                        Err(e) => vec![Err(DataFusionError::External(Box::new(e)))],
+                    }
+                    .into_iter(),
+                )
+            })
+            .flatten()
+            .boxed(),
         })
     }
 }
