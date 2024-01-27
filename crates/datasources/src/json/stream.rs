@@ -104,13 +104,10 @@ impl PartitionStream for LazyJsonPartitionStream {
         Box::pin(JsonStream {
             schema: self.schema.clone(),
             stream: futures::stream::once(async move {
-                futures::stream::iter(
-                    match Self::build(stream_schema, store, obj).await {
-                        Ok(batches) => batches,
-                        Err(e) => vec![Err(DataFusionError::External(Box::new(e)))],
-                    }
-                    .into_iter(),
-                )
+                futures::stream::iter(match Self::build(stream_schema, store, obj).await {
+                    Ok(batches) => batches,
+                    Err(e) => vec![Err(DataFusionError::External(Box::new(e)))],
+                }o)
             })
             .flatten()
             .boxed(),
@@ -132,7 +129,7 @@ impl LazyJsonPartitionStream {
         push_unwind_json_values(
             &mut data,
             serde_json::from_slice::<Value>(
-                &store.get(&obj.location).await?.bytes().await?.to_vec(),
+                &store.get(&obj.location).await?.bytes().await?,
             ),
         )?;
 
@@ -141,7 +138,7 @@ impl LazyJsonPartitionStream {
             .map(|chunk| {
                 let mut decoder = ReaderBuilder::new(schema.clone()).build_decoder()?;
                 decoder
-                    .serialize(&chunk)
+                    .serialize(chunk)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
                 Ok(decoder.flush()?.unwrap())
             })
