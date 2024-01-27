@@ -29,6 +29,8 @@ use datafusion_ext::session_metrics::{
 };
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
+use distexec::scheduler::{OutputSink, Scheduler};
+use distexec::stream::create_coalescing_adapter;
 use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
 use pgrepr::format::Format;
@@ -37,8 +39,6 @@ use telemetry::Tracker;
 use uuid::Uuid;
 
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
-use crate::distexec::scheduler::{OutputSink, Scheduler};
-use crate::distexec::stream::create_coalescing_adapter;
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
 use crate::parser::StatementWithExtensions;

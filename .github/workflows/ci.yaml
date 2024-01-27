@@ -49,10 +49,31 @@ jobs:
       - name: build
         run: just build
 
+
+  fmt:
+    name: Format (rustfmt +nightly)
+    runs-on: ubuntu-latest
+    needs: ["build"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
+      - uses: actions/cache@v4
+        name: nightly toolchain cache
+        with:
+          path: |
+            ~/.rustup/toolchains/
+          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rustfmt.toml') }}
+      - run: rustup install nightly
+      - run: rustup component add rustfmt --toolchain nightly
+      - run: just fmt-check
+
   lint:
     name: Lint (clippy)
     runs-on: ubuntu-latest-8-cores
-    needs: ["build"]
+    needs: ["fmt"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -74,26 +95,6 @@ jobs:
 
       - name: clippy
         run: just clippy
-
-  fmt:
-    name: Format (rustfmt +nightly)
-    runs-on: ubuntu-latest-8-cores
-    needs: ["build"]
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
-      - uses: actions/cache@v3
-        name: nightly toolchain cache
-        with:
-          path: |
-            ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rustfmt.toml') }}
-      - run: rustup install nightly
-      - run: rustup component add rustfmt --toolchain nightly
-      - run: just fmt-check
 
   unit-tests:
     name: Unit Tests
@@ -196,7 +197,7 @@ jobs:
 
   pg-protocol:
     name: PG Protocol Tests
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest
     needs: ["build"]
     steps:
       - name: checkout
@@ -232,7 +233,7 @@ jobs:
 
   sql-logic-tests:
     name: SQL Logic Tests
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest
     needs: ["build"]
     strategy:
       matrix:
@@ -267,7 +268,7 @@ jobs:
 
   process-integration-tests:
     name: Process Integration Tests (pytest)
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest
     needs: ["build"]
     steps:
       - name: checkout
@@ -354,8 +355,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AZURE_ACCESS_KEY: ${{ secrets.AZURE_ACCESS_KEY }}
           AZURE_ACCOUNT: ${{ secrets.AZURE_ACCOUNT }}
-          MINIO_ACCESS_KEY: glaredb
-          MINIO_SECRET_KEY: glaredb_test
           TEST_BUCKET: glaredb-test-bucket
         run: |
           # Prepare SLT (BigQuery)
@@ -384,9 +383,6 @@ jobs:
           POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
           export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
           export POSTGRES_TUNNEL_SSH_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 2p)
-
-          # Prepare SLT (MinIO)
-          ./scripts/create-test-minio-store.sh
 
           # Prepare SLT (fake GCS server)
           ./scripts/create-test-gcs-store.sh
@@ -549,7 +545,7 @@ jobs:
   service-integration-tests-snowflake:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
     name: Snowflake Service Integration Tests (SLT::Snowflake)
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest
     needs: ["service-integration-tests"]
     concurrency:
       group: snowflake-integration-tests
