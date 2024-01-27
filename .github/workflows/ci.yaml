@@ -34,20 +34,26 @@ jobs:
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache@v4
-        name: build cache
+        name: workspace cache
         with:
           path: |
             target/
             !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
+
+      - run: just build
+
+      - uses: actions/cache/save@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
           key: ${{ github.run_id }}
-      - name: build
-        run: just build
-
+      - uses: actions/cache/save@v4
+        name: build cache
+        with:
+          path: |
+            target/
+          key: ${{ runner.os }}-cargo--target-${{github.sha}}
 
   fmt:
     name: Format (rustfmt +nightly)
@@ -59,7 +65,7 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: nightly toolchain cache
         with:
           path: |
@@ -79,21 +85,19 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: clippy
-        run: just clippy
+      - run: just clippy
 
   unit-tests:
     name: Unit Tests
@@ -105,21 +109,25 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: run tests
-        run: just unit-tests
+      - uses: actions/cache/restore@v4
+        name: build cache
+        with:
+          path: |
+            target/
+          key: ${{ runner.os }}-cargo--target-${{github.sha}}
+      - run: just unit-tests
 
   python-binding-tests:
     name: Python Binding Tests
@@ -131,31 +139,26 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: build cache
         with:
           path: |
             target/
-            !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: build python bindings
-        run: just python build
-
-      - name: run python binding tests
-        run: just python test
+          key: ${{ runner.os }}-cargo--target-${{github.sha}}
+      - run: just python build
+      - run: just python test
 
   nodejs-bindings-tests:
     name: Node.js Binding Tests
@@ -163,36 +166,32 @@ jobs:
     needs: ["build"]
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: build cache
         with:
           path: |
             target/
-            !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: build node.js bindings
-        run: just js build-debug
-      - name: run node.js binding tests
-        run: just js test
+          key: ${{ runner.os }}-cargo--target-${{github.sha}}
+      - run: just js build-debug
+      - run: just js test
 
   pg-protocol:
     name: PG Protocol Tests
@@ -204,31 +203,21 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
-        name: toolchain cache
-        with:
-          path: |
-            ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: build cache
         with:
           path: |
             target/
-            !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: pg protocol test (script)
-        run: |
+          key: ${{ runner.os }}-cargo--target-${{github.sha}}
+      - run: |
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
-
-      - name: pg protocol tests (slt runner)
-        run: just slt-bin-debug 'pgproto/*'
+      - run: just slt-bin-debug 'pgproto/*'
 
   sql-logic-tests:
     name: SQL Logic Tests
@@ -243,11 +232,12 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
-        name: glaredb cache
+      - uses: actions/cache/restore@v4
+        name: build cache
         with:
-          path: target/debug/glaredb
-          key: ${{ github.run_id }}
+          path: |
+            target/
+          key: ${{ runner.os }}-cargo--target-${{github.sha}}
       - name: public sql logic tests DEBUG
         if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
         run: |
@@ -283,26 +273,7 @@ jobs:
           python-version: "3.11"
           cache: poetry
           cache-dependency-path: tests/poetry.lock
-      - uses: actions/cache@v4
-        name: toolchain cache
-        with:
-          path: |
-            ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v4
-        name: cargo cache
-        with:
-          path: |
-            ~/.cargo/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
-        name: build cache
-        with:
-          path: |
-            target/
-            !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -313,10 +284,8 @@ jobs:
           path: |
             tests/.venv/
           key: ${{ runner.os }}-poetry-${{ hashFiles('**/Cargo.lock') }}
-      - name: setup pytest
-        run: just venv
-      - name: run pytest
-        run: just pytest
+      - run: just venv
+      - run: just pytest
 
   service-integration-tests:
     name: Service Integration Tests (SLT)
@@ -326,10 +295,12 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
+
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+
+      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -343,8 +314,7 @@ jobs:
       - name: setup GCP
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: prepare testdata
-        run: ./scripts/prepare-testdata.sh
+      - run: ./scripts/prepare-testdata.sh
 
       - name: run tests (slt)
         env:
@@ -428,7 +398,7 @@ jobs:
 
   minio-integration-tests:
     name: MinIO Integration Tests (SLT::MinIO)
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest
     needs: ["build"]
     steps:
       - name: checkout
@@ -436,7 +406,8 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+
+      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -494,16 +465,19 @@ jobs:
         settings:
           - name: Clickhouse
             path: "sqllogictests_clickhouse/*"
+            runner: ubuntu-latest
             prepare: |
               ./scripts/prepare-testdata.sh
               source ./scripts/ci-install-clickhouse.sh
               export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
           - name: Cassandra
             path: "sqllogictests_cassandra/*"
+            runner: ubuntu-latest
             prepare: |
               export CASSANDRA_CONN_STRING=$(./scripts/create-test-cassandra-db.sh | tail -n 1)
           - name: Mysql
             path: "sqllogictests_mysql/*"
+            runner: ubuntu-latest
             prepare: |
               ./scripts/prepare-testdata.sh
               export MYSQL_CONN_STRING=$(./scripts/create-test-mysql-db.sh)
@@ -511,16 +485,18 @@ jobs:
               export MYSQL_CONN_STRING=$(echo "$MYSQL_CONN_STRING" | sed -n 1p)
           - name: MongoDB
             path: "sqllogictests_mongodb/*"
+            runner: ubuntu-latest
             prepare: |
               ./scripts/prepare-testdata.sh
               export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
           - name: Sqlserver
             path: "sqllogictests_sqlserver/*"
+            runner: ubuntu-latest
             prepare: |
               ./scripts/prepare-testdata.sh
               export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
 
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ${{matrix.runner}}
     needs: ["build"]
     steps:
       - name: checkout
@@ -528,7 +504,7 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -555,7 +531,7 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -568,8 +544,7 @@ jobs:
           mkdir -p ~/bin
           SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
 
-      - name: prepare testdata
-        run: ./scripts/prepare-testdata.sh
+      - run: ./scripts/prepare-testdata.sh
 
       - name: run tests (slt)
         env:
