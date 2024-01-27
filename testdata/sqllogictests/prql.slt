@@ -178,26 +178,13 @@ from glare_catalog.tables | take 1
 # Begin integration tests copied from prql.
 
 # https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/aggregation.prql
-
-# TODO: Missing string_agg function
-# statement ok
-# from tracks
-# filter genre_id == 100
-# derive empty_name = name == ''
-# aggregate {sum track_id, concat_array name, every empty_name, any empty_name}
-
-# TODO: Projection references non-aggregate values: Expression Column(Column {
-# relation: Some(Bare { table: "tracks" }), name: "name" }) could not be
-# resolved from available columns: SUM(tracks.track_id), BOOL_AND(tracks.name =
-# Utf8("")), BOOL_OR(tracks.name = Utf8(""))
-#
-# query ITII
-# from tracks
-# filter genre_id == 100
-# derive empty_name = name == ''
-# aggregate {sum track_id, name, every empty_name, any empty_name}
-# ----
-# 0  1  0
+query TTTT
+from tracks
+filter genre_id == 100
+derive empty_name = name == ''
+aggregate {sum track_id, concat_array name, all empty_name, any empty_name}
+----
+0 (empty) t f
 
 # https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/arithmetic.prql
 query RRRRRRRRRRRRRRRRR
@@ -652,13 +639,51 @@ sort tracks.*
 346  24
 347  10
 
-# TODO: Distinct on
 # https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/distinct_on.prql
-# statement ok
-# from tracks
-# select {genre_id, media_type_id, album_id}
-# group {genre_id, media_type_id} (sort {-album_id} | take 1)
-# sort {-genre_id, media_type_id}
+query III
+from tracks
+select {genre_id, media_type_id, album_id}
+group {genre_id, media_type_id} (sort {-album_id} | take 1)
+sort {-genre_id, media_type_id}
+----
+25  2  317
+24  2  346
+24  4  342
+24  5  268
+23  2  323
+23  3  271
+23  4  260
+22  3  251
+21  3  261
+20  3  253
+19  3  261
+18  3  227
+17  1  258
+16  1  161
+16  5  263
+15  1  259
+15  5  264
+14  1  146
+14  2  321
+13  1  102
+12  1  83
+11  1  52
+10  1  176
+10  2  347
+9   1  29
+9   2  322
+8   1  241
+7   1  248
+7   5  266
+6   1  210
+5   1  12
+4   1  225
+3   1  207
+2   1  204
+2   5  267
+1   1  246
+1   2  257
+1   5  265
 
 # https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/genre_counts.prql
 query I
@@ -829,34 +854,75 @@ Nancy     Edwards   Andrew
 Robert    King      Michael
 Steve     Johnson   Nancy
 
-# TODO: PRQL error: "function call expected {, but found ["
 # https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/switch.prql
-# statement ok
-# from tracks
-# sort milliseconds
-# select display = case [
-#     composer != null => composer,
-#     genre_id < 17 => 'no composer',
-#     true => f'unknown composer'
-# ]
-# take 10
+query T
+from tracks
+sort milliseconds
+select display = case [
+    composer != null => composer,
+    genre_id < 17 => 'no composer',
+    true => f'unknown composer'
+]
+take 10
+----
+Samuel Rosa
+no composer
+no composer
+no composer
+L. Muggerud
+no composer
+L. Muggerud
+unknown composer
+Gilberto Gil
+Chico Science
 
-# TODO: Distinct on
 # https://github.com/PRQL/prql/blob/main/prqlc/prqlc/tests/integration/queries/window.prql
-# statement ok
-# from tracks
-# group genre_id (
-#   sort milliseconds
-#   derive {
-#     num = row_number this,
-#     total = count this,
-#     last_val = last track_id,
-#   }
-#   take 10
-# )
-# sort {genre_id, milliseconds}
-# select {track_id, genre_id, num, total, last_val}
-# filter genre_id >= 22
+query IIIII
+from tracks
+group genre_id (
+  sort milliseconds
+  derive {
+    num = row_number this,
+    total = count this,
+    last_val = last track_id,
+  }
+  take 10
+)
+sort {genre_id, milliseconds}
+select {track_id, genre_id, num, total, last_val}
+filter genre_id >= 22
+----
+3219  22  1   17  3219
+3218  22  2   17  3218
+3214  22  3   17  3214
+3210  22  4   17  3210
+3213  22  5   17  3213
+3216  22  6   17  3216
+3208  22  7   17  3208
+3211  22  8   17  3211
+3215  22  9   17  3215
+3221  22  10  17  3221
+3379  23  1   40  3379
+3384  23  2   40  3384
+3399  23  3   40  3399
+3395  23  4   40  3395
+3377  23  5   40  3377
+3478  23  6   40  3478
+3385  23  7   40  3385
+3390  23  8   40  3390
+3381  23  9   40  3381
+3393  23  10  40  3393
+3496  24  1   74  3496
+3501  24  2   74  3501
+3448  24  3   74  3448
+3452  24  4   74  3452
+3483  24  5   74  3483
+3449  24  6   74  3449
+3408  24  7   74  3408
+3447  24  8   74  3447
+3492  24  9   74  3492
+3500  24  10  74  3500
+3451  25  1   1   3451
 
 query TTT
 from (read_csv './testdata/prql_integration/employees.csv')
