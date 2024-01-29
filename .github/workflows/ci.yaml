@@ -39,12 +39,14 @@ jobs:
           path: |
             target/
             !target/**/glaredb
+            !target/**/pgprototest
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: just build
+      - run: cargo build --bin pgprototest
       - uses: actions/cache/save@v4
         name: glaredb cache
         with:
-          path: target/debug/glaredb
+          path: target/
           key: ${{ github.run_id }}
 
 
@@ -65,12 +67,10 @@ jobs:
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rustfmt.toml') }}
       - uses: actions/cache/restore@v4
-        name: workspace cache
+        name: glaredb cache
         with:
-          path: |
-            target/
-            !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          path: target/
+          key: ${{ github.run_id }}
       - run: rustup install nightly
       - run: rustup component add rustfmt --toolchain nightly
       - run: just fmt-check
@@ -99,12 +99,10 @@ jobs:
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache/restore@v4
-        name: workspace cache
+        name: glaredb cache
         with:
-          path: |
-            target/
-            !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          path: target/
+          key: ${{ github.run_id }}
       - run: just clippy
 
 
@@ -131,12 +129,10 @@ jobs:
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache/restore@v4
-        name: workspace cache
+        name: glaredb cache
         with:
-          path: |
-            target/
-            !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          path: target/
+          key: ${{ github.run_id }}
       - run: just unit-tests
 
 
@@ -162,13 +158,11 @@ jobs:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
-        name: workspace cache
+      - uses: actions/cache/restore@v4
+        name: glaredb cache
         with:
-          path: |
-            target/
-            !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          path: target/
+          key: ${{ github.run_id }}
       - run: just python build
       - run: just python test
 
@@ -198,12 +192,10 @@ jobs:
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache/restore@v4
-        name: workspace cache
+        name: glaredb cache
         with:
-          path: |
-            target/
-            !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          path: target/
+          key: ${{ github.run_id }}
       - run: just js build-debug
       - run: just js test
 
@@ -221,10 +213,11 @@ jobs:
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
-          path: target/debug/glaredb
+          path: |
+            target/debug/glaredb
+            target/debug/pgprototest
           key: ${{ github.run_id }}
-      - run: |
-          PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
+      - run: ./scripts/protocol-test.sh
       - run: just slt-bin-debug 'pgproto/*'
 
 
