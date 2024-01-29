@@ -689,9 +689,9 @@ FROM (VALUES (NULL, NULL, NULL, NULL,
     NULL, NULL, NULL, NULL, NULL)) WHERE false",
 });
 
-pub static PG_MATVIEW: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+pub static PG_MATVIEWS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     schema: POSTGRES_SCHEMA,
-    name: "pg_matview",
+    name: "pg_matviews",
     sql: "
     SELECT '' as schemaname,
     '' as matviewname,
@@ -719,7 +719,7 @@ impl BuiltinView {
             &PG_TABLES,
             &PG_VIEWS,
             &PG_TYPE,
-            &PG_MATVIEW,
+            &PG_MATVIEWS,
         ]
     }
 }
