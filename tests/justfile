@@ -4,7 +4,7 @@ VENV := env_var_or_default("VENV", ".venv")
 VENV_BIN := VENV / "bin"
 
 @venv:
-  python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
+  python3 -m pip --quiet install virtualenv
   python3 -m virtualenv {{VENV}} --quiet
   {{VENV_BIN}}/python -m pip --quiet install poetry
 
