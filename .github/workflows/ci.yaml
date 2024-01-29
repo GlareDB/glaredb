@@ -234,14 +234,15 @@ jobs:
     needs: ["build"]
     strategy:
       matrix:
-        protocol: 
-          - name: "postgres"
+        protocol: ["postgres", "flightsql", "rpc"]
+        include:
+          - protocol: "postgres"
             basic: just slt-bin --protocol=postgres 'sqllogictests/*'
             debug: just slt-bin-debug --protocol=postgres 'sqllogictests/*'
-          - name: "flightsql"
+          - protocol: "flightsql"
             basic: just slt-bin --protocol=flightsql 'sqllogictests/*'
             debug: just slt-bin-debug --protocol=flightsql 'sqllogictests/*'
-          - name: "rpc"
+          - protocol: "rpc"
             basic: just rpc-tests
             debug: just rpc-tests
     steps:
