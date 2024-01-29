@@ -83,12 +83,15 @@ rpc-tests:
     --exclude "sqllogictests/functions/postgres"
 
 #  Check formatting.
-fmt-check: protoc
+fmt-check: protoc requirements
   cargo +nightly fmt --check
+  {{VENV_BIN}}/ruff check .
 
 # Apply formatting.
-fmt *args: protoc
+fmt *args: protoc requirements
   cargo +nightly fmt {{args}}
+  {{VENV_BIN}}/ruff format . 
+
 
 # Run clippy.
 clippy: protoc

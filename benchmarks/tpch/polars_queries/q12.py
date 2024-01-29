@@ -1,4 +1,3 @@
-
 from datetime import datetime
 
 import polars_queries.utils as polars_utils
@@ -31,9 +30,7 @@ def q():
                 .then(1)
                 .otherwise(0)
                 .alias("high_line_count"),
-                pl.when(
-                    pl.col("o_orderpriority").is_in(["1-URGENT", "2-HIGH"]).not_()
-                )
+                pl.when(pl.col("o_orderpriority").is_in(["1-URGENT", "2-HIGH"]).not_())
                 .then(1)
                 .otherwise(0)
                 .alias("low_line_count"),

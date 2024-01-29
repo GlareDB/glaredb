@@ -7,15 +7,11 @@ scale_fac = int(sys.argv[1])
 h_nation = """n_nationkey
 n_name
 n_regionkey
-n_comment""".split(
-    "\n"
-)
+n_comment""".split("\n")
 
 h_region = """r_regionkey
 r_name
-r_comment""".split(
-    "\n"
-)
+r_comment""".split("\n")
 
 h_part = """p_partkey
 p_name
@@ -25,9 +21,7 @@ p_type
 p_size
 p_container
 p_retailprice
-p_comment""".split(
-    "\n"
-)
+p_comment""".split("\n")
 
 h_supplier = """s_suppkey
 s_name
@@ -35,17 +29,13 @@ s_address
 s_nationkey
 s_phone
 s_acctbal
-s_comment""".split(
-    "\n"
-)
+s_comment""".split("\n")
 
 h_partsupp = """ps_partkey
 ps_suppkey
 ps_availqty
 ps_supplycost
-ps_comment""".split(
-    "\n"
-)
+ps_comment""".split("\n")
 
 h_customer = """c_custkey
 c_name
@@ -54,9 +44,7 @@ c_nationkey
 c_phone
 c_acctbal
 c_mktsegment
-c_comment""".split(
-    "\n"
-)
+c_comment""".split("\n")
 
 h_orders = """o_orderkey
 o_custkey
@@ -66,9 +54,7 @@ o_orderdate
 o_orderpriority
 o_clerk
 o_shippriority
-o_comment""".split(
-    "\n"
-)
+o_comment""".split("\n")
 
 h_lineitem = """l_orderkey
 l_partkey
@@ -85,9 +71,7 @@ l_commitdate
 l_receiptdate
 l_shipinstruct
 l_shipmode
-comments""".split(
-    "\n"
-)
+comments""".split("\n")
 
 for name in [
     "nation",

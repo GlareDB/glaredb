@@ -11,7 +11,9 @@ def test_scalar_parsing(
             cur.execute(operation)
 
     with glaredb_connection.cursor() as cur:
-        cur.execute("select siphash(x) as actual, siphash(arrow_cast(1, 'Int32')) as one from t")
+        cur.execute(
+            "select siphash(x) as actual, siphash(arrow_cast(1, 'Int32')) as one from t"
+        )
         result = cur.fetchall()
 
     assert result[0][0] == result[0][1]

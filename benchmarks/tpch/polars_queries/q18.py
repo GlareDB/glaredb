@@ -1,4 +1,3 @@
-
 from datetime import datetime
 
 import polars_queries.utils as polars_utils

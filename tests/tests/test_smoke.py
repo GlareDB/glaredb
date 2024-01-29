@@ -28,7 +28,9 @@ def test_start(
         cur.execute("SELECT 1;")
 
 
-@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="linux version of the test")
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"), reason="linux version of the test"
+)
 def test_expected_linking_linux(debug_path: pathlib.Path):
     out = [
         ll
@@ -36,7 +38,9 @@ def test_expected_linking_linux(debug_path: pathlib.Path):
             item
             for item in [
                 line.split(" ")
-                for line in str(subprocess.check_output(["ldd", debug_path.absolute()], text=True))
+                for line in str(
+                    subprocess.check_output(["ldd", debug_path.absolute()], text=True)
+                )
                 .replace("\t", "")
                 .split("\n")
             ]
@@ -69,7 +73,9 @@ def test_expected_linking_linux(debug_path: pathlib.Path):
             if lib.startswith(prefix):
                 pending += 1
 
-    assert expected == 3, f"missing expected library {expected_prefix} in:\n" + "\n".join(out)
+    assert expected == 3, (
+        f"missing expected library {expected_prefix} in:\n" + "\n".join(out)
+    )
 
     # this is hella gross, but this number will change any time we add
     # a new library, this assertion will fail.
@@ -77,7 +83,9 @@ def test_expected_linking_linux(debug_path: pathlib.Path):
     # it's two numbers because this is different on different distros;
     # as long as we don't have two numbers next to eachother this is fine;
     # presently: (ubuntu2004, archlinux)
-    assert len(out) == (expected + possible + pending), "unexpected library in:\n" + "\n".join(out)
+    assert len(out) == (expected + possible + pending), (
+        "unexpected library in:\n" + "\n".join(out)
+    )
 
     # TODO: currently we link (open) libssl, which means the first time it
     # changes uncomment the first assertion in the loop below and

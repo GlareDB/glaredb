@@ -1,5 +1,4 @@
 import glaredb
-import pytest
 import pandas as pd
 
 

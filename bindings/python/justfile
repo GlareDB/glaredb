@@ -1,5 +1,5 @@
 set fallback
-VENV := env_var_or_default("VENV", "../../.venv")
+VENV := env_var_or_default("VENV", ".venv")
 VENV_BIN := VENV / "bin"
 
 @venv:

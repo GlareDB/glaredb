@@ -1,5 +1,4 @@
 import glaredb
-import pytest
 
 
 def test_show():

@@ -36,7 +36,7 @@ def q():
         l_returnflag,
         l_linestatus
     """
-    
+
     utils.run_query(Q_NUM, con, query_str)
 
 

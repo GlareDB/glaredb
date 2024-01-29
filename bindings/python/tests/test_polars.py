@@ -1,6 +1,5 @@
 import glaredb
 import polars as pl
-import pytest
 
 
 def test_sql():
@@ -117,6 +116,7 @@ def test_execute():
     assert out.frame_equal(expected)
     con.close()
 
+
 def test_select_polars_lazy():
     con = glaredb.connect()
     lazy_df = pl.DataFrame(
@@ -128,7 +128,9 @@ def test_select_polars_lazy():
         }
     ).lazy()
 
-    out = con.sql("select * from lazy_df where fruits = 'banana' order by \"A\"").to_polars()
+    out = con.sql(
+        "select * from lazy_df where fruits = 'banana' order by \"A\""
+    ).to_polars()
     expected = pl.DataFrame(
         {
             "A": [1, 2, 5],
