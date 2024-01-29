@@ -44,10 +44,21 @@ jobs:
       - run: just build
       - run: cargo build --bin pgprototest
       - uses: actions/cache/save@v4
-        name: glaredb cache
+        name: build cache
         with:
           path: target/
           key: ${{ github.run_id }}
+      - uses: actions/cache/save@v4
+        name: build cache
+        with:
+          path: target/debug/glaredb
+          key: ${{ github.run_id }}
+      - uses: actions/cache/save@v4
+        name: build cache
+        with:
+          path: target/debug/pgprototest
+          key: ${{ github.run_id }}
+
 
 
   fmt:
@@ -67,7 +78,7 @@ jobs:
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rustfmt.toml') }}
       - uses: actions/cache/restore@v4
-        name: glaredb cache
+        name: build cache
         with:
           path: target/
           key: ${{ github.run_id }}
@@ -78,7 +89,8 @@ jobs:
 
   lint:
     name: Lint (clippy)
-    runs-on: ubuntu-latest-8-cores
+    # emperically runtimes are the same for big/small hosts:
+    runs-on: ubuntu-latest
     needs: ["fmt"]
     steps:
       - name: checkout
@@ -99,7 +111,7 @@ jobs:
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache/restore@v4
-        name: glaredb cache
+        name: build cache
         with:
           path: target/
           key: ${{ github.run_id }}
@@ -108,7 +120,7 @@ jobs:
 
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest-4-cores
     needs: ["build"]
     steps:
       - name: checkout
@@ -129,7 +141,7 @@ jobs:
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache/restore@v4
-        name: glaredb cache
+        name: build cache
         with:
           path: target/
           key: ${{ github.run_id }}
@@ -138,7 +150,7 @@ jobs:
 
   python-binding-tests:
     name: Python Binding Tests
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest-4-cores
     needs: ["build"]
     steps:
       - name: checkout
@@ -159,7 +171,7 @@ jobs:
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache/restore@v4
-        name: glaredb cache
+        name: build cache
         with:
           path: target/
           key: ${{ github.run_id }}
@@ -213,9 +225,12 @@ jobs:
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
-          path: |
-            target/debug/glaredb
-            target/debug/pgprototest
+          path: target/debug/glaredb
+          key: ${{ github.run_id }}
+      - uses: actions/cache/restore@v4
+        name: pgprototest cache
+        with:
+          path: target/debug/pgprototest
           key: ${{ github.run_id }}
       - run: ./scripts/protocol-test.sh
       - run: just slt-bin-debug 'pgproto/*'
@@ -293,7 +308,7 @@ jobs:
   service-integration-tests:
     name: Service Integration Tests (SLT)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest-4-cores
     needs: ["build"]
     steps:
       - name: checkout
