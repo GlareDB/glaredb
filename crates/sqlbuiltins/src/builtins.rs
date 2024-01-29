@@ -700,6 +700,7 @@ pub static PG_MATVIEWS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     false as hasindexes,
     false as ispopulated,
     '' as definition
+    WHERE false
     ",
 });
 
