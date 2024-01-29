@@ -164,5 +164,3 @@ WHERE
   OR t.update
   OR t.insert
   OR t.delete
-  
-  
