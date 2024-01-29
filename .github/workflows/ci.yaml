@@ -64,7 +64,7 @@ jobs:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rustfmt.toml') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: workspace cache
         with:
           path: |
@@ -98,7 +98,7 @@ jobs:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: workspace cache
         with:
           path: |
@@ -130,7 +130,7 @@ jobs:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: workspace cache
         with:
           path: |
@@ -197,7 +197,7 @@ jobs:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: workspace cache
         with:
           path: |
