@@ -50,12 +50,12 @@ jobs:
           path: target/
           key: ${{ github.run_id }}
       - uses: actions/cache/save@v4
-        name: build cache
+        name: glaredb cache
         with:
           path: target/debug/glaredb
           key: ${{ github.run_id }}
       - uses: actions/cache/save@v4
-        name: build cache
+        name: pgprototest cache
         with:
           path: target/debug/pgprototest
           key: ${{ github.run_id }}
