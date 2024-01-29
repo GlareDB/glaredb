@@ -465,19 +465,16 @@ jobs:
         settings:
           - name: Clickhouse
             path: "sqllogictests_clickhouse/*"
-            runner: ubuntu-latest
             prepare: |
               ./scripts/prepare-testdata.sh
               source ./scripts/ci-install-clickhouse.sh
               export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
           - name: Cassandra
             path: "sqllogictests_cassandra/*"
-            runner: ubuntu-latest
             prepare: |
               export CASSANDRA_CONN_STRING=$(./scripts/create-test-cassandra-db.sh | tail -n 1)
           - name: Mysql
             path: "sqllogictests_mysql/*"
-            runner: ubuntu-latest
             prepare: |
               ./scripts/prepare-testdata.sh
               export MYSQL_CONN_STRING=$(./scripts/create-test-mysql-db.sh)
@@ -485,18 +482,16 @@ jobs:
               export MYSQL_CONN_STRING=$(echo "$MYSQL_CONN_STRING" | sed -n 1p)
           - name: MongoDB
             path: "sqllogictests_mongodb/*"
-            runner: ubuntu-latest
             prepare: |
               ./scripts/prepare-testdata.sh
               export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
           - name: Sqlserver
             path: "sqllogictests_sqlserver/*"
-            runner: ubuntu-latest
             prepare: |
               ./scripts/prepare-testdata.sh
               export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
 
-    runs-on: ${{matrix.runner}}
+    runs-on: ubuntu-latest
     needs: ["build"]
     steps:
       - name: checkout
