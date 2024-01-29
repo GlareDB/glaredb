@@ -702,6 +702,7 @@ pub static PG_MATVIEW: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     '' as definition
     ",
 });
+
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
