@@ -38,7 +38,7 @@ fi
 
 # Run protocol tests.
 ret=0
-./target/debug/pgprototest -- \
+./target/debug/pgprototest \
     --dir ./testdata/pgprototest \
     --dir ./testdata/pgprototest_glaredb \
     --addr localhost:6543 \
