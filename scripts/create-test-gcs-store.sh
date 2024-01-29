@@ -5,7 +5,7 @@
 
 set -e
 
-FAKE_GCS_IMAGE="tustvold/fake-gcs-server"
+FAKE_GCS_IMAGE="fsouza/fake-gcs-server"
 CONTAINER_NAME="glaredb_gcs_test"
 
 # Remove container if it exists
