@@ -23,7 +23,6 @@ impl EnvironmentReader for PyEnvironmentReader {
                 Ok(Some(var)) => var,
                 _ => return Ok(None),
             };
-            println!("var: {:?}", var);
             // since the resolve functions will err if the library is uninstalled,
             // dont `try` the results, we want to move on next resolver if this one errs.
             if let Ok(Some(table)) = resolve_polars(py, var) {

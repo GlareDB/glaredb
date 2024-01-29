@@ -25,7 +25,7 @@ javascript cmd *args: protoc
   just bindings/nodejs/{{cmd}} {{args}}
 
 # Run pytest subcommands. see `tests/justfile` for more details.
-pytest *args: protoc
+pytest *args:
   just tests/{{args}}
 
 # Run glaredb server

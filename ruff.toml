@@ -1,3 +1,5 @@
+line-length = 88
+
 [lint]
 ignore = [
   "F841", # unused variables

@@ -313,8 +313,7 @@ jobs:
           path: |
             tests/.venv/
           key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-      - name: run pytest
-        run: just pytest
+      - run: just pytest
 
   service-integration-tests:
     name: Service Integration Tests (SLT)
