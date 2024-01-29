@@ -689,6 +689,21 @@ FROM (VALUES (NULL, NULL, NULL, NULL,
     NULL, NULL, NULL, NULL, NULL)) WHERE false",
 });
 
+pub static PG_MATVIEWS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_matviews",
+    sql: "
+    SELECT '' as schemaname,
+    '' as matviewname,
+    '' as matviewowner,
+    '' as tablespace,
+    false as hasindexes,
+    false as ispopulated,
+    '' as definition
+    WHERE false
+    ",
+});
+
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
@@ -705,6 +720,7 @@ impl BuiltinView {
             &PG_TABLES,
             &PG_VIEWS,
             &PG_TYPE,
+            &PG_MATVIEWS,
         ]
     }
 }
