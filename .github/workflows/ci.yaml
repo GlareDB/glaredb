@@ -309,8 +309,8 @@ jobs:
   service-integration-tests:
     name: Service Integration Tests (SLT)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
-    runs-on: ubuntu-latest-4-cores
-    needs: ["build"]
+    runs-on: ubuntu-latest
+    needs: ["sql-logic-tests"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -419,7 +419,7 @@ jobs:
   minio-integration-tests:
     name: MinIO Integration Tests (SLT::MinIO)
     runs-on: ubuntu-latest
-    needs: ["build"]
+    needs: ["sql-logic-tests"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -479,65 +479,11 @@ jobs:
               --protocol=flightsql
 
 
-  datasource-integration-tests:
-    name: Datasource Integration (${{matrix.settings.name}})
-    strategy:
-      matrix:
-        settings:
-          - name: Clickhouse
-            path: "sqllogictests_clickhouse/*"
-            prepare: |
-              ./scripts/prepare-testdata.sh
-              source ./scripts/ci-install-clickhouse.sh
-              export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
-          - name: Cassandra
-            path: "sqllogictests_cassandra/*"
-            prepare: |
-              export CASSANDRA_CONN_STRING=$(./scripts/create-test-cassandra-db.sh | tail -n 1)
-          - name: Mysql
-            path: "sqllogictests_mysql/*"
-            prepare: |
-              ./scripts/prepare-testdata.sh
-              export MYSQL_CONN_STRING=$(./scripts/create-test-mysql-db.sh)
-              export MYSQL_TUNNEL_SSH_CONN_STRING=$(echo "$MYSQL_CONN_STRING" | sed -n 2p)
-              export MYSQL_CONN_STRING=$(echo "$MYSQL_CONN_STRING" | sed -n 1p)
-          - name: MongoDB
-            path: "sqllogictests_mongodb/*"
-            prepare: |
-              ./scripts/prepare-testdata.sh
-              export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
-          - name: Sqlserver
-            path: "sqllogictests_sqlserver/*"
-            prepare: |
-              ./scripts/prepare-testdata.sh
-              export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
-    runs-on: ubuntu-latest
-    needs: ["build"]
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
-      - uses: actions/cache/restore@v4
-        name: glaredb cache
-        with:
-          path: target/debug/glaredb
-          key: ${{ github.run_id }}
-      - name: run tests (slt)
-        run: |
-          ${{matrix.settings.prepare}}
-
-          just slt-bin ${{matrix.settings.path}}
-          just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
-          just slt-bin --protocol=flightsql --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
-
-
   service-integration-tests-snowflake:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
-    name: Snowflake Service Integration Tests (SLT::Snowflake)
+    name: Snowflake Integration Tests (SLT::Snowflake)
     runs-on: ubuntu-latest
-    needs: ["service-integration-tests"]
+    needs: ["sql-logic-tests"]
     concurrency:
       group: snowflake-integration-tests
       cancel-in-progress: false
@@ -582,3 +528,57 @@ jobs:
 
           just slt-bin 'sqllogictests_snowflake/*'
           just slt-bin --protocol=rpc 'sqllogictests_snowflake/*'
+
+
+  datasource-integration-tests:
+    name: Datasource Integration (${{matrix.settings.name}})
+    strategy:
+      matrix:
+        settings:
+          - name: Clickhouse
+            path: "sqllogictests_clickhouse/*"
+            prepare: |
+              ./scripts/prepare-testdata.sh
+              source ./scripts/ci-install-clickhouse.sh
+              export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
+          - name: Cassandra
+            path: "sqllogictests_cassandra/*"
+            prepare: |
+              export CASSANDRA_CONN_STRING=$(./scripts/create-test-cassandra-db.sh | tail -n 1)
+          - name: Mysql
+            path: "sqllogictests_mysql/*"
+            prepare: |
+              ./scripts/prepare-testdata.sh
+              export MYSQL_CONN_STRING=$(./scripts/create-test-mysql-db.sh)
+              export MYSQL_TUNNEL_SSH_CONN_STRING=$(echo "$MYSQL_CONN_STRING" | sed -n 2p)
+              export MYSQL_CONN_STRING=$(echo "$MYSQL_CONN_STRING" | sed -n 1p)
+          - name: MongoDB
+            path: "sqllogictests_mongodb/*"
+            prepare: |
+              ./scripts/prepare-testdata.sh
+              export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
+          - name: Sqlserver
+            path: "sqllogictests_sqlserver/*"
+            prepare: |
+              ./scripts/prepare-testdata.sh
+              export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
+    runs-on: ubuntu-latest
+    needs: ["sql-logic-tests"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
+      - uses: actions/cache/restore@v4
+        name: glaredb cache
+        with:
+          path: target/debug/glaredb
+          key: ${{ github.run_id }}
+      - name: run tests (slt)
+        run: |
+          ${{matrix.settings.prepare}}
+
+          just slt-bin ${{matrix.settings.path}}
+          just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
+          just slt-bin --protocol=flightsql --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
