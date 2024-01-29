@@ -1,0 +1,3 @@
+[lint]
+ignore = ["F841"] # allow unused variables
+

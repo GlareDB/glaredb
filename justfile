@@ -24,6 +24,10 @@ python cmd *args: protoc
 javascript cmd *args: protoc
   just bindings/nodejs/{{cmd}} {{args}}
 
+# Run pytest subcommands. see `tests/justfile` for more details.
+pytest *args: protoc
+  just tests/{{args}}
+
 # Run glaredb server
 run *args: protoc
   cargo run --bin glaredb -- {{args}}
@@ -121,18 +125,15 @@ protoc:
     rm protoc.zip
   fi
 
-
-# Installs python dependencies for testing
-venv:
+@venv:
   python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
   python3 -m virtualenv {{VENV}} --quiet
-  {{VENV_BIN}}/python -m pip install poetry
-  {{VENV_BIN}}/poetry -C tests install
+  
 
-
-# Runs pytest in the tests directory.
-pytest *args: 
-	{{VENV_BIN}}/poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
+## Set up virtual environment and install requirements
+@requirements: venv
+  {{VENV_BIN}}/python -m pip --quiet install --upgrade pip
+  {{VENV_BIN}}/pip --quiet install -r requirements.txt
 
 # private helpers below
 # ---------------------

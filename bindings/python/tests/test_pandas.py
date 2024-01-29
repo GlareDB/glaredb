@@ -1,5 +1,6 @@
 import glaredb
 import pandas as pd
+import pytest
 
 
 def test_sql():
@@ -117,15 +118,17 @@ def test_execute():
     con.close()
 
 
-def test_create_table_from_dataframe():
-    con = glaredb.connect()
+def test_create_table_from_dataframe(
+    tmp_path_factory: pytest.TempPathFactory,
+):
+    out_dir = tmp_path_factory.mktemp("test_create_table_from_dataframe")
+    con = glaredb.connect(str(out_dir))
 
     df = pd.DataFrame(
         {
             "fruits": ["banana"],
         }
     )
-
     con.execute("CREATE TABLE test_table AS SELECT * FROM df;")
     out = con.execute("SELECT * FROM test_table;").to_pandas()
     assert out.equals(df)

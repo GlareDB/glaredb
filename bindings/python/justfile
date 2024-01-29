@@ -16,8 +16,9 @@ build *args: requirements
   @unset CONDA_PREFIX
   {{VENV_BIN}}/maturin develop {{args}}
 
-test: requirements
-  {{VENV_BIN}}/pytest -s
+test *args: requirements
+  {{VENV_BIN}}/pytest --rootdir={{justfile_directory()}} -k {{ if args == "" {'tests'} else {args} }}
+
 
 ## Run autoformatting and linting
 fmt: venv
