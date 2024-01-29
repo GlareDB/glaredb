@@ -312,9 +312,7 @@ jobs:
         with:
           path: |
             tests/.venv/
-          key: ${{ runner.os }}-poetry-${{ hashFiles('**/Cargo.lock') }}
-      - name: setup pytest
-        run: just venv
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
       - name: run pytest
         run: just pytest
 
