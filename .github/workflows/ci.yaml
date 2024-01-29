@@ -40,9 +40,7 @@ jobs:
             target/
             !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
       - run: just build
-
       - uses: actions/cache/save@v4
         name: glaredb cache
         with:
@@ -77,6 +75,7 @@ jobs:
       - run: rustup component add rustfmt --toolchain nightly
       - run: just fmt-check
 
+
   lint:
     name: Lint (clippy)
     runs-on: ubuntu-latest-8-cores
@@ -108,6 +107,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: just clippy
 
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest-8-cores
@@ -137,8 +137,8 @@ jobs:
             target/
             !target/**/glaredb
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
       - run: just unit-tests
+
 
   python-binding-tests:
     name: Python Binding Tests
@@ -171,6 +171,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: just python build
       - run: just python test
+
 
   nodejs-bindings-tests:
     name: Node.js Binding Tests
@@ -206,6 +207,7 @@ jobs:
       - run: just js build-debug
       - run: just js test
 
+
   pg-protocol:
     name: PG Protocol Tests
     runs-on: ubuntu-latest
@@ -216,7 +218,7 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -225,40 +227,41 @@ jobs:
           PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
       - run: just slt-bin-debug 'pgproto/*'
 
+
   sql-logic-tests:
     name: SQL Logic Tests
     runs-on: ubuntu-latest
     needs: ["build"]
     strategy:
       matrix:
-        protocol: ["postgres", "flightsql", "rpc"]
+        protocol: 
+          - name: "postgres"
+            basic: just slt-bin --protocol=postgres 'sqllogictests/*'
+            debug: just slt-bin-debug --protocol=postgres 'sqllogictests/*'
+          - name: "flightsql"
+            basic: just slt-bin --protocol=flightsql 'sqllogictests/*'
+            debug: just slt-bin-debug --protocol=flightsql 'sqllogictests/*'
+          - name: "rpc"
+            basic: just rpc-tests
+            debug: just rpc-tests
     steps:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
           key: ${{ github.run_id }}
       - name: public sql logic tests DEBUG
         if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
-        run: |
-          if [[ "${{ matrix.protocol }}" == "rpc" ]]; then
-            just rpc-tests
-          else
-            just slt-bin-debug --protocol=${{ matrix.protocol }} 'sqllogictests/*'
-          fi
+        run: ${{matrix.protocol.debug}}
       - name: public sql logic tests
         if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
-        run: |
-          if [[ "${{ matrix.protocol }}" == "rpc" ]]; then
-            just rpc-tests
-          else
-            just slt-bin-debug --protocol=${{ matrix.protocol }} 'sqllogictests/*'
-          fi
+        run: ${{matrix.protocol.basic}}
+
 
   process-integration-tests:
     name: Process Integration Tests (pytest)
@@ -291,6 +294,7 @@ jobs:
           key: ${{ runner.os }}-poetry-${{ hashFiles('**/Cargo.lock') }}
       - run: just venv
       - run: just pytest
+
 
   service-integration-tests:
     name: Service Integration Tests (SLT)
@@ -401,6 +405,7 @@ jobs:
           just slt-bin -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
           just slt-bin -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
 
+
   minio-integration-tests:
     name: MinIO Integration Tests (SLT::MinIO)
     runs-on: ubuntu-latest
@@ -463,6 +468,7 @@ jobs:
               'sqllogictests/*' \
               --protocol=flightsql
 
+
   datasource-integration-tests:
     name: Datasource Integration (${{matrix.settings.name}})
     strategy:
@@ -495,7 +501,6 @@ jobs:
             prepare: |
               ./scripts/prepare-testdata.sh
               export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
-
     runs-on: ubuntu-latest
     needs: ["build"]
     steps:
@@ -516,6 +521,7 @@ jobs:
           just slt-bin ${{matrix.settings.path}}
           just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
           just slt-bin --protocol=flightsql --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
+
 
   service-integration-tests-snowflake:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
