@@ -1,3 +1,7 @@
 [lint]
-ignore = ["F841"] # allow unused variables
+ignore = [
+  "F841", # unused variables
+  "F401", # unused imports,
+  "F811", # redefined variables
+  ] 
 

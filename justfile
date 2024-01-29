@@ -109,6 +109,7 @@ fix: protoc
   cargo clippy --fix --all --all-features --allow-staged --allow-dirty
   cargo fix --all --allow-staged  --allow-dirty
   cargo fmt --all
+  {{VENV_BIN}}/ruff check . --fix
 
 # Displays help message.
 help:

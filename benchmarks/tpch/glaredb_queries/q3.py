@@ -6,7 +6,7 @@ from linetimer import CodeTimer, linetimer
 Q_NUM = 3
 
 
-@linetimer(name=f"Overall execution of glaredb Query 3", unit="ms")
+@linetimer(name="Overall execution of glaredb Query 3", unit="ms")
 def q():
     con = glaredb.connect()
 

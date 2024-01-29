@@ -7,7 +7,7 @@ pl.Config().set_tbl_rows(20)
 Q_NUM = 3
 
 
-@linetimer(name=f"Overall execution of polars Query 2", unit="ms")
+@linetimer(name="Overall execution of polars Query 2", unit="ms")
 def q():
     var_1 = var_2 = datetime(1995, 3, 15)
     var_3 = "BUILDING"

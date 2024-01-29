@@ -1,15 +1,18 @@
 import glaredb
 import pandas as pd
-con = glaredb.connect()
 
 df = pd.DataFrame(
     {
-        "fruits": ["banana"],
+        "A": [1, 2, 3, 4, 5],
+        "fruits": ["banana", "banana", "apple", "apple", "banana"],
+        "B": [5, 4, 3, 2, 1],
+        "cars": ["beetle", "audi", "beetle", "beetle", "beetle"],
     }
 )
 
-con.execute("CREATE TABLE test_table AS SELECT * FROM df;")
-out = con.execute("SELECT * FROM test_table;").to_pandas()
-print(out)
+con = glaredb.connect()
+
+df = con.sql("select * from df where fruits = 'banana'").to_pandas()
+
 print(df)
-assert out.equals(df)
+con.close()

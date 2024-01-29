@@ -14,7 +14,7 @@ def q():
     part_ds = polars_utils.get_part_ds()
     supplier_ds = (
         polars_utils.get_supplier_ds()
-        .filter(pl.col("s_comment").str.contains(f".*Customer.*Complaints.*"))
+        .filter(pl.col("s_comment").str.contains(".*Customer.*Complaints.*"))
         .select(pl.col("s_suppkey"), pl.col("s_suppkey").alias("ps_suppkey"))
     )
 

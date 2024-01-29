@@ -93,5 +93,5 @@ def test_expected_linking_linux(debug_path: pathlib.Path):
 
     for lib in out:
         # assert not ("ssl" in lib)
-        assert not ("libc++" in lib)
-        assert not ("libstdc++" in lib)
+        assert "libc++" not in lib
+        assert "libstdc++" not in lib
