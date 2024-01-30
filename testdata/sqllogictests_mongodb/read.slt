@@ -11,7 +11,7 @@ SELECT count(*) FROM read_mongodb('${MONGO_CONN_STRING}', 'test', 'null_test');
 2
 
 query I
-SELECT * FROM read_mongodb('${MONGO_CONN_STRING}', 'test', 'null_test');
+SELECT a FROM read_mongodb('${MONGO_CONN_STRING}', 'test', 'null_test');
 ----
 1
-null
+NULL
