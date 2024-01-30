@@ -43,7 +43,7 @@ impl BsonStream {
         let stream_schema = schema.clone();
 
         let stream = docs
-            .chunks(100)
+            .chunks(1000)
             .map(move |results| Self::convert_chunk(results, stream_schema.clone()))
             .boxed();
 

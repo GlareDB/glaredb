@@ -2400,6 +2400,7 @@ dependencies = [
  "futures",
  "gcp-bigquery-client",
  "glob",
+ "indexmap 2.1.0",
  "ioutil",
  "klickhouse",
  "lance",
