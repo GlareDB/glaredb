@@ -5,13 +5,22 @@ use async_openai::config::OpenAIConfig;
 use async_openai::types::{CreateEmbeddingRequest, Embedding, EmbeddingInput, EncodingFormat};
 use async_openai::Client;
 use datafusion::arrow::array::{
-    ArrayRef, AsArray, FixedSizeListArray, FixedSizeListBuilder, Float32Builder,
+    ArrayRef,
+    AsArray,
+    FixedSizeListArray,
+    FixedSizeListBuilder,
+    Float32Builder,
 };
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::error::{DataFusionError, Result};
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
-    Expr, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF, Signature, TypeSignature,
+    Expr,
+    ReturnTypeFunction,
+    ScalarFunctionImplementation,
+    ScalarUDF,
+    Signature,
+    TypeSignature,
     Volatility,
 };
 use datafusion::physical_plan::ColumnarValue;
@@ -24,14 +33,8 @@ use tokio::runtime::Handle;
 use tokio::task;
 
 use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
-const DEFAULT_CREDENTIAL_LOCATION: Lazy<Vec<String>> = Lazy::new(|| {
-    vec![
-        "@creds".to_string(),
-        "openai".to_string(),
-        "openai_default_credential".to_string(),
-        "api_key".to_string(),
-    ]
-});
+const DEFAULT_CREDENTIAL_LOCATION: Lazy<&[&str]> =
+    Lazy::new(|| &["@creds", "openai", "openai_default_credential", "api_key"]);
 // This is a placeholder for empty values in the input array
 // The openai API does not accept empty strings, so we use this to represent NULL/"" values
 const EMPTY_PLACEHOLDER: &str = "NULL";
@@ -132,13 +135,23 @@ impl BuiltinScalarUDF for OpenAIEmbed {
             // openai_embed(<expr>)
             1 => {
                 let model = EmbeddingModel::TextEmbedding3Small;
-                let scalar = creds_from_arg(DEFAULT_CREDENTIAL_LOCATION.clone());
+                let scalar = creds_from_arg(
+                    DEFAULT_CREDENTIAL_LOCATION
+                        .into_iter()
+                        .map(|s| s.to_string())
+                        .collect(),
+                );
                 (scalar, model, 0)
             }
             // openai_embed(<model>, <expr>)
             2 => {
                 let model = model_from_arg(&args[0])?;
-                let scalar = creds_from_arg(DEFAULT_CREDENTIAL_LOCATION.clone());
+                let scalar = creds_from_arg(
+                    DEFAULT_CREDENTIAL_LOCATION
+                        .into_iter()
+                        .map(|s| s.to_string())
+                        .collect(),
+                );
                 (scalar, model, 1)
             }
             // openai_embed('api_key', '<model>', '<expr>')
