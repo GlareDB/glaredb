@@ -5,13 +5,22 @@ use async_openai::config::OpenAIConfig;
 use async_openai::types::{CreateEmbeddingRequest, Embedding, EmbeddingInput, EncodingFormat};
 use async_openai::Client;
 use datafusion::arrow::array::{
-    ArrayRef, AsArray, FixedSizeListArray, FixedSizeListBuilder, Float32Builder,
+    ArrayRef,
+    AsArray,
+    FixedSizeListArray,
+    FixedSizeListBuilder,
+    Float32Builder,
 };
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::error::{DataFusionError, Result};
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
-    Expr, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF, Signature, TypeSignature,
+    Expr,
+    ReturnTypeFunction,
+    ScalarFunctionImplementation,
+    ScalarUDF,
+    Signature,
+    TypeSignature,
     Volatility,
 };
 use datafusion::physical_plan::ColumnarValue;
