@@ -103,36 +103,6 @@ jobs:
           key: ${{ github.run_id }}
 
 
-  unit-tests:
-    name: Unit Tests
-    runs-on: ubuntu-latest-8-cores
-    needs: ["fmt"]
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
-      - uses: actions/cache/restore@v4
-        name: toolchain cache
-        with:
-          path: |
-            ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache/restore@v4
-        name: cargo cache
-        with:
-          path: |
-            ~/.cargo/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache/restore@v4
-        name: glaredb cache
-        with:
-          path: target/debug/glaredb
-          key: ${{ github.run_id }}
-      - run: just unit-tests
-
-
   python-binding-tests:
     name: Python Binding Tests
     runs-on: ubuntu-latest-4-cores
@@ -201,6 +171,36 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: just js build-debug
       - run: just js test
+
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest-8-cores
+    needs: ["build"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
+      - uses: actions/cache/restore@v4
+        name: toolchain cache
+        with:
+          path: |
+            ~/.rustup/toolchains/
+          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
+      - uses: actions/cache/restore@v4
+        name: cargo cache
+        with:
+          path: |
+            ~/.cargo/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache/restore@v4
+        name: glaredb cache
+        with:
+          path: target/debug/glaredb
+          key: ${{ github.run_id }}
+      - run: just unit-tests
 
 
   pg-protocol:
