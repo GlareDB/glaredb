@@ -64,7 +64,6 @@ jobs:
           key: ${{ github.run_id }}
 
 
-
   fmt:
     name: Format (rustfmt +nightly)
     runs-on: ubuntu-latest
@@ -81,11 +80,6 @@ jobs:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rustfmt.toml') }}
-      - uses: actions/cache/restore@v4
-        name: build cache
-        with:
-          path: target/
-          key: ${{ github.run_id }}
       - run: rustup install nightly
       - run: rustup component add rustfmt --toolchain nightly
       - run: just fmt-check
@@ -179,7 +173,7 @@ jobs:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache@v4
         name: cargo cache
         with:
           path: |
@@ -215,14 +209,14 @@ jobs:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache/restore@v4
-        name: glaredb cache
+        name: build cache
         with:
           path: |
             target/
