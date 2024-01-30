@@ -136,7 +136,7 @@ jobs:
   python-binding-tests:
     name: Python Binding Tests
     runs-on: ubuntu-latest-4-cores
-    needs: ["fmt"]
+    needs: ["build"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
