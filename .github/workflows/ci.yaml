@@ -57,31 +57,6 @@ jobs:
           key: ${{ github.run_id }}
 
 
-  cache:
-    # update a cache that can be used between builds, but do it
-    # outside of the hot path.
-    name: cache helper
-    needs: ["build", "python-bindings-tests", "unit-tests"]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/cache/restore@v4
-        name: build cache
-        with:
-          path: |
-            target/
-            !target/**/glaredb
-            !target/**/pgprototest
-          key: ${{ runner.os }}-cargo-build-${{ github.ref_name }}
-      - uses: actions/cache/save@v4
-        name: build cache
-        with:
-          path: |
-            target/
-            !target/**/glaredb
-            !target/**/pgprototest
-          key: ${{ runner.os }}-cargo-glaredb-build-${{ hashFiles('**/Cargo.lock') }}
-
-
   fmt:
     name: Format (rustfmt +nightly)
     needs: ["build"]
@@ -236,6 +211,31 @@ jobs:
           path: target/debug/glaredb
           key: ${{ github.run_id }}
       - run: just unit-tests
+
+
+  cache:
+    # update a cache that can be used between builds, but do it
+    # outside of the hot path.
+    name: cache helper
+    needs: ["build", "python-bindings-tests", "unit-tests"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache/restore@v4
+        name: build cache
+        with:
+          path: |
+            target/
+            !target/**/glaredb
+            !target/**/pgprototest
+          key: ${{ runner.os }}-cargo-build-${{ github.ref_name }}
+      - uses: actions/cache/save@v4
+        name: build cache
+        with:
+          path: |
+            target/
+            !target/**/glaredb
+            !target/**/pgprototest
+          key: ${{ runner.os }}-cargo-glaredb-build-${{ hashFiles('**/Cargo.lock') }}
 
 
   pg-protocol:
