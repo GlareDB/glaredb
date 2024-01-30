@@ -217,7 +217,7 @@ jobs:
     # update a cache that can be used between builds, but do it
     # outside of the hot path.
     name: cache helper
-    needs: ["build", "python-bindings-tests", "unit-tests"]
+    needs: ["build", "python-binding-tests", "unit-tests"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/cache/restore@v4
