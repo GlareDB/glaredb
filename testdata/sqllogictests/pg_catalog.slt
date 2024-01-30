@@ -118,6 +118,8 @@ AND (c.relname) LIKE '%'
 AND n.nspname = 'pg_catalog' 
 LIMIT 1000;
 
+statement ok
+select * from pg_matviews;
 
 # https://github.com/GlareDB/glaredb/issues/2475
 statement ok
