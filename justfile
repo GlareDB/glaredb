@@ -128,8 +128,9 @@ venv:
 
 
 # Runs pytest in the tests directory.
-pytest *args: 
-	{{VENV_BIN}}/poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
+pytest *args:
+  {{VENV_BIN}}/poetry -C tests lock --no-update
+  {{VENV_BIN}}/poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
 
 # private helpers below
 # ---------------------
