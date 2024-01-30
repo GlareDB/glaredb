@@ -56,6 +56,15 @@ jobs:
           name: dist-${{ matrix.target }}
           path: ./target/dist/
 
+      - name: Post to slack
+        uses: slackapi/slack-github-action@v1.24.0
+        if: ${{ always() }}
+        with:
+          payload: |
+            {
+              "text": "Binary build result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+            }
+
   publish:
     name: Publish
     runs-on: ubuntu-latest
@@ -92,5 +101,5 @@ jobs:
         with:
           payload: |
             {
-              "text": "Release binary build result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Publish binary result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
