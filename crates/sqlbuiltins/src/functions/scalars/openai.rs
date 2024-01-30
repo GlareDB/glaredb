@@ -5,22 +5,13 @@ use async_openai::config::OpenAIConfig;
 use async_openai::types::{CreateEmbeddingRequest, Embedding, EmbeddingInput, EncodingFormat};
 use async_openai::Client;
 use datafusion::arrow::array::{
-    ArrayRef,
-    AsArray,
-    FixedSizeListArray,
-    FixedSizeListBuilder,
-    Float32Builder,
+    ArrayRef, AsArray, FixedSizeListArray, FixedSizeListBuilder, Float32Builder,
 };
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::error::{DataFusionError, Result};
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
-    Expr,
-    ReturnTypeFunction,
-    ScalarFunctionImplementation,
-    ScalarUDF,
-    Signature,
-    TypeSignature,
+    Expr, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF, Signature, TypeSignature,
     Volatility,
 };
 use datafusion::physical_plan::ColumnarValue;
@@ -38,7 +29,7 @@ pub struct OpenAIEmbed;
 impl ConstBuiltinFunction for OpenAIEmbed {
     const NAME: &'static str = "openai_embed";
     const DESCRIPTION: &'static str = "Embeds text using OpenAI's API. 
-    Available models: 'text-embedding-3-small', 'text-embedding-ada-002', 'text-embedding-3-large'
+    Available models: 'text-embedding-3-small', 'text-embedding-ada-002', 'text-embedding-3-large' default: 'text-embedding-3-small'
     Note: This function requires an API key. You can pass it as the first argument or set it as a stored credential.
     If no API key is provided, the function will attempt to use the stored credential 'openai_default_credential'";
     const EXAMPLE: &'static str =
@@ -46,9 +37,14 @@ impl ConstBuiltinFunction for OpenAIEmbed {
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
+            // args: <API_KEY>, <MODEL>, <TEXT>
             TypeSignature::OneOf(vec![
-                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8, DataType::Utf8]),
+                // openai_embed('<text>')  -- uses default model and credential
+                TypeSignature::Exact(vec![DataType::Utf8]),
+                // openai_embed('<model>', '<text>') -- uses default credential
                 TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
+                // openai_embed('api_key', '<model>', '<text>')  --uses provided api key and model
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8, DataType::Utf8]),
             ]),
             Volatility::Stable,
         ))
@@ -119,12 +115,21 @@ impl BuiltinScalarUDF for OpenAIEmbed {
         };
 
         let (creds, model, idx) = match args.len() {
+            // openai_embed(<expr>)
+            1 => {
+                let model = EmbeddingModel::TextEmbedding3Small;
+                let default_val = vec!["openai_default_credential".to_string()];
+                let scalar = creds_from_arg(default_val);
+                (scalar, model, 0)
+            }
+            // openai_embed(<model>, <expr>)
             2 => {
                 let model = model_from_arg(&args[0])?;
                 let default_val = vec!["openai_default_credential".to_string()];
                 let scalar = creds_from_arg(default_val);
                 (scalar, model, 1)
             }
+            // openai_embed('api_key', '<model>', '<expr>')
             3 => {
                 let creds = match args.get(0) {
                     Some(Expr::Literal(ScalarValue::Utf8(v))) => {
