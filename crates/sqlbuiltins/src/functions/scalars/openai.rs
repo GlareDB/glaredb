@@ -18,11 +18,20 @@ use datafusion::physical_plan::ColumnarValue;
 use datafusion::scalar::ScalarValue;
 use datafusion::variable::VarProvider;
 use datafusion_ext::vars::CredentialsVarProvider;
+use once_cell::sync::Lazy;
 use protogen::metastore::types::catalog::FunctionType;
 use tokio::runtime::Handle;
 use tokio::task;
 
 use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
+const DEFAULT_CREDENTIAL_LOCATION: Lazy<Vec<String>> = Lazy::new(|| {
+    vec![
+        "@creds".to_string(),
+        "openai".to_string(),
+        "openai_default_credential".to_string(),
+        "api_key".to_string(),
+    ]
+});
 
 pub struct OpenAIEmbed;
 
@@ -46,7 +55,9 @@ impl ConstBuiltinFunction for OpenAIEmbed {
                 // openai_embed('api_key', '<model>', '<text>')  --uses provided api key and model
                 TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8, DataType::Utf8]),
             ]),
-            Volatility::Stable,
+            // This is a volatile function because it makes an external API call.
+            // Additionally, the openai API key may change or expire at any time.
+            Volatility::Volatile,
         ))
     }
 }
@@ -106,9 +117,9 @@ impl BuiltinScalarUDF for OpenAIEmbed {
     ) -> datafusion::error::Result<Expr> {
         let creds_from_arg = |values: Vec<String>| -> Option<String> {
             let prov = CredentialsVarProvider::new(catalog);
+            let scalar = prov.get_value(values);
 
-            let scalar = prov.get_value(values).unwrap();
-            match scalar {
+            match scalar.ok()? {
                 ScalarValue::Utf8(scalar) => scalar,
                 _ => None,
             }
@@ -118,15 +129,13 @@ impl BuiltinScalarUDF for OpenAIEmbed {
             // openai_embed(<expr>)
             1 => {
                 let model = EmbeddingModel::TextEmbedding3Small;
-                let default_val = vec!["openai_default_credential".to_string()];
-                let scalar = creds_from_arg(default_val);
+                let scalar = creds_from_arg(DEFAULT_CREDENTIAL_LOCATION.clone());
                 (scalar, model, 0)
             }
             // openai_embed(<model>, <expr>)
             2 => {
                 let model = model_from_arg(&args[0])?;
-                let default_val = vec!["openai_default_credential".to_string()];
-                let scalar = creds_from_arg(default_val);
+                let scalar = creds_from_arg(DEFAULT_CREDENTIAL_LOCATION.clone());
                 (scalar, model, 1)
             }
             // openai_embed('api_key', '<model>', '<expr>')
@@ -216,7 +225,7 @@ impl BuiltinScalarUDF for OpenAIEmbed {
             let a: ArrayRef = Arc::new(res?);
             Ok(ColumnarValue::Array(a))
         });
-        let signature = Signature::exact(vec![DataType::Utf8], Volatility::Stable);
+        let signature = Signature::exact(vec![DataType::Utf8], Volatility::Volatile);
         let udf = ScalarUDF::new(Self::NAME, &signature, &return_type_fn, &scalar_fn_impl);
 
         Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
