@@ -13,9 +13,56 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  fmt:
+    name: Format (rustfmt +nightly)
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
+      - uses: actions/cache@v4
+        name: nightly toolchain cache
+        with:
+          path: |
+            ~/.rustup/toolchains/
+          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rustfmt.toml') }}
+      - run: rustup install nightly
+      - run: rustup component add rustfmt --toolchain nightly
+      - run: just fmt-check
+
+
+  lint:
+    name: Lint (clippy)
+    # emperically runtimes are the same for big/small hosts:
+    runs-on: ubuntu-latest
+    needs: ["build"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
+      - uses: actions/cache/restore@v4
+        name: toolchain cache
+        with:
+          path: |
+            ~/.rustup/toolchains/
+          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
+      - uses: actions/cache/restore@v4
+        name: cargo cache
+        with:
+          path: |
+            ~/.cargo/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - run: just clippy
+
+
   build:
     name: Build
     runs-on: ubuntu-latest-8-cores
+    needs: ["fmt"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -56,57 +103,10 @@ jobs:
           key: ${{ github.run_id }}
 
 
-  fmt:
-    name: Format (rustfmt +nightly)
-    runs-on: ubuntu-latest
-    needs: ["build"]
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
-      - uses: actions/cache@v4
-        name: nightly toolchain cache
-        with:
-          path: |
-            ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rustfmt.toml') }}
-      - run: rustup install nightly
-      - run: rustup component add rustfmt --toolchain nightly
-      - run: just fmt-check
-
-
-  lint:
-    name: Lint (clippy)
-    # emperically runtimes are the same for big/small hosts:
-    runs-on: ubuntu-latest
-    needs: ["fmt"]
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
-      - uses: actions/cache/restore@v4
-        name: toolchain cache
-        with:
-          path: |
-            ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache/restore@v4
-        name: cargo cache
-        with:
-          path: |
-            ~/.cargo/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - run: just clippy
-
-
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest-8-cores
-    needs: ["build"]
+    needs: ["fmt"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -136,7 +136,7 @@ jobs:
   python-binding-tests:
     name: Python Binding Tests
     runs-on: ubuntu-latest-4-cores
-    needs: ["build"]
+    needs: ["fmt"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -170,7 +170,7 @@ jobs:
   nodejs-bindings-tests:
     name: Node.js Binding Tests
     runs-on: ubuntu-latest-8-cores
-    needs: ["build"]
+    needs: ["fmt"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
