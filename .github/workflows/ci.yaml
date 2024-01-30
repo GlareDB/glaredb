@@ -5,6 +5,7 @@ on:
     branches:
       - main
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 concurrency:
@@ -34,19 +35,25 @@ jobs:
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache@v4
-        name: build cache
+        name: workspace cache
         with:
           path: |
             target/
             !target/**/glaredb
+            !target/**/pgprototest
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
+      - run: just build
+      - run: cargo build --bin pgprototest
+      - uses: actions/cache/save@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
           key: ${{ github.run_id }}
-      - name: build
-        run: just build
+      - uses: actions/cache/save@v4
+        name: pgprototest cache
+        with:
+          path: target/debug/pgprototest
+          key: ${{ github.run_id }}
 
 
   fmt:
@@ -69,9 +76,11 @@ jobs:
       - run: rustup component add rustfmt --toolchain nightly
       - run: just fmt-check
 
+
   lint:
     name: Lint (clippy)
-    runs-on: ubuntu-latest-8-cores
+    # emperically runtimes are the same for big/small hosts:
+    runs-on: ubuntu-latest
     needs: ["fmt"]
     steps:
       - name: checkout
@@ -79,21 +88,20 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - run: just clippy
 
-      - name: clippy
-        run: just clippy
 
   unit-tests:
     name: Unit Tests
@@ -105,25 +113,29 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache/restore@v4
+        name: glaredb cache
+        with:
+          path: target/debug/glaredb
+          key: ${{ github.run_id }}
+      - run: just unit-tests
 
-      - name: run tests
-        run: just unit-tests
 
   python-binding-tests:
     name: Python Binding Tests
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest-4-cores
     needs: ["build"]
     steps:
       - name: checkout
@@ -131,31 +143,29 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
-        name: build cache
+      - uses: actions/cache/restore@v4
+        name: workspace cache
         with:
           path: |
             target/
             !target/**/glaredb
+            !target/**/pgprototest
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - run: just python build
+      - run: just python test
 
-      - name: build python bindings
-        run: just python build
-
-      - name: run python binding tests
-        run: just python test
 
   nodejs-bindings-tests:
     name: Node.js Binding Tests
@@ -163,14 +173,13 @@ jobs:
     needs: ["build"]
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
           path: |
@@ -182,17 +191,17 @@ jobs:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
-        name: build cache
+      - uses: actions/cache/restore@v4
+        name: workspace cache
         with:
           path: |
             target/
             !target/**/glaredb
+            !target/**/pgprototest
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: build node.js bindings
-        run: just js build-debug
-      - name: run node.js binding tests
-        run: just js test
+      - run: just js build-debug
+      - run: just js test
+
 
   pg-protocol:
     name: PG Protocol Tests
@@ -204,31 +213,19 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
-        name: toolchain cache
+      - uses: actions/cache/restore@v4
+        name: glaredb cache
         with:
-          path: |
-            ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v4
-        name: cargo cache
+          path: target/debug/glaredb
+          key: ${{ github.run_id }}
+      - uses: actions/cache/restore@v4
+        name: pgprototest cache
         with:
-          path: |
-            ~/.cargo/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
-        name: build cache
-        with:
-          path: |
-            target/
-            !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: pg protocol test (script)
-        run: |
-          PROTOC=`just protoc && just --evaluate PROTOC` ./scripts/protocol-test.sh
+          path: target/debug/pgprototest
+          key: ${{ github.run_id }}
+      - run: ./scripts/protocol-test.sh
+      - run: just slt-bin-debug 'pgproto/*'
 
-      - name: pg protocol tests (slt runner)
-        run: just slt-bin-debug 'pgproto/*'
 
   sql-logic-tests:
     name: SQL Logic Tests
@@ -237,33 +234,34 @@ jobs:
     strategy:
       matrix:
         protocol: ["postgres", "flightsql", "rpc"]
+        include:
+          - protocol: "postgres"
+            basic: just slt-bin --protocol=postgres 'sqllogictests/*'
+            debug: just slt-bin-debug --protocol=postgres 'sqllogictests/*'
+          - protocol: "flightsql"
+            basic: just slt-bin --protocol=flightsql 'sqllogictests/*'
+            debug: just slt-bin-debug --protocol=flightsql 'sqllogictests/*'
+          - protocol: "rpc"
+            basic: just rpc-tests
+            debug: just rpc-tests
     steps:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
           key: ${{ github.run_id }}
       - name: public sql logic tests DEBUG
         if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
-        run: |
-          if [[ "${{ matrix.protocol }}" == "rpc" ]]; then
-            just rpc-tests
-          else
-            just slt-bin-debug --protocol=${{ matrix.protocol }} 'sqllogictests/*'
-          fi
+        run: ${{matrix.protocol.debug}}
       - name: public sql logic tests
         if: ${{ env.ACTIONS_STEP_DEBUG != 'true' }}
-        run: |
-          if [[ "${{ matrix.protocol }}" == "rpc" ]]; then
-            just rpc-tests
-          else
-            just slt-bin-debug --protocol=${{ matrix.protocol }} 'sqllogictests/*'
-          fi
+        run: ${{matrix.protocol.basic}}
+
 
   process-integration-tests:
     name: Process Integration Tests (pytest)
@@ -283,26 +281,7 @@ jobs:
           python-version: "3.11"
           cache: poetry
           cache-dependency-path: tests/poetry.lock
-      - uses: actions/cache@v4
-        name: toolchain cache
-        with:
-          path: |
-            ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v4
-        name: cargo cache
-        with:
-          path: |
-            ~/.cargo/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
-        name: build cache
-        with:
-          path: |
-            target/
-            !target/**/glaredb
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -313,23 +292,24 @@ jobs:
           path: |
             tests/.venv/
           key: ${{ runner.os }}-poetry-${{ hashFiles('**/Cargo.lock') }}
-      - name: setup pytest
-        run: just venv
-      - name: run pytest
-        run: just pytest
+      - run: just venv
+      - run: just pytest
+
 
   service-integration-tests:
     name: Service Integration Tests (SLT)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
-    runs-on: ubuntu-latest-8-cores
-    needs: ["build"]
+    runs-on: ubuntu-latest
+    needs: ["sql-logic-tests"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
+
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+
+      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -343,8 +323,7 @@ jobs:
       - name: setup GCP
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: prepare testdata
-        run: ./scripts/prepare-testdata.sh
+      - run: ./scripts/prepare-testdata.sh
 
       - name: run tests (slt)
         env:
@@ -426,17 +405,19 @@ jobs:
           just slt-bin -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
           just slt-bin -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
 
+
   minio-integration-tests:
     name: MinIO Integration Tests (SLT::MinIO)
-    runs-on: ubuntu-latest-8-cores
-    needs: ["build"]
+    runs-on: ubuntu-latest
+    needs: ["sql-logic-tests"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+
+      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -487,6 +468,58 @@ jobs:
               'sqllogictests/*' \
               --protocol=flightsql
 
+
+  service-integration-tests-snowflake:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
+    name: Snowflake Integration Tests (SLT::Snowflake)
+    runs-on: ubuntu-latest
+    needs: ["sql-logic-tests"]
+    concurrency:
+      group: snowflake-integration-tests
+      cancel-in-progress: false
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
+      - uses: actions/cache/restore@v4
+        name: glaredb cache
+        with:
+          path: target/debug/glaredb
+          key: ${{ github.run_id }}
+
+      - name: snowflake setup (SnowSQL)
+        run: |
+          curl -o snowsql.bash \
+            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
+          mkdir -p ~/bin
+          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
+
+      - run: ./scripts/prepare-testdata.sh
+
+      - name: run tests (slt)
+        env:
+          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+        run: |
+          # Prepare SLT (Snowflake)
+          export PATH="$HOME/bin:$PATH"
+          if ./scripts/files-changed-in-branch.sh \
+            "scripts/prepare-testdata.sh" \
+            "scripts/create-test-snowflake-db.sh" \
+            "testdata/sqllogictests_datasources_common/data" \
+            "testdata/sqllogictests_snowflake/data"
+          then
+            export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
+          else
+            export SNOWFLAKE_DATABASE=glaredb_test
+          fi
+
+          just slt-bin 'sqllogictests_snowflake/*'
+          just slt-bin --protocol=rpc 'sqllogictests_snowflake/*'
+
+
   datasource-integration-tests:
     name: Datasource Integration (${{matrix.settings.name}})
     strategy:
@@ -519,16 +552,15 @@ jobs:
             prepare: |
               ./scripts/prepare-testdata.sh
               export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
-
-    runs-on: ubuntu-latest-8-cores
-    needs: ["build"]
+    runs-on: ubuntu-latest
+    needs: ["sql-logic-tests"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -540,54 +572,3 @@ jobs:
           just slt-bin ${{matrix.settings.path}}
           just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
           just slt-bin --protocol=flightsql --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
-
-  service-integration-tests-snowflake:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
-    name: Snowflake Service Integration Tests (SLT::Snowflake)
-    runs-on: ubuntu-latest
-    needs: ["service-integration-tests"]
-    concurrency:
-      group: snowflake-integration-tests
-      cancel-in-progress: false
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
-      - uses: actions/cache@v4
-        name: glaredb cache
-        with:
-          path: target/debug/glaredb
-          key: ${{ github.run_id }}
-
-      - name: snowflake setup (SnowSQL)
-        run: |
-          curl -o snowsql.bash \
-            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
-          mkdir -p ~/bin
-          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
-
-      - name: prepare testdata
-        run: ./scripts/prepare-testdata.sh
-
-      - name: run tests (slt)
-        env:
-          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
-          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-        run: |
-          # Prepare SLT (Snowflake)
-          export PATH="$HOME/bin:$PATH"
-          if ./scripts/files-changed-in-branch.sh \
-            "scripts/prepare-testdata.sh" \
-            "scripts/create-test-snowflake-db.sh" \
-            "testdata/sqllogictests_datasources_common/data" \
-            "testdata/sqllogictests_snowflake/data"
-          then
-            export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
-          else
-            export SNOWFLAKE_DATABASE=glaredb_test
-          fi
-
-          just slt-bin 'sqllogictests_snowflake/*'
-          just slt-bin --protocol=rpc 'sqllogictests_snowflake/*'
