@@ -47,7 +47,10 @@ jobs:
       - uses: actions/cache/save@v4
         name: build cache
         with:
-          path: target/
+          path: |
+            target/
+            !target/**/glaredb
+            !target/**/pgprototest
           key: ${{ github.run_id }}
       - uses: actions/cache/save@v4
         name: glaredb cache
@@ -114,7 +117,10 @@ jobs:
       - uses: actions/cache/restore@v4
         name: build cache
         with:
-          path: target/
+          path: |
+            target/
+            !target/**/glaredb
+            !target/**/pgprototest
           key: ${{ github.run_id }}
       - run: just clippy
 
@@ -144,7 +150,15 @@ jobs:
       - uses: actions/cache/restore@v4
         name: build cache
         with:
-          path: target/
+          path: |
+            target/
+            !target/**/glaredb
+            !target/**/pgprototest
+          key: ${{ github.run_id }}
+      - uses: actions/cache/restore@v4
+        name: glaredb cache
+        with:
+          path: target/debug/glaredb
           key: ${{ github.run_id }}
       - run: just unit-tests
 
@@ -174,7 +188,10 @@ jobs:
       - uses: actions/cache/restore@v4
         name: build cache
         with:
-          path: target/
+          path: |
+            target/
+            !target/**/glaredb
+            !target/**/pgprototest
           key: ${{ github.run_id }}
       - run: just python build
       - run: just python test
@@ -207,7 +224,10 @@ jobs:
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
-          path: target/
+          path: |
+            target/
+            !target/**/glaredb
+            !target/**/pgprototest
           key: ${{ github.run_id }}
       - run: just js build-debug
       - run: just js test
