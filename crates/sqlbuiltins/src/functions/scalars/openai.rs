@@ -5,22 +5,13 @@ use async_openai::config::OpenAIConfig;
 use async_openai::types::{CreateEmbeddingRequest, Embedding, EmbeddingInput, EncodingFormat};
 use async_openai::Client;
 use datafusion::arrow::array::{
-    ArrayRef,
-    AsArray,
-    FixedSizeListArray,
-    FixedSizeListBuilder,
-    Float32Builder,
+    ArrayRef, AsArray, FixedSizeListArray, FixedSizeListBuilder, Float32Builder,
 };
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::error::{DataFusionError, Result};
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
-    Expr,
-    ReturnTypeFunction,
-    ScalarFunctionImplementation,
-    ScalarUDF,
-    Signature,
-    TypeSignature,
+    Expr, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF, Signature, TypeSignature,
     Volatility,
 };
 use datafusion::physical_plan::ColumnarValue;
@@ -41,6 +32,9 @@ const DEFAULT_CREDENTIAL_LOCATION: Lazy<Vec<String>> = Lazy::new(|| {
         "api_key".to_string(),
     ]
 });
+// This is a placeholder for empty values in the input array
+// The openai API does not accept empty strings, so we use this to represent NULL/"" values
+const EMPTY_PLACEHOLDER: &str = "NULL";
 
 pub struct OpenAIEmbed;
 
@@ -184,13 +178,13 @@ impl BuiltinScalarUDF for OpenAIEmbed {
                     DataType::Utf8 => EmbeddingInput::StringArray(
                         arr.as_string::<i32>()
                             .into_iter()
-                            .map(|s| s.unwrap_or_default().to_string())
+                            .map(|s| s.unwrap_or(EMPTY_PLACEHOLDER).to_string())
                             .collect(),
                     ),
                     DataType::LargeUtf8 => EmbeddingInput::StringArray(
                         arr.as_string::<i64>()
                             .into_iter()
-                            .map(|s| s.unwrap_or_default().to_string())
+                            .map(|s| s.unwrap_or(EMPTY_PLACEHOLDER).to_string())
                             .collect(),
                     ),
                     _ => return Err(DataFusionError::Plan("Invalid argument".to_string())),
