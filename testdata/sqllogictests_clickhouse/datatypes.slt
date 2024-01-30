@@ -17,7 +17,7 @@ CREATE EXTERNAL TABLE datatypes
 query ITIIIIIIIIRRTTTTTTT rowsort
 SELECT * FROM datatypes;
 ----
-1  t  1  12  1234  12345678  -1  -12  -1234  -12345678  1.25  -34.625  abc  def  1999-09-30  1999-09-30 16:32:34  1999-09-30 16:32:34.123456  1999-09-30 16:32:34+00  1999-09-30 16:32:34.123456+00
+1  t  1  12  1234  12345678  -1  -12  -1234  -12345678  1.25  -34.625  abc  def  1999-09-30  1999-09-30 16:32:34  1999-09-30 16:32:34.123  1999-09-30 16:32:34+00  1999-09-30 16:32:34.123456+00
 2  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL
 
 # Check the actual types of columns.
@@ -48,4 +48,4 @@ SELECT
 FROM datatypes
 LIMIT 1;
 ----
-Boolean  UInt8  UInt16  UInt32  UInt64  Int8  Int16  Int32  Int64  Float32  Float64  Utf8  Utf8  Date32  Timestamp(Nanosecond, None)  Timestamp(Nanosecond, None)  Timestamp(Nanosecond, Some("Asia/Kolkata"))  Timestamp(Nanosecond, Some("Asia/Kolkata"))
+Boolean  UInt8  UInt16  UInt32  UInt64  Int8  Int16  Int32  Int64  Float32  Float64  Utf8  Utf8  Date32  Timestamp(Second, None)  Timestamp(Millisecond, None)  Timestamp(Second, Some("Asia/Kolkata"))  Timestamp(Microsecond, Some("Asia/Kolkata"))
