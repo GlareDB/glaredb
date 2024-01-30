@@ -48,7 +48,16 @@ VALUES (
     12345.67891234
 );
 
-INSERT INTO datatypes(c1) VALUES (NULL); -- inserts nulls
+INSERT INTO datatypes (c1) VALUES (NULL); -- inserts nulls
+
+-- Zero value timestamps: https://github.com/GlareDB/glaredb/issues/2438
+INSERT INTO datatypes (
+    c15,
+    c18
+) VALUES (
+    '0001-01-01 00:00:00',
+    '0001-01-01 00:00:00 UTC'
+);
 
 -- bikeshare_stations table for testing datasources.
 CREATE TABLE IF NOT EXISTS bikeshare_stations (
