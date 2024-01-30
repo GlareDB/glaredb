@@ -140,7 +140,7 @@ jobs:
 
   nodejs-bindings-tests:
     name: Node.js Binding Tests
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest-8-cores
     needs: ["fmt"]
     steps:
       - uses: actions/checkout@v4
