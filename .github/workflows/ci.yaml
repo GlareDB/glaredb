@@ -45,14 +45,6 @@ jobs:
       - run: just build
       - run: cargo build --bin pgprototest
       - uses: actions/cache/save@v4
-        name: build cache
-        with:
-          path: |
-            target/
-            !target/**/glaredb
-            !target/**/pgprototest
-          key: ${{ github.run_id }}
-      - uses: actions/cache/save@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -108,14 +100,6 @@ jobs:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache/restore@v4
-        name: build cache
-        with:
-          path: |
-            target/
-            !target/**/glaredb
-            !target/**/pgprototest
-          key: ${{ github.run_id }}
       - run: just clippy
 
 
@@ -142,14 +126,6 @@ jobs:
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache/restore@v4
-        name: build cache
-        with:
-          path: |
-            target/
-            !target/**/glaredb
-            !target/**/pgprototest
-          key: ${{ github.run_id }}
-      - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
@@ -173,20 +149,12 @@ jobs:
           path: |
             ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         name: cargo cache
         with:
           path: |
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache/restore@v4
-        name: build cache
-        with:
-          path: |
-            target/
-            !target/**/glaredb
-            !target/**/pgprototest
-          key: ${{ github.run_id }}
       - run: just python build
       - run: just python test
 
@@ -216,13 +184,13 @@ jobs:
             ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache/restore@v4
-        name: build cache
+        name: workspace cache
         with:
           path: |
             target/
             !target/**/glaredb
             !target/**/pgprototest
-          key: ${{ github.run_id }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: just js build-debug
       - run: just js test
 
