@@ -5,9 +5,23 @@ use std::task::{Context, Poll};
 use chrono::{DateTime, NaiveDate};
 use chrono_tz::Tz;
 use datafusion::arrow::array::{
-    Array, BooleanBuilder, Date32Builder, Float32Array, Float64Array, Int16Array, Int32Array,
-    Int64Array, Int8Array, StringBuilder, TimestampMicrosecondBuilder, TimestampMillisecondBuilder,
-    TimestampNanosecondBuilder, TimestampSecondBuilder, UInt16Array, UInt32Array, UInt64Array,
+    Array,
+    BooleanBuilder,
+    Date32Builder,
+    Float32Array,
+    Float64Array,
+    Int16Array,
+    Int32Array,
+    Int64Array,
+    Int8Array,
+    StringBuilder,
+    TimestampMicrosecondBuilder,
+    TimestampMillisecondBuilder,
+    TimestampNanosecondBuilder,
+    TimestampSecondBuilder,
+    UInt16Array,
+    UInt32Array,
+    UInt64Array,
     UInt8Array,
 };
 use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef, TimeUnit};
