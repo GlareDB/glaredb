@@ -1331,6 +1331,7 @@ pub enum CredentialsOptions {
     Gcp(CredentialsOptionsGcp),
     Aws(CredentialsOptionsAws),
     Azure(CredentialsOptionsAzure),
+    OpenAI(CredentialsOptionsOpenAI),
 }
 
 impl CredentialsOptions {
@@ -1338,6 +1339,7 @@ impl CredentialsOptions {
     pub const GCP: &'static str = "gcp";
     pub const AWS: &'static str = "aws";
     pub const AZURE: &'static str = "azure";
+    pub const OPENAI: &'static str = "openai";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -1345,6 +1347,7 @@ impl CredentialsOptions {
             Self::Gcp(_) => Self::GCP,
             Self::Aws(_) => Self::AWS,
             Self::Azure(_) => Self::AZURE,
+            Self::OpenAI(_) => Self::OPENAI,
         }
     }
 }
@@ -1363,6 +1366,7 @@ impl TryFrom<options::credentials_options::Options> for CredentialsOptions {
             options::credentials_options::Options::Gcp(v) => Self::Gcp(v.try_into()?),
             options::credentials_options::Options::Aws(v) => Self::Aws(v.try_into()?),
             options::credentials_options::Options::Azure(v) => Self::Azure(v.try_into()?),
+            options::credentials_options::Options::Openai(v) => Self::OpenAI(v.try_into()?),
         })
     }
 }
@@ -1381,6 +1385,9 @@ impl From<CredentialsOptions> for options::credentials_options::Options {
             CredentialsOptions::Gcp(v) => options::credentials_options::Options::Gcp(v.into()),
             CredentialsOptions::Aws(v) => options::credentials_options::Options::Aws(v.into()),
             CredentialsOptions::Azure(v) => options::credentials_options::Options::Azure(v.into()),
+            CredentialsOptions::OpenAI(v) => {
+                options::credentials_options::Options::Openai(v.into())
+            }
         }
     }
 }
@@ -1483,6 +1490,28 @@ impl From<CredentialsOptionsAzure> for options::CredentialsOptionsAzure {
         options::CredentialsOptionsAzure {
             account_name: value.account_name,
             access_key: value.access_key,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct CredentialsOptionsOpenAI {
+    pub api_key: String,
+}
+
+impl TryFrom<options::CredentialsOptionsOpenAi> for CredentialsOptionsOpenAI {
+    type Error = ProtoConvError;
+    fn try_from(value: options::CredentialsOptionsOpenAi) -> Result<Self, Self::Error> {
+        Ok(CredentialsOptionsOpenAI {
+            api_key: value.api_key,
+        })
+    }
+}
+
+impl From<CredentialsOptionsOpenAI> for options::CredentialsOptionsOpenAi {
+    fn from(value: CredentialsOptionsOpenAI) -> Self {
+        options::CredentialsOptionsOpenAi {
+            api_key: value.api_key,
         }
     }
 }

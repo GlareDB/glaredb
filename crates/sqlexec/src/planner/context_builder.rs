@@ -292,14 +292,19 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
             .map_err(|e| DataFusionError::External(Box::new(e)))
     }
 
-    async fn get_function_meta(&mut self, name: &str, args: &[Expr]) -> Option<Expr> {
+    async fn get_function_meta(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+    ) -> DataFusionResult<Option<Expr>> {
         FUNCTION_REGISTRY
             .get_scalar_udf(name)
-            .map(|f| f.as_expr(args.to_vec()))
+            .map(|f| f.try_as_expr(self.ctx.get_session_catalog(), args.to_vec()))
+            .transpose()
     }
 
-    async fn get_variable_type(&mut self, _variable_names: &[String]) -> Option<DataType> {
-        None
+    async fn get_variable_type(&mut self, _: &[String]) -> Option<DataType> {
+        Some(DataType::Utf8)
     }
 
     async fn get_aggregate_meta(&mut self, _name: &str) -> Option<Arc<AggregateUDF>> {

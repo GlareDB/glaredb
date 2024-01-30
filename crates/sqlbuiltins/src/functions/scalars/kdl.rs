@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use ::kdl::{KdlNode, KdlQuery};
+use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::DataType;
-use datafusion::error::DataFusionError;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
     ReturnTypeFunction,
@@ -44,7 +45,7 @@ impl ConstBuiltinFunction for KDLSelect {
 }
 
 impl BuiltinScalarUDF for KDLSelect {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
         let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Utf8)));
         let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
             let filter = get_nth_string_fn_arg(input, 1)?;
@@ -82,7 +83,10 @@ impl BuiltinScalarUDF for KDLSelect {
             &return_type_fn,
             &scalar_fn_impl,
         );
-        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
+        Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
+            Arc::new(udf),
+            args,
+        )))
     }
 }
 
@@ -110,7 +114,7 @@ impl ConstBuiltinFunction for KDLMatches {
 }
 
 impl BuiltinScalarUDF for KDLMatches {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
         let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
         let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
             let filter = get_nth_string_fn_arg(input, 1)?;
@@ -136,7 +140,10 @@ impl BuiltinScalarUDF for KDLMatches {
             &return_type_fn,
             &scalar_fn_impl,
         );
-        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
+        Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
+            Arc::new(udf),
+            args,
+        )))
     }
 }
 

@@ -9,6 +9,7 @@ use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use catalog::session_catalog::SessionCatalog;
 use constants::IMPLICIT_SCHEMAS;
 use datafusion::arrow::array::{ListBuilder, StringBuilder};
 use datafusion::arrow::datatypes::{DataType, Field};
@@ -20,6 +21,7 @@ pub use inner::{Dialect, SessionVarsInner};
 use once_cell::sync::Lazy;
 use parking_lot::{RwLock, RwLockReadGuard};
 use pgrepr::notice::NoticeSeverity;
+use protogen::metastore::types::options::{CredentialsOptions, CredentialsOptionsOpenAI};
 use utils::split_comma_delimited;
 use uuid::Uuid;
 
@@ -286,5 +288,48 @@ impl VarProvider for SessionVars {
 
             _ => None,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CredentialsVarProvider<'a> {
+    pub catalog: &'a SessionCatalog,
+}
+
+impl<'a> CredentialsVarProvider<'a> {
+    pub fn new(catalog: &'a SessionCatalog) -> Self {
+        Self { catalog }
+    }
+}
+
+// Currently only supports OpenAI credentials
+// We can add more providers in the future if needed
+impl VarProvider for CredentialsVarProvider<'_> {
+    fn get_value(&self, var_names: Vec<String>) -> datafusion::error::Result<ScalarValue> {
+        let var_names: Vec<&str> = var_names.iter().map(|s| s.as_str()).collect();
+        let value = match var_names.as_slice() {
+            ["@creds", "openai", value, "api_key"] => {
+                let openai_cred = self.catalog.resolve_credentials(value).ok_or_else(|| {
+                    datafusion::error::DataFusionError::Internal("No credentials found".to_string())
+                })?;
+                let CredentialsOptions::OpenAI(CredentialsOptionsOpenAI { api_key }) =
+                    openai_cred.options.clone()
+                else {
+                    return Err(datafusion::error::DataFusionError::Internal(
+                        "No API key found".to_string(),
+                    ));
+                };
+                Ok(ScalarValue::Utf8(Some(api_key)))
+            }
+            _ => Err(datafusion::error::DataFusionError::Internal(
+                "unsupported variable".to_string(),
+            )),
+        };
+        value
+    }
+
+    fn get_type(&self, _: &[String]) -> Option<DataType> {
+        // Utf8 is the only type we support for now
+        Some(DataType::Utf8)
     }
 }
