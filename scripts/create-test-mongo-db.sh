@@ -40,6 +40,13 @@ docker exec $CONTAINER_ID mongoimport \
        "mongodb://localhost:27017/${DB_NAME}" \
        /tmp/bikeshare_stations.csv 1>&2
 
+
+# Exec into container to load test data.
+docker exec $CONTAINER_ID mongosh \
+       "mongodb://localhost:27017/${DB_NAME}" \
+       --eval "db.null_test.insertMany([{a:1},(a:null)])" 1>&2
+
+
 # The mongod docker container is kinda bad. The MONGO_INITDB_... environment vars
 # might look like the obvious solution, but they don't work as you would expect.
 #
