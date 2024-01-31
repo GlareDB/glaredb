@@ -231,7 +231,13 @@ impl BuiltinScalarUDF for OpenAIEmbed {
                 _ => return Err(DataFusionError::Plan("Invalid argument".to_string())),
             };
 
-            let client = Client::with_config(creds.clone());
+            let reqwest_client = reqwest::ClientBuilder::new()
+                // Set a hard timeout of 10 seconds
+                .timeout(std::time::Duration::from_secs(10))
+                .build()
+                .unwrap();
+
+            let client = Client::with_config(creds.clone()).with_http_client(reqwest_client);
             let embed = client.embeddings();
             // We chunk the input into 2000 items per request to avoid hitting token limits
             let reqs = input_chunks

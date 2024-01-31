@@ -7628,6 +7628,7 @@ dependencies = [
  "once_cell",
  "pgrepr",
  "protogen",
+ "reqwest",
  "siphasher 1.0.0",
  "strum 0.25.0",
  "telemetry",
