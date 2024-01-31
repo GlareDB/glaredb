@@ -110,8 +110,7 @@ fn model_from_arg(arg: &Expr) -> datafusion::error::Result<EmbeddingModel> {
     match arg {
         Expr::Literal(ScalarValue::Utf8(Some(v))) => v.parse(),
         other => Err(DataFusionError::Plan(format!(
-            "Invalid argument, expected a string, instead received: '{}'",
-            other.to_string()
+            "Invalid argument, expected a string, instead received: '{other}'",
         ))),
     }
 }
