@@ -26,12 +26,13 @@ jobs:
         name: toolchain cache
         with:
           path: ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
+          key: ${{ runner.os }}-toolchain-build-${{ hashFiles('**/rust-toolchain.toml') }}
       - uses: actions/cache@v4
         name: cargo cache
         with:
           path: ~/.cargo/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-pkg-build-
       - uses: actions/cache@v4
         name: build cache
         with:
@@ -69,11 +70,14 @@ jobs:
           just-version: "1.23.0"
       - uses: actions/cache@v4
         name: nightly toolchain cache
+        id: lint-toolchain
         with:
           path: ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rustfmt.toml') }}
+          key: ${{ runner.os }}-toolchain-lint-${{ hashFiles('**/rustfmt.toml') }}
       - run: rustup install nightly
+        if: ${{ steps.lint-toolchain.outputs.cache-hit != 'true' }}
       - run: rustup component add rustfmt --toolchain nightly
+        if: ${{ steps.lint-toolchain.outputs.cache-hit != 'true' }}
       - run: just fmt-check
 
 
@@ -88,16 +92,20 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache@v4
         name: toolchain cache
         with:
           path: ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache/restore@v4
+          key: ${{ runner.os }}-toolchain-build-${{ hashFiles('**/rust-toolchain.toml') }}
+      - uses: actions/cache@v4
         name: cargo cache
         with:
           path: ~/.cargo/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-pkg-lint-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
+            ${{ runner.os }}-cargo-pkg-lint-
+            ${{ runner.os }}-cargo-pkg-build-
       - uses: actions/cache/restore@v4
         name: build cache
         with:
@@ -123,12 +131,16 @@ jobs:
         name: toolchain cache
         with:
           path: ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
+          key: ${{ runner.os }}-toolchain-build-${{ hashFiles('**/rust-toolchain.toml') }}
       - uses: actions/cache@v4
         name: cargo cache
         with:
           path: ~/.cargo/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-pkg-python-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+             ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
+             ${{ runner.os }}-cargo-pkg-python-
+             ${{ runner.os }}-cargo-pkg-build-
       - uses: actions/cache@v4
         name: build cache
         with:
@@ -157,14 +169,14 @@ jobs:
         name: toolchain cache
         with:
           path: |
-            ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
-      - uses: actions/cache/restore@v4
+             ~/.rustup/toolchains/
+          key: ${{ runner.os }}-toolchain-build-${{ hashFiles('**/rust-toolchain.toml') }}
+      - uses: actions/cache@v4
         name: cargo cache
         with:
-          path: |
-            ~/.cargo/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          path: ~/.cargo/
+          key: ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-pkg-build-
       - uses: actions/cache/restore@v4
         name: build cache
         with:
@@ -191,13 +203,17 @@ jobs:
         name: toolchain cache
         with:
           path: ~/.rustup/toolchains/
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('**/rust-toolchain.toml') }}
+          key: ${{ runner.os }}-toolchain-build-${{ hashFiles('**/rust-toolchain.toml') }}
       - uses: actions/cache@v4
         name: cargo cache
         with:
           path: ~/.cargo/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions/cache@v4
+          key: ${{ runner.os }}-cargo-pkg-unit-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+             ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
+             ${{ runner.os }}-cargo-pkg-unit-
+             ${{ runner.os }}-cargo-pkg-build-
+      - uses: actions/cache/restore@v4
         name: build cache
         with:
           path: |
@@ -211,33 +227,6 @@ jobs:
           path: target/debug/glaredb
           key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
       - run: just unit-tests
-
-
-  cache:
-    # update a cache that can be used between builds, but do it
-    # outside of the hot path.
-    name: cache helper
-    needs: ["build", "python-binding-tests", "unit-tests"]
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - uses: actions/cache/restore@v4
-        name: build cache
-        with:
-          path: |
-            target/
-            !target/**/glaredb
-            !target/**/pgprototest
-          key: ${{ runner.os }}-cargo-glaredb-build-${{ github.ref_name }}
-      - uses: actions/cache/save@v4
-        name: build cache
-        with:
-          path: |
-            target/
-            !target/**/glaredb
-            !target/**/pgprototest
-          key: ${{ runner.os }}-cargo-glaredb-build-${{ hashFiles('**/Cargo.lock') }}
 
 
   pg-protocol:
@@ -323,11 +312,6 @@ jobs:
         with:
           path: target/debug/glaredb
           key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
-      - uses: actions/cache@v4
-        name: py cache
-        with:
-          path: tests/.venv/
-          key: ${{ runner.os }}-poetry-${{ hashFiles('tests/poetry.lock') }}
       - run: just venv
       - run: just pytest
 
