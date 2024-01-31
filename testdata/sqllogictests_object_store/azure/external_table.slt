@@ -13,7 +13,7 @@ copy ( values (1, 2) ) to 'azure://glaredb-test/ext-table.csv'
 	credentials azure_creds;
 
 statement ok
-create external table ext_table from azure (
+create external table ext_table from azure options (
 	account_name = '${AZURE_ACCOUNT}',
 	access_key = '${AZURE_ACCESS_KEY}',
 	location 'azure://glaredb-test/ext-table.csv'
@@ -34,7 +34,7 @@ copy ( values (3, 4) ) to 'azure://glaredb-test/ext-table-1.csv'
 
 statement ok
 create external table ext_table_1 from azure
-	credentials azure_creds
+	credentials azure_creds options
 	(
 		location 'azure://glaredb-test/ext-table*'
 	);
@@ -56,7 +56,7 @@ copy ( values (7, 8) ) to 'azure://glaredb-test/pq-table-2'
 	format parquet credentials azure_creds;
 
 statement error unable to resolve file type from the objects
-create external table ext_table_2 from azure
+create external table ext_table_2 from azure options
 	credentials azure_creds
 	(
 		location 'azure://glaredb-test/pq-table*'
@@ -64,7 +64,7 @@ create external table ext_table_2 from azure
 
 statement ok
 create external table ext_table_2 from azure
-	credentials azure_creds
+	credentials azure_creds options
 	(
 		location 'azure://glaredb-test/pq-table*',
 		file_type parquet
@@ -75,4 +75,3 @@ select * from ext_table_2;
 ----
 5	6
 7	8
-
