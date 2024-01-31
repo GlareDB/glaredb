@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::bson::table::bson_streaming_table;
 use datasources::common::url::DatasourceUrlType;
+use datasources::json::table::json_streaming_table;
 use datasources::object_store::generic::GenericStoreAccess;
 use protogen::metastore::types::catalog::RuntimePreference;
 
@@ -15,17 +15,17 @@ use crate::functions::table::{table_location_and_opts, TableFunc};
 use crate::functions::{ConstBuiltinFunction, FunctionType};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct BsonScan;
+pub struct JsonScan;
 
-impl ConstBuiltinFunction for BsonScan {
-    const NAME: &'static str = "read_bson";
-    const DESCRIPTION: &'static str = "Reads one or more BSON files. Supports globbing.";
-    const EXAMPLE: &'static str = "SELECT * FROM read_bson('./path/to/table*.bson')";
+impl ConstBuiltinFunction for JsonScan {
+    const NAME: &'static str = "read_json";
+    const DESCRIPTION: &'static str = "Reads one or more JSON files or URLs. Supports globbing.";
+    const EXAMPLE: &'static str = "SELECT * FROM read_json('https://example.com/feed.json')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 }
 
 #[async_trait]
-impl TableFunc for BsonScan {
+impl TableFunc for JsonScan {
     fn detect_runtime(
         &self,
         args: &[FuncParamValue],
@@ -54,14 +54,6 @@ impl TableFunc for BsonScan {
         args: Vec<FuncParamValue>,
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>, ExtensionError> {
-        // parse arguments to see how many documents to consider for schema inheritance.
-        let sample_size = match opts.get("schema_sample_size") {
-            // TODO: set a maximum (1024?) or have an adaptive mode
-            // (at least n but stop after n the same) or skip documents
-            Some(v) => v.to_owned().try_into()?,
-            None => 100,
-        };
-
         // setup storage access
         let (source_url, storage_options) = table_location_and_opts(ctx, args, &mut opts)?;
 
@@ -70,6 +62,6 @@ impl TableFunc for BsonScan {
             storage_options,
         )?;
 
-        Ok(bson_streaming_table(store_access, Some(sample_size), source_url).await?)
+        Ok(json_streaming_table(store_access, source_url).await?)
     }
 }
