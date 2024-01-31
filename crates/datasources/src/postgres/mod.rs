@@ -13,7 +13,21 @@ use std::task::{Context, Poll};
 use async_trait::async_trait;
 use chrono::naive::{NaiveDateTime, NaiveTime};
 use chrono::{DateTime, NaiveDate, Timelike, Utc};
-use datafusion::arrow::array::Decimal128Builder;
+use datafusion::arrow::array::{
+    Array,
+    BinaryBuilder,
+    BooleanBuilder,
+    Date32Builder,
+    Decimal128Builder,
+    Float32Builder,
+    Float64Builder,
+    Int16Builder,
+    Int32Builder,
+    Int64Builder,
+    StringBuilder,
+    Time64MicrosecondBuilder,
+    TimestampMicrosecondBuilder,
+};
 use datafusion::arrow::datatypes::{
     DataType,
     Field,
@@ -1091,21 +1105,6 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
         return Ok(RecordBatch::try_new_with_options(schema, Vec::new(), &options).unwrap());
     }
 
-    use datafusion::arrow::array::{
-        Array,
-        BinaryBuilder,
-        BooleanBuilder,
-        Date32Builder,
-        Float32Builder,
-        Float64Builder,
-        Int16Builder,
-        Int32Builder,
-        Int64Builder,
-        StringBuilder,
-        Time64NanosecondBuilder,
-        TimestampNanosecondBuilder,
-    };
-
     let rows = rows
         .into_iter()
         .collect::<Result<Vec<_>, _>>()
@@ -1163,45 +1162,33 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 }
                 Arc::new(arr.finish())
             }
-            dt @ DataType::Timestamp(TimeUnit::Nanosecond, None) => {
-                let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len());
+            DataType::Timestamp(TimeUnit::Microsecond, None) => {
+                let mut arr = TimestampMicrosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> = row.try_get(col_idx)?;
-                    let val = val
-                        .map(|v| {
-                            v.timestamp_nanos_opt().ok_or_else(|| {
-                                PostgresError::DataOverflow(v.to_string(), dt.clone())
-                            })
-                        })
-                        .transpose()?;
+                    let val = val.map(|v| v.timestamp_micros());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
             }
-            dt @ DataType::Timestamp(TimeUnit::Nanosecond, Some(_)) => {
-                let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len())
-                    .with_data_type(dt.clone());
+            DataType::Timestamp(TimeUnit::Microsecond, Some(tz)) => {
+                let mut arr = TimestampMicrosecondBuilder::with_capacity(rows.len())
+                    .with_timezone(tz.clone());
                 for row in rows.iter() {
                     let val: Option<DateTime<Utc>> = row.try_get(col_idx)?;
-                    let val = val
-                        .map(|v| {
-                            v.timestamp_nanos_opt().ok_or_else(|| {
-                                PostgresError::DataOverflow(v.to_string(), dt.clone())
-                            })
-                        })
-                        .transpose()?;
+                    let val = val.map(|v| v.timestamp_micros());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
             }
-            DataType::Time64(TimeUnit::Nanosecond) => {
-                let mut arr = Time64NanosecondBuilder::with_capacity(rows.len());
+            DataType::Time64(TimeUnit::Microsecond) => {
+                let mut arr = Time64MicrosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveTime> = row.try_get(col_idx)?;
                     let val = val.map(|v| {
-                        let nanos = v.nanosecond() as i64;
+                        let sub_micros = (v.nanosecond() / 1_000) as i64;
                         let secs_since_midnight = v.num_seconds_from_midnight() as i64;
-                        (secs_since_midnight * 1_000_000_000) + nanos
+                        (secs_since_midnight * 1_000_000) + sub_micros
                     });
                     arr.append_option(val);
                 }
@@ -1250,11 +1237,11 @@ fn try_create_arrow_schema(names: Vec<String>, types: &Vec<PostgresType>) -> Res
             // to specify the precision and scale for the column. Setting these
             // same as bigquery.
             &PostgresType::NUMERIC => DataType::Decimal128(38, 9),
-            &PostgresType::TIMESTAMP => DataType::Timestamp(TimeUnit::Nanosecond, None),
+            &PostgresType::TIMESTAMP => DataType::Timestamp(TimeUnit::Microsecond, None),
             &PostgresType::TIMESTAMPTZ => {
-                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into()))
+                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into()))
             }
-            &PostgresType::TIME => DataType::Time64(TimeUnit::Nanosecond),
+            &PostgresType::TIME => DataType::Time64(TimeUnit::Microsecond),
             &PostgresType::DATE => DataType::Date32,
             // TODO: Time with timezone and interval data types in postgres are
             // of 12 and 16 bytes respectively. This kind of size is not

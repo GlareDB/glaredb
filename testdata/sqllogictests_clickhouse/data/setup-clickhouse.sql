@@ -28,7 +28,7 @@ CREATE OR REPLACE TABLE datatypes (
     c14 Nullable(Date),
     -- c15 Nullable(Date32),
     c16 Nullable(DateTime),
-    c17 Nullable(DateTime64(6)),
+    c17 Nullable(DateTime64(3)),
     -- with timezones
     c18 Nullable(DateTime('Asia/Kolkata')),
     c19 Nullable(DateTime64(6, 'Asia/Kolkata'))
