@@ -20,7 +20,7 @@ jobs:
           gh cache list --repo="${{ github.repository }}" \
                         --limit=2000 \
                         --json='key,id,ref' \
-                        --jq='.[] | select(.ref == "refs/pull/${{ github.event.pull_request.number }}/merge")' \
+                        --jq='.[] | select(.ref == "refs/pull/${{ github.event.pull_request.number }}/merge") | .id' \
              | xargs --verbose --max-args=1 gh cache delete
 
   clean-up-hosted-datasets:
