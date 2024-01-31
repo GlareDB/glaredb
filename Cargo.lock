@@ -5445,6 +5445,7 @@ dependencies = [
  "decimal",
  "dtoa",
  "num-traits",
+ "once_cell",
  "repr",
  "thiserror",
  "tokio-postgres",
