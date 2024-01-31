@@ -19,9 +19,6 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
       - uses: actions/cache@v4
         name: toolchain cache
         with:
@@ -29,10 +26,13 @@ jobs:
           key: ${{ runner.os }}-toolchain-build-${{ hashFiles('**/rust-toolchain.toml') }}
       - uses: actions/cache@v4
         name: cargo cache
+        id: cargo-cache
         with:
           path: ~/.cargo/
           key: ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-pkg-build-
+      - uses: taiki-e/install-action@v2
+        with: { "tool": "just@1.23.0"}
       - uses: actions/cache@v4
         name: build cache
         with:
@@ -65,9 +65,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
+      - uses: taiki-e/install-action@v2
+        with: { "tool": "just@1.23.0"}
       - uses: actions/cache@v4
         name: nightly toolchain cache
         id: lint-toolchain
@@ -124,9 +123,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
+      - uses: taiki-e/install-action@v2
+        with: { "tool": "just@1.23.0"}
       - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
@@ -162,9 +160,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
+      - uses: taiki-e/install-action@v2
+        with: { "tool": "just@1.23.0"}
       - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
@@ -236,9 +233,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
+      - uses: taiki-e/install-action@v2
+        with: { "tool": "just@1.23.0"}
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
@@ -273,9 +269,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
+      - uses: taiki-e/install-action@v2
+        with: { "tool": "just@1.23.0"}
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
@@ -325,9 +320,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
 
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
+      - uses: taiki-e/install-action@v2
+        with: { "tool": "just@1.23.0"}
 
       - uses: actions/cache/restore@v4
         name: glaredb cache
@@ -433,16 +427,13 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
-
+      - uses: taiki-e/install-action@v2
+        with: { "tool": "just@1.23.0"}
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
           key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
-
       - name: run tests (slt)
         env:
           MINIO_ACCESS_KEY: glaredb
@@ -500,9 +491,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
+      - uses: taiki-e/install-action@v2
+        with: { "tool": "just@1.23.0"}
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
@@ -577,9 +567,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
-        with:
-          just-version: "1.23.0"
+      - uses: taiki-e/install-action@v2
+        with: { "tool": "just@1.23.0"}
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
