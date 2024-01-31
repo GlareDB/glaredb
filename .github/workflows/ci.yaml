@@ -75,9 +75,9 @@ jobs:
           path: ~/.rustup/toolchains/
           key: ${{ runner.os }}-toolchain-lint-${{ hashFiles('**/rustfmt.toml') }}
       - run: rustup install nightly
-        if: ${{ steps.lint-toolchain.outputs.cache-hit != 'true }}
+        if: ${{ steps.lint-toolchain.outputs.cache-hit != 'true' }}
       - run: rustup component add rustfmt --toolchain nightly
-        if: ${{ steps.lint-toolchain.outputs.cache-hit != 'true }}
+        if: ${{ steps.lint-toolchain.outputs.cache-hit != 'true' }}
       - run: just fmt-check
 
 
