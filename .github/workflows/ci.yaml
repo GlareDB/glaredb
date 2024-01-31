@@ -239,7 +239,7 @@ jobs:
     needs: ["build"]
     # parent branches can't use caches from child branches, so no need
     # to update this cache _except_ on main.
-    # if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master'
     steps:
       - uses: actions/cache@v4
         name: cache check
@@ -252,7 +252,7 @@ jobs:
             !target/**/pgprototest
           key: ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache/restore@v4
-        name: cache check
+        name: build cache restore
         if: ${{ steps.target-for-cargo-hash.cache-hit != 'true' }}
         with:
           path: |
@@ -261,7 +261,7 @@ jobs:
             !target/**/pgprototest
           key: ${{ runner.os }}-cargo-glaredb-build-${{ github.ref_name }}
       - uses: actions/cache/save@v4
-        name: cache check
+        name: cache update
         if: ${{ steps.target-for-cargo-hash.cache-hit != 'true' }}
         with:
           path: |
