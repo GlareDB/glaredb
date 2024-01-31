@@ -33,10 +33,10 @@ use tokio::runtime::Handle;
 use tokio::task;
 
 use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
-const DEFAULT_CREDENTIAL_LOCATION: Lazy<&[&str]> =
+static DEFAULT_CREDENTIAL_LOCATION: Lazy<&[&str]> =
     Lazy::new(|| &["@creds", "openai", "openai_default_credential", "api_key"]);
-// This is a placeholder for empty values in the input array
-// The openai API does not accept empty strings, so we use this to represent NULL/"" values
+/// This is a placeholder for empty values in the input array
+/// The openai API does not accept empty strings, so we use this to represent NULL/"" values
 const EMPTY_PLACEHOLDER: &str = "NULL";
 
 pub struct OpenAIEmbed;
@@ -44,11 +44,12 @@ pub struct OpenAIEmbed;
 impl ConstBuiltinFunction for OpenAIEmbed {
     const NAME: &'static str = "openai_embed";
     const DESCRIPTION: &'static str = "Embeds text using OpenAI's API. 
+    WARNING: This function makes an external API call and may be slow. It is recommended to use it with small datasets.
     Available models: 'text-embedding-3-small', 'text-embedding-ada-002', 'text-embedding-3-large' default: 'text-embedding-3-small'
     Note: This function requires an API key. You can pass it as the first argument or set it as a stored credential.
     If no API key is provided, the function will attempt to use the stored credential 'openai_default_credential'";
     const EXAMPLE: &'static str =
-        "openai_embed(@creds.openai.my_openai.api_key, 'text-embedding-3-small', 'Hello, world!')";
+        "openai_embed(@creds.openai.my_openai, 'text-embedding-3-small', 'Hello, world!')";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
     fn signature(&self) -> Option<Signature> {
         Some(Signature::new(
@@ -108,7 +109,7 @@ impl ToString for EmbeddingModel {
 fn model_from_arg(arg: &Expr) -> datafusion::error::Result<EmbeddingModel> {
     match arg {
         Expr::Literal(ScalarValue::Utf8(v)) => v.clone().unwrap().parse(),
-        _ => Err(DataFusionError::Plan("Invalid argument".to_string())),
+        _ => Err(DataFusionError::Plan("Invalid argument. Available models are: 'text-embedding-3-small', 'text-embedding-ada-002', 'text-embedding-3-large' ".to_string())),
     }
 }
 
@@ -121,12 +122,31 @@ impl BuiltinScalarUDF for OpenAIEmbed {
         catalog: &catalog::session_catalog::SessionCatalog,
         mut args: Vec<Expr>,
     ) -> datafusion::error::Result<Expr> {
-        let creds_from_arg = |values: Vec<String>| -> Option<String> {
+        let creds_from_arg = |values: Vec<String>| -> Option<OpenAIConfig> {
             let prov = CredentialsVarProvider::new(catalog);
             let scalar = prov.get_value(values);
 
             match scalar.ok()? {
-                ScalarValue::Utf8(scalar) => scalar,
+                ScalarValue::Utf8(v) => Some(OpenAIConfig::new().with_api_key(v.unwrap())),
+                ScalarValue::Struct(Some(values), _) => {
+                    let api_key = values.first()?;
+                    let api_base = values.get(1);
+                    let org_id = values.get(2);
+                    let api_key = match api_key {
+                        ScalarValue::Utf8(v) => v.clone().unwrap(),
+                        _ => return None,
+                    };
+                    let mut config = OpenAIConfig::new().with_api_key(api_key);
+                    config = match api_base {
+                        Some(ScalarValue::Utf8(Some(v))) => config.with_api_base(v.clone()),
+                        _ => config,
+                    };
+                    config = match org_id {
+                        Some(ScalarValue::Utf8(Some(v))) => config.with_org_id(v.clone()),
+                        _ => config,
+                    };
+                    Some(config)
+                }
                 _ => None,
             }
         };
@@ -137,7 +157,7 @@ impl BuiltinScalarUDF for OpenAIEmbed {
                 let model = EmbeddingModel::TextEmbedding3Small;
                 let scalar = creds_from_arg(
                     DEFAULT_CREDENTIAL_LOCATION
-                        .into_iter()
+                        .iter()
                         .map(|s| s.to_string())
                         .collect(),
                 );
@@ -148,7 +168,7 @@ impl BuiltinScalarUDF for OpenAIEmbed {
                 let model = model_from_arg(&args[0])?;
                 let scalar = creds_from_arg(
                     DEFAULT_CREDENTIAL_LOCATION
-                        .into_iter()
+                        .iter()
                         .map(|s| s.to_string())
                         .collect(),
                 );
@@ -156,14 +176,11 @@ impl BuiltinScalarUDF for OpenAIEmbed {
             }
             // openai_embed('api_key', '<model>', '<expr>')
             3 => {
-                let creds = match args.get(0) {
+                let creds = match args.first() {
                     Some(Expr::Literal(ScalarValue::Utf8(v))) => {
-                        Some(v.clone().unwrap().to_string())
+                        Some(OpenAIConfig::new().with_api_key(v.clone().unwrap()))
                     }
-                    Some(Expr::ScalarVariable(_, values)) => {
-                        let scalar = creds_from_arg(values.clone());
-                        scalar
-                    }
+                    Some(Expr::ScalarVariable(_, values)) => creds_from_arg(values.clone()),
                     _ => return Err(DataFusionError::Plan("Invalid argument".to_string())),
                 };
 
@@ -186,53 +203,63 @@ impl BuiltinScalarUDF for OpenAIEmbed {
         });
 
         let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |args| {
-            let input = match &args[0] {
+            let input_chunks = match &args[0] {
                 ColumnarValue::Array(arr) => match arr.data_type() {
-                    DataType::Utf8 => EmbeddingInput::StringArray(
-                        arr.as_string::<i32>()
-                            .into_iter()
-                            .map(|s| s.unwrap_or(EMPTY_PLACEHOLDER).to_string())
-                            .collect(),
-                    ),
-                    DataType::LargeUtf8 => EmbeddingInput::StringArray(
-                        arr.as_string::<i64>()
-                            .into_iter()
-                            .map(|s| s.unwrap_or(EMPTY_PLACEHOLDER).to_string())
-                            .collect(),
-                    ),
+                    DataType::Utf8 => arr
+                        .as_string::<i32>()
+                        .into_iter()
+                        .map(|s| s.unwrap_or(EMPTY_PLACEHOLDER).to_string())
+                        .collect::<Vec<_>>()
+                        .chunks(2000)
+                        .map(|chunk| EmbeddingInput::StringArray(chunk.to_vec()))
+                        .collect::<Vec<_>>(),
+                    DataType::LargeUtf8 => arr
+                        .as_string::<i64>()
+                        .into_iter()
+                        .map(|s| s.unwrap_or(EMPTY_PLACEHOLDER).to_string())
+                        .collect::<Vec<_>>()
+                        .chunks(2000)
+                        .map(|chunk| EmbeddingInput::StringArray(chunk.to_vec()))
+                        .collect::<Vec<_>>(),
                     _ => return Err(DataFusionError::Plan("Invalid argument".to_string())),
                 },
                 ColumnarValue::Scalar(ScalarValue::Utf8(v) | ScalarValue::LargeUtf8(v)) => {
-                    EmbeddingInput::StringArray(vec![v.clone().unwrap_or_default()])
+                    vec![EmbeddingInput::StringArray(vec![v
+                        .clone()
+                        .unwrap_or_default()])]
                 }
                 _ => return Err(DataFusionError::Plan("Invalid argument".to_string())),
             };
 
-            let client = Client::with_config(OpenAIConfig::new().with_api_key(creds.clone()));
+            let client = Client::with_config(creds.clone());
             let embed = client.embeddings();
-            let res = embed.create(CreateEmbeddingRequest {
-                model: model.to_string(),
-                input: input,
-                encoding_format: Some(EncodingFormat::Float),
-                user: None,
-                dimensions: None,
-            });
+            // We chunk the input into 2000 items per request to avoid hitting token limits
+            let reqs = input_chunks
+                .into_iter()
+                .map(|input| CreateEmbeddingRequest {
+                    model: model.to_string(),
+                    input,
+                    encoding_format: Some(EncodingFormat::Float),
+                    user: None,
+                    dimensions: None,
+                });
 
             // no way around blocking here. Expressions are not async
             let res: datafusion::error::Result<FixedSizeListArray> =
                 task::block_in_place(move || {
                     Handle::current().block_on(async move {
-                        let res = res
-                            .await
-                            .map_err(|e| DataFusionError::Execution(e.to_string()))?;
-
                         let values_builder = Float32Builder::new();
-
                         let mut builder = FixedSizeListBuilder::new(values_builder, model_len);
 
-                        for Embedding { embedding, .. } in res.data.iter() {
-                            builder.values().append_slice(embedding);
-                            builder.append(true);
+                        // We need to do them sequentially to maintain the order
+                        // This should also help us abort early if there's an error
+                        for req in reqs {
+                            let res = embed.create(req).await;
+                            let res = res.map_err(|e| DataFusionError::Execution(e.to_string()))?;
+                            for Embedding { embedding, .. } in res.data.iter() {
+                                builder.values().append_slice(embedding);
+                                builder.append(true);
+                            }
                         }
                         Ok(builder.finish())
                     })

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use datafusion::arrow::datatypes::{DataType, Field, SchemaRef};
+use datafusion::arrow::datatypes::{DataType, Field, Fields, SchemaRef};
 use datafusion::common::DFSchemaRef;
 use proptest_derive::Arbitrary;
 
@@ -1497,6 +1497,34 @@ impl From<CredentialsOptionsAzure> for options::CredentialsOptionsAzure {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct CredentialsOptionsOpenAI {
     pub api_key: String,
+    pub api_base: Option<String>,
+    pub org_id: Option<String>,
+}
+
+impl CredentialsOptionsOpenAI {
+    pub fn fields() -> Fields {
+        vec![
+            Field::new("api_key", DataType::Utf8, false),
+            Field::new("api_base", DataType::Utf8, true),
+            Field::new("org_id", DataType::Utf8, true),
+        ]
+        .into()
+    }
+    pub fn data_type() -> DataType {
+        DataType::Struct(Self::fields())
+    }
+}
+impl From<CredentialsOptionsOpenAI> for datafusion::scalar::ScalarValue {
+    fn from(value: CredentialsOptionsOpenAI) -> Self {
+        datafusion::scalar::ScalarValue::Struct(
+            Some(vec![
+                datafusion::scalar::ScalarValue::Utf8(Some(value.api_key)),
+                datafusion::scalar::ScalarValue::Utf8(value.api_base),
+                datafusion::scalar::ScalarValue::Utf8(value.org_id),
+            ]),
+            CredentialsOptionsOpenAI::fields(),
+        )
+    }
 }
 
 impl TryFrom<options::CredentialsOptionsOpenAi> for CredentialsOptionsOpenAI {
@@ -1504,6 +1532,8 @@ impl TryFrom<options::CredentialsOptionsOpenAi> for CredentialsOptionsOpenAI {
     fn try_from(value: options::CredentialsOptionsOpenAi) -> Result<Self, Self::Error> {
         Ok(CredentialsOptionsOpenAI {
             api_key: value.api_key,
+            api_base: value.api_base,
+            org_id: value.org_id,
         })
     }
 }
@@ -1512,6 +1542,8 @@ impl From<CredentialsOptionsOpenAI> for options::CredentialsOptionsOpenAi {
     fn from(value: CredentialsOptionsOpenAI) -> Self {
         options::CredentialsOptionsOpenAi {
             api_key: value.api_key,
+            api_base: value.api_base,
+            org_id: value.org_id,
         }
     }
 }

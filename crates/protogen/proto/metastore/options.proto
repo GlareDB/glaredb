@@ -299,4 +299,6 @@ message CredentialsOptionsAzure {
 
 message CredentialsOptionsOpenAI {
   string api_key = 1;
+  optional string api_base = 2;
+  optional string org_id = 3;
 }

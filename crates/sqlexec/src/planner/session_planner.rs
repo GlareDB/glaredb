@@ -953,7 +953,14 @@ impl<'a> SessionPlanner<'a> {
             }
             CredentialsOptions::OPENAI => {
                 let api_key = m.remove_required("api_key")?;
-                CredentialsOptions::OpenAI(CredentialsOptionsOpenAI { api_key })
+                let api_base = m.remove_optional("api_base")?;
+                let org_id = m.remove_optional("org_id")?;
+
+                CredentialsOptions::OpenAI(CredentialsOptionsOpenAI {
+                    api_key,
+                    api_base,
+                    org_id,
+                })
             }
             other => return Err(internal!("unsupported credentials provider: {other}")),
         };

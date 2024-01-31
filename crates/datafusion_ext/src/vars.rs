@@ -297,6 +297,9 @@ pub struct CredentialsVarProvider<'a> {
 }
 
 impl<'a> CredentialsVarProvider<'a> {
+    const CREDS_PREFIX: &'static str = "@creds";
+    const CREDS_OPENAI_PREFIX: &'static str = "openai";
+
     pub fn new(catalog: &'a SessionCatalog) -> Self {
         Self { catalog }
     }
@@ -307,29 +310,36 @@ impl<'a> CredentialsVarProvider<'a> {
 impl VarProvider for CredentialsVarProvider<'_> {
     fn get_value(&self, var_names: Vec<String>) -> datafusion::error::Result<ScalarValue> {
         let var_names: Vec<&str> = var_names.iter().map(|s| s.as_str()).collect();
-        let value = match var_names.as_slice() {
-            ["@creds", "openai", value, "api_key"] => {
+        match var_names.as_slice() {
+            [Self::CREDS_PREFIX, Self::CREDS_OPENAI_PREFIX, value] => {
                 let openai_cred = self.catalog.resolve_credentials(value).ok_or_else(|| {
-                    datafusion::error::DataFusionError::Internal("No credentials found".to_string())
+                    datafusion::error::DataFusionError::Internal(
+                        "No openai credentials found".to_string(),
+                    )
                 })?;
-                let CredentialsOptions::OpenAI(CredentialsOptionsOpenAI { api_key }) =
-                    openai_cred.options.clone()
-                else {
-                    return Err(datafusion::error::DataFusionError::Internal(
-                        "No API key found".to_string(),
-                    ));
-                };
-                Ok(ScalarValue::Utf8(Some(api_key)))
+                if let CredentialsOptions::OpenAI(opts) = openai_cred.options.clone() {
+                    Ok(opts.into())
+                } else {
+                    Err(datafusion::error::DataFusionError::Internal(
+                        "Something went wrong. Expected openai credential, found other".to_string(),
+                    ))
+                }
             }
             _ => Err(datafusion::error::DataFusionError::Internal(
                 "unsupported variable".to_string(),
             )),
-        };
-        value
+        }
     }
 
-    fn get_type(&self, _: &[String]) -> Option<DataType> {
-        // Utf8 is the only type we support for now
-        Some(DataType::Utf8)
+    fn get_type(&self, var_names: &[String]) -> Option<DataType> {
+        let first = var_names.first().map(|s| s.as_str());
+        let second = var_names.get(1).map(|s| s.as_str());
+
+        match (first, second) {
+            (Some(Self::CREDS_PREFIX), Some(Self::CREDS_OPENAI_PREFIX)) => {
+                Some(CredentialsOptionsOpenAI::data_type())
+            }
+            _ => None,
+        }
     }
 }
