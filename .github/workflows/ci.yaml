@@ -312,14 +312,7 @@ jobs:
         with:
           path: target/debug/glaredb
           key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
-      - uses: actions/cache@v4
-        name: py cache
-        id: py-venv
-        with:
-          path: tests/.venv/
-          key: ${{ runner.os }}-poetry-${{ hashFiles('tests/poetry.lock') }}
       - run: just venv
-        if: ${{ steps.py-venv.outputs.cache-hit != 'true' }}
       - run: just pytest
 
 
