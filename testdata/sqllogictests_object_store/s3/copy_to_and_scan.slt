@@ -114,7 +114,7 @@ statement ok
 COPY ( SELECT 7 AS a, 8 AS b )
 	TO 's3://${AWS_S3_BUCKET_NAME}/copy_to_with_creds.csv'
 	CREDENTIALS aws_creds
-	( region '${AWS_S3_REGION}' );
+	OPTIONS ( region '${AWS_S3_REGION}' );
 
 query II rowsort
 SELECT a, b FROM csv_scan(
@@ -137,13 +137,13 @@ statement ok
 COPY ( VALUES (1, 2) )
 	TO 's3://${AWS_S3_BUCKET_NAME}/parquet-test/f1.parquet'
 	CREDENTIALS aws_creds
-	( region '${AWS_S3_REGION}' );
+	OPTIONS ( region '${AWS_S3_REGION}' );
 
 statement ok
 COPY ( VALUES (3, 4) )
 	TO 's3://${AWS_S3_BUCKET_NAME}/parquet-test/f2.parquet'
 	CREDENTIALS aws_creds
-	( region '${AWS_S3_REGION}' );
+	OPTIONS ( region '${AWS_S3_REGION}' );
 
 query II rowsort
 SELECT * FROM parquet_scan(

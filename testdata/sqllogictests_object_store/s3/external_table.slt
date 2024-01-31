@@ -11,7 +11,7 @@ CREATE CREDENTIALS aws_creds PROVIDER aws
 statement ok
 copy ( values (1, 2) ) to 's3://${AWS_S3_BUCKET_NAME}/ext-table.csv'
 	credentials aws_creds
-	( region '${AWS_S3_REGION}' );
+	OPTIONS ( region '${AWS_S3_REGION}' );
 
 statement ok
 create external table ext_table from s3 (
@@ -32,14 +32,14 @@ select * from ext_table;
 statement ok
 copy ( values (3, 4) ) to 's3://${AWS_S3_BUCKET_NAME}/ext-table-1.csv'
 	credentials aws_creds
-	( region '${AWS_S3_REGION}' );
+	OPTIONS ( region '${AWS_S3_REGION}' );
 
 # Create table using credentials
 
 statement ok
 create external table ext_table_1 from s3
 	credentials aws_creds
-	(
+	OPTIONS (
 		region '${AWS_S3_REGION}',
 		bucket '${AWS_S3_BUCKET_NAME}',
 		location 'ext-table*'
@@ -56,17 +56,17 @@ select * from ext_table_1;
 statement ok
 copy ( values (5, 6) ) to 's3://${AWS_S3_BUCKET_NAME}/pq-table-1'
 	format parquet credentials aws_creds
-	( region '${AWS_S3_REGION}' );
+	OPTIONS ( region '${AWS_S3_REGION}' );
 
 statement ok
 copy ( values (7, 8) ) to 's3://${AWS_S3_BUCKET_NAME}/pq-table-2'
 	format parquet credentials aws_creds
-	( region '${AWS_S3_REGION}' );
+	OPTIONS ( region '${AWS_S3_REGION}' );
 
 statement error unable to resolve file type from the objects
 create external table ext_table_2 from s3
 	credentials aws_creds
-	(
+	OPTIONS (
 		region '${AWS_S3_REGION}',
 		bucket '${AWS_S3_BUCKET_NAME}',
 		location 'pq-table*'
@@ -75,7 +75,7 @@ create external table ext_table_2 from s3
 statement ok
 create external table ext_table_2 from s3
 	credentials aws_creds
-	(
+	OPTIONS (
 		region '${AWS_S3_REGION}',
 		bucket '${AWS_S3_BUCKET_NAME}',
 		location 'pq-table*',
