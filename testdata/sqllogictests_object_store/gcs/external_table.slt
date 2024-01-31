@@ -2,7 +2,7 @@
 
 # Credentials
 statement ok
-CREATE CREDENTIALS gcp_creds PROVIDER gcp
+CREATE CREDENTIALS gcp_creds PROVIDER gcp OPTIONS
 	( service_account_key '${GCP_SERVICE_ACCOUNT_KEY}' );
 
 statement ok
@@ -31,7 +31,7 @@ copy ( values (3, 4) ) to 'gs://${GCS_BUCKET_NAME}/ext-table-1.csv'
 
 statement ok
 create external table ext_table_1 from gcs
-	credentials gcp_creds
+	credentials gcp_creds options
 	(
 		bucket '${GCS_BUCKET_NAME}',
 		location 'ext-table*'
@@ -55,7 +55,7 @@ copy ( values (7, 8) ) to 'gs://${GCS_BUCKET_NAME}/pq-table-2'
 
 statement error unable to resolve file type from the objects
 create external table ext_table_2 from gcs
-	credentials gcp_creds
+	credentials gcp_creds options
 	(
 		bucket '${GCS_BUCKET_NAME}',
 		location 'pq-table*'
@@ -63,7 +63,7 @@ create external table ext_table_2 from gcs
 
 statement ok
 create external table ext_table_2 from gcs
-	credentials gcp_creds
+	credentials gcp_creds options
 	(
 		bucket '${GCS_BUCKET_NAME}',
 		location 'pq-table*',
