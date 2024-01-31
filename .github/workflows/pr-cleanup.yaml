@@ -6,8 +6,25 @@ on:
       - closed
 
 jobs:
-  cleanup_hosted_datasets:
-    name: 'Cleanup Hosted Datasets' 
+  clean-up-pr-caches:
+    name: Clean Up PR Caches
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Up
+        run: |
+          gh extension install actions/gh-actions-cache
+
+          set -o pipefile
+          set -o errexit
+
+          gh cache list --repo="${{ github.repository }}" \
+                        --limit=2000 \
+                        --json='key,id,ref' \
+                        --jq='.[] | select(.ref == "refs/pull/${{ github.event.pull_request.number }}/merge")' \
+             | xargs --verbose --max-args=1 gh cache delete
+
+  clean-up-hosted-datasets:
+    name: 'Clean Up Hosted Datasets'
     runs-on: ubuntu-latest
 
     env:
@@ -42,8 +59,8 @@ jobs:
       - name: Cleanup (BigQuery)
         run: ./scripts/cleanup-bigquery-dataset.sh ${{ github.event.pull_request.head.ref }}
 
-  update_main_datasets:
-    name: 'Update main datasets'
+  update-main-datasets:
+    name: 'Update main Datasets'
     runs-on: ubuntu-latest
 
     # Only update if PR is actually merged
