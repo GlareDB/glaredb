@@ -319,7 +319,7 @@ jobs:
           path: tests/.venv/
           key: ${{ runner.os }}-poetry-${{ hashFiles('tests/poetry.lock') }}
       - run: just venv
-        if: ${{ steps.py-venv.outputs.cache-hit != 'true }}
+        if: ${{ steps.py-venv.outputs.cache-hit != 'true' }}
       - run: just pytest
 
 
