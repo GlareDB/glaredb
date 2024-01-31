@@ -56,8 +56,8 @@ copy ( values (7, 8) ) to 'azure://glaredb-test/pq-table-2'
 	format parquet credentials azure_creds;
 
 statement error unable to resolve file type from the objects
-create external table ext_table_2 from azure options
-	credentials azure_creds
+create external table ext_table_2 from azure
+	credentials azure_creds options
 	(
 		location 'azure://glaredb-test/pq-table*'
 	);
