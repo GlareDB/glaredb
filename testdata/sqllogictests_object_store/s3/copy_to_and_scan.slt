@@ -51,7 +51,7 @@ statement ok
 COPY ( SELECT 5 AS a, 6 AS b )
 	TO 's3://${AWS_S3_BUCKET_NAME}/copy_to/with_creds.csv'
 	CREDENTIALS aws_creds
-	( region '${AWS_S3_REGION}' );
+	OPTIONS ( region '${AWS_S3_REGION}' );
 
 query II
 SELECT a, b FROM csv_scan(
