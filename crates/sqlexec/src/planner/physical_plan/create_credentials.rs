@@ -1,8 +1,26 @@
-use super::*;
-
-use protogen::metastore::types::{options::CredentialsOptions, service, service::Mutation};
-
 use catalog::mutator::CatalogMutator;
+use protogen::metastore::types::options::CredentialsOptions;
+use protogen::metastore::types::service;
+use protogen::metastore::types::service::Mutation;
+
+use super::{
+    new_operation_batch,
+    stream,
+    Arc,
+    DataFusionError,
+    DataFusionResult,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    PhysicalSortExpr,
+    RecordBatch,
+    RecordBatchStreamAdapter,
+    SchemaRef,
+    Statistics,
+    StreamExt,
+    GENERIC_OPERATION_PHYSICAL_SCHEMA,
+};
 
 #[derive(Clone, Debug)]
 pub struct CreateCredentialsExec {
@@ -65,8 +83,8 @@ impl ExecutionPlan for CreateCredentialsExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

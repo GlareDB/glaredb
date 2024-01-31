@@ -9,7 +9,10 @@ use datafusion::datasource::{MemTable, TableProvider};
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
-    FuncParamValue, IdentValue, TableFuncContextProvider, VirtualLister,
+    FuncParamValue,
+    IdentValue,
+    TableFuncContextProvider,
+    VirtualLister,
 };
 use datasources::bigquery::BigQueryAccessor;
 use datasources::cassandra::CassandraAccess;
@@ -22,9 +25,15 @@ use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection};
 use datasources::sqlserver::SqlServerAccess;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsCassandra, DatabaseOptionsClickhouse,
-    DatabaseOptionsMongoDb, DatabaseOptionsMysql, DatabaseOptionsPostgres,
-    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer,
+    DatabaseOptions,
+    DatabaseOptionsBigQuery,
+    DatabaseOptionsCassandra,
+    DatabaseOptionsClickhouse,
+    DatabaseOptionsMongoDb,
+    DatabaseOptionsMysql,
+    DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake,
+    DatabaseOptionsSqlServer,
 };
 
 use super::TableFunc;
@@ -351,11 +360,16 @@ pub(crate) async fn get_virtual_lister_for_external_db(
                 .map_err(ExtensionError::access)?;
             Box::new(state)
         }
-        DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host }) => {
-            let state = CassandraAccess::new(host.to_string())
-                .connect()
-                .await
-                .map_err(ExtensionError::access)?;
+        DatabaseOptions::Cassandra(DatabaseOptionsCassandra {
+            host,
+            username,
+            password,
+        }) => {
+            let state =
+                CassandraAccess::new(host.to_string(), username.to_owned(), password.to_owned())
+                    .connect()
+                    .await
+                    .map_err(ExtensionError::access)?;
             Box::new(state)
         }
         DatabaseOptions::Delta(_) => {

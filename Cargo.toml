@@ -4,7 +4,7 @@ default-members = ["crates/*", "xtask"]
 resolver = "2"
 
 [workspace.package]
-version = "0.8.1"
+version = "0.8.2"
 edition = "2021"
 
 [profile.release]
@@ -13,20 +13,26 @@ opt-level = 3
 codegen-units = 1
 strip = true
 
+[workspace.lints.clippy]
+wildcard_imports = "deny"
+
 [workspace.dependencies]
 clap = { version = "4.4.18", features = ["derive"] }
-datafusion = { version = "32.0", features = ["avro"] }
-arrow-flight = { version = "47.0.0", features = ["flight-sql-experimental"] }
-datafusion-proto = { version = "32.0" }
-reqwest = { version = "0.11.23", default-features = false, features = ["json", "rustls-tls"] }
+datafusion = { version = "34.0", features = ["avro"] }
+arrow-flight = { version = "49.0.0", features = ["flight-sql-experimental"] }
+datafusion-proto = { version = "34.0" }
+reqwest = { version = "0.11.23", default-features = false, features = [
+  "json",
+  "rustls-tls",
+] }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 anyhow = "1.0.79"
 async-trait = "0.1.77"
-chrono = "0.4.31"
+chrono = "0.4.33"
 futures = "0.3.30"
-object_store = "0.7"
+object_store = "0.8"
 prost = "0.12"
 prost-build = "0.12"
 prost-types = "0.12"
@@ -37,6 +43,9 @@ tracing = "0.1"
 url = "2.5.0"
 
 [workspace.dependencies.deltalake]
-git = "https://github.com/delta-io/delta-rs.git"
-rev = "5c324ccd0a8738251a9aea9452d7323400e5e8c6"
-features = ["s3", "gcs", "azure", "datafusion", "arrow"]
+
+git = "https://github.com/GlareDB/delta-rs.git"
+rev = "4c4bd7d5d4ce47f47f348c2a7d52c009048f841e"
+features = ["s3", "gcs", "azure", "datafusion"]
+
+

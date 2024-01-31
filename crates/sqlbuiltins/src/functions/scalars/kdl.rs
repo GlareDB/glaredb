@@ -1,7 +1,25 @@
-use ::kdl::{KdlDocument, KdlNode, KdlQuery};
-use memoize::memoize;
+use std::sync::Arc;
 
-use super::*;
+use ::kdl::{KdlNode, KdlQuery};
+use datafusion::arrow::datatypes::DataType;
+use datafusion::error::DataFusionError;
+use datafusion::logical_expr::expr::ScalarFunction;
+use datafusion::logical_expr::{
+    ReturnTypeFunction,
+    ScalarFunctionImplementation,
+    ScalarUDF,
+    Signature,
+    TypeSignature,
+    Volatility,
+};
+use datafusion::prelude::Expr;
+use datafusion::scalar::ScalarValue;
+use memoize::memoize;
+use protogen::metastore::types::catalog::FunctionType;
+
+use super::{get_nth_string_fn_arg, get_nth_string_value};
+use crate::errors::BuiltinError;
+use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
 
 pub struct KDLSelect;
 
@@ -27,46 +45,44 @@ impl ConstBuiltinFunction for KDLSelect {
 
 impl BuiltinScalarUDF for KDLSelect {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |input| {
-                let filter = get_nth_string_fn_arg(input, 1)?;
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Utf8)));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
+            let filter = get_nth_string_fn_arg(input, 1)?;
 
-                get_nth_string_value(
-                    input,
-                    0,
-                    &|value: String| -> Result<ScalarValue, BuiltinError> {
-                        let sdoc: kdl::KdlDocument =
-                            value.parse().map_err(BuiltinError::KdlError)?;
+            get_nth_string_value(
+                input,
+                0,
+                &|value: String| -> Result<ScalarValue, BuiltinError> {
+                    let sdoc: kdl::KdlDocument = value.parse().map_err(BuiltinError::KdlError)?;
 
-                        let out: Vec<&KdlNode> = sdoc
-                            .query_all(compile_kdl_query(filter.clone())?)
-                            .map_err(BuiltinError::KdlError)
-                            .map(|iter| iter.collect())?;
+                    let out: Vec<&KdlNode> = sdoc
+                        .query_all(compile_kdl_query(filter.clone())?)
+                        .map_err(BuiltinError::KdlError)
+                        .map(|iter| iter.collect())?;
 
-                        let mut doc = sdoc.clone();
-                        let elems = doc.nodes_mut();
-                        elems.clear();
-                        for item in &out {
-                            elems.push(item.to_owned().clone())
-                        }
+                    let mut doc = sdoc.clone();
+                    let elems = doc.nodes_mut();
+                    elems.clear();
+                    for item in &out {
+                        elems.push(item.to_owned().clone())
+                    }
 
-                        // TODO: consider if we should always return LargeUtf8?
-                        // could end up with truncation (or an error) the document
-                        // is too long and we write the data to a table that is
-                        // established (and mostly) shorter values.
-                        Ok(ScalarValue::Utf8(Some(doc.to_string())))
-                    },
-                )
-                .map_err(DataFusionError::from)
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(udf),
-            args,
-        ))
+                    // TODO: consider if we should always return LargeUtf8?
+                    // could end up with truncation (or an error) the document
+                    // is too long and we write the data to a table that is
+                    // established (and mostly) shorter values.
+                    Ok(ScalarValue::Utf8(Some(doc.to_string())))
+                },
+            )
+            .map_err(DataFusionError::from)
+        });
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
     }
 }
 
@@ -95,34 +111,32 @@ impl ConstBuiltinFunction for KDLMatches {
 
 impl BuiltinScalarUDF for KDLMatches {
     fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
-            fun: Arc::new(move |input| {
-                let filter = get_nth_string_fn_arg(input, 1)?;
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
+            let filter = get_nth_string_fn_arg(input, 1)?;
 
-                get_nth_string_value(
-                    input,
-                    0,
-                    &|value: String| -> Result<ScalarValue, BuiltinError> {
-                        let doc: kdl::KdlDocument =
-                            value.parse().map_err(BuiltinError::KdlError)?;
+            get_nth_string_value(
+                input,
+                0,
+                &|value: String| -> Result<ScalarValue, BuiltinError> {
+                    let doc: kdl::KdlDocument = value.parse().map_err(BuiltinError::KdlError)?;
 
-                        Ok(ScalarValue::Boolean(Some(
-                            doc.query(compile_kdl_query(filter.clone())?)
-                                .map(|v| v.is_some())
-                                .map_err(BuiltinError::KdlError)?,
-                        )))
-                    },
-                )
-                .map_err(DataFusionError::from)
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
-            Arc::new(udf),
-            args,
-        ))
+                    Ok(ScalarValue::Boolean(Some(
+                        doc.query(compile_kdl_query(filter.clone())?)
+                            .map(|v| v.is_some())
+                            .map_err(BuiltinError::KdlError)?,
+                    )))
+                },
+            )
+            .map_err(DataFusionError::from)
+        });
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
     }
 }
 

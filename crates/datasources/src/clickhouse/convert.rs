@@ -1,61 +1,97 @@
-use chrono::{DateTime, NaiveDate};
-use chrono_tz::Tz;
-use datafusion::{
-    arrow::array::{BooleanBuilder, Date32Builder, StringBuilder, TimestampNanosecondBuilder},
-    error::DataFusionError,
-};
-use datafusion::{
-    arrow::{
-        array::{
-            Array, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
-            UInt16Array, UInt32Array, UInt64Array, UInt8Array,
-        },
-        datatypes::{DataType, Schema, TimeUnit},
-        record_batch::RecordBatch,
-    },
-    physical_plan::RecordBatchStream,
-};
-use futures::{Stream, StreamExt};
-use klickhouse::{block::Block, KlickhouseError, Value};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::clickhouse::errors::ClickhouseError;
+use chrono::{DateTime, NaiveDate};
+use chrono_tz::Tz;
+use datafusion::arrow::array::{
+    Array,
+    BooleanBuilder,
+    Date32Builder,
+    Float32Array,
+    Float64Array,
+    Int16Array,
+    Int32Array,
+    Int64Array,
+    Int8Array,
+    StringBuilder,
+    TimestampMicrosecondBuilder,
+    TimestampMillisecondBuilder,
+    TimestampNanosecondBuilder,
+    TimestampSecondBuilder,
+    UInt16Array,
+    UInt32Array,
+    UInt64Array,
+    UInt8Array,
+};
+use datafusion::arrow::datatypes::{DataType, Schema, SchemaRef, TimeUnit};
+use datafusion::arrow::record_batch::{RecordBatch, RecordBatchOptions};
+use datafusion::error::DataFusionError;
+use datafusion::physical_plan::RecordBatchStream;
+use futures::{Stream, StreamExt};
+use klickhouse::block::Block;
+use klickhouse::{KlickhouseError, Value};
 
 use super::errors::Result;
+use super::ClickhouseAccessState;
+use crate::clickhouse::errors::ClickhouseError;
+
+type PinnedStream = Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send + Sync>>;
 
 /// Convert a stream of blocks from clickhouse to a stream of record batches.
 pub struct ConvertStream {
-    pub schema: Arc<Schema>,
-    pub inner: Pin<Box<dyn Stream<Item = Result<Block, KlickhouseError>> + Send + 'static>>,
+    schema: SchemaRef,
+    inner: PinnedStream,
+}
+
+impl ConvertStream {
+    pub fn new(schema: SchemaRef, state: Arc<ClickhouseAccessState>, query: String) -> Self {
+        let schema_clone = schema.clone();
+        let stream = async_stream::stream! {
+            let query = state.client.query_raw(query);
+            let mut stream = match query.await {
+                Ok(s) => s,
+                Err(e) => {
+                    yield Err(DataFusionError::Execution(format!(
+                        "cannot run clickhouse query: {e}",
+                    )));
+                    return;
+                }
+            };
+
+            while let Some(block) = stream.next().await {
+                let block = match block {
+                    Ok(b) => b,
+                    Err(e) => {
+                        yield Err(DataFusionError::Execution(format!(
+                            "cannot extract clickhouse block: {e}",
+                        )));
+                        return;
+                    }
+                };
+
+                if block.rows == 0 {
+                    // Empty blocks error...
+                    continue;
+                }
+
+                let batch = block_to_batch(schema_clone.clone(), block)
+                    .map_err(|e| DataFusionError::Execution(format!(
+                        "error converting clickhouse block to record batch: {e}",
+                    )));
+                yield batch;
+            }
+        };
+        let inner = Box::pin(stream);
+        Self { schema, inner }
+    }
 }
 
 impl Stream for ConvertStream {
     type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        loop {
-            match self.inner.poll_next_unpin(cx) {
-                Poll::Ready(Some(Ok(block))) => {
-                    // Clickhouse can return empty blocks. Try polling for the
-                    // next block in that case.
-                    if block.rows == 0 {
-                        continue;
-                    }
-
-                    return Poll::Ready(Some(
-                        block_to_batch(self.schema.clone(), block)
-                            .map_err(|e| DataFusionError::Execution(e.to_string())),
-                    ));
-                }
-                Poll::Ready(Some(Err(e))) => {
-                    return Poll::Ready(Some(Err(DataFusionError::Execution(e.to_string()))))
-                }
-                Poll::Ready(None) => return Poll::Ready(None),
-                Poll::Pending => return Poll::Pending,
-            }
-        }
+        self.inner.poll_next_unpin(cx)
     }
 }
 
@@ -67,6 +103,12 @@ impl RecordBatchStream for ConvertStream {
 
 /// Convert a block to a record batch.
 fn block_to_batch(schema: Arc<Schema>, block: Block) -> Result<RecordBatch> {
+    if schema.fields.is_empty() {
+        let options = RecordBatchOptions::new().with_row_count(Some(block.rows as usize));
+        return RecordBatch::try_new_with_options(schema, vec![], &options).map_err(|e| {
+            ClickhouseError::String(format!("cannot create empty record batch: {e}",))
+        });
+    }
     if schema.fields.len() != block.column_data.len() {
         return Err(ClickhouseError::String(format!(
             "expected {} columns, got {}",
@@ -82,9 +124,7 @@ fn block_to_batch(schema: Arc<Schema>, block: Block) -> Result<RecordBatch> {
         arrs.push(arr);
     }
 
-    let batch = RecordBatch::try_new(schema, arrs)?;
-    let batch = crate::common::util::normalize_batch(&batch)?;
-    Ok(batch)
+    Ok(RecordBatch::try_new(schema, arrs)?)
 }
 
 /// Converts a column from a block into an arrow array.
@@ -189,6 +229,78 @@ fn column_to_array(
             }
             Arc::new(vals.finish())
         }
+        DataType::Timestamp(TimeUnit::Second, tz) => {
+            let mut vals = TimestampSecondBuilder::with_capacity(column.len());
+            for val in column {
+                match val {
+                    Value::DateTime(v) => vals.append_value(
+                        DateTime::<Tz>::try_from(v)
+                            .map_err(ClickhouseError::DateTimeConvert)?
+                            .timestamp(),
+                    ),
+                    Value::DateTime64(v) => vals.append_value(
+                        DateTime::<Tz>::try_from(v)
+                            .map_err(ClickhouseError::DateTimeConvert)?
+                            .timestamp(),
+                    ),
+                    Value::Null if nullable => vals.append_null(),
+                    other => {
+                        return Err(ClickhouseError::String(format!(
+                            "unexpected value type: {other}"
+                        )))
+                    }
+                }
+            }
+            Arc::new(vals.finish().with_timezone_opt(tz))
+        }
+        DataType::Timestamp(TimeUnit::Millisecond, tz) => {
+            let mut vals = TimestampMillisecondBuilder::with_capacity(column.len());
+            for val in column {
+                match val {
+                    Value::DateTime(v) => vals.append_value(
+                        DateTime::<Tz>::try_from(v)
+                            .map_err(ClickhouseError::DateTimeConvert)?
+                            .timestamp_millis(),
+                    ),
+                    Value::DateTime64(v) => vals.append_value(
+                        DateTime::<Tz>::try_from(v)
+                            .map_err(ClickhouseError::DateTimeConvert)?
+                            .timestamp_millis(),
+                    ),
+                    Value::Null if nullable => vals.append_null(),
+                    other => {
+                        return Err(ClickhouseError::String(format!(
+                            "unexpected value type: {other}"
+                        )))
+                    }
+                }
+            }
+            Arc::new(vals.finish().with_timezone_opt(tz))
+        }
+        DataType::Timestamp(TimeUnit::Microsecond, tz) => {
+            let mut vals = TimestampMicrosecondBuilder::with_capacity(column.len());
+            for val in column {
+                match val {
+                    Value::DateTime(v) => vals.append_value(
+                        DateTime::<Tz>::try_from(v)
+                            .map_err(ClickhouseError::DateTimeConvert)?
+                            .timestamp_micros(),
+                    ),
+                    Value::DateTime64(v) => vals.append_value(
+                        DateTime::<Tz>::try_from(v)
+                            .map_err(ClickhouseError::DateTimeConvert)?
+                            .timestamp_micros(),
+                    ),
+                    Value::Null if nullable => vals.append_null(),
+                    other => {
+                        return Err(ClickhouseError::String(format!(
+                            "unexpected value type: {other}"
+                        )))
+                    }
+                }
+            }
+            Arc::new(vals.finish().with_timezone_opt(tz))
+        }
         DataType::Timestamp(TimeUnit::Nanosecond, tz) => {
             let mut vals = TimestampNanosecondBuilder::with_capacity(column.len());
             for val in column {
@@ -266,7 +378,7 @@ pub fn clickhouse_type_to_arrow_type(
         let mut out = vec![];
         let mut in_parens = 0usize;
         let mut last_start = 0;
-        // todo: handle parens in enum strings?
+        // TODO: handle parens in enum strings?
         for (i, c) in input.char_indices() {
             match c {
                 ',' => {
@@ -399,8 +511,7 @@ pub fn clickhouse_type_to_arrow_type(
                     )));
                 }
                 let tz = &args[0][1..args[0].len() - 1];
-                // TODO: This is technically "second" precision.
-                DataType::Timestamp(TimeUnit::Nanosecond, Some(tz.into())).into()
+                DataType::Timestamp(TimeUnit::Second, Some(tz.into())).into()
             }
             "DateTime64" => {
                 if args.len() == 2 {
@@ -411,8 +522,7 @@ pub fn clickhouse_type_to_arrow_type(
                         )));
                     }
                     let p = parse_precision(args[0])?;
-                    // TODO: Use the actual precision.
-                    let _tu = if p < 3 {
+                    let tu = if p < 3 {
                         TimeUnit::Second
                     } else if p < 6 {
                         TimeUnit::Millisecond
@@ -422,11 +532,10 @@ pub fn clickhouse_type_to_arrow_type(
                         TimeUnit::Nanosecond
                     };
                     let tz = &args[1][1..args[1].len() - 1];
-                    DataType::Timestamp(TimeUnit::Nanosecond, Some(tz.into())).into()
+                    DataType::Timestamp(tu, Some(tz.into())).into()
                 } else if args.len() == 1 {
                     let p = parse_precision(args[0])?;
-                    // TODO: Use the actual precision.
-                    let _tu = if p < 3 {
+                    let tu = if p < 3 {
                         TimeUnit::Second
                     } else if p < 6 {
                         TimeUnit::Millisecond
@@ -435,7 +544,7 @@ pub fn clickhouse_type_to_arrow_type(
                     } else {
                         TimeUnit::Nanosecond
                     };
-                    DataType::Timestamp(TimeUnit::Nanosecond, None).into()
+                    DataType::Timestamp(tu, None).into()
                 } else {
                     return Err(KlickhouseError::TypeParseError(format!(
                         "bad arg count for DateTime64, expected 1 or 2 and got {}",
@@ -567,7 +676,7 @@ pub fn clickhouse_type_to_arrow_type(
                 "unsupported Date32 type".to_string(),
             ));
         }
-        "DateTime" => DataType::Timestamp(TimeUnit::Nanosecond, None).into(),
+        "DateTime" => DataType::Timestamp(TimeUnit::Second, None).into(),
         "IPv4" => {
             return Err(KlickhouseError::TypeParseError(
                 "unsupported IPv4 type".to_string(),

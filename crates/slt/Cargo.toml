@@ -3,6 +3,9 @@ name = "slt"
 version = { workspace = true }
 edition = { workspace = true }
 
+[lints]
+workspace = true
+
 [dependencies]
 clap = { workspace = true }
 tokio = { workspace = true }
@@ -26,7 +29,7 @@ sqlexec = { path = "../sqlexec" }
 telemetry = { path = "../telemetry" }
 tokio-postgres = "0.7.8"
 glob = "0.3.1"
-regex = "1.8.1"
+regex = "1.10.3"
 sqllogictest = "0.19.1"
 uuid = { version = "1.7", features = ["v4", "fast-rng", "macro-diagnostics"] }
 walkdir = "2.3.3"

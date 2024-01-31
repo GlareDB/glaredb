@@ -1,10 +1,6 @@
-use crate::context::local::LocalSessionContext;
-use crate::dispatch::DispatchError;
-use crate::dispatch::Dispatcher;
-use crate::errors::ExecError;
-use crate::planner::errors::PlanError;
-use crate::resolve::EntryResolver;
-use crate::resolve::ResolvedEntry;
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::OwnedTableReference;
@@ -12,8 +8,7 @@ use datafusion::config::ConfigOptions;
 use datafusion::datasource::DefaultTableSource;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::AggregateUDF;
-use datafusion::logical_expr::TableSource;
+use datafusion::logical_expr::{AggregateUDF, TableSource, WindowUDF};
 use datafusion::prelude::Expr;
 use datafusion::sql::TableReference;
 use datafusion_ext::functions::FuncParamValue;
@@ -23,8 +18,12 @@ use protogen::metastore::types::catalog::{CatalogEntry, RuntimePreference};
 use protogen::metastore::types::options::TableOptions;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
-use std::collections::HashMap;
-use std::sync::Arc;
+
+use crate::context::local::LocalSessionContext;
+use crate::dispatch::{DispatchError, Dispatcher};
+use crate::errors::ExecError;
+use crate::planner::errors::PlanError;
+use crate::resolve::{EntryResolver, ResolvedEntry};
 
 /// Partial context provider with table providers required to fulfill a single
 /// query.
@@ -268,7 +267,7 @@ impl<'a> PartialContextProvider<'a> {
 
 #[async_trait]
 impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
-    async fn get_table_provider(
+    async fn get_table_source(
         &mut self,
         name: TableReference<'_>,
     ) -> DataFusionResult<Arc<dyn TableSource>> {
@@ -281,10 +280,22 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         Ok(Arc::new(DefaultTableSource::new(Arc::new(provider))))
     }
 
-    fn get_scalar_udf(&mut self, name: &str, args: Vec<Expr>) -> Option<Expr> {
+    async fn get_table_function_source(
+        &mut self,
+        name: TableReference<'_>,
+        args: Vec<FuncParamValue>,
+        opts: HashMap<String, FuncParamValue>,
+    ) -> DataFusionResult<Arc<dyn TableSource>> {
+        self.resolve_reference(name.to_owned_reference(), Some(args), Some(opts))
+            .await
+            .map(|p| Arc::new(DefaultTableSource::new(Arc::new(p))) as _)
+            .map_err(|e| DataFusionError::External(Box::new(e)))
+    }
+
+    async fn get_function_meta(&mut self, name: &str, args: &[Expr]) -> Option<Expr> {
         FUNCTION_REGISTRY
             .get_scalar_udf(name)
-            .map(|f| f.as_expr(args))
+            .map(|f| f.as_expr(args.to_vec()))
     }
 
     async fn get_variable_type(&mut self, _variable_names: &[String]) -> Option<DataType> {
@@ -295,16 +306,8 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         None
     }
 
-    async fn get_table_func(
-        &mut self,
-        name: TableReference<'_>,
-        args: Vec<FuncParamValue>,
-        opts: HashMap<String, FuncParamValue>,
-    ) -> DataFusionResult<Arc<dyn TableSource>> {
-        self.resolve_reference(name.to_owned_reference(), Some(args), Some(opts))
-            .await
-            .map(|p| Arc::new(DefaultTableSource::new(Arc::new(p))) as _)
-            .map_err(|e| DataFusionError::External(Box::new(e)))
+    async fn get_window_meta(&mut self, _name: &str) -> Option<Arc<WindowUDF>> {
+        None
     }
 
     fn options(&self) -> &ConfigOptions {

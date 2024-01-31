@@ -1,5 +1,8 @@
-use crate::functions::table::TableFunc;
-use crate::functions::ConstBuiltinFunction;
+use std::any::Any;
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use datafusion::arrow::array::{StringBuilder, UInt32Builder};
 use datafusion::arrow::datatypes::Schema;
@@ -10,24 +13,30 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
     Statistics,
 };
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider, VirtualLister};
 use datasources::native::access::{NativeTableStorage, SaveMode};
 use futures::{stream, StreamExt};
-use protogen::metastore::types::catalog::FunctionType;
-use protogen::metastore::types::catalog::{CatalogEntry, RuntimePreference, TableEntry};
-use std::any::Any;
-use std::collections::HashMap;
-use std::fmt;
-use std::sync::Arc;
+use protogen::metastore::types::catalog::{
+    CatalogEntry,
+    FunctionType,
+    RuntimePreference,
+    TableEntry,
+};
 use tracing::warn;
 
 use super::{SystemOperation, SystemOperationTableProvider};
 use crate::builtins::GLARE_CACHED_EXTERNAL_DATABASE_TABLES;
 use crate::functions::table::virtual_listing::get_virtual_lister_for_external_db;
+use crate::functions::table::TableFunc;
+use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CacheExternalDatabaseTables;
@@ -274,8 +283,8 @@ impl ExecutionPlan for StreamingListerExec {
         Ok(Box::pin(RecordBatchStreamAdapter::new(self.schema(), out)))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

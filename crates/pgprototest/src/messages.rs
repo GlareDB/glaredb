@@ -4,11 +4,12 @@
 //! having to deal possible incompatibilities between types and being able to
 //! easily serialize/deserialize in a human readonable format. It also allows
 //! to omit fields that we don't currently care about.
+use std::fmt;
+
 use anyhow::{anyhow, Error};
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::Message;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 /// A human-readable serialized backend message.
 pub struct SerializedMessage {

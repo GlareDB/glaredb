@@ -1,17 +1,23 @@
+use std::any::Any;
+use std::fmt;
+use std::sync::Arc;
+
 use datafusion::arrow::datatypes::Schema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use datafusion::variable::VarType;
 use datafusion_ext::vars::SessionVars;
 use futures::stream;
-use std::any::Any;
-use std::fmt;
-use std::sync::Arc;
 
 use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
 
@@ -83,8 +89,8 @@ impl ExecutionPlan for SetVarExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

@@ -1,29 +1,27 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
 
-use datafusion::{
-    datasource::TableProvider,
-    execution::context::{SessionConfig, SessionContext as DfSessionContext},
-    physical_plan::{execute_stream, ExecutionPlan, SendableRecordBatchStream},
-};
-use datafusion_ext::{functions::FuncParamValue, vars::SessionVars};
+use catalog::mutator::CatalogMutator;
+use catalog::session_catalog::SessionCatalog;
+use datafusion::datasource::TableProvider;
+use datafusion::execution::context::{SessionConfig, SessionContext as DfSessionContext};
+use datafusion::physical_plan::{execute_stream, ExecutionPlan, SendableRecordBatchStream};
+use datafusion_ext::functions::FuncParamValue;
+use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
-use protogen::{
-    metastore::types::catalog::{CatalogEntry, CatalogState},
-    rpcsrv::types::service::ResolvedTableReference,
-};
+use distexec::scheduler::Scheduler;
+use protogen::metastore::types::catalog::{CatalogEntry, CatalogState};
+use protogen::rpcsrv::types::service::ResolvedTableReference;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use crate::{
-    dispatch::external::ExternalDispatcher,
-    errors::{ExecError, Result},
-    extension_codec::GlareDBExtensionCodec,
-    remote::{provider_cache::ProviderCache, staged_stream::StagedClientStreams},
-};
-use catalog::mutator::CatalogMutator;
-use catalog::session_catalog::SessionCatalog;
-
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
+use crate::dispatch::external::ExternalDispatcher;
+use crate::errors::{ExecError, Result};
+use crate::extension_codec::GlareDBExtensionCodec;
+use crate::remote::provider_cache::ProviderCache;
+use crate::remote::staged_stream::StagedClientStreams;
 
 /// A lightweight session context used during remote execution of physical
 /// plans.
@@ -53,6 +51,7 @@ impl RemoteSessionContext {
         catalog_mutator: CatalogMutator,
         native_tables: NativeTableStorage,
         spill_path: Option<PathBuf>,
+        task_scheduler: Scheduler,
     ) -> Result<Self> {
         // TODO: We'll want to remove this eventually. We should be able to
         // create a datafusion context/runtime without needing these vars.
@@ -69,7 +68,8 @@ impl RemoteSessionContext {
         conf = conf
             .with_extension(Arc::new(StagedClientStreams::default()))
             .with_extension(Arc::new(catalog_mutator))
-            .with_extension(Arc::new(native_tables.clone()));
+            .with_extension(Arc::new(native_tables.clone()))
+            .with_extension(Arc::new(task_scheduler.clone()));
 
         let df_ctx = DfSessionContext::new_with_config_rt(conf, Arc::new(runtime));
 

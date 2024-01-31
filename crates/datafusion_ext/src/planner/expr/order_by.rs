@@ -15,20 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
-use datafusion::common::{DFSchema, DataFusionError, Result};
+use datafusion::common::{plan_datafusion_err, plan_err, DFSchema, DataFusionError, Result};
 use datafusion::logical_expr::expr::Sort;
 use datafusion::logical_expr::Expr;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{Expr as SQLExpr, OrderByExpr, Value};
 
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
-    /// convert sql OrderByExpr to Expr::Sort
+    /// Convert sql [OrderByExpr] to `Vec<Expr>`.
+    ///
+    /// If `literal_to_column` is true, treat any numeric literals (e.g. `2`) as a 1 based index
+    /// into the SELECT list (e.g. `SELECT a, b FROM table ORDER BY 2`).
+    /// If false, interpret numeric literals as constant values.
     pub(crate) async fn order_by_to_sort_expr(
         &mut self,
         exprs: &[OrderByExpr],
         schema: &DFSchema,
         planner_context: &mut PlannerContext,
+        literal_to_column: bool,
     ) -> Result<Vec<Expr>> {
         let mut expr_vec = vec![];
         for e in exprs {
@@ -39,21 +45,19 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             } = e;
 
             let expr = match expr {
-                SQLExpr::Value(Value::Number(v, _)) => {
+                SQLExpr::Value(Value::Number(v, _)) if literal_to_column => {
                     let field_index = v
                         .parse::<usize>()
-                        .map_err(|err| DataFusionError::Plan(err.to_string()))?;
+                        .map_err(|err| plan_datafusion_err!("{}", err))?;
 
                     if field_index == 0 {
-                        return Err(DataFusionError::Plan(
-                            "Order by index starts at 1 for column indexes".to_string(),
-                        ));
+                        return plan_err!("Order by index starts at 1 for column indexes");
                     } else if schema.fields().len() < field_index {
-                        return Err(DataFusionError::Plan(format!(
+                        return plan_err!(
                             "Order by column out of bounds, specified: {}, max: {}",
                             field_index,
                             schema.fields().len()
-                        )));
+                        );
                     }
 
                     let field = schema.field(field_index - 1);

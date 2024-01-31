@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    DfLogicalPlan,
+    ExtensionNode,
+    OwnedFullObjectReference,
+    UserDefinedLogicalNodeCore,
+    GENERIC_OPERATION_LOGICAL_SCHEMA,
+};
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DropTables {
     pub tbl_references: Vec<OwnedFullObjectReference>,

@@ -1,5 +1,8 @@
-use datafusion::arrow::datatypes::DataType;
-use datafusion::arrow::datatypes::Schema;
+use std::any::Any;
+use std::fmt;
+use std::sync::Arc;
+
+use datafusion::arrow::datatypes::{DataType, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -7,17 +10,18 @@ use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use futures::{stream, StreamExt};
-
-use std::any::Any;
-use std::fmt;
-use std::sync::Arc;
 
 use super::remote_scan::ProviderReference;
 use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA};
@@ -91,8 +95,8 @@ impl ExecutionPlan for InsertExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

@@ -9,29 +9,26 @@ import pytest
 from fixtures.glaredb import glaredb_connection, debug_path
 
 
-def test_copy_to(
+def test_bson_copy_to(
     glaredb_connection: psycopg2.extensions.connection,
     tmp_path_factory: pytest.TempPathFactory,
 ):
-    with glaredb_connection.cursor() as curr:
-        curr.execute("create table bson_test (amount int)")
+    curr = glaredb_connection.cursor()
 
-    with glaredb_connection.cursor() as curr:
-        for i in range(10):
-            curr.execute("insert into bson_test values (%s)", str(i))
+    curr.execute("create table bson_test (amount int)")
+    curr.execute(
+        "INSERT INTO bson_test (amount) VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9)"
+    )
+    curr.execute("select count(*) from bson_test;")
+    res = curr.fetchone()
 
-    with glaredb_connection.cursor() as curr:
-        curr.execute("select count(*) from bson_test;")
-        res = curr.fetchone()
-
-        assert res[0] == 10
+    assert res[0] == 10
 
     output_path = tmp_path_factory.mktemp("output").joinpath("copy_output.bson")
 
     assert not os.path.exists(output_path)
 
-    with glaredb_connection.cursor() as curr:
-        curr.execute(f"COPY( SELECT * FROM bson_test ) TO '{output_path}'")
+    curr.execute(f"COPY( SELECT * FROM bson_test ) TO '{output_path}'")
 
     assert os.path.exists(output_path)
 
@@ -77,7 +74,9 @@ def test_read_bson(
             r = curr.fetchone()
             assert r[0] == 100
 
-        with glaredb_connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as curr:
+        with glaredb_connection.cursor(
+            cursor_factory=psycopg2.extras.RealDictCursor
+        ) as curr:
             curr.execute(f"select * from {from_clause}")
             rows = curr.fetchall()
             assert len(rows) == 100
@@ -85,3 +84,22 @@ def test_read_bson(
                 assert len(row) == 5
                 assert row["beatle_name"] in beatles
                 assert beatles.index(row["beatle_name"]) == row["beatle_idx"] - 1
+
+def test_null_handling(
+    glaredb_connection: psycopg2.extensions.connection,
+    tmp_path_factory: pytest.TempPathFactory,
+):
+    tmp_dir = tmp_path_factory.mktemp(basename="null_handling", numbered=True)
+    data_path = tmp_dir.joinpath("mixed.bson")
+    
+    with open(data_path, "wb") as f:
+        for i in range(100):
+            f.write(bson.encode({"a": 1}))
+            
+        for i in range(10):
+            f.write(bson.encode({"a": None}))
+
+    with glaredb_connection.cursor() as curr:
+        curr.execute(f"select count(*) from '{data_path}'")
+        r = curr.fetchone()
+        assert r[0] == 110

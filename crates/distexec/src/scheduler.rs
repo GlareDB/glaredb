@@ -1,7 +1,7 @@
+use std::sync::Arc;
+
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::ExecutionPlan;
-
-use std::sync::Arc;
 
 use super::executor::{Task, TaskExecutor};
 use super::pipeline::{ErrorSink, PipelineBuilder, Sink};

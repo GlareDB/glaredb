@@ -49,20 +49,22 @@
 //! easiest way to accomplish the desired catalog caching behavior, and not due
 //! to any limitations in metastore itself.
 
-use crate::errors::{CatalogError, Result};
-use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
-use protogen::gen::metastore::service::{FetchCatalogRequest, MutateRequest};
-use protogen::metastore::types::{catalog::CatalogState, service::Mutation};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::RwLock;
-use tokio::sync::{mpsc, oneshot};
+
+use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
+use protogen::gen::metastore::service::{FetchCatalogRequest, MutateRequest};
+use protogen::metastore::types::catalog::CatalogState;
+use protogen::metastore::types::service::Mutation;
+use tokio::sync::{mpsc, oneshot, RwLock};
 use tokio::task::JoinHandle;
 use tonic::transport::Channel;
 use tracing::{debug, debug_span, error, warn, Instrument};
 use uuid::Uuid;
+
+use crate::errors::{CatalogError, Result};
 
 /// Number of outstanding requests per database.
 const PER_DATABASE_BUFFER: usize = 128;
@@ -553,12 +555,13 @@ impl StatefulWorker {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use metastore::local::start_inprocess;
     use object_store::memory::InMemory;
     use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
     use protogen::metastore::types::service::{CreateSchema, CreateView, Mutation};
     use tonic::transport::Channel;
+
+    use super::*;
 
     /// Creates a new local Metastore, returning a client connected to that
     /// server.

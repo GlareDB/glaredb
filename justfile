@@ -8,6 +8,10 @@ alias slt := sql-logic-tests
 
 os_arch := os() + '-' + arch()
 
+
+VENV_BIN := VENV / "bin"
+VENV := env_var_or_default("VENV", ".venv")
+
 # Run benchmarks subcommands. see `benchmarks/justfile` for more details.
 bench cmd *args:
   just benchmarks/{{cmd}} {{args}}
@@ -67,6 +71,7 @@ sql-logic-tests *args: build
 
 slt-bin *args:
   ./target/debug/glaredb sql-logic-tests {{args}}
+
 slt-bin-debug *args:
   ./target/debug/glaredb -v sql-logic-tests {{args}}
 
@@ -79,11 +84,11 @@ rpc-tests:
 
 #  Check formatting.
 fmt-check: protoc
-  cargo fmt --check
+  cargo +nightly fmt --check
 
 # Apply formatting.
 fmt *args: protoc
-  cargo fmt {{args}}
+  cargo +nightly fmt {{args}}
 
 # Run clippy.
 clippy: protoc
@@ -113,13 +118,19 @@ protoc:
     rm protoc.zip
   fi
 
+
 # Installs python dependencies for testing
-pytest-setup:
-	poetry -C tests install
+venv:
+  python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
+  python3 -m virtualenv {{VENV}} --quiet
+  {{VENV_BIN}}/python -m pip install poetry
+  {{VENV_BIN}}/poetry -C tests install
+
 
 # Runs pytest in the tests directory.
 pytest *args:
-	poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
+  {{VENV_BIN}}/poetry -C tests lock --no-update
+  {{VENV_BIN}}/poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
 
 # private helpers below
 # ---------------------

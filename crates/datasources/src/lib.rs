@@ -6,6 +6,7 @@ pub mod clickhouse;
 pub mod common;
 pub mod debug;
 pub mod excel;
+pub mod json;
 pub mod lake;
 pub mod lance;
 pub mod mongodb;

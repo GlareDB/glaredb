@@ -18,8 +18,7 @@ use datafusion::physical_plan::union::UnionExec;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
-use errors::ObjectStoreSourceError;
-use errors::Result;
+use errors::{ObjectStoreSourceError, Result};
 use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
 use object_store::path::Path as ObjectStorePath;
@@ -116,7 +115,6 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
     /// * `s3//bucket/path/to/file.csv`: `s3://bucket`
     /// * `/some/local/file`: `file://`
     /// * `https://abc.com/xyz/pqr`: `https://abc.com__slash__xyz__slash__pqr`
-    ///
     fn base_url(&self) -> Result<ObjectStoreUrl>;
 
     /// Creates an object store.
@@ -143,7 +141,7 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
                 .transpose()?;
 
             let objects = {
-                let mut object_futs = store.list(prefix.as_ref()).await?;
+                let mut object_futs = store.list(prefix.as_ref());
 
                 let pattern = Pattern::new(pattern)?;
                 const MATCH_OPTS: MatchOptions = MatchOptions {

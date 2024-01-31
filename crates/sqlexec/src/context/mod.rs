@@ -9,17 +9,14 @@
 pub mod local;
 pub mod remote;
 
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
+use std::sync::Arc;
 
 use catalog::session_catalog::SessionCatalog;
-use datafusion::{
-    config::{CatalogOptions, ConfigOptions, Extensions, OptimizerOptions},
-    execution::{
-        disk_manager::DiskManagerConfig,
-        memory_pool::GreedyMemoryPool,
-        runtime_env::{RuntimeConfig, RuntimeEnv},
-    },
-};
+use datafusion::config::{CatalogOptions, ConfigOptions, Extensions, OptimizerOptions};
+use datafusion::execution::disk_manager::DiskManagerConfig;
+use datafusion::execution::memory_pool::GreedyMemoryPool;
+use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
 use datafusion_ext::vars::SessionVars;
 use datasources::object_store::init_session_registry;
 use protogen::metastore::types::catalog::CatalogEntry;

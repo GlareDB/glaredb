@@ -2,18 +2,33 @@
 mod aggregates;
 mod alias_map;
 mod scalars;
-mod table;
+pub mod table;
 
 use std::sync::Arc;
 
 use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
 use once_cell::sync::Lazy;
-
 use protogen::metastore::types::catalog::FunctionType;
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
 use scalars::kdl::{KDLMatches, KDLSelect};
-use scalars::postgres::*;
+use scalars::postgres::{
+    CurrentCatalog,
+    CurrentDatabase,
+    CurrentRole,
+    CurrentSchema,
+    CurrentSchemas,
+    CurrentUser,
+    HasDatabasePrivilege,
+    HasSchemaPrivilege,
+    HasTablePrivilege,
+    PgArrayToString,
+    PgEncodingToChar,
+    PgGetUserById,
+    PgTableIsVisible,
+    PgVersion,
+    User,
+};
 use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
 
@@ -351,8 +366,9 @@ macro_rules! document {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::HashSet;
+
+    use super::*;
 
     #[test]
     fn get_function_info() {

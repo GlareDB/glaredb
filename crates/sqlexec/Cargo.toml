@@ -3,7 +3,8 @@ name = "sqlexec"
 version = { workspace = true }
 edition = { workspace = true }
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lints]
+workspace = true
 
 [dependencies]
 ioutil = { path = "../ioutil" }
@@ -18,6 +19,7 @@ sqlbuiltins = { path = "../sqlbuiltins" }
 datasources = { path = "../datasources" }
 datafusion_ext = { path = "../datafusion_ext" }
 object_store_util = { path = "../object_store_util" }
+distexec = { path = "../distexec" }
 dashmap = "5.5.0"
 metastore = { path = "../metastore" }
 thiserror.workspace = true
@@ -40,7 +42,6 @@ serde = { workspace = true }
 reqwest = { workspace = true }
 prql-compiler = "0.11.1"
 num_cpus = "1.16.0"
-async-channel = "2.1.1"
 
 [dev-dependencies]
 tempfile = "3"

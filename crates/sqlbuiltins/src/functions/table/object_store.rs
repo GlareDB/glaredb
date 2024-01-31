@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::{sync::Arc, vec};
+use std::sync::Arc;
+use std::vec;
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field, Fields};
@@ -14,7 +15,6 @@ use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
-
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::generic::GenericStoreAccess;
@@ -22,7 +22,6 @@ use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess};
-
 use futures::TryStreamExt;
 use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
@@ -224,7 +223,7 @@ impl<Opts: OptionReader> TableFunc for ObjScanTableFunc<Opts> {
         args: &[FuncParamValue],
         _parent: RuntimePreference,
     ) -> Result<RuntimePreference> {
-        let urls = self.urls_from_args(args)?;
+        let urls = urls_from_args(args)?;
         // All urls are of the same type, just need to get the runtime from the
         // first.
         Ok(match urls.first().unwrap().datasource_url_type() {
@@ -242,7 +241,7 @@ impl<Opts: OptionReader> TableFunc for ObjScanTableFunc<Opts> {
         args: Vec<FuncParamValue>,
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        let urls = self.urls_from_args(&args)?;
+        let urls = urls_from_args(&args)?;
         let creds_ident = self.credentials_from_args(&args)?;
 
         // Read in user provided options and use them to construct the format.
@@ -306,48 +305,48 @@ impl<Opts: OptionReader> TableFunc for ObjScanTableFunc<Opts> {
     }
 }
 
-impl<Opts> ObjScanTableFunc<Opts> {
-    /// Get data source urls form the function arguments.
-    ///
-    /// The returned vec is guaranteed to have all urls be of the same data
-    /// source type, and will contain at least one url.
-    fn urls_from_args(&self, args: &[FuncParamValue]) -> Result<Vec<DatasourceUrl>> {
-        let mut args = args.iter();
-        let url_arg = match args.next() {
-            Some(arg) => arg.to_owned(),
-            None => {
-                return Err(ExtensionError::String(
-                    "Expected at least one argument.".to_string(),
-                ))
-            }
-        };
-
-        // TODO: wtf?
-        let urls: Vec<DatasourceUrl> = if url_arg.is_valid::<DatasourceUrl>() {
-            vec![url_arg.try_into()?]
-        } else {
-            url_arg.try_into()?
-        };
-
-        if urls.is_empty() {
+/// Get data source urls form the function arguments.
+///
+/// The returned vec is guaranteed to have all urls be of the same data
+/// source type, and will contain at least one url.
+pub fn urls_from_args(args: &[FuncParamValue]) -> Result<Vec<DatasourceUrl>> {
+    let mut args = args.iter();
+    let url_arg = match args.next() {
+        Some(arg) => arg.to_owned(),
+        None => {
             return Err(ExtensionError::String(
-                "Expected at least one url.".to_string(),
-            ));
+                "Expected at least one argument.".to_string(),
+            ))
         }
+    };
 
-        let first = urls.first().unwrap();
-        if !urls
-            .iter()
-            .all(|url| url.datasource_url_type() == first.datasource_url_type())
-        {
-            return Err(ExtensionError::String(
-                "Cannot mix different types of urls.".to_string(),
-            ));
-        }
+    // TODO: wtf?
+    let urls: Vec<DatasourceUrl> = if url_arg.is_valid::<DatasourceUrl>() {
+        vec![url_arg.try_into()?]
+    } else {
+        url_arg.try_into()?
+    };
 
-        Ok(urls)
+    if urls.is_empty() {
+        return Err(ExtensionError::String(
+            "Expected at least one url.".to_string(),
+        ));
     }
 
+    let first = urls.first().unwrap();
+    if !urls
+        .iter()
+        .all(|url| url.datasource_url_type() == first.datasource_url_type())
+    {
+        return Err(ExtensionError::String(
+            "Cannot mix different types of urls.".to_string(),
+        ));
+    }
+
+    Ok(urls)
+}
+
+impl<Opts> ObjScanTableFunc<Opts> {
     /// Try to pull an identifier for credentials out of arguments.
     ///
     /// Credential identifiers are expected to be the second argument to the

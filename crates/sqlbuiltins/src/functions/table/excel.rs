@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field, Fields};
 use datafusion::datasource::TableProvider;
@@ -8,8 +11,6 @@ use datasources::common::url::DatasourceUrl;
 use datasources::excel::read_excel_impl;
 use ioutil::resolve_path;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
-use std::collections::HashMap;
-use std::sync::Arc;
 
 use super::{table_location_and_opts, TableFunc};
 use crate::functions::ConstBuiltinFunction;

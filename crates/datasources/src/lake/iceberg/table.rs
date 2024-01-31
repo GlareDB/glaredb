@@ -1,7 +1,7 @@
-use super::spec::{Manifest, ManifestContent, ManifestList, Snapshot, TableMetadata};
+use std::any::Any;
+use std::io::Cursor;
+use std::sync::Arc;
 
-use crate::common::url::DatasourceUrl;
-use crate::lake::iceberg::errors::{IcebergError, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
@@ -11,19 +11,24 @@ use datafusion::datasource::listing::PartitionedFile;
 use datafusion::datasource::physical_plan::FileScanConfig;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::execution::context::SessionState;
-use datafusion::execution::context::TaskContext;
+use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
     Statistics,
 };
-use object_store::{path::Path as ObjectPath, ObjectMeta, ObjectStore};
-use std::any::Any;
-use std::io::Cursor;
-use std::sync::Arc;
+use object_store::path::Path as ObjectPath;
+use object_store::{ObjectMeta, ObjectStore};
+
+use super::spec::{Manifest, ManifestContent, ManifestList, Snapshot, TableMetadata};
+use crate::common::url::DatasourceUrl;
+use crate::lake::iceberg::errors::{IcebergError, Result};
 
 #[derive(Debug)]
 pub struct IcebergTable {
@@ -318,6 +323,7 @@ impl TableProvider for IcebergTableReader {
                     last_modified: DateTime::<Utc>::MIN_UTC, // TODO: Get the actual time.
                     size: f.file_size_in_bytes as usize,
                     e_tag: None,
+                    version: None,
                 };
 
                 Ok(PartitionedFile {
@@ -330,11 +336,14 @@ impl TableProvider for IcebergTableReader {
             .collect::<Result<Vec<PartitionedFile>>>()
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
+        let file_schema = self.schema();
+        let statistics = Statistics::new_unknown(file_schema.as_ref());
+
         let conf = FileScanConfig {
             object_store_url: object_url,
-            file_schema: self.schema(),
+            file_schema,
             projection: projection.cloned(),
-            statistics: Statistics::default(),
+            statistics,
             file_groups: vec![partitioned_files],
             limit,
             table_partition_cols: Vec::new(),
@@ -406,8 +415,8 @@ impl ExecutionPlan for IcebergTableScan {
         self.parquet_scan.execute(partition, context)
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 
