@@ -10,7 +10,7 @@ copy ( values (1, 2) ) to 'gs://${GCS_BUCKET_NAME}/ext-table.csv'
 	credentials gcp_creds;
 
 statement ok
-create external table ext_table from gcs (
+create external table ext_table from gcs options (
 	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}',
 	bucket '${GCS_BUCKET_NAME}',
 	location 'ext-table.csv'
