@@ -14,7 +14,7 @@ copy ( values (1, 2) ) to 's3://${AWS_S3_BUCKET_NAME}/ext-table.csv'
 	OPTIONS ( region '${AWS_S3_REGION}' );
 
 statement ok
-create external table ext_table from s3 (
+create external table ext_table from s3 options (
 	access_key_id '${AWS_ACCESS_KEY_ID}',
 	secret_access_key '${AWS_SECRET_ACCESS_KEY}',
 	region '${AWS_S3_REGION}',
