@@ -91,7 +91,7 @@ impl FromStr for EmbeddingModel {
             "text-embedding-3-small" => Ok(EmbeddingModel::TextEmbedding3Small),
             "text-embedding-ada-002" => Ok(EmbeddingModel::TextEmbeddingAda002),
             "text-embedding-3-large" => Ok(EmbeddingModel::TextEmbedding3Large),
-            _ => Err(DataFusionError::Execution("Invalid model name".to_string())),
+            _ => Err(DataFusionError::Plan("Invalid argument. Available models are: 'text-embedding-3-small', 'text-embedding-ada-002', 'text-embedding-3-large' ".to_string())),
         }
     }
 }
@@ -108,8 +108,11 @@ impl ToString for EmbeddingModel {
 
 fn model_from_arg(arg: &Expr) -> datafusion::error::Result<EmbeddingModel> {
     match arg {
-        Expr::Literal(ScalarValue::Utf8(v)) => v.clone().unwrap().parse(),
-        _ => Err(DataFusionError::Plan("Invalid argument. Available models are: 'text-embedding-3-small', 'text-embedding-ada-002', 'text-embedding-3-large' ".to_string())),
+        Expr::Literal(ScalarValue::Utf8(Some(v))) => v.parse(),
+        other => Err(DataFusionError::Plan(format!(
+            "Invalid argument, expected a string, instead received: '{}'",
+            other.to_string()
+        ))),
     }
 }
 
