@@ -11,9 +11,11 @@ use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{AggregateUDF, TableSource, WindowUDF};
 use datafusion::prelude::Expr;
 use datafusion::sql::TableReference;
+use datafusion::variable::VarProvider;
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_ext::planner::AsyncContextProvider;
 use datafusion_ext::runtime::table_provider::RuntimeAwareTableProvider;
+use datafusion_ext::vars::CredentialsVarProvider;
 use protogen::metastore::types::catalog::{CatalogEntry, RuntimePreference};
 use protogen::metastore::types::options::TableOptions;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
@@ -292,14 +294,21 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
             .map_err(|e| DataFusionError::External(Box::new(e)))
     }
 
-    async fn get_function_meta(&mut self, name: &str, args: &[Expr]) -> Option<Expr> {
+    async fn get_function_meta(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+    ) -> DataFusionResult<Option<Expr>> {
         FUNCTION_REGISTRY
             .get_scalar_udf(name)
-            .map(|f| f.as_expr(args.to_vec()))
+            .map(|f| f.try_as_expr(self.ctx.get_session_catalog(), args.to_vec()))
+            .transpose()
     }
 
-    async fn get_variable_type(&mut self, _variable_names: &[String]) -> Option<DataType> {
-        None
+    async fn get_variable_type(&mut self, var_names: &[String]) -> Option<DataType> {
+        let catalog = self.ctx.get_session_catalog();
+        let cred_var_provider = CredentialsVarProvider::new(catalog);
+        cred_var_provider.get_type(var_names)
     }
 
     async fn get_aggregate_meta(&mut self, _name: &str) -> Option<Arc<AggregateUDF>> {

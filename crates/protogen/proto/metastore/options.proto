@@ -273,6 +273,7 @@ message CredentialsOptions {
     CredentialsOptionsGcp gcp = 2;
     CredentialsOptionsAws aws = 3;
     CredentialsOptionsAzure azure = 4;
+    CredentialsOptionsOpenAI openai = 5;
   }
 }
 
@@ -294,4 +295,10 @@ message CredentialsOptionsAzure {
   string access_key = 2;
   // TODO: We may want to allow the user to give us just the "connection string"
   // which contains the account and access key.
+}
+
+message CredentialsOptionsOpenAI {
+  string api_key = 1;
+  optional string api_base = 2;
+  optional string org_id = 3;
 }

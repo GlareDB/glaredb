@@ -33,6 +33,7 @@ use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
 
 use self::alias_map::AliasMap;
+use crate::functions::scalars::openai::OpenAIEmbed;
 
 /// All builtin functions available for all sessions.
 pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
@@ -115,7 +116,13 @@ pub enum FunctionNamespace {
 /// likely be used instead.
 pub trait BuiltinScalarUDF: BuiltinFunction {
     /// Builds an expression for the function using the provided arguments.
-    fn as_expr(&self, args: Vec<Expr>) -> Expr;
+    /// Some functions may require additional information from the catalog to build the expression.
+    /// Examples of such functions are ones that require credentials to access external services such as `openai_embed`.
+    fn try_as_expr(
+        &self,
+        catalog: &catalog::session_catalog::SessionCatalog,
+        args: Vec<Expr>,
+    ) -> datafusion::error::Result<Expr>;
 
     /// The namespace of the function.
     /// Defaults to global (None)
@@ -208,6 +215,8 @@ impl FunctionRegistry {
             Arc::new(SipHash),
             Arc::new(FnvHash),
             Arc::new(PartitionResults),
+            // OpenAI
+            Arc::new(OpenAIEmbed),
         ];
         let udfs = udfs
             .into_iter()

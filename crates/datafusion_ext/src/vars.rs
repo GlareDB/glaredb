@@ -9,6 +9,7 @@ use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use catalog::session_catalog::SessionCatalog;
 use constants::IMPLICIT_SCHEMAS;
 use datafusion::arrow::array::{ListBuilder, StringBuilder};
 use datafusion::arrow::datatypes::{DataType, Field};
@@ -20,6 +21,7 @@ pub use inner::{Dialect, SessionVarsInner};
 use once_cell::sync::Lazy;
 use parking_lot::{RwLock, RwLockReadGuard};
 use pgrepr::notice::NoticeSeverity;
+use protogen::metastore::types::options::{CredentialsOptions, CredentialsOptionsOpenAI};
 use utils::split_comma_delimited;
 use uuid::Uuid;
 
@@ -284,6 +286,59 @@ impl VarProvider for SessionVars {
                 Field::new("current_schemas", DataType::Utf8, true).into(),
             )),
 
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CredentialsVarProvider<'a> {
+    pub catalog: &'a SessionCatalog,
+}
+
+impl<'a> CredentialsVarProvider<'a> {
+    const CREDS_PREFIX: &'static str = "@creds";
+    const CREDS_OPENAI_PREFIX: &'static str = "openai";
+
+    pub fn new(catalog: &'a SessionCatalog) -> Self {
+        Self { catalog }
+    }
+}
+
+// Currently only supports OpenAI credentials
+// We can add more providers in the future if needed
+impl VarProvider for CredentialsVarProvider<'_> {
+    fn get_value(&self, var_names: Vec<String>) -> datafusion::error::Result<ScalarValue> {
+        let var_names: Vec<&str> = var_names.iter().map(|s| s.as_str()).collect();
+        match var_names.as_slice() {
+            [Self::CREDS_PREFIX, Self::CREDS_OPENAI_PREFIX, value] => {
+                let openai_cred = self.catalog.resolve_credentials(value).ok_or_else(|| {
+                    datafusion::error::DataFusionError::Internal(
+                        "No openai credentials found".to_string(),
+                    )
+                })?;
+                if let CredentialsOptions::OpenAI(opts) = openai_cred.options.clone() {
+                    Ok(opts.into())
+                } else {
+                    Err(datafusion::error::DataFusionError::Internal(
+                        "Something went wrong. Expected openai credential, found other".to_string(),
+                    ))
+                }
+            }
+            _ => Err(datafusion::error::DataFusionError::Internal(
+                "unsupported variable".to_string(),
+            )),
+        }
+    }
+
+    fn get_type(&self, var_names: &[String]) -> Option<DataType> {
+        let first = var_names.first().map(|s| s.as_str());
+        let second = var_names.get(1).map(|s| s.as_str());
+
+        match (first, second) {
+            (Some(Self::CREDS_PREFIX), Some(Self::CREDS_OPENAI_PREFIX)) => {
+                Some(CredentialsOptionsOpenAI::data_type())
+            }
             _ => None,
         }
     }

@@ -64,6 +64,7 @@ use protogen::metastore::types::options::{
     CredentialsOptionsAzure,
     CredentialsOptionsDebug,
     CredentialsOptionsGcp,
+    CredentialsOptionsOpenAI,
     DatabaseOptions,
     DatabaseOptionsBigQuery,
     DatabaseOptionsCassandra,
@@ -948,6 +949,17 @@ impl<'a> SessionPlanner<'a> {
                 CredentialsOptions::Azure(CredentialsOptionsAzure {
                     account_name,
                     access_key,
+                })
+            }
+            CredentialsOptions::OPENAI => {
+                let api_key = m.remove_required("api_key")?;
+                let api_base = m.remove_optional("api_base")?;
+                let org_id = m.remove_optional("org_id")?;
+
+                CredentialsOptions::OpenAI(CredentialsOptionsOpenAI {
+                    api_key,
+                    api_base,
+                    org_id,
                 })
             }
             other => return Err(internal!("unsupported credentials provider: {other}")),
@@ -2269,7 +2281,8 @@ fn storage_options_with_credentials(
     creds: CredentialsOptions,
 ) {
     match creds {
-        CredentialsOptions::Debug(_) => {} // Nothing to do here
+        CredentialsOptions::Debug(_) => {}  // Nothing to do here
+        CredentialsOptions::OpenAI(_) => {} // Nothing to do here. OpenAI is not a storage backend
         CredentialsOptions::Gcp(creds) => {
             storage_options.inner.insert(
                 GoogleConfigKey::ServiceAccountKey.as_ref().to_string(),
