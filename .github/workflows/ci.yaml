@@ -39,7 +39,7 @@ jobs:
             target/
             !target/**/glaredb
             !target/**/pgprototest
-          key: ${{ runner.os }}-cargo-build-${{ github.ref_name }}
+          key: ${{ runner.os }}-cargo-glaredb-build-${{ github.ref_name }}
           restore-keys: |
              ${{ runner.os }}-cargo-glaredb-build-${{ hashFiles('**/Cargo.lock') }}
              ${{ runner.os }}-cargo-glaredb-build-
@@ -49,12 +49,12 @@ jobs:
         name: glaredb cache
         with:
           path: target/debug/glaredb
-          key: ${{ github.run_id }}
+          key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
       - uses: actions/cache/save@v4
         name: pgprototest cache
         with:
           path: target/debug/pgprototest
-          key: ${{ github.run_id }}
+          key: ${{ runner.os }}-pgprototest-bin-${{ github.run_id }}
 
 
   fmt:
@@ -105,7 +105,7 @@ jobs:
             target/
             !target/**/glaredb
             !target/**/pgprototest
-          key: ${{ runner.os }}-cargo-glaredb-${{ github.ref_name }}
+          key: ${{ runner.os }}-cargo-glaredb-build-${{ github.ref_name }}
       - run: just clippy
 
 
@@ -136,7 +136,7 @@ jobs:
             target/
             !target/**/glaredb
             !target/**/pgprototest
-          key: ${{ runner.os }}-cargo-build-${{ github.ref_name }}
+          key: ${{ runner.os }}-cargo-glaredb-build-${{ github.ref_name }}
       - run: just python build
       - run: just python test
 
@@ -172,7 +172,7 @@ jobs:
             target/
             !target/**/glaredb
             !target/**/pgprototest
-          key: ${{ runner.os }}-cargo-build-${{ github.ref_name }}
+          key: ${{ runner.os }}-cargo-glaredb-build-${{ github.ref_name }}
       - run: just js build-debug
       - run: just js test
 
@@ -204,12 +204,12 @@ jobs:
             target/
             !target/**/glaredb
             !target/**/pgprototest
-          key: ${{ runner.os }}-cargo-build-${{ github.ref_name }}
+          key: ${{ runner.os }}-cargo-glaredb-build-${{ github.ref_name }}
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
-          key: ${{ github.run_id }}
+          key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
       - run: just unit-tests
 
 
@@ -220,6 +220,8 @@ jobs:
     needs: ["build", "python-binding-tests", "unit-tests"]
     runs-on: ubuntu-latest
     steps:
+      - name: checkout
+        uses: actions/checkout@v4
       - uses: actions/cache/restore@v4
         name: build cache
         with:
@@ -227,7 +229,7 @@ jobs:
             target/
             !target/**/glaredb
             !target/**/pgprototest
-          key: ${{ runner.os }}-cargo-build-${{ github.ref_name }}
+          key: ${{ runner.os }}-cargo-glaredb-build-${{ github.ref_name }}
       - uses: actions/cache/save@v4
         name: build cache
         with:
@@ -252,12 +254,12 @@ jobs:
         name: glaredb cache
         with:
           path: target/debug/glaredb
-          key: ${{ github.run_id }}
+          key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
       - uses: actions/cache/restore@v4
         name: pgprototest cache
         with:
           path: target/debug/pgprototest
-          key: ${{ github.run_id }}
+          key: ${{ runner.os }}-pgprototest-bin-${{ github.run_id }}
       - run: ./scripts/protocol-test.sh
       - run: just slt-bin-debug 'pgproto/*'
 
@@ -289,7 +291,7 @@ jobs:
         name: glaredb cache
         with:
           path: target/debug/glaredb
-          key: ${{ github.run_id }}
+          key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
       - name: public sql logic tests DEBUG
         if: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
         run: ${{matrix.protocol.debug}}
@@ -320,7 +322,7 @@ jobs:
         name: glaredb cache
         with:
           path: target/debug/glaredb
-          key: ${{ github.run_id }}
+          key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
       - uses: actions/cache@v4
         name: py cache
         with:
@@ -347,7 +349,7 @@ jobs:
         name: glaredb cache
         with:
           path: target/debug/glaredb
-          key: ${{ github.run_id }}
+          key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
 
       - name: GCP authenticate
         uses: google-github-actions/auth@v2
@@ -455,7 +457,7 @@ jobs:
         name: glaredb cache
         with:
           path: target/debug/glaredb
-          key: ${{ github.run_id }}
+          key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
 
       - name: run tests (slt)
         env:
@@ -521,7 +523,7 @@ jobs:
         name: glaredb cache
         with:
           path: target/debug/glaredb
-          key: ${{ github.run_id }}
+          key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
 
       - name: snowflake setup (SnowSQL)
         run: |
@@ -598,7 +600,7 @@ jobs:
         name: glaredb cache
         with:
           path: target/debug/glaredb
-          key: ${{ github.run_id }}
+          key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
       - name: run tests (slt)
         run: |
           ${{matrix.settings.prepare}}
