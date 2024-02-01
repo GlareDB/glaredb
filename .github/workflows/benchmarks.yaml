@@ -2,12 +2,6 @@ name: Benchmarks
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "*"
-    branches:
-      - vrongmeal/benchmark-runner
-      - main
 
 jobs:
   tpch:
