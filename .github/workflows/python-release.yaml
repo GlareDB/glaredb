@@ -53,7 +53,6 @@ jobs:
           docker-options: "--env PROTOC=${{ env.PROTOC }}"
           target: ${{ matrix.target }}
           args: --release --out dist -m bindings/python/Cargo.toml
-          sccache: "true"
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -97,7 +96,6 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist
           working-directory: bindings/python
-          sccache: "true"
           container: "off"
       - name: Upload wheels
         uses: actions/upload-artifact@v3
@@ -143,7 +141,6 @@ jobs:
         with:
           args: --release ${{ matrix.config.target }} --out dist
           working-directory: bindings/python
-          sccache: "true"
           container: "off"
       - name: Upload wheels
         uses: actions/upload-artifact@v3
