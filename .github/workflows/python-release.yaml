@@ -27,8 +27,8 @@ env:
   SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
 jobs:
-  macos:
-    runs-on: macos-14
+  macos-x86_64:
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
@@ -43,7 +43,7 @@ jobs:
       - name: Build wheels - x86_64
         uses: PyO3/maturin-action@v1
         with:
-          args: --out dist
+          args: --out --target x86_64-apple-darwin dist
           working-directory: bindings/python
           sccache: "true"
           container: "off"
@@ -54,8 +54,8 @@ jobs:
           name: wheels
           path: bindings/python/dist
 
-  macos-universal:
-    runs-on: macos-14
+  macos-aarch64:
+    runs-on: macos-13-xlarge
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
@@ -67,10 +67,10 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: x64
-      - name: Build wheels - universal
+      - name: Build wheels -  aarch64-apple-darwin
         uses: PyO3/maturin-action@v1
         with:
-          args: --target universal2-apple-darwin --out dist
+          args: --target aarch64-apple-darwin --out dist
           working-directory: bindings/python
           sccache: "true"
           container: "off"
