@@ -4,7 +4,7 @@ statement ok
 copy ( values (1, 2) ) to '${TMP}/ext-table.csv';
 
 statement ok
-create external table ext_table from local (
+create external table ext_table from local options (
 	location '${TMP}/ext-table.csv'
 );
 
@@ -19,7 +19,7 @@ statement ok
 copy ( values (3, 4) ) to '${TMP}/ext-table-1.csv';
 
 statement ok
-create external table ext_table_1 from local (
+create external table ext_table_1 from local options (
 	location '${TMP}/ext-table*'
 );
 
@@ -38,12 +38,12 @@ statement ok
 copy ( values (7, 8) ) to '${TMP}/pq-table-2' format parquet;
 
 statement error unable to resolve file type from the objects
-create external table ext_table_2 from local (
+create external table ext_table_2 from local options (
 	location '${TMP}/pq-table*'
 );
 
 statement ok
-create external table ext_table_2 from local (
+create external table ext_table_2 from local options (
 	location '${TMP}/pq-table*',
 	file_type parquet
 );
@@ -57,7 +57,7 @@ select * from ext_table_2;
 # Check compressed files
 
 statement ok
-create external table ext_table_3 from local (
+create external table ext_table_3 from local options (
 	location '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz',
 	file_type csv
 );
@@ -71,7 +71,7 @@ select count(*) from ext_table_3;
 
 # Giving wrong compression should error
 statement ok
-create external table ext_table_4 from local (
+create external table ext_table_4 from local options (
 	location '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz',
 	file_type csv,
 	compression xz
@@ -81,7 +81,7 @@ statement error stream/file format not recognized
 select * from ext_table_4;
 
 statement ok
-create external table ext_table_5 from local (
+create external table ext_table_5 from local options (
 	location '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv.gz',
 	file_type csv,
 	compression gz
