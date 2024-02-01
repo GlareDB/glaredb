@@ -1,0 +1,9 @@
+# this requirements.txt is for development deps only
+maturin[patchelf]==1.4.0
+patchelf
+black==23.3.0
+blackdoc==0.3.8
+mypy==1.3.0
+pytest
+ruff==0.0.275
+typos==1.15

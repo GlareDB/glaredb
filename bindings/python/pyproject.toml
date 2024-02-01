@@ -12,22 +12,18 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-  "maturin==1.0.1",
-  "ruff==0.0.275",
-  "mypy==1.3.0",
-  "typos==1.15",
-  "pyarrow",
-]
+
+[tool.poetry]
+name = "glaredb"
+version = "0.0.0"
+description = "glaredb bindings"
+authors = ["GlareDB <hello@glaredb.com>"]
+readme = "README.md"
 
 [project.optional-dependencies]
-dev = [
-  "great_expectations[postgresql]",
+great-expectations = [
   "great_expectations",
-  "virtualenv==20.23.1",
-  "black==23.3.0",
-  "blackdoc==0.3.8",
-  "pytest",
+  "great_expectations[postgresql]",
 ]
 pandas = [
   "pandas",
@@ -36,6 +32,10 @@ pandas = [
 polars = [
   "polars",
 ]
+pyarrow = [
+  "pyarrow",
+]
+
 
 [project.urls]
 Homepage = "https://glaredb.com"

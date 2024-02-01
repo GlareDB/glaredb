@@ -1,28 +1,35 @@
 set fallback
-VENV := env_var_or_default("VENV", "../../.venv")
+VENV := env_var_or_default("VENV", ".venv")
 VENV_BIN := VENV / "bin"
+
+VENV_DEV := env_var_or_default("VENV", ".venv-dev")
+VENV_DEV_BIN := VENV_DEV / "bin"
+
+
+@venv-dev:
+  python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
+  python3 -m virtualenv {{VENV_DEV}} --quiet
+  {{VENV_DEV_BIN}}/python -m pip install --upgrade pip
+  {{VENV_DEV_BIN}}/pip install -r requirements.txt
 
 @venv:
   python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
   python3 -m virtualenv {{VENV}} --quiet
-
-## Set up virtual environment and install requirements
-@requirements: venv
-  {{VENV_BIN}}/python -m pip --quiet install --upgrade pip
+  {{VENV_BIN}}/python -m pip install --upgrade pip
 
 ## Compile and install py-glaredb for development
-build *args: requirements
+build *args: venv venv-dev
   @unset CONDA_PREFIX
-  {{VENV_BIN}}/maturin develop {{args}}
+  {{VENV_DEV_BIN}}/maturin develop --pip-path="{{VENV_BIN}}/pip" --extras="pandas,polars,pyarrow" {{args}}
 
-test: requirements
-  {{VENV_BIN}}/pytest -s
+test: venv
+  {{VENV_DEV_BIN}}/pytest -s
 
 ## Run autoformatting and linting
-fmt: venv
-  {{VENV_BIN}}/ruff .
-  {{VENV_BIN}}/mypy
+fmt: venv-dev
+  {{VENV_DEV_BIN}}/ruff .
+  {{VENV_DEV_BIN}}/mypy
   cargo fmt --all
 
-example path: requirements
+example path: venv
   {{VENV_BIN}}/python examples/{{path}}.py
