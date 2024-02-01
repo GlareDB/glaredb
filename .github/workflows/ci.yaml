@@ -564,26 +564,13 @@ jobs:
             https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
           mkdir -p ~/bin
           SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
-
-      - run: ./scripts/prepare-testdata.sh
-
       - name: run tests (slt)
         env:
           SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
           SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
         run: |
-          # Prepare SLT (Snowflake)
-          export PATH="$HOME/bin:$PATH"
-          if ./scripts/files-changed-in-branch.sh \
-            "scripts/prepare-testdata.sh" \
-            "scripts/create-test-snowflake-db.sh" \
-            "testdata/sqllogictests_datasources_common/data" \
-            "testdata/sqllogictests_snowflake/data"
-          then
-            export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
-          else
-            export SNOWFLAKE_DATABASE=glaredb_test
-          fi
+          ./scripts/prepare-testdata.sh
+          export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
 
           just slt-bin 'sqllogictests_snowflake/*'
           just slt-bin --protocol=rpc 'sqllogictests_snowflake/*'

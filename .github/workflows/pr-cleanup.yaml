@@ -71,8 +71,6 @@ jobs:
     env:
       GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
       GCP_PROJECT_ID: glaredb-artifacts
-      SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
-      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
       # Set this so the main database is updated.
       BIGQUERY_USE_MAIN_DATASET: true
       SNOWFLAKE_USE_MAIN_DATABASE: true
@@ -86,23 +84,11 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
-      - name: Setup snowsql
-        run: |
-          curl -o snowsql.bash \
-            https://sfc-repo.snowflakecomputing.com/snowsql/bootstrap/1.2/linux_x86_64/snowsql-1.2.24-linux_x86_64.bash
-          mkdir -p ~/bin
-          SNOWSQL_DEST=~/bin SNOWSQL_LOGIN_SHELL=~/.profile bash snowsql.bash
-
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Download testdata from GCS
         run: ./scripts/prepare-testdata.sh
-
-      - name: Update main dataset (Snowflake)
-        run: |
-          export PATH="$HOME/bin:$PATH"
-          ./scripts/create-test-snowflake-db.sh
 
       - name: Update main dataset (BigQuery)
         run: ./scripts/create-test-bigquery-db.sh
