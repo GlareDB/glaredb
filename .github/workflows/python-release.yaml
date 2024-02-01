@@ -106,13 +106,19 @@ jobs:
               "text": "Python bindings build result (windows): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
 
-
   macos:
-    runs-on: macos-12-xl
     strategy:
       fail-fast: true
       matrix:
-        target: [x86_64, aarch64]
+        include:
+          - os: macos-12-large
+            target: x86_64
+          - os: macos-13-xlarge
+            target: aarch64
+
+    name: Build Python (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1

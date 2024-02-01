@@ -38,7 +38,7 @@ jobs:
       fail-fast: true
       matrix:
         settings:
-          - host: macos-12-xl
+          - host: macos-12-large
             target: x86_64-apple-darwin
             build: |
               yarn build
@@ -59,7 +59,7 @@ jobs:
               cd bindings/nodejs &&
               yarn build --target x86_64-unknown-linux-gnu &&
               strip *.node
-          - host: macos-12-xl
+          - host: macos-13-xlarge
             target: aarch64-apple-darwin
             build: |
               rustup target add aarch64-apple-darwin
