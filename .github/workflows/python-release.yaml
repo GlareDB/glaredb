@@ -7,8 +7,6 @@ on:
   push:
     tags:
       - "*"
-    branches:
-      - grey/python
   schedule:
     # Run every Monday at 12:00
     - cron: 0 12 * * 1
