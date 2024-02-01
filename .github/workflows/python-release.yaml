@@ -19,7 +19,7 @@ permissions:
 
 env:
   PYTHON_VERSION: "3.11"
-  MATURIN_VERSION: "1.0.1"
+  MATURIN_VERSION: "1.4.0"
   MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
   MATURIN_USERNAME: "seanglaredb"
   PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
@@ -28,11 +28,7 @@ env:
 
 jobs:
   macos:
-    runs-on: macos-14-xlarge
-    strategy:
-      fail-fast: true
-      matrix:
-        target: [x86_64, aarch64]
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
@@ -43,14 +39,42 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Build wheels
+          architecture: x64
+      - name: Build wheels - x86_64
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.target }}-apple-darwin
-          args: --release --out dist
+          args: --out dist
           working-directory: bindings/python
           sccache: "true"
           container: "off"
+          maturin-version: ${{ env.MATURIN_VERSION }}
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: bindings/python/dist
+
+  macos-universal:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
+      - name: install protoc
+        run: just protoc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          architecture: x64
+      - name: Build wheels - universal
+        uses: PyO3/maturin-action@v1
+        with:
+          args: --target universal2-apple-darwin --out dist
+          working-directory: bindings/python
+          sccache: "true"
+          container: "off"
+          maturin-version: ${{ env.MATURIN_VERSION }}
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
