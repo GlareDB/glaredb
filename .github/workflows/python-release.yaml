@@ -31,6 +31,9 @@ jobs:
       fail-fast: true
       matrix:
         target: [x86_64]
+
+    name: Build release (${{ matrix.target }})
+
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
@@ -70,6 +73,9 @@ jobs:
       fail-fast: true
       matrix:
         target: [x64]
+
+    name: Build release (${{ matrix.target }})
+
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
@@ -106,13 +112,15 @@ jobs:
               "text": "Python bindings build result (windows): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
 
-
   macos:
     runs-on: macos-12-xl
     strategy:
       fail-fast: true
       matrix:
         target: [x86_64, aarch64]
+
+    name: Build release (${{ matrix.target }})
+
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
