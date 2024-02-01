@@ -49,7 +49,6 @@ jobs:
           target: ${{ matrix.target }}-apple-darwin
           args: --release --out dist
           working-directory: bindings/python
-          sccache: "true"
           container: "off"
       - name: Upload wheels
         uses: actions/upload-artifact@v3
