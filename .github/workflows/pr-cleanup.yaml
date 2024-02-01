@@ -23,7 +23,7 @@ jobs:
                         --limit=2000 \
                         --json='key,id,ref' \
                         --jq='.[] | select(.ref == "refs/pull/${{ github.event.pull_request.number }}/merge") | .id' \
-             | xargs --verbose --max-args=1 gh cache delete
+             | xargs --verbose --max-args=1 gh cache --repo="${{ github.repository }}" delete
 
   clean-up-hosted-datasets:
     name: 'Clean Up Hosted Datasets'
