@@ -570,6 +570,8 @@ jobs:
           SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
         run: |
           ./scripts/prepare-testdata.sh
+
+          export PATH="$HOME/bin:$PATH"
           export SNOWFLAKE_DATABASE=$(./scripts/create-test-snowflake-db.sh)
 
           just slt-bin 'sqllogictests_snowflake/*'
