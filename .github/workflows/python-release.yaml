@@ -43,7 +43,7 @@ jobs:
       - name: Build wheels - x86_64
         uses: PyO3/maturin-action@v1
         with:
-          args: --out --target x86_64-apple-darwin dist
+          args: --target x86_64-apple-darwin --out dist
           working-directory: bindings/python
           sccache: "true"
           container: "off"
