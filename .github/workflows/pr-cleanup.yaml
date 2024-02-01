@@ -16,7 +16,7 @@ jobs:
         run: |
           gh extension install actions/gh-actions-cache
 
-          set -o pipefile
+          set -o pipefail
           set -o errexit
 
           gh cache list --repo="${{ github.repository }}" \
