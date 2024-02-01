@@ -112,9 +112,9 @@ jobs:
       matrix:
         include:
           - os: macos-12-large
-            target: x86_64
+            target: x86_64-apple-darwin
           - os: macos-13-xlarge
-            target: aarch64
+            target: aarch64-apple-darwin
 
     name: Build Python (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
