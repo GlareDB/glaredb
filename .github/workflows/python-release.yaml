@@ -151,7 +151,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "Python bindings build result (macos ${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Python bindings build result (macos ${{ matrix.config.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
 
   release:
