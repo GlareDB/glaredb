@@ -101,7 +101,7 @@ lint: clippy fmt-check
 fix: protoc
   cargo clippy --fix --all --all-features --allow-staged --allow-dirty
   cargo fix --all --allow-staged  --allow-dirty
-  cargo fmt --all
+  just fmt --all
 
 # Displays help message.
 help:

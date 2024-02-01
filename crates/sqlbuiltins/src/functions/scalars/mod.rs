@@ -1,6 +1,7 @@
 pub mod df_scalars;
 pub mod hashing;
 pub mod kdl;
+pub mod openai;
 pub mod postgres;
 
 use std::sync::Arc;
@@ -30,8 +31,12 @@ impl ConstBuiltinFunction for ConnectionId {
 }
 
 impl BuiltinScalarUDF for ConnectionId {
-    fn as_expr(&self, _: Vec<Expr>) -> Expr {
-        session_var("connection_id")
+    fn try_as_expr(
+        &self,
+        _: &catalog::session_catalog::SessionCatalog,
+        _: Vec<Expr>,
+    ) -> datafusion::error::Result<Expr> {
+        Ok(session_var("connection_id"))
     }
 }
 
@@ -48,8 +53,12 @@ impl ConstBuiltinFunction for Version {
 }
 
 impl BuiltinScalarUDF for Version {
-    fn as_expr(&self, _: Vec<Expr>) -> Expr {
-        session_var("version")
+    fn try_as_expr(
+        &self,
+        _: &catalog::session_catalog::SessionCatalog,
+        _: Vec<Expr>,
+    ) -> datafusion::error::Result<Expr> {
+        Ok(session_var("version"))
     }
 }
 

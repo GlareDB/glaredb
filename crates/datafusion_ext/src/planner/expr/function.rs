@@ -86,7 +86,11 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             .await?;
 
         // user-defined function (UDF) should have precedence in case it has the same name as a scalar built-in function
-        if let Some(expr) = self.context_provider.get_function_meta(&name, &args).await {
+        if let Some(expr) = self
+            .context_provider
+            .get_function_meta(&name, &args)
+            .await?
+        {
             return Ok(expr);
         }
 

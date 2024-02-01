@@ -1,8 +1,9 @@
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
+use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::DataType;
-use datafusion::error::DataFusionError;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
     ReturnTypeFunction,
@@ -40,7 +41,7 @@ impl ConstBuiltinFunction for SipHash {
     }
 }
 impl BuiltinScalarUDF for SipHash {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
         let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::UInt64)));
         let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
             Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
@@ -58,7 +59,10 @@ impl BuiltinScalarUDF for SipHash {
             &return_type_fn,
             &scalar_fn_impl,
         );
-        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
+        Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
+            Arc::new(udf),
+            args,
+        )))
     }
 }
 
@@ -81,7 +85,7 @@ impl ConstBuiltinFunction for FnvHash {
 }
 
 impl BuiltinScalarUDF for FnvHash {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
         let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::UInt64)));
         let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
             Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
@@ -99,7 +103,10 @@ impl BuiltinScalarUDF for FnvHash {
             &return_type_fn,
             &scalar_fn_impl,
         );
-        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
+        Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
+            Arc::new(udf),
+            args,
+        )))
     }
 }
 
@@ -122,7 +129,7 @@ impl ConstBuiltinFunction for PartitionResults {
 }
 
 impl BuiltinScalarUDF for PartitionResults {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
         let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
         let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
             if input.len() != 3 {
@@ -164,6 +171,9 @@ impl BuiltinScalarUDF for PartitionResults {
             &return_type_fn,
             &scalar_fn_impl,
         );
-        Expr::ScalarFunction(ScalarFunction::new_udf(Arc::new(udf), args))
+        Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
+            Arc::new(udf),
+            args,
+        )))
     }
 }

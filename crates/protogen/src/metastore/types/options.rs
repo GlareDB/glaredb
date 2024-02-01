@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use datafusion::arrow::datatypes::{DataType, Field, SchemaRef};
+use datafusion::arrow::datatypes::{DataType, Field, Fields, SchemaRef};
 use datafusion::common::DFSchemaRef;
 use proptest_derive::Arbitrary;
 
@@ -1331,6 +1331,7 @@ pub enum CredentialsOptions {
     Gcp(CredentialsOptionsGcp),
     Aws(CredentialsOptionsAws),
     Azure(CredentialsOptionsAzure),
+    OpenAI(CredentialsOptionsOpenAI),
 }
 
 impl CredentialsOptions {
@@ -1338,6 +1339,7 @@ impl CredentialsOptions {
     pub const GCP: &'static str = "gcp";
     pub const AWS: &'static str = "aws";
     pub const AZURE: &'static str = "azure";
+    pub const OPENAI: &'static str = "openai";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -1345,6 +1347,7 @@ impl CredentialsOptions {
             Self::Gcp(_) => Self::GCP,
             Self::Aws(_) => Self::AWS,
             Self::Azure(_) => Self::AZURE,
+            Self::OpenAI(_) => Self::OPENAI,
         }
     }
 }
@@ -1363,6 +1366,7 @@ impl TryFrom<options::credentials_options::Options> for CredentialsOptions {
             options::credentials_options::Options::Gcp(v) => Self::Gcp(v.try_into()?),
             options::credentials_options::Options::Aws(v) => Self::Aws(v.try_into()?),
             options::credentials_options::Options::Azure(v) => Self::Azure(v.try_into()?),
+            options::credentials_options::Options::Openai(v) => Self::OpenAI(v.try_into()?),
         })
     }
 }
@@ -1381,6 +1385,9 @@ impl From<CredentialsOptions> for options::credentials_options::Options {
             CredentialsOptions::Gcp(v) => options::credentials_options::Options::Gcp(v.into()),
             CredentialsOptions::Aws(v) => options::credentials_options::Options::Aws(v.into()),
             CredentialsOptions::Azure(v) => options::credentials_options::Options::Azure(v.into()),
+            CredentialsOptions::OpenAI(v) => {
+                options::credentials_options::Options::Openai(v.into())
+            }
         }
     }
 }
@@ -1483,6 +1490,60 @@ impl From<CredentialsOptionsAzure> for options::CredentialsOptionsAzure {
         options::CredentialsOptionsAzure {
             account_name: value.account_name,
             access_key: value.access_key,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct CredentialsOptionsOpenAI {
+    pub api_key: String,
+    pub api_base: Option<String>,
+    pub org_id: Option<String>,
+}
+
+impl CredentialsOptionsOpenAI {
+    pub fn fields() -> Fields {
+        vec![
+            Field::new("api_key", DataType::Utf8, false),
+            Field::new("api_base", DataType::Utf8, true),
+            Field::new("org_id", DataType::Utf8, true),
+        ]
+        .into()
+    }
+    pub fn data_type() -> DataType {
+        DataType::Struct(Self::fields())
+    }
+}
+impl From<CredentialsOptionsOpenAI> for datafusion::scalar::ScalarValue {
+    fn from(value: CredentialsOptionsOpenAI) -> Self {
+        datafusion::scalar::ScalarValue::Struct(
+            Some(vec![
+                datafusion::scalar::ScalarValue::Utf8(Some(value.api_key)),
+                datafusion::scalar::ScalarValue::Utf8(value.api_base),
+                datafusion::scalar::ScalarValue::Utf8(value.org_id),
+            ]),
+            CredentialsOptionsOpenAI::fields(),
+        )
+    }
+}
+
+impl TryFrom<options::CredentialsOptionsOpenAi> for CredentialsOptionsOpenAI {
+    type Error = ProtoConvError;
+    fn try_from(value: options::CredentialsOptionsOpenAi) -> Result<Self, Self::Error> {
+        Ok(CredentialsOptionsOpenAI {
+            api_key: value.api_key,
+            api_base: value.api_base,
+            org_id: value.org_id,
+        })
+    }
+}
+
+impl From<CredentialsOptionsOpenAI> for options::CredentialsOptionsOpenAi {
+    fn from(value: CredentialsOptionsOpenAI) -> Self {
+        options::CredentialsOptionsOpenAi {
+            api_key: value.api_key,
+            api_base: value.api_base,
+            org_id: value.org_id,
         }
     }
 }

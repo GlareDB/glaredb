@@ -83,7 +83,7 @@ pub trait AsyncContextProvider: Send + Sync {
     /// NOTE: This is a modified version of `get_function_meta` that takes
     /// arguments and reutrns an `Expr` instead of `ScalarUDF`. This is so that
     /// we can return any kind of Expr from scalar UDFs.
-    async fn get_function_meta(&mut self, name: &str, args: &[Expr]) -> Option<Expr>;
+    async fn get_function_meta(&mut self, name: &str, args: &[Expr]) -> Result<Option<Expr>>;
     /// Getter for a UDAF description
     async fn get_aggregate_meta(&mut self, name: &str) -> Option<Arc<AggregateUDF>>;
     /// Getter for a UDWF
