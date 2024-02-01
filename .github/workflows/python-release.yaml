@@ -122,9 +122,8 @@ jobs:
           runner: macos-13
         - target: aarch64-apple-darwin
           runner: macos-13-xlarge
-        target: [x86_64, aarch64]
 
-    name: Build Python Bindings (macos ${{ matrix.target }})
+    name: Build Python Bindings (macos ${{ matrix.config.target }})
 
     steps:
       - uses: actions/checkout@v4
