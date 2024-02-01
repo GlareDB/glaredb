@@ -108,7 +108,7 @@ jobs:
 
 
   macos:
-    runs-on: macos-14-xlarge
+    runs-on: macos-13-xlarge
     strategy:
       fail-fast: true
       matrix:
