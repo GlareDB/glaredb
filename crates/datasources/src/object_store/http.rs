@@ -95,7 +95,7 @@ impl ObjStoreAccess for HttpStoreAccess {
         // See: https://github.com/seanmonstar/reqwest/issues/843
         let len: u64 = res
             .headers()
-            .get("Content-Length") 
+            .get("Content-Length")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.parse().ok())
             .unwrap_or_else(|| res.content_length().unwrap_or(0));
