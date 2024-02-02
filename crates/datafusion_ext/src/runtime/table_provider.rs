@@ -75,7 +75,9 @@ impl TableProvider for RuntimeAwareTableProvider {
         &self,
         filters: &[&Expr],
     ) -> Result<Vec<TableProviderFilterPushDown>> {
-        self.provider.supports_filters_pushdown(filters)
+        let supports_pushdowns = self.provider.supports_filters_pushdown(filters)?;
+
+        Ok(supports_pushdowns)
     }
 
     fn statistics(&self) -> Option<Statistics> {
