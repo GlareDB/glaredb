@@ -326,6 +326,9 @@ jobs:
   ########################################################################
 
   node-build:
+    defaults:
+      run:
+        working-directory: bindings/nodejs
     permissions:
       contents: write
       id-token: write
