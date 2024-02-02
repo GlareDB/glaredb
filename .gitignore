@@ -34,3 +34,8 @@ bench_data/
 
 # Logs
 *.log
+
+# dbt compiled models
+tests/fixtures/dbt_project/target/
+tests/fixtures/dbt_project/.user.yml
+tests/fixtures/dbt_project/logs/

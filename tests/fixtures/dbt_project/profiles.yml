@@ -1,0 +1,13 @@
+glaredb_dbt_test:
+  outputs:
+    test_target:
+      dbname: glaredb
+      host: 127.0.0.1
+      pass: test
+      port: 5432
+      schema: public
+      threads: 1
+      type: postgres
+      user: test
+      sslmode: require
+  target: test_target
