@@ -91,9 +91,11 @@ impl ObjStoreAccess for HttpStoreAccess {
                 status, self.url
             )));
         }
+        // reqwest doesn't check the content length header, instead looks at the contents
+        // See: https://github.com/seanmonstar/reqwest/issues/843
         let len: u64 = res
             .headers()
-            .get("Content-Length") // reqwest uses case sensitive headers, so we need to explicitly check for "Content-Length"
+            .get("Content-Length") 
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.parse().ok())
             .unwrap_or_else(|| res.content_length().unwrap_or(0));
