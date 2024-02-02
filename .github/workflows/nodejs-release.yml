@@ -150,7 +150,7 @@ jobs:
           if-no-files-found: error
 
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.24.0
+        uses: slackapi/slack-github-action@v1.25.0
         if: ${{ always() }}
         with:
           payload: |
@@ -200,7 +200,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.24.0
+        uses: slackapi/slack-github-action@v1.25.0
         if: ${{ always() }}
         with:
           payload: |
