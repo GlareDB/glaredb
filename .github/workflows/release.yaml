@@ -12,6 +12,11 @@ on:
       - tycho/release-atomically
 
 env:
+  PYTHON_VERSION: "3.11"
+  MATURIN_VERSION: "1.4.0"
+  MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+  MATURIN_USERNAME: "seanglaredb"
+  PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
   SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
@@ -159,10 +164,6 @@ jobs:
       fail-fast: true
       matrix:
         target: [x86_64]
-    env:
-      PYTHON_VERSION: "3.11"
-      MATURIN_VERSION: "1.4.0"
-      PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
@@ -204,10 +205,6 @@ jobs:
       fail-fast: true
       matrix:
         target: [x64]
-    env:
-      PYTHON_VERSION: "3.11"
-      MATURIN_VERSION: "1.4.0"
-      PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
@@ -253,17 +250,12 @@ jobs:
             runner: macos-13-large
           - target: aarch64-apple-darwin
             runner: macos-13-xlarge
-    env:
-      PYTHON_VERSION: "3.11"
-      MATURIN_VERSION: "1.4.0"
-      PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - name: install protoc
-        run: just protoc
+      - run: just protoc
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -294,11 +286,6 @@ jobs:
     needs: [atomic-release]
     permissions:
       contents: read
-    env:
-      PYTHON_VERSION: "3.11"
-      MATURIN_VERSION: "1.4.0"
-      MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-      MATURIN_USERNAME: "seanglaredb"
     steps:
       - uses: actions/download-artifact@v3
         with:
