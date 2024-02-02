@@ -174,8 +174,6 @@ mod tests {
               "port": "5432",
               "memory_limit_bytes": 268435456,
               "gcs_storage_bucket": "",
-              "storage_size_bytes": 0,
-              "max_storage_bytes": 0
             }
             "#;
 
@@ -205,8 +203,6 @@ mod tests {
               "nodes":[{"ip":"1.2.3.4","port":"5432"}],
               "memory_limit_bytes": 268435456,
               "gcs_storage_bucket": "",
-              "storage_size_bytes": 0,
-              "max_storage_bytes": 0
             }
             "#;
 
