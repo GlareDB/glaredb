@@ -33,8 +33,8 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
     needs:
       - python-linux
-      - python-macos
       - python-windows
+      - python-macos
       - kernel-dist
       - node-build
     steps:
@@ -262,6 +262,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
+          target: ${{ matrix.config.target }}
           args: --release ${{ matrix.config.target }} --out dist
           working-directory: bindings/python
           container: "off"
@@ -270,6 +271,7 @@ jobs:
         with:
           name: wheels
           path: bindings/python/dist
+
       - name: Post to slack
         uses: slackapi/slack-github-action@v1.25.0
         if: ${{ always() }}
