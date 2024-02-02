@@ -173,7 +173,7 @@ mod tests {
               "ip": "1.2.3.4",
               "port": "5432",
               "memory_limit_bytes": 268435456,
-              "gcs_storage_bucket": "",
+              "gcs_storage_bucket": ""
             }
             "#;
 
@@ -202,7 +202,7 @@ mod tests {
               "port": "5432",
               "nodes":[{"ip":"1.2.3.4","port":"5432"}],
               "memory_limit_bytes": 268435456,
-              "gcs_storage_bucket": "",
+              "gcs_storage_bucket": ""
             }
             "#;
 
