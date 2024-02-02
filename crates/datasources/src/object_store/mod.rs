@@ -13,9 +13,10 @@ use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::execution::runtime_env::RuntimeEnv;
-use datafusion::logical_expr::TableType;
+use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
+use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::union::UnionExec;
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::{project_schema, ExecutionPlan};
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
 use errors::{ObjectStoreSourceError, Result};
@@ -104,6 +105,16 @@ impl TableProvider for MultiSourceTableProvider {
         } else {
             Ok(Arc::new(UnionExec::new(plans)))
         }
+    }
+    fn supports_filters_pushdown(
+        &self,
+        filters: &[&Expr],
+    ) -> datafusion::common::Result<Vec<TableProviderFilterPushDown>> {
+        // we just look at the first source
+        self.sources
+            .first()
+            .unwrap()
+            .supports_filters_pushdown(filters)
     }
 }
 
@@ -308,6 +319,13 @@ impl TableProvider for ObjStoreTableProvider {
             .buffered(ctx.config_options().execution.meta_fetch_concurrency);
         let (files, statistics) = get_statistics_with_limit(files, self.schema(), limit).await?;
 
+        // If there are no files, return an empty exec plan.
+        if files.is_empty() {
+            let schema = self.schema();
+            let projected_schema = project_schema(&schema, projection)?;
+            return Ok(Arc::new(EmptyExec::new(projected_schema)));
+        }
+
         let config = FileScanConfig {
             object_store_url: self.base_url.clone(),
             file_schema: self.arrow_schema.clone(),
@@ -331,8 +349,19 @@ impl TableProvider for ObjStoreTableProvider {
             .create_physical_plan(ctx, config, filters.as_ref())
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
         Ok(Arc::new(ReadOnlyDataSourceMetricsExecAdapter::new(plan)))
+    }
+
+    fn supports_filters_pushdown(
+        &self,
+        filters: &[&Expr],
+    ) -> std::result::Result<Vec<TableProviderFilterPushDown>, datafusion::error::DataFusionError>
+    {
+        // todo: support exact pushdonws based on hive style partitioning
+        filters
+            .iter()
+            .map(|_| Ok(TableProviderFilterPushDown::Inexact))
+            .collect()
     }
 }
 

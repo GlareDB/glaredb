@@ -42,6 +42,14 @@ select count(*) from parquet_scan([
 statement error No such file or directory
 select * from parquet_scan('./testdata/parquet/userdata1.paruqet');
 
+
+# filter pushdowns
+# Skipping until we have a way to test the outputs of 'explain'. See https://github.com/GlareDB/glaredb/issues/2581
+# query I
+# select * from (explain select count(*) from parquet_scan('./testdata/parquet/userdata1.parquet') where country = 'Sweden') where plan_type = 'physical_plan' and plan like 'predicate=country@8 = Sweden, pruning_predicate=country_min@0 <= Sweden AND Sweden <= country_max@'
+# ----
+
+
 # Ambiguous name.
 # query I
 # select count(*)
