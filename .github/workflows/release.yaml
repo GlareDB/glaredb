@@ -1,4 +1,4 @@
-name: Release
+name: Atomic Build and Release
 
 on:
   schedule:
@@ -8,20 +8,22 @@ on:
   push:
     tags:
       - "*"
+    branches:
+      - tycho/release-atomically
 
 env:
   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
   SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
 concurrency:
-   group: release-${{ github.ref }}
-   cancel-in-progress: true
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   atomic-release:
     # This creates a node in the DAG so that all of the "push" tasks
     # can depend on all build tasks.
-    name: Atomic Release Release
+    name: Atomic Release
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
     needs:
@@ -33,11 +35,11 @@ jobs:
     steps:
       - run: sleep 1
 
-########################################################################
-##
-## Kernel Release
-##
-########################################################################
+  ########################################################################
+  ##
+  ## Kernel Release
+  ##
+  ########################################################################
 
   kernel-dist:
     strategy:
@@ -81,14 +83,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "Build release binary result (${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Kernel Binary (${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
-
 
   docker-push:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest-8-cores
-    needs: atomic-release
+    needs: [atomic-release]
     permissions:
       id-token: write # required to use OIDC auth
       contents: write # required to checkout code
@@ -106,7 +107,6 @@ jobs:
       - run: gcloud auth configure-docker -q
       - run: ./scripts/build-and-push-images.sh
         # TODO: this should pull the binary that was built in kernel-dist.
-
 
   kernel-push:
     name: Push Kernel Release
@@ -141,14 +141,14 @@ jobs:
         with:
           payload: |
             {
-              "text": "Publish release binary result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Publish Kernal Binary: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
 
-########################################################################
-##
-## Python Bindings
-##
-########################################################################
+  ########################################################################
+  ##
+  ## Python Bindings
+  ##
+  ########################################################################
 
   python-linux:
     name: Build Python Bindings (linux ${{ matrix.target }})
@@ -192,7 +192,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "Python bindings build result (linux ${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Python Bindings (linux ${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
 
   python-windows:
@@ -237,9 +237,8 @@ jobs:
         with:
           payload: |
             {
-              "text": "Python bindings build result (windows ${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Python Bindings (windows ${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
-
 
   python-macos:
     name: Build Python Bindings (macos ${{ matrix.config.target }})
@@ -250,10 +249,10 @@ jobs:
       fail-fast: true
       matrix:
         config:
-        - target: x86_64-apple-darwin
-          runner: macos-13-large
-        - target: aarch64-apple-darwin
-          runner: macos-13-xlarge
+          - target: x86_64-apple-darwin
+            runner: macos-13-large
+          - target: aarch64-apple-darwin
+            runner: macos-13-xlarge
     env:
       PYTHON_VERSION: "3.11"
       MATURIN_VERSION: "1.4.0"
@@ -285,9 +284,8 @@ jobs:
         with:
           payload: |
             {
-              "text": "Python bindings build result (macos ${{ matrix.config.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Python Bindings (macos ${{ matrix.config.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
-
 
   python-push:
     name: Push Python Bindings
@@ -318,14 +316,14 @@ jobs:
         with:
           payload: |
             {
-              "text": "Python bindings publish result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Push Python Bindings: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
 
-########################################################################
-##
-## Node.js Release Process
-##
-########################################################################
+  ########################################################################
+  ##
+  ## Node.js Release Process
+  ##
+  ########################################################################
 
   node-build:
     permissions:
@@ -446,9 +444,8 @@ jobs:
         with:
           payload: |
             {
-              "text": "Node.js bindings build result (${{ matrix.settings.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Node.JS Bindings (stable - ${{ matrix.settings.target }} - node@18): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
-
 
   node-push:
     name: Push Node.js Bindings
@@ -498,5 +495,5 @@ jobs:
         with:
           payload: |
             {
-              "text": "Node.js bindings publish result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Push Node.js Bindings: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
