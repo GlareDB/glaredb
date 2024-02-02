@@ -91,10 +91,18 @@ impl ObjStoreAccess for HttpStoreAccess {
                 status, self.url
             )));
         }
+        let len: u64 = res
+            .headers()
+            .get("Content-Length") // reqwest uses case sensitive headers, so we need to explicitly check for "Content-Length"
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| res.content_length().unwrap_or(0));
+        if len == 0 {
+            return Err(ObjectStoreSourceError::Static(
+                "Missing content-length header",
+            ));
+        }
 
-        let len = res.content_length().ok_or(ObjectStoreSourceError::Static(
-            "Missing content-length header",
-        ))?;
 
         Ok(ObjectMeta {
             location: location.clone(),
@@ -119,7 +127,6 @@ impl ObjStoreAccess for HttpStoreAccess {
         let next = locations
             .next()
             .ok_or(ObjectStoreSourceError::Static("No locations provided"))?;
-
         let objects = self
             .list_globbed(&store, &next.path())
             .await
