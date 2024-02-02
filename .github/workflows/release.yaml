@@ -83,7 +83,7 @@ jobs:
           name: dist-${{ matrix.target }}
           path: ./target/dist/
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.24.0
+        uses: slackapi/slack-github-action@v1.25.0
         if: ${{ always() }}
         with:
           payload: |
@@ -188,7 +188,7 @@ jobs:
           path: dist
 
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.24.0
+        uses: slackapi/slack-github-action@v1.25.0
         if: ${{ always() }}
         with:
           payload: |
