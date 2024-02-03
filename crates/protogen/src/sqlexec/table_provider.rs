@@ -10,4 +10,6 @@ pub struct PostgresTableProviderConfig {
     pub schema: String,
     #[prost(string, tag = "3")]
     pub table: String,
+    #[prost(message, tag = "4")]
+    pub order_by: Option<String>,
 }

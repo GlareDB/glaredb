@@ -527,6 +527,7 @@ pub struct PostgresTableProviderConfig {
     pub access: PostgresAccess,
     pub schema: String,
     pub table: String,
+    pub order_by: Option<String>,
 }
 
 impl TryFrom<protogen::sqlexec::table_provider::PostgresTableProviderConfig>
@@ -540,6 +541,7 @@ impl TryFrom<protogen::sqlexec::table_provider::PostgresTableProviderConfig>
             access: value.access.required("postgres access")?,
             schema: value.schema,
             table: value.table,
+            order_by: value.order_by,
         })
     }
 }
@@ -552,6 +554,7 @@ impl From<PostgresTableProviderConfig>
             access: Some(value.access.into()),
             schema: value.schema,
             table: value.table,
+            order_by: value.order_by,
         }
     }
 }
@@ -562,6 +565,7 @@ pub struct PostgresTableProvider {
     schema: String,
     /// Table we're accessing.
     table: String,
+    order_by: Option<String>,
     state: Arc<PostgresAccessState>,
     arrow_schema: ArrowSchemaRef,
     pg_types: Arc<Vec<PostgresType>>,
@@ -577,6 +581,7 @@ impl PostgresTableProvider {
             access,
             schema,
             table,
+            order_by,
         } = conf;
 
         let state = Arc::new(access.connect().await?);
@@ -586,6 +591,7 @@ impl PostgresTableProvider {
             schema,
             table,
             state,
+            order_by,
             arrow_schema: Arc::new(arrow_schema),
             pg_types: Arc::new(pg_types),
         })
@@ -664,9 +670,17 @@ impl TableProvider for PostgresTableProvider {
                 .map_err(|e| DataFusionError::External(Box::new(e)))?
         };
 
+        let order_by_string = {
+            if self.order_by.as_ref().is_some_and(|stmt| !stmt.is_empty()) {
+                format!("ORDER BY {}", self.order_by.as_ref().unwrap())
+            } else {
+                "".to_string()
+            }
+        };
+
         // Build copy query.
         let query = format!(
-            "COPY (SELECT {} FROM {}.{} {} {} {}) TO STDOUT (FORMAT binary)",
+            "COPY (SELECT {} FROM {}.{} {} {} {} {}) TO STDOUT (FORMAT binary)",
             projection_string, // SELECT <str>
             self.schema,       // FROM <schema>
             self.table,        // .<table>
@@ -677,7 +691,8 @@ impl TableProvider for PostgresTableProvider {
                 "WHERE "
             },
             predicate_string.as_str(), // <where-predicate>
-            limit_string,              // [LIMIT ..]
+            order_by_string.as_str(),
+            limit_string, // [LIMIT ..]
         );
 
         let exec = PostgresBinaryCopyExec::try_new(BinaryCopyConfig::State {
@@ -882,6 +897,7 @@ impl ExecutionPlan for PostgresBinaryCopyExec {
             opener: self.opener.clone(),
             arrow_schema: self.arrow_schema.clone(),
         };
+
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
             stream,
             partition,

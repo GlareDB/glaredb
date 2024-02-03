@@ -47,26 +47,29 @@ impl TableFunc for ReadPostgres {
         args: Vec<FuncParamValue>,
         _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        match args.len() {
-            3 => {
-                let mut args = args.into_iter();
-                let conn_str: String = args.next().unwrap().try_into()?;
-                let schema: String = args.next().unwrap().try_into()?;
-                let table: String = args.next().unwrap().try_into()?;
-
-                let access = PostgresAccess::new_from_conn_str(conn_str, None);
-                let prov_conf = PostgresTableProviderConfig {
-                    access,
-                    schema,
-                    table,
-                };
-                let prov = PostgresTableProvider::try_new(prov_conf)
-                    .await
-                    .map_err(|e| ExtensionError::Access(Box::new(e)))?;
-
-                Ok(Arc::new(prov))
-            }
-            _ => Err(ExtensionError::InvalidNumArgs),
+        if args.len() < 3 || args.len() > 4 {
+            return Err(ExtensionError::InvalidNumArgs);
         }
+
+        let mut args = args.into_iter();
+        let conn_str: String = args.next().unwrap().try_into()?;
+        let schema: String = args.next().unwrap().try_into()?;
+        let table: String = args.next().unwrap().try_into()?;
+
+        let access = PostgresAccess::new_from_conn_str(conn_str, None);
+
+        let order_by: Option<String> = args.next().map(|p| p.try_into().ok()).flatten();
+
+        let prov_conf = PostgresTableProviderConfig {
+            access,
+            schema,
+            table,
+            order_by,
+        };
+        let prov = PostgresTableProvider::try_new(prov_conf)
+            .await
+            .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+
+        Ok(Arc::new(prov))
     }
 }

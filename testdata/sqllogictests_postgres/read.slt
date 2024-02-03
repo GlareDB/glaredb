@@ -4,3 +4,15 @@ query I
 SELECT count(*) FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations');
 ----
 102
+
+# Test order_by passthrough
+
+query
+SELECT station_id = 0 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id asc') LIMIT 1;
+----
+true
+
+query
+SELECT station_id = 4879 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id desc') LIMIT 1;
+----
+true
