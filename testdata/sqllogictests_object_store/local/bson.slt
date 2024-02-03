@@ -6,6 +6,7 @@ SELECT count(*) FROM '${TMP}/userdata1.bson';
 ----
 1000
 
+
 # This is commented out to avoid littering the filesystem with
 # files. Hygenic tests in the pytests for this.
 #
@@ -16,8 +17,6 @@ SELECT count(*) FROM '${TMP}/userdata1.bson';
 # SELECT count(*) FROM 'userdata1.bson';
 # ----
 # 1000
-
-
 
 statement ok
 create table timestamps (t timestamp);
