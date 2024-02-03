@@ -263,7 +263,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.config.target }}
-          args: --release ${{ matrix.config.target }} --out dist
+          args: --release --out dist
           working-directory: bindings/python
           container: "off"
       - name: Upload wheels
