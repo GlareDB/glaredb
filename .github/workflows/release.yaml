@@ -8,8 +8,6 @@ on:
   push:
     tags:
       - "*"
-    branches:
-      - tycho/release-atomically
 
 env:
   PYTHON_VERSION: "3.11"
