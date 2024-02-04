@@ -11,12 +11,12 @@ SELECT count(*) FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikesha
 query T
 SELECT station_id = 0 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id asc') LIMIT 1;
 ----
-true
+t
 
 query T
 SELECT station_id = 4879 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id desc') LIMIT 1;
 ----
-true
+t
 
 
 # ensure case sensitivity:
@@ -24,12 +24,12 @@ true
 query T
 SELECT station_id = 0 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id ASC') LIMIT 1;
 ----
-true
+t
 
 query T
 SELECT station_id = 4879 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id DESC') LIMIT 1;
 ----
-true
+t
 
 
 # reversed sort order to expectations, always incorrect
@@ -37,12 +37,12 @@ true
 query T
 SELECT station_id = 4879 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id asc') LIMIT 1;
 ----
-false
+f
 
 query T
 SELECT station_id = 0 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id desc') LIMIT 1;
 ----
-false
+f
 
 
 # without sorts, possibly non-deterministic depending on output/scan order:
@@ -50,9 +50,9 @@ false
 query T
 SELECT station_id = 4879 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations') LIMIT 1;
 ----
-false
+f
 
 query T
 SELECT station_id = 0 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations') LIMIT 1;
 ----
-false
+f
