@@ -5,14 +5,54 @@ SELECT count(*) FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikesha
 ----
 102
 
-# Test order_by passthrough
 
-query
+# order by passthrough in function. select first and last items
+#
+query T
 SELECT station_id = 0 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id asc') LIMIT 1;
 ----
 true
 
-query
+query T
 SELECT station_id = 4879 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id desc') LIMIT 1;
 ----
 true
+
+
+# ensure case sensitivity:
+#
+query T
+SELECT station_id = 0 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id ASC') LIMIT 1;
+----
+true
+
+query T
+SELECT station_id = 4879 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id DESC') LIMIT 1;
+----
+true
+
+
+# reversed sort order to expectations, always incorrect
+#
+query T
+SELECT station_id = 4879 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id asc') LIMIT 1;
+----
+false
+
+query T
+SELECT station_id = 0 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations', 'station_id desc') LIMIT 1;
+----
+false
+
+
+# without sorts, possibly non-deterministic depending on output/scan order:
+#
+query T
+SELECT station_id = 4879 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations') LIMIT 1;
+----
+false
+
+query T
+SELECT station_id = 0 FROM read_postgres('${POSTGRES_CONN_STRING}', 'public', 'bikeshare_stations') LIMIT 1;
+----
+false

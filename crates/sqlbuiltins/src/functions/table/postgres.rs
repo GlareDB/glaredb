@@ -58,7 +58,7 @@ impl TableFunc for ReadPostgres {
 
         let access = PostgresAccess::new_from_conn_str(conn_str, None);
 
-        let order_by: Option<String> = args.next().map(|p| p.try_into().ok()).flatten();
+        let order_by: Option<String> = args.next().and_then(|p| p.try_into().ok());
 
         let prov_conf = PostgresTableProviderConfig {
             access,
