@@ -1,4 +1,4 @@
-name: Build Release
+name: Atomic Build and Release
 
 on:
   schedule:
@@ -10,11 +10,41 @@ on:
       - "*"
 
 env:
+  PYTHON_VERSION: "3.11"
+  MATURIN_VERSION: "1.4.0"
+  MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+  MATURIN_USERNAME: "seanglaredb"
+  PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
   SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  dist:
+  atomic-release:
+    # This creates a node in the DAG so that all of the "push" tasks
+    # can depend on all build tasks.
+    name: Atomic Release
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
+    needs:
+      - python-linux
+      - python-windows
+      - python-macos
+      - kernel-dist
+      - node-build
+    steps:
+      - run: sleep 1
+
+  ########################################################################
+  ##
+  ## Kernel Release
+  ##
+  ########################################################################
+
+  kernel-dist:
     strategy:
       fail-fast: false
       matrix:
@@ -28,47 +58,63 @@ jobs:
           - os: macos-13-xlarge
             target: aarch64-apple-darwin
 
-    name: Build release (${{ matrix.target }})
+    name: Build Kernel Release (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
-
     env:
       DIST_TARGET_TRIPLE: ${{ matrix.target }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@1.75.0
         with:
           targets: ${{ matrix.target }}
-
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
       - name: Build
         run: just dist
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
           name: dist-${{ matrix.target }}
           path: ./target/dist/
-
       - name: Post to slack
         uses: slackapi/slack-github-action@v1.25.0
         if: ${{ always() }}
         with:
           payload: |
             {
-              "text": "Build release binary result (${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Kernel Binary (${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
 
-  publish:
-    name: Publish
+  docker-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest-8-cores
+    needs: [atomic-release]
+    permissions:
+      id-token: write # required to use OIDC auth
+      contents: write # required to checkout code
+    env:
+      GCP_PROJECT_ID: glaredb-artifacts
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker -q
+      - run: ./scripts/build-and-push-images.sh
+        # TODO: this should pull the binary that was built in kernel-dist.
+
+  kernel-push:
+    name: Push Kernel Release
     runs-on: ubuntu-latest
-    needs: ["dist"]
+    needs: [atomic-release]
     steps:
       - uses: actions/download-artifact@v3
         with:
@@ -86,14 +132,58 @@ jobs:
         with:
           name: dist-x86_64-pc-windows-msvc
           path: dist
-
       - run: ls -al ./dist
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
           name: releases
           path: ./dist
+      - name: Post to slack
+        uses: slackapi/slack-github-action@v1.25.0
+        if: ${{ always() }}
+        with:
+          payload: |
+            {
+              "text": "Publish Kernal Binary: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+            }
+
+  ########################################################################
+  ##
+  ## Python Bindings
+  ##
+  ########################################################################
+
+  python-linux:
+    name: Build Python Bindings (linux ${{ matrix.target }})
+    runs-on: ubuntu-2004-8-cores
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [x86_64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
+      - name: install protoc
+        run: just protoc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          manylinux: "auto"
+          docker-options: "--env PROTOC=${{ env.PROTOC }}"
+          target: ${{ matrix.target }}
+          args: --release --out dist -m bindings/python/Cargo.toml
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: dist
 
       - name: Post to slack
         uses: slackapi/slack-github-action@v1.25.0
@@ -101,5 +191,299 @@ jobs:
         with:
           payload: |
             {
-              "text": "Publish release binary result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Python Bindings (linux ${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+            }
+
+  python-windows:
+    name: Build Python Bindings (windows ${{ matrix.target }})
+    runs-on: windows-latest-8-cores
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
+      - name: install protoc
+        run: just protoc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          architecture: ${{ matrix.target }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          working-directory: bindings/python
+          container: "off"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: bindings/python/dist
+      - name: Post to slack
+        uses: slackapi/slack-github-action@v1.25.0
+        if: ${{ always() }}
+        with:
+          payload: |
+            {
+              "text": "Build Python Bindings (windows ${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+            }
+
+  python-macos:
+    name: Build Python Bindings (macos ${{ matrix.config.target }})
+    runs-on: ${{ matrix.config.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        config:
+          - target: x86_64-apple-darwin
+            runner: macos-13-large
+          - target: aarch64-apple-darwin
+            runner: macos-13-xlarge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
+      - run: just protoc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.config.target }}
+          args: --release --out dist
+          working-directory: bindings/python
+          container: "off"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: bindings/python/dist
+
+      - name: Post to slack
+        uses: slackapi/slack-github-action@v1.25.0
+        if: ${{ always() }}
+        with:
+          payload: |
+            {
+              "text": "Build Python Bindings (macos ${{ matrix.config.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+            }
+
+  python-push:
+    name: Push Python Bindings
+    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    needs: [atomic-release]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: wheels
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@v1
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        with:
+          command: upload
+          args: --skip-existing *
+      - name: Post to slack
+        uses: slackapi/slack-github-action@v1.25.0
+        if: ${{ always() }}
+        with:
+          payload: |
+            {
+              "text": "Push Python Bindings: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+            }
+
+  ########################################################################
+  ##
+  ## Node.js Release Process
+  ##
+  ########################################################################
+
+  node-build:
+    defaults:
+      run:
+        working-directory: bindings/nodejs
+    permissions:
+      contents: write
+      id-token: write
+    strategy:
+      fail-fast: true
+      matrix:
+        settings:
+          - host: macos-12-xl
+            target: x86_64-apple-darwin
+            build: |
+              yarn build
+              strip -x *.node
+          - host: windows-latest-8-cores
+            build: yarn build
+            target: x86_64-pc-windows-msvc
+          - host: ubuntu-2004-8-cores
+            target: x86_64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+            build: |-
+              set -eux &&
+              curl -L https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip -o protoc.zip
+              mkdir -p deps &&
+              unzip -o protoc.zip -d deps/protoc &&
+              rm protoc.zip
+              export PROTOC="$PWD/deps/protoc/bin/protoc" &&
+              cd bindings/nodejs &&
+              yarn build --target x86_64-unknown-linux-gnu &&
+              strip *.node
+          - host: macos-12-xl
+            target: aarch64-apple-darwin
+            build: |
+              rustup target add aarch64-apple-darwin
+              sudo rm -Rf /Library/Developer/CommandLineTools/SDKs/*;
+              export CC=$(xcrun -f clang);
+              export CXX=$(xcrun -f clang++);
+              SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
+              export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
+              yarn build --target aarch64-apple-darwin
+              strip -x *.node
+    name: Build Node.JS Bindings (stable - ${{ matrix.settings.target }} - node@18)
+    runs-on: ${{ matrix.settings.host }}
+    env:
+      DEBUG: napi:*
+      APP_NAME: "glaredb"
+      MACOSX_DEPLOYMENT_TARGET: "10.13"
+      PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+        with:
+          just-version: "1.23.0"
+      - run: just protoc
+      - name: Setup node
+        uses: actions/setup-node@v4
+        if: ${{ !matrix.settings.docker }}
+        with:
+          node-version: 20
+          check-latest: true
+      - name: Install
+        uses: dtolnay/rust-toolchain@stable
+        if: ${{ !matrix.settings.docker }}
+        with:
+          toolchain: stable
+          targets: ${{ matrix.settings.target }}
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            .cargo-cache
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
+      - uses: goto-bus-stop/setup-zig@v2
+        if: ${{ matrix.settings.target == 'armv7-unknown-linux-gnueabihf' }}
+        with:
+          version: 0.10.1
+      - name: Setup toolchain
+        run: ${{ matrix.settings.setup }}
+        if: ${{ matrix.settings.setup }}
+        shell: bash
+      - name: Setup node x86
+        if: matrix.settings.target == 'i686-pc-windows-msvc'
+        run: yarn config set supportedArchitectures.cpu "ia32"
+        shell: bash
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      - name: Setup node x86
+        uses: actions/setup-node@v4
+        if: matrix.settings.target == 'i686-pc-windows-msvc'
+        with:
+          node-version: 20
+          check-latest: true
+          architecture: x86
+      - name: Build in docker
+        uses: addnab/docker-run-action@v3
+        if: ${{ matrix.settings.docker }}
+        with:
+          image: ${{ matrix.settings.docker }}
+          options: "--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build"
+          run: ${{ matrix.settings.build }}
+      - name: Build
+        run: ${{ matrix.settings.build }}
+        if: ${{ !matrix.settings.docker }}
+        shell: bash
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: bindings/nodejs/${{ env.APP_NAME }}.*.node
+          if-no-files-found: error
+      - name: Post to slack
+        uses: slackapi/slack-github-action@v1.25.0
+        if: ${{ always() }}
+        with:
+          payload: |
+            {
+              "text": "Build Node.JS Bindings (stable - ${{ matrix.settings.target }} - node@18): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+            }
+
+  node-push:
+    name: Push Node.js Bindings
+    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
+    runs-on: ubuntu-2004-8-cores
+    needs: [atomic-release]
+    env:
+      DEBUG: napi:*
+      APP_NAME: "glaredb"
+      MACOSX_DEPLOYMENT_TARGET: "10.13"
+      PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v1
+      - run: just protoc
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          check-latest: true
+          registry-url: "https://registry.npmjs.org"
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: bindings/nodejs/artifacts
+      - name: Move artifacts
+        run: yarn artifacts
+      - name: List packages
+        run: ls -R ./npm
+        shell: bash
+      - name: Publish
+        run: |
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
+          npm publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Post to slack
+        uses: slackapi/slack-github-action@v1.25.0
+        if: ${{ always() }}
+        with:
+          payload: |
+            {
+              "text": "Push Node.js Bindings: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
