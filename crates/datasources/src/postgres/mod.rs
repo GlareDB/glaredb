@@ -751,7 +751,7 @@ impl TableProvider for PostgresTableProvider {
 
         debug!(%query, "inserting into postgres datasource");
 
-        let exec = PostgresQueryExec::new(query, self.state.clone());
+        let exec = PostgresQueryExec::new(query, self.state.clone(), self.order_by.clone());
         Ok(Arc::new(exec))
     }
 }
