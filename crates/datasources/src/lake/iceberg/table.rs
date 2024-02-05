@@ -96,7 +96,6 @@ impl TableState {
         // TODO: Handle not finding a version hint.
         let path = format_object_path(&location, "metadata/version-hint.text")?;
         let path = ObjectPath::parse(path)?;
-        println!("path: {:?}", path);
         let bs = store.get(&path).await?.bytes().await?;
         let version_contents = String::from_utf8(bs.to_vec()).map_err(|e| {
             IcebergError::DataInvalid(format!("Expected utf-8 in version hint: {}", e))
