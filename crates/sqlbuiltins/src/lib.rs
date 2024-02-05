@@ -1,3 +1,7 @@
+
+// allow deprecated items
+#![allow(deprecated)]
+
 //! Builtin sql objects.
 //!
 //! This crate provides the implementation of various builtin sql objects
