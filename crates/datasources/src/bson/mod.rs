@@ -4,6 +4,7 @@ pub mod schema;
 pub mod stream;
 pub mod table;
 
+use bson::DateTime;
 use datafusion::arrow::array::cast::as_string_array;
 use datafusion::arrow::array::types::{
     Date32Type,
@@ -36,7 +37,13 @@ use datafusion::arrow::array::types::{
     UInt8Type,
 };
 use datafusion::arrow::array::{Array, AsArray, StructArray};
-use datafusion::arrow::datatypes::{DataType, Fields, IntervalUnit, TimeUnit};
+use datafusion::arrow::datatypes::{
+    DataType,
+    Fields,
+    IntervalUnit,
+    TimeUnit,
+    TimestampNanosecondType,
+};
 use datafusion::arrow::error::ArrowError;
 
 pub struct BsonBatchConverter {
@@ -193,14 +200,16 @@ pub fn array_to_bson(array: &dyn Array) -> Result<Vec<bson::Bson>, ArrowError> {
                     }))
                 })
         }
-        DataType::Date32 => array
-            .as_primitive::<Date32Type>()
-            .iter()
-            .for_each(|val| out.push(bson::Bson::Int32(val.unwrap_or_default()))),
-        DataType::Date64 => array
-            .as_primitive::<Date64Type>()
-            .iter()
-            .for_each(|val| out.push(bson::Bson::Int64(val.unwrap_or_default()))),
+        DataType::Date64 => array.as_primitive::<Date64Type>().iter().for_each(|val| {
+            out.push(bson::Bson::DateTime(DateTime::from_millis(
+                val.unwrap_or_default(),
+            )))
+        }),
+        DataType::Date32 => array.as_primitive::<Date32Type>().iter().for_each(|val| {
+            out.push(bson::Bson::DateTime(DateTime::from_millis(
+                (val.unwrap_or_default() / 1000) as i64,
+            )))
+        }),
         DataType::Interval(IntervalUnit::DayTime) => array
             .as_primitive::<IntervalDayTimeType>()
             .iter()
@@ -235,11 +244,11 @@ pub fn array_to_bson(array: &dyn Array) -> Result<Vec<bson::Bson>, ArrowError> {
             .iter()
             .for_each(|val| {
                 out.push(bson::Bson::DateTime(bson::datetime::DateTime::from_millis(
-                    val.unwrap_or_default() / 100,
+                    val.unwrap_or_default() / 1000,
                 )))
             }),
         DataType::Timestamp(TimeUnit::Nanosecond, _) => array
-            .as_primitive::<TimestampMicrosecondType>()
+            .as_primitive::<TimestampNanosecondType>()
             .iter()
             .for_each(|val| {
                 out.push(bson::Bson::DateTime(bson::datetime::DateTime::from_millis(
@@ -254,14 +263,6 @@ pub fn array_to_bson(array: &dyn Array) -> Result<Vec<bson::Bson>, ArrowError> {
             .as_primitive::<Time32MillisecondType>()
             .iter()
             .for_each(|val| out.push(bson::Bson::Int32(val.unwrap_or_default()))),
-        DataType::Time32(TimeUnit::Nanosecond)
-        | DataType::Time32(TimeUnit::Microsecond)
-        | DataType::Time64(TimeUnit::Second)
-        | DataType::Time64(TimeUnit::Millisecond) => {
-            return Err(ArrowError::CastError(
-                "unreasonable time value conversion BSON".to_string(),
-            ))
-        }
         DataType::Time64(TimeUnit::Microsecond) => array
             .as_primitive::<Time64MicrosecondType>()
             .iter()
@@ -270,6 +271,11 @@ pub fn array_to_bson(array: &dyn Array) -> Result<Vec<bson::Bson>, ArrowError> {
             .as_primitive::<Time64NanosecondType>()
             .iter()
             .for_each(|val| out.push(bson::Bson::Int64(val.unwrap_or_default()))),
+        DataType::Time32(_) | DataType::Time64(_) => {
+            return Err(ArrowError::CastError(
+                "unreasonable time value conversion BSON".to_string(),
+            ))
+        }
         DataType::Duration(TimeUnit::Second) => array
             .as_primitive::<DurationSecondType>()
             .iter()
