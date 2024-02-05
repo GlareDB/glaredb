@@ -1,4 +1,5 @@
 // allow deprecated items
+// TODO: fix the deprecation warnings with scalarUDF.
 #![allow(deprecated)]
 
 //! Builtin sql objects.
