@@ -96,6 +96,7 @@ impl TableState {
         // TODO: Handle not finding a version hint.
         let path = format_object_path(&location, "metadata/version-hint.text")?;
         let path = ObjectPath::parse(path)?;
+        println!("path: {:?}", path);
         let bs = store.get(&path).await?.bytes().await?;
         let version_contents = String::from_utf8(bs.to_vec()).map_err(|e| {
             IcebergError::DataInvalid(format!("Expected utf-8 in version hint: {}", e))
@@ -281,9 +282,9 @@ impl TableProvider for IcebergTableReader {
         // Create the datafusion specific url, and register the object store.
         let object_url = datasource_url_to_unique_url(&self.state.location);
 
-        // ctx.runtime_env()
-        //     .object_store_registry
-        //     .register_store(object_url.as_ref(), self.state.store.clone());
+        ctx.runtime_env()
+            .object_store_registry
+            .register_store(object_url.as_ref(), self.state.store.clone());
 
         // TODO: Properly prune based on partition values. This currently skips
         // any partition processing, and shoves everything into a single file
