@@ -7,6 +7,7 @@ pub mod extension_codec;
 pub mod parser;
 pub mod remote;
 pub mod session;
+mod optimizer;
 
 mod dispatch;
 mod planner;
