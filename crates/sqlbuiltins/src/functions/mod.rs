@@ -34,6 +34,8 @@ use table::{BuiltinTableFuncs, TableFunc};
 
 use self::alias_map::AliasMap;
 use crate::functions::scalars::openai::OpenAIEmbed;
+use crate::functions::scalars::sentence_transformers::BertUdf;
+use crate::functions::scalars::similarity::CosineSimilarity;
 
 /// All builtin functions available for all sessions.
 pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
@@ -217,6 +219,9 @@ impl FunctionRegistry {
             Arc::new(PartitionResults),
             // OpenAI
             Arc::new(OpenAIEmbed),
+            // Sentence Transformers
+            Arc::new(BertUdf::new()),
+            Arc::new(CosineSimilarity),
         ];
         let udfs = udfs
             .into_iter()

@@ -33,3 +33,11 @@ memoize = { version = "0.4.2", features = ["full"] }
 async-openai = "0.18.2"
 tokio.workspace = true
 reqwest.workspace = true
+candle-nn = "0.3.3"
+candle-core = "0.3.3"
+candle-transformers = "0.3.3"
+hf-hub = "0.3.2"
+tokenizers = "0.15.1"
+serde_json.workspace = true
+lance-linalg = { git = "https://github.com/universalmind303/lance", rev = "ffd4ac6ee2c61b3792a904b2e12152b246e837e6" }
+arrow-cast = "49.0.0"

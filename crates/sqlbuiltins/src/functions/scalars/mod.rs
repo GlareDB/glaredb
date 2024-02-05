@@ -3,6 +3,9 @@ pub mod hashing;
 pub mod kdl;
 pub mod openai;
 pub mod postgres;
+pub mod sentence_transformers;
+pub mod similarity;
+
 
 use std::sync::Arc;
 

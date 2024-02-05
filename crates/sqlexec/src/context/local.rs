@@ -103,8 +103,8 @@ impl LocalSessionContext {
             .with_extension(Arc::new(catalog.get_temp_catalog().clone()))
             .with_extension(Arc::new(task_scheduler.clone()));
 
-        let state = SessionState::new_with_config_rt(conf, Arc::new(runtime))
-            .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
+        let state = SessionState::new_with_config_rt(conf, Arc::new(runtime));
+        // .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
         let df_ctx = DfSessionContext::new_with_state(state);
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
