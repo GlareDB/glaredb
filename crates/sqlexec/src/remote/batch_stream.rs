@@ -104,7 +104,7 @@ impl ExecutionBatchStream {
         let reader = IpcFileReader::try_new(cursor, None)?;
         Ok(reader.into_iter().map(|result| match result {
             Ok(batch) => Ok(batch),
-            Err(e) => Err(DataFusionError::ArrowError(e)),
+            Err(e) => Err(DataFusionError::ArrowError(e, None)),
         }))
     }
 }

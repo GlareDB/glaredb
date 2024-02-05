@@ -144,7 +144,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         alias: TableAlias,
     ) -> Result<LogicalPlan> {
         let apply_name_plan = LogicalPlan::SubqueryAlias(SubqueryAlias::try_new(
-            plan,
+            Arc::new(plan),
             self.normalizer.normalize(alias.name),
         )?);
 
