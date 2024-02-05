@@ -72,7 +72,7 @@ impl BertUdf {
                 .expect("failed to load weights")
         };
         let model = BertModel::load(vb, &config).expect("failed to load model");
-        let signature = Signature::exact(vec![DataType::Utf8], Volatility::Immutable);
+        let signature = Signature::exact(vec![DataType::Utf8], Volatility::Stable);
 
         let output_dim = 384;
 

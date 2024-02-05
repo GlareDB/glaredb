@@ -28,11 +28,7 @@ impl ConstBuiltinFunction for CosineSimilarity {
     const EXAMPLE: &'static str = "cosine_similarity([1.0, 2.0, 3.0], [4.0, 5.0, 6.0])";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
     fn signature(&self) -> Option<Signature> {
-        let f64_list = DataType::new_list(DataType::Float64, false);
-        let f32_list = DataType::new_list(DataType::Float32, false);
-        let f16_list = DataType::new_list(DataType::Float16, false);
-
-        let sig = Signature::uniform(2, vec![f16_list, f32_list, f64_list], Volatility::Immutable);
+        let sig = Signature::any(2, Volatility::Immutable);
         Some(sig)
     }
 }
