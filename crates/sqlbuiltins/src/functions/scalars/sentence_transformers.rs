@@ -3,14 +3,7 @@ use std::sync::Arc;
 use candle_core::{CpuStorage, Device, Storage, Tensor, WithDType};
 use candle_nn::VarBuilder;
 use candle_transformers::models::bert::{BertModel, Config, DTYPE};
-use datafusion::arrow::array::{
-    Array,
-    AsArray,
-    FixedSizeListArray,
-    FixedSizeListBuilder,
-    Float32Array,
-    Float32Builder,
-};
+use datafusion::arrow::array::{Array, AsArray, FixedSizeListBuilder, Float32Builder};
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::error::DataFusionError;
 use datafusion::logical_expr::expr::ScalarFunction;
@@ -29,7 +22,7 @@ use hf_hub::{Repo, RepoType};
 use protogen::metastore::types::catalog::FunctionType;
 use tokenizers::{PaddingParams, Tokenizer};
 
-use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction, FunctionNamespace};
+use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
 
 #[derive(Clone)]
 pub struct BertUdf {
@@ -113,102 +106,95 @@ impl BuiltinScalarUDF for BertUdf {
         _: &catalog::session_catalog::SessionCatalog,
         args: Vec<datafusion::prelude::Expr>,
     ) -> datafusion::error::Result<datafusion::prelude::Expr> {
-        println!("BertUdf::try_as_expr");
-        println!("args: {:?}", args);
         let this = self.clone();
         let scalar_f: ScalarFunctionImplementation = Arc::new(move |args| {
-            let inner = Arc::new(Field::new("item", DataType::Float32, true));
-            let static_arr = Float32Array::from_value(1.0, 384);
-            let o = FixedSizeListArray::new(inner, 384, Arc::new(static_arr), None);
+            let values = match &args[0] {
+                datafusion::physical_plan::ColumnarValue::Array(arr) => {
+                    let values = match arr.data_type() {
+                        DataType::Utf8 => {
+                            if arr.null_count() > 0 {
+                                return Err(DataFusionError::Execution(
+                                    "null values not supported".to_string(),
+                                ));
+                            }
+                            arr.as_string::<i32>()
+                                .into_iter()
+                                .map(|v| v.unwrap())
+                                .collect::<Vec<_>>()
+                        }
+                        _ => return Err(DataFusionError::Execution("invalid type".to_string())),
+                    };
+                    values
+                }
+                datafusion::physical_plan::ColumnarValue::Scalar(ScalarValue::Utf8(ref v)) => {
+                    vec![v.as_deref().unwrap()]
+                }
+                _ => return Err(DataFusionError::Execution("invalid type".to_string())),
+            };
 
-            Ok(ColumnarValue::Array(Arc::new(o)))
-            // let values = match &args[0] {
-            //     datafusion::physical_plan::ColumnarValue::Array(arr) => {
-            //         let values = match arr.data_type() {
-            //             DataType::Utf8 => {
-            //                 if arr.null_count() > 0 {
-            //                     return Err(DataFusionError::Execution(
-            //                         "null values not supported".to_string(),
-            //                     ));
-            //                 }
-            //                 arr.as_string::<i32>()
-            //                     .into_iter()
-            //                     .map(|v| v.unwrap())
-            //                     .collect::<Vec<_>>()
-            //             }
-            //             _ => return Err(DataFusionError::Execution("invalid type".to_string())),
-            //         };
-            //         values
-            //     }
-            //     datafusion::physical_plan::ColumnarValue::Scalar(ScalarValue::Utf8(ref v)) => {
-            //         vec![v.as_deref().unwrap()]
-            //     }
-            //     _ => return Err(DataFusionError::Execution("invalid type".to_string())),
-            // };
+            let tokens = this.tokenizer.encode_batch(values, true).unwrap();
 
-            // let tokens = this.tokenizer.encode_batch(values, true).unwrap();
+            let token_ids = tokens
+                .iter()
+                .map(|tokens| {
+                    let tokens = tokens.get_ids().to_vec();
+                    Ok(Tensor::new(tokens.as_slice(), &this.device)?)
+                })
+                .collect::<Result<Vec<_>, candle_core::Error>>()
+                .unwrap();
+            let token_ids = Tensor::stack(&token_ids, 0).unwrap();
+            let token_type_ids = token_ids.zeros_like().unwrap();
+            let embeddings = this.model.forward(&token_ids, &token_type_ids).unwrap();
 
-            // let token_ids = tokens
-            //     .iter()
-            //     .map(|tokens| {
-            //         let tokens = tokens.get_ids().to_vec();
-            //         Ok(Tensor::new(tokens.as_slice(), &this.device)?)
-            //     })
-            //     .collect::<Result<Vec<_>, candle_core::Error>>()
-            //     .unwrap();
-            // let token_ids = Tensor::stack(&token_ids, 0).unwrap();
-            // let token_type_ids = token_ids.zeros_like().unwrap();
-            // let embeddings = this.model.forward(&token_ids, &token_type_ids).unwrap();
+            let (_n_sentence, n_tokens, _hidden_size) = embeddings.dims3().unwrap();
+            let embeddings = (embeddings.sum(1).unwrap() / (n_tokens as f64)).unwrap();
+            let n_dims = embeddings.shape().dims().len();
+            let arr: Arc<dyn Array> = match n_dims {
+                2 => {
+                    let (dim1, dim2) = embeddings.dims2().unwrap();
+                    let (storage, layout) = embeddings.storage_and_layout();
 
-            // let (_n_sentence, n_tokens, _hidden_size) = embeddings.dims3().unwrap();
-            // let embeddings = (embeddings.sum(1).unwrap() / (n_tokens as f64)).unwrap();
-            // let n_dims = embeddings.shape().dims().len();
-            // let arr: Arc<dyn Array> = match n_dims {
-            //     2 => {
-            //         let (dim1, dim2) = embeddings.dims2().unwrap();
-            //         let (storage, layout) = embeddings.storage_and_layout();
+                    let from_cpu_storage = |cpu_storage: &CpuStorage| {
+                        let data = f32::cpu_storage_as_slice(cpu_storage).unwrap();
+                        let values_builder = Float32Builder::new();
+                        let mut builder =
+                            FixedSizeListBuilder::new(values_builder, this.output_dim as i32);
 
-            //         let from_cpu_storage = |cpu_storage: &CpuStorage| {
-            //             let data = f32::cpu_storage_as_slice(cpu_storage).unwrap();
-            //             let values_builder = Float32Builder::new();
-            //             let mut builder =
-            //                 FixedSizeListBuilder::new(values_builder, this.output_dim as i32);
+                        let arr = match layout.contiguous_offsets() {
+                            Some((o1, o2)) => {
+                                let data = &data[o1..o2];
+                                for idx_row in 0..dim1 {
+                                    builder
+                                        .values()
+                                        .append_slice(&data[idx_row * dim2..(idx_row + 1) * dim2]);
+                                    builder.append(true);
+                                }
+                                builder.finish()
+                            }
+                            None => {
+                                let mut src_index = embeddings.strided_index();
+                                for _idx_row in 0..dim1 {
+                                    let row = (0..dim2)
+                                        .map(|_| data[src_index.next().unwrap()])
+                                        .collect::<Vec<_>>();
+                                    builder.values().append_slice(&row);
+                                    builder.append(true);
+                                }
+                                builder.finish()
+                            }
+                        };
 
-            //             let arr = match layout.contiguous_offsets() {
-            //                 Some((o1, o2)) => {
-            //                     let data = &data[o1..o2];
-            //                     for idx_row in 0..dim1 {
-            //                         builder
-            //                             .values()
-            //                             .append_slice(&data[idx_row * dim2..(idx_row + 1) * dim2]);
-            //                         builder.append(true);
-            //                     }
-            //                     builder.finish()
-            //                 }
-            //                 None => {
-            //                     let mut src_index = embeddings.strided_index();
-            //                     for _idx_row in 0..dim1 {
-            //                         let row = (0..dim2)
-            //                             .map(|_| data[src_index.next().unwrap()])
-            //                             .collect::<Vec<_>>();
-            //                         builder.values().append_slice(&row);
-            //                         builder.append(true);
-            //                     }
-            //                     builder.finish()
-            //                 }
-            //             };
+                        arr
+                    };
+                    match &*storage {
+                        Storage::Cpu(storage) => Arc::new(from_cpu_storage(storage)),
+                        _ => unreachable!("Only CPU storage supported"),
+                    }
+                }
+                n_dims => todo!("Only 2 dimensions supported, got {}", n_dims),
+            };
 
-            //             arr
-            //         };
-            //         match &*storage {
-            //             Storage::Cpu(storage) => Arc::new(from_cpu_storage(storage)),
-            //             _ => unreachable!("Only CPU storage supported"),
-            //         }
-            //     }
-            //     n_dims => todo!("Only 2 dimensions supported, got {}", n_dims),
-            // };
-
-            // Ok(ColumnarValue::Array(arr))
+            Ok(ColumnarValue::Array(arr))
         });
 
         let return_type_fn: ReturnTypeFunction = Arc::new(move |_| {

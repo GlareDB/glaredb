@@ -39,5 +39,5 @@ candle-transformers = "0.3.3"
 hf-hub = "0.3.2"
 tokenizers = "0.15.1"
 serde_json.workspace = true
-lance-linalg = { git = "https://github.com/universalmind303/lance", rev = "ffd4ac6ee2c61b3792a904b2e12152b246e837e6" }
-arrow-cast = "49.0.0"
+lance-linalg =  { git = "https://github.com/lancedb/lance", rev = "310d79eccf93f3c6a48c162c575918cdba13faec" }
+

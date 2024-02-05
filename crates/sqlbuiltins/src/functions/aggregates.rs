@@ -208,6 +208,12 @@ document! {
     name => variance_pop
 }
 
+document! {
+    doc => "Returns the nth value in a column",
+    example => "nth_value(a, 2)",
+    name => nth_value
+}
+
 impl BuiltinFunction for AggregateFunction {
     fn function_type(&self) -> FunctionType {
         FunctionType::Aggregate
@@ -252,6 +258,7 @@ impl BuiltinFunction for AggregateFunction {
             Sum => sum::NAME,
             Variance => variance::NAME,
             VariancePop => variance_pop::NAME,
+            NthValue => nth_value::NAME,
         }
     }
 
@@ -298,6 +305,7 @@ impl BuiltinFunction for AggregateFunction {
             Sum => sum::EXAMPLE,
             Variance => variance::EXAMPLE,
             VariancePop => variance_pop::EXAMPLE,
+            NthValue => nth_value::EXAMPLE,
         })
     }
 
@@ -340,6 +348,7 @@ impl BuiltinFunction for AggregateFunction {
             Sum => sum::DESCRIPTION,
             Variance => variance::DESCRIPTION,
             VariancePop => variance_pop::DESCRIPTION,
+            NthValue => nth_value::DESCRIPTION,
         })
     }
 }
