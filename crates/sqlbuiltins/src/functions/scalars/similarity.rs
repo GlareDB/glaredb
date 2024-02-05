@@ -128,7 +128,11 @@ impl BuiltinScalarUDF for CosineSimilarity {
                 ColumnarValue::Scalar(ScalarValue::FixedSizeList(arr)) => {
                     arr_to_query_vec(arr.as_ref())
                 }
-                _ => todo!(),
+                _ => {
+                    return Err(DataFusionError::Execution(
+                        "Invalid argument type".to_string(),
+                    ))
+                }
             }?;
             let target_vec = match &args[1] {
                 ColumnarValue::Array(arr) => arr_to_target_vec(arr),
@@ -136,7 +140,11 @@ impl BuiltinScalarUDF for CosineSimilarity {
                 ColumnarValue::Scalar(ScalarValue::FixedSizeList(arr)) => {
                     arr_to_target_vec(arr.as_ref())
                 }
-                _ => todo!(),
+                _ => {
+                    return Err(DataFusionError::Execution(
+                        "Invalid argument type".to_string(),
+                    ))
+                }
             }?;
             let result: Arc<dyn Array> = lance_linalg::distance::cosine_distance_arrow_batch(
                 query_vec.as_ref(),

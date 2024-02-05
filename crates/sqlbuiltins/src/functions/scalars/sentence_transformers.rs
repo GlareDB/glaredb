@@ -22,7 +22,7 @@ use hf_hub::{Repo, RepoType};
 use protogen::metastore::types::catalog::FunctionType;
 use tokenizers::{PaddingParams, Tokenizer};
 
-use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
+use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction, FunctionNamespace};
 
 #[derive(Clone)]
 pub struct BertUdf {
@@ -101,6 +101,9 @@ impl ConstBuiltinFunction for BertUdf {
 }
 
 impl BuiltinScalarUDF for BertUdf {
+    fn namespace(&self) -> FunctionNamespace {
+        FunctionNamespace::Required("sentence_transformers")
+    }
     fn try_as_expr(
         &self,
         _: &catalog::session_catalog::SessionCatalog,
