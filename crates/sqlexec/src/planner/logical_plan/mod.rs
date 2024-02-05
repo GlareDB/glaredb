@@ -167,7 +167,7 @@ impl LogicalPlan {
     ///
     /// Note this currently only replaces placeholders for datafusion plans.
     pub fn replace_placeholders(&mut self, scalars: Vec<ScalarValue>) -> Result<()> {
-        let param_values = ParamValues::LIST(scalars);
+        let param_values = ParamValues::List(scalars);
 
         if let LogicalPlan::Datafusion(plan) = self {
             // Replace placeholders in the inner plan if the wrapped in an

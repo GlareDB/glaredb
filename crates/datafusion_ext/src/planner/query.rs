@@ -68,9 +68,12 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 // A `WITH` block can't use the same name more than once
                 let cte_name = self.normalizer.normalize(cte.alias.name.clone());
                 if planner_context.contains_cte(&cte_name) {
-                    return Err(DataFusionError::SQL(ParserError(format!(
-                        "WITH query name {cte_name:?} specified more than once"
-                    ))));
+                    return Err(DataFusionError::SQL(
+                        ParserError(format!(
+                            "WITH query name {cte_name:?} specified more than once"
+                        )),
+                        None,
+                    ));
                 }
                 // create logical plan & pass backreferencing CTEs
                 // CTE expr don't need extend outer_query_schema

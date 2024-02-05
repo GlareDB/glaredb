@@ -55,11 +55,15 @@ impl ExecutionPlan for CreateExternalDatabaseExec {
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Plan(
-            "Cannot change children for CreateExternalDatabaseExec".to_string(),
-        ))
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Plan(
+                "Cannot change children for CreateExternalDatabaseExec".to_string(),
+            ))
+        }
     }
 
     fn execute(
