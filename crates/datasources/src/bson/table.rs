@@ -14,11 +14,10 @@ use crate::bson::errors::BsonError;
 use crate::bson::schema::{merge_schemas, schema_from_document};
 use crate::bson::stream::BsonPartitionStream;
 use crate::common::url::DatasourceUrl;
-use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::ObjStoreAccess;
 
 pub async fn bson_streaming_table(
-    store_access: GenericStoreAccess,
+    store_access: Arc<dyn ObjStoreAccess>,
     schema_inference_sample_size: Option<i64>,
     source_url: DatasourceUrl,
 ) -> Result<Arc<dyn TableProvider>, BsonError> {
