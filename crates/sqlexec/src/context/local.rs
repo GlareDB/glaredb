@@ -35,6 +35,7 @@ use uuid::Uuid;
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
 use crate::environment::EnvironmentReader;
 use crate::errors::{internal, ExecError, Result};
+use crate::optimizer::DdlInputOptimizationRule;
 use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::{
     FullObjectReference,
@@ -104,6 +105,7 @@ impl LocalSessionContext {
             .with_extension(Arc::new(task_scheduler.clone()));
 
         let state = SessionState::new_with_config_rt(conf, Arc::new(runtime))
+            .add_optimizer_rule(Arc::new(DdlInputOptimizationRule::new()))
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
         let df_ctx = DfSessionContext::new_with_state(state);
@@ -156,6 +158,7 @@ impl LocalSessionContext {
             .with_extension(Arc::new(catalog.get_temp_catalog().clone()));
 
         let state = SessionState::new_with_config_rt(conf, runtime)
+            .add_optimizer_rule(Arc::new(DdlInputOptimizationRule::new()))
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
         let df_ctx = DfSessionContext::new_with_state(state);
