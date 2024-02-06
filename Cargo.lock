@@ -576,6 +576,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-sqlite"
+version = "0.2.1"
+source = "git+https://github.com/vrongmeal/async-sqlite?rev=8113c06952b0ca122327c8f50cfab977a5f652f7#8113c06952b0ca122327c8f50cfab977a5f652f7"
+dependencies = [
+ "crossbeam-channel",
+ "futures-channel",
+ "futures-util",
+ "rusqlite",
+]
+
+[[package]]
 name = "async-stream"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1875,11 +1886,10 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.8"
+version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a33c2bf77f2df06183c3aa30d1e96c0695a313d4f9c453cc3762a6db39f99200"
+checksum = "176dc175b78f56c0f321911d9c8eb2b77a78a4860b9c19db83835fea1a46649b"
 dependencies = [
- "cfg-if",
  "crossbeam-utils",
 ]
 
@@ -1919,12 +1929,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-utils"
-version = "0.8.16"
+version = "0.8.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a22b2d63d4d1dc0b7f1b6b2747dd0088008a9be28b6ddf0b1e7d335e3037294"
-dependencies = [
- "cfg-if",
-]
+checksum = "248e3bacc7dc6baa3b21e405ee045c3047101a49145e7e9eca583ab4c2ca5345"
 
 [[package]]
 name = "crossterm"
@@ -2470,6 +2477,7 @@ version = "0.8.4"
 dependencies = [
  "apache-avro",
  "async-channel",
+ "async-sqlite",
  "async-stream",
  "async-trait",
  "bigquery-storage",
@@ -2505,7 +2513,6 @@ dependencies = [
  "repr",
  "reqwest",
  "ring 0.17.7",
- "rusqlite",
  "rust_decimal",
  "rustls 0.21.10",
  "scylla",
@@ -4539,6 +4546,7 @@ version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf4e226dcd58b4be396f7bd3c20da8fdee2911400705297ba7d2d7cc2c30f716"
 dependencies = [
+ "cc",
  "pkg-config",
  "vcpkg",
 ]

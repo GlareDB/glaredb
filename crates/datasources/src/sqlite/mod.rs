@@ -1,6 +1,6 @@
-mod async_sqlite;
 mod convert;
 mod errors;
+mod wrapper;
 
 use std::any::Any;
 use std::fmt::Write as _;
@@ -9,6 +9,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use async_sqlite::rusqlite::types::Type;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -31,11 +32,10 @@ use datafusion::physical_plan::{
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{Stream, StreamExt};
-use rusqlite::types::Type;
 
-use self::async_sqlite::SqliteAsyncClient;
 use self::convert::Converter;
 use self::errors::Result;
+use self::wrapper::SqliteAsyncClient;
 use crate::common::util;
 
 type DataFusionResult<T> = Result<T, DataFusionError>;
@@ -46,23 +46,21 @@ pub struct SqliteAccess {
 }
 
 impl SqliteAccess {
-    pub fn connect(&self) -> SqliteAccessState {
-        SqliteAccessState {
-            client: SqliteAsyncClient::new(self.db.to_path_buf()),
-        }
+    pub async fn connect(&self) -> Result<SqliteAccessState> {
+        let client = SqliteAsyncClient::new(self.db.to_path_buf()).await?;
+        Ok(SqliteAccessState { client })
     }
 
-    pub fn validate_access(&self) -> Result<()> {
-        let state = self.connect();
-        state.client.execute("SELECT 1", [])?;
+    pub async fn validate_access(&self) -> Result<()> {
+        let state = self.connect().await?;
+        let _ = state.client.execute("SELECT 1").await?;
         Ok(())
     }
 
-    pub fn validate_table_access(&self, table: &str) -> Result<()> {
-        let state = self.connect();
-        state
-            .client
-            .execute(format!("SELECT * FROM {table} WHERE FALSE"), [])?;
+    pub async fn validate_table_access(&self, table: &str) -> Result<()> {
+        let state = self.connect().await?;
+        let query = format!("SELECT * FROM {table} WHERE FALSE");
+        let _ = state.client.execute(query).await?;
         Ok(())
     }
 }
@@ -73,13 +71,15 @@ pub struct SqliteAccessState {
 }
 
 impl SqliteAccessState {
-    fn get_table_schema(&self, table: &str) -> Result<SchemaRef> {
+    async fn get_table_schema(&self, table: &str) -> Result<SchemaRef> {
         const NUM_ROWS_TO_INFER_SCHEMA: usize = 10;
 
-        let batch = self.client.query_all(
-            format!("SELECT * FROM {table} LIMIT {NUM_ROWS_TO_INFER_SCHEMA}"),
-            [],
-        )?;
+        let batch = self
+            .client
+            .query_all(format!(
+                "SELECT * FROM {table} LIMIT {NUM_ROWS_TO_INFER_SCHEMA}"
+            ))
+            .await?;
 
         fn merge_data_types(rows: &[Type]) -> DataType {
             if rows.iter().any(|d| matches!(d, Type::Blob)) {
@@ -134,9 +134,9 @@ pub struct SqliteTableProvider {
 }
 
 impl SqliteTableProvider {
-    pub fn try_new(state: SqliteAccessState, table: impl Into<String>) -> Result<Self> {
+    pub async fn try_new(state: SqliteAccessState, table: impl Into<String>) -> Result<Self> {
         let table = table.into();
-        let schema = state.get_table_schema(&table)?;
+        let schema = state.get_table_schema(&table).await?;
         Ok(Self {
             state,
             table,
@@ -284,7 +284,7 @@ impl ExecutionPlan for SqliteQueryExec {
         let schema = self.schema.clone();
 
         let stream = async_stream::stream! {
-            let mut stream = state.client.query(query, []);
+            let mut stream = state.client.query(query);
             let conv = Converter::new(schema);
 
             while let Some(batch) = stream.next().await {

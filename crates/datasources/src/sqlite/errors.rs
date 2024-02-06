@@ -4,7 +4,11 @@ pub enum SqliteError {
     Internal(String),
 
     #[error(transparent)]
-    RusqliteError(#[from] rusqlite::Error),
+    RusqliteError(#[from] async_sqlite::rusqlite::Error),
+
+    #[allow(clippy::enum_variant_names)]
+    #[error(transparent)]
+    AsyncSqliteError(#[from] async_sqlite::Error),
 
     #[error("Send error: {0}")]
     MpscSendError(String),
@@ -20,7 +24,7 @@ pub enum SqliteError {
 
     #[error("Cannot convert {from:?} to {to}")]
     InvalidConversion {
-        from: rusqlite::types::Value,
+        from: async_sqlite::rusqlite::types::Value,
         to: datafusion::arrow::datatypes::DataType,
     },
 

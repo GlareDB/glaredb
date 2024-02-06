@@ -55,10 +55,10 @@ impl TableFunc for ReadSqlite {
                 let access = SqliteAccess {
                     db: location.into(),
                 };
-                let state = access.connect();
-
-                let provider =
-                    SqliteTableProvider::try_new(state, table).map_err(ExtensionError::access)?;
+                let state = access.connect().await.map_err(ExtensionError::access)?;
+                let provider = SqliteTableProvider::try_new(state, table)
+                    .await
+                    .map_err(ExtensionError::access)?;
                 Ok(Arc::new(provider))
             }
             _ => Err(ExtensionError::InvalidNumArgs),

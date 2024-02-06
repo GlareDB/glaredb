@@ -74,7 +74,11 @@ bson = "2.9.0"
 scylla = { version = "0.11.1" }
 glob = "0.3.1"
 indexmap = "2.2.2"
-rusqlite = { version = "0.30.0", features = ["column_decltype"] }
+
+[dependencies.async-sqlite]
+git = "https://github.com/vrongmeal/async-sqlite"
+rev = "8113c06952b0ca122327c8f50cfab977a5f652f7"
+features = ["column_decltype"]
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]

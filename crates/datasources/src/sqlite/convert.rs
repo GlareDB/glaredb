@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use async_sqlite::rusqlite::types::Value;
 use datafusion::arrow::array::{
     Array,
     BinaryBuilder,
@@ -11,7 +12,6 @@ use datafusion::arrow::array::{
 use datafusion::arrow::datatypes::{DataType, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use repr::str::encode;
-use rusqlite::types::Value;
 
 use super::errors::SqliteError;
 use crate::sqlite::errors::Result;
