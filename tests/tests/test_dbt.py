@@ -1,7 +1,8 @@
 import psycopg2.extensions
 import pytest
+import os
 
-from tests.fixtures.glaredb import glaredb_connection
+from tests.fixtures.glaredb import glaredb_connection, debug_path
 
 from dbt.cli.main import dbtRunner, dbtRunnerResult
 
@@ -10,6 +11,8 @@ def test_dbt_glaredb(
     glaredb_connection: psycopg2.extensions.connection,
 ):
     dbt: dbtRunner = dbtRunner()
+
+    os.environ["DBT_USER"] = glaredb_connection.info.user
 
     model_name: str = "glaredb_model" # TODO
     project_directory: str = "../fixtures/dbt_project/" # TODO
@@ -20,7 +23,7 @@ def test_dbt_glaredb(
         curr.execute(
             "INSERT INTO dbt_test (amount) VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9)"
         )
-
+        
     cli_args: list = [
         "run",
         "--project-dir",

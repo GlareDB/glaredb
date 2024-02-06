@@ -3,11 +3,10 @@ glaredb_dbt_test:
     test_target:
       dbname: glaredb
       host: 127.0.0.1
-      pass: test
+      pass: ""
       port: 5432
       schema: public
       threads: 1
       type: postgres
-      user: test
-      sslmode: require
+      user: "{{ env_var('DBT_USER') }}"
   target: test_target
