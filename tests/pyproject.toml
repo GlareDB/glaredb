@@ -14,7 +14,6 @@ pyarrow = "^14.0.2"
 pylance = "^0.9.6"
 ruff = "0.1.14"
 dbt-core = "^1.6"
-dbt-postgres = "^1.6"
 
 [build-system]
 requires = ["poetry-core"]
