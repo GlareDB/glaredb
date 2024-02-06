@@ -179,7 +179,7 @@ impl Stream for ExecutionResponseBatchStream {
                     self.buf
                         .extend(reader.into_iter().map(|result| match result {
                             Ok(batch) => Ok(batch),
-                            Err(e) => Err(DataFusionError::ArrowError(e)),
+                            Err(e) => Err(DataFusionError::ArrowError(e, None)),
                         }));
 
                     // See if we got anything.

@@ -611,6 +611,7 @@ fn sig_to_string_repr(sig: &TypeSignature) -> Vec<String> {
         TypeSignature::VariadicEqual => vec!["T, .., T".to_string()],
         TypeSignature::VariadicAny => vec!["Any, .., Any".to_string()],
         TypeSignature::OneOf(sigs) => sigs.iter().flat_map(sig_to_string_repr).collect(),
+        _ => vec!["Unknown".to_string()],
     }
 }
 

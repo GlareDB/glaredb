@@ -109,6 +109,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                             datafusion::common::SchemaError::DuplicateUnqualifiedField {
                                 name: c.clone(),
                             },
+                            Box::new(None),
                         ));
                     } else {
                         value_indices[column_index] = Some(i);
