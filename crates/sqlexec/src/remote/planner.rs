@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use catalog::session_catalog::SessionCatalog;
-use datafusion::arrow::datatypes::Schema;
 use datafusion::common::tree_node::Transformed;
 use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result};
@@ -631,15 +630,9 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         &self,
         expr: &Expr,
         input_dfschema: &DFSchema,
-        input_schema: &Schema,
         session_state: &SessionState,
     ) -> Result<Arc<dyn PhysicalExpr>> {
-        DefaultPhysicalPlanner::default().create_physical_expr(
-            expr,
-            input_dfschema,
-            input_schema,
-            session_state,
-        )
+        DefaultPhysicalPlanner::default().create_physical_expr(expr, input_dfschema, session_state)
     }
 }
 

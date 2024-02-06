@@ -720,6 +720,7 @@ impl From<TypeSignature> for catalog::TypeSignature {
                     sigs.into_iter().map(|s| s.into()).collect();
                 ProtoSignature::OneOf(catalog::OneOfSignature { args: sigs })
             }
+            _ => unimplemented!(),
         };
 
         catalog::TypeSignature {

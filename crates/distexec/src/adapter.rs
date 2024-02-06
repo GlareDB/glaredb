@@ -287,9 +287,13 @@ impl ExecutionPlan for ProxyExecutionPlan {
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        unimplemented!("Should not be referenced during optimization")
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            unimplemented!("Should not be referenced during optimization")
+        }
     }
 
     fn execute(
