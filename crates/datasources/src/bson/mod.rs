@@ -45,6 +45,7 @@ use datafusion::arrow::datatypes::{
     TimestampNanosecondType,
 };
 use datafusion::arrow::error::ArrowError;
+use datafusion::arrow::record_batch::RecordBatch;
 
 pub struct BsonBatchConverter {
     batch: StructArray,
@@ -52,6 +53,7 @@ pub struct BsonBatchConverter {
     row: usize,
     started: bool,
     columns: Vec<Vec<bson::Bson>>,
+    src_err: Option<ArrowError>,
 }
 
 impl BsonBatchConverter {
@@ -67,16 +69,52 @@ impl BsonBatchConverter {
             row: 0,
             started: false,
             columns: Vec::with_capacity(batch.num_columns()),
+            src_err: None,
         }
     }
 
     fn setup(&mut self) -> Result<(), ArrowError> {
-        for col in self.batch.columns().iter() {
-            self.columns
-                .push(array_to_bson(col).map_err(|e| ArrowError::from_external_error(Box::new(e)))?)
+        match &self.src_err {
+            Some(e) => Err(ArrowError::ParseError(e.to_string())),
+            None => {
+                if !self.started {
+                    for col in self.batch.columns().iter() {
+                        self.columns.push(array_to_bson(col)?)
+                    }
+                    self.started = true
+                }
+                Ok(())
+            }
         }
-        self.started = true;
-        Ok(())
+    }
+}
+
+impl From<RecordBatch> for BsonBatchConverter {
+    fn from(value: RecordBatch) -> Self {
+        Self::new(
+            StructArray::new(
+                value.schema().fields.clone(),
+                value.columns().to_vec(),
+                None,
+            ),
+            value.schema().fields.clone(),
+        )
+    }
+}
+
+impl From<Result<RecordBatch, ArrowError>> for BsonBatchConverter {
+    fn from(value: Result<RecordBatch, ArrowError>) -> Self {
+        match value {
+            Ok(rb) => Self::from(rb),
+            Err(e) => Self {
+                batch: StructArray::new_empty_fields(0, None),
+                schema: Vec::new(),
+                row: 0,
+                started: false,
+                columns: Vec::new(),
+                src_err: Some(e),
+            },
+        }
     }
 }
 
@@ -84,10 +122,8 @@ impl Iterator for BsonBatchConverter {
     type Item = Result<bson::Document, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if !self.started {
-            if let Err(e) = self.setup() {
-                return Some(Err(e));
-            }
+        if let Err(e) = self.setup() {
+            return Some(Err(e));
         }
 
         if self.row >= self.batch.len() {

@@ -11,25 +11,30 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use bson::RawBson;
+use datafusion::arrow::array::RecordBatch;
 use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{Expr, Operator, TableProviderFilterPushDown, TableType};
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use datafusion::physical_plan::{execute_stream, ExecutionPlan};
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
+use datafusion_ext::stream::StreamExecPlan;
 use errors::{MongoDbError, Result};
 use exec::MongoDbBsonExec;
+use futures::StreamExt;
 use infer::TableSampler;
 use mongodb::bson::spec::BinarySubtype;
 use mongodb::bson::{bson, Binary, Bson, Document, RawDocumentBuf};
-use mongodb::options::{ClientOptions, FindOptions};
+use mongodb::options::{ClientOptions, FindOptions, InsertManyOptions};
 use mongodb::{Client, Collection};
 use tracing::debug;
 
 use crate::bson::array_to_bson;
+use crate::common::util::create_count_record_batch;
 
 /// Field name in mongo for uniquely identifying a record. Some special handling
 /// needs to be done with the field when projecting.
@@ -331,6 +336,51 @@ impl TableProvider for MongoDbTableProvider {
             limit,
             self.estimated_count,
         )))
+    }
+
+    async fn insert_into(
+        &self,
+        state: &SessionState,
+        input: Arc<dyn ExecutionPlan>,
+        _overwrite: bool,
+    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        let schema = input.schema().clone();
+        let coll = self.collection.clone();
+        let mut stream = execute_stream(input, state.task_ctx())?;
+
+        return Ok(Arc::new(StreamExecPlan::new(
+            schema.clone(),
+            Mutex::new(Some(Box::pin(RecordBatchStreamAdapter::new(
+                schema.clone(),
+                futures::stream::once(async move {
+                    let mut count: u64 = 0;
+                    while let Some(batch) = stream.next().await {
+                        let rb = batch?;
+
+                        let mut docs = Vec::with_capacity(rb.num_rows());
+                        let converted = crate::bson::BsonBatchConverter::from(rb);
+                        for d in converted.into_iter() {
+                            let doc = d.map_err(|e| DataFusionError::Execution(e.to_string()))?;
+                            docs.push(
+                                RawDocumentBuf::from_document(&doc)
+                                    .map_err(|e| DataFusionError::Execution(e.to_string()))?,
+                            );
+                        }
+
+                        count += coll
+                            .insert_many(
+                                docs,
+                                Some(InsertManyOptions::builder().ordered(false).build()),
+                            )
+                            .await
+                            .map(|res| res.inserted_ids.len())
+                            .map_err(|e| DataFusionError::External(Box::new(e)))?
+                            as u64;
+                    }
+                    Ok::<RecordBatch, DataFusionError>(create_count_record_batch(count))
+                }),
+            )))),
+        )));
     }
 }
 
