@@ -93,6 +93,7 @@ pub enum DatabaseOptions {
     SqlServer(DatabaseOptionsSqlServer),
     Clickhouse(DatabaseOptionsClickhouse),
     Cassandra(DatabaseOptionsCassandra),
+    Sqlite(DatabaseOptionsSqlite),
 }
 
 impl DatabaseOptions {
@@ -107,6 +108,7 @@ impl DatabaseOptions {
     pub const SQL_SERVER: &'static str = "sql_server";
     pub const CLICKHOUSE: &'static str = "clickhouse";
     pub const CASSANDRA: &'static str = "cassandra";
+    pub const SQLITE: &'static str = "sqlite";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -121,6 +123,7 @@ impl DatabaseOptions {
             DatabaseOptions::SqlServer(_) => Self::SQL_SERVER,
             DatabaseOptions::Clickhouse(_) => Self::CLICKHOUSE,
             DatabaseOptions::Cassandra(_) => Self::CASSANDRA,
+            DatabaseOptions::Sqlite(_) => Self::SQLITE,
         }
     }
 }
@@ -162,6 +165,7 @@ impl TryFrom<options::database_options::Options> for DatabaseOptions {
             options::database_options::Options::Cassandra(v) => {
                 DatabaseOptions::Cassandra(v.try_into()?)
             }
+            options::database_options::Options::Sqlite(v) => DatabaseOptions::Sqlite(v.try_into()?),
         })
     }
 }
@@ -195,6 +199,7 @@ impl From<DatabaseOptions> for options::database_options::Options {
             DatabaseOptions::Cassandra(v) => {
                 options::database_options::Options::Cassandra(v.into())
             }
+            DatabaseOptions::Sqlite(v) => options::database_options::Options::Sqlite(v.into()),
         }
     }
 }
@@ -397,6 +402,28 @@ impl From<DatabaseOptionsCassandra> for options::DatabaseOptionsCassandra {
             host: value.host,
             username: value.username,
             password: value.password,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct DatabaseOptionsSqlite {
+    pub location: String,
+}
+
+impl TryFrom<options::DatabaseOptionsSqlite> for DatabaseOptionsSqlite {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DatabaseOptionsSqlite) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsSqlite {
+            location: value.location,
+        })
+    }
+}
+
+impl From<DatabaseOptionsSqlite> for options::DatabaseOptionsSqlite {
+    fn from(value: DatabaseOptionsSqlite) -> Self {
+        options::DatabaseOptionsSqlite {
+            location: value.location,
         }
     }
 }

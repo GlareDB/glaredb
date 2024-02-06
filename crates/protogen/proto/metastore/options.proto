@@ -48,8 +48,9 @@ message DatabaseOptions {
     DatabaseOptionsSqlServer sql_server = 9;
     DatabaseOptionsClickhouse clickhouse = 10;
     DatabaseOptionsCassandra cassandra = 11;
+    DatabaseOptionsSqlite sqlite = 12;
   }
-  // next: 11
+  // next: 12
 }
 
 message DatabaseOptionsInternal {}
@@ -85,6 +86,10 @@ message DatabaseOptionsCassandra {
   string host = 1;
   optional string username = 2;
   optional string password = 3;
+}
+
+message DatabaseOptionsSqlite {
+  string location = 1;
 }
 
 message DatabaseOptionsSnowflake {

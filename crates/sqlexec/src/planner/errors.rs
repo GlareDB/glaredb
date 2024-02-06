@@ -130,6 +130,7 @@ impl_from_dispatch_variant!(datasources::object_store::errors::ObjectStoreSource
 impl_from_dispatch_variant!(datasources::sqlserver::errors::SqlServerError);
 impl_from_dispatch_variant!(datasources::clickhouse::errors::ClickhouseError);
 impl_from_dispatch_variant!(datasources::cassandra::CassandraError);
+impl_from_dispatch_variant!(datasources::sqlite::errors::SqliteError);
 
 #[allow(unused_macros)]
 macro_rules! internal {

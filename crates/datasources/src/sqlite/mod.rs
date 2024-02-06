@@ -1,5 +1,6 @@
+pub mod errors;
+
 mod convert;
-mod errors;
 mod wrapper;
 
 use std::any::Any;
@@ -53,14 +54,14 @@ impl SqliteAccess {
 
     pub async fn validate_access(&self) -> Result<()> {
         let state = self.connect().await?;
-        let _ = state.client.execute("SELECT 1").await?;
+        let _ = state.client.query_all("SELECT 1").await?;
         Ok(())
     }
 
     pub async fn validate_table_access(&self, table: &str) -> Result<()> {
         let state = self.connect().await?;
         let query = format!("SELECT * FROM {table} WHERE FALSE");
-        let _ = state.client.execute(query).await?;
+        let _ = state.client.query_all(query).await?;
         Ok(())
     }
 }

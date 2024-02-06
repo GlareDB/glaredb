@@ -372,6 +372,9 @@ pub(crate) async fn get_virtual_lister_for_external_db(
                     .map_err(ExtensionError::access)?;
             Box::new(state)
         }
+        DatabaseOptions::Sqlite(_) => {
+            return Err(ExtensionError::Unimplemented("sqlite information listing"))
+        }
         DatabaseOptions::Delta(_) => {
             return Err(ExtensionError::Unimplemented(
                 "deltalake information listing",
