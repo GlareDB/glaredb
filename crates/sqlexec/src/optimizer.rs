@@ -49,8 +49,7 @@ impl OptimizerRule for DdlInputOptimizationRule {
                         let source = lp
                             .source
                             .map(|source| {
-                                let o = self.default_optimizer.optimize(&source, config, |_, _| {});
-                                o
+                                self.default_optimizer.optimize(&source, config, |_, _| {})
                             })
                             .transpose()?;
 
@@ -62,8 +61,7 @@ impl OptimizerRule for DdlInputOptimizationRule {
                         let source = lp
                             .source
                             .map(|source| {
-                                let o = self.default_optimizer.optimize(&source, config, |_, _| {});
-                                o
+                                self.default_optimizer.optimize(&source, config, |_, _| {})
                             })
                             .transpose()?;
 
