@@ -4,10 +4,10 @@ pub mod engine;
 pub mod environment;
 pub mod errors;
 pub mod extension_codec;
+mod optimizer;
 pub mod parser;
 pub mod remote;
 pub mod session;
-mod optimizer;
 
 mod dispatch;
 mod planner;
