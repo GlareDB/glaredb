@@ -65,6 +65,7 @@ use protogen::metastore::types::options::{
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
+    TableOptionsSqlite,
     TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
@@ -564,6 +565,14 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await?;
 
+                Ok(Arc::new(table))
+            }
+            TableOptions::Sqlite(TableOptionsSqlite { location, table }) => {
+                let access = SqliteAccess {
+                    db: location.into(),
+                };
+                let state = access.connect().await?;
+                let table = SqliteTableProvider::try_new(state, table).await?;
                 Ok(Arc::new(table))
             }
         }

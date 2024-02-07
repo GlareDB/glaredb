@@ -10,9 +10,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use async_sqlite::rusqlite::types::Type;
+use async_sqlite::rusqlite::types::{Type, Value};
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use datafusion::arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::DataFusionError;
@@ -31,6 +31,8 @@ use datafusion::physical_plan::{
     Statistics,
 };
 use datafusion::prelude::Expr;
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{Stream, StreamExt};
 
@@ -72,7 +74,7 @@ pub struct SqliteAccessState {
 }
 
 impl SqliteAccessState {
-    async fn get_table_schema(&self, table: &str) -> Result<SchemaRef> {
+    async fn get_table_schema(&self, table: &str) -> Result<Schema> {
         const NUM_ROWS_TO_INFER_SCHEMA: usize = 10;
 
         let batch = self
@@ -124,7 +126,61 @@ impl SqliteAccessState {
             })
             .collect::<Vec<_>>();
 
-        Ok(Arc::new(Schema::new(fields)))
+        Ok(Schema::new(fields))
+    }
+}
+
+#[async_trait]
+impl VirtualLister for SqliteAccessState {
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        // Sqlite doesn't have any "schemas". All tables belong to the same
+        // schema. Naming it "default" here.
+        Ok(vec!["default".to_string()])
+    }
+
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        if schema == "default" {
+            let batch = self
+                .client
+                .query_all(
+                    "SELECT name FROM sqlite_schema
+                    WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+                )
+                .await
+                .map_err(ExtensionError::access)?;
+
+            Ok(batch
+                .data
+                .into_iter()
+                .filter_map(|mut row| {
+                    if let Some(Value::Text(table_name)) = row.pop() {
+                        Some(table_name)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>())
+        } else {
+            Err(ExtensionError::MissingObject {
+                obj_typ: "schema",
+                name: schema.to_owned(),
+            })
+        }
+    }
+
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
+        if schema == "default" {
+            let table_schema = self
+                .get_table_schema(table)
+                .await
+                .map_err(ExtensionError::access)?;
+            Ok(table_schema.fields)
+        } else {
+            Err(ExtensionError::MissingObject {
+                obj_typ: "schema",
+                name: schema.to_owned(),
+            })
+        }
     }
 }
 
@@ -141,7 +197,7 @@ impl SqliteTableProvider {
         Ok(Self {
             state,
             table,
-            schema,
+            schema: Arc::new(schema),
         })
     }
 }

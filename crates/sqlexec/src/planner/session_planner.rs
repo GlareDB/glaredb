@@ -95,6 +95,7 @@ use protogen::metastore::types::options::{
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
+    TableOptionsSqlite,
     TunnelOptions,
     TunnelOptionsDebug,
     TunnelOptionsInternal,
@@ -664,6 +665,17 @@ impl<'a> SessionPlanner<'a> {
                     username,
                     password,
                 })
+            }
+            TableOptions::SQLITE => {
+                let location: String = m.remove_required("location")?;
+                let table: String = m.remove_required("table")?;
+
+                let access = SqliteAccess {
+                    db: PathBuf::from(&location),
+                };
+                access.validate_table_access(&table).await?;
+
+                TableOptions::Sqlite(TableOptionsSqlite { location, table })
             }
             TableOptions::LOCAL => {
                 let location: String = m.remove_required("location")?;

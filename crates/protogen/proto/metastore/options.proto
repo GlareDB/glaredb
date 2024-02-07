@@ -141,8 +141,9 @@ message TableOptions {
     TableOptionsObjectStore bson = 16;
     TableOptionsClickhouse clickhouse = 17;
     TableOptionsCassandra cassandra = 18;
+    TableOptionsSqlite sqlite = 19;
   }
-  // next: 18
+  // next: 19
 }
 
 message TableOptionsInternal {
@@ -249,6 +250,11 @@ message TableOptionsCassandra {
   string table = 3;
   optional string username = 4;
   optional string password = 5;
+}
+
+message TableOptionsSqlite {
+  string location = 1;
+  string table = 2;
 }
 
 // Tunnel options

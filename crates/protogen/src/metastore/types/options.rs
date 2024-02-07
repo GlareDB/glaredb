@@ -612,6 +612,7 @@ pub enum TableOptions {
     Bson(TableOptionsObjectStore),
     Clickhouse(TableOptionsClickhouse),
     Cassandra(TableOptionsCassandra),
+    Sqlite(TableOptionsSqlite),
 }
 
 impl TableOptions {
@@ -633,6 +634,7 @@ impl TableOptions {
     pub const BSON: &'static str = "bson";
     pub const CLICKHOUSE: &'static str = "clickhouse";
     pub const CASSANDRA: &'static str = "cassandra";
+    pub const SQLITE: &'static str = "sqlite";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -658,6 +660,7 @@ impl TableOptions {
             TableOptions::Bson(_) => Self::BSON,
             TableOptions::Clickhouse(_) => Self::CLICKHOUSE,
             TableOptions::Cassandra(_) => Self::CASSANDRA,
+            TableOptions::Sqlite(_) => Self::SQLITE,
         }
     }
 }
@@ -692,6 +695,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
                 TableOptions::Clickhouse(v.try_into()?)
             }
             options::table_options::Options::Cassandra(v) => TableOptions::Cassandra(v.try_into()?),
+            options::table_options::Options::Sqlite(v) => TableOptions::Sqlite(v.try_into()?),
         })
     }
 }
@@ -725,6 +729,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Bson(v) => options::table_options::Options::Bson(v.into()),
             TableOptions::Clickhouse(v) => options::table_options::Options::Clickhouse(v.into()),
             TableOptions::Cassandra(v) => options::table_options::Options::Cassandra(v.into()),
+            TableOptions::Sqlite(v) => options::table_options::Options::Sqlite(v.into()),
         })
     }
 }
@@ -1125,6 +1130,31 @@ impl From<TableOptionsCassandra> for options::TableOptionsCassandra {
             table: value.table,
             username: value.username,
             password: value.password,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct TableOptionsSqlite {
+    pub location: String,
+    pub table: String,
+}
+
+impl TryFrom<options::TableOptionsSqlite> for TableOptionsSqlite {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsSqlite) -> Result<Self, Self::Error> {
+        Ok(TableOptionsSqlite {
+            location: value.location,
+            table: value.table,
+        })
+    }
+}
+
+impl From<TableOptionsSqlite> for options::TableOptionsSqlite {
+    fn from(value: TableOptionsSqlite) -> Self {
+        options::TableOptionsSqlite {
+            location: value.location,
+            table: value.table,
         }
     }
 }
