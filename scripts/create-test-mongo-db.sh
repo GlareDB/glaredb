@@ -45,7 +45,7 @@ docker exec $CONTAINER_ID mongoimport \
 # insert fixture data for various regression and slt tests.
 docker exec $CONTAINER_ID mongosh \
        "mongodb://localhost:27017/${DB_NAME}" \
-       --queit /tmp/mdb-fixture.js  1>&2
+       --quiet /tmp/mdb-fixture.js  1>&2
 
 # The mongod docker container is kinda bad. The MONGO_INITDB_... environment vars
 # might look like the obvious solution, but they don't work as you would expect.
