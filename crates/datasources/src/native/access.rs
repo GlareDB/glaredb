@@ -374,7 +374,7 @@ impl TableProvider for NativeTable {
 
                 // any panics here are bugs in writing the metadata in the first place
                 let s: String =
-                    serde_json::from_str(&arrow_type).expect("metadata was not correctly written");
+                    serde_json::from_str(arrow_type).expect("metadata was not correctly written");
                 let arrow_type: DataType =
                     serde_json::from_str(&s).expect("metadata was not correctly written");
 
