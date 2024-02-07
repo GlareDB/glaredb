@@ -1,5 +1,8 @@
 import os.path
 import random
+import json
+import subprocess
+import pathlib
 
 import bson
 import psycopg2.extensions
@@ -7,10 +10,12 @@ import psycopg2.extras
 import pytest
 
 from fixtures.glaredb import glaredb_connection, debug_path
+import tools
 
 
 def test_bson_copy_to(
     glaredb_connection: psycopg2.extensions.connection,
+    debug_path: pathlib.Path,
     tmp_path_factory: pytest.TempPathFactory,
 ):
     curr = glaredb_connection.cursor()
@@ -24,7 +29,9 @@ def test_bson_copy_to(
 
     assert res[0] == 10
 
-    output_path = tmp_path_factory.mktemp("output").joinpath("copy_output.bson")
+    output_dir = tmp_path_factory.mktemp("output")
+    output_fn = "copy_output.bson"
+    output_path = output_dir.joinpath(output_fn)
 
     assert not os.path.exists(output_path)
 
@@ -37,6 +44,19 @@ def test_bson_copy_to(
             assert len(doc) == 1
             assert "amount" in doc
             assert doc["amount"] == idx
+
+    with tools.cd(output_dir):
+        out = subprocess.run(
+            [
+                f"{debug_path}",
+                "--query",
+                f"select count(*) as count from '{output_fn}'",
+                "--mode",
+                "json",
+            ],
+            stdout=subprocess.PIPE,
+        ).stdout
+        assert str(out)[3:-4] == '{"count":10}'
 
 
 def test_read_bson(
@@ -74,9 +94,7 @@ def test_read_bson(
             r = curr.fetchone()
             assert r[0] == 100
 
-        with glaredb_connection.cursor(
-            cursor_factory=psycopg2.extras.RealDictCursor
-        ) as curr:
+        with glaredb_connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as curr:
             curr.execute(f"select * from {from_clause}")
             rows = curr.fetchall()
             assert len(rows) == 100
@@ -85,17 +103,18 @@ def test_read_bson(
                 assert row["beatle_name"] in beatles
                 assert beatles.index(row["beatle_name"]) == row["beatle_idx"] - 1
 
+
 def test_null_handling(
     glaredb_connection: psycopg2.extensions.connection,
     tmp_path_factory: pytest.TempPathFactory,
 ):
     tmp_dir = tmp_path_factory.mktemp(basename="null_handling", numbered=True)
     data_path = tmp_dir.joinpath("mixed.bson")
-    
+
     with open(data_path, "wb") as f:
         for i in range(100):
             f.write(bson.encode({"a": 1}))
-            
+
         for i in range(10):
             f.write(bson.encode({"a": None}))
 
