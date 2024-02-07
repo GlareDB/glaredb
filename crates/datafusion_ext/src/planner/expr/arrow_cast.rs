@@ -89,8 +89,8 @@ pub fn create_arrow_cast(mut args: Vec<Expr>, schema: &DFSchema) -> Result<Expr>
 ///
 /// Example:
 /// ```
-/// # use datafusion_sql::parse_data_type;
-/// # use arrow_schema::DataType;
+/// # use datafusion::sql::parse_data_type;
+/// # use datafusion::arrow::datatypes::DataType;
 /// let display_value = "Int32";
 ///
 /// // "Int32" is the Display value of `DataType`

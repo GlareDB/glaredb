@@ -418,7 +418,7 @@ impl TableProvider for NativeTable {
             let output_schema = plan.schema();
             let mut schema = self.schema();
             if let Some(projection) = projection {
-                schema = Arc::new(schema.project(&projection)?);
+                schema = Arc::new(schema.project(projection)?);
             }
             let df_schema = output_schema.clone().to_dfschema_ref()?;
 
@@ -426,7 +426,7 @@ impl TableProvider for NativeTable {
                 let exprs = output_schema
                     .fields()
                     .into_iter()
-                    .zip(schema.fields().into_iter())
+                    .zip(schema.fields())
                     .map(|(f1, f2)| {
                         let expr = if f1.data_type() == f2.data_type() {
                             col(f1.name())
