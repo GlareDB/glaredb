@@ -416,12 +416,17 @@ impl TableProvider for NativeTable {
         } else {
             let plan = self.delta.scan(session, projection, filters, limit).await?;
             let output_schema = plan.schema();
-            let schema = self.schema();
+            let mut schema = self.schema();
+            if let Some(projection) = projection {
+                schema = Arc::new(schema.project(&projection)?);
+            }
+            let df_schema = output_schema.clone().to_dfschema_ref()?;
+
             let plan = if output_schema != schema {
                 let exprs = output_schema
                     .fields()
-                    .iter()
-                    .zip(schema.fields().iter())
+                    .into_iter()
+                    .zip(schema.fields().into_iter())
                     .map(|(f1, f2)| {
                         let expr = if f1.data_type() == f2.data_type() {
                             col(f1.name())
@@ -430,7 +435,6 @@ impl TableProvider for NativeTable {
                                 Cast::new(Box::new(col(f1.name())), f2.data_type().clone());
                             Expr::Cast(cast_expr)
                         };
-                        let df_schema = output_schema.clone().to_dfschema().unwrap();
                         let execution_props = ExecutionProps::new();
                         (
                             create_physical_expr(&expr, &df_schema, &execution_props).unwrap(),
