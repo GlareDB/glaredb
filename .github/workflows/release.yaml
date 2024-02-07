@@ -440,6 +440,9 @@ jobs:
   node-push:
     name: Push Node.js Bindings
     if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
+    defaults:
+      run:
+        working-directory: bindings/nodejs
     runs-on: ubuntu-2004-8-cores
     needs: [atomic-release]
     env:
