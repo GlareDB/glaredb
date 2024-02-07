@@ -45,7 +45,7 @@ reqwest = { workspace = true }
 rust_decimal = { version = "1.34.2", features = ["db-tokio-postgres"] }
 serde = { workspace = true }
 serde_with = "3.6.0"
-serde_json.workspace = true
+serde_json = {workspace = true}
 snowflake_connector = { path = "../snowflake_connector" }
 tempfile = { workspace = true }
 ssh-key = { version = "0.6.4", features = ["ed25519", "alloc"] }
