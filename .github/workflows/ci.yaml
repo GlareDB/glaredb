@@ -344,8 +344,6 @@ jobs:
       - uses: extractions/setup-just@v1
         with:
           just-version: "1.23.0"
-      - name: install poetry
-        uses: snok/install-poetry@v1
       - name: install python
         uses: actions/setup-python@v5
         with:
