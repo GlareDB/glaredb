@@ -335,7 +335,6 @@ impl TableProvider for ObjStoreTableProvider {
             limit,
             table_partition_cols: Vec::new(),
             output_ordering: Vec::new(),
-            infinite_source: false,
         };
         let filters = exprs_to_phys_exprs(filters, ctx, &self.arrow_schema)?;
 

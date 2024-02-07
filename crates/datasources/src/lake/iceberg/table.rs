@@ -280,6 +280,7 @@ impl TableProvider for IcebergTableReader {
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         // Create the datafusion specific url, and register the object store.
         let object_url = datasource_url_to_unique_url(&self.state.location);
+
         ctx.runtime_env()
             .object_store_registry
             .register_store(object_url.as_ref(), self.state.store.clone());
@@ -348,7 +349,6 @@ impl TableProvider for IcebergTableReader {
             limit,
             table_partition_cols: Vec::new(),
             output_ordering: Vec::new(),
-            infinite_source: false,
         };
 
         let plan = ParquetFormat::new()

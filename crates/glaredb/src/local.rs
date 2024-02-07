@@ -136,7 +136,7 @@ impl LocalSession {
         println!("Type {} for help.", "\\help".bold().italic());
 
         let history = Box::new(
-            FileBackedHistory::with_file(100, get_history_path())
+            FileBackedHistory::with_file(10000, get_history_path())
                 .expect("Error configuring history with file"),
         );
 

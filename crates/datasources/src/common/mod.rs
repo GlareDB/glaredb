@@ -24,8 +24,7 @@ pub(crate) fn exprs_to_phys_exprs(
 ) -> Result<Option<Arc<dyn PhysicalExpr>>> {
     if let Some(expr) = conjunction(exprs.to_vec()) {
         let table_df_schema = schema.clone().to_dfschema()?;
-        let filters =
-            create_physical_expr(&expr, &table_df_schema, schema, state.execution_props())?;
+        let filters = create_physical_expr(&expr, &table_df_schema, state.execution_props())?;
         Ok(Some(filters))
     } else {
         Ok(None)
