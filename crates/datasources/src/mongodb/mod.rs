@@ -359,12 +359,12 @@ impl TableProvider for MongoDbTableProvider {
 
                         let mut docs = Vec::with_capacity(rb.num_rows());
                         let mut converted = crate::bson::BsonBatchConverter::from(rb);
-                        // we want to make sure that 
+                        // we want to make sure that
                         converted.with_override_ids();
 
                         for d in converted.into_iter() {
                             let doc = d.map_err(|e| DataFusionError::Execution(e.to_string()))?;
-                            
+
                             docs.push(
                                 RawDocumentBuf::from_document(&doc)
                                     .map_err(|e| DataFusionError::Execution(e.to_string()))?,

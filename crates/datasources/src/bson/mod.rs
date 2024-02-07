@@ -7,16 +7,42 @@ pub mod table;
 use bson::DateTime;
 use datafusion::arrow::array::cast::as_string_array;
 use datafusion::arrow::array::types::{
-    Date32Type, Date64Type, Decimal128Type, DurationMicrosecondType, DurationMillisecondType,
-    DurationNanosecondType, DurationSecondType, Float16Type, Float32Type, Float64Type,
-    GenericBinaryType, Int16Type, Int32Type, Int64Type, Int8Type, IntervalDayTimeType,
-    IntervalYearMonthType, Time32MillisecondType, Time32SecondType, Time64MicrosecondType,
-    Time64NanosecondType, TimestampMicrosecondType, TimestampMillisecondType, TimestampSecondType,
-    UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+    Date32Type,
+    Date64Type,
+    Decimal128Type,
+    DurationMicrosecondType,
+    DurationMillisecondType,
+    DurationNanosecondType,
+    DurationSecondType,
+    Float16Type,
+    Float32Type,
+    Float64Type,
+    GenericBinaryType,
+    Int16Type,
+    Int32Type,
+    Int64Type,
+    Int8Type,
+    IntervalDayTimeType,
+    IntervalYearMonthType,
+    Time32MillisecondType,
+    Time32SecondType,
+    Time64MicrosecondType,
+    Time64NanosecondType,
+    TimestampMicrosecondType,
+    TimestampMillisecondType,
+    TimestampSecondType,
+    UInt16Type,
+    UInt32Type,
+    UInt64Type,
+    UInt8Type,
 };
 use datafusion::arrow::array::{Array, AsArray, StructArray};
 use datafusion::arrow::datatypes::{
-    DataType, Fields, IntervalUnit, TimeUnit, TimestampNanosecondType,
+    DataType,
+    Fields,
+    IntervalUnit,
+    TimeUnit,
+    TimestampNanosecondType,
 };
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::record_batch::RecordBatch;
