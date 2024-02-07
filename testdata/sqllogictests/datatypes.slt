@@ -1,0 +1,10 @@
+# fixed size list round trip
+
+statement ok
+create table test as select arrow_cast([1,2], 'FixedSizeList(2, Int64)') as f;
+
+query III
+describe test
+----
+f FixedSizeList<Int64; 2> t
+
