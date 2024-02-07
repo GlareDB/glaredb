@@ -1,0 +1,39 @@
+statement ok
+CREATE EXTERNAL TABLE mdb_insert_test
+	FROM mongo
+	OPTIONS (
+		connection_string = 'mongodb://127.0.0.1:27017',
+		database = 'test',
+		collection = 'insert_test',
+	);
+
+statement ok
+ALTER TABLE mdb_insert_test SET ACCESS_MODE TO READ_WRITE;
+
+query I
+SELECT count(*) FROM mdb_insert_test;
+----
+1
+
+statement ok
+INSERT INTO mdb_insert_test (a, b, c) VALUES (1, 2, 3);
+
+query I
+SELECT count(*) FROM mdb_insert_test;
+----
+2
+
+statement ok
+INSERT INTO mdb_insert_test (a,b,c) VALUES (4, 5, 6);
+
+query I
+SELECT count(*) FROM mdb_insert_test;
+----
+3
+
+query I
+SELECT a, b, c FROM mdb_insert_test;
+----
+0 0 0
+1 2 3
+4 5 6

@@ -7,42 +7,16 @@ pub mod table;
 use bson::DateTime;
 use datafusion::arrow::array::cast::as_string_array;
 use datafusion::arrow::array::types::{
-    Date32Type,
-    Date64Type,
-    Decimal128Type,
-    DurationMicrosecondType,
-    DurationMillisecondType,
-    DurationNanosecondType,
-    DurationSecondType,
-    Float16Type,
-    Float32Type,
-    Float64Type,
-    GenericBinaryType,
-    Int16Type,
-    Int32Type,
-    Int64Type,
-    Int8Type,
-    IntervalDayTimeType,
-    IntervalYearMonthType,
-    Time32MillisecondType,
-    Time32SecondType,
-    Time64MicrosecondType,
-    Time64NanosecondType,
-    TimestampMicrosecondType,
-    TimestampMillisecondType,
-    TimestampSecondType,
-    UInt16Type,
-    UInt32Type,
-    UInt64Type,
-    UInt8Type,
+    Date32Type, Date64Type, Decimal128Type, DurationMicrosecondType, DurationMillisecondType,
+    DurationNanosecondType, DurationSecondType, Float16Type, Float32Type, Float64Type,
+    GenericBinaryType, Int16Type, Int32Type, Int64Type, Int8Type, IntervalDayTimeType,
+    IntervalYearMonthType, Time32MillisecondType, Time32SecondType, Time64MicrosecondType,
+    Time64NanosecondType, TimestampMicrosecondType, TimestampMillisecondType, TimestampSecondType,
+    UInt16Type, UInt32Type, UInt64Type, UInt8Type,
 };
 use datafusion::arrow::array::{Array, AsArray, StructArray};
 use datafusion::arrow::datatypes::{
-    DataType,
-    Fields,
-    IntervalUnit,
-    TimeUnit,
-    TimestampNanosecondType,
+    DataType, Fields, IntervalUnit, TimeUnit, TimestampNanosecondType,
 };
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -54,6 +28,7 @@ pub struct BsonBatchConverter {
     started: bool,
     columns: Vec<Vec<bson::Bson>>,
     src_err: Option<ArrowError>,
+    override_id: bool,
 }
 
 impl BsonBatchConverter {
@@ -70,7 +45,12 @@ impl BsonBatchConverter {
             started: false,
             columns: Vec::with_capacity(batch.num_columns()),
             src_err: None,
+            override_id: false,
         }
+    }
+
+    pub fn with_override_ids(&mut self) {
+        self.override_id = true;
     }
 
     fn setup(&mut self) -> Result<(), ArrowError> {
@@ -113,6 +93,7 @@ impl From<Result<RecordBatch, ArrowError>> for BsonBatchConverter {
                 started: false,
                 columns: Vec::new(),
                 src_err: Some(e),
+                override_id: false,
             },
         }
     }
@@ -131,8 +112,17 @@ impl Iterator for BsonBatchConverter {
         }
 
         let mut doc = bson::Document::new();
+        let mut set_id = false;
         for (i, field) in self.schema.iter().enumerate() {
-            doc.insert(field.to_string(), self.columns[i][self.row].to_owned());
+            if self.override_id && !set_id && field.eq("_id") {
+                doc.insert(
+                    field.to_string(),
+                    bson::Bson::ObjectId(bson::oid::ObjectId::new()),
+                );
+                set_id = true;
+            } else {
+                doc.insert(field.to_string(), self.columns[i][self.row].to_owned());
+            }
         }
 
         self.row += 1;
