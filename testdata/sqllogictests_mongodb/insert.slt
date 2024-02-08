@@ -1,5 +1,5 @@
 statement ok
-CREATE EXTERNAL TABLE mdb_insert_test
+CREATE EXTERNAL TABLE insert_test
 	FROM mongo
 	OPTIONS (
 		connection_string = '${MONGO_CONN_STRING}',
