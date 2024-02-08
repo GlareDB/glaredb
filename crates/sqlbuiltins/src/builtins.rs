@@ -704,6 +704,35 @@ pub static PG_MATVIEWS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     ",
 });
 
+pub static PG_REWRITE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_rewrite",
+    sql: "
+    SELECT 0 as oid,
+    '' as rulename,
+    0 as ev_class,
+    1 as ev_type,
+    'D' as ev_enabled,
+    false as is_instead,
+    null as ev_qual,
+    null as ev_action
+    ",
+});
+
+pub static PG_DEPEND: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_depend",
+    sql: "
+    SELECT 0 as classid,
+    0 as objid,
+    0 as objsubid,
+    0 as refclassid,
+    0 as refobjid,
+    0 as refobjdubid,
+    'a' as deptype,
+    ",
+});
+
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
@@ -721,6 +750,8 @@ impl BuiltinView {
             &PG_VIEWS,
             &PG_TYPE,
             &PG_MATVIEWS,
+            &PG_REWRITE,
+            &PG_DEPEND
         ]
     }
 }

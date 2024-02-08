@@ -121,6 +121,12 @@ LIMIT 1000;
 statement ok
 select * from pg_matviews;
 
+statement ok
+select * from pg_rewrite;
+
+statement ok
+select * from pg_depend;
+
 # https://github.com/GlareDB/glaredb/issues/2475
 statement ok
 WITH table_privileges AS (
