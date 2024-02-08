@@ -29,7 +29,7 @@ use futures::StreamExt;
 use infer::TableSampler;
 use mongodb::bson::spec::BinarySubtype;
 use mongodb::bson::{bson, Binary, Bson, Document, RawDocumentBuf};
-use mongodb::options::{ClientOptions, FindOptions, InsertManyOptions};
+use mongodb::options::{ClientOptions, FindOptions};
 use mongodb::{Client, Collection};
 use tracing::debug;
 
@@ -358,9 +358,13 @@ impl TableProvider for MongoDbTableProvider {
                         let rb = batch?;
 
                         let mut docs = Vec::with_capacity(rb.num_rows());
-                        let converted = crate::bson::BsonBatchConverter::from(rb);
+                        let mut converted = crate::bson::BsonBatchConverter::from(rb);
+                        // we want to make sure that
+                        converted.with_override_ids();
+
                         for d in converted.into_iter() {
                             let doc = d.map_err(|e| DataFusionError::Execution(e.to_string()))?;
+
                             docs.push(
                                 RawDocumentBuf::from_document(&doc)
                                     .map_err(|e| DataFusionError::Execution(e.to_string()))?,
@@ -370,7 +374,8 @@ impl TableProvider for MongoDbTableProvider {
                         count += coll
                             .insert_many(
                                 docs,
-                                Some(InsertManyOptions::builder().ordered(false).build()),
+                                // Some(InsertManyOptions::builder().ordered(false).build()),
+                                None,
                             )
                             .await
                             .map(|res| res.inserted_ids.len())
