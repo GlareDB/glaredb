@@ -294,6 +294,15 @@ pub struct DeleteExec {
 }
 
 #[derive(Clone, PartialEq, Message)]
+pub struct LoadExec {
+    #[prost(string, tag = "1")]
+    pub extension: String,
+    #[prost(uint64, tag = "2")]
+    pub catalog_version: u64,
+}
+
+
+#[derive(Clone, PartialEq, Message)]
 pub struct InsertExec {
     #[prost(bytes, tag = "1")]
     pub provider_id: Vec<u8>, // UUID
@@ -341,7 +350,7 @@ pub struct AnalyzeExec {
 pub struct ExecutionPlanExtension {
     #[prost(
         oneof = "ExecutionPlanExtensionType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32"
     )]
     pub inner: Option<ExecutionPlanExtensionType>,
 }
@@ -415,4 +424,6 @@ pub enum ExecutionPlanExtensionType {
     DataSourceMetricsExecAdapter(DataSourceMetricsExecAdapter),
     #[prost(message, tag = "31")]
     DescribeTable(DescribeTableExec),
+    #[prost(message, tag = "32")]
+    LoadExec(LoadExec),
 }

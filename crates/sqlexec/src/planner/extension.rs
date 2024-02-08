@@ -61,6 +61,7 @@ pub enum ExtensionType {
     Update,
     Insert,
     Delete,
+    Load,
 }
 
 impl FromStr for ExtensionType {
@@ -91,6 +92,7 @@ impl FromStr for ExtensionType {
             Update::EXTENSION_NAME => Self::Update,
             Insert::EXTENSION_NAME => Self::Insert,
             Delete::EXTENSION_NAME => Self::Delete,
+            crate::planner::logical_plan::Load::EXTENSION_NAME => Self::Load,
             _ => return Err(internal!("unknown extension type: {}", s)),
         })
     }

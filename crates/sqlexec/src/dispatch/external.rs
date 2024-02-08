@@ -604,7 +604,7 @@ impl<'a> ExternalDispatcher<'a> {
         let args = args.unwrap_or_default();
         let opts = opts.unwrap_or_default();
         let resolve_func = if func.meta.builtin {
-            FUNCTION_REGISTRY.get_table_func(&func.meta.name)
+            FUNCTION_REGISTRY.lock().get_table_func(&func.meta.name)
         } else {
             // We only have builtin functions right now.
             None

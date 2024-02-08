@@ -22,6 +22,7 @@ pub mod drop_temp_tables;
 pub mod drop_tunnel;
 pub mod drop_views;
 pub mod insert;
+pub mod load;
 pub mod remote_exec;
 pub mod remote_scan;
 pub mod send_recv;

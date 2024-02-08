@@ -63,6 +63,7 @@ impl<'a> SystemTableDispatcher<'a> {
         } else if GLARE_SCHEMAS.matches(schema, name) {
             Arc::new(self.build_glare_schemas())
         } else if GLARE_FUNCTIONS.matches(schema, name) {
+            println!("dispatching functions");
             Arc::new(self.build_glare_functions())
         } else if GLARE_SSH_KEYS.matches(schema, name) {
             Arc::new(self.build_ssh_keys()?)
@@ -482,13 +483,14 @@ impl<'a> SystemTableDispatcher<'a> {
                 CatalogEntry::Function(ent) => ent,
                 other => panic!("unexpected catalog entry: {:?}", other), // Bug
             };
-
+            let registry = FUNCTION_REGISTRY.lock();
             oid.append_value(func.oid);
             schema_oid.append_value(ent.meta.parent);
             function_name.append_value(&ent.meta.name);
             function_type.append_value(ent.func_type.as_str());
-            sql_examples.append_option(FUNCTION_REGISTRY.get_function_example(&ent.meta.name));
-            descriptions.append_option(FUNCTION_REGISTRY.get_function_description(&ent.meta.name));
+            sql_examples.append_option(registry.get_function_example(&ent.meta.name));
+            descriptions.append_option(registry.get_function_description(&ent.meta.name));
+            drop(registry);
 
             const EMPTY: [Option<&'static str>; 0] = [];
             if let Some(sig) = &ent.signature {

@@ -46,6 +46,7 @@ use crate::planner::physical_plan::drop_tables::DropTablesExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::insert::InsertExec;
+use crate::planner::physical_plan::load::LoadExec;
 use crate::planner::physical_plan::remote_scan::{ProviderReference, RemoteScanExec};
 use crate::planner::physical_plan::set_var::SetVarExec;
 use crate::planner::physical_plan::show_var::ShowVarExec;
@@ -88,6 +89,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
 
         let ext = proto::ExecutionPlanExtension::decode(buf)
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        println!("Decoding extension: {:?}", ext);
         let ext = ext
             .inner
             .ok_or_else(|| DataFusionError::Plan("missing execution plan".to_string()))?;
@@ -486,6 +488,12 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     Arc::new(ReadOnlyDataSourceMetricsExecAdapter::new(source))
                 }
             }
+            proto::ExecutionPlanExtensionType::LoadExec(ext) => Arc::new(LoadExec {
+                extension: ext.extension,
+                catalog_version: ext.catalog_version,
+                remote: true,
+                should_update_catalog: true,
+            }),
         };
 
         Ok(plan)
@@ -792,6 +800,11 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             proto::ExecutionPlanExtensionType::DataSourceMetricsExecAdapter(
                 proto::DataSourceMetricsExecAdapter { track_writes: true },
             )
+        } else if let Some(exec) = node.as_any().downcast_ref::<LoadExec>() {
+            proto::ExecutionPlanExtensionType::LoadExec(proto::LoadExec {
+                extension: exec.extension.clone(),
+                catalog_version: exec.catalog_version,
+            })
         } else {
             return Err(DataFusionError::NotImplemented(format!(
                 "encoding not implemented for physical plan: {}",

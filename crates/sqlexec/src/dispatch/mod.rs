@@ -230,7 +230,7 @@ impl<'a> Dispatcher<'a> {
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        let func = match FUNCTION_REGISTRY.get_table_func(&func.meta.name) {
+        let func = match FUNCTION_REGISTRY.lock().get_table_func(&func.meta.name) {
             Some(func) => func,
             None => {
                 return Err(DispatchError::String(format!(

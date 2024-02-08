@@ -6,8 +6,16 @@ pub mod table;
 
 use std::sync::Arc;
 
-use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
+use datafusion::execution::FunctionRegistry as DataFusionFunctionRegistry;
+use datafusion::logical_expr::{
+    AggregateFunction,
+    BuiltinScalarFunction,
+    Expr,
+    ScalarUDF,
+    Signature,
+};
 use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 use protogen::metastore::types::catalog::FunctionType;
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
@@ -38,7 +46,53 @@ use crate::functions::scalars::sentence_transformers::BertUdf;
 use crate::functions::scalars::similarity::CosineSimilarity;
 
 /// All builtin functions available for all sessions.
-pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
+pub static FUNCTION_REGISTRY: Lazy<Mutex<FunctionRegistry>> =
+    Lazy::new(|| Mutex::new(FunctionRegistry::new()));
+
+
+impl DataFusionFunctionRegistry for FunctionRegistry {
+    fn udfs(&self) -> std::collections::HashSet<String> {
+        self.udfs
+            .values()
+            .into_iter()
+            .map(|f| f.name().to_string())
+            .collect()
+    }
+
+    fn udf(
+        &self,
+        name: &str,
+    ) -> datafusion::error::Result<Arc<datafusion::logical_expr::ScalarUDF>> {
+        match name {
+            BertUdf::NAME => {
+                let udf = BertUdf::new();
+                let scalar_udf = ScalarUDF::new_from_impl(udf);
+                Ok(Arc::new(scalar_udf))
+            }
+            _ => Err(datafusion::error::DataFusionError::NotImplemented(
+                "udf not implemented".to_string(),
+            )),
+        }
+    }
+
+    fn udaf(
+        &self,
+        _name: &str,
+    ) -> datafusion::error::Result<Arc<datafusion::logical_expr::AggregateUDF>> {
+        Err(datafusion::error::DataFusionError::NotImplemented(
+            "udaf not implemented".to_string(),
+        ))
+    }
+
+    fn udwf(
+        &self,
+        _name: &str,
+    ) -> datafusion::error::Result<Arc<datafusion::logical_expr::WindowUDF>> {
+        Err(datafusion::error::DataFusionError::NotImplemented(
+            "udwf not implemented".to_string(),
+        ))
+    }
+}
 
 /// A builtin function.
 /// This trait is implemented by all builtin functions.
@@ -220,7 +274,7 @@ impl FunctionRegistry {
             // OpenAI
             Arc::new(OpenAIEmbed),
             // Sentence Transformers
-            Arc::new(BertUdf::new()),
+            // Arc::new(BertUdf::new()),
             Arc::new(CosineSimilarity),
         ];
         let udfs = udfs
@@ -342,7 +396,49 @@ impl FunctionRegistry {
         }
         None
     }
+
+    fn register_udf(&mut self, f: Arc<dyn BuiltinScalarUDF>) {
+        let keys = match f.namespace() {
+            // we register the function under both the namespaced entry and the normal entry
+            // e.g. select foo.my_function() or select my_function()
+            FunctionNamespace::Optional(namespace) => {
+                let namespaced_entry = format!("{}.{}", namespace, f.name());
+                vec![f.name().to_string(), namespaced_entry]
+            }
+            // we only register the function under the namespaced entry
+            // e.g. select foo.my_function()
+            FunctionNamespace::Required(namespace) => {
+                let namespaced_entry = format!("{}.{}", namespace, f.name());
+                vec![namespaced_entry]
+            }
+            // we only register the function under the normal entry
+            // e.g. select my_function()
+            FunctionNamespace::None => {
+                vec![f.name().to_string()]
+            }
+        };
+
+        self.udfs.insert_aliases(keys, f);
+    }
+
+    pub fn register_extension(&mut self, ext: &FunctionExtensions) {
+        for udf in &ext.udfs {
+            println!("Registering UDF: {}", udf.name());
+            self.register_udf(udf.clone());
+        }
+    }
 }
+
+pub struct FunctionExtensions {
+    pub extension_name: &'static str,
+    pub udfs: Vec<Arc<dyn BuiltinScalarUDF>>,
+}
+
+pub static SENTENCE_TRANSFORMER_EXTENSION: Lazy<FunctionExtensions> =
+    Lazy::new(|| FunctionExtensions {
+        extension_name: "sentence_transformers",
+        udfs: vec![Arc::new(BertUdf::new())],
+    });
 
 impl Default for FunctionRegistry {
     fn default() -> Self {

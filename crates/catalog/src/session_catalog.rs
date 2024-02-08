@@ -216,7 +216,6 @@ impl SessionCatalog {
             .schema_objects
             .get(&self.resolve_conf.default_schema_oid)?;
         let obj_id = obj.objects.get(name)?;
-
         let ent = self
             .state
             .entries
@@ -226,6 +225,30 @@ impl SessionCatalog {
         match ent {
             CatalogEntry::Function(function)
                 if function.meta.builtin && function.func_type == FunctionType::TableReturning =>
+            {
+                Some(function.clone())
+            }
+            _ => None,
+        }
+    }
+
+    pub fn resolve_scalar_function(&self, name: &str) -> Option<FunctionEntry> {
+        let obj = self
+            .schema_objects
+            .get(&self.resolve_conf.default_schema_oid)?;
+
+        let obj_id = obj.objects.get(name)?;
+
+
+        let ent = self
+            .state
+            .entries
+            .get(obj_id)
+            .expect("object name points to invalid function");
+
+        match ent {
+            CatalogEntry::Function(function)
+                if function.meta.builtin && function.func_type == FunctionType::Scalar =>
             {
                 Some(function.clone())
             }

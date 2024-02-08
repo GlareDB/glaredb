@@ -12,6 +12,7 @@ use datafusion::logical_expr::{
     ReturnTypeFunction,
     ScalarFunctionImplementation,
     ScalarUDF,
+    ScalarUDFImpl,
     Signature,
     Volatility,
 };
@@ -32,6 +33,7 @@ pub struct BertUdf {
     device: Device,
     output_dim: usize,
 }
+
 impl std::fmt::Debug for BertUdf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BertUdf").finish()
@@ -100,109 +102,140 @@ impl ConstBuiltinFunction for BertUdf {
     }
 }
 
-impl BuiltinScalarUDF for BertUdf {
-    fn namespace(&self) -> FunctionNamespace {
-        FunctionNamespace::Required("sentence_transformers")
+impl ScalarUDFImpl for BertUdf {
+    fn aliases(&self) -> &[String] {
+        &[]
     }
+
+    fn monotonicity(
+        &self,
+    ) -> datafusion::error::Result<Option<datafusion::logical_expr::FuncMonotonicity>> {
+        Ok(None)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        "minilm_l6_v2"
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, _: &[DataType]) -> datafusion::error::Result<DataType> {
+        let f = Field::new("item", DataType::Float32, true);
+        let dtype = DataType::FixedSizeList(Arc::new(f), self.output_dim as i32);
+        Ok(dtype)
+    }
+
+    fn invoke(&self, args: &[ColumnarValue]) -> datafusion::error::Result<ColumnarValue> {
+        let values = match &args[0] {
+            datafusion::physical_plan::ColumnarValue::Array(arr) => {
+                let values = match arr.data_type() {
+                    DataType::Utf8 => {
+                        if arr.null_count() > 0 {
+                            return Err(DataFusionError::Execution(
+                                "null values not supported".to_string(),
+                            ));
+                        }
+                        arr.as_string::<i32>()
+                            .into_iter()
+                            .map(|v| v.unwrap())
+                            .collect::<Vec<_>>()
+                    }
+                    _ => return Err(DataFusionError::Execution("invalid type".to_string())),
+                };
+                values
+            }
+            datafusion::physical_plan::ColumnarValue::Scalar(ScalarValue::Utf8(ref v)) => {
+                vec![v.as_deref().unwrap()]
+            }
+            _ => return Err(DataFusionError::Execution("invalid type".to_string())),
+        };
+
+        let tokens = self.tokenizer.encode_batch(values, true).unwrap();
+
+        let token_ids = tokens
+            .iter()
+            .map(|tokens| {
+                let tokens = tokens.get_ids().to_vec();
+                Ok(Tensor::new(tokens.as_slice(), &self.device)?)
+            })
+            .collect::<Result<Vec<_>, candle_core::Error>>()
+            .unwrap();
+        let token_ids = Tensor::stack(&token_ids, 0).unwrap();
+        let token_type_ids = token_ids.zeros_like().unwrap();
+        let embeddings = self.model.forward(&token_ids, &token_type_ids).unwrap();
+
+        let (_n_sentence, n_tokens, _hidden_size) = embeddings.dims3().unwrap();
+        let embeddings = (embeddings.sum(1).unwrap() / (n_tokens as f64)).unwrap();
+        let n_dims = embeddings.shape().dims().len();
+        let arr: Arc<dyn Array> = match n_dims {
+            2 => {
+                let (dim1, dim2) = embeddings.dims2().unwrap();
+                let (storage, layout) = embeddings.storage_and_layout();
+
+                let from_cpu_storage = |cpu_storage: &CpuStorage| {
+                    let data = f32::cpu_storage_as_slice(cpu_storage).unwrap();
+                    let values_builder = Float32Builder::new();
+                    let mut builder =
+                        FixedSizeListBuilder::new(values_builder, self.output_dim as i32);
+
+                    let arr = match layout.contiguous_offsets() {
+                        Some((o1, o2)) => {
+                            let data = &data[o1..o2];
+                            for idx_row in 0..dim1 {
+                                builder
+                                    .values()
+                                    .append_slice(&data[idx_row * dim2..(idx_row + 1) * dim2]);
+                                builder.append(true);
+                            }
+                            builder.finish()
+                        }
+                        None => {
+                            let mut src_index = embeddings.strided_index();
+                            for _idx_row in 0..dim1 {
+                                let row = (0..dim2)
+                                    .map(|_| data[src_index.next().unwrap()])
+                                    .collect::<Vec<_>>();
+                                builder.values().append_slice(&row);
+                                builder.append(true);
+                            }
+                            builder.finish()
+                        }
+                    };
+
+                    arr
+                };
+                match &*storage {
+                    Storage::Cpu(storage) => Arc::new(from_cpu_storage(storage)),
+                    _ => unreachable!("Only CPU storage supported"),
+                }
+            }
+            n_dims => todo!("Only 2 dimensions supported, got {}", n_dims),
+        };
+
+        Ok(ColumnarValue::Array(arr))
+    }
+}
+
+impl BuiltinScalarUDF for BertUdf {
     fn try_as_expr(
         &self,
         _: &catalog::session_catalog::SessionCatalog,
         args: Vec<datafusion::prelude::Expr>,
     ) -> datafusion::error::Result<datafusion::prelude::Expr> {
         let this = self.clone();
-        let scalar_f: ScalarFunctionImplementation = Arc::new(move |args| {
-            let values = match &args[0] {
-                datafusion::physical_plan::ColumnarValue::Array(arr) => {
-                    let values = match arr.data_type() {
-                        DataType::Utf8 => {
-                            if arr.null_count() > 0 {
-                                return Err(DataFusionError::Execution(
-                                    "null values not supported".to_string(),
-                                ));
-                            }
-                            arr.as_string::<i32>()
-                                .into_iter()
-                                .map(|v| v.unwrap())
-                                .collect::<Vec<_>>()
-                        }
-                        _ => return Err(DataFusionError::Execution("invalid type".to_string())),
-                    };
-                    values
-                }
-                datafusion::physical_plan::ColumnarValue::Scalar(ScalarValue::Utf8(ref v)) => {
-                    vec![v.as_deref().unwrap()]
-                }
-                _ => return Err(DataFusionError::Execution("invalid type".to_string())),
-            };
+        let out_dim = self.output_dim;
+        let scalar_f: ScalarFunctionImplementation = Arc::new(move |args| this.invoke(args));
 
-            let tokens = this.tokenizer.encode_batch(values, true).unwrap();
-
-            let token_ids = tokens
-                .iter()
-                .map(|tokens| {
-                    let tokens = tokens.get_ids().to_vec();
-                    Ok(Tensor::new(tokens.as_slice(), &this.device)?)
-                })
-                .collect::<Result<Vec<_>, candle_core::Error>>()
-                .unwrap();
-            let token_ids = Tensor::stack(&token_ids, 0).unwrap();
-            let token_type_ids = token_ids.zeros_like().unwrap();
-            let embeddings = this.model.forward(&token_ids, &token_type_ids).unwrap();
-
-            let (_n_sentence, n_tokens, _hidden_size) = embeddings.dims3().unwrap();
-            let embeddings = (embeddings.sum(1).unwrap() / (n_tokens as f64)).unwrap();
-            let n_dims = embeddings.shape().dims().len();
-            let arr: Arc<dyn Array> = match n_dims {
-                2 => {
-                    let (dim1, dim2) = embeddings.dims2().unwrap();
-                    let (storage, layout) = embeddings.storage_and_layout();
-
-                    let from_cpu_storage = |cpu_storage: &CpuStorage| {
-                        let data = f32::cpu_storage_as_slice(cpu_storage).unwrap();
-                        let values_builder = Float32Builder::new();
-                        let mut builder =
-                            FixedSizeListBuilder::new(values_builder, this.output_dim as i32);
-
-                        let arr = match layout.contiguous_offsets() {
-                            Some((o1, o2)) => {
-                                let data = &data[o1..o2];
-                                for idx_row in 0..dim1 {
-                                    builder
-                                        .values()
-                                        .append_slice(&data[idx_row * dim2..(idx_row + 1) * dim2]);
-                                    builder.append(true);
-                                }
-                                builder.finish()
-                            }
-                            None => {
-                                let mut src_index = embeddings.strided_index();
-                                for _idx_row in 0..dim1 {
-                                    let row = (0..dim2)
-                                        .map(|_| data[src_index.next().unwrap()])
-                                        .collect::<Vec<_>>();
-                                    builder.values().append_slice(&row);
-                                    builder.append(true);
-                                }
-                                builder.finish()
-                            }
-                        };
-
-                        arr
-                    };
-                    match &*storage {
-                        Storage::Cpu(storage) => Arc::new(from_cpu_storage(storage)),
-                        _ => unreachable!("Only CPU storage supported"),
-                    }
-                }
-                n_dims => todo!("Only 2 dimensions supported, got {}", n_dims),
-            };
-
-            Ok(ColumnarValue::Array(arr))
-        });
 
         let return_type_fn: ReturnTypeFunction = Arc::new(move |_| {
             let f = Field::new("item", DataType::Float32, true);
-            let dtype = DataType::FixedSizeList(Arc::new(f), this.output_dim as i32);
+            let dtype = DataType::FixedSizeList(Arc::new(f), out_dim as i32);
             Ok(Arc::new(dtype))
         });
 
@@ -212,5 +245,9 @@ impl BuiltinScalarUDF for BertUdf {
             Arc::new(udf),
             args,
         )))
+    }
+
+    fn namespace(&self) -> FunctionNamespace {
+        FunctionNamespace::Required("sentence_transformers")
     }
 }

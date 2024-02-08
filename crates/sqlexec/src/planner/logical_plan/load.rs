@@ -1,11 +1,9 @@
+use datafusion::arrow::datatypes::{Field, Schema};
+use datafusion::common::{DFSchemaRef, ToDFSchema};
 use datafusion::sql::sqlparser::ast::Ident;
+use once_cell::sync::Lazy;
 
-use super::{
-    DfLogicalPlan,
-    ExtensionNode,
-    UserDefinedLogicalNodeCore,
-    GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA,
-};
+use super::{DfLogicalPlan, ExtensionNode, UserDefinedLogicalNodeCore};
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct Load {
@@ -20,6 +18,28 @@ impl std::fmt::Debug for Load {
     }
 }
 
+pub static LOAD_SCHEMA: Lazy<DFSchemaRef> = Lazy::new(|| {
+    Schema::new(vec![
+        Field::new(
+            "extension",
+            datafusion::arrow::datatypes::DataType::Utf8,
+            false,
+        ),
+        Field::new(
+            "loaded",
+            datafusion::arrow::datatypes::DataType::Boolean,
+            false,
+        ),
+        Field::new(
+            "remote",
+            datafusion::arrow::datatypes::DataType::Boolean,
+            false,
+        ),
+    ])
+    .to_dfschema_ref()
+    .unwrap()
+});
+
 impl UserDefinedLogicalNodeCore for Load {
     fn name(&self) -> &str {
         Self::EXTENSION_NAME
@@ -30,7 +50,7 @@ impl UserDefinedLogicalNodeCore for Load {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA
+        &LOAD_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {

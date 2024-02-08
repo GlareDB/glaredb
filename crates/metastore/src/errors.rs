@@ -104,6 +104,9 @@ pub enum MetastoreError {
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    #[error("Unsupported Extension: {0}")]
+    UnsupportedExtension(String),
 }
 
 pub type Result<T, E = MetastoreError> = std::result::Result<T, E>;

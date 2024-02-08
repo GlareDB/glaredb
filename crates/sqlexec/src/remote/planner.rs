@@ -8,6 +8,7 @@ use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{LogicalPlan as DfLogicalPlan, UserDefinedLogicalNode};
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
+use datafusion::physical_plan::union::UnionExec;
 use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
 use datafusion::physical_planner::{DefaultPhysicalPlanner, ExtensionPlanner, PhysicalPlanner};
 use datafusion::prelude::Expr;
@@ -43,6 +44,7 @@ use crate::planner::logical_plan::{
     DropTunnel,
     DropViews,
     Insert,
+    Load,
     SetVariable,
     ShowVariable,
     Update,
@@ -71,6 +73,7 @@ use crate::planner::physical_plan::drop_temp_tables::DropTempTablesExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::insert::InsertExec;
+use crate::planner::physical_plan::load::LoadExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
@@ -80,10 +83,21 @@ use crate::planner::physical_plan::update::UpdateExec;
 
 pub struct DDLExtensionPlanner {
     catalog: SessionCatalog,
+    has_remote: bool,
 }
 impl DDLExtensionPlanner {
     pub fn new(catalog: SessionCatalog) -> Self {
-        Self { catalog }
+        Self {
+            catalog,
+            has_remote: false,
+        }
+    }
+
+    fn new_with_remote(catalog: SessionCatalog) -> Self {
+        Self {
+            catalog,
+            has_remote: true,
+        }
     }
 }
 
@@ -393,6 +407,44 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                 };
                 RuntimeGroupExec::new(RuntimePreference::Remote, Arc::new(exec))
             }
+            // Is there any way to isolate this to a single session?
+            ExtensionType::Load => {
+                let lp = require_downcast_lp::<Load>(node);
+
+                if self.has_remote {
+                    let hybrid = UnionExec::new(vec![
+                        Arc::new(RuntimeGroupExec::new(
+                            RuntimePreference::Local,
+                            Arc::new(LoadExec {
+                                catalog_version: self.catalog.version(),
+                                extension: lp.extension.to_string(),
+                                remote: false,
+                                should_update_catalog: false,
+                            }),
+                        )),
+                        Arc::new(RuntimeGroupExec::new(
+                            RuntimePreference::Remote,
+                            Arc::new(LoadExec {
+                                catalog_version: self.catalog.version(),
+                                extension: lp.extension.to_string(),
+                                remote: true,
+                                should_update_catalog: true,
+                            }),
+                        )),
+                    ]);
+                    return Ok(Some(Arc::new(hybrid)));
+                } else {
+                    RuntimeGroupExec::new(
+                        RuntimePreference::Local,
+                        Arc::new(LoadExec {
+                            catalog_version: self.catalog.version(),
+                            extension: lp.extension.to_string(),
+                            remote: false,
+                            should_update_catalog: true,
+                        }),
+                    )
+                }
+            }
         };
 
         Ok(Some(Arc::new(runtime_group_exec)))
@@ -616,7 +668,7 @@ impl<'a> PhysicalPlanner for RemotePhysicalPlanner<'a> {
         // providers meaning we'll have the correct exec refs.
 
         let physical = DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(
-            DDLExtensionPlanner::new(self.catalog.clone()),
+            DDLExtensionPlanner::new_with_remote(self.catalog.clone()),
         )])
         .create_physical_plan(logical_plan, session_state)
         .await?;

@@ -1679,7 +1679,6 @@ impl<'a> SessionPlanner<'a> {
     async fn plan_load(&self, ident: Ident) -> Result<LogicalPlan> {
         validate_ident(&ident)?;
         let load_plan = Load { extension: ident };
-        println!("load_plan: {:?}", load_plan);
         Ok(load_plan.into_logical_plan())
     }
 

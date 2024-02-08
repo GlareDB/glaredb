@@ -138,7 +138,7 @@ impl<'a> PartialContextProvider<'a> {
                 let args = args.unwrap_or_default();
                 let opts = opts.unwrap_or_default();
 
-                let table_func = match FUNCTION_REGISTRY.get_table_func(&func.meta.name) {
+                let table_func = match FUNCTION_REGISTRY.lock().get_table_func(&func.meta.name) {
                     Some(func) => func,
                     None => {
                         return Err(PlanError::String(format!(
@@ -299,8 +299,12 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         name: &str,
         args: &[Expr],
     ) -> DataFusionResult<Option<Expr>> {
+        println!("get_function_meta: name: {}", name);
+        // this ensures that it is in both the session catalog and the function registry
+        // We should eventually remove the FUNCTION_REGISTRY and use the session catalog directly
         FUNCTION_REGISTRY
-            .get_scalar_udf(name)
+            .lock()
+            .get_scalar_udf(&name)
             .map(|f| f.try_as_expr(self.ctx.get_session_catalog(), args.to_vec()))
             .transpose()
     }

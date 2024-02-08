@@ -8,6 +8,7 @@ use datafusion_proto::physical_plan::AsExecutionPlan;
 use datafusion_proto::protobuf::PhysicalPlanNode;
 use protogen::metastore::types::catalog::CatalogState;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
 use sqlexec::context::remote::RemoteSessionContext;
 use sqlexec::remote::batch_stream::ExecutionBatchStream;
 use uuid::Uuid;
@@ -57,11 +58,13 @@ impl RemoteSession {
         let codec = self.session.extension_codec();
         let plan = PhysicalPlanNode::try_decode(physical_plan.as_ref())?;
 
+        let registry = FUNCTION_REGISTRY.lock();
         let plan = plan.try_into_physical_plan(
-            self.session.get_datafusion_context(),
+            &*registry,
             self.session.get_datafusion_context().runtime_env().as_ref(),
             &codec,
         )?;
+
 
         let stream = self.session.execute_physical(plan.clone())?;
         Ok((plan, stream))

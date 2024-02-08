@@ -30,6 +30,7 @@ pub enum Mutation {
     DropCredentials(DropCredentials),
     // Deployment metadata updates
     UpdateDeploymentStorage(UpdateDeploymentStorage),
+    LoadExtension(LoadExtension),
 }
 
 impl TryFrom<service::Mutation> for Mutation {
@@ -71,6 +72,7 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             service::mutation::Mutation::UpdateDeploymentStorage(v) => {
                 Mutation::UpdateDeploymentStorage(v.try_into()?)
             }
+            service::mutation::Mutation::LoadExtension(v) => Mutation::LoadExtension(v.try_into()?),
         })
     }
 }
@@ -105,6 +107,7 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
             Mutation::UpdateDeploymentStorage(v) => {
                 service::mutation::Mutation::UpdateDeploymentStorage(v.into())
             }
+            Mutation::LoadExtension(v) => service::mutation::Mutation::LoadExtension(v.into()),
         })
     }
 }
@@ -688,6 +691,28 @@ impl From<UpdateDeploymentStorage> for service::UpdateDeploymentStorage {
     fn from(value: UpdateDeploymentStorage) -> Self {
         Self {
             new_storage_size: value.new_storage_size,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+pub struct LoadExtension {
+    pub extension: String,
+}
+
+impl TryFrom<service::LoadExtension> for LoadExtension {
+    type Error = ProtoConvError;
+    fn try_from(value: service::LoadExtension) -> Result<Self, Self::Error> {
+        Ok(Self {
+            extension: value.extension,
+        })
+    }
+}
+
+impl From<LoadExtension> for service::LoadExtension {
+    fn from(value: LoadExtension) -> Self {
+        Self {
+            extension: value.extension,
         }
     }
 }

@@ -109,6 +109,7 @@ impl LocalSessionContext {
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
         let df_ctx = DfSessionContext::new_with_state(state);
+
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
 
         Ok(LocalSessionContext {

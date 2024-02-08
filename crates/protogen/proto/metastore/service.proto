@@ -38,6 +38,7 @@ message Mutation {
     CreateCredentials create_credentials = 15;
     DropCredentials drop_credentials = 16;
     UpdateDeploymentStorage update_deployment_storage = 17;
+    LoadExtension load_extension = 18;
   }
   // next: 17
 }
@@ -173,6 +174,9 @@ message DropCredentials {
 
 message UpdateDeploymentStorage {
   uint64 new_storage_size = 1;
+}
+message LoadExtension {
+  string extension = 1;
 }
 
 message MutateRequest {

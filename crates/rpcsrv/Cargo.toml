@@ -17,7 +17,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
 tracing = { workspace = true }
-
+sqlbuiltins = { path = "../sqlbuiltins" }
 datafusion_ext = { path = "../datafusion_ext" }
 logutil = { path = "../logutil" }
 protogen = { path = "../protogen" }

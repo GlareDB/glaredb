@@ -37,7 +37,7 @@ use sqlbuiltins::builtins::{
     DEFAULT_SCHEMA,
     FIRST_NON_STATIC_OID,
 };
-use sqlbuiltins::functions::{BuiltinFunction, FUNCTION_REGISTRY};
+use sqlbuiltins::functions::{BuiltinFunction, FUNCTION_REGISTRY, SENTENCE_TRANSFORMER_EXTENSION};
 use sqlbuiltins::validation::{
     validate_database_tunnel_support,
     validate_object_name,
@@ -342,6 +342,8 @@ struct State {
     schema_names: HashMap<String, u32>,
     /// Map schema IDs to objects in the schema.
     schema_objects: HashMap<u32, SchemaObjects>,
+
+    extension_names: HashMap<String, u32>,
 }
 
 impl State {
@@ -358,7 +360,6 @@ impl State {
         let mut credentials_names = HashMap::new();
         let mut schema_names = HashMap::new();
         let mut schema_objects = HashMap::new();
-
         // Sanity check to ensure we didn't accidentally persist builtin
         // objects.
         for (oid, ent) in &state.entries {
@@ -374,6 +375,7 @@ impl State {
         database_names.extend(builtin.database_names);
         schema_names.extend(builtin.schema_names);
         schema_objects.extend(builtin.schema_objects);
+
 
         // Rebuild name maps for user objects.
         //
@@ -486,6 +488,9 @@ impl State {
             credentials_names,
             schema_names,
             schema_objects,
+            // Should extensions be persisted?
+            // AFAICT, other databases make you load them every time, acting as temporary objects.
+            extension_names: HashMap::new(),
         };
 
         Ok(internal_state)
@@ -1025,6 +1030,66 @@ impl State {
                 // Update the new storage size
                 self.deployment.storage_size = update_deployment_storage.new_storage_size;
             }
+            Mutation::LoadExtension(load_extension) => {
+                // We only have the one extension for now
+                if load_extension.extension != "sentence_transformers" {
+                    return Err(MetastoreError::UnsupportedExtension(
+                        load_extension.extension,
+                    ));
+                }
+                // Create new entry
+                let mut oid = self.next_oid();
+                let schema_id = self.get_schema_id(DEFAULT_SCHEMA)?;
+                let mut oid_gen = || {
+                    let curr_oid = oid;
+                    oid += 1;
+                    curr_oid
+                };
+
+                if self.extension_names.contains_key(&load_extension.extension) {
+                    println!("Extension already loaded");
+                    return Ok(());
+                }
+
+                self.extension_names
+                    .insert(load_extension.extension.clone(), oid_gen());
+
+
+                let entries = BuiltinCatalog::builtin_function_to_entries(
+                    oid_gen,
+                    schema_id,
+                    SENTENCE_TRANSFORMER_EXTENSION.udfs.iter(),
+                );
+                // Ensures no duplicate OIDs.
+                let mut insert_entry = |oid: u32, ent: CatalogEntry| {
+                    if self.entries.0.contains_key(&oid) {
+                        let old = self.entries.0.remove(&oid).unwrap();
+                        return Err(MetastoreError::BuiltinRepeatedOid {
+                            oid,
+                            ent1: old,
+                            ent2: ent,
+                        });
+                    }
+
+                    self.entries.0.insert(oid, ent);
+
+                    Ok(())
+                };
+
+                for ent in entries {
+                    let name = ent.meta.name.to_string();
+                    let oid = ent.meta.id;
+                    insert_entry(oid, CatalogEntry::Function(ent))?;
+                    self.schema_objects
+                        .get_mut(&schema_id)
+                        .expect("default schema should exist")
+                        .functions
+                        .insert(name, oid);
+                }
+                FUNCTION_REGISTRY
+                    .lock()
+                    .register_extension(&SENTENCE_TRANSFORMER_EXTENSION);
+            }
         };
 
         Ok(())
@@ -1275,22 +1340,18 @@ impl BuiltinCatalog {
             oid += 1;
             curr_oid
         };
-
-        let table_func_ents = Self::builtin_function_to_entries(
-            &mut oid_gen,
-            schema_id,
-            FUNCTION_REGISTRY.table_funcs_iter(),
-        );
+        let registry = FUNCTION_REGISTRY.lock();
+        let table_func_ents =
+            Self::builtin_function_to_entries(&mut oid_gen, schema_id, registry.table_funcs_iter());
         let scalar_func_ents = Self::builtin_function_to_entries(
             &mut oid_gen,
             schema_id,
-            FUNCTION_REGISTRY.scalar_funcs_iter(),
+            registry.scalar_funcs_iter(),
         );
-        let scalar_udf_ents = Self::builtin_function_to_entries(
-            &mut oid_gen,
-            schema_id,
-            FUNCTION_REGISTRY.scalar_udfs_iter(),
-        );
+        let scalar_udf_ents =
+            Self::builtin_function_to_entries(&mut oid_gen, schema_id, registry.scalar_udfs_iter());
+
+        drop(registry);
 
         for func_ent in table_func_ents
             .into_iter()
