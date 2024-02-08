@@ -358,9 +358,7 @@ impl TableProvider for MongoDbTableProvider {
                         let rb = batch?;
 
                         let mut docs = Vec::with_capacity(rb.num_rows());
-                        let mut converted = crate::bson::BsonBatchConverter::from(rb);
-                        // we want to make sure that
-                        converted.with_override_ids();
+                        let converted = crate::bson::BsonBatchConverter::from_record_batch(rb);
 
                         for d in converted.into_iter() {
                             let doc = d.map_err(|e| DataFusionError::Execution(e.to_string()))?;
@@ -374,7 +372,6 @@ impl TableProvider for MongoDbTableProvider {
                         count += coll
                             .insert_many(
                                 docs,
-                                // Some(InsertManyOptions::builder().ordered(false).build()),
                                 None,
                             )
                             .await
