@@ -360,6 +360,8 @@ jobs:
           fail-on-cache-miss: true
       - run: just venv
       - run: just pytest
+        env:
+          VENV: ".venv"
 
 
   service-integration-tests:
