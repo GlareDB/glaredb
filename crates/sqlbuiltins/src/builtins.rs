@@ -751,7 +751,7 @@ impl BuiltinView {
             &PG_TYPE,
             &PG_MATVIEWS,
             &PG_REWRITE,
-            &PG_DEPEND
+            &PG_DEPEND,
         ]
     }
 }
