@@ -370,10 +370,7 @@ impl TableProvider for MongoDbTableProvider {
                         }
 
                         count += coll
-                            .insert_many(
-                                docs,
-                                None,
-                            )
+                            .insert_many(docs, None)
                             .await
                             .map(|res| res.inserted_ids.len())
                             .map_err(|e| DataFusionError::External(Box::new(e)))?
