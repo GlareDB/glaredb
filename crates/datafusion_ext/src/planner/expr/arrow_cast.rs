@@ -21,10 +21,19 @@
 use std::fmt::Display;
 use std::iter::Peekable;
 use std::str::Chars;
+use std::sync::Arc;
 
-use datafusion::arrow::datatypes::{DataType, IntervalUnit, TimeUnit};
-use datafusion::common::{DFSchema, DataFusionError, Result, ScalarValue};
+use datafusion::arrow::datatypes::{DataType, Field, IntervalUnit, TimeUnit};
+use datafusion::common::{
+    plan_datafusion_err,
+    plan_err,
+    DFSchema,
+    DataFusionError,
+    Result,
+    ScalarValue,
+};
 use datafusion::logical_expr::{Expr, ExprSchemable};
+
 
 pub const ARROW_CAST_NAME: &str = "arrow_cast";
 
@@ -52,21 +61,18 @@ pub const ARROW_CAST_NAME: &str = "arrow_cast";
 /// [`BuiltinScalarFunction`]: datafusion_expr::BuiltinScalarFunction
 pub fn create_arrow_cast(mut args: Vec<Expr>, schema: &DFSchema) -> Result<Expr> {
     if args.len() != 2 {
-        return Err(DataFusionError::Plan(format!(
-            "arrow_cast needs 2 arguments, {} provided",
-            args.len()
-        )));
+        return plan_err!("arrow_cast needs 2 arguments, {} provided", args.len());
     }
     let arg1 = args.pop().unwrap();
     let arg0 = args.pop().unwrap();
 
-    // arg1 must be a stirng
+    // arg1 must be a string
     let data_type_string = if let Expr::Literal(ScalarValue::Utf8(Some(v))) = arg1 {
         v
     } else {
-        return Err(DataFusionError::Plan(format!(
+        return plan_err!(
             "arrow_cast requires its second argument to be a constant string, got {arg1}"
-        )));
+        );
     };
 
     // do the actual lookup to the appropriate data type
@@ -101,9 +107,7 @@ pub fn parse_data_type(val: &str) -> Result<DataType> {
 }
 
 fn make_error(val: &str, msg: &str) -> DataFusionError {
-    DataFusionError::Plan(
-        format!("Unsupported type '{val}'. Must be a supported arrow type name such as 'Int32' or 'Timestamp(Nanosecond, None)'. Error {msg}" )
-    )
+    plan_datafusion_err!("Unsupported type '{val}'. Must be a supported arrow type name such as 'Int32' or 'Timestamp(Nanosecond, None)'. Error {msg}" )
 }
 
 fn make_error_expected(val: &str, expected: &Token, actual: &Token) -> DataFusionError {
@@ -151,11 +155,47 @@ impl<'a> Parser<'a> {
             Token::Decimal128 => self.parse_decimal_128(),
             Token::Decimal256 => self.parse_decimal_256(),
             Token::Dictionary => self.parse_dictionary(),
+            Token::List => self.parse_list(),
+            Token::LargeList => self.parse_large_list(),
+            Token::FixedSizeList => self.parse_fixed_size_list(),
             tok => Err(make_error(
                 self.val,
                 &format!("finding next type, got unexpected '{tok}'"),
             )),
         }
+    }
+
+    /// Parses the List type
+    fn parse_list(&mut self) -> Result<DataType> {
+        self.expect_token(Token::LParen)?;
+        let data_type = self.parse_next_type()?;
+        self.expect_token(Token::RParen)?;
+        Ok(DataType::List(Arc::new(Field::new(
+            "item", data_type, true,
+        ))))
+    }
+
+    /// Parses the LargeList type
+    fn parse_large_list(&mut self) -> Result<DataType> {
+        self.expect_token(Token::LParen)?;
+        let data_type = self.parse_next_type()?;
+        self.expect_token(Token::RParen)?;
+        Ok(DataType::LargeList(Arc::new(Field::new(
+            "item", data_type, true,
+        ))))
+    }
+
+    /// Parses the FixedSizeList type
+    fn parse_fixed_size_list(&mut self) -> Result<DataType> {
+        self.expect_token(Token::LParen)?;
+        let length = self.parse_i32("FixedSizeList")?;
+        self.expect_token(Token::Comma)?;
+        let data_type = self.parse_next_type()?;
+        self.expect_token(Token::RParen)?;
+        Ok(DataType::FixedSizeList(
+            Arc::new(Field::new("item", data_type, true)),
+            length,
+        ))
     }
 
     /// Parses the next timeunit
@@ -490,6 +530,10 @@ impl<'a> Tokenizer<'a> {
             "Date32" => Token::SimpleType(DataType::Date32),
             "Date64" => Token::SimpleType(DataType::Date64),
 
+            "List" => Token::List,
+            "LargeList" => Token::LargeList,
+            "FixedSizeList" => Token::FixedSizeList,
+
             "Second" => Token::TimeUnit(TimeUnit::Second),
             "Millisecond" => Token::TimeUnit(TimeUnit::Millisecond),
             "Microsecond" => Token::TimeUnit(TimeUnit::Microsecond),
@@ -576,12 +620,18 @@ enum Token {
     None,
     Integer(i64),
     DoubleQuotedString(String),
+    List,
+    LargeList,
+    FixedSizeList,
 }
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Token::SimpleType(t) => write!(f, "{t}"),
+            Token::List => write!(f, "List"),
+            Token::LargeList => write!(f, "LargeList"),
+            Token::FixedSizeList => write!(f, "FixedSizeList"),
             Token::Timestamp => write!(f, "Timestamp"),
             Token::Time32 => write!(f, "Time32"),
             Token::Time64 => write!(f, "Time64"),
@@ -606,6 +656,8 @@ impl Display for Token {
 
 #[cfg(test)]
 mod test {
+
+
     use super::*;
 
     #[test]

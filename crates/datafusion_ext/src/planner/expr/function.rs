@@ -47,6 +47,7 @@ use datafusion::sql::sqlparser::ast::{
 };
 
 use super::arrow_cast::ARROW_CAST_NAME;
+use crate::planner::expr::arrow_cast::create_arrow_cast;
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
@@ -215,7 +216,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 
             // Special case arrow_cast (as its type is dependent on its argument value)
             if name == ARROW_CAST_NAME {
-                return super::arrow_cast::create_arrow_cast(args, schema);
+                return create_arrow_cast(args, schema);
             }
         }
 
