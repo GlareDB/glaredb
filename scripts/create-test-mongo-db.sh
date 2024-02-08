@@ -32,7 +32,7 @@ docker cp \
        ${REPO_ROOT}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv \
        ${CONTAINER_ID}:/tmp/
 
-docker cp ${REPO_ROOT}/scripts/mdb-fixture.js ${CONTAINER_ID}:/tmp/mdb-fixutre.js
+docker cp ${REPO_ROOT}/scripts/mdb-fixture.js ${CONTAINER_ID}:/tmp/mdb-fixture.js
 
 # Exec into container to load test data.
 docker exec $CONTAINER_ID mongoimport \
