@@ -122,10 +122,10 @@ impl Iterator for BsonBatchConverter {
                     } else {
                         doc.insert(field.to_string(), value.to_owned());
                     }
-                },
+                }
                 _ => {
                     doc.insert(field.to_string(), value.to_owned());
-                },
+                }
             }
         }
 

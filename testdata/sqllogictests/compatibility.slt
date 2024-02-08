@@ -1,0 +1,5 @@
+# checks for backwards compatibility after changes to delta metadata in f5f8b24c91413c1a04eae5f61ff7d9f636e178e4
+query I
+select distinct arrow_typeof(vector) from delta_scan('testdata/delta/fsl_0.8.3');
+----
+List(Field { name: "item", data_type: Float32, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} })

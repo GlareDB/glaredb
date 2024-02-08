@@ -1,38 +1,38 @@
 statement ok
-CREATE EXTERNAL TABLE mdb_insert_test
+CREATE EXTERNAL TABLE insert_test
 	FROM mongo
 	OPTIONS (
-		connection_string = 'mongodb://127.0.0.1:27017',
+		connection_string = '${MONGO_CONN_STRING}',
 		database = 'test',
 		collection = 'insert_test',
 	);
 
 statement ok
-ALTER TABLE mdb_insert_test SET ACCESS_MODE TO READ_WRITE;
+ALTER TABLE insert_test SET ACCESS_MODE TO READ_WRITE;
 
 query I
-SELECT count(*) FROM mdb_insert_test;
+SELECT count(*) FROM insert_test;
 ----
 1
 
 statement ok
-INSERT INTO mdb_insert_test (a, b, c) VALUES (1, 2, 3);
+INSERT INTO insert_test (a, b, c) VALUES (1, 2, 3);
 
 query I
-SELECT count(*) FROM mdb_insert_test;
+SELECT count(*) FROM insert_test;
 ----
 2
 
 statement ok
-INSERT INTO mdb_insert_test (a,b,c) VALUES (4, 5, 6);
+INSERT INTO insert_test (a,b,c) VALUES (4, 5, 6);
 
 query I
-SELECT count(*) FROM mdb_insert_test;
+SELECT count(*) FROM insert_test;
 ----
 3
 
 query I
-SELECT a, b, c FROM mdb_insert_test;
+SELECT a, b, c FROM insert_test;
 ----
 0 0 0
 1 2 3
