@@ -112,6 +112,7 @@ use tracing::debug;
 
 use super::context_builder::PartialContextProvider;
 use super::extension::ExtensionNode;
+use super::logical_plan::Load;
 use super::physical_plan::remote_scan::ProviderReference;
 use crate::context::local::LocalSessionContext;
 use crate::parser::options::StmtOptions;
@@ -245,6 +246,7 @@ impl<'a> SessionPlanner<'a> {
             }
             StatementWithExtensions::DropCredentials(stmt) => self.plan_drop_credentials(stmt),
             StatementWithExtensions::CopyTo(stmt) => self.plan_copy_to(stmt).await,
+            StatementWithExtensions::Load(ident) => self.plan_load(ident).await,
         }
     }
 
@@ -1673,6 +1675,12 @@ impl<'a> SessionPlanner<'a> {
             operation,
         }
         .into_logical_plan())
+    }
+    async fn plan_load(&self, ident: Ident) -> Result<LogicalPlan> {
+        validate_ident(&ident)?;
+        let load_plan = Load { extension: ident };
+        println!("load_plan: {:?}", load_plan);
+        Ok(load_plan.into_logical_plan())
     }
 
     async fn plan_copy_to(&self, stmt: CopyToStmt) -> Result<LogicalPlan> {

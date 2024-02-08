@@ -4,7 +4,7 @@ default-members = ["crates/*", "xtask"]
 resolver = "2"
 
 [workspace.package]
-version = "0.8.3"
+version = "0.8.4"
 edition = "2021"
 
 [profile.release]
@@ -47,3 +47,7 @@ url = "2.5.0"
 git = "https://github.com/delta-io/delta-rs.git"
 rev = "993e2c202936719855f8831513bcbab1b9930b94"
 features = ["s3", "gcs", "azure", "datafusion"]
+
+
+[patch.crates-io]
+sqlparser = { git = "https://github.com/universalmind303/sqlparser-rs.git", branch = "universalmind303/duckdb-loadinstall" }

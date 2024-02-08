@@ -19,6 +19,7 @@ mod drop_tables;
 mod drop_tunnel;
 mod drop_views;
 mod insert;
+mod load;
 mod set_variable;
 mod show_variable;
 mod update;
@@ -60,6 +61,7 @@ pub use drop_tables::*;
 pub use drop_tunnel::*;
 pub use drop_views::*;
 pub use insert::*;
+pub use load::*;
 use once_cell::sync::Lazy;
 use protogen::metastore::types::options::{
     CopyToDestinationOptions,

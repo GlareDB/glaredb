@@ -430,6 +430,7 @@ pub enum StatementWithExtensions {
     DropCredentials(DropCredentialsStmt),
     /// Copy To extension.
     CopyTo(CopyToStmt),
+    Load(Ident),
 }
 
 impl fmt::Display for StatementWithExtensions {
@@ -447,6 +448,7 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateCredentials(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropCredentials(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CopyTo(stmt) => write!(f, "{}", stmt),
+            StatementWithExtensions::Load(ident) => write!(f, "LOAD {}", ident),
         }
     }
 }
@@ -547,6 +549,16 @@ impl<'a> CustomParser<'a> {
                     self.parser.next_token();
                     self.parse_copy()
                 }
+                Keyword::NoKeyword => {
+                    if w.value.to_uppercase() == "LOAD" {
+                        self.parser.next_token();
+                        self.parse_load()
+                    } else {
+                        Ok(StatementWithExtensions::Statement(
+                            self.parser.parse_statement()?,
+                        ))
+                    }
+                }
                 _ => Ok(StatementWithExtensions::Statement(
                     self.parser.parse_statement()?,
                 )),
@@ -556,7 +568,11 @@ impl<'a> CustomParser<'a> {
             )),
         }
     }
-
+    fn parse_load(&mut self) -> Result<StatementWithExtensions, ParserError> {
+        let name = self.parser.parse_identifier()?;
+        validate_ident(&name)?;
+        Ok(StatementWithExtensions::Load(name))
+    }
     /// Parse a SQL CREATE statement
     fn parse_create(&mut self) -> Result<StatementWithExtensions, ParserError> {
         let or_replace = self.parser.parse_keywords(&[Keyword::OR, Keyword::REPLACE]);
