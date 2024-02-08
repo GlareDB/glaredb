@@ -53,8 +53,6 @@ pub struct BsonBatchConverter {
     row: usize,
     started: bool,
     columns: Vec<Vec<bson::Bson>>,
-    src_err: Option<ArrowError>,
-    override_id: bool,
 }
 
 impl BsonBatchConverter {
@@ -70,33 +68,10 @@ impl BsonBatchConverter {
             row: 0,
             started: false,
             columns: Vec::with_capacity(batch.num_columns()),
-            src_err: None,
-            override_id: false,
         }
     }
 
-    pub fn with_override_ids(&mut self) {
-        self.override_id = true;
-    }
-
-    fn setup(&mut self) -> Result<(), ArrowError> {
-        match &self.src_err {
-            Some(e) => Err(ArrowError::ParseError(e.to_string())),
-            None => {
-                if !self.started {
-                    for col in self.batch.columns().iter() {
-                        self.columns.push(array_to_bson(col)?)
-                    }
-                    self.started = true
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-impl From<RecordBatch> for BsonBatchConverter {
-    fn from(value: RecordBatch) -> Self {
+    pub fn from_record_batch(value: RecordBatch) -> Self {
         Self::new(
             StructArray::new(
                 value.schema().fields.clone(),
@@ -106,22 +81,15 @@ impl From<RecordBatch> for BsonBatchConverter {
             value.schema().fields.clone(),
         )
     }
-}
 
-impl From<Result<RecordBatch, ArrowError>> for BsonBatchConverter {
-    fn from(value: Result<RecordBatch, ArrowError>) -> Self {
-        match value {
-            Ok(rb) => Self::from(rb),
-            Err(e) => Self {
-                batch: StructArray::new_empty_fields(0, None),
-                schema: Vec::new(),
-                row: 0,
-                started: false,
-                columns: Vec::new(),
-                src_err: Some(e),
-                override_id: false,
-            },
+    fn setup(&mut self) -> Result<(), ArrowError> {
+        if !self.started {
+            for col in self.batch.columns().iter() {
+                self.columns.push(array_to_bson(col)?)
+            }
+            self.started = true
         }
+        Ok(())
     }
 }
 
@@ -138,16 +106,26 @@ impl Iterator for BsonBatchConverter {
         }
 
         let mut doc = bson::Document::new();
-        let mut set_id = false;
         for (i, field) in self.schema.iter().enumerate() {
-            if self.override_id && !set_id && field.eq("_id") {
-                doc.insert(
-                    field.to_string(),
-                    bson::Bson::ObjectId(bson::oid::ObjectId::new()),
-                );
-                set_id = true;
-            } else {
-                doc.insert(field.to_string(), self.columns[i][self.row].to_owned());
+            let value = &self.columns[i][self.row];
+            match (field.as_str(), value) {
+                ("_id", bson::Bson::Binary(v)) => {
+                    // if we have a binary-typed _id field where the
+                    // value is empty, this is (almost certainly the
+                    // result of an unpopulated object_id field in a
+                    // round-trip from mongodb where an insert in GlareDB omitted an generating an object id.)
+                    if v.as_raw_binary().bytes.is_empty() {
+                        doc.insert(
+                            field.to_string(),
+                            bson::Bson::ObjectId(bson::oid::ObjectId::new()),
+                        );
+                    } else {
+                        doc.insert(field.to_string(), value.to_owned());
+                    }
+                },
+                _ => {
+                    doc.insert(field.to_string(), value.to_owned());
+                },
             }
         }
 
