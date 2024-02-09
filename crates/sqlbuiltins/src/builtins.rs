@@ -324,7 +324,7 @@ pub static SCHEMA_CURRENT_SESSION: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSch
     oid: 16389,
 });
 
-pub static SCHEMA_USER_FILES: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSchema {
+pub static SCHEMA_UPLOADS: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSchema {
     name: UPLOADS_SCHEMA,
     oid: 16390,
 });
@@ -337,7 +337,7 @@ impl BuiltinSchema {
             &SCHEMA_INFORMATION,
             &SCHEMA_POSTGRES,
             &SCHEMA_CURRENT_SESSION,
-            &SCHEMA_USER_FILES,
+            &SCHEMA_UPLOADS,
         ]
     }
 }
