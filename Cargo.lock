@@ -1121,7 +1121,7 @@ dependencies = [
  "prost",
  "prost-types",
  "tonic",
- "tonic-build",
+ "tonic-build 0.10.2",
  "yup-oauth2 5.1.0",
 ]
 
@@ -2620,7 +2620,7 @@ dependencies = [
  "errno",
  "fix-hidden-lifetime-bug",
  "futures",
- "hashbrown 0.12.3",
+ "hashbrown 0.14.2",
  "indexmap 2.2.2",
  "itertools 0.12.0",
  "lazy_static",
@@ -6038,7 +6038,7 @@ dependencies = [
  "prost-types",
  "thiserror",
  "tonic",
- "tonic-build",
+ "tonic-build 0.11.0",
  "tracing",
  "uuid",
 ]
@@ -8528,6 +8528,19 @@ name = "tonic-build"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d021fc044c18582b9a2408cd0dd05b1596e3ecdb5c4df822bb0183545683889"
+dependencies = [
+ "prettyplease",
+ "proc-macro2",
+ "prost-build",
+ "quote",
+ "syn 2.0.48",
+]
+
+[[package]]
+name = "tonic-build"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be4ef6dd70a610078cb4e338a0f79d06bc759ff1b22d2120c2ff02ae264ba9c2"
 dependencies = [
  "prettyplease",
  "proc-macro2",
