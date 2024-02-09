@@ -464,10 +464,10 @@ SELECT
     null AS identity_increment,
     null AS identity_maximum,
     null AS identity_minimum,
-    null AS identity_cyle,
+    null AS identity_cycle,
     null AS is_generated,
     null AS generation_expression,
-    'NO' AS is_updateable
+    'NO' AS is_updatable
 FROM glare_catalog.columns c
 INNER JOIN glare_catalog.schemas s ON c.schema_oid = s.oid
 INNER JOIN glare_catalog.databases d ON s.database_oid = d.oid
