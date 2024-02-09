@@ -87,9 +87,15 @@ impl ExecutionPlan for MongoDbInsertExecPlan {
 
     fn execute(
         &self,
-        _partition: usize,
+        partition: usize,
         ctx: Arc<TaskContext>,
     ) -> datafusion::error::Result<SendableRecordBatchStream> {
+        if partition != 0 {
+            return Err(DataFusionError::Execution(
+                "cannot partition mongodb insert exec".to_string(),
+            ));
+        }
+
         let mut stream = execute_stream(self.input.clone(), ctx)?;
         let schema = self.input.schema().clone();
         let coll = self.collection.clone();

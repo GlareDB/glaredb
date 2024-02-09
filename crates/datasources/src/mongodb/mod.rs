@@ -338,8 +338,12 @@ impl TableProvider for MongoDbTableProvider {
         &self,
         _state: &SessionState,
         input: Arc<dyn ExecutionPlan>,
-        _overwrite: bool,
+        overwrite: bool,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        if overwrite {
+            return Err(DataFusionError::Execution("cannot overwrite".to_string()));
+        }
+
         Ok(Arc::new(insert::MongoDbInsertExecPlan::new(
             self.collection.clone(),
             input.clone(),
