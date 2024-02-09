@@ -1,7 +1,8 @@
 //! Builtins as determined by Metastore.
 //!
-//! On catalog initialization, whether that loading in a catalog from storage,
-//! or creating a new one, as set of builtins will be inserted into the catalog.
+//! On catalog initialization, either by loading in a catalog from storage, or
+//! creating a new one, a set of builtins will be inserted into the catalog
+//! (see Storage initialize).
 //!
 //! Two main takeaways:
 //!
@@ -25,6 +26,9 @@ pub const DEFAULT_CATALOG: &str = "default";
 
 /// Default schema that's created on every startup.
 pub const DEFAULT_SCHEMA: &str = "public";
+
+/// Schema to store uploaded files
+pub const USER_FILES_SCHEMA: &str = "user_files"; // REVIEW(stage/upload(s) etc)
 
 /// Internal schema for system tables.
 pub const INTERNAL_SCHEMA: &str = "glare_catalog";
@@ -56,6 +60,7 @@ pub const CURRENT_SESSION_SCHEMA: &str = "current_session";
 ///
 /// General OID ranges:
 /// Builtin schemas: 16385 - 16400 (16 OIDs)
+///         Note (2024-02-08): We are at 16390
 /// Builtin tables: 16401 - 16500 (100 OIDs)
 ///
 /// Constructing the builtin catalog happens in metastore, and errors on
@@ -319,6 +324,11 @@ pub static SCHEMA_CURRENT_SESSION: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSch
     oid: 16389,
 });
 
+pub static SCHEMA_USER_FILES: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSchema {
+    name: USER_FILES_SCHEMA,
+    oid: 16390,
+});
+
 impl BuiltinSchema {
     pub fn builtins() -> Vec<&'static BuiltinSchema> {
         vec![
@@ -327,6 +337,7 @@ impl BuiltinSchema {
             &SCHEMA_INFORMATION,
             &SCHEMA_POSTGRES,
             &SCHEMA_CURRENT_SESSION,
+            &SCHEMA_USER_FILES,
         ]
     }
 }
@@ -767,7 +778,9 @@ mod tests {
         let mut oids = HashSet::new();
         for schema in BuiltinSchema::builtins() {
             assert!(schema.oid < FIRST_NON_STATIC_OID);
-            assert!(schema.oid >= FIRST_GLAREDB_BUILTIN_ID);
+            assert!(schema.oid > FIRST_GLAREDB_BUILTIN_ID);
+            assert!(schema.oid >= 16385);
+            assert!(schema.oid <= 16400);
             assert!(oids.insert(schema.oid), "duplicate oid: {}", schema.oid);
         }
     }
