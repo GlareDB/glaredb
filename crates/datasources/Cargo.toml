@@ -62,7 +62,7 @@ tokio-rustls = "0.24.1"
 tracing = { workspace = true }
 uuid = "1.7.0"
 url.workspace = true
-webpki-roots = "0.26.0"
+webpki-roots = "0.26.1"
 calamine = { version = "0.23.1", features = ["dates"] }
 tiberius = { version = "0.12.2", default-features = false, features = [
   "tds73",
