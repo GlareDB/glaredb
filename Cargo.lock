@@ -106,9 +106,9 @@ dependencies = [
 
 [[package]]
 name = "anstream"
-version = "0.6.7"
+version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cd2405b3ac1faab2990b74d728624cd9fd115651fcecc7c2d8daf01376275ba"
+checksum = "6e2e1ebcb11de5c03c67de28a7df593d32191b44939c482e97702baaaa6ab6a5"
 dependencies = [
  "anstyle",
  "anstyle-parse",
@@ -197,9 +197,9 @@ checksum = "bddcadddf5e9015d310179a59bb28c4d4b9920ad0f11e8e14dbadf654890c9a6"
 
 [[package]]
 name = "ariadne"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72fe02fc62033df9ba41cba57ee19acf5e742511a140c7dbc3a873e19a19a1bd"
+checksum = "dd002a6223f12c7a95cdd4b1cb3a0149d22d37f7a9ecdb2cb691a071fe236c29"
 dependencies = [
  "unicode-width",
  "yansi",
@@ -1455,7 +1455,7 @@ checksum = "4acbb09d9ee8e23699b9634375c72795d095bf268439da88562cf9b501f181fa"
 dependencies = [
  "camino",
  "cargo-platform",
- "semver 1.0.20",
+ "semver 1.0.21",
  "serde",
  "serde_json",
 ]
@@ -2237,7 +2237,7 @@ dependencies = [
  "parquet",
  "pin-project-lite",
  "rand",
- "sqlparser",
+ "sqlparser 0.41.0",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -2266,7 +2266,7 @@ dependencies = [
  "object_store",
  "parquet",
  "pyo3",
- "sqlparser",
+ "sqlparser 0.41.0",
 ]
 
 [[package]]
@@ -2301,7 +2301,7 @@ dependencies = [
  "arrow-array",
  "datafusion-common",
  "paste",
- "sqlparser",
+ "sqlparser 0.41.0",
  "strum 0.25.0",
  "strum_macros 0.25.3",
 ]
@@ -2415,7 +2415,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "log",
- "sqlparser",
+ "sqlparser 0.41.0",
 ]
 
 [[package]]
@@ -2620,7 +2620,7 @@ dependencies = [
  "errno",
  "fix-hidden-lifetime-bug",
  "futures",
- "hashbrown 0.12.3",
+ "hashbrown 0.14.2",
  "indexmap 2.2.2",
  "itertools 0.12.0",
  "lazy_static",
@@ -2640,7 +2640,7 @@ dependencies = [
  "roaring",
  "serde",
  "serde_json",
- "sqlparser",
+ "sqlparser 0.41.0",
  "thiserror",
  "tokio",
  "tracing",
@@ -5093,7 +5093,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "regex",
- "semver 1.0.20",
+ "semver 1.0.21",
  "syn 2.0.48",
 ]
 
@@ -6059,9 +6059,18 @@ dependencies = [
 
 [[package]]
 name = "prql-compiler"
-version = "0.11.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d57e90671dbcb08b282e91db60837fc43f93a99945c1a44d3fa8e78f5ccd860"
+checksum = "28478c330c978501601390a6dd3b760d7dd9184f9ad2d5ccff179cee0590c37e"
+dependencies = [
+ "prqlc",
+]
+
+[[package]]
+name = "prqlc"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d557b3285b3c738a7e969c5eeca36bff2c753aa5e9bfd0dc59c720865091a12f"
 dependencies = [
  "anstream",
  "anyhow",
@@ -6075,37 +6084,39 @@ dependencies = [
  "prqlc-ast",
  "prqlc-parser",
  "regex",
- "semver 1.0.20",
+ "semver 1.0.21",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sqlformat",
- "sqlparser",
- "strum 0.25.0",
- "strum_macros 0.25.3",
+ "sqlparser 0.43.1",
+ "strum 0.26.1",
+ "strum_macros 0.26.1",
 ]
 
 [[package]]
 name = "prqlc-ast"
-version = "0.11.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e77bf8e4af75cfe1d055b4a30995466c1cb2726318b8255b4589b6ae177e45b1"
+checksum = "5fada7485784f43c5068e22b1e3fa9ba4d9a1f12a60865f5229b5afd8fbcc28c"
 dependencies = [
+ "anyhow",
  "enum-as-inner 0.6.0",
- "semver 1.0.20",
+ "semver 1.0.21",
  "serde",
- "strum 0.25.0",
+ "strum 0.26.1",
 ]
 
 [[package]]
 name = "prqlc-parser"
-version = "0.11.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54a828f1f50699defbfd0bc1dec9368c5b5a1f0e7f12193129ed74160b96415b"
+checksum = "0d9390810db80ae28e3558fa70524dae6334ce5c4f96cc138eb321b31a3316b6"
 dependencies = [
  "chumsky",
  "itertools 0.12.0",
  "prqlc-ast",
- "semver 1.0.20",
+ "semver 1.0.21",
  "stacker",
 ]
 
@@ -6905,7 +6916,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfa0f585226d2e68097d4f95d113b15b83a82e819ab25717ec0590d9584ef366"
 dependencies = [
- "semver 1.0.20",
+ "semver 1.0.21",
 ]
 
 [[package]]
@@ -7287,9 +7298,9 @@ dependencies = [
 
 [[package]]
 name = "semver"
-version = "1.0.20"
+version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "836fa6a3e1e547f9a2c4040802ec865b5d85f4014efe00555d7090a3dcaa1090"
+checksum = "b97ed7a9823b74f99c7742f5336af7be5ecd3eeafcb1507d1fa93347b1d589b0"
 dependencies = [
  "serde",
 ]
@@ -7865,8 +7876,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5cc2c25a6c66789625ef164b4c7d2e548d627902280c13710d33da8222169964"
 dependencies = [
  "log",
- "serde",
  "sqlparser_derive",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.43.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f95c4bae5aba7cd30bd506f7140026ade63cff5afd778af8854026f9606bf5d4"
+dependencies = [
+ "log",
+ "serde",
 ]
 
 [[package]]
@@ -7983,6 +8003,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "strum"
+version = "0.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "723b93e8addf9aa965ebe2d11da6d7540fa2283fcea14b3371ff055f7ba13f5f"
+dependencies = [
+ "strum_macros 0.26.1",
+]
+
+[[package]]
 name = "strum_macros"
 version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8000,6 +8029,19 @@ name = "strum_macros"
 version = "0.25.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23dc1fa9ac9c169a78ba62f0b841814b7abae11bdd047b9c58f893439e309ea0"
+dependencies = [
+ "heck 0.4.1",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.48",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a3417fc93d76740d974a01654a09777cb500428cc874ca9f45edfe0c4d4cd18"
 dependencies = [
  "heck 0.4.1",
  "proc-macro2",
@@ -8041,7 +8083,7 @@ dependencies = [
  "prost-build",
  "prost-types",
  "schemars",
- "semver 1.0.20",
+ "semver 1.0.21",
  "serde",
  "serde_json",
  "serde_yaml",
