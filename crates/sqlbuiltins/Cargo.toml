@@ -30,6 +30,6 @@ kdl = "5.0.0-alpha.1"
 siphasher = "1.0.0"
 fnv = "1.0.7"
 memoize = { version = "0.4.2", features = ["full"] }
-async-openai = "0.18.2"
+async-openai = "0.18.3"
 tokio.workspace = true
 reqwest.workspace = true
