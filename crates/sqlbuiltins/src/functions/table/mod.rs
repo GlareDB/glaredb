@@ -5,6 +5,7 @@ mod cassandra;
 mod clickhouse;
 mod delta;
 mod excel;
+mod flightsql;
 mod generate_series;
 mod iceberg;
 mod json;
@@ -38,6 +39,7 @@ use self::cassandra::ReadCassandra;
 use self::clickhouse::ReadClickhouse;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
+use self::flightsql::ReadFlightSql;
 use self::generate_series::GenerateSeries;
 use self::iceberg::data_files::IcebergDataFiles;
 use self::iceberg::scan::IcebergScan;
@@ -94,6 +96,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadClickhouse),
             Arc::new(ReadSqlServer),
             Arc::new(ReadCassandra),
+            Arc::new(ReadFlightSql),
             // Object store
             Arc::new(READ_PARQUET),
             Arc::new(READ_CSV),

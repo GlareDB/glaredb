@@ -1,45 +1,118 @@
-use arrow_flight::sql::{
-    client::FlightSqlServiceClient, CommandGetDbSchemas, CommandGetTables,
-};
-use datafusion_ext::errors::ExtensionError;
-use datafusion::logical_expr::{Expr};
-use tonic::transport::Endpoint;
+use std::any::Any;
+use std::sync::Arc;
 
-#[derive(Debug, Default)]
-pub struct FlightSourceConnectionOptions {
-    database: String,
-    token: String,
-    host: String,
+use arrow_flight::sql::client::FlightSqlServiceClient;
+use arrow_flight::sql::CommandGetDbSchemas;
+use async_trait::async_trait;
+use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::datasource::TableProvider;
+use datafusion::error::DataFusionError;
+use datafusion::execution::context::SessionState;
+use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
+use datafusion::physical_plan::{execute_stream, ExecutionPlan};
+use datafusion_ext::errors::ExtensionError;
+use tonic::transport::{Channel, Endpoint};
+
+#[derive(Debug)]
+pub struct FlightSqlSourceConnectionOptions {
+    pub uri: String,
+    pub database: String,
+    pub token: String,
 }
 
-async fn main() -> Result<bool, ExtensionError> {
-    let opts = FlightSourceConnectionOptions::default();
+pub struct FlightSqlSourceProvider {
+    client: arrow_flight::sql::client::FlightSqlServiceClient<Channel>,
+    schema: SchemaRef,
+}
 
-    let conn = Endpoint::from_shared(opts.host)
-        .map_err(|e| ExtensionError::String(e.to_string()))?
-        .connect()
-        .await
-        .map_err(|e| ExtensionError::String(e.to_string()))?;
+impl FlightSqlSourceProvider {
+    pub async fn try_new(opts: FlightSqlSourceConnectionOptions) -> Result<Self, ExtensionError> {
+        let mut client = FlightSqlServiceClient::new(
+            Endpoint::from_shared(opts.uri)
+                .map_err(|e| ExtensionError::String(e.to_string()))?
+                .connect()
+                .await
+                .map_err(|e| ExtensionError::String(e.to_string()))?,
+        );
+        client.set_token(opts.token);
+        client.set_header("database", opts.database.as_str());
 
-    let mut client = FlightSqlServiceClient::new(conn);
-    client.set_token(opts.token);
-    client.set_header("database", opts.database.as_str());
+        let catalogs = client.get_catalogs().await?;
+        let schema = Arc::new(
+            client
+                .get_db_schemas(CommandGetDbSchemas {
+                    catalog: Some(catalogs.to_string()),
+                    db_schema_filter_pattern: Some(opts.database),
+                })
+                .await?
+                .try_decode_schema()?,
+        );
 
-    let catalogs = client.get_catalogs().await?;
-    let _schema = client
-        .get_db_schemas(CommandGetDbSchemas {
-            catalog: Some(catalogs.to_string()),
-            db_schema_filter_pattern: Some(opts.database),
-        })
-        .await?
-        .try_decode_schema()?;
+        Ok(Self { client, schema })
+    }
+}
 
-    let projection: Option<&Vec<usize>> = None;
+#[async_trait]
+impl TableProvider for FlightSqlSourceProvider {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 
-    let filters: &[Expr] = &[];
-    filters.
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
 
-    client.execute(query, transaction_id)
+    fn table_type(&self) -> TableType {
+        TableType::Base
+    }
 
-    Ok(false)
+    fn supports_filter_pushdown(
+        &self,
+        _filter: &Expr,
+    ) -> Result<TableProviderFilterPushDown, DataFusionError> {
+        Ok(TableProviderFilterPushDown::Exact)
+    }
+
+    async fn scan(
+        &self,
+        _ctx: &SessionState,
+        _projection: Option<&Vec<usize>>,
+        _filters: &[Expr],
+        _limit: Option<usize>,
+    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        let id = uuid::Uuid::new_v4();
+        // TODO: convert this from exprs using the same logic as in
+        // the clickhouse implementation.
+        let query = "select *".to_string();
+
+        let info = self
+            .client
+            .execute(query, Some(id.into_bytes().to_vec().into()))
+            .await?;
+        let flight_endpoint = info.endpoint.get(0).ok_or_else(|| {
+            DataFusionError::Internal("could not resolve flightsql ticket".to_string())
+        })?;
+        let ticket = flight_endpoint
+            .ticket
+            .ok_or_else(|| DataFusionError::Internal("missing flightsql ticket".to_string()))?;
+
+        let stream = self.client.do_get(ticket).await?;
+        // TODO: convert this stream into an execution plan
+        Ok(Arc::new(stream))
+    }
+
+    async fn insert_into(
+        &self,
+        _state: &SessionState,
+        _input: Arc<dyn ExecutionPlan>,
+        _overwrite: bool,
+    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        let id = uuid::Uuid::new_v4().into_bytes();
+
+        let mut stream = execute_stream(_input, _state.task_ctx())?;
+        let res = self.client.do_put(stream.try_into()?).await?;
+
+        // TODO: convert this Streaming<PutResult>> into an execution stream
+        Ok(Arc::new(res))
+    }
 }
