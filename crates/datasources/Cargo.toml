@@ -10,7 +10,7 @@ workspace = true
 ioutil = { path = "../ioutil" }
 logutil = { path = "../logutil" }
 apache-avro = "0.16"
-async-channel = "2.1.1"
+async-channel = "2.2.0"
 async-stream = "0.3.5"
 async-trait = { workspace = true }
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "deps/2023-10-27-update" }
