@@ -278,7 +278,7 @@ impl DatabaseEntries {
 
         for builtin in BuiltinSchema::builtins() {
             if builtin.oid == SCHEMA_DEFAULT.oid {
-                continue
+                continue;
             }
             if builtin.oid == ent.get_meta().parent {
                 return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));
@@ -1378,12 +1378,24 @@ impl BuiltinCatalog {
 mod tests {
     use std::collections::HashSet;
 
-    use object_store::memory::InMemory;
-    use protogen::metastore::types::options::{DatabaseOptionsDebug, InternalColumnDefinition, TableOptionsDebug, TableOptionsInternal};
-    use protogen::metastore::types::service::{
-        AlterDatabase, CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateView, DropDatabase, DropSchema
-    };
     use datafusion::arrow::datatypes::DataType;
+    use object_store::memory::InMemory;
+    use protogen::metastore::types::options::{
+        DatabaseOptionsDebug,
+        InternalColumnDefinition,
+        TableOptionsDebug,
+        TableOptionsInternal,
+    };
+    use protogen::metastore::types::service::{
+        AlterDatabase,
+        CreateExternalDatabase,
+        CreateExternalTable,
+        CreateSchema,
+        CreateTable,
+        CreateView,
+        DropDatabase,
+        DropSchema,
+    };
     use sqlbuiltins::builtins::{DEFAULT_CATALOG, INTERNAL_SCHEMA};
 
     use super::*;
@@ -1973,19 +1985,19 @@ mod tests {
                 name: "peach".to_string(),
                 if_not_exists: true,
                 or_replace: false,
-                options: TableOptionsInternal{
-                    columns: vec![InternalColumnDefinition{
+                options: TableOptionsInternal {
+                    columns: vec![InternalColumnDefinition {
                         name: "luigi".to_string(),
                         nullable: true,
                         arrow_type: DataType::Utf8,
                     }],
-                }
+                },
             })],
         )
         .await
         .unwrap_err();
     }
-    
+
     #[tokio::test]
     async fn allow_modify_default_schema() {
         let db = new_catalog().await;
@@ -1999,13 +2011,13 @@ mod tests {
                 name: "peach".to_string(),
                 if_not_exists: true,
                 or_replace: false,
-                options: TableOptionsInternal{
-                    columns: vec![InternalColumnDefinition{
+                options: TableOptionsInternal {
+                    columns: vec![InternalColumnDefinition {
                         name: "luigi".to_string(),
                         nullable: true,
                         arrow_type: DataType::Utf8,
                     }],
-                }
+                },
             })],
         )
         .await
