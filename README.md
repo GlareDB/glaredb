@@ -205,7 +205,7 @@ DROP DATABASE my_pg;
 | PostgreSQL             |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
 | MariaDB _(via mysql)_  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
 | Microsoft SQL Server   |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
-| MongoDB                |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
+| MongoDB                |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
 | Snowflake              |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
 | BigQuery               |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
 | Cassandra/ScyllaDB     |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |

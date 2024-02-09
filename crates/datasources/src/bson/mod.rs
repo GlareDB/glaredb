@@ -45,7 +45,6 @@ use datafusion::arrow::datatypes::{
     TimestampNanosecondType,
 };
 use datafusion::arrow::error::ArrowError;
-use datafusion::arrow::record_batch::RecordBatch;
 
 pub struct BsonBatchConverter {
     batch: StructArray,
@@ -71,24 +70,12 @@ impl BsonBatchConverter {
         }
     }
 
-    pub fn from_record_batch(value: RecordBatch) -> Self {
-        Self::new(
-            StructArray::new(
-                value.schema().fields.clone(),
-                value.columns().to_vec(),
-                None,
-            ),
-            value.schema().fields.clone(),
-        )
-    }
-
     fn setup(&mut self) -> Result<(), ArrowError> {
-        if !self.started {
-            for col in self.batch.columns().iter() {
-                self.columns.push(array_to_bson(col)?)
-            }
-            self.started = true
+        for col in self.batch.columns().iter() {
+            self.columns
+                .push(array_to_bson(col).map_err(|e| ArrowError::from_external_error(Box::new(e)))?)
         }
+        self.started = true;
         Ok(())
     }
 }
@@ -97,8 +84,10 @@ impl Iterator for BsonBatchConverter {
     type Item = Result<bson::Document, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Err(e) = self.setup() {
-            return Some(Err(e));
+        if !self.started {
+            if let Err(e) = self.setup() {
+                return Some(Err(e));
+            }
         }
 
         if self.row >= self.batch.len() {
@@ -107,26 +96,7 @@ impl Iterator for BsonBatchConverter {
 
         let mut doc = bson::Document::new();
         for (i, field) in self.schema.iter().enumerate() {
-            let value = &self.columns[i][self.row];
-            match (field.as_str(), value) {
-                ("_id", bson::Bson::Binary(v)) => {
-                    // if we have a binary-typed _id field where the
-                    // value is empty, this is (almost certainly the
-                    // result of an unpopulated object_id field in a
-                    // round-trip from mongodb where an insert in GlareDB omitted an generating an object id.)
-                    if v.as_raw_binary().bytes.is_empty() {
-                        doc.insert(
-                            field.to_string(),
-                            bson::Bson::ObjectId(bson::oid::ObjectId::new()),
-                        );
-                    } else {
-                        doc.insert(field.to_string(), value.to_owned());
-                    }
-                }
-                _ => {
-                    doc.insert(field.to_string(), value.to_owned());
-                }
-            }
+            doc.insert(field.to_string(), self.columns[i][self.row].to_owned());
         }
 
         self.row += 1;
