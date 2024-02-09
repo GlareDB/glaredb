@@ -76,8 +76,8 @@ glob = "0.3.1"
 indexmap = "2.2.2"
 
 [dependencies.async-sqlite]
-git = "https://github.com/vrongmeal/async-sqlite"
-rev = "8113c06952b0ca122327c8f50cfab977a5f652f7"
+git = "https://github.com/ryanfowler/async-sqlite"
+rev = "97ae7d6867af3e76f23b24578e2de7e5a9639dca"
 features = ["column_decltype"]
 
 # SSH tunnels

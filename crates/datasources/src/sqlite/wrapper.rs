@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use async_sqlite::rusqlite::types::Value;
 use async_sqlite::rusqlite::{self, OpenFlags};
-use datafusion::arrow::datatypes::DataType;
+use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use futures::Stream;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -32,11 +32,6 @@ impl SqliteAsyncClient {
             .open()
             .await?;
         Ok(Self { path, inner })
-    }
-
-    pub async fn execute(&self, s: impl Into<String>) -> Result<usize> {
-        let s = s.into();
-        Ok(self.inner.conn(move |conn| conn.execute(&s, [])).await?)
     }
 
     pub fn query(&self, s: impl Into<String>) -> SqliteQueryStream {
@@ -155,10 +150,9 @@ impl<'a> From<rusqlite::Column<'a>> for Column {
     fn from(col: rusqlite::Column<'a>) -> Self {
         let decl_type = col.decl_type().and_then(|decl_type| match decl_type {
             "boolean" | "bool" => Some(DataType::Boolean),
-            // TODO: Support dates and times?
-            // "date" => DataType::Date,
-            // "time" => DataType::Time,
-            // "datetime" | "timestamp" => DataType::Datetime,
+            "date" => Some(DataType::Date32),
+            "time" => Some(DataType::Time64(TimeUnit::Microsecond)),
+            "datetime" | "timestamp" => Some(DataType::Timestamp(TimeUnit::Microsecond, None)),
             s if s.contains("int") => Some(DataType::Int64),
             s if s.contains("char") || s.contains("clob") || s.contains("text") => {
                 Some(DataType::Utf8)

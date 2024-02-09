@@ -578,7 +578,7 @@ dependencies = [
 [[package]]
 name = "async-sqlite"
 version = "0.2.1"
-source = "git+https://github.com/vrongmeal/async-sqlite?rev=8113c06952b0ca122327c8f50cfab977a5f652f7#8113c06952b0ca122327c8f50cfab977a5f652f7"
+source = "git+https://github.com/ryanfowler/async-sqlite?rev=97ae7d6867af3e76f23b24578e2de7e5a9639dca#97ae7d6867af3e76f23b24578e2de7e5a9639dca"
 dependencies = [
  "crossbeam-channel",
  "futures-channel",
