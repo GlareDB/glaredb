@@ -1977,7 +1977,7 @@ mod tests {
         let db = new_catalog().await;
         version(&db).await;
 
-        // Add view.
+        // Add internal table on 'glare_catalog'
         db.try_mutate(
             version(&db).await,
             vec![Mutation::CreateTable(CreateTable {
@@ -2003,7 +2003,7 @@ mod tests {
         let db = new_catalog().await;
         version(&db).await;
 
-        // Add view.
+        // Add internal table on 'public' schema
         db.try_mutate(
             version(&db).await,
             vec![Mutation::CreateTable(CreateTable {
