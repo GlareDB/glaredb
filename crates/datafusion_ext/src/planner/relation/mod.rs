@@ -235,12 +235,18 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 /// Returns a reference to table func by inferring which function to use from a
 /// given path.
 fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
-    let ext = Path::new(path)
-        .extension()
-        .ok_or_else(|| DataFusionError::Plan(format!("missing file extension: {path}")))?
-        .to_str()
-        .ok_or_else(|| DataFusionError::Plan(format!("strange file extension: {path}")))?
-        .to_lowercase();
+    let ext = if path.contains("docs.google.com/spreadsheet") && path.trim().ends_with("output=csv")
+    {
+        "csv".to_string()
+    } else {
+        Path::new(path)
+            .extension()
+            .ok_or_else(|| DataFusionError::Plan(format!("missing file extension: {path}")))?
+            .to_str()
+            .ok_or_else(|| DataFusionError::Plan(format!("strange file extension: {path}")))?
+            .to_lowercase()
+    };
+
 
     // TODO: We can be a bit more sophisticated here and handle compression
     // schemes as well.
