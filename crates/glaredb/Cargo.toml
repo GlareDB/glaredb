@@ -49,6 +49,9 @@ tokio-postgres = "0.7.8"
 uuid = { version = "1.7.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 glob = "0.3.1"
 
+# Prevent dynamic linking of lzma, which comes from datafusion
+lzma-sys = { version = "*", features = ["static"] }
+
 [dev-dependencies]
 predicates = "3.1.0"
 assert_cmd = "2.0.13"
