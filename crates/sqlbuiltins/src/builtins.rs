@@ -28,7 +28,7 @@ pub const DEFAULT_CATALOG: &str = "default";
 pub const DEFAULT_SCHEMA: &str = "public";
 
 /// Schema to store uploaded files
-pub const USER_FILES_SCHEMA: &str = "user_files"; // REVIEW(stage/upload(s) etc)
+pub const UPLOADS_SCHEMA: &str = "glare_uploads";
 
 /// Internal schema for system tables.
 pub const INTERNAL_SCHEMA: &str = "glare_catalog";
@@ -325,7 +325,7 @@ pub static SCHEMA_CURRENT_SESSION: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSch
 });
 
 pub static SCHEMA_USER_FILES: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSchema {
-    name: USER_FILES_SCHEMA,
+    name: UPLOADS_SCHEMA,
     oid: 16390,
 });
 
