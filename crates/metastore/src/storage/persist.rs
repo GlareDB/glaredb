@@ -63,7 +63,7 @@ impl Storage {
         {
             Ok(_) => return Ok(()),                       // Nothing to do.
             Err(ObjectStoreError::NotFound { .. }) => (), // Continue on creating new catalog.
-            Err(e) => return Err(e.into()),        // Something else happened...
+            Err(e) => return Err(e.into()),               // Something else happened...
         }
 
         debug!(%db_id, "initializing new catalog for database");
