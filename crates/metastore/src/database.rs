@@ -73,7 +73,7 @@ static BUILTIN_CATALOG: Lazy<BuiltinCatalog> = Lazy::new(|| BuiltinCatalog::new(
 pub struct DatabaseCatalog {
     db_id: Uuid,
 
-    /// Reference to underlying persistant storage.
+    /// Reference to underlying persistent storage.
     storage: Arc<Storage>,
 
     /// A cached catalog state for a single database.
