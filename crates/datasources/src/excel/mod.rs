@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use calamine::{open_workbook, Range, Reader, Xlsx};
+use calamine::{open_workbook, DataType as CalamineDataType, Range, Reader, Xlsx};
 use datafusion::arrow::array::{ArrayRef, BooleanArray, Date64Array, PrimitiveArray, StringArray};
 use datafusion::arrow::datatypes::{DataType, Field, Float64Type, Int64Type, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -18,15 +18,15 @@ pub enum Error {
     OpenWorkbook(#[from] calamine::XlsxError),
 }
 
-fn infer_value_type(v: &calamine::DataType) -> Result<DataType, Error> {
+fn infer_value_type(v: &calamine::Data) -> Result<DataType, Error> {
     match v {
-        calamine::DataType::Int(_) if v.get_int().is_some() => Ok(DataType::Int64),
-        calamine::DataType::Float(_) if v.get_float().is_some() => Ok(DataType::Float64),
-        calamine::DataType::Bool(_) if v.get_bool().is_some() => Ok(DataType::Boolean),
-        calamine::DataType::String(_) if v.get_string().is_some() => Ok(DataType::Utf8),
-        calamine::DataType::Error(e) => Err(Error::Load { msg: e.to_string() }),
-        calamine::DataType::DateTime(_) => Ok(DataType::Date64),
-        calamine::DataType::Empty => Ok(DataType::Null),
+        calamine::Data::Int(_) => Ok(DataType::Int64),
+        calamine::Data::Float(_) => Ok(DataType::Float64),
+        calamine::Data::Bool(_) => Ok(DataType::Boolean),
+        calamine::Data::String(_) => Ok(DataType::Utf8),
+        calamine::Data::Error(e) => Err(Error::Load { msg: e.to_string() }),
+        calamine::Data::DateTime(_) => Ok(DataType::Date64),
+        calamine::Data::Empty => Ok(DataType::Null),
         _ => Err(Error::Load {
             msg: "Failed to parse the cell value".to_owned(),
         }),
@@ -34,7 +34,7 @@ fn infer_value_type(v: &calamine::DataType) -> Result<DataType, Error> {
 }
 
 fn infer_schema(
-    r: &Range<calamine::DataType>,
+    r: &Range<calamine::Data>,
     has_header: Option<bool>,
     infer_schema_length: usize,
 ) -> Result<(Schema, bool), Error> {
@@ -93,7 +93,7 @@ fn infer_schema(
 // TODO: vectorize this to improve performance
 // Ideally we can iterate over the columns instead of iterating over the rows
 fn xlsx_sheet_value_to_record_batch(
-    r: Range<calamine::DataType>,
+    r: Range<calamine::Data>,
     has_header: Option<bool>,
     infer_schema_length: usize,
 ) -> Result<RecordBatch, Error> {
