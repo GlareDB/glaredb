@@ -615,7 +615,8 @@ jobs:
             path: "sqllogictests_mongodb/*"
             prepare: |
               ./scripts/prepare-testdata.sh
-              export MONGO_CONN_STRING=$(./scripts/create-test-mongo-db.sh)
+              export MONGO_CONN_STRING=$(./scripts/create-test-mongodb.sh)
+              ./scripts/create-fixture-mongodb.sh
           - name: Sqlserver
             path: "sqllogictests_sqlserver/*"
             prepare: |
@@ -641,7 +642,11 @@ jobs:
 
           just slt-bin ${{matrix.settings.path}}
 
+          [ "${{matrix.settings.name}}" = "MongoDB" ] && ./scripts/create-fixture-mongodb.sh
+
           just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
+
+          [ "${{matrix.settings.name}}" = "MongoDB" ] && ./scripts/create-fixture-mongodb.sh
 
           # for sqlserver, skip flightsql because the suite takes 4-5
           # minutes, and Sqlserver is the longest/last task to finish
