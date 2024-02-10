@@ -1,6 +1,8 @@
 use std::any::Any;
 use std::sync::Arc;
 
+use arrow_flight::decode::{FlightDataDecoder, FlightRecordBatchStream};
+use arrow_flight::encode::FlightDataEncoder;
 use arrow_flight::sql::client::FlightSqlServiceClient;
 use arrow_flight::sql::CommandGetDbSchemas;
 use async_trait::async_trait;
@@ -96,23 +98,25 @@ impl TableProvider for FlightSqlSourceProvider {
             .ticket
             .ok_or_else(|| DataFusionError::Internal("missing flightsql ticket".to_string()))?;
 
-        let stream = self.client.do_get(ticket).await?;
-        // TODO: convert this stream into an execution plan
-        Ok(Arc::new(stream))
+        let stream =
+            FlightRecordBatchStream::new(FlightDataDecoder::new(self.client.do_get(ticket).await?));
+
+        // TODO(tycho)
+        todo!("convert this operation into execution stream")
     }
 
     async fn insert_into(
         &self,
-        _state: &SessionState,
-        _input: Arc<dyn ExecutionPlan>,
+        state: &SessionState,
+        input: Arc<dyn ExecutionPlan>,
         _overwrite: bool,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         let id = uuid::Uuid::new_v4().into_bytes();
 
-        let mut stream = execute_stream(_input, _state.task_ctx())?;
-        let res = self.client.do_put(stream.try_into()?).await?;
+        let mut stream = FlightDataEncoder::try_from(execute_stream(_input, state.task_ctx())?)?;
 
-        // TODO: convert this Streaming<PutResult>> into an execution stream
-        Ok(Arc::new(res))
+        let res = self.client.do_put(stream).await?;
+        // TODO(tycho)
+        todo!("convert this operation into execution stream")
     }
 }
