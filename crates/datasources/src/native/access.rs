@@ -489,7 +489,9 @@ mod tests {
     use object_store_util::conf::StorageConfig;
     use protogen::metastore::types::catalog::{EntryMeta, EntryType, SourceAccessMode, TableEntry};
     use protogen::metastore::types::options::{
-        InternalColumnDefinition, TableOptions, TableOptionsInternal,
+        InternalColumnDefinition,
+        TableOptions,
+        TableOptionsInternal,
     };
     use tempfile::tempdir;
     use url::Url;
