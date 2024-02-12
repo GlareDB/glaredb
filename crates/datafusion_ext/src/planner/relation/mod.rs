@@ -269,7 +269,7 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
         },
         "gz" => {
             //handling compressed files with .gz extension
-            super::infer_func_from_compressed_file(filename)?
+            infer_func_from_compressed_file(filename)?
         }
         ext => {
             return Err(DataFusionError::Plan(format!(
