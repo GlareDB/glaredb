@@ -242,7 +242,8 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
         .ok_or_else(|| DataFusionError::Plan(format!("strange file extension: {path}")))?
         .to_lowercase();
 
-    let filename = PathBuf::from(path)
+    let binding = PathBuf::from(path);
+    let filename = binding
         .file_name()
         .ok_or_else(|| DataFusionError::Plan(format!("NO file name provided: {path}")))?
         .to_str()
