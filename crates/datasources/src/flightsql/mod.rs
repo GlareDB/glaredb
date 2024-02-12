@@ -1,4 +1,5 @@
 mod insert;
+mod scan;
 
 use std::any::Any;
 use std::sync::Arc;
@@ -112,28 +113,17 @@ impl TableProvider for FlightSqlSourceProvider {
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         let id = uuid::Uuid::new_v4();
+
         // TODO: convert this from exprs using the same logic as in
         // the clickhouse implementation.
         let query = "select *".to_string();
 
-        let mut client = self.get_client();
-
-        let info = client
-            .execute(query, Some(id.into_bytes().to_vec().into()))
-            .await?;
-        let flight_endpoint = info.endpoint.get(0).ok_or_else(|| {
-            DataFusionError::Internal("could not resolve flightsql ticket".to_string())
-        })?;
-        let ticket = flight_endpoint
-            .ticket
-            .as_ref()
-            .ok_or_else(|| DataFusionError::Internal("missing flightsql ticket".to_string()))?;
-
-        let _stream = client.do_get(ticket.to_owned()).await?;
-
-
-        // TODO(tycho)
-        todo!("convert this operation into execution stream")
+        Ok(Arc::new(scan::ExecPlan::new(
+            id,
+            self.schema.clone(),
+            self.get_client(),
+            query,
+        )))
     }
 
     async fn insert_into(
