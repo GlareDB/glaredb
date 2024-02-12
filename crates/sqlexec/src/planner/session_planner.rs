@@ -1173,17 +1173,14 @@ impl<'a> SessionPlanner<'a> {
                     return Err(PlanError::UnsupportedFeature("view options"));
                 }
 
-                match query.body.as_ref() {
-                    ast::SetExpr::Select(select) => select.projection.len(),
-                    ast::SetExpr::Values(values) => {
-                        values.rows.first().map(|first| first.len()).unwrap_or(0)
-                    }
-                    _ => {
-                        return Err(PlanError::InvalidViewStatement {
-                            msg: "view body must either be a SELECT or VALUES statement",
-                        })
-                    }
-                };
+                if !matches!(
+                    query.body.as_ref(),
+                    ast::SetExpr::Values(_) | ast::SetExpr::Query(_) | ast::SetExpr::Select(_)
+                ) {
+                    return Err(PlanError::InvalidViewStatement {
+                        msg: "view body must either be a SELECT or VALUES statement",
+                    });
+                }
 
                 let query_string = query.to_string();
 
