@@ -47,19 +47,21 @@ impl TableFunc for ReadFlightSql {
         args: Vec<FuncParamValue>,
         _opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        if args.len() != 3 {
+        if args.len() != 4 {
             return Err(ExtensionError::InvalidNumArgs);
         }
 
         let mut args = args.into_iter();
         let uri: String = args.next().unwrap().try_into()?;
         let database: String = args.next().unwrap().try_into()?;
+        let table: String = args.next().unwrap().try_into()?;
         let token: String = args.next().unwrap().try_into()?;
 
         let opts = FlightSqlSourceConnectionOptions {
             uri,
             database,
             token,
+            table,
         };
 
         Ok(Arc::new(FlightSqlSourceProvider::try_new(opts).await?))

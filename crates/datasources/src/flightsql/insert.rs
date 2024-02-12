@@ -54,7 +54,6 @@ impl ExecPlan {
             "authorization",
             format!("Bearer {}", self.opts.token.clone()).as_str(),
         )?;
-
         Ok(client)
     }
 }
@@ -120,13 +119,25 @@ impl ExecutionPlan for ExecPlan {
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             schema.clone(),
             futures::stream::once(async move {
+                // TODO(tycho): nothing here tells the service what
+                // table to "put" into at this moment. I think we have
+                // to annotate the schema or the client metdata with a
+                // "path".
+                //
+                // There is some complexity here: influx db only
+                // supports inserts via normal sql using "do_get"
+                // operations; and the signature of do_put is
+                // different for flightsql and flightrpc. (The SQL
+                // variant is a stream of recordbatch wrappers, and
+                // the RPC variant is a stream of results, more
+                // closely mirroring SendableRecordBatchStream)
+
                 let enc = FlightDataEncoderBuilder::new()
-                    .with_schema(schema)
+                    .with_schema(schema.clone())
                     .build(stream.map(|item| match item {
                         Ok(val) => Ok(val), // TODO(tycho): read the num_rows from here
                         Err(e) => Err(FlightError::ExternalError(Box::new(e))),
                     }));
-
 
                 // TODO(tycho) this is wrong: it counts the number of
                 // record batches not the number of rows, which is

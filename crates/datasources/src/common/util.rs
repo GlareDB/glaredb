@@ -29,6 +29,7 @@ use super::errors::{DatasourceCommonError, Result};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Datasource {
     Postgres,
+    FlightSql,
     MySql,
     BigQuery,
     Snowflake,

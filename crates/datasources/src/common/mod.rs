@@ -16,6 +16,7 @@ pub mod sink;
 pub mod ssh;
 pub mod url;
 pub mod util;
+pub mod query;
 
 pub(crate) fn exprs_to_phys_exprs(
     exprs: &[Expr],

@@ -16,6 +16,9 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion_ext::errors::ExtensionError;
 use tonic::transport::{Channel, Endpoint};
 
+use crate::common::query;
+use crate::common::util::Datasource;
+
 // use arrow_flight::FlightClient;
 
 // use arrow_flight::error::FlightError;
@@ -27,6 +30,7 @@ use tonic::transport::{Channel, Endpoint};
 pub struct FlightSqlSourceConnectionOptions {
     pub uri: String,
     pub database: String,
+    pub table: String,
     pub token: String,
 }
 
@@ -108,21 +112,28 @@ impl TableProvider for FlightSqlSourceProvider {
     async fn scan(
         &self,
         _ctx: &SessionState,
-        _projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
-        _limit: Option<usize>,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         let id = uuid::Uuid::new_v4();
 
-        // TODO: convert this from exprs using the same logic as in
-        // the clickhouse implementation.
-        let query = "select *".to_string();
+        let projected_schema = match projection {
+            Some(projection) => Arc::new(self.schema.project(projection)?),
+            None => self.schema.clone(),
+        };
 
         Ok(Arc::new(scan::ExecPlan::new(
             id,
-            self.schema.clone(),
+            projected_schema.clone(),
             self.get_client(),
-            query,
+            query::from_exprs(
+                Datasource::FlightSql,
+                self.opts.table.clone(),
+                projected_schema.clone(),
+                filters,
+                limit,
+            )?,
         )))
     }
 

@@ -4,7 +4,7 @@ mod convert;
 
 use std::any::Any;
 use std::borrow::Cow;
-use std::fmt::{self, Display, Write};
+use std::fmt::{self, Display};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -40,7 +40,8 @@ use tokio_rustls::TlsConnector;
 use url::Url;
 
 use self::convert::ConvertStream;
-use crate::common::util;
+use crate::common::query;
+use crate::common::util::Datasource;
 
 #[derive(Debug, Clone)]
 pub struct ClickhouseAccess {
@@ -335,36 +336,15 @@ impl TableProvider for ClickhouseTableProvider {
             None => self.schema.clone(),
         };
 
-        // Get the projected columns, joined by a ','. This will be put in the
-        // 'SELECT ...' portion of the query.
-        let projection_string = if projected_schema.fields().is_empty() {
-            "*".to_string()
-        } else {
-            projected_schema
-                .fields
-                .iter()
-                .map(|f| f.name().clone())
-                .collect::<Vec<_>>()
-                .join(",")
-        };
-
-        let mut query = format!("SELECT {} FROM {}", projection_string, self.table_ref);
-
-        let predicate_string = {
-            exprs_to_predicate_string(filters)
-                .map_err(|e| DataFusionError::External(Box::new(e)))?
-        };
-        if !predicate_string.is_empty() {
-            write!(&mut query, " WHERE {predicate_string}")?;
-        }
-
-        if let Some(limit) = limit {
-            write!(&mut query, " LIMIT {limit}")?;
-        }
-
         Ok(Arc::new(ClickhouseExec::new(
-            projected_schema,
-            query,
+            projected_schema.clone(),
+            query::from_exprs(
+                Datasource::Clickhouse,
+                self.table_ref.to_string(),
+                projected_schema.clone(),
+                filters,
+                limit,
+            )?,
             self.state.clone(),
         )))
     }
@@ -481,75 +461,6 @@ impl fmt::Debug for ClickhouseExec {
     }
 }
 
-/// Convert filtering expressions to a predicate string usable with the
-/// generated Postgres query.
-fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
-    let mut ss = Vec::new();
-    let mut buf = String::new();
-    for expr in exprs {
-        if try_write_expr(expr, &mut buf)? {
-            ss.push(buf);
-            buf = String::new();
-        }
-    }
-
-    Ok(ss.join(" AND "))
-}
-
-/// Try to write the expression to the string, returning true if it was written.
-fn try_write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
-    match expr {
-        Expr::Column(col) => {
-            write!(buf, "{}", col)?;
-        }
-        Expr::Literal(val) => {
-            util::encode_literal_to_text(util::Datasource::Clickhouse, buf, val)?;
-        }
-        Expr::IsNull(expr) => {
-            if try_write_expr(expr, buf)? {
-                write!(buf, " IS NULL")?;
-            } else {
-                return Ok(false);
-            }
-        }
-        Expr::IsNotNull(expr) => {
-            if try_write_expr(expr, buf)? {
-                write!(buf, " IS NOT NULL")?;
-            } else {
-                return Ok(false);
-            }
-        }
-        Expr::IsTrue(expr) => {
-            if try_write_expr(expr, buf)? {
-                write!(buf, " IS TRUE")?;
-            } else {
-                return Ok(false);
-            }
-        }
-        Expr::IsFalse(expr) => {
-            if try_write_expr(expr, buf)? {
-                write!(buf, " IS FALSE")?;
-            } else {
-                return Ok(false);
-            }
-        }
-        Expr::BinaryExpr(binary) => {
-            if !try_write_expr(binary.left.as_ref(), buf)? {
-                return Ok(false);
-            }
-            write!(buf, " {} ", binary.op)?;
-            if !try_write_expr(binary.right.as_ref(), buf)? {
-                return Ok(false);
-            }
-        }
-        _ => {
-            // Unsupported.
-            return Ok(false);
-        }
-    }
-
-    Ok(true)
-}
 
 #[derive(Debug, Clone)]
 pub struct ClickhouseTableRef<'a> {
