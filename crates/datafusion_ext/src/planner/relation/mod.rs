@@ -17,10 +17,12 @@
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::path::PathBuf;
 
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, OwnedTableReference, Result};
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
+use datafusion::parquet::file;
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast;
@@ -242,6 +244,12 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
         .ok_or_else(|| DataFusionError::Plan(format!("strange file extension: {path}")))?
         .to_lowercase();
 
+    let filename = PathBuf::from(path)
+        .file_name()
+        .ok_or_else(|| DataFusionError::Plan(format!("NO file name provided: {path}")))?
+        .to_str()
+        .ok_or_else(|| DataFusionError::Plan(format!("Improper file name: {path}")))?;
+
     // TODO: We can be a bit more sophisticated here and handle compression
     // schemes as well.
     Ok(match ext.as_str() {
@@ -261,10 +269,45 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
             schema: "public".into(),
             table: "read_bson".into(),
         },
+        "gz" => {
+            //handling compressed files with .gz extension
+            super::infer_func_from_compressed_file(filename)?
+        }
         ext => {
             return Err(DataFusionError::Plan(format!(
                 "unable to infer how to handle file extension: {ext}"
             )))
         }
     })
+}
+
+fn infer_func_from_compressed_file(filename: &str) -> Result<OwnedTableReference> {
+    if filename.contains(".json.gz")
+        | filename.contains(".json1.gz")
+        | filename.contains(".ndjson.gz")
+    {
+        return Ok(OwnedTableReference::Partial {
+            schema: "public".into(),
+            table: "ndjson_scan".into(),
+        });
+    } else if filename.contains(".parquet.gz") {
+        return Ok(OwnedTableReference::Partial {
+            schema: "public".into(),
+            table: "parquet_scan".into(),
+        });
+    } else if filename.contains(".csv.gz") {
+        return Ok(OwnedTableReference::Partial {
+            schema: "public".into(),
+            table: "csv_scan".into(),
+        });
+    } else if filename.contains(".bson.gz") {
+        return Ok(OwnedTableReference::Partial {
+            schema: "public".into(),
+            table: "read_bson".into(),
+        });
+    } else {
+        return Err(DataFusionError::Plan(format!(
+            "Improper compressed filename with extension .gz : {filename}"
+        )));
+    }
 }
