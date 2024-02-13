@@ -27,9 +27,6 @@ pub const DEFAULT_CATALOG: &str = "default";
 /// Default schema that's created on every startup.
 pub const DEFAULT_SCHEMA: &str = "public";
 
-/// Schema to store uploaded files
-pub const UPLOADS_SCHEMA: &str = "glare_uploads";
-
 /// Internal schema for system tables.
 pub const INTERNAL_SCHEMA: &str = "glare_catalog";
 
@@ -60,7 +57,6 @@ pub const CURRENT_SESSION_SCHEMA: &str = "current_session";
 ///
 /// General OID ranges:
 /// Builtin schemas: 16385 - 16400 (16 OIDs)
-///         Note (2024-02-08): We are at 16390
 /// Builtin tables: 16401 - 16500 (100 OIDs)
 ///
 /// Constructing the builtin catalog happens in metastore, and errors on
@@ -324,11 +320,6 @@ pub static SCHEMA_CURRENT_SESSION: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSch
     oid: 16389,
 });
 
-pub static SCHEMA_UPLOADS: Lazy<BuiltinSchema> = Lazy::new(|| BuiltinSchema {
-    name: UPLOADS_SCHEMA,
-    oid: 16390,
-});
-
 impl BuiltinSchema {
     pub fn builtins() -> Vec<&'static BuiltinSchema> {
         vec![
@@ -337,7 +328,6 @@ impl BuiltinSchema {
             &SCHEMA_INFORMATION,
             &SCHEMA_POSTGRES,
             &SCHEMA_CURRENT_SESSION,
-            &SCHEMA_UPLOADS,
         ]
     }
 }
