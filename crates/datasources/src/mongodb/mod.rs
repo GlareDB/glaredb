@@ -3,6 +3,7 @@ pub mod errors;
 
 mod exec;
 mod infer;
+mod insert;
 
 use std::any::Any;
 use std::fmt::{Display, Write};
@@ -20,9 +21,6 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
-use errors::{MongoDbError, Result};
-use exec::MongoDbBsonExec;
-use infer::TableSampler;
 use mongodb::bson::spec::BinarySubtype;
 use mongodb::bson::{bson, Binary, Bson, Document, RawDocumentBuf};
 use mongodb::options::{ClientOptions, FindOptions};
@@ -30,6 +28,9 @@ use mongodb::{Client, Collection};
 use tracing::debug;
 
 use crate::bson::array_to_bson;
+use crate::mongodb::errors::{MongoDbError, Result};
+use crate::mongodb::exec::MongoDbBsonExec;
+use crate::mongodb::infer::TableSampler;
 
 /// Field name in mongo for uniquely identifying a record. Some special handling
 /// needs to be done with the field when projecting.
@@ -330,6 +331,22 @@ impl TableProvider for MongoDbTableProvider {
             schema,
             limit,
             self.estimated_count,
+        )))
+    }
+
+    async fn insert_into(
+        &self,
+        _state: &SessionState,
+        input: Arc<dyn ExecutionPlan>,
+        overwrite: bool,
+    ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
+        if overwrite {
+            return Err(DataFusionError::Execution("cannot overwrite".to_string()));
+        }
+
+        Ok(Arc::new(insert::MongoDbInsertExecPlan::new(
+            self.collection.clone(),
+            input.clone(),
         )))
     }
 }

@@ -1,6 +1,6 @@
 maturin==1.0.1
 virtualenv==20.23.1
-ruff==0.0.275
+ruff==0.2.1
 black==23.3.0
 blackdoc==0.3.8
 mypy==1.3.0

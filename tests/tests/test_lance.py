@@ -71,3 +71,33 @@ def test_copy_to_round_trip(
             curr.execute("select count(*) from lance_scan('./')")
             res = curr.fetchone()
             assert res[0] == 10
+
+def test_copy_to_round_trip(
+    glaredb_connection: psycopg2.extensions.connection,
+    tmp_path_factory: pytest.TempPathFactory,
+):
+    with glaredb_connection.cursor() as curr:
+        curr.execute("create temp table lance_test (amount int)")
+
+        for i in range(10):
+            curr.execute("insert into lance_test values (%s)", str(i))
+
+    output_path = tmp_path_factory.mktemp("lance-insert")
+
+    with glaredb_connection.cursor() as curr:
+        curr.execute("select count(*) from lance_test;")
+        assert curr.fetchone()[0] == 10
+
+        curr.execute(f"COPY lance_test TO '{output_path}' FORMAT lance")
+        curr.execute(f"create external table lance_import from lance options (location '{output_path}')")
+        curr.execute("alter table lance_import set access_mode to read_write")
+        
+        for i in range(10):
+            curr.execute("insert into lance_import values (%s)", str(i))
+        
+    with glaredb_connection.cursor() as curr:
+        curr.execute("select count(*) from lance_import;")
+        assert curr.fetchone()[0] == 20
+
+        curr.execute(f"select count(*) from lance_scan('{output_path}')")
+        assert curr.fetchone()[0] == 20
