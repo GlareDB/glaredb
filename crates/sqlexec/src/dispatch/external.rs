@@ -151,6 +151,7 @@ impl<'a> ExternalDispatcher<'a> {
                     access,
                     schema: schema.to_owned(),
                     table: name.to_owned(),
+                    order_by: None, // TODO: add pushdown sorts via un-materialized view,
                 };
                 let prov = PostgresTableProvider::try_new(prov_conf).await?;
                 Ok(Arc::new(prov))
@@ -290,6 +291,7 @@ impl<'a> ExternalDispatcher<'a> {
                     access,
                     schema: schema.to_owned(),
                     table: table.to_owned(),
+                    order_by: None, // TODO: add pushdown sorts via un-materialized view,
                 };
                 let prov = PostgresTableProvider::try_new(prov_conf).await?;
                 Ok(Arc::new(prov))
