@@ -18,7 +18,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
-use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
+use datafusion::logical_expr::{BinaryExpr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
@@ -259,7 +259,7 @@ impl TableProvider for SqliteTableProvider {
         // TODO: This may produce an invalid clause. We'll likely only want to
         // convert some predicates.
         let predicate_string = {
-            exprs_to_predicate_string(filters)
+            exprs_to_predicate_string(filters, &self.schema)
                 .map_err(|e| DataFusionError::External(Box::new(e)))?
         };
 
@@ -416,11 +416,11 @@ impl RecordBatchStream for SqliteRecordBatchStream {
 
 /// Convert filtering expressions to a predicate string usable with the
 /// generated Postgres query.
-fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
+fn exprs_to_predicate_string(exprs: &[Expr], schema: &Schema) -> Result<String> {
     let mut ss = Vec::new();
     let mut buf = String::new();
     for expr in exprs {
-        if write_expr(expr, &mut buf)? {
+        if write_expr(expr, schema, &mut buf)? {
             ss.push(buf);
             buf = String::new();
         }
@@ -430,7 +430,7 @@ fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
 }
 
 /// Try to write the expression to the string, returning true if it was written.
-fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
+fn write_expr(expr: &Expr, schema: &Schema, buf: &mut String) -> Result<bool> {
     match expr {
         Expr::Column(col) => {
             write!(buf, "{}", col)?;
@@ -439,41 +439,43 @@ fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
             util::encode_literal_to_text(util::Datasource::Sqlite, buf, val)?;
         }
         Expr::IsNull(expr) => {
-            if write_expr(expr, buf)? {
+            if write_expr(expr, schema, buf)? {
                 write!(buf, " IS NULL")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsNotNull(expr) => {
-            if write_expr(expr, buf)? {
+            if write_expr(expr, schema, buf)? {
                 write!(buf, " IS NOT NULL")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsTrue(expr) => {
-            if write_expr(expr, buf)? {
+            if write_expr(expr, schema, buf)? {
                 write!(buf, " IS TRUE")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::IsFalse(expr) => {
-            if write_expr(expr, buf)? {
+            if write_expr(expr, schema, buf)? {
                 write!(buf, " IS FALSE")?;
             } else {
                 return Ok(false);
             }
         }
         Expr::BinaryExpr(binary) => {
-            // TODO: Ignore filters that for datatypes that might not be
-            // supported by sqlite.
-            if !write_expr(binary.left.as_ref(), buf)? {
+            if should_skip_binary_expr(binary, schema)? {
+                return Ok(false);
+            }
+
+            if !write_expr(binary.left.as_ref(), schema, buf)? {
                 return Ok(false);
             }
             write!(buf, " {} ", binary.op)?;
-            if !write_expr(binary.right.as_ref(), buf)? {
+            if !write_expr(binary.right.as_ref(), schema, buf)? {
                 return Ok(false);
             }
         }
@@ -484,4 +486,25 @@ fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
     }
 
     Ok(true)
+}
+
+fn should_skip_binary_expr(expr: &BinaryExpr, schema: &Schema) -> Result<bool> {
+    fn is_not_supported_dt(expr: &Expr, schema: &Schema) -> Result<bool> {
+        let data_type = match expr {
+            Expr::Column(col) => {
+                let field = schema.field_with_name(&col.name)?;
+                field.data_type().clone()
+            }
+            Expr::Literal(scalar) => scalar.data_type(),
+            _ => return Ok(false),
+        };
+
+        let supported = data_type.is_integer()
+            || data_type.is_floating()
+            || matches!(data_type, DataType::Utf8);
+        Ok(!supported)
+    }
+
+    // Skip if we're trying to do any kind of binary op with text column
+    Ok(is_not_supported_dt(&expr.left, schema)? || is_not_supported_dt(&expr.right, schema)?)
 }
