@@ -298,17 +298,17 @@ fn infer_func_from_compressed_file(
     } else if filename.ends_with(ndjson_format.as_str()) {
         return Ok(OwnedTableReference::Partial {
             schema: "public".into(),
-            table: "ndjson_scan".into(),
+            table: "read_ndjson".into(),
         });
     } else if filename.ends_with(parquet_format.as_str()) {
         return Ok(OwnedTableReference::Partial {
             schema: "public".into(),
-            table: "parquet_scan".into(),
+            table: "read_parquet".into(),
         });
     } else if filename.ends_with(csv_format.as_str()) {
         return Ok(OwnedTableReference::Partial {
             schema: "public".into(),
-            table: "csv_scan".into(),
+            table: "read_csv".into(),
         });
     } else if filename.ends_with(bson_format.as_str()) {
         return Ok(OwnedTableReference::Partial {
