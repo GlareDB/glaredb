@@ -21,7 +21,7 @@ use futures::StreamExt;
 use mongodb::bson::RawDocumentBuf;
 use mongodb::Collection;
 
-use crate::common::util::{create_count_record_batch, COUNT_SCHEMA};
+use crate::common::util::create_count_record_batch;
 
 pub struct MongoDbInsertExecPlan {
     collection: Collection<RawDocumentBuf>,
@@ -57,7 +57,7 @@ impl ExecutionPlan for MongoDbInsertExecPlan {
     }
 
     fn schema(&self) -> SchemaRef {
-        COUNT_SCHEMA.clone()
+        self.input.schema()
     }
 
     fn output_partitioning(&self) -> Partitioning {
