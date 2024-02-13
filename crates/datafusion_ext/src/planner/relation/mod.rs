@@ -267,9 +267,9 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
             schema: "public".into(),
             table: "read_bson".into(),
         },
-        "gz" => {
-            //handling compressed files with .gz extension
-            infer_func_from_compressed_file(filename)?
+        compressed_format @ ("gz" | "bz" | "xz") => {
+            //handling compressed files with various formats..
+            infer_func_from_compressed_file(filename, compressed_format)?
         }
         ext => {
             return Err(DataFusionError::Plan(format!(
@@ -279,33 +279,45 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
     })
 }
 
-fn infer_func_from_compressed_file(filename: &str) -> Result<OwnedTableReference> {
-    if filename.contains(".json.gz")
-        | filename.contains(".json1.gz")
-        | filename.contains(".ndjson.gz")
-    {
+fn infer_func_from_compressed_file(
+    filename: &str,
+    compressed_format: &str,
+) -> Result<OwnedTableReference> {
+    //Trying to handle BOTH data-formats and compression formats..
+    let parquet_format = format!("{}{}", ".parquet.", compressed_format);
+    let csv_format = format!("{}{}", ".csv.", compressed_format);
+    let bson_format = format!("{}{}", ".bson.", compressed_format);
+    let json_format = format!("{}{}", ".json.", compressed_format);
+    let ndjson_format = format!("{}{}", ".ndjson.", compressed_format);
+
+    if filename.ends_with(json_format.as_str()) {
+        return Ok(OwnedTableReference::Partial {
+            schema: "public".into(),
+            table: "read_json".into(),
+        });
+    } else if filename.ends_with(ndjson_format.as_str()) {
         return Ok(OwnedTableReference::Partial {
             schema: "public".into(),
             table: "ndjson_scan".into(),
         });
-    } else if filename.contains(".parquet.gz") {
+    } else if filename.ends_with(parquet_format.as_str()) {
         return Ok(OwnedTableReference::Partial {
             schema: "public".into(),
             table: "parquet_scan".into(),
         });
-    } else if filename.contains(".csv.gz") {
+    } else if filename.ends_with(csv_format.as_str()) {
         return Ok(OwnedTableReference::Partial {
             schema: "public".into(),
             table: "csv_scan".into(),
         });
-    } else if filename.contains(".bson.gz") {
+    } else if filename.ends_with(bson_format.as_str()) {
         return Ok(OwnedTableReference::Partial {
             schema: "public".into(),
             table: "read_bson".into(),
         });
     } else {
         return Err(DataFusionError::Plan(format!(
-            "Improper compressed filename with extension .gz : {filename}"
+            "Invalid compressed filename with extension .gz : {filename}"
         )));
     }
 }
