@@ -245,9 +245,8 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
     let binding = PathBuf::from(path);
     let filename = binding
         .file_name()
-        .ok_or_else(|| DataFusionError::Plan(format!("NO file name provided: {path}")))?
-        .to_str()
-        .ok_or_else(|| DataFusionError::Plan(format!("Improper file name: {path}")))?;
+        .and_then(|f| f.to_str())
+        .ok_or_else(|| DataFusionError::Plan(format!("Invalid file name: {path}")))?;
 
     // TODO: We can be a bit more sophisticated here and handle compression
     // schemes as well.
