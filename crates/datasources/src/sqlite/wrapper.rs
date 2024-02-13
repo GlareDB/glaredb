@@ -5,7 +5,6 @@ use std::task::{Context, Poll};
 
 use async_sqlite::rusqlite::types::Value;
 use async_sqlite::rusqlite::{self, OpenFlags};
-use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use futures::Stream;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -48,7 +47,9 @@ impl SqliteAsyncClient {
                     let cols = stmt
                         .columns()
                         .into_iter()
-                        .map(Column::from)
+                        .map(|c| Column {
+                            name: c.name().to_owned(),
+                        })
                         .collect::<Vec<_>>();
 
                     let num_cols = cols.len();
@@ -114,7 +115,9 @@ impl SqliteAsyncClient {
                 let cols = stmt
                     .columns()
                     .into_iter()
-                    .map(Column::from)
+                    .map(|c| Column {
+                        name: c.name().to_owned(),
+                    })
                     .collect::<Vec<_>>();
 
                 let num_cols = cols.len();
@@ -143,38 +146,28 @@ impl SqliteAsyncClient {
 #[derive(Debug, Clone)]
 pub struct Column {
     pub name: String,
-    pub decl_type: Option<DataType>,
-}
-
-impl<'a> From<rusqlite::Column<'a>> for Column {
-    fn from(col: rusqlite::Column<'a>) -> Self {
-        let decl_type = col.decl_type().and_then(|decl_type| match decl_type {
-            "boolean" | "bool" => Some(DataType::Boolean),
-            "date" => Some(DataType::Date32),
-            "time" => Some(DataType::Time64(TimeUnit::Microsecond)),
-            "datetime" | "timestamp" => Some(DataType::Timestamp(TimeUnit::Microsecond, None)),
-            s if s.contains("int") => Some(DataType::Int64),
-            s if s.contains("char") || s.contains("clob") || s.contains("text") => {
-                Some(DataType::Utf8)
-            }
-            s if s.contains("real") || s.contains("floa") || s.contains("doub") => {
-                Some(DataType::Float64)
-            }
-            s if s.contains("blob") => Some(DataType::Binary),
-            _ => None,
-        });
-
-        Self {
-            name: col.name().to_owned(),
-            decl_type,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct SqliteBatch {
     pub cols: Vec<Column>,
     pub data: Vec<Vec<Value>>,
+}
+
+impl SqliteBatch {
+    pub fn get_val_by_col_name(&self, row: usize, name: impl AsRef<str>) -> Option<&Value> {
+        let col_name = name.as_ref();
+        let col_idx = self.cols.iter().enumerate().find_map(|(idx, col)| {
+            if &col.name == col_name {
+                Some(idx)
+            } else {
+                None
+            }
+        })?;
+
+        let row = self.data.get(row)?;
+        row.get(col_idx)
+    }
 }
 
 pub struct SqliteQueryStream {

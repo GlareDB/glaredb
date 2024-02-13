@@ -154,6 +154,7 @@ impl Converter {
                         .collect::<Result<Float64Array>>()?,
                 ),
                 DataType::Utf8 => {
+                    // Assuming an average length of each string to be 10
                     let mut builder = StringBuilder::with_capacity(data.len(), 10 * data.len());
                     let mut buf = String::new();
                     for row in data.iter() {
@@ -183,6 +184,7 @@ impl Converter {
                     Arc::new(builder.finish())
                 }
                 DataType::Binary => {
+                    // Assuming an average length of each vector to be 10
                     let mut builder = BinaryBuilder::with_capacity(data.len(), 10 * data.len());
                     for row in data.iter() {
                         match row

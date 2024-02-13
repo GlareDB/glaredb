@@ -10,9 +10,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use async_sqlite::rusqlite::types::{Type, Value};
+use async_sqlite::rusqlite::types::Value;
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
+use datafusion::arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef, TimeUnit};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::DataFusionError;
@@ -75,54 +75,52 @@ pub struct SqliteAccessState {
 
 impl SqliteAccessState {
     async fn get_table_schema(&self, table: &str) -> Result<Schema> {
-        const NUM_ROWS_TO_INFER_SCHEMA: usize = 10;
-
         let batch = self
             .client
-            .query_all(format!(
-                "SELECT * FROM {table} LIMIT {NUM_ROWS_TO_INFER_SCHEMA}"
-            ))
+            .query_all(format!("PRAGMA table_info('{table}')"))
             .await?;
 
-        fn merge_data_types(rows: &[Type]) -> DataType {
-            if rows.iter().any(|d| matches!(d, Type::Blob)) {
-                return DataType::Binary;
-            }
-
-            if rows.iter().any(|d| matches!(d, Type::Text)) {
-                return DataType::Utf8;
-            }
-
-            if rows.iter().any(|d| matches!(d, Type::Real)) {
-                return DataType::Float64;
-            }
-
-            if rows.iter().any(|d| matches!(d, Type::Integer)) {
-                return DataType::Int64;
-            }
-
-            // We got all null values, so keep the type "text" so we can convert
-            // everything into it.
-            DataType::Utf8
-        }
-
-        // Merge datatypes to get a valid schema
-        let fields = batch
-            .cols
-            .into_iter()
-            .enumerate()
-            .map(|(col_id, col)| {
-                let dt = if let Some(dt) = col.decl_type {
-                    dt
-                } else {
-                    let data_types = batch
-                        .data
-                        .iter()
-                        .map(|row| row[col_id].data_type())
-                        .collect::<Vec<_>>();
-                    merge_data_types(&data_types)
+        let fields = (0..batch.data.len())
+            .map(|row_idx| {
+                let col_name = match batch.get_val_by_col_name(row_idx, "name") {
+                    Some(Value::Text(s)) => s,
+                    _ => unreachable!(),
                 };
-                Field::new(col.name, dt, /* nullable = */ true)
+
+                let data_type = batch
+                    .get_val_by_col_name(row_idx, "type")
+                    .and_then(|ty| match ty {
+                        Value::Text(s) => Some(s.to_ascii_lowercase()),
+                        _ => None,
+                    })
+                    .and_then(|ty| match ty.as_str() {
+                        "boolean" | "bool" => Some(DataType::Boolean),
+                        "date" => Some(DataType::Date32),
+                        "time" => Some(DataType::Time64(TimeUnit::Microsecond)),
+                        "datetime" | "timestamp" => {
+                            Some(DataType::Timestamp(TimeUnit::Microsecond, None))
+                        }
+                        s if s.contains("int") => Some(DataType::Int64),
+                        s if s.contains("char") || s.contains("clob") || s.contains("text") => {
+                            Some(DataType::Utf8)
+                        }
+                        s if s.contains("real") || s.contains("floa") || s.contains("doub") => {
+                            Some(DataType::Float64)
+                        }
+                        s if s.contains("blob") => Some(DataType::Binary),
+                        _ => None,
+                    })
+                    .unwrap_or(DataType::Utf8);
+
+                let not_null = batch
+                    .get_val_by_col_name(row_idx, "notnull")
+                    .map(|v| match v {
+                        Value::Integer(v) => *v != 0,
+                        _ => false,
+                    })
+                    .unwrap_or_default();
+
+                Field::new(col_name, data_type, !not_null)
             })
             .collect::<Vec<_>>();
 
