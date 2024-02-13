@@ -51,7 +51,7 @@ def test_expected_linking_linux(debug_path: pathlib.Path):
         )
     ]
     expected_prefix = ["libc.so", "libm.so", "linux-vdso"]
-    possible_libs = ["liblzma", "libbz", "libgcc"]
+    possible_libs = ["libbz", "libgcc"]
     pending_removal = ["libcrypto", "libssl"]
     expected = 0
     possible = 0

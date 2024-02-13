@@ -13,7 +13,7 @@ workspace = true
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
 ioutil = { path = "../../crates/ioutil" }
 napi = { version = "2.15.1", default-features = false, features = ["full"] }
-napi-derive = "2.15.0"
+napi-derive = "2.15.1"
 sqlexec = { path = "../../crates/sqlexec" }
 metastore = { path = "../../crates/metastore" }
 telemetry = { path = "../../crates/telemetry" }
@@ -34,6 +34,8 @@ bytes = "1.5.0"
 serde.workspace = true
 serde_json.workspace = true
 
+# Prevent dynamic linking of lzma, which comes from datafusion
+lzma-sys = { version = "*", features = ["static"] }
 
 [build-dependencies]
 napi-build = "2.1.0"

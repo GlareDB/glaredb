@@ -14,7 +14,7 @@ chrono = { workspace = true }
 tracing = { workspace = true }
 repr = { path = "../repr" }
 decimal = { path = "../decimal" }
-num-traits = "0.2.17"
+num-traits = "0.2.18"
 dtoa = "1.0.9"
 chrono-tz = "0.8.5"
 bytes = "1.4.0"

@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::lance::scan_lance_table;
+use datasources::lance::LanceTable;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
 use super::{table_location_and_opts, TableFunc};
@@ -45,10 +45,10 @@ impl TableFunc for LanceScan {
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
         let (source_url, storage_options) = table_location_and_opts(ctx, args, &mut opts)?;
-        let dataset = scan_lance_table(&source_url.to_string(), storage_options)
-            .await
-            .map_err(|e| ExtensionError::Access(Box::new(e)))?;
-
-        Ok(Arc::new(dataset))
+        Ok(Arc::new(
+            LanceTable::new(&source_url.to_string(), storage_options)
+                .await
+                .map_err(|e| ExtensionError::Access(Box::new(e)))?,
+        ))
     }
 }
