@@ -256,7 +256,7 @@ impl LocalSessionContext {
         // being used again.
         if !name.is_empty() && self.prepared.contains_key(&name) {
             return Err(internal!(
-                "named prepared statments must be deallocated before reuse, name: {}",
+                "named prepared statements must be deallocated before reuse, name: {}",
                 name
             ));
         }
