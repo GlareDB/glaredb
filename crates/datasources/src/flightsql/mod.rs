@@ -5,7 +5,7 @@ use std::any::Any;
 use std::sync::Arc;
 
 use arrow_flight::sql::client::FlightSqlServiceClient;
-use arrow_flight::sql::CommandGetDbSchemas;
+use arrow_flight::sql::CommandGetTables;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::datasource::TableProvider;
@@ -19,29 +19,22 @@ use tonic::transport::{Channel, Endpoint};
 use crate::common::query;
 use crate::common::util::Datasource;
 
-// use arrow_flight::FlightClient;
-
-// use arrow_flight::error::FlightError;
-// use arrow_flight::encode::FlightDataEncoderBuilder;
-// use datafusion::physical_plan::execute_stream;
-// use futures::StreamExt;
-
 #[derive(Debug, Clone)]
-pub struct FlightSqlSourceConnectionOptions {
+pub struct FlightSqlConnectionOptions {
     pub uri: String,
     pub database: String,
     pub table: String,
     pub token: String,
 }
 
-pub struct FlightSqlSourceProvider {
+pub struct FlightSqlTableProvider {
     channel: Channel,
     schema: SchemaRef,
-    opts: FlightSqlSourceConnectionOptions,
+    opts: FlightSqlConnectionOptions,
 }
 
-impl FlightSqlSourceProvider {
-    pub async fn try_new(opts: FlightSqlSourceConnectionOptions) -> Result<Self, ExtensionError> {
+impl FlightSqlTableProvider {
+    pub async fn try_new(opts: FlightSqlConnectionOptions) -> Result<Self, ExtensionError> {
         let uri = opts.uri.clone();
         let channel = Endpoint::from_shared(uri)
             .map_err(|e| ExtensionError::String(e.to_string()))?
@@ -51,13 +44,17 @@ impl FlightSqlSourceProvider {
 
 
         let db = opts.database.clone();
+        let table = opts.table.clone();
         let mut client = Self::make_client(opts.clone(), channel.clone());
         let catalogs = client.get_catalogs().await?;
         let schema = Arc::new(
             client
-                .get_db_schemas(CommandGetDbSchemas {
+                .get_tables(CommandGetTables {
                     catalog: Some(catalogs.to_string()),
                     db_schema_filter_pattern: Some(db),
+                    table_name_filter_pattern: Some(table),
+                    include_schema: false,
+                    table_types: vec!["TABLE".to_string(), "VIEW".to_string()],
                 })
                 .await?
                 .try_decode_schema()?,
@@ -71,11 +68,11 @@ impl FlightSqlSourceProvider {
     }
 
     fn get_client(&self) -> FlightSqlServiceClient<Channel> {
-        FlightSqlSourceProvider::make_client(self.opts.clone(), self.channel.clone())
+        FlightSqlTableProvider::make_client(self.opts.clone(), self.channel.clone())
     }
 
     fn make_client(
-        opts: FlightSqlSourceConnectionOptions,
+        opts: FlightSqlConnectionOptions,
         endpoint: Channel,
     ) -> FlightSqlServiceClient<Channel> {
         let token = opts.token;
@@ -89,7 +86,7 @@ impl FlightSqlSourceProvider {
 }
 
 #[async_trait]
-impl TableProvider for FlightSqlSourceProvider {
+impl TableProvider for FlightSqlTableProvider {
     fn as_any(&self) -> &dyn Any {
         self
     }

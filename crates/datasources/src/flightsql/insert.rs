@@ -3,6 +3,8 @@ use std::sync::Arc;
 
 use arrow_flight::encode::FlightDataEncoderBuilder;
 use arrow_flight::error::FlightError;
+use arrow_flight::sql::client::FlightSqlServiceClient;
+use arrow_flight::sql::CommandGetTables;
 use arrow_flight::FlightClient;
 use datafusion::arrow::array::RecordBatch;
 use datafusion::arrow::datatypes::SchemaRef;
@@ -23,12 +25,12 @@ use datafusion::physical_plan::{
 use futures::StreamExt;
 use tonic::transport::Channel;
 
-use super::FlightSqlSourceConnectionOptions;
-use crate::common::util::create_count_record_batch;
+use super::FlightSqlConnectionOptions;
+use crate::common::util::{create_count_record_batch, COUNT_SCHEMA};
 
 pub struct ExecPlan {
     channel: Channel,
-    opts: FlightSqlSourceConnectionOptions,
+    opts: FlightSqlConnectionOptions,
     input: Arc<dyn ExecutionPlan>,
     metrics: ExecutionPlanMetricsSet,
 }
@@ -36,7 +38,7 @@ pub struct ExecPlan {
 impl ExecPlan {
     pub fn new(
         channel: Channel,
-        opts: FlightSqlSourceConnectionOptions,
+        opts: FlightSqlConnectionOptions,
         input: Arc<dyn ExecutionPlan>,
     ) -> Self {
         Self {
@@ -47,14 +49,27 @@ impl ExecPlan {
         }
     }
 
-    fn get_client(&self) -> Result<FlightClient, FlightError> {
+    fn get_client(&self) -> Result<FlightClient, DataFusionError> {
         let mut client = FlightClient::new(self.channel.clone());
-        client.add_header("database", self.opts.database.as_str())?;
-        client.add_header(
-            "authorization",
-            format!("Bearer {}", self.opts.token.clone()).as_str(),
-        )?;
+        client
+            .add_header("database", self.opts.database.as_str())
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        client
+            .add_header(
+                "authorization",
+                format!("Bearer {}", self.opts.token.clone()).as_str(),
+            )
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(client)
+    }
+
+    fn get_flightsql_client(&self) -> FlightSqlServiceClient<Channel> {
+        let token = self.opts.token.clone();
+        let db = self.opts.database.clone();
+        let mut client = FlightSqlServiceClient::new(self.channel.clone());
+        client.set_token(token);
+        client.set_header("database", db);
+        client
     }
 }
 
@@ -76,7 +91,7 @@ impl ExecutionPlan for ExecPlan {
     }
 
     fn schema(&self) -> SchemaRef {
-        self.input.schema()
+        COUNT_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -112,30 +127,50 @@ impl ExecutionPlan for ExecPlan {
         let stream = execute_stream(self.input.clone(), ctx)?;
         let schema = self.schema().clone();
 
-        let mut client = self
-            .get_client()
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        let db = self.opts.database.clone();
+        let table = self.opts.table.clone();
+
+        let mut client = self.get_client()?;
+        let mut fsqlcli = self.get_flightsql_client();
+
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             schema.clone(),
             futures::stream::once(async move {
-                // TODO(tycho): nothing here tells the service what
-                // table to "put" into at this moment. I think we have
-                // to annotate the schema or the client metdata with a
-                // "path".
-                //
-                // There is some complexity here: influx db only
-                // supports inserts via normal sql using "do_get"
-                // operations; and the signature of do_put is
+                let catalogs = fsqlcli
+                    .get_catalogs()
+                    .await
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                let descriptor = fsqlcli
+                    .get_tables(CommandGetTables {
+                        catalog: Some(catalogs.to_string()),
+                        db_schema_filter_pattern: Some(db),
+                        table_name_filter_pattern: Some(table.clone()),
+                        include_schema: false,
+                        table_types: vec!["TABLE".to_string(), "VIEW".to_string()],
+                    })
+                    .await
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?
+                    .flight_descriptor
+                    .ok_or_else(|| {
+                        DataFusionError::Internal(format!("could not find table {}", table.clone()))
+                    })?;
+
+
+                // TODO(tycho): There is some complexity here: influx
+                // db only supports inserts via normal sql using
+                // "do_get" operations and the signature of do_put is
                 // different for flightsql and flightrpc. (The SQL
                 // variant is a stream of recordbatch wrappers, and
-                // the RPC variant is a stream of results, more
-                // closely mirroring SendableRecordBatchStream)
+                // the RPC variant is a stream of results of those
+                // wrappers, more closely mirroring
+                // SendableRecordBatchStream)
 
                 let enc = FlightDataEncoderBuilder::new()
+                    .with_flight_descriptor(Some(descriptor))
                     .with_schema(schema.clone())
                     .build(stream.map(|item| match item {
-                        Ok(val) => Ok(val), // TODO(tycho): read the num_rows from here
+                        Ok(val) => Ok(val),
                         Err(e) => Err(FlightError::ExternalError(Box::new(e))),
                     }));
 
@@ -148,9 +183,10 @@ impl ExecutionPlan for ExecPlan {
                     .await
                     .map_err(|e| DataFusionError::External(Box::new(e)))?
                     .count()
-                    .await as u64;
+                    .await;
 
-                Ok::<RecordBatch, DataFusionError>(create_count_record_batch(count))
+
+                Ok::<RecordBatch, DataFusionError>(create_count_record_batch(count as u64))
             }),
         )))
     }

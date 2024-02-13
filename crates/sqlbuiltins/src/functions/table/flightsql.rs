@@ -7,24 +7,24 @@ use datafusion::datasource::TableProvider;
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::flightsql::{FlightSqlSourceConnectionOptions, FlightSqlSourceProvider};
+use datasources::flightsql::{FlightSqlConnectionOptions, FlightSqlTableProvider};
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
 use super::TableFunc;
 use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
-pub struct ReadFlightSql;
+pub struct ReadInfluxDb;
 
-impl ConstBuiltinFunction for ReadFlightSql {
-    const NAME: &'static str = "read_flightsql";
-    const DESCRIPTION: &'static str = "Reads a FlightSQL table";
+impl ConstBuiltinFunction for ReadInfluxDb {
+    const NAME: &'static str = "read_influxdb";
+    const DESCRIPTION: &'static str = "Reads an InfluxDB table using the FlightSQL protocol";
     const EXAMPLE: &'static str =
-        "SELECT * FROM read_flightsql('https://localhost:37019', 'database', 'token')";
+        "SELECT * FROM read_influxdb('https://localhost:37019', 'database', 'token')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
-            3,
+            4,
             vec![DataType::Utf8],
             Volatility::Stable,
         ))
@@ -32,7 +32,7 @@ impl ConstBuiltinFunction for ReadFlightSql {
 }
 
 #[async_trait]
-impl TableFunc for ReadFlightSql {
+impl TableFunc for ReadInfluxDb {
     fn detect_runtime(
         &self,
         _args: &[FuncParamValue],
@@ -57,13 +57,14 @@ impl TableFunc for ReadFlightSql {
         let table: String = args.next().unwrap().try_into()?;
         let token: String = args.next().unwrap().try_into()?;
 
-        let opts = FlightSqlSourceConnectionOptions {
-            uri,
-            database,
-            token,
-            table,
-        };
-
-        Ok(Arc::new(FlightSqlSourceProvider::try_new(opts).await?))
+        Ok(Arc::new(
+            FlightSqlTableProvider::try_new(FlightSqlConnectionOptions {
+                uri,
+                database,
+                token,
+                table,
+            })
+            .await?,
+        ))
     }
 }
