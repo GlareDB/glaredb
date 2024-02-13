@@ -1,0 +1,17 @@
+statement ok
+create schema create_view_schema;
+
+statement ok
+set search_path to create_view_schema;
+
+statement ok
+create view test as select 1 as a;
+
+statement ok
+CREATE VIEW view_yes_paren AS (SELECT 1);
+
+query I
+select * from view_yes_paren;
+----
+1
+
