@@ -1,11 +1,13 @@
-[package]
-name = "rayexec"
+[workspace]
+members = ["crates/*"]
+default-members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
 version = "0.0.1"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+[workspace.dependencies]
 ahash = "0.8.7"
 arrow = { version = "50.0.0", features = ["prettyprint"] }
 arrow-array = { version = "50.0.0", default-features = false, features = ["chrono-tz"] }
@@ -22,4 +24,4 @@ parking_lot = "0.12"
 parquet = { version = "50.0.0", default-features = false }
 rayon = "1.8.1"
 smallvec = "1.13.1"
-thiserror = "1.0.44"
+thiserror = "1.0.44" # TODO: Remove
