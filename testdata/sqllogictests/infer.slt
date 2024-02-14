@@ -51,3 +51,33 @@ select count(*) from './testdata/parquet/*.parquet'
 statement error missing file extension
 select count(*) from './testdata/parquet/*'
 
+#Tests for inferring table functions from compressed file formats
+
+query
+select count(*) from './testdata/csv/userdata1.csv.gz'
+----
+1000
+
+
+query IT
+select id, "./testdata/csv/userdata1.csv.gz".first_name
+  from './testdata/csv/userdata1.csv.gz'
+  order by id
+  limit 1
+----
+1  Amanda
+
+#For read_parquet table function with compressed files 
+
+query
+select count(*) from './testdata/parquet/userdata1.parquet.gz'
+----
+1000
+
+query IT
+select id, "./testdata/parquet/userdata1.parquet.gz".first_name
+  from './testdata/parquet/userdata1.parquet.gz'
+  order by id
+  limit 1
+----
+1  Amanda
