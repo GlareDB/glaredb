@@ -1,7 +1,8 @@
 //! Builtins as determined by Metastore.
 //!
-//! On catalog initialization, whether that loading in a catalog from storage,
-//! or creating a new one, as set of builtins will be inserted into the catalog.
+//! On catalog initialization, either by loading in a catalog from storage, or
+//! creating a new one, a set of builtins will be inserted into the catalog
+//! (see Storage initialize).
 //!
 //! Two main takeaways:
 //!
@@ -767,7 +768,9 @@ mod tests {
         let mut oids = HashSet::new();
         for schema in BuiltinSchema::builtins() {
             assert!(schema.oid < FIRST_NON_STATIC_OID);
-            assert!(schema.oid >= FIRST_GLAREDB_BUILTIN_ID);
+            assert!(schema.oid > FIRST_GLAREDB_BUILTIN_ID);
+            assert!(schema.oid >= 16385);
+            assert!(schema.oid <= 16400);
             assert!(oids.insert(schema.oid), "duplicate oid: {}", schema.oid);
         }
     }

@@ -34,3 +34,19 @@ select array_element(1, f) from test;
 
 statement error 
 select array_append(f, 3) from test;
+
+
+
+# 2588 Unsigned integers downgraded to integers in delta-lake 
+statement ok
+create table datatypes (u8 tinyint unsigned, u16 smallint unsigned, u32 int unsigned, u64 bigint unsigned);
+
+
+# Inserting negative values to test validity of unsigned integers
+statement error 
+insert into datatypes (u8, u16, u32, u64) values (-1, -1, -1, -1); 
+
+
+# Inserting positive values 
+statement ok 
+insert into datatypes (u8, u16, u32, u64) values (1, 1, 1, 1);
