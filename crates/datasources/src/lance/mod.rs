@@ -152,7 +152,7 @@ impl ExecutionPlan for LanceInsertExecPlan {
     ) -> datafusion::error::Result<SendableRecordBatchStream> {
         let mut stream = execute_stream(self.input.clone(), ctx)?.chunks(32);
         let mut ds = self.dataset.clone();
-        let schema = self.schema().clone();
+        let schema = self.input.schema();
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             schema.clone(),
