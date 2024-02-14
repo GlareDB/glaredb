@@ -265,7 +265,7 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
         ext => {
             if let Ok(compression_type) = ext.parse::<FileCompressionType>() {
                 let ext = compression_type.get_ext();
-                let path = path.trim_end_matches(ext);
+                let path = path.trim_end_matches(ext.as_str());
                 infer_func_for_file(path)?
             } else {
                 return Err(DataFusionError::Plan(format!(
