@@ -275,14 +275,9 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
                 infer_func_for_file(path)
             } else {
                 return Err(DataFusionError::Plan(format!(
-                    "Invalid file compression format: {ext}"
+                    "Invalid file extension format: {ext}"
                 )));
             }
-        }
-        _ => {
-            return Err(DataFusionError::Plan(format!(
-                "unable to infer how to handle file extension: {ext}"
-            )))
         }
     })
 }
