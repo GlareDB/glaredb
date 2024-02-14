@@ -7,7 +7,7 @@ use tokio::net::TcpListener;
 use tokio::process::Command;
 use tokio::time::{sleep as tokio_sleep, Instant};
 use tokio_postgres::{Client, Config};
-use tracing::warn;
+use tracing::error;
 
 use super::test::{Hook, TestClient};
 
@@ -194,9 +194,12 @@ impl Hook for SshTunnelHook {
     ) -> Result<()> {
         let client = match client {
             TestClient::Pg(client) => client,
-            TestClient::Rpc(_) => return Err(anyhow!("cannot run SSH tunnel test on rpc")),
+            TestClient::Rpc(_) => {
+                error!("cannot run SSH tunnel test with the RPC protocol. Skipping...");
+                return Ok(());
+            }
             TestClient::FlightSql(_) => {
-                warn!("cannot run SSH tunnel test on flight protocol. Skipping...");
+                error!("cannot run SSH tunnel test on FlightSQL protocol. Skipping...");
                 return Ok(());
             }
         };
