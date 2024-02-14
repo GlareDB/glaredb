@@ -27,15 +27,15 @@ use super::PostgresAccessState;
 use crate::common::util::{create_count_record_batch, COUNT_SCHEMA};
 
 #[derive(Debug)]
-pub struct PostgresQueryExec {
+pub struct PostgresInsertExec {
     query: String,
     state: Arc<PostgresAccessState>,
     metrics: ExecutionPlanMetricsSet,
 }
 
-impl PostgresQueryExec {
+impl PostgresInsertExec {
     pub fn new(query: String, state: Arc<PostgresAccessState>) -> Self {
-        PostgresQueryExec {
+        PostgresInsertExec {
             query,
             state,
             metrics: ExecutionPlanMetricsSet::new(),
@@ -43,7 +43,7 @@ impl PostgresQueryExec {
     }
 }
 
-impl ExecutionPlan for PostgresQueryExec {
+impl ExecutionPlan for PostgresInsertExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -105,9 +105,9 @@ impl ExecutionPlan for PostgresQueryExec {
     }
 }
 
-impl DisplayAs for PostgresQueryExec {
+impl DisplayAs for PostgresInsertExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "PostgresQueryExec(query = {})", self.query)
+        write!(f, "PostgresInsertExec(query = {})", self.query)
     }
 }
 

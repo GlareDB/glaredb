@@ -75,7 +75,7 @@ use tokio_postgres::types::{FromSql, Type as PostgresType};
 use tokio_postgres::{Client, Config, Connection, CopyOutStream, NoTls, Socket};
 use tracing::{debug, warn};
 
-use self::query_exec::PostgresQueryExec;
+use self::query_exec::PostgresInsertExec;
 use crate::common::ssh::key::SshKey;
 use crate::common::ssh::session::{SshTunnelAccess, SshTunnelSession};
 use crate::common::util::{self, create_count_record_batch};
@@ -736,7 +736,7 @@ impl TableProvider for PostgresTableProvider {
 
         debug!(%query, "inserting into postgres datasource");
 
-        let exec = PostgresQueryExec::new(query, self.state.clone());
+        let exec = PostgresInsertExec::new(query, self.state.clone());
         Ok(Arc::new(exec))
     }
 }
