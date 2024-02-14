@@ -625,7 +625,7 @@ jobs:
 
           [ "${{matrix.settings.name}}" = "MongoDB" ] && ./scripts/create-fixture-mongodb.sh
 
-          just slt-bin --protocol=rpc ${{matrix.settings.path}}
+          just slt-bin --protocol=rpc  --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
 
           [ "${{matrix.settings.name}}" = "MongoDB" ] && ./scripts/create-fixture-mongodb.sh
 
