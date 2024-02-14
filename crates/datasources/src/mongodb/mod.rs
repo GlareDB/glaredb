@@ -29,7 +29,7 @@ use tracing::debug;
 
 use crate::bson::array_to_bson;
 use crate::mongodb::errors::{MongoDbError, Result};
-use crate::mongodb::exec::MongoDbBsonExec;
+use crate::mongodb::exec::MongoDbQueryExecPlan;
 use crate::mongodb::infer::TableSampler;
 
 /// Field name in mongo for uniquely identifying a record. Some special handling
@@ -326,7 +326,7 @@ impl TableProvider for MongoDbTableProvider {
                 .await
                 .map_err(|e| DataFusionError::External(Box::new(e)))?,
         ));
-        Ok(Arc::new(MongoDbBsonExec::new(
+        Ok(Arc::new(MongoDbQueryExecPlan::new(
             cursor,
             schema,
             limit,
