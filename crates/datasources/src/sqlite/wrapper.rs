@@ -158,7 +158,7 @@ impl SqliteBatch {
     pub fn get_val_by_col_name(&self, row: usize, name: impl AsRef<str>) -> Option<&Value> {
         let col_name = name.as_ref();
         let col_idx = self.cols.iter().enumerate().find_map(|(idx, col)| {
-            if &col.name == col_name {
+            if col.name == col_name {
                 Some(idx)
             } else {
                 None

@@ -303,8 +303,8 @@ impl Converter {
                                                 to: DataType::Time64(TimeUnit::Microsecond),
                                             })?;
                                         let sub_microseconds = {
-                                            let fract = (r.fract() * 1_000_000_0_f64) as u32;
-                                            if fract % 1_000_000_0 < 5 {
+                                            let fract = (r.fract() * 10_000_000_f64) as u32;
+                                            if fract % 10_000_000 < 5 {
                                                 fract / 10
                                             } else {
                                                 (fract / 10) + 1
