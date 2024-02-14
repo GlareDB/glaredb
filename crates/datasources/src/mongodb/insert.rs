@@ -100,7 +100,7 @@ impl ExecutionPlan for MongoDbInsertExecPlan {
         let coll = self.collection.clone();
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
-            COUNT_SCHEMA.clone(),
+            self.input.schema(),
             futures::stream::once(async move {
                 let mut count: u64 = 0;
                 while let Some(batch) = stream.next().await {

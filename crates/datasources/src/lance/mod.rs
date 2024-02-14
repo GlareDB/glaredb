@@ -155,7 +155,7 @@ impl ExecutionPlan for LanceInsertExecPlan {
         let schema = self.schema().clone();
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
-            COUNT_SCHEMA.clone(),
+            schema.clone(),
             futures::stream::once(async move {
                 let write_opts = WriteParams {
                     mode: WriteMode::Append,
