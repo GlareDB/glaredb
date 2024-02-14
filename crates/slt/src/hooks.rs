@@ -7,7 +7,7 @@ use tokio::net::TcpListener;
 use tokio::process::Command;
 use tokio::time::{sleep as tokio_sleep, Instant};
 use tokio_postgres::{Client, Config};
-use tracing::error;
+use tracing::{error, warn};
 
 use super::test::{Hook, TestClient};
 
