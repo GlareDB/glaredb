@@ -107,7 +107,7 @@ impl ExecutionPlan for PostgresInsertExec {
 
 impl DisplayAs for PostgresInsertExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "PostgresQueryExec(query = {})", self.query)
+        write!(f, "PostgresInsertExec(query = {})", self.query)
     }
 }
 
