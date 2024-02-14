@@ -16,7 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, OwnedTableReference, Result};
@@ -243,12 +243,6 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
         .ok_or_else(|| DataFusionError::Plan(format!("strange file extension: {path}")))?
         .to_lowercase();
 
-    let binding = PathBuf::from(path);
-    let filename = binding
-        .file_name()
-        .and_then(|f| f.to_str())
-        .ok_or_else(|| DataFusionError::Plan(format!("Invalid file name: {path}")))?;
-
     // TODO: We can be a bit more sophisticated here and handle compression
     // schemes as well.
     Ok(match ext.as_str() {
@@ -280,47 +274,4 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
             }
         }
     })
-}
-
-fn infer_func_from_compressed_file(
-    filename: &str,
-    compressed_format: &str,
-) -> Result<OwnedTableReference> {
-    //Trying to handle BOTH data-formats and compression formats..
-    let parquet_format = format!("{}{}", ".parquet.", compressed_format);
-    let csv_format = format!("{}{}", ".csv.", compressed_format);
-    let bson_format = format!("{}{}", ".bson.", compressed_format);
-    let json_format = format!("{}{}", ".json.", compressed_format);
-    let ndjson_format = format!("{}{}", ".ndjson.", compressed_format);
-
-    if filename.ends_with(json_format.as_str()) {
-        return Ok(OwnedTableReference::Partial {
-            schema: "public".into(),
-            table: "read_json".into(),
-        });
-    } else if filename.ends_with(ndjson_format.as_str()) {
-        return Ok(OwnedTableReference::Partial {
-            schema: "public".into(),
-            table: "read_ndjson".into(),
-        });
-    } else if filename.ends_with(parquet_format.as_str()) {
-        return Ok(OwnedTableReference::Partial {
-            schema: "public".into(),
-            table: "read_parquet".into(),
-        });
-    } else if filename.ends_with(csv_format.as_str()) {
-        return Ok(OwnedTableReference::Partial {
-            schema: "public".into(),
-            table: "read_csv".into(),
-        });
-    } else if filename.ends_with(bson_format.as_str()) {
-        return Ok(OwnedTableReference::Partial {
-            schema: "public".into(),
-            table: "read_bson".into(),
-        });
-    } else {
-        return Err(DataFusionError::Plan(format!(
-            "Invalid compressed filename: {filename}  with extension {compressed_format}"
-        )));
-    }
 }
