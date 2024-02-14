@@ -120,6 +120,17 @@ fn arrow_to_delta_safe(arrow_type: &DataType) -> DeltaResult<DeltaField> {
                 metadata: Some(metadata),
             })
         }
+        dtype @ (DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64) => {
+            let mut metadata = HashMap::new();
+            metadata.insert("arrow_type".to_string(), json!(dtype));
+
+            let delta_type = dtype.try_into()?;
+
+            Ok(DeltaField {
+                data_type: delta_type,
+                metadata: Some(metadata),
+            })
+        }
         other => {
             let delta_type = other.try_into()?;
             Ok(DeltaField {
@@ -129,7 +140,6 @@ fn arrow_to_delta_safe(arrow_type: &DataType) -> DeltaResult<DeltaField> {
         }
     }
 }
-
 
 impl NativeTableStorage {
     /// Create a native table storage provider from a URL and an object store instance
@@ -193,7 +203,6 @@ impl NativeTableStorage {
                 .with_save_mode(save_mode)
                 .with_table_name(&table.meta.name)
                 .with_log_store(delta_store);
-
 
             for col in &opts.columns {
                 let delta_col = arrow_to_delta_safe(&col.arrow_type)?;
@@ -370,7 +379,6 @@ impl TableProvider for NativeTable {
             // If the field requires conversion, we need to use the original arrow type
             if let Some(arrow_type) = metadata.get("arrow_type") {
                 // this is dumb AF, delta-lake is returning a string of a json object instead of a json object
-
 
                 // any panics here are bugs in writing the metadata in the first place
                 let s: String =
