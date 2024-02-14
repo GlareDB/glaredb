@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use async_recursion::async_recursion;
-use datafusion::common::{DataFusionError, OwnedTableReference, Result};
+use datafusion::common::{DataFusionError, GetExt, OwnedTableReference, Result};
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::scalar::ScalarValue;
@@ -266,7 +266,7 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
             if let Ok(compression_type) = ext.parse::<FileCompressionType>() {
                 let ext = compression_type.get_ext();
                 let path = path.trim_end_matches(ext);
-                infer_func_for_file(path)
+                infer_func_for_file(path)?
             } else {
                 return Err(DataFusionError::Plan(format!(
                     "Invalid file extension format: {ext}"
