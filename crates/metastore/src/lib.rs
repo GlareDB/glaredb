@@ -2,7 +2,7 @@
 pub mod errors;
 pub mod local;
 pub mod srv;
+pub mod util;
 
 mod database;
 mod storage;
-pub mod util;
