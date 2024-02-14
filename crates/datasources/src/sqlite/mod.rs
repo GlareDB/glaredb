@@ -62,9 +62,7 @@ impl SqliteAccess {
 
     pub async fn validate_table_access(&self, table: &str) -> Result<()> {
         let state = self.connect().await?;
-        let query = format!("SELECT * FROM {table} WHERE FALSE");
-        let _ = state.client.query_all(query).await?;
-        Ok(())
+        state.validate_table_access(table).await
     }
 }
 
@@ -74,6 +72,12 @@ pub struct SqliteAccessState {
 }
 
 impl SqliteAccessState {
+    async fn validate_table_access(&self, table: &str) -> Result<()> {
+        let query = format!("SELECT * FROM {table} WHERE FALSE");
+        let _ = self.client.query_all(query).await?;
+        Ok(())
+    }
+
     async fn get_table_schema(&self, table: &str) -> Result<Schema> {
         let batch = self
             .client
@@ -123,6 +127,13 @@ impl SqliteAccessState {
                 Field::new(col_name, data_type, !not_null)
             })
             .collect::<Vec<_>>();
+
+        if fields.is_empty() {
+            // Pragma doesn't error for non-existant tables. If we are unable
+            // to fetch the schema for the table, we can try validating it to
+            // ensure that it exists.
+            self.validate_table_access(table).await?;
+        }
 
         Ok(Schema::new(fields))
     }
@@ -230,22 +241,20 @@ impl TableProvider for SqliteTableProvider {
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         // Project the schema.
         let projected_schema = match projection {
-            Some(projection) => Arc::new(self.schema.project(projection)?),
-            None => self.schema.clone(),
+            Some(projection) if !projection.is_empty() => {
+                Arc::new(self.schema.project(projection)?)
+            }
+            _ => self.schema.clone(),
         };
 
         // Get the projected columns, joined by a ','. This will be put in the
         // 'SELECT ...' portion of the query.
-        let projection_string = if projected_schema.fields().is_empty() {
-            "*".to_string()
-        } else {
-            projected_schema
-                .fields
-                .iter()
-                .map(|f| f.name().clone())
-                .collect::<Vec<_>>()
-                .join(",")
-        };
+        let projection_string = projected_schema
+            .fields
+            .iter()
+            .map(|f| f.name().clone())
+            .collect::<Vec<_>>()
+            .join(",");
 
         let limit_string = match limit {
             Some(limit) => format!("LIMIT {}", limit),

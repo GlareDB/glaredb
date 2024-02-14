@@ -86,6 +86,17 @@ CREATE TABLE IF NOT EXISTS bikeshare_stations (
 .mode csv
 .import --skip 1 testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv bikeshare_stations
 
+-- We edit the CSV here since these options are not available in the `.import`
+-- command. Set cells to NULL if value is empty string
+
+UPDATE bikeshare_stations
+    SET alternate_name = NULL
+    WHERE alternate_name = '';
+
+UPDATE bikeshare_stations
+    SET city_asset_number = NULL
+    WHERE city_asset_number = '';
+
 -- Create bikeshare_trips table
 CREATE TABLE IF NOT EXISTS bikeshare_trips (
     trip_id            BIGINT,

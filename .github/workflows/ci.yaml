@@ -440,6 +440,7 @@ jobs:
             --exclude 'sqllogictests_snowflake/*' \
             --exclude 'sqllogictests_cassandra/*' \
             --exclude 'sqllogictests_clickhouse/*' \
+            --exclude 'sqllogictests_sqlite/*' \
             --exclude 'sqllogictests_sqlserver/*' \
             --exclude 'sqllogictests_mongodb/*' \
             --exclude 'sqllogictests_mysql/*' \
@@ -600,6 +601,11 @@ jobs:
               ./scripts/prepare-testdata.sh
               source ./scripts/ci-install-clickhouse.sh
               export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
+          - name: Sqlite
+            path: "sqllogictests_sqlite/*"
+            prepare: |
+              ./scripts/prepare-testdata.sh
+              export SQLITE_DB_LOCATION=$(./scripts/create-test-sqlite-db.sh)
           - name: Cassandra
             path: "sqllogictests_cassandra/*"
             prepare: |
