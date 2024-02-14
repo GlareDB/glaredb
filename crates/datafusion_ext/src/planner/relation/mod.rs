@@ -320,7 +320,7 @@ fn infer_func_from_compressed_file(
         });
     } else {
         return Err(DataFusionError::Plan(format!(
-            "Invalid compressed filename with extension {compressed_format} : {filename}"
+            "Invalid compressed filename: {filename}  with extension {compressed_format}"
         )));
     }
 }
