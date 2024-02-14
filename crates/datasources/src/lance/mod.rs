@@ -29,7 +29,7 @@ use lance::dataset::{WriteMode, WriteParams};
 use lance::Dataset;
 use protogen::metastore::types::options::StorageOptions;
 
-use crate::common::util::create_count_record_batch;
+use crate::common::util::{create_count_record_batch, COUNT_SCHEMA};
 
 pub struct LanceTable {
     dataset: Dataset,
@@ -117,7 +117,7 @@ impl ExecutionPlan for LanceInsertExecPlan {
     }
 
     fn schema(&self) -> SchemaRef {
-        TableProvider::schema(&self.dataset)
+        COUNT_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -152,7 +152,7 @@ impl ExecutionPlan for LanceInsertExecPlan {
     ) -> datafusion::error::Result<SendableRecordBatchStream> {
         let mut stream = execute_stream(self.input.clone(), ctx)?.chunks(32);
         let mut ds = self.dataset.clone();
-        let schema = self.schema().clone();
+        let schema = self.input.schema();
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             schema.clone(),

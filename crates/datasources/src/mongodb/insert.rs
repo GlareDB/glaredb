@@ -21,7 +21,7 @@ use futures::StreamExt;
 use mongodb::bson::RawDocumentBuf;
 use mongodb::Collection;
 
-use crate::common::util::create_count_record_batch;
+use crate::common::util::{create_count_record_batch, COUNT_SCHEMA};
 
 pub struct MongoDbInsertExecPlan {
     collection: Collection<RawDocumentBuf>,
@@ -57,7 +57,7 @@ impl ExecutionPlan for MongoDbInsertExecPlan {
     }
 
     fn schema(&self) -> SchemaRef {
-        self.input.schema()
+        COUNT_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -97,11 +97,10 @@ impl ExecutionPlan for MongoDbInsertExecPlan {
         }
 
         let mut stream = execute_stream(self.input.clone(), ctx)?;
-        let schema = self.input.schema().clone();
         let coll = self.collection.clone();
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
-            schema.clone(),
+            self.input.schema(),
             futures::stream::once(async move {
                 let mut count: u64 = 0;
                 while let Some(batch) = stream.next().await {
