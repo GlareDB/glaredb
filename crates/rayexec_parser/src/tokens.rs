@@ -247,6 +247,30 @@ impl<'a> Tokenizer<'a> {
                 let s = self.take_quoted_string('\'');
                 Token::SingleQuotedString(s)
             }
+            // Numbers
+            '0'..='9' | '.' => {
+                let mut period_found = false;
+                let s = self.state.take_while(|c| {
+                    if c.is_ascii_digit() {
+                        return true;
+                    }
+                    if period_found {
+                        return false;
+                    }
+                    if c == '.' {
+                        period_found = true;
+                        return true;
+                    }
+                    false
+                });
+
+                // Just a period, possibly for a compound identifier.
+                if s == "." {
+                    return Ok(Some(Token::Period));
+                }
+
+                Token::Number(s)
+            }
             // Identifiers
             c if Self::is_identifier_start(c) => {
                 let ident = self.take_identifier();
@@ -265,9 +289,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn take_identifier(&mut self) -> Word<'a> {
-        let s = self
-            .state
-            .take_while(|c| c.is_alphanumeric() || c == '_' || c == '.');
+        let s = self.state.take_while(|c| c.is_alphanumeric() || c == '_');
         Word::new(s, None)
     }
 
