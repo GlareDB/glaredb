@@ -46,6 +46,7 @@ impl ConstBuiltinFunction for ListSchemas {
     const DESCRIPTION: &'static str = "Lists schemas in a database";
     const EXAMPLE: &'static str = "SELECT * FROM list_schemas('database')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             1,
