@@ -235,8 +235,8 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 /// Returns a reference to table func by inferring which function to use from a
 /// given path.
 fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
-    let ext = if path.contains("docs.google.com/spreadsheet") && path.trim().ends_with("output=csv")
-    {
+    let is_google_sheet = path.contains("docs.google.com/spreadsheet");
+    let ext = if is_google_sheet {
         "csv".to_string()
     } else {
         Path::new(path)
