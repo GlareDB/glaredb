@@ -5,6 +5,8 @@ use std::task::{Context, Poll};
 
 use async_sqlite::rusqlite::types::Value;
 use async_sqlite::rusqlite::{self, OpenFlags};
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::error::DataFusionError;
 use futures::Stream;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -33,7 +35,7 @@ impl SqliteAsyncClient {
         Ok(Self { path, inner })
     }
 
-    pub fn query(&self, s: impl Into<String>) -> SqliteQueryStream {
+    pub fn query(&self, s: impl Into<String>) -> SqliteRecordBatchStream {
         let s = s.into();
 
         let (tx, rx) = mpsc::channel(1);
@@ -97,7 +99,7 @@ impl SqliteAsyncClient {
             Ok(())
         });
 
-        SqliteQueryStream {
+        SqliteRecordBatchStream {
             rx,
             _handle: handle,
         }
@@ -170,13 +172,13 @@ impl SqliteBatch {
     }
 }
 
-pub struct SqliteQueryStream {
+pub struct SqliteRecordBatchStream {
     rx: mpsc::Receiver<Result<SqliteBatch>>,
     _handle: JoinHandle<Result<()>>,
 }
 
-impl Stream for SqliteQueryStream {
-    type Item = Result<SqliteBatch>;
+impl Stream for SqliteRecordBatchStream {
+    type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.rx.poll_recv(cx)

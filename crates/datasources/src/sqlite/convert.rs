@@ -1,17 +1,25 @@
+use std::any::Any;
 use std::sync::Arc;
 
-use async_sqlite::rusqlite::types::Value;
+use async_sqlite::rusqlite::types::{Value, ValueRef};
+use async_sqlite::rusqlite::Rows;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use datafusion::arrow::array::{
     Array,
     BinaryBuilder,
     BooleanArray,
+    BooleanBuilder,
     Date32Array,
+    Date32Builder,
     Float64Array,
+    Float64Builder,
     Int64Array,
+    Int64Builder,
     StringBuilder,
     Time64MicrosecondArray,
+    Time64MicrosecondBuilder,
     TimestampMicrosecondArray,
+    TimestampMicrosecondBuilder,
 };
 use datafusion::arrow::datatypes::{DataType, SchemaRef, TimeUnit};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -30,9 +38,86 @@ impl Converter {
         Self { schema }
     }
 
-    pub fn create_record_batch(&self, data: Vec<Vec<Value>>) -> Result<RecordBatch> {
-        let mut cols = Vec::new();
+    pub fn create_record_batch(&self, rows: &mut Rows<'_>) -> Result<RecordBatch> {
+        const RECORD_BATCH_CAPACITY: usize = 1000;
 
+        let array_builders = self
+            .schema
+            .fields()
+            .into_iter()
+            .map(|field| {
+                let builder: Box<dyn Any> = match field.data_type() {
+                    DataType::Boolean => {
+                        Box::new(BooleanBuilder::with_capacity(RECORD_BATCH_CAPACITY))
+                    }
+                    DataType::Int64 => Box::new(Int64Builder::with_capacity(RECORD_BATCH_CAPACITY)),
+                    DataType::Float64 => {
+                        Box::new(Float64Builder::with_capacity(RECORD_BATCH_CAPACITY))
+                    }
+                    DataType::Utf8 => Box::new(StringBuilder::with_capacity(
+                        RECORD_BATCH_CAPACITY,
+                        10 * RECORD_BATCH_CAPACITY,
+                    )),
+                    DataType::Binary => Box::new(BinaryBuilder::with_capacity(
+                        RECORD_BATCH_CAPACITY,
+                        10 * RECORD_BATCH_CAPACITY,
+                    )),
+                    DataType::Date32 => {
+                        Box::new(Date32Builder::with_capacity(RECORD_BATCH_CAPACITY))
+                    }
+                    DataType::Time64(TimeUnit::Microsecond) => Box::new(
+                        Time64MicrosecondBuilder::with_capacity(RECORD_BATCH_CAPACITY),
+                    ),
+                    DataType::Timestamp(TimeUnit::Microsecond, None) => Box::new(
+                        TimestampMicrosecondBuilder::with_capacity(RECORD_BATCH_CAPACITY),
+                    ),
+                    _ => unreachable!(),
+                };
+                builder
+            })
+            .collect::<Vec<_>>();
+
+        let mut row_idx = 0;
+        while let Some(row) = rows.next()? {
+            for (col_idx, field) in self.schema.fields().into_iter().enumerate() {
+                match field.data_type() {
+                    DataType::Boolean => {
+                        let builder = array_builders[col_idx].downcast_mut::<BooleanBuilder>().unwrap();
+                        match row.get_ref(col_idx).map_err(|_| SqliteError::MissingDataForColumn(col_idx)) {
+                            ValueRef::Null => Ok(None),
+                            ValueRef::Integer(i) => Ok(Some(*i != 0)),
+                            ValueRef::Real(r) => Ok(Some(*r != 0_f64)),
+                            ValueRef::Text(t) => {
+                                let t = 
+                                if t.eq_ignore_ascii_case("t")
+                                    || t.eq_ignore_ascii_case("true")
+                                    || t.eq_ignore_ascii_case("1")
+                                {
+                                    Ok(Some(true))
+                                } else if t.eq_ignore_ascii_case("f")
+                                    || t.eq_ignore_ascii_case("false")
+                                    || t.eq_ignore_ascii_case("0")
+                                {
+                                    Ok(Some(false))
+                                } else if t.is_empty() || t.eq_ignore_ascii_case("null") {
+                                    Ok(None)
+                                } else {
+                                    Err(SqliteError::InvalidConversion {
+                                        from: Value::Text(t.clone()),
+                                        to: DataType::Boolean,
+                                    })
+                                }
+                            }
+                            v => Err(SqliteError::InvalidConversion {
+                                from: v.clone(),
+                                to: DataType::Boolean,
+                            }),
+                        }
+                    }
+                }
+            }
+        }
+        
         for (col_idx, field) in self.schema.fields().into_iter().enumerate() {
             let col: Arc<dyn Array> = match field.data_type() {
                 DataType::Boolean => Arc::new(
