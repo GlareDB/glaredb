@@ -39,6 +39,7 @@ define_keywords!(
     BY,
     CASE,
     CREATE,
+    DATABASE,
     EXISTS,
     EXPLAIN,
     FALSE,

@@ -2,6 +2,8 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt;
 use std::hash::Hash;
 
+use crate::tokens::Word;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Ident<'a> {
     pub value: &'a str,

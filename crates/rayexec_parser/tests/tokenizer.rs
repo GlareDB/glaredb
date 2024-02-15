@@ -286,7 +286,9 @@ fn tokenize_compound() {
                 Word {
                     value: "database",
                     quote: None,
-                    keyword: None,
+                    keyword: Some(
+                        DATABASE,
+                    ),
                 },
             ),
             line: 0,

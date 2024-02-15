@@ -1,8 +1,16 @@
-use crate::{keywords::Keyword, statement::Statement, tokens::Token};
+use crate::{
+    keywords::Keyword,
+    statement::{Ident, ObjectReference, Statement},
+    tokens::{Token, TokenWithLocation, Tokenizer},
+};
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
 
-use crate::tokens::TokenWithLocation;
+/// Parse a sql query into statements.
+pub fn parse(sql: &str) -> Result<Vec<Statement<'_>>> {
+    let toks = Tokenizer::new(sql).tokenize()?;
+    Parser::with_tokens(toks).parse_statements()
+}
 
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -16,8 +24,35 @@ impl<'a> Parser<'a> {
         Parser { toks, idx: 0 }
     }
 
+    pub fn parse_statements(&mut self) -> Result<Vec<Statement<'a>>> {
+        let mut stmts = Vec::new();
+        let mut expect_delimiter = false;
+
+        loop {
+            while self.consume_token(Token::SemiColon) {
+                expect_delimiter = false;
+            }
+
+            if self.peek().is_none() {
+                // We're done.
+                break;
+            }
+
+            if expect_delimiter {
+                return Err(RayexecError::new("Expected semicolon between statements"));
+            }
+
+            let stmt = self.parse_statement()?;
+            stmts.push(stmt);
+
+            expect_delimiter = true;
+        }
+
+        Ok(stmts)
+    }
+
     pub fn parse_statement(&mut self) -> Result<Statement<'a>> {
-        let tok = match self.next_token() {
+        let tok = match self.next() {
             Some(tok) => tok,
             None => return Err(RayexecError::new("Empty SQL statement")),
         };
@@ -71,16 +106,51 @@ impl<'a> Parser<'a> {
 
             let if_not_exists =
                 self.parse_keyword_sequence(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
-            unimplemented!()
+            let reference = self.parse_object_reference()?;
+
+            Ok(Statement::CreateSchema {
+                reference,
+                if_not_exists,
+            })
         } else {
             unimplemented!()
         }
     }
 
+    /// Parse an object reference.
+    fn parse_object_reference(&mut self) -> Result<ObjectReference<'a>> {
+        println!("toks: {:#?}", self.toks);
+        let mut idents = Vec::new();
+        loop {
+            let tok = match self.next() {
+                Some(tok) => tok,
+                None => break,
+            };
+            println!("tok: {tok:?}");
+            let ident = match &tok.token {
+                Token::Word(w) => Ident { value: w.value },
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Unexpected token: {other:?}. Expected an object reference.",
+                    )))
+                }
+            };
+            idents.push(ident);
+
+            // Check if the next token is a period for possible compound
+            // identifiers. If not, we're done.
+            if !self.consume_token(Token::Period) {
+                break;
+            }
+        }
+
+        Ok(ObjectReference(idents))
+    }
+
     /// Parse a single keyword.
     fn parse_keyword(&mut self, keyword: Keyword) -> bool {
         let idx = self.idx;
-        if let Some(tok) = self.next_token() {
+        if let Some(tok) = self.next() {
             if tok.is_keyword(keyword) {
                 return true;
             }
@@ -98,7 +168,7 @@ impl<'a> Parser<'a> {
     fn parse_keyword_sequence(&mut self, keywords: &[Keyword]) -> bool {
         let idx = self.idx;
         for keyword in keywords {
-            if let Some(tok) = self.next_token() {
+            if let Some(tok) = self.next() {
                 if tok.is_keyword(*keyword) {
                     continue;
                 }
@@ -113,7 +183,7 @@ impl<'a> Parser<'a> {
 
     fn parse_one_of_keywords(&mut self, keywords: &[Keyword]) -> bool {
         let idx = self.idx;
-        let tok = match self.next_token() {
+        let tok = match self.next() {
             Some(tok) => tok,
             None => return false,
         };
@@ -127,8 +197,26 @@ impl<'a> Parser<'a> {
         false
     }
 
-    /// Get the next non-whitespace token.
-    fn next_token(&mut self) -> Option<&TokenWithLocation<'a>> {
+    /// Consume the next token if it matches expected.
+    ///
+    /// Returns false with the state unchanged if the next token does not match
+    /// expected.
+    fn consume_token(&mut self, expected: Token) -> bool {
+        let tok = match self.peek() {
+            Some(tok) => &tok.token,
+            None => return false,
+        };
+        if tok == &expected {
+            let _ = self.next();
+            return true;
+        }
+        false
+    }
+
+    /// Get the next token.
+    ///
+    /// Ignores whitespace.
+    fn next(&mut self) -> Option<&TokenWithLocation<'a>> {
         loop {
             if self.idx >= self.toks.len() {
                 return None;
@@ -136,6 +224,27 @@ impl<'a> Parser<'a> {
 
             let tok = &self.toks[self.idx];
             self.idx += 1;
+
+            if matches!(&tok.token, Token::Whitespace) {
+                continue;
+            }
+
+            return Some(tok);
+        }
+    }
+
+    /// Get the next token without altering the current index.
+    ///
+    /// Ignores whitespace.
+    fn peek(&mut self) -> Option<&TokenWithLocation<'a>> {
+        let mut idx = self.idx;
+        loop {
+            if idx >= self.toks.len() {
+                return None;
+            }
+
+            let tok = &self.toks[idx];
+            idx += 1;
 
             if matches!(&tok.token, Token::Whitespace) {
                 continue;
