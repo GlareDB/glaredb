@@ -276,7 +276,8 @@ impl<'a> ExternalDispatcher<'a> {
         let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
 
         match &table.options {
-            TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
+            TableOptions::Internal(TableOptionsInternal { .. })
+            | TableOptions::Excel(TableOptionsExcel { .. }) => unimplemented!(), // Purposely unimplemented.
             TableOptions::Debug(TableOptionsDebug { table_type }) => {
                 let provider = DebugTableType::from_str(table_type)?;
                 Ok(provider.into_table_provider(tunnel.as_ref()))
@@ -555,26 +556,6 @@ impl<'a> ExternalDispatcher<'a> {
                 .await?;
 
                 Ok(Arc::new(table))
-            }
-            TableOptions::Excel(TableOptionsExcel {
-                location,
-                storage_options,
-                file_type,
-                compression,
-                sheet_name,
-            }) => {
-                let store_access = GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.to_owned(),
-                )?;
-                let source_url = DatasourceUrl::try_new(location)?;
-                self.create_obj_store_table_provider(
-                    store_access,
-                    source_url,
-                    file_type,
-                    compression.as_ref(),
-                )
-                .await
             }
         }
     }

@@ -24,7 +24,11 @@ use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
-use protogen::metastore::types::options::{TableOptions, TableOptionsExcel, TableOptionsObjectStore};
+use protogen::metastore::types::options::{
+    TableOptions,
+    TableOptionsExcel,
+    TableOptionsObjectStore,
+};
 
 use crate::common::exprs_to_phys_exprs;
 use crate::common::url::DatasourceUrl;
@@ -410,11 +414,6 @@ pub fn init_session_registry<'a>(
                 storage_options,
                 ..
             })
-            | TableOptions::Excel(TableOptionsExcel {
-                location,
-                storage_options,
-                ..
-            })
             | TableOptions::Bson(TableOptionsObjectStore {
                 location,
                 storage_options,
@@ -435,7 +434,8 @@ pub fn init_session_registry<'a>(
             | TableOptions::Snowflake(_)
             | TableOptions::SqlServer(_)
             | TableOptions::Clickhouse(_)
-            | TableOptions::Cassandra(_) => continue,
+            | TableOptions::Cassandra(_)
+            | TableOptions::Excel(_) => continue,
         };
 
         let base_url = access.base_url()?;
