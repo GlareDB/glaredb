@@ -123,7 +123,7 @@ pub trait OptionReader: Sync + Send + Sized {
     /// List of options and their expected data types.
     const OPTIONS: &'static [(&'static str, DataType)];
 
-    /// Read user provided options, and construct a file format usign those options.
+    /// Read user provided options, and construct a file format using those options.
     fn read_options(opts: &HashMap<String, FuncParamValue>) -> Result<Self::Format>;
 }
 
