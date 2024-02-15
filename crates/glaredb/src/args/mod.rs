@@ -1,11 +1,10 @@
-use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, ValueEnum};
-use url::Url;
 
 use crate::proxy::TLSMode;
+
 pub mod local;
 pub mod server;
 pub mod slt;
