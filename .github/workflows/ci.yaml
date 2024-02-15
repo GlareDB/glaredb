@@ -661,4 +661,3 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
       - run: gcloud auth configure-docker -q
       - run: ./scripts/build-and-push-images.sh
-        # TODO: this should pull the binary that was built in 'build'
