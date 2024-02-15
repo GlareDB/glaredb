@@ -27,7 +27,7 @@ impl Hook for AllTestsHook {
         config: &Config,
         _: TestClient,
         vars: &mut HashMap<String, String>,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         // Create a unique temp dir and set the variable instead of using the
         // TMP environment variable.
         let tmp_dir = tempfile::tempdir()?;
@@ -41,7 +41,7 @@ impl Hook for AllTestsHook {
             Self::VAR_CURRENT_DATABASE.to_owned(),
             config.get_dbname().unwrap().to_owned(),
         );
-        Ok(())
+        Ok(true)
     }
 
     async fn post(
@@ -191,18 +191,19 @@ impl Hook for SshTunnelHook {
         _: &Config,
         client: TestClient,
         vars: &mut HashMap<String, String>,
-    ) -> Result<()> {
-        // let client = match client {
-        //     TestClient::Pg(client) => client,
-        //     TestClient::Rpc(_) => {
-        //         error!("cannot run SSH tunnel test with the RPC protocol. Skipping...");
-        //         return Ok(());
-        //     }
-        //     TestClient::FlightSql(_) => {
-        //         error!("cannot run SSH tunnel test on FlightSQL protocol. Skipping...");
-        //         return Ok(());
-        //     }
-        // };
+    ) -> Result<bool> {
+        // TODO: make enum for skip/continue rather than booleans
+        let client = match client {
+            TestClient::Pg(client) => client,
+            TestClient::Rpc(_) => {
+                error!("cannot run SSH tunnel test with the RPC protocol. Skipping...");
+                return Ok(false);
+            }
+            TestClient::FlightSql(_) => {
+                error!("cannot run SSH tunnel test on FlightSQL protocol. Skipping...");
+                return Ok(false);
+            }
+        };
 
         let mut err = None;
         // Try upto 5 times
@@ -212,7 +213,7 @@ impl Hook for SshTunnelHook {
                     Self::wait_for_container_start(&container_id).await?;
                     vars.insert("CONTAINER_ID".to_owned(), container_id);
                     vars.insert("TUNNEL_NAME".to_owned(), tunnel_name);
-                    return Ok(());
+                    return Ok(true);
                 }
                 Err(e) => {
                     err = Some(e);
