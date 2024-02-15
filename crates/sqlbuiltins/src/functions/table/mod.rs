@@ -15,6 +15,7 @@ mod object_store;
 mod postgres;
 mod snowflake;
 mod sqlserver;
+mod upload;
 pub mod system;
 mod virtual_listing;
 
@@ -31,6 +32,9 @@ use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProv
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
+
+use crate::functions::alias_map::AliasMap;
+use crate::functions::BuiltinFunction;
 
 use self::bigquery::ReadBigQuery;
 use self::bson::BsonScan;
@@ -50,10 +54,9 @@ use self::object_store::{READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
 use self::sqlserver::ReadSqlServer;
+use self::upload::GlareUpload;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
-use super::alias_map::AliasMap;
-use super::BuiltinFunction;
 
 /// A builtin table function.
 /// Table functions are ones that are used in the FROM clause.
@@ -100,6 +103,7 @@ impl BuiltinTableFuncs {
             Arc::new(READ_JSON),
             Arc::new(BsonScan),
             Arc::new(JsonScan),
+            Arc::new(GlareUpload),
             // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),
