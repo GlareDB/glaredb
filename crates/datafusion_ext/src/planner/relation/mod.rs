@@ -250,6 +250,10 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
             schema: "public".into(),
             table: "read_parquet".into(),
         },
+        "xlsx" => OwnedTableReference::Partial {
+            schema: "public".into(),
+            table: "read_excel".into(),
+        },
         "csv" => OwnedTableReference::Partial {
             schema: "public".into(),
             table: "read_csv".into(),
