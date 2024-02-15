@@ -1,0 +1,12 @@
+# The Google Sheet used below is a public sheet with 6464 rows.
+
+statement error
+SELECT COUNT(*) FROM read_csv('https://docs.google.com/spreadsheet/ccc?key=1f5epAPxP_Yd3g1TunEMdtianpVAhKS0RG6BKRDSLtrk&sheet=January&output=csv')
+
+# Some potential alternative are below
+statement error
+SELECT COUNT(*) FROM read_google_sheet('https://docs.google.com/spreadsheet/ccc?key=1f5epAPxP_Yd3g1TunEMdtianpVAhKS0RG6BKRDSLtrk&sheet=January&output=csv')
+
+# First argument is the doc, second is the sheet, third is the output
+statement error
+SELECT COUNT(*) FROM read_google_sheet('https://docs.google.com/spreadsheets/d/1f5epAPxP_Yd3g1TunEMdtianpVAhKS0RG6BKRDSLtrk/', 'January', 'csv')
