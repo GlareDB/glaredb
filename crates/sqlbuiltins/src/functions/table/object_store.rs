@@ -247,6 +247,7 @@ impl<Opts: OptionReader> TableFunc for ObjScanTableFunc<Opts> {
         // Read in user provided options and use them to construct the format.
         let mut format = Opts::read_options(&opts)?;
 
+
         // Read in compression is provided by the user, or try to infer it from
         // the file extension.
         let compression: Option<FileCompressionType> = match opts.remove("compression") {
