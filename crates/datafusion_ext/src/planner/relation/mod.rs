@@ -261,6 +261,10 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
             schema: "public".into(),
             table: "read_bson".into(),
         },
+        "xslx" => OwnedTableReference::Partial {
+            schema: "public".into(),
+            table: "read_excel".into(),
+        },
         ext => {
             return Err(DataFusionError::Plan(format!(
                 "unable to infer how to handle file extension: {ext}"

@@ -1,6 +1,9 @@
-
 statement ok
 select count(*) from read_excel('file://${PWD}/testdata/xlsx/userdata1.xlsx')
+
+statement ok
+select count(*) from 'file://${PWD}/testdata/xlsx/userdata1.xlsx'
+
 
 # infer rows
 statement ok
@@ -30,5 +33,3 @@ select "HEADING" from read_excel('file://${PWD}/testdata/xlsx/multiple_sheets.xl
 # negatives are not allowed for infer_rows
 statement error
 select * from read_excel('file://${PWD}/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', infer_rows => -1);
-
-
