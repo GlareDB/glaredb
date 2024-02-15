@@ -192,17 +192,17 @@ impl Hook for SshTunnelHook {
         client: TestClient,
         vars: &mut HashMap<String, String>,
     ) -> Result<()> {
-        let client = match client {
-            TestClient::Pg(client) => client,
-            TestClient::Rpc(_) => {
-                error!("cannot run SSH tunnel test with the RPC protocol. Skipping...");
-                return Ok(());
-            }
-            TestClient::FlightSql(_) => {
-                error!("cannot run SSH tunnel test on FlightSQL protocol. Skipping...");
-                return Ok(());
-            }
-        };
+        // let client = match client {
+        //     TestClient::Pg(client) => client,
+        //     TestClient::Rpc(_) => {
+        //         error!("cannot run SSH tunnel test with the RPC protocol. Skipping...");
+        //         return Ok(());
+        //     }
+        //     TestClient::FlightSql(_) => {
+        //         error!("cannot run SSH tunnel test on FlightSQL protocol. Skipping...");
+        //         return Ok(());
+        //     }
+        // };
 
         let mut err = None;
         // Try upto 5 times
