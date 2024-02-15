@@ -24,7 +24,7 @@ use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
-use protogen::metastore::types::options::{TableOptions, TableOptionsObjectStore};
+use protogen::metastore::types::options::{TableOptions, TableOptionsExcel, TableOptionsObjectStore};
 
 use crate::common::exprs_to_phys_exprs;
 use crate::common::url::DatasourceUrl;
@@ -406,6 +406,11 @@ pub fn init_session_registry<'a>(
                 ..
             })
             | TableOptions::Lance(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            })
+            | TableOptions::Excel(TableOptionsExcel {
                 location,
                 storage_options,
                 ..
