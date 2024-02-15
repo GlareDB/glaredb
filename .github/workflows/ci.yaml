@@ -414,38 +414,15 @@ jobs:
           # depend on this.
           unset GOOGLE_APPLICATION_CREDENTIALS
 
-          # Prepare SLT (Postgres)
-          POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
-          export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
-          export POSTGRES_TUNNEL_SSH_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 2p)
-
           # Prepare SLT (fake GCS server)
           ./scripts/create-test-gcs-store.sh
 
-          echo "-------------------------------- WITHOUT TUNNEL TEST --------------------------------"
-          # Run all data source tests without running tunnel tests or the basic
-          # SLT tests.
-          just slt-bin --exclude 'sqllogictests/*' \
-            --exclude '*/tunnels/ssh' \
-            --exclude 'sqllogictests_snowflake/*' \
-            --exclude 'sqllogictests_cassandra/*' \
-            --exclude 'sqllogictests_clickhouse/*' \
-            --exclude 'sqllogictests_sqlserver/*' \
-            --exclude 'sqllogictests_mongodb/*' \
-            --exclude 'sqllogictests_mysql/*' \
-
-          echo "-------------------------------- WITH TUNNEL TEST --------------------------------"
-          # SSH tests are prone to fail if we make a lot of connections at the
-          # same time. Hence, it makes sense to run all the SSH tests one-by-one
-          # in order to test the SSH tunnels (which is our aim).
-          just slt-bin  --jobs=1 '*/tunnels/ssh' --exclude 'sqllogictests_mysql/*'
-
-          # TODO: move these into the datasource-integration-tests job
-
           echo "-------------------------------- RPC TESTS --------------------------------"
+          # TODO: move these into the datasource-integration-tests job
 
           echo "--------------------------  BigQuery -------------------------- "
           just slt-bin --protocol=rpc 'sqllogictests_bigquery/*'
+
           echo "--------------------------  Iceberg -------------------------- "
           just slt-bin --protocol=rpc 'sqllogictests_iceberg/*'
 
@@ -454,9 +431,6 @@ jobs:
 
           echo "--------------------------  Object Store -------------------------- "
           just slt-bin --protocol=rpc 'sqllogictests_object_store/*'
-
-          echo "--------------------------  Postgres -------------------------- "
-          just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' 'sqllogictests_postgres/*'
 
           echo "--------------------------  Fake GCS server with a subdirectory -------------------------- "
           just slt-bin -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
@@ -591,7 +565,7 @@ jobs:
             path: "sqllogictests_cassandra/*"
             prepare: |
               export CASSANDRA_CONN_STRING=$(./scripts/create-test-cassandra-db.sh | tail -n 1)
-          - name: Mysql
+          - name: MySQL
             path: "sqllogictests_mysql/*"
             prepare: |
               ./scripts/prepare-testdata.sh
@@ -604,11 +578,18 @@ jobs:
               ./scripts/prepare-testdata.sh
               export MONGO_CONN_STRING=$(./scripts/create-test-mongodb.sh)
               ./scripts/create-fixture-mongodb.sh
-          - name: Sqlserver
+          - name: SQLServer
             path: "sqllogictests_sqlserver/*"
             prepare: |
               ./scripts/prepare-testdata.sh
               export SQL_SERVER_CONN_STRING=$(./scripts/create-test-sqlserver-db.sh)
+          - name: PostgreSQL
+            path: "sqllogictests_postgres/*"
+            prepare: |
+               ./scripts/prepare-testdata.sh
+               export POSTGRES_TEST_DB=$(./scripts/create-test-postgres-db.sh)
+               export POSTGRES_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 1p)
+               export POSTGRES_TUNNEL_SSH_CONN_STRING=$(echo "$POSTGRES_TEST_DB" | sed -n 2p)
     runs-on: ubuntu-latest
     needs: ["sql-logic-tests"]
     steps:
@@ -631,15 +612,16 @@ jobs:
 
           [ "${{matrix.settings.name}}" = "MongoDB" ] && ./scripts/create-fixture-mongodb.sh
 
-          just slt-bin --protocol=rpc --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
+          just slt-bin --protocol=rpc ${{matrix.settings.path}}
 
           [ "${{matrix.settings.name}}" = "MongoDB" ] && ./scripts/create-fixture-mongodb.sh
 
           # for sqlserver, skip flightsql because the suite takes 4-5
-          # minutes, and Sqlserver is the longest/last task to finish
-          [ "${{matrix.settings.name}}" = "Sqlserver" ] && exit 0
+          # minutes, and sqlserver is the longest/last task to finish
+          [ "${{matrix.settings.name}}" = "SQLServer" ] && exit 0
 
-          just slt-bin --protocol=flightsql --exclude '*/tunnels/ssh' ${{matrix.settings.path}}
+          just slt-bin --protocol=flightsql ${{matrix.settings.path}}
+
 
   docker-push:
     name: Build and Push Docker Image
