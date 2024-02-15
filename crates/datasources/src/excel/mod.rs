@@ -13,6 +13,7 @@ use object_store::ObjectStore;
 
 use crate::common::url::DatasourceUrl;
 use crate::object_store::generic::GenericStoreAccess;
+use crate::object_store::glob_util::get_resolved_patterns;
 use crate::object_store::ObjStoreAccess;
 
 pub mod errors;
@@ -52,9 +53,15 @@ impl ExcelTable {
 
             DatasourceUrl::Url(_) => {
                 let store = store_access.create_store()?;
-                let list = store_access
-                    .list_globbed(&store, source_url.path().as_ref())
-                    .await?;
+
+                let path = source_url.path().into_owned();
+                let paths = get_resolved_patterns(path);
+
+                let mut list = Vec::new();
+                for path in paths {
+                    let sub_list = store_access.list_globbed(&store, path).await?;
+                    list.extend(sub_list);
+                }
 
                 if list.is_empty() {
                     return Err(ExcelError::Load(

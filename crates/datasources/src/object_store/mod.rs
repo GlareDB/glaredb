@@ -26,6 +26,7 @@ use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::options::{TableOptions, TableOptionsObjectStore};
 
+use self::glob_util::{get_resolved_patterns, ResolvedPattern};
 use crate::common::exprs_to_phys_exprs;
 use crate::common::url::DatasourceUrl;
 use crate::object_store::gcs::GcsStoreAccess;
@@ -36,6 +37,7 @@ use crate::object_store::s3::S3StoreAccess;
 pub mod errors;
 pub mod gcs;
 pub mod generic;
+pub mod glob_util;
 pub mod http;
 pub mod local;
 pub mod s3;
@@ -138,8 +140,9 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
     async fn list_globbed(
         &self,
         store: &Arc<dyn ObjectStore>,
-        pattern: &str,
+        pattern: ResolvedPattern,
     ) -> Result<Vec<ObjectMeta>> {
+        let pattern = pattern.as_ref();
         if let Some((prefix, _)) = pattern.split_once(['*', '?', '!', '[', ']']) {
             // This pattern might actually be a "glob" pattern.
             //
@@ -198,10 +201,14 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
         let store = self.create_store()?;
         let mut objects = Vec::new();
         for loc in locations {
-            let list = self
-                .list_globbed(&store, &loc.path())
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+            let mut list = Vec::new();
+            for path in get_resolved_patterns(loc.path().into_owned()) {
+                let sub_list = self
+                    .list_globbed(&store, path)
+                    .await
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                list.extend(sub_list);
+            }
             if list.is_empty() {
                 let e = object_store::path::Error::InvalidPath {
                     path: loc.to_string().into(),
@@ -248,10 +255,13 @@ impl ObjStoreAccessor {
     }
 
     /// Returns a list of objects matching the globbed pattern.
-    pub async fn list_globbed(&self, pattern: impl AsRef<str>) -> Result<Vec<ObjectMeta>> {
-        self.access
-            .list_globbed(&self.store, pattern.as_ref())
-            .await
+    pub async fn list_globbed(&self, pattern: impl Into<String>) -> Result<Vec<ObjectMeta>> {
+        let mut objects = Vec::new();
+        for path in get_resolved_patterns(pattern.into()) {
+            let sub_objects = self.access.list_globbed(&self.store, path).await?;
+            objects.extend(sub_objects);
+        }
+        Ok(objects)
     }
 
     /// Takes all the objects and creates the table provider from the accesor.

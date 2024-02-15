@@ -14,6 +14,7 @@ use crate::bson::errors::BsonError;
 use crate::bson::schema::{merge_schemas, schema_from_document};
 use crate::bson::stream::BsonPartitionStream;
 use crate::common::url::DatasourceUrl;
+use crate::object_store::glob_util::get_resolved_patterns;
 use crate::object_store::ObjStoreAccess;
 
 pub async fn bson_streaming_table(
@@ -25,16 +26,22 @@ pub async fn bson_streaming_table(
     // (at least n but stop after n the same) or skip documents
     let sample_size = schema_inference_sample_size.unwrap_or(100);
 
-    let path = source_url.path();
+    let path = source_url.path().into_owned();
 
     let store = store_access.create_store()?;
 
+    let paths = get_resolved_patterns(path.clone());
+
     // assume that the file type is a glob and see if there are
     // more files...
-    let mut list = store_access.list_globbed(&store, path.as_ref()).await?;
+    let mut list = Vec::new();
+    for path in paths {
+        let sub_list = store_access.list_globbed(&store, path).await?;
+        list.extend(sub_list);
+    }
 
     if list.is_empty() {
-        return Err(BsonError::NotFound(path.into_owned()));
+        return Err(BsonError::NotFound(path));
     }
 
     // for consistent results, particularly for the sample, always

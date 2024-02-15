@@ -14,6 +14,7 @@ use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use url::Url;
 
+use super::glob_util::{get_resolved_patterns, ResolvedPattern};
 use super::{MultiSourceTableProvider, ObjStoreAccess, ObjStoreTableProvider};
 use crate::common::url::DatasourceUrl;
 use crate::object_store::errors::ObjectStoreSourceError;
@@ -61,9 +62,12 @@ impl ObjStoreAccess for HttpStoreAccess {
     }
 
     /// Not supported for HTTP. Simply return the meta assuming no-glob.
-    async fn list_globbed(&self, store: &Arc<dyn ObjectStore>, _: &str) -> Result<Vec<ObjectMeta>> {
+    async fn list_globbed(
+        &self,
+        store: &Arc<dyn ObjectStore>,
+        _: ResolvedPattern,
+    ) -> Result<Vec<ObjectMeta>> {
         let location = ObjectStorePath::default();
-
         let meta = self.object_meta(store, &location).await?;
         Ok(vec![meta])
     }
@@ -129,10 +133,15 @@ impl ObjStoreAccess for HttpStoreAccess {
         let next = locations
             .next()
             .ok_or(ObjectStoreSourceError::Static("No locations provided"))?;
-        let objects = self
-            .list_globbed(&store, &next.path())
-            .await
-            .map_err(|e| DataFusionError::Plan(e.to_string()))?;
+
+        let mut objects = Vec::new();
+        for path in get_resolved_patterns(next.path().into_owned()) {
+            let sub_objects = self
+                .list_globbed(&store, path)
+                .await
+                .map_err(|e| DataFusionError::Plan(e.to_string()))?;
+            objects.extend(sub_objects);
+        }
 
         // this assumes that all locations have the same schema.
         let arrow_schema = file_format
@@ -161,6 +170,7 @@ impl ObjStoreAccess for HttpStoreAccess {
 
             providers.push(Arc::new(prov));
         }
+
         Ok(Arc::new(MultiSourceTableProvider::new(providers)))
     }
 }
@@ -174,10 +184,15 @@ impl HttpStoreAccess {
         file_format: Arc<dyn FileFormat>,
     ) -> Result<ObjStoreTableProvider> {
         let base_url = self.base_url()?;
-        let objects = self
-            .list_globbed(&store, &url.path())
-            .await
-            .map_err(|_| DataFusionError::Plan("unable to list globbed".to_string()))?;
+
+        let mut objects = Vec::new();
+        for path in get_resolved_patterns(url.path().into_owned()) {
+            let sub_objects = self
+                .list_globbed(&store, path)
+                .await
+                .map_err(|_| DataFusionError::Plan("unable to list globbed".to_string()))?;
+            objects.extend(sub_objects);
+        }
 
         Ok(ObjStoreTableProvider {
             store,
