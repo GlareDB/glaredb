@@ -53,6 +53,7 @@ use protogen::metastore::types::options::{
     TableOptionsCassandra,
     TableOptionsClickhouse,
     TableOptionsDebug,
+    TableOptionsExcel,
     TableOptionsGcs,
     TableOptionsInternal,
     TableOptionsLocal,
@@ -554,6 +555,26 @@ impl<'a> ExternalDispatcher<'a> {
                 .await?;
 
                 Ok(Arc::new(table))
+            }
+            TableOptions::Excel(TableOptionsExcel {
+                location,
+                storage_options,
+                file_type,
+                compression,
+                sheet_name,
+            }) => {
+                let store_access = GenericStoreAccess::new_from_location_and_opts(
+                    location,
+                    storage_options.to_owned(),
+                )?;
+                let source_url = DatasourceUrl::try_new(location)?;
+                self.create_obj_store_table_provider(
+                    store_access,
+                    source_url,
+                    file_type,
+                    compression.as_ref(),
+                )
+                .await
             }
         }
     }
