@@ -644,7 +644,8 @@ jobs:
   docker-push:
     name: Build and Push Docker Image
     if: github.event_name == 'push' && github.repository == 'GlareDB/glaredb' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest-8-cores
+    needs: ["sql-logic-tests"]
+    runs-on: ubuntu-latest
     permissions:
       id-token: write # required to use OIDC auth
       contents: write # required to checkout code
