@@ -882,7 +882,7 @@ impl<'a> SessionPlanner<'a> {
                         .inner
                         .get("sheet_name")
                         .map(|val| val.to_owned())
-                        .unwrap_or(String::from_str("Sheet1"))?,
+                        .unwrap_or(String::from_str("Sheet1")),
                 );
                 TableOptions::Excel(TableOptionsExcel {
                     location,
