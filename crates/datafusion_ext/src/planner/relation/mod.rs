@@ -261,7 +261,7 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
             schema: "public".into(),
             table: "read_bson".into(),
         },
-        "xslx" => OwnedTableReference::Partial {
+        "xlsx" => OwnedTableReference::Partial {
             schema: "public".into(),
             table: "read_excel".into(),
         },
