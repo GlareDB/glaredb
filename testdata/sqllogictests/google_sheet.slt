@@ -1,4 +1,4 @@
-# The Google Sheet used below is a public sheet with 6464 rows.
+# The Google Sheet used below is a public sheet with 6464 rows. TODO: Get at least one of these working
 
 statement error
 SELECT COUNT(*) FROM read_csv('https://docs.google.com/spreadsheet/ccc?key=1f5epAPxP_Yd3g1TunEMdtianpVAhKS0RG6BKRDSLtrk&sheet=January&output=csv')
