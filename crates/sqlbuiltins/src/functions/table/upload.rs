@@ -75,12 +75,14 @@ impl TableFunc for GlareDBUpload {
             })?;
 
 
-	let boo = ctx.get_session_state().table_factories().get("read_csv").unwrap();
-
         // TODO:
-        //  - build the url off of the filename, bucket, and db/user/prefix -> DatasourceUrl
-        //  - get function ref for infer_func_for_file
-	//  - get the "real" table function somehow. from somewhere
+        //   - from storage, get storage.store (an object store from delta,)
+        //   - get FileFormat somehow, using our existing code
+        //   - build and return ObjectStoreTableProvider from this function.
+        //   - get the "real" table function somehow. from somewhere
+        //  MAYBE:
+        //   - build the url off of the filename, bucket, and db/user/prefix -> DatasourceUrl
+        //   - get function ref for infer_func_for_file
 
         Err(ExtensionError::new())
     }
