@@ -23,19 +23,19 @@ use datafusion::common::{
     plan_err,
     DFSchema,
     DataFusionError,
+    Dependency,
     Result,
 };
-use datafusion::logical_expr::expr::ScalarFunction;
+use datafusion::logical_expr::expr::{find_df_window_func, ScalarFunction};
 use datafusion::logical_expr::function::suggest_valid_function;
 use datafusion::logical_expr::window_frame::{check_window_frame, regularize_window_order_by};
 use datafusion::logical_expr::{
     expr,
-    window_function,
     AggregateFunction,
     BuiltinScalarFunction,
     Expr,
     WindowFrame,
-    WindowFunction,
+    WindowFunctionDefinition,
 };
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
@@ -47,6 +47,7 @@ use datafusion::sql::sqlparser::ast::{
 };
 
 use super::arrow_cast::ARROW_CAST_NAME;
+use crate::planner::expr::arrow_cast::create_arrow_cast;
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
@@ -119,6 +120,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 }
                 partition_by
             };
+
             let mut order_by = self
                 .order_by_to_sort_expr(
                     &window.order_by,
@@ -128,6 +130,21 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     false,
                 )
                 .await?;
+
+            let func_deps = schema.functional_dependencies();
+            // Find whether ties are possible in the given ordering:
+            let is_ordering_strict = order_by.iter().any(|orderby_expr| {
+                if let Expr::Sort(sort_expr) = orderby_expr {
+                    if let Expr::Column(col) = sort_expr.expr.as_ref() {
+                        let idx = schema.index_of_column(col).unwrap();
+                        return func_deps.iter().any(|dep| {
+                            dep.source_indices == vec![idx] && dep.mode == Dependency::Single
+                        });
+                    }
+                }
+                false
+            });
+
             let window_frame = window
                 .window_frame
                 .as_ref()
@@ -140,15 +157,17 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             let window_frame = if let Some(window_frame) = window_frame {
                 regularize_window_order_by(&window_frame, &mut order_by)?;
                 window_frame
+            } else if is_ordering_strict {
+                WindowFrame::new(Some(true))
             } else {
-                WindowFrame::new(!order_by.is_empty())
+                WindowFrame::new((!order_by.is_empty()).then_some(false))
             };
 
             if let Ok(fun) = self.find_window_func(&name).await {
                 let expr = match fun {
-                    WindowFunction::AggregateFunction(aggregate_fun) => {
+                    WindowFunctionDefinition::AggregateFunction(aggregate_fun) => {
                         Expr::WindowFunction(expr::WindowFunction::new(
-                            WindowFunction::AggregateFunction(aggregate_fun),
+                            WindowFunctionDefinition::AggregateFunction(aggregate_fun),
                             args,
                             partition_by,
                             order_by,
@@ -197,7 +216,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 
             // Special case arrow_cast (as its type is dependent on its argument value)
             if name == ARROW_CAST_NAME {
-                return super::arrow_cast::create_arrow_cast(args, schema);
+                return create_arrow_cast(args, schema);
             }
         }
 
@@ -220,17 +239,20 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         Ok(Expr::ScalarFunction(ScalarFunction::new(fun, args)))
     }
 
-    pub(super) async fn find_window_func(&mut self, name: &str) -> Result<WindowFunction> {
-        if let Some(func) = window_function::find_df_window_func(name) {
+    pub(super) async fn find_window_func(
+        &mut self,
+        name: &str,
+    ) -> Result<WindowFunctionDefinition> {
+        if let Some(func) = find_df_window_func(name) {
             return Ok(func);
         }
 
         if let Some(agg) = self.context_provider.get_aggregate_meta(name).await {
-            return Ok(WindowFunction::AggregateUDF(agg));
+            return Ok(expr::WindowFunctionDefinition::AggregateUDF(agg));
         }
 
         if let Some(win) = self.context_provider.get_window_meta(name).await {
-            return Ok(WindowFunction::WindowUDF(win));
+            return Ok(WindowFunctionDefinition::WindowUDF(win));
         }
 
         Err(plan_datafusion_err!(

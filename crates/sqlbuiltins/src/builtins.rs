@@ -1,7 +1,8 @@
 //! Builtins as determined by Metastore.
 //!
-//! On catalog initialization, whether that loading in a catalog from storage,
-//! or creating a new one, as set of builtins will be inserted into the catalog.
+//! On catalog initialization, either by loading in a catalog from storage, or
+//! creating a new one, a set of builtins will be inserted into the catalog
+//! (see Storage initialize).
 //!
 //! Two main takeaways:
 //!
@@ -464,10 +465,10 @@ SELECT
     null AS identity_increment,
     null AS identity_maximum,
     null AS identity_minimum,
-    null AS identity_cyle,
+    null AS identity_cycle,
     null AS is_generated,
     null AS generation_expression,
-    'NO' AS is_updateable
+    'NO' AS is_updatable
 FROM glare_catalog.columns c
 INNER JOIN glare_catalog.schemas s ON c.schema_oid = s.oid
 INNER JOIN glare_catalog.databases d ON s.database_oid = d.oid
@@ -704,6 +705,35 @@ pub static PG_MATVIEWS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     ",
 });
 
+pub static PG_REWRITE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_rewrite",
+    sql: "
+    SELECT 0 as oid,
+    '' as rulename,
+    0 as ev_class,
+    1 as ev_type,
+    'D' as ev_enabled,
+    false as is_instead,
+    null as ev_qual,
+    null as ev_action
+    ",
+});
+
+pub static PG_DEPEND: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_depend",
+    sql: "
+    SELECT 0 as classid,
+    0 as objid,
+    0 as objsubid,
+    0 as refclassid,
+    0 as refobjid,
+    0 as refobjdubid,
+    'a' as deptype,
+    ",
+});
+
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
@@ -721,6 +751,8 @@ impl BuiltinView {
             &PG_VIEWS,
             &PG_TYPE,
             &PG_MATVIEWS,
+            &PG_REWRITE,
+            &PG_DEPEND,
         ]
     }
 }
@@ -736,7 +768,9 @@ mod tests {
         let mut oids = HashSet::new();
         for schema in BuiltinSchema::builtins() {
             assert!(schema.oid < FIRST_NON_STATIC_OID);
-            assert!(schema.oid >= FIRST_GLAREDB_BUILTIN_ID);
+            assert!(schema.oid > FIRST_GLAREDB_BUILTIN_ID);
+            assert!(schema.oid >= 16385);
+            assert!(schema.oid <= 16400);
             assert!(oids.insert(schema.oid), "duplicate oid: {}", schema.oid);
         }
     }

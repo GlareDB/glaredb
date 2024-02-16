@@ -47,8 +47,9 @@ pub trait Hook: Send + Sync {
         _config: &Config,
         _client: TestClient,
         _vars: &mut HashMap<String, String>,
-    ) -> Result<()> {
-        Ok(())
+    ) -> Result<bool> {
+        // TODO: make enum for skip/continue rather than booleans
+        Ok(true)
     }
 
     async fn post(

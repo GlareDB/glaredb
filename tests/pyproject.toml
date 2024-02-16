@@ -13,6 +13,7 @@ psycopg2 = "^2.9.9"
 pyarrow = "^14.0.2"
 pylance = "^0.9.6"
 ruff = "0.1.14"
+dbt-core = "^1.7.7"
 
 [build-system]
 requires = ["poetry-core"]

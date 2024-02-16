@@ -10,9 +10,9 @@
 //! to `SystemTime` during deserialization. `SystemTime` does not guarantee
 //! monotonicity, but since we're working with remote system, this doesn't
 //! matter. We're making the assumption that every system we're interacting with
-//! for locking is has a reasonably accurate clock. Since we should be updating
+//! for locking has a reasonably accurate clock. Since we should be updating
 //! the expiration time with plenty of time spare before the lease actually
-//! exprires, a little bit of clock drift doesn't matter. We should only be
+//! expires, a little bit of clock drift doesn't matter. We should only be
 //! concerned if it's on the order of tens of seconds.
 
 use std::sync::atomic::{AtomicBool, Ordering};

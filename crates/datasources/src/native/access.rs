@@ -1,16 +1,22 @@
 use std::any::Any;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema, TimeUnit};
+use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema, TimeUnit};
+use datafusion::common::ToDFSchema;
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableType};
+use datafusion::logical_expr::{col, Cast, LogicalPlan, TableProviderFilterPushDown, TableType};
+use datafusion::physical_expr::create_physical_expr;
+use datafusion::physical_expr::execution_props::ExecutionProps;
 use datafusion::physical_plan::empty::EmptyExec;
+use datafusion::physical_plan::projection::ProjectionExec;
 use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
+use deltalake::kernel::{ArrayType, DataType as DeltaDataType};
 use deltalake::logstore::{default_logstore, logstores, LogStore, LogStoreFactory};
 use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::delete::DeleteBuilder;
@@ -24,11 +30,8 @@ use object_store::prefix::PrefixStore;
 use object_store::ObjectStore;
 use object_store_util::shared::SharedObjectStore;
 use protogen::metastore::types::catalog::TableEntry;
-use protogen::metastore::types::options::{
-    InternalColumnDefinition,
-    TableOptions,
-    TableOptionsInternal,
-};
+use protogen::metastore::types::options::{TableOptions, TableOptionsInternal};
+use serde_json::{json, Value};
 use url::Url;
 use uuid::Uuid;
 
@@ -83,6 +86,58 @@ impl LogStoreFactory for FakeStoreFactory {
         options: &StorageOptions,
     ) -> DeltaResult<Arc<dyn LogStore>> {
         Ok(default_logstore(store, location, options))
+    }
+}
+struct DeltaField {
+    data_type: DeltaDataType,
+    metadata: Option<HashMap<String, Value>>,
+}
+
+// Some datatypes get downgraded to a different type when they are stored in delta-lake.
+// So we add some metadata to the field to indicate that it needs to be converted back to the original type.
+fn arrow_to_delta_safe(arrow_type: &DataType) -> DeltaResult<DeltaField> {
+    match arrow_type {
+        dtype @ DataType::Timestamp(_, tz) => {
+            let delta_type =
+                (&DataType::Timestamp(TimeUnit::Microsecond, tz.clone())).try_into()?;
+            let mut metadata = HashMap::new();
+            metadata.insert("arrow_type".to_string(), json!(dtype));
+
+            Ok(DeltaField {
+                data_type: delta_type,
+                metadata: None,
+            })
+        }
+        dtype @ DataType::FixedSizeList(fld, _) => {
+            let inner_type = arrow_to_delta_safe(fld.data_type())?;
+            let arr_type = ArrayType::new(inner_type.data_type, fld.is_nullable());
+            let mut metadata = HashMap::new();
+
+            metadata.insert("arrow_type".to_string(), json!(dtype));
+
+            Ok(DeltaField {
+                data_type: DeltaDataType::Array(Box::new(arr_type)),
+                metadata: Some(metadata),
+            })
+        }
+        dtype @ (DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64) => {
+            let mut metadata = HashMap::new();
+            metadata.insert("arrow_type".to_string(), json!(dtype));
+
+            let delta_type = dtype.try_into()?;
+
+            Ok(DeltaField {
+                data_type: delta_type,
+                metadata: Some(metadata),
+            })
+        }
+        other => {
+            let delta_type = other.try_into()?;
+            Ok(DeltaField {
+                data_type: delta_type,
+                metadata: None,
+            })
+        }
     }
 }
 
@@ -150,19 +205,13 @@ impl NativeTableStorage {
                 .with_log_store(delta_store);
 
             for col in &opts.columns {
-                let column = match &col.arrow_type {
-                    DataType::Timestamp(_, tz) => InternalColumnDefinition {
-                        name: col.name.clone(),
-                        nullable: col.nullable,
-                        arrow_type: DataType::Timestamp(TimeUnit::Microsecond, tz.clone()),
-                    },
-                    _ => col.to_owned(),
-                };
+                let delta_col = arrow_to_delta_safe(&col.arrow_type)?;
+
                 builder = builder.with_column(
-                    column.name.clone(),
-                    (&column.arrow_type).try_into()?,
-                    column.nullable,
-                    None,
+                    col.name.clone(),
+                    delta_col.data_type,
+                    col.nullable,
+                    delta_col.metadata,
                 );
             }
 
@@ -315,8 +364,33 @@ impl TableProvider for NativeTable {
         self
     }
 
+    /// delta downgrades some types to a different type when it stores them.
+    /// so we need to do a projection to convert them back to the original type.
+    /// Ideally we should store the original type in a more accessible way (such as using the binary type and deserializing it ourselves)
+    /// but for now we just do a projection
     fn schema(&self) -> Arc<ArrowSchema> {
-        TableProvider::schema(&self.delta)
+        let mut fields = vec![];
+        let arrow_schema = self.delta.snapshot().unwrap().arrow_schema().unwrap();
+
+        for col in arrow_schema.fields() {
+            let mut field = col.clone();
+            let metadata = col.metadata();
+
+            // If the field requires conversion, we need to use the original arrow type
+            if let Some(arrow_type) = metadata.get("arrow_type") {
+                // this is dumb AF, delta-lake is returning a string of a json object instead of a json object
+
+                // any panics here are bugs in writing the metadata in the first place
+                let s: String =
+                    serde_json::from_str(arrow_type).expect("metadata was not correctly written");
+                let arrow_type: DataType =
+                    serde_json::from_str(&s).expect("metadata was not correctly written");
+
+                field = Arc::new(Field::new(col.name(), arrow_type, col.is_nullable()));
+            }
+            fields.push(field);
+        }
+        Arc::new(ArrowSchema::new(fields))
     }
 
     fn table_type(&self) -> TableType {
@@ -345,10 +419,43 @@ impl TableProvider for NativeTable {
         };
 
         if num_rows == 0 {
-            let schema = TableProvider::schema(&self.delta);
+            let schema = self.schema();
             Ok(Arc::new(EmptyExec::new(schema)))
         } else {
             let plan = self.delta.scan(session, projection, filters, limit).await?;
+            let output_schema = plan.schema();
+            let mut schema = self.schema();
+            if let Some(projection) = projection {
+                schema = Arc::new(schema.project(projection)?);
+            }
+            let df_schema = output_schema.clone().to_dfschema_ref()?;
+
+            let plan = if output_schema != schema {
+                let exprs = output_schema
+                    .fields()
+                    .into_iter()
+                    .zip(schema.fields())
+                    .map(|(f1, f2)| {
+                        let expr = if f1.data_type() == f2.data_type() {
+                            col(f1.name())
+                        } else {
+                            let cast_expr =
+                                Cast::new(Box::new(col(f1.name())), f2.data_type().clone());
+                            Expr::Cast(cast_expr)
+                        };
+                        let execution_props = ExecutionProps::new();
+                        (
+                            create_physical_expr(&expr, &df_schema, &execution_props).unwrap(),
+                            f1.name().clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let prj = ProjectionExec::try_new(exprs, plan)?;
+                // we need to do a projection to match the schema
+                Arc::new(prj)
+            } else {
+                plan
+            };
             Ok(Arc::new(ReadOnlyDataSourceMetricsExecAdapter::new(plan)))
         }
     }

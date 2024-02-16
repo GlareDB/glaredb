@@ -668,6 +668,12 @@ document! {
     "struct" => struct_
 }
 
+document! {
+    doc => "Resize an array to the specified length",
+    example => "array_resize([1, 2, 3], 5, 0)",
+    name => array_resize
+
+}
 impl BuiltinFunction for BuiltinScalarFunction {
     fn function_type(&self) -> FunctionType {
         FunctionType::Scalar
@@ -806,6 +812,7 @@ impl BuiltinFunction for BuiltinScalarFunction {
             SubstrIndex => substr_index::NAME,
             FindInSet => find_in_set::NAME,
             Struct => struct_::NAME,
+            ArrayResize => array_resize::NAME,
         }
     }
 
@@ -942,6 +949,7 @@ impl BuiltinFunction for BuiltinScalarFunction {
             SubstrIndex => substr_index::EXAMPLE,
             FindInSet => find_in_set::EXAMPLE,
             Struct => struct_::EXAMPLE,
+            ArrayResize => array_resize::EXAMPLE,
         })
     }
 
@@ -1078,6 +1086,7 @@ impl BuiltinFunction for BuiltinScalarFunction {
             SubstrIndex => substr_index::DESCRIPTION,
             FindInSet => find_in_set::DESCRIPTION,
             Struct => struct_::DESCRIPTION,
+            ArrayResize => array_resize::DESCRIPTION,
         })
     }
 }

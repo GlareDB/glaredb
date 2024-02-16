@@ -52,11 +52,15 @@ impl ExecutionPlan for ShowVarExec {
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Plan(
-            "cannot change children for ShowVarExec".to_string(),
-        ))
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Plan(
+                "cannot change children for ShowVarExec".to_string(),
+            ))
+        }
     }
 
     fn execute(

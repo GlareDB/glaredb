@@ -33,3 +33,6 @@ futures = { workspace = true }
 uuid = "1.7.0"
 async-trait = { workspace = true }
 once_cell = "1.19.0"
+
+# Prevent dynamic linking of lzma, which comes from datafusion
+lzma-sys = { version = "*", features = ["static"] }
