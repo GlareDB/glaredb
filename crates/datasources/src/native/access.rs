@@ -60,7 +60,7 @@ pub struct NativeTableStorage {
     /// Arcs all the way down...
     store: SharedObjectStore,
     
-    credentials_options: Option<CredentialsOptions>,
+    creds: Option<CredentialsOptions>,
 }
 
 /// Deltalake is expecting a factory that implements [`ObjectStoreFactory`] and
@@ -175,7 +175,7 @@ impl NativeTableStorage {
             db_id,
             root_url,
             store: SharedObjectStore::new(store),
-            credentials_options: None,
+            creds: None,
         }
     }
 
@@ -189,8 +189,8 @@ impl NativeTableStorage {
         format!("databases/{}/tables/{}", self.db_id, tbl_id)
     }
 
-    fn credential_options(&self) -> Option<CredentialsOptions> {
-        self.credential_options().clone()
+    pub fn credential_options(&self) -> Option<CredentialsOptions> {
+        self.creds.clone()
     }
 
     /// Calculates the total size of storage being used by the database in

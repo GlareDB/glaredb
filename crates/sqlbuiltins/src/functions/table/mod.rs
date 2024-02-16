@@ -15,7 +15,6 @@ mod object_store;
 mod postgres;
 mod snowflake;
 mod sqlserver;
-mod upload;
 pub mod system;
 mod virtual_listing;
 
@@ -50,11 +49,10 @@ use self::json::JsonScan;
 use self::lance::LanceScan;
 use self::mongodb::ReadMongoDb;
 use self::mysql::ReadMysql;
-use self::object_store::{READ_CSV, READ_JSON, READ_PARQUET};
+use self::object_store::{GlareDBUpload, READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
 use self::sqlserver::ReadSqlServer;
-use self::upload::GlareDBUpload;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
 

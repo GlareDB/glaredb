@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::path::Path;
 use std::sync::Arc;
 use std::vec;
 
@@ -16,6 +17,7 @@ use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
+use datasources::native::access::NativeTableStorage;
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
@@ -27,8 +29,7 @@ use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
-use super::TableFunc;
-use crate::functions::BuiltinFunction;
+use crate::functions::{BuiltinFunction, ConstBuiltinFunction, TableFunc};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ParquetOptionsReader;
@@ -581,4 +582,97 @@ fn create_azure_store_access(
         base_url: ObjectStoreUrl::try_from(source_url)?,
         storage_options: opts,
     }))
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GlareDBUpload;
+
+impl ConstBuiltinFunction for GlareDBUpload {
+    const NAME: &'static str = "glaredb_upload";
+    const DESCRIPTION: &'static str = "Reads a file that was uploaded to GlareDB Cloud.";
+    const EXAMPLE: &'static str = "SELECT * FROM glaredb_upload('my_upload.csv')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+
+    // signature for GlareUpload is a single filename. The filename may
+    // optionally contain an extension, though it is not required. Filename
+    // should not be a path.
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::uniform(
+            1,
+            vec![DataType::Utf8],
+            Volatility::Stable,
+        ))
+    }
+}
+
+#[async_trait]
+impl TableFunc for GlareDBUpload {
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        // Uploads can only exist remotely; this operation is not meaningful
+        // when not connected to remote/hybrid.
+        Ok(RuntimePreference::Remote)
+    }
+
+    async fn create_provider(
+        &self,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        if args.len() != 1 {
+            return Err(ExtensionError::InvalidNumArgs);
+        }
+
+        let fname: String = args.into_iter().next().unwrap().try_into()?;
+
+        let storage = ctx
+            .get_session_state()
+            .config()
+            .get_extension::<NativeTableStorage>()
+            .ok_or_else(|| {
+                ExtensionError::String(
+                    format!(
+                        "access unavailable, {} is not supported in local environments",
+                        self.name(),
+                    )
+                    .to_string(),
+                )
+            })?;
+
+        let _store_credentials = storage.credential_options().ok_or_else(|| {
+            ExtensionError::String(
+                format!(
+                    "access unavailable, {} is not supported in local environments",
+                    self.name(),
+                )
+                .to_string(),
+            )
+        })?;
+
+        let ext = Path::new(fname.as_str())
+            .extension()
+            .ok_or_else(|| ExtensionError::String(format!("missing file extension: {fname}")))?
+            .to_str()
+            .ok_or_else(|| ExtensionError::String(format!("unsupported file extension: {fname}")))?
+            .to_lowercase();
+
+        let _format = match ext.as_str() {
+            "csv" => Some(CsvFormat::default().with_schema_infer_max_rec(Some(20480))),
+            // TODO: Add Parquet, ndJSON
+            _ext => None,
+        }.ok_or_else(|| ExtensionError::String(format!("unsupported file extension: {fname}")))?;
+        let _format: Arc<dyn FileFormat> = Arc::new(_format);
+
+        // let source_url = fname;
+
+        // let access = create_gcs_table_provider(source_url, service_account_key);
+
+        // let provider = get_table_provider(ctx, format.clone(), access, locations.into_iter());
+
+        return Err(ExtensionError::Unimplemented("hello"));
+    }
 }
