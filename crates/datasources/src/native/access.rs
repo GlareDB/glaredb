@@ -38,18 +38,6 @@ use uuid::Uuid;
 use crate::native::errors::{NativeError, Result};
 use crate::native::insert::NativeTableInsertExec;
 
-/// NativeTableStorage provides methods for interacting with data lakes that
-/// GlareDB manages.
-///
-/// There are two data lakes:
-///
-/// 1. 'native' tables (ie: tables that are defined in GlareDB, which are
-///    implemented as a Delta Lake).
-///
-/// 2. Raw files that users _upload_ via GlareDB Cloud. These files are stored
-///    as-is and are not piped through Delta, nor catalogued as tables. Uploads
-///    are treated similarly to external tables backed by object stores, with
-///    the key difference that we host them.
 #[derive(Debug, Clone)]
 pub struct NativeTableStorage {
     db_id: Uuid,
@@ -71,8 +59,8 @@ pub struct NativeTableStorage {
     ///
     /// Arcs all the way down...
     store: SharedObjectStore,
-
-    bucket_cred_options: Optional<CredentialsOptions>,
+    
+    credentials_options: Option<CredentialsOptions>,
 }
 
 /// Deltalake is expecting a factory that implements [`ObjectStoreFactory`] and
@@ -187,7 +175,7 @@ impl NativeTableStorage {
             db_id,
             root_url,
             store: SharedObjectStore::new(store),
-            bucket_cred_options: None,
+            credentials_options: None,
         }
     }
 
@@ -201,13 +189,8 @@ impl NativeTableStorage {
         format!("databases/{}/tables/{}", self.db_id, tbl_id)
     }
 
-    /// Returns the location of raw uploaded files.
-    fn upload_prefix(&self) -> String {
-        format!("databases/{}/uploads", self.db_id)
-    }
-
-    fn creds(&self) -> Optional<CredentialsOptions> {
-        self.bucket_cred_options
+    fn credential_options(&self) -> Option<CredentialsOptions> {
+        self.credential_options().clone()
     }
 
     /// Calculates the total size of storage being used by the database in
