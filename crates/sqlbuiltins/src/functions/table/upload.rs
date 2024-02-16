@@ -17,9 +17,9 @@ use crate::functions::table::TableFunc;
 pub struct GlareUpload;
 
 impl ConstBuiltinFunction for GlareUpload {
-    const NAME: &'static str = "glare_upload";
+    const NAME: &'static str = "glaredb_upload";
     const DESCRIPTION: &'static str = "Reads a file that was uploaded to GlareDB Cloud.";
-    const EXAMPLE: &'static str = "SELECT * FROM glare_upload('my_upload.csv')";
+    const EXAMPLE: &'static str = "SELECT * FROM glaredb_upload('my_upload.csv')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 
     // signature for GlareUpload is a single filename. The filename may
