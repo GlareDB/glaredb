@@ -38,13 +38,27 @@ use uuid::Uuid;
 use crate::native::errors::{NativeError, Result};
 use crate::native::insert::NativeTableInsertExec;
 
+/// NativeTableStorage provides methods for interacting with data lakes that
+/// GlareDB manages.
+/// 
+/// There are two data lakes:
+/// 
+/// 1. 'native' tables (ie: tables that are defined in GlareDB, which are
+///    implemented as a Delta Lake).
+/// 
+/// 2. Raw files that users _upload_ via GlareDB Cloud. These files are stored
+///    as-is and are not piped through Delta, nor catalogued as tables. Uploads
+///    are treated similarly to external tables backed by object stores, with
+///    the key difference that we host them.
 #[derive(Debug, Clone)]
 pub struct NativeTableStorage {
     db_id: Uuid,
-    /// URL pointing to the bucket and/or directory which is the root of the native storage.
+    
+    /// URL pointing to the bucket and/or directory which is the root of the
+    /// native storage, for example `gs://<bucket-name>`.
     ///
-    /// In other words this is the location to which the the table prefix is applied to get
-    /// a full table URL.
+    /// In other words this is the location to which the the table prefix is
+    /// applied to get a full table URL.
     root_url: Url,
 
     /// Tables are only located in one bucket which the provided service account
@@ -58,10 +72,13 @@ pub struct NativeTableStorage {
     /// Arcs all the way down...
     store: SharedObjectStore,
 }
-// Deltalake is expecting a factory that implements `ObjectStoreFactory` and `LogStoreFactory`.
-// Since we already have an object store, we don't need to do anything here,
-// but we still need to register the url with delta-rs so it does't error when it tries to validate the object-store.
-// So we just create a fake factory that returns the object store we already have and register it with the root url.
+
+/// Deltalake is expecting a factory that implements [`ObjectStoreFactory`] and
+/// [`LogStoreFactory`]. Since we already have an object store, we don't need to
+/// do anything here, but we still need to register the url with delta-rs so it
+/// does't error when it tries to validate the object-store. So we just create a
+/// fake factory that returns the object store we already have and register it
+/// with the root url.
 struct FakeStoreFactory {
     pub store: ObjectStoreRef,
 }
@@ -88,6 +105,10 @@ impl LogStoreFactory for FakeStoreFactory {
         Ok(default_logstore(store, location, options))
     }
 }
+
+/// DeltaField represents data types as stored in Delta Lake, with additional
+/// metadata for indicating the 'real' (original) type, for cases when
+/// downcasting occurs.
 struct DeltaField {
     data_type: DeltaDataType,
     metadata: Option<HashMap<String, Value>>,
@@ -142,8 +163,8 @@ fn arrow_to_delta_safe(arrow_type: &DataType) -> DeltaResult<DeltaField> {
 }
 
 impl NativeTableStorage {
-    /// Create a native table storage provider from a URL and an object store instance
-    /// rooted at that location.
+    /// Create a native table storage provider from a URL and an object store
+    /// instance rooted at that location.
     pub fn new(db_id: Uuid, root_url: Url, store: Arc<dyn ObjectStore>) -> NativeTableStorage {
         // register the default handlers
         // TODO, this should only happen once
@@ -172,8 +193,14 @@ impl NativeTableStorage {
         self.db_id
     }
 
+    /// Returns the location of 'native' Delta Lake tables.
     fn table_prefix(&self, tbl_id: u32) -> String {
         format!("databases/{}/tables/{}", self.db_id, tbl_id)
+    }
+
+    /// Returns the location of raw uploaded files.
+    fn upload_prefix(&self) -> String {
+        format!("databases/{}/uploads", self.db_id)
     }
 
     /// Calculates the total size of storage being used by the database in
