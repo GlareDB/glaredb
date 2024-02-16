@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::path::Path;
+// use std::path::Path;
 use std::sync::Arc;
 use std::vec;
 
@@ -627,9 +627,9 @@ impl TableFunc for GlareDBUpload {
             return Err(ExtensionError::InvalidNumArgs);
         }
 
-        let fname: String = args.into_iter().next().unwrap().try_into()?;
+        // let fname: String = args.into_iter().next().unwrap().try_into()?;
 
-        let storage = ctx
+        let _storage = ctx
             .get_session_state()
             .config()
             .get_extension::<NativeTableStorage>()
@@ -643,29 +643,31 @@ impl TableFunc for GlareDBUpload {
                 )
             })?;
 
-        let _store_credentials = storage.credential_options().ok_or_else(|| {
-            ExtensionError::String(
-                format!(
-                    "access unavailable, {} is not supported in local environments",
-                    self.name(),
-                )
-                .to_string(),
-            )
-        })?;
+        // let _store_credentials = storage.credential_options().ok_or_else(|| {
+        //     ExtensionError::String(
+        //         format!(
+        //             "access unavailable, {} is not supported in local environments",
+        //             self.name(),
+        //         )
+        //         .to_string(),
+        //     )
+        // })?;
 
-        let ext = Path::new(fname.as_str())
-            .extension()
-            .ok_or_else(|| ExtensionError::String(format!("missing file extension: {fname}")))?
-            .to_str()
-            .ok_or_else(|| ExtensionError::String(format!("unsupported file extension: {fname}")))?
-            .to_lowercase();
+        // let ext = Path::new(fname.as_str())
+        //     .extension()
+        //     .ok_or_else(|| ExtensionError::String(format!("missing file extension: {fname}")))?
+        //     .to_str()
+        //     .ok_or_else(|| ExtensionError::String(format!("unsupported file extension: {fname}")))?
+        //     .to_lowercase();
 
-        let _format = match ext.as_str() {
-            "csv" => Some(CsvFormat::default().with_schema_infer_max_rec(Some(20480))),
-            // TODO: Add Parquet, ndJSON
-            _ext => None,
-        }.ok_or_else(|| ExtensionError::String(format!("unsupported file extension: {fname}")))?;
-        let _format: Arc<dyn FileFormat> = Arc::new(_format);
+        // let format = match ext.as_str() {
+        //     "csv" => Some(CsvFormat::default().with_schema_infer_max_rec(Some(20480))),
+        //     // TODO: Add Parquet, ndJSON
+        //     _ext => None,
+        // }.ok_or_else(|| ExtensionError::String(format!("unsupported file extension: {fname}")))?;
+        // let _format: Arc<dyn FileFormat> = Arc::new(format);
+
+        // return get_table_provider(ctx, _format.clone(), );
 
         // let source_url = fname;
 
