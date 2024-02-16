@@ -14,9 +14,9 @@ use crate::functions::ConstBuiltinFunction;
 use crate::functions::table::TableFunc;
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct GlareUpload;
+pub struct GlareDBUpload;
 
-impl ConstBuiltinFunction for GlareUpload {
+impl ConstBuiltinFunction for GlareDBUpload {
     const NAME: &'static str = "glaredb_upload";
     const DESCRIPTION: &'static str = "Reads a file that was uploaded to GlareDB Cloud.";
     const EXAMPLE: &'static str = "SELECT * FROM glaredb_upload('my_upload.csv')";
@@ -35,7 +35,7 @@ impl ConstBuiltinFunction for GlareUpload {
 }
 
 #[async_trait]
-impl TableFunc for GlareUpload {
+impl TableFunc for GlareDBUpload {
     fn detect_runtime(
         &self,
         _args: &[FuncParamValue],

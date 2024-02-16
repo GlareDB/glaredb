@@ -54,7 +54,7 @@ use self::object_store::{READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
 use self::sqlserver::ReadSqlServer;
-use self::upload::GlareUpload;
+use self::upload::GlareDBUpload;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
 
@@ -103,7 +103,7 @@ impl BuiltinTableFuncs {
             Arc::new(READ_JSON),
             Arc::new(BsonScan),
             Arc::new(JsonScan),
-            Arc::new(GlareUpload),
+            Arc::new(GlareDBUpload),
             // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),
