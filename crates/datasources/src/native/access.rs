@@ -30,7 +30,7 @@ use object_store::prefix::PrefixStore;
 use object_store::ObjectStore;
 use object_store_util::shared::SharedObjectStore;
 use protogen::metastore::types::catalog::TableEntry;
-use protogen::metastore::types::options::{TableOptions, TableOptionsInternal};
+use protogen::metastore::types::options::{CredentialsOptions, TableOptions, TableOptionsInternal};
 use serde_json::{json, Value};
 use url::Url;
 use uuid::Uuid;
@@ -40,12 +40,12 @@ use crate::native::insert::NativeTableInsertExec;
 
 /// NativeTableStorage provides methods for interacting with data lakes that
 /// GlareDB manages.
-/// 
+///
 /// There are two data lakes:
-/// 
+///
 /// 1. 'native' tables (ie: tables that are defined in GlareDB, which are
 ///    implemented as a Delta Lake).
-/// 
+///
 /// 2. Raw files that users _upload_ via GlareDB Cloud. These files are stored
 ///    as-is and are not piped through Delta, nor catalogued as tables. Uploads
 ///    are treated similarly to external tables backed by object stores, with
@@ -53,7 +53,7 @@ use crate::native::insert::NativeTableInsertExec;
 #[derive(Debug, Clone)]
 pub struct NativeTableStorage {
     db_id: Uuid,
-    
+
     /// URL pointing to the bucket and/or directory which is the root of the
     /// native storage, for example `gs://<bucket-name>`.
     ///
@@ -71,6 +71,8 @@ pub struct NativeTableStorage {
     ///
     /// Arcs all the way down...
     store: SharedObjectStore,
+
+    bucket_cred_options: Optional<CredentialsOptions>,
 }
 
 /// Deltalake is expecting a factory that implements [`ObjectStoreFactory`] and
@@ -185,6 +187,7 @@ impl NativeTableStorage {
             db_id,
             root_url,
             store: SharedObjectStore::new(store),
+            bucket_cred_options: None,
         }
     }
 
@@ -201,6 +204,10 @@ impl NativeTableStorage {
     /// Returns the location of raw uploaded files.
     fn upload_prefix(&self) -> String {
         format!("databases/{}/uploads", self.db_id)
+    }
+
+    fn creds(&self) -> Optional<CredentialsOptions> {
+        self.bucket_cred_options
     }
 
     /// Calculates the total size of storage being used by the database in
