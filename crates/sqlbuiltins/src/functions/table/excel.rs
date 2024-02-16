@@ -76,10 +76,11 @@ impl TableFunc for ExcelScan {
             .map(FuncParamValue::try_into)
             .transpose()?;
 
-        let has_header: Option<bool> = opts
+        let has_header: bool = opts
             .remove("has_header")
             .map(FuncParamValue::try_into)
-            .transpose()?;
+            .transpose()?
+            .unwrap_or(true);
 
         let infer_schema_len = opts
             .remove("infer_rows")
