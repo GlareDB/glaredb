@@ -1,7 +1,8 @@
 use crate::{
-    keywords::Keyword,
-    statement::{Ident, ObjectReference, Statement},
-    tokens::{Token, TokenWithLocation, Tokenizer},
+    ast::{Expr, Ident, Literal, ObjectReference},
+    keywords::{self, Keyword, RESERVED_FOR_COLUMN_ALIAS, RESERVED_FOR_TABLE_ALIAS},
+    statement::Statement,
+    tokens::{Token, TokenWithLocation, Tokenizer, Word},
 };
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
@@ -24,6 +25,9 @@ impl<'a> Parser<'a> {
         Parser { toks, idx: 0 }
     }
 
+    /// Parse any number of statements, including zero statements.
+    ///
+    /// Statements are expected to be delineated with a semicolon.
     pub fn parse_statements(&mut self) -> Result<Vec<Statement<'a>>> {
         let mut stmts = Vec::new();
         let mut expect_delimiter = false;
@@ -51,6 +55,7 @@ impl<'a> Parser<'a> {
         Ok(stmts)
     }
 
+    /// Parse a single statement.
     pub fn parse_statement(&mut self) -> Result<Statement<'a>> {
         let tok = match self.next() {
             Some(tok) => tok,
@@ -71,6 +76,7 @@ impl<'a> Parser<'a> {
 
                 match keyword {
                     Keyword::CREATE => self.parse_create(),
+                    Keyword::SET => self.parse_set(),
                     other => {
                         return Err(RayexecError::new(format!("Unexpected keyword: {other:?}",)))
                     }
@@ -117,16 +123,29 @@ impl<'a> Parser<'a> {
         }
     }
 
+    pub fn parse_set(&mut self) -> Result<Statement<'a>> {
+        let name = self.parse_object_reference()?;
+        if self.parse_keyword(Keyword::TO) || self.consume_token(Token::Eq) {
+            let expr = self.parse_expr()?;
+            return Ok(Statement::SetVariable {
+                reference: name,
+                value: expr,
+            });
+        }
+
+        Err(RayexecError::new(format!(
+            "Expected 'SET {name} TO <value>' or SET {name} = <value>'"
+        )))
+    }
+
     /// Parse an object reference.
     fn parse_object_reference(&mut self) -> Result<ObjectReference<'a>> {
-        println!("toks: {:#?}", self.toks);
         let mut idents = Vec::new();
         loop {
             let tok = match self.next() {
                 Some(tok) => tok,
                 None => break,
             };
-            println!("tok: {tok:?}");
             let ident = match &tok.token {
                 Token::Word(w) => Ident { value: w.value },
                 other => {
@@ -145,6 +164,89 @@ impl<'a> Parser<'a> {
         }
 
         Ok(ObjectReference(idents))
+    }
+
+    /// Parse a sql expression.
+    fn parse_expr(&mut self) -> Result<Expr<'a>> {
+        let expr = self.parse_prefix_expr()?;
+
+        // TODO: Infix
+
+        Ok(expr)
+    }
+
+    fn parse_prefix_expr(&mut self) -> Result<Expr<'a>> {
+        // TODO: Typed string
+
+        let tok = match self.next() {
+            Some(tok) => tok,
+            None => {
+                return Err(RayexecError::new(
+                    "Unexpected end of statement. Expected expression.",
+                ))
+            }
+        };
+
+        let expr = match &tok.token {
+            Token::Word(w) => match w.keyword {
+                Some(kw) => match kw {
+                    Keyword::TRUE => Expr::Literal(Literal::Boolean(true)),
+                    Keyword::FALSE => Expr::Literal(Literal::Boolean(false)),
+                    Keyword::NULL => Expr::Literal(Literal::Null),
+                    _ => unimplemented!(),
+                },
+                None => {
+                    unimplemented!()
+                }
+            },
+            Token::SingleQuotedString(s) => Expr::Literal(Literal::SingleQuotedString(s)),
+            Token::Number(s) => Expr::Literal(Literal::Number(s)),
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Unexpected token '{other:?}'. Expected expression."
+                )))
+            }
+        };
+
+        Ok(expr)
+    }
+
+    /// Parse a comma-separated list of one or more items.
+    fn parse_comma_separated<T>(
+        &mut self,
+        mut f: impl FnMut(&mut Parser<'a>) -> Result<T>,
+    ) -> Result<Vec<T>> {
+        let mut values = Vec::new();
+        loop {
+            values.push(f(self)?);
+            if !self.consume_token(Token::Comma) {
+                break;
+            }
+
+            let tok = match self.peek() {
+                Some(tok) => &tok.token,
+                None => break,
+            };
+
+            match tok {
+                Token::RightParen | Token::SemiColon | Token::RightBrace | Token::RightBracket => {
+                    break
+                }
+                Token::Word(w) => {
+                    if let Some(kw) = &w.keyword {
+                        if RESERVED_FOR_COLUMN_ALIAS
+                            .iter()
+                            .any(|reserved| reserved == kw)
+                        {
+                            break;
+                        }
+                    }
+                }
+                _ => (),
+            }
+        }
+
+        Ok(values)
     }
 
     /// Parse a single keyword.
@@ -181,6 +283,7 @@ impl<'a> Parser<'a> {
         true
     }
 
+    /// Parse any of the provided keywords.
     fn parse_one_of_keywords(&mut self, keywords: &[Keyword]) -> bool {
         let idx = self.idx;
         let tok = match self.next() {

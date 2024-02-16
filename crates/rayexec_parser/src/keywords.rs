@@ -12,7 +12,7 @@ pub fn keyword_from_str(s: &str) -> Option<Keyword> {
 
 /// Generate an enum of keywords.
 macro_rules! define_keywords {
-    ($($ident:ident),*) => {
+    ($($ident:ident),* $(,)?) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub enum Keyword {
             $($ident),*
@@ -28,8 +28,10 @@ macro_rules! define_keywords {
     };
 }
 
+// Keep keywords sorted to allow for binary search.
 #[rustfmt::skip]
 define_keywords!(
+    ANALYZE,
     BEGIN,
     BETWEEN,
     BIGDECIMAL,
@@ -38,46 +40,161 @@ define_keywords!(
     BINARY,
     BY,
     CASE,
+    CLUSTER,
     CREATE,
+    CROSS,
     DATABASE,
+    DISTRIBUTE,
+    END,
+    EXCEPT,
     EXISTS,
     EXPLAIN,
     FALSE,
+    FETCH,
     FROM,
+    FULL,
+    GROUP,
+    HAVING,
     IF,
+    INNER,
     INSERT,
     INT,
     INT2,
     INT4,
     INT8,
     INTEGER,
+    INTERSECT,
     INTO,
+    JOIN,
+    LATERAL,
+    LEFT,
+    LIMIT,
+    NATURAL,
     NOT,
+    NULL,
+    OFFSET,
+    ON,
     OR,
     ORDER,
+    OUTER,
+    PARTITION,
+    PIVOT,
     PRIMARY,
+    QUALIFY,
     REPLACE,
+    RIGHT,
     ROLLBACK,
     SCHEMA,
     SELECT,
     SET,
     SHOW,
+    SORT,
     TABLE,
     TEMP,
     TEMPORARY,
+    TO,
+    TOP,
     TRUE,
     UNION,
+    UNPIVOT,
     USING,
     VALUES,
     VERBOSE,
     VIEW,
     WHERE,
-    WITH
+    WINDOW,
+    WITH,
 );
+
+/// These keywords can't be used as a table alias, so that `FROM table_name alias`
+/// can be parsed unambiguously without looking ahead.
+pub const RESERVED_FOR_TABLE_ALIAS: &[Keyword] = &[
+    // Reserved as both a table and a column alias:
+    Keyword::WITH,
+    Keyword::EXPLAIN,
+    Keyword::ANALYZE,
+    Keyword::SELECT,
+    Keyword::WHERE,
+    Keyword::GROUP,
+    Keyword::SORT,
+    Keyword::HAVING,
+    Keyword::ORDER,
+    Keyword::PIVOT,
+    Keyword::UNPIVOT,
+    Keyword::TOP,
+    Keyword::LATERAL,
+    Keyword::VIEW,
+    Keyword::LIMIT,
+    Keyword::OFFSET,
+    Keyword::FETCH,
+    Keyword::UNION,
+    Keyword::EXCEPT,
+    Keyword::INTERSECT,
+    // Reserved only as a table alias in the `FROM`/`JOIN` clauses:
+    Keyword::ON,
+    Keyword::JOIN,
+    Keyword::INNER,
+    Keyword::CROSS,
+    Keyword::FULL,
+    Keyword::LEFT,
+    Keyword::RIGHT,
+    Keyword::NATURAL,
+    Keyword::USING,
+    Keyword::CLUSTER,
+    Keyword::DISTRIBUTE,
+    // for MSSQL-specific OUTER APPLY (seems reserved in most dialects)
+    Keyword::OUTER,
+    Keyword::SET,
+    Keyword::QUALIFY,
+    Keyword::WINDOW,
+    Keyword::END,
+    // for MYSQL PARTITION SELECTION
+    Keyword::PARTITION,
+];
+
+/// Can't be used as a column alias, so that `SELECT <expr> alias`
+/// can be parsed unambiguously without looking ahead.
+pub const RESERVED_FOR_COLUMN_ALIAS: &[Keyword] = &[
+    // Reserved as both a table and a column alias:
+    Keyword::WITH,
+    Keyword::EXPLAIN,
+    Keyword::ANALYZE,
+    Keyword::SELECT,
+    Keyword::WHERE,
+    Keyword::GROUP,
+    Keyword::SORT,
+    Keyword::HAVING,
+    Keyword::ORDER,
+    Keyword::TOP,
+    Keyword::LATERAL,
+    Keyword::VIEW,
+    Keyword::LIMIT,
+    Keyword::OFFSET,
+    Keyword::FETCH,
+    Keyword::UNION,
+    Keyword::EXCEPT,
+    Keyword::INTERSECT,
+    Keyword::CLUSTER,
+    Keyword::DISTRIBUTE,
+    // Reserved only as a column alias in the `SELECT` clause
+    Keyword::FROM,
+    Keyword::INTO,
+    Keyword::END,
+];
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cmp::Ordering;
+
+    #[test]
+    fn keywords_sorted() {
+        let mut prev = KEYWORD_STRINGS[0];
+        for curr in &KEYWORD_STRINGS[1..] {
+            assert_eq!(prev.cmp(curr), Ordering::Less, "prev: {prev}, curr: {curr}");
+            prev = *curr;
+        }
+    }
 
     #[test]
     fn case_insensitive() {

@@ -11,6 +11,8 @@ pub enum Token<'a> {
     Whitespace,
     /// '='
     Eq,
+    /// '=='
+    DoubleEq,
     /// '!=' or '<>'
     Neq,
     /// '<'
@@ -53,6 +55,12 @@ pub enum Token<'a> {
     LeftBrace,
     /// ']'
     RightBrace,
+    /// '{'
+    LeftBracket,
+    /// '}'
+    RightBracket,
+    /// '=>'
+    RightArrow,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -270,6 +278,21 @@ impl<'a> Tokenizer<'a> {
                 }
 
                 Token::Number(s)
+            }
+            // Operators
+            '=' => {
+                self.state.next();
+                match self.state.peek() {
+                    Some('>') => {
+                        self.state.next();
+                        Token::RightArrow
+                    }
+                    Some('=') => {
+                        self.state.next();
+                        Token::DoubleEq
+                    }
+                    _ => Token::Eq,
+                }
             }
             // Identifiers
             c if Self::is_identifier_start(c) => {
