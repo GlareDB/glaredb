@@ -75,3 +75,24 @@ select * from ext_table_2;
 ----
 5	6
 7	8
+
+
+
+statement ok
+create external table bson_beatles from gcs options (
+	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}',
+	bucket '${GCS_BUCKET_NAME}',
+	location 'beatles.100.bson'
+);
+
+query I
+select count(*) from bson_beatles;
+----
+100
+
+query I
+select case from bson_beatles order by case limit 3;
+----
+1
+2
+3
