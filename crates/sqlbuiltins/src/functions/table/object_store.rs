@@ -362,7 +362,7 @@ impl<Opts> ObjScanTableFunc<Opts> {
 ///
 /// If the file is detected to be local, the table provider will be wrapped in a
 /// local table hint.
-async fn get_table_provider(
+pub(crate) async fn get_table_provider(
     ctx: &dyn TableFuncContextProvider,
     ft: Arc<dyn FileFormat>,
     access: Arc<dyn ObjStoreAccess>,

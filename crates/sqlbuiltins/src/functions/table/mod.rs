@@ -6,6 +6,7 @@ mod clickhouse;
 mod delta;
 mod excel;
 mod generate_series;
+mod google_sheets;
 mod iceberg;
 mod json;
 mod lance;
@@ -39,6 +40,7 @@ use self::clickhouse::ReadClickhouse;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
+use self::google_sheets::GoogleSheets;
 use self::iceberg::data_files::IcebergDataFiles;
 use self::iceberg::scan::IcebergScan;
 use self::iceberg::snapshots::IcebergSnapshots;
@@ -100,12 +102,14 @@ impl BuiltinTableFuncs {
             Arc::new(READ_JSON),
             Arc::new(BsonScan),
             Arc::new(JsonScan),
+            // Spreadsheets
+            Arc::new(GoogleSheets),
+            Arc::new(ExcelScan),
             // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),
             Arc::new(IcebergSnapshots),
             Arc::new(IcebergDataFiles),
-            Arc::new(ExcelScan),
             Arc::new(LanceScan),
             // Listing
             Arc::new(ListSchemas),

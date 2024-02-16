@@ -51,6 +51,6 @@ impl From<ObjectStoreSourceError> for ArrowError {
 
 impl From<ObjectStoreSourceError> for ExtensionError {
     fn from(e: ObjectStoreSourceError) -> Self {
-        ExtensionError::ObjectStore(e.to_string())
+        ExtensionError::ObjectStoreSource(e.to_string())
     }
 }

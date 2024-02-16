@@ -1455,7 +1455,6 @@ version = "0.8.5"
 dependencies = [
  "datafusion",
  "logutil",
- "metastore",
  "object_store",
  "parking_lot",
  "protogen",
@@ -2438,6 +2437,7 @@ dependencies = [
  "env_logger",
  "futures",
  "ioutil",
+ "object_store",
  "once_cell",
  "parking_lot",
  "paste",
@@ -2445,6 +2445,7 @@ dependencies = [
  "protogen",
  "rand",
  "regex",
+ "reqwest",
  "rstest",
  "serde_json",
  "telemetry",
@@ -7765,6 +7766,7 @@ dependencies = [
  "telemetry",
  "thiserror",
  "tokio",
+ "tokio-util",
  "tracing",
  "uuid",
 ]

@@ -39,8 +39,17 @@ pub enum ExtensionError {
     #[error(transparent)]
     ListingErrBoxed(#[from] Box<dyn std::error::Error + Sync + Send>),
 
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
+
     #[error("object store: {0}")]
-    ObjectStore(String),
+    ObjectStoreSource(String),
+
+    #[error(transparent)]
+    ObjectStore(#[from] object_store::Error),
+
+    #[error(transparent)]
+    ObjectStorePath(#[from] object_store::path::Error),
 
     #[error("{0}")]
     String(String),
