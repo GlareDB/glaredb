@@ -1,10 +1,18 @@
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use datafusion::arrow::datatypes::Schema;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::FileFormat;
+use datafusion::datasource::physical_plan::FileScanConfig;
 use datafusion::datasource::TableProvider;
+use datafusion::execution::context::SessionState;
+use datafusion::execution::object_store::ObjectStoreUrl;
+use datafusion::logical_expr::{Expr, TableType};
+use datafusion::physical_expr;
+use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use futures::StreamExt;
@@ -59,7 +67,7 @@ impl TableFunc for GoogleSheets {
         let sheet_path = Path::parse("sheet")?;
 
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let  = obj_store.put(&sheet_path, stream).await?;
+        let _ = obj_store.put(&sheet_path, stream).await?;
         let obj_meta = obj_store
             .list(Some(&sheet_path))
             .collect::<Vec<Result<ObjectMeta, _>>>()
@@ -108,7 +116,57 @@ impl TableFunc for GoogleSheets {
             .infer_schema(&ctx.get_session_state(), &obj_store, obj_meta.as_slice())
             .await?;
 
-        
-        panic!()
+        // (gross) refresh the stream once we've gotten the schema ...
+        let stream = reqwest::get(url).await?.bytes_stream().await?;
+        let _ = obj_store.put(&sheet_path, stream).await?;
+
+
+        let ep = frmt
+            .create_physical_plan(
+                state,
+                FileScanConfig {
+                    object_store_url: ObjectStoreUrl::parse("sheet"),
+                    file_schema: _schema.clone(),
+                },
+                None,
+            )
+            .await?;
+    }
+}
+
+pub struct LanceTable {
+    schema: Arc<Schema>,
+    plan: Arc<dyn FileFormat>,
+    store: Arc<dyn ObjectStore>,
+}
+
+
+impl TableProvider for LanceTable {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+
+    fn table_type(&self) -> TableType {
+        TableType::Base
+    }
+
+    async fn scan(
+        &self,
+        state: &SessionState,
+        projection: Option<&Vec<usize>>,
+        filter: &[Expr],
+        limit: Option<usize>,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        let expr: Expr = filter.get(0).unwrap();
+        let pexpr = filter
+            .into_iter()
+            .map(|exp| physical_expr::create_physical_expr(e, input_dfschema, execution_props))
+            .collect::<Result<Vec<_>>>()?;
+
+        physical_expr::PhysicalExpr::expr.Ok(self.plan.clone());
     }
 }
