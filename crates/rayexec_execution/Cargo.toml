@@ -4,6 +4,9 @@ version = { workspace = true }
 edition = { workspace = true }
 
 [dependencies]
+rayexec_error = { path = "../rayexec_error" }
+rayexec_parser = { path = "../rayexec_parser" }
+
 ahash = { workspace = true }
 arrow = { workspace = true }
 arrow-array = { workspace = true }

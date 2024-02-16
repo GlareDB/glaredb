@@ -2,13 +2,14 @@ use crate::errors::{err, Result};
 use arrow_array::{new_empty_array, ArrayRef, BooleanArray, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use std::fmt;
+use std::hash::Hash;
 use std::sync::Arc;
 
 use super::PhysicalExpr;
 
 /// Expression for referencing a column in a record batch either by its index or
 /// name.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ColumnExpr {
     Index(usize),
     Name(String),

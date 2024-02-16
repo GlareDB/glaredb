@@ -1,6 +1,7 @@
 use crate::errors::{err, Result};
 use crate::expr::PhysicalExpr;
 use crate::hash::build_hashes;
+use crate::logical::JoinType;
 use arrow_array::cast::AsArray;
 use arrow_array::{ArrayRef, BooleanArray, RecordBatch, UInt32Array, UInt64Array};
 use arrow_schema::{Field, Schema};
@@ -12,16 +13,6 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use super::{buffer::BatchBuffer, Sink, Source};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JoinType {
-    Inner,
-    Left,
-    Right,
-    Outer,
-    LeftSemi,
-    LeftAnti,
-}
 
 #[derive(Debug)]
 pub struct HashJoin {

@@ -1041,6 +1041,8 @@ dependencies = [
  "once_cell",
  "parking_lot",
  "parquet",
+ "rayexec_error",
+ "rayexec_parser",
  "rayon",
  "smallvec",
  "thiserror",

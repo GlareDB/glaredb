@@ -2,11 +2,12 @@ use crate::errors::Result;
 use arrow_array::{new_empty_array, ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Schema};
 use std::fmt;
+use std::hash::Hash;
 use std::sync::Arc;
 
 use super::{logical::LogicalExpr, PhysicalExpr};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Operator {
     Eq,
     NotEq,
