@@ -37,7 +37,7 @@ fn infer_schema(
     r: &Range<calamine::Data>,
     has_header: bool,
     infer_schema_length: usize,
-) -> Result<(Schema, bool), Error> {
+) -> Result<Schema, Error> {
     let mut col_types: HashMap<&str, HashSet<DataType>> = HashMap::new();
     let mut rows = r.rows();
     let col_names: Vec<String> = rows
@@ -82,7 +82,8 @@ fn infer_schema(
             Field::new(col_name.replace(' ', "_"), dt, true)
         })
         .collect();
-    Ok((Schema::new(fields), skip_first))
+
+    Ok(Schema::new(fields))
 }
 
 // TODO: vectorize this to improve performance
@@ -92,13 +93,13 @@ fn xlsx_sheet_value_to_record_batch(
     has_header: bool,
     infer_schema_length: usize,
 ) -> Result<RecordBatch, Error> {
-    let (schema, should_skip) = infer_schema(&r, has_header, infer_schema_length)?;
+    let schema = infer_schema(&r, has_header, infer_schema_length)?;
     let arrays = schema
         .fields()
         .iter()
         .enumerate()
         .map(|(i, field)| {
-            let rows = if should_skip {
+            let rows = if has_header {
                 r.rows().skip(1)
             } else {
                 // Rows doesn't behave like a normal iterator here, so we need to skip `0` rows
