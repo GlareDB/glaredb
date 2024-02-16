@@ -884,12 +884,18 @@ impl<'a> SessionPlanner<'a> {
                         .map(|val| val.to_owned())
                         .unwrap_or(String::from("Sheet1")),
                 );
+                let has_header = storage_options
+                    .inner
+                    .get("has_header")
+                    .map(|val| val.parse())
+                    .unwrap_or(Ok(false))?;
                 TableOptions::Excel(TableOptionsExcel {
                     location,
                     storage_options,
                     file_type: None,
                     compression: None,
                     sheet_name,
+                    has_header,
                 })
             }
             other => return Err(internal!("unsupported datasource: {}", other)),

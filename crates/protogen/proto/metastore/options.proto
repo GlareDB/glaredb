@@ -205,6 +205,7 @@ message TableOptionsExcel{
   optional string file_type = 3;
   optional string compression = 4;
   optional string sheet_name = 5;
+  bool has_header = 6;
 }
 
 message TableOptionsSnowflake {

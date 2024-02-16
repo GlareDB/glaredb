@@ -276,8 +276,8 @@ impl<'a> ExternalDispatcher<'a> {
         let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
 
         match &table.options {
-            TableOptions::Internal(TableOptionsInternal { .. })
-            | TableOptions::Excel(TableOptionsExcel { .. }) => unimplemented!(), // Purposely unimplemented.
+            TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
+            TableOptions::Excel(TableOptionsExcel { .. }) => todo!(),
             TableOptions::Debug(TableOptionsDebug { table_type }) => {
                 let provider = DebugTableType::from_str(table_type)?;
                 Ok(provider.into_table_provider(tunnel.as_ref()))
