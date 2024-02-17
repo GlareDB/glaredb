@@ -887,7 +887,7 @@ impl<'a> SessionPlanner<'a> {
                 let has_header = storage_options
                     .inner
                     .get("has_header")
-                    .map(|val| val.parse::<bool>().unwrap_or(false))
+                    .map(|val| val.parse::<bool>().unwrap_or(true))
                     .unwrap();
                 TableOptions::Excel(TableOptionsExcel {
                     location,
