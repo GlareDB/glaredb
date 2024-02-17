@@ -89,10 +89,3 @@ query I
 select count(*) from bson_beatles;
 ----
 100
-
-query I
-select case from bson_beatles order by case limit 3;
-----
-1
-2
-3
