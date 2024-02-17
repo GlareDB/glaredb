@@ -689,7 +689,7 @@ impl<'a> SessionPlanner<'a> {
                     bucket,
                     service_account_key,
                     location,
-                    file_type: file_type,
+                    file_type,
                     compression: compression.map(|c| c.to_string()),
                 })
             }
