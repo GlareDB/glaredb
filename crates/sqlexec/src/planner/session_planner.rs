@@ -11,7 +11,7 @@ use datafusion::arrow::datatypes::{
     DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::parsers::CompressionTypeVariant;
-use datafusion::common::{FileType, OwnedSchemaReference, OwnedTableReference, ToDFSchema};
+use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
 use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
@@ -689,7 +689,7 @@ impl<'a> SessionPlanner<'a> {
                     bucket,
                     service_account_key,
                     location,
-                    file_type: file_type.to_string(),
+                    file_type: file_type,
                     compression: compression.map(|c| c.to_string()),
                 })
             }
@@ -1978,7 +1978,7 @@ async fn validate_and_get_file_type_and_compression(
     access: Arc<dyn ObjStoreAccess>,
     path: impl AsRef<str>,
     m: &mut StmtOptions,
-) -> Result<(FileType, Option<CompressionTypeVariant>)> {
+) -> Result<(String, Option<CompressionTypeVariant>)> {
     let path = path.as_ref();
     let accessor =
         ObjStoreAccessor::new(access.clone()).map_err(|e| PlanError::InvalidExternalTable {
@@ -2011,21 +2011,26 @@ async fn validate_and_get_file_type_and_compression(
             .and_then(|ext| ext.parse().ok()),
     };
 
-    let file_type = match m.remove_optional::<FileType>("file_type")? {
+    let file_type = match m.remove_optional("file_type")? {
         Some(file_type) => file_type,
         None => {
             let mut ft = None;
             for obj in objects {
                 ft = match file_type_from_path(&obj.location) {
-                    Err(_) => continue,
                     Ok(file_type) => Some(file_type),
+                    Err(_) => match obj.location.extension() {
+                        Some("bson") => Some("bson".to_string()),
+                        _ => continue,
+                    },
                 };
             }
+
             ft.ok_or_else(|| PlanError::InvalidExternalTable {
                 source: Box::new(internal!(
                     "unable to resolve file type from the objects, try passing `file_type` option"
                 )),
             })?
+            .to_string()
         }
     };
 

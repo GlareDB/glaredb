@@ -364,11 +364,12 @@ impl TableProvider for ObjStoreTableProvider {
     }
 }
 
-pub fn file_type_from_path(path: &ObjectStorePath) -> Result<FileType> {
+pub fn file_type_from_path(path: &ObjectStorePath) -> Result<String> {
     path.extension()
         .ok_or(ObjectStoreSourceError::NoFileExtension)?
         .parse()
         .map_err(ObjectStoreSourceError::DataFusion)
+        .map(|ft: FileType| ft.to_string())
 }
 
 pub fn init_session_registry<'a>(
