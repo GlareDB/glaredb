@@ -13,7 +13,7 @@ pub fn keyword_from_str(s: &str) -> Option<Keyword> {
 /// Generate an enum of keywords.
 macro_rules! define_keywords {
     ($($ident:ident),* $(,)?) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub enum Keyword {
             $($ident),*
         }
@@ -31,7 +31,9 @@ macro_rules! define_keywords {
 // Keep keywords sorted to allow for binary search.
 #[rustfmt::skip]
 define_keywords!(
+    ALL,
     ANALYZE,
+    AS,
     BEGIN,
     BETWEEN,
     BIGDECIMAL,
@@ -44,6 +46,7 @@ define_keywords!(
     CREATE,
     CROSS,
     DATABASE,
+    DISTINCT,
     DISTRIBUTE,
     END,
     EXCEPT,

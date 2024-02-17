@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Expr, Ident, Literal, ObjectReference},
+    ast::{Expr, Ident, Literal, ObjectReference, SelectModifer, SelectNode},
     keywords::{self, Keyword, RESERVED_FOR_COLUMN_ALIAS, RESERVED_FOR_TABLE_ALIAS},
     statement::Statement,
     tokens::{Token, TokenWithLocation, Tokenizer, Word},
@@ -17,10 +17,17 @@ pub fn parse(sql: &str) -> Result<Vec<Statement<'_>>> {
 pub struct Parser<'a> {
     toks: Vec<TokenWithLocation<'a>>,
     /// Index of token we should process next.
-    idx: usize,
+    pub(crate) idx: usize,
 }
 
 impl<'a> Parser<'a> {
+    /// Create a parser using an arbitrary string (not necessarily a complete
+    /// SQL statement).
+    pub fn with_sql_string(s: &'a str) -> Result<Self> {
+        let toks = Tokenizer::new(s).tokenize()?;
+        Ok(Self::with_tokens(toks))
+    }
+
     pub fn with_tokens(toks: Vec<TokenWithLocation<'a>>) -> Self {
         Parser { toks, idx: 0 }
     }
@@ -33,7 +40,7 @@ impl<'a> Parser<'a> {
         let mut expect_delimiter = false;
 
         loop {
-            while self.consume_token(Token::SemiColon) {
+            while self.consume_token(&Token::SemiColon) {
                 expect_delimiter = false;
             }
 
@@ -90,6 +97,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Parse `CREATE ...`
     pub fn parse_create(&mut self) -> Result<Statement<'a>> {
         let or_replace = self.parse_keyword_sequence(&[Keyword::OR, Keyword::REPLACE]);
         let temp = self.parse_one_of_keywords(&[Keyword::TEMP, Keyword::TEMPORARY]);
@@ -125,7 +133,7 @@ impl<'a> Parser<'a> {
 
     pub fn parse_set(&mut self) -> Result<Statement<'a>> {
         let name = self.parse_object_reference()?;
-        if self.parse_keyword(Keyword::TO) || self.consume_token(Token::Eq) {
+        if self.parse_keyword(Keyword::TO) || self.consume_token(&Token::Eq) {
             let expr = self.parse_expr()?;
             return Ok(Statement::SetVariable {
                 reference: name,
@@ -138,8 +146,27 @@ impl<'a> Parser<'a> {
         )))
     }
 
+    /// Parse a single `SELECT ...`
+    pub(crate) fn parse_select_node(&mut self) -> Result<SelectNode<'a>> {
+        self.expect_keyword(Keyword::SELECT)?;
+
+        let all = self.parse_keyword(Keyword::ALL);
+        let distinct = self.parse_keyword(Keyword::DISTINCT);
+        if all && distinct {
+            return Err(RayexecError::new("Cannot specifiy both ALL and DISTINCT"));
+        }
+
+        let modifier: Option<SelectModifer> = if self.parse_keyword(Keyword::DISTINCT) {
+            unimplemented!()
+        } else {
+            None
+        };
+
+        unimplemented!()
+    }
+
     /// Parse an object reference.
-    fn parse_object_reference(&mut self) -> Result<ObjectReference<'a>> {
+    pub(crate) fn parse_object_reference(&mut self) -> Result<ObjectReference<'a>> {
         let mut idents = Vec::new();
         loop {
             let tok = match self.next() {
@@ -158,7 +185,7 @@ impl<'a> Parser<'a> {
 
             // Check if the next token is a period for possible compound
             // identifiers. If not, we're done.
-            if !self.consume_token(Token::Period) {
+            if !self.consume_token(&Token::Period) {
                 break;
             }
         }
@@ -167,7 +194,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse a sql expression.
-    fn parse_expr(&mut self) -> Result<Expr<'a>> {
+    pub(crate) fn parse_expr(&mut self) -> Result<Expr<'a>> {
         let expr = self.parse_prefix_expr()?;
 
         // TODO: Infix
@@ -175,7 +202,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn parse_prefix_expr(&mut self) -> Result<Expr<'a>> {
+    pub(crate) fn parse_prefix_expr(&mut self) -> Result<Expr<'a>> {
         // TODO: Typed string
 
         let tok = match self.next() {
@@ -211,15 +238,56 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    /// Parse an optional alias.
+    ///
+    /// `reserved` must be sorted.
+    pub(crate) fn parse_alias(&mut self, reserved: &[Keyword]) -> Result<Option<Ident<'a>>> {
+        let has_as = self.parse_keyword(Keyword::AS);
+        let tok = match self.peek() {
+            Some(tok) => &tok.token,
+            None => return Ok(None),
+        };
+
+        let ident: Option<Ident> = match tok {
+            // Allow any alias if `AS` was explicitly provided.
+            Token::Word(w) if has_as => Some(Ident { value: w.value }),
+
+            // If `AS` wasn't provided, allow the next word to be used as the
+            // alias if it's not a reserved word. Otherwise assume it's not an
+            // alias.
+            Token::Word(w) => match &w.keyword {
+                Some(kw) if reserved.binary_search(kw).is_ok() => None,
+                _ => Some(Ident { value: w.value }),
+            },
+
+            // Allow any singly quoted string.
+            Token::SingleQuotedString(s) => Some(Ident { value: s }),
+
+            _ => {
+                if has_as {
+                    return Err(RayexecError::new("Expected an identifier after AS"));
+                }
+                None
+            }
+        };
+
+        // We've "consumed" the token if we've determined it's an alias.
+        if ident.is_some() {
+            self.next();
+        }
+
+        Ok(ident)
+    }
+
     /// Parse a comma-separated list of one or more items.
-    fn parse_comma_separated<T>(
+    pub(crate) fn parse_comma_separated<T>(
         &mut self,
         mut f: impl FnMut(&mut Parser<'a>) -> Result<T>,
     ) -> Result<Vec<T>> {
         let mut values = Vec::new();
         loop {
             values.push(f(self)?);
-            if !self.consume_token(Token::Comma) {
+            if !self.consume_token(&Token::Comma) {
                 break;
             }
 
@@ -250,7 +318,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse a single keyword.
-    fn parse_keyword(&mut self, keyword: Keyword) -> bool {
+    pub(crate) fn parse_keyword(&mut self, keyword: Keyword) -> bool {
         let idx = self.idx;
         if let Some(tok) = self.next() {
             if tok.is_keyword(keyword) {
@@ -267,7 +335,7 @@ impl<'a> Parser<'a> {
     ///
     /// If the sequence doesn't match, idx is not changed, and false is
     /// returned.
-    fn parse_keyword_sequence(&mut self, keywords: &[Keyword]) -> bool {
+    pub(crate) fn parse_keyword_sequence(&mut self, keywords: &[Keyword]) -> bool {
         let idx = self.idx;
         for keyword in keywords {
             if let Some(tok) = self.next() {
@@ -284,7 +352,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse any of the provided keywords.
-    fn parse_one_of_keywords(&mut self, keywords: &[Keyword]) -> bool {
+    pub(crate) fn parse_one_of_keywords(&mut self, keywords: &[Keyword]) -> bool {
         let idx = self.idx;
         let tok = match self.next() {
             Some(tok) => tok,
@@ -300,16 +368,40 @@ impl<'a> Parser<'a> {
         false
     }
 
+    /// Consume the current token if it matches expected, otherwise return an
+    /// error.
+    pub(crate) fn expect_token(&mut self, expected: &Token) -> Result<()> {
+        if !self.consume_token(expected) {
+            return Err(RayexecError::new(format!(
+                "Expected {expected:?}, got {:?}",
+                self.peek()
+            )));
+        }
+        Ok(())
+    }
+
+    /// Consume the current keyword if it matches expected, otherwise return an
+    /// error.
+    pub(crate) fn expect_keyword(&mut self, expected: Keyword) -> Result<()> {
+        if !self.parse_keyword(expected) {
+            return Err(RayexecError::new(format!(
+                "Expected {expected:?}, got {:?}",
+                self.peek()
+            )));
+        }
+        Ok(())
+    }
+
     /// Consume the next token if it matches expected.
     ///
     /// Returns false with the state unchanged if the next token does not match
     /// expected.
-    fn consume_token(&mut self, expected: Token) -> bool {
+    pub(crate) fn consume_token(&mut self, expected: &Token) -> bool {
         let tok = match self.peek() {
             Some(tok) => &tok.token,
             None => return false,
         };
-        if tok == &expected {
+        if tok == expected {
             let _ = self.next();
             return true;
         }
@@ -319,7 +411,7 @@ impl<'a> Parser<'a> {
     /// Get the next token.
     ///
     /// Ignores whitespace.
-    fn next(&mut self) -> Option<&TokenWithLocation<'a>> {
+    pub(crate) fn next(&mut self) -> Option<&TokenWithLocation<'a>> {
         loop {
             if self.idx >= self.toks.len() {
                 return None;
@@ -339,7 +431,7 @@ impl<'a> Parser<'a> {
     /// Get the next token without altering the current index.
     ///
     /// Ignores whitespace.
-    fn peek(&mut self) -> Option<&TokenWithLocation<'a>> {
+    pub(crate) fn peek(&mut self) -> Option<&TokenWithLocation<'a>> {
         let mut idx = self.idx;
         loop {
             if idx >= self.toks.len() {

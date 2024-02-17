@@ -2,6 +2,8 @@ use crate::ast::{Expr, ObjectReference};
 
 #[derive(Debug, Clone)]
 pub enum Statement<'a> {
+    Query {},
+
     /// CREATE SCHEMA ...
     CreateSchema {
         reference: ObjectReference<'a>,
