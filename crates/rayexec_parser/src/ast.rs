@@ -143,7 +143,7 @@ impl<'a> Expr<'a> {
                     Keyword::TRUE => Expr::Literal(Literal::Boolean(true)),
                     Keyword::FALSE => Expr::Literal(Literal::Boolean(false)),
                     Keyword::NULL => Expr::Literal(Literal::Null),
-                    _ => unimplemented!(),
+                    _ => Expr::Ident(Ident { value: w.value }),
                 },
                 None => {
                     // TODO: Extend, compound idents.
@@ -300,15 +300,17 @@ pub struct SelectNode<'a> {
     /// A FROM clause including joins.
     ///
     /// `FROM <table|function|subquery> [, | <join> <select-node>]
-    pub from: FromList<'a>,
+    pub from: TableList<'a>,
+    /// WHERE
+    pub where_expr: Option<Expr<'a>>,
     /// Group by expression.
-    pub group_by: Option<GroupByExpr<'a>>,
+    pub group_by: Option<GroupByList<'a>>,
     /// Having expression.
     ///
     /// May exist even if group by isn't provided.
     pub having: Option<Expr<'a>>,
     /// Order by expression.
-    pub order_by: Option<OrderBy<'a>>,
+    pub order_by: Option<OrderByList<'a>>,
     pub limit: Option<Expr<'a>>,
     pub offset: Option<Expr<'a>>,
     // TODO: Window
@@ -324,7 +326,69 @@ impl<'a> AstParseable<'a> for SelectNode<'a> {
         // Projection list
         let projections = SelectList::parse(parser)?;
 
-        unimplemented!()
+        // FROM
+        let from = if parser.parse_keyword(Keyword::FROM) {
+            TableList::parse(parser)?
+        } else {
+            TableList::empty()
+        };
+
+        // WHERE
+        let where_expr = if parser.parse_keyword(Keyword::WHERE) {
+            Some(Expr::parse(parser)?)
+        } else {
+            None
+        };
+
+        // GROUP BY
+        let group_by = if parser.parse_keyword_sequence(&[Keyword::GROUP, Keyword::BY]) {
+            Some(GroupByList::parse(parser)?)
+        } else {
+            None
+        };
+
+        // HAVING
+        let having = if parser.parse_keyword(Keyword::HAVING) {
+            Some(Expr::parse(parser)?)
+        } else {
+            None
+        };
+
+        // TODO: Window
+        // TODO: Qualify
+
+        // ORDER BY
+        let order_by = if parser.parse_keyword_sequence(&[Keyword::ORDER, Keyword::BY]) {
+            Some(OrderByList::parse(parser)?)
+        } else {
+            None
+        };
+
+        // LIMIT
+        let limit = if parser.parse_keyword(Keyword::LIMIT) {
+            Some(Expr::parse(parser)?)
+        } else {
+            None
+        };
+
+        // OFFSET
+        let offset = if parser.parse_keyword(Keyword::OFFSET) {
+            Some(Expr::parse(parser)?)
+        } else {
+            None
+        };
+
+        Ok(SelectNode {
+            modifier,
+            projections,
+            from,
+            where_expr,
+            group_by,
+            having,
+            order_by,
+            limit,
+            offset,
+        })
     }
 }
 
@@ -435,19 +499,96 @@ pub struct ReplaceColumn<'a> {
     pub expr: Expr<'a>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FromList<'a>(pub Vec<FromItem<'a>>);
+/// A list of tables with their joins.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TableList<'a>(pub Vec<TableWithJoins<'a>>);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FromItem<'a> {
-    pub join: Option<JoinOperation<'a>>,
-    pub table: TableLike<'a>,
+impl<'a> TableList<'a> {
+    pub fn empty() -> Self {
+        Self::default()
+    }
 }
 
-impl<'a> AstParseable<'a> for FromItem<'a> {
+impl<'a> AstParseable<'a> for TableList<'a> {
     fn parse(parser: &mut Parser<'a>) -> Result<Self> {
-        unimplemented!()
+        let tables = parser.parse_comma_separated(TableWithJoins::parse)?;
+        Ok(TableList(tables))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableWithJoins<'a> {
+    pub table: TableLike<'a>,
+    pub joins: Vec<Join<'a>>,
+}
+
+impl<'a> AstParseable<'a> for TableWithJoins<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        // TODO: Natural, asof
+
+        let table = TableLike::parse(parser)?;
+
+        let mut joins = Vec::new();
+        loop {
+            let join = if parser.parse_keyword_sequence(&[Keyword::CROSS, Keyword::JOIN]) {
+                Join {
+                    join: JoinOperation {
+                        join_type: JoinType::Cross,
+                        join_modifier: None,
+                    },
+                    table: TableLike::parse(parser)?,
+                }
+            } else if parser.parse_keyword_sequence(&[Keyword::JOIN])
+                || parser.parse_keyword_sequence(&[Keyword::INNER, Keyword::JOIN])
+            {
+                let table = TableLike::parse(parser)?;
+                let join = JoinOperation {
+                    join_type: JoinType::Inner(JoinConstraint::parse(parser)?),
+                    join_modifier: None,
+                };
+                Join { join, table }
+            } else if parser.parse_keyword_sequence(&[Keyword::LEFT, Keyword::JOIN])
+                || parser.parse_keyword_sequence(&[Keyword::LEFT, Keyword::OUTER, Keyword::JOIN])
+            {
+                let table = TableLike::parse(parser)?;
+                let join = JoinOperation {
+                    join_type: JoinType::Left(JoinConstraint::parse(parser)?),
+                    join_modifier: None,
+                };
+                Join { join, table }
+            } else if parser.parse_keyword_sequence(&[Keyword::RIGHT, Keyword::JOIN])
+                || parser.parse_keyword_sequence(&[Keyword::RIGHT, Keyword::OUTER, Keyword::JOIN])
+            {
+                let table = TableLike::parse(parser)?;
+                let join = JoinOperation {
+                    join_type: JoinType::Right(JoinConstraint::parse(parser)?),
+                    join_modifier: None,
+                };
+                Join { join, table }
+            } else if parser.parse_keyword_sequence(&[Keyword::FULL, Keyword::JOIN])
+                || parser.parse_keyword_sequence(&[Keyword::FULL, Keyword::OUTER, Keyword::JOIN])
+            {
+                let table = TableLike::parse(parser)?;
+                let join = JoinOperation {
+                    join_type: JoinType::Full(JoinConstraint::parse(parser)?),
+                    join_modifier: None,
+                };
+                Join { join, table }
+            } else {
+                break;
+            };
+
+            joins.push(join)
+        }
+
+        Ok(TableWithJoins { table, joins })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Join<'a> {
+    pub join: JoinOperation<'a>,
+    pub table: TableLike<'a>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -464,14 +605,14 @@ pub enum JoinModifier {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JoinType<'a> {
-    Inner(Option<JoinConstraint<'a>>),
-    LeftOuter(Option<JoinConstraint<'a>>),
-    RightOuter(Option<JoinConstraint<'a>>),
-    FullOuter(Option<JoinConstraint<'a>>),
-    LeftSemi(Option<JoinConstraint<'a>>),
-    RightSemi(Option<JoinConstraint<'a>>),
-    LeftAnti(Option<JoinConstraint<'a>>),
-    RightAnti(Option<JoinConstraint<'a>>),
+    Inner(JoinConstraint<'a>),
+    Left(JoinConstraint<'a>),
+    Right(JoinConstraint<'a>),
+    Full(JoinConstraint<'a>),
+    LeftSemi(JoinConstraint<'a>),
+    RightSemi(JoinConstraint<'a>),
+    LeftAnti(JoinConstraint<'a>),
+    RightAnti(JoinConstraint<'a>),
     Anti,
     Lateral,
     Cross,
@@ -482,6 +623,43 @@ pub enum JoinConstraint<'a> {
     On(Expr<'a>),
     Using(Vec<Ident<'a>>),
     Natural,
+    None,
+}
+
+impl<'a> AstParseable<'a> for JoinConstraint<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        let tok = match parser.peek() {
+            Some(tok) => tok,
+            None => return Ok(JoinConstraint::None),
+        };
+
+        let kw = match tok.keyword() {
+            Some(kw) => kw,
+            None => return Ok(JoinConstraint::None),
+        };
+
+        match kw {
+            Keyword::ON => {
+                parser.next();
+                let expr = Expr::parse(parser)?;
+                Ok(JoinConstraint::On(expr))
+            }
+            Keyword::USING => {
+                parser.next();
+                let idents = parser.parse_parenthesized_comma_separated(|parser| {
+                    let expr = Expr::parse(parser)?;
+                    match expr {
+                        Expr::Ident(ident) => Ok(ident),
+                        other => Err(RayexecError::new(format!(
+                            "Expected column identifier, found {other:?}"
+                        ))),
+                    }
+                })?;
+                Ok(JoinConstraint::Using(idents))
+            }
+            _ => Ok(JoinConstraint::None),
+        }
+    }
 }
 
 /// A table or subquery with optional table and column aliases.
@@ -599,11 +777,26 @@ impl<'a> AstParseable<'a> for FunctionArg<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GroupByExpr<'a> {
-    /// `GROUP BY ALL`
+pub enum GroupByList<'a> {
     All,
+    Exprs { exprs: Vec<GroupByExpr<'a>> },
+}
+
+impl<'a> AstParseable<'a> for GroupByList<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        if parser.parse_keyword(Keyword::ALL) {
+            Ok(GroupByList::All)
+        } else {
+            let exprs = parser.parse_comma_separated(GroupByExpr::parse)?;
+            Ok(GroupByList::Exprs { exprs })
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GroupByExpr<'a> {
     /// `GROUP BY <expr>[, ...]`
-    Exprs(Vec<Expr<'a>>),
+    Expr(Expr<'a>),
     /// `GROUP BY CUBE (<expr>)`
     Cube(Vec<Expr<'a>>),
     /// `GROUP BY ROLLUP (<expr>)`
@@ -625,54 +818,91 @@ impl<'a> AstParseable<'a> for GroupByExpr<'a> {
 
         if let Some(kw) = tok.keyword() {
             match kw {
-                Keyword::ALL => {
-                    parser.next();
-                    Ok(GroupByExpr::All)
-                },
                 Keyword::CUBE => {
                     parser.next();
                     let exprs = parser.parse_parenthesized_comma_separated(Expr::parse)?;
-                    Ok(GroupByExpr::Cube(exprs))
-                },
+                    return Ok(GroupByExpr::Cube(exprs));
+                }
                 Keyword::ROLLUP => {
                     parser.next();
                     let exprs = parser.parse_parenthesized_comma_separated(Expr::parse)?;
-                    Ok(GroupByExpr::Rollup(exprs))
-                },
+                    return Ok(GroupByExpr::Rollup(exprs));
+                }
                 Keyword::GROUPING => {
                     parser.next();
                     parser.expect_keyword(Keyword::SETS)?;
                     let exprs = parser.parse_parenthesized_comma_separated(Expr::parse)?;
-                    Ok(GroupByExpr::GroupingSets(exprs))
-                },
-                other => Err(RayexecError::new(
-                    format!("Expected one of ALL, CUBE, GROUPING SETS, ROLLUP, or <expression> for GROUP BY. Found {other:?}"),
-                ))
+                    return Ok(GroupByExpr::GroupingSets(exprs));
+                }
+                _ => (), // Fallthrough, need to parse as an expression.
             }
-        } else {
-            let exprs = parser.parse_comma_separated(Expr::parse)?;
-            Ok(GroupByExpr::Exprs(exprs))
         }
+
+        let expr = Expr::parse(parser)?;
+        Ok(GroupByExpr::Expr(expr))
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OrderBy<'a> {
-    /// `ORDER BY ALL`
-    All {
-        asc_desc: Option<OrderByAscDesc>,
-        nulls: Option<OrderByNulls>,
-    },
-    /// `ORDER BY <expr>[, ...]`
-    Exprs(Vec<OrderByItem<'a>>),
+pub enum OrderByList<'a> {
+    All { options: OrderByOptions },
+    Exprs { exprs: Vec<OrderByExpr<'a>> },
+}
+
+impl<'a> AstParseable<'a> for OrderByList<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        if parser.parse_keyword(Keyword::ALL) {
+            let options = OrderByOptions::parse(parser)?;
+            Ok(OrderByList::All { options })
+        } else {
+            let exprs = parser.parse_comma_separated(OrderByExpr::parse)?;
+            Ok(OrderByList::Exprs { exprs })
+        }
+    }
 }
 
 /// A single expression in an order by clause.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OrderByItem<'a> {
+pub struct OrderByExpr<'a> {
     pub expr: Expr<'a>,
+    pub options: OrderByOptions,
+}
+
+impl<'a> AstParseable<'a> for OrderByExpr<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        let expr = Expr::parse(parser)?;
+        let options = OrderByOptions::parse(parser)?;
+
+        Ok(OrderByExpr { expr, options })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OrderByOptions {
     pub asc: Option<OrderByAscDesc>,
     pub nulls: Option<OrderByNulls>,
+}
+
+impl<'a> AstParseable<'a> for OrderByOptions {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        let asc = if parser.parse_keyword(Keyword::ASC) {
+            Some(OrderByAscDesc::Ascending)
+        } else if parser.parse_keyword(Keyword::DESC) {
+            Some(OrderByAscDesc::Descending)
+        } else {
+            None
+        };
+
+        let nulls = if parser.parse_keyword_sequence(&[Keyword::NULLS, Keyword::FIRST]) {
+            Some(OrderByNulls::First)
+        } else if parser.parse_keyword_sequence(&[Keyword::NULLS, Keyword::LAST]) {
+            Some(OrderByNulls::Last)
+        } else {
+            None
+        };
+
+        Ok(OrderByOptions { asc, nulls })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

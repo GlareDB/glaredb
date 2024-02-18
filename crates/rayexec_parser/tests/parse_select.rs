@@ -2,10 +2,11 @@ use insta::{assert_debug_snapshot, assert_display_snapshot};
 use rayexec_error::Result;
 use rayexec_parser::{
     ast::{
-        AstParseable, FunctionArg, GroupByExpr, ObjectReference, SelectItem, SelectList, TableLike,
-        TableOrSubquery, WildcardExpr,
+        AstParseable, FunctionArg, GroupByList, ObjectReference, OrderByList, SelectItem,
+        SelectList, SelectNode, TableLike, TableList, TableOrSubquery, WildcardExpr,
     },
     parser::Parser,
+    tokens::Tokenizer,
 };
 
 /// Parse a string into a part of the AST.
@@ -13,13 +14,217 @@ use rayexec_parser::{
 /// The provided string should be able to be tokenized. The returned Result is
 /// the result of the actual parse.
 fn parse_ast<'a, A: AstParseable<'a>>(s: &'a str) -> Result<A> {
-    let mut parser = Parser::with_sql_string(s).unwrap();
+    let toks = Tokenizer::new(s).tokenize().unwrap();
+    let mut parser = Parser::with_tokens(toks);
     A::parse(&mut parser)
 }
 
 #[test]
-fn parse_select_simple() {
-    // assert_debug_snapshot!(parse("select 1").unwrap(), @"");
+fn parse_select() {
+    assert_debug_snapshot!(parse_ast::<SelectNode>("select 1").unwrap(), @r###"
+    SelectNode {
+        modifier: None,
+        projections: SelectList(
+            [
+                Expr(
+                    Literal(
+                        Number(
+                            "1",
+                        ),
+                    ),
+                ),
+            ],
+        ),
+        from: TableList(
+            [],
+        ),
+        where_expr: None,
+        group_by: None,
+        having: None,
+        order_by: None,
+        limit: None,
+        offset: None,
+    }
+    "###);
+
+    // TODO: Incorrect (expr parsing)
+    assert_debug_snapshot!(parse_ast::<SelectNode>("SELECT * FROM customer WHERE id = 1 LIMIT 5").unwrap(), @r###"
+    SelectNode {
+        modifier: None,
+        projections: SelectList(
+            [
+                Wildcard(
+                    Wildcard {
+                        exclude_cols: [],
+                        replace_cols: [],
+                    },
+                ),
+            ],
+        ),
+        from: TableList(
+            [
+                TableWithJoins {
+                    table: Table(
+                        ObjectReference(
+                            [
+                                Ident {
+                                    value: "customer",
+                                },
+                            ],
+                        ),
+                    ),
+                    joins: [],
+                },
+            ],
+        ),
+        where_expr: Some(
+            Ident(
+                Ident {
+                    value: "id",
+                },
+            ),
+        ),
+        group_by: None,
+        having: None,
+        order_by: None,
+        limit: None,
+        offset: None,
+    }
+    "###);
+
+    // TODO: Incorrect (expr parsing)
+    assert_debug_snapshot!(parse_ast::<SelectNode>("SELECT c.* FROM customer c WHERE id = 1 LIMIT 5").unwrap(), @r###"
+    SelectNode {
+        modifier: None,
+        projections: SelectList(
+            [
+                QualifiedWildcard(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "c",
+                            },
+                        ],
+                    ),
+                    Wildcard {
+                        exclude_cols: [],
+                        replace_cols: [],
+                    },
+                ),
+            ],
+        ),
+        from: TableList(
+            [
+                TableWithJoins {
+                    table: Table(
+                        ObjectReference(
+                            [
+                                Ident {
+                                    value: "customer",
+                                },
+                            ],
+                        ),
+                    ),
+                    joins: [],
+                },
+            ],
+        ),
+        where_expr: None,
+        group_by: None,
+        having: None,
+        order_by: None,
+        limit: None,
+        offset: None,
+    }
+    "###);
+
+    // TODO: Incorrect (expr parsing)
+    assert_debug_snapshot!(parse_ast::<SelectNode>("SELECT id, fname, lname FROM customer WHERE id = 1 LIMIT 5").unwrap(), @r###"
+    SelectNode {
+        modifier: None,
+        projections: SelectList(
+            [
+                Expr(
+                    Ident(
+                        Ident {
+                            value: "id",
+                        },
+                    ),
+                ),
+                Expr(
+                    Ident(
+                        Ident {
+                            value: "fname",
+                        },
+                    ),
+                ),
+                AliasedExpr(
+                    Ident(
+                        Ident {
+                            value: "lname",
+                        },
+                    ),
+                    Ident {
+                        value: "FROM",
+                    },
+                ),
+            ],
+        ),
+        from: TableList(
+            [],
+        ),
+        where_expr: None,
+        group_by: None,
+        having: None,
+        order_by: None,
+        limit: None,
+        offset: None,
+    }
+    "###);
+
+    // TODO: Incorrect (expr parsing)
+    assert_debug_snapshot!(parse_ast::<SelectNode>("SELECT DISTINCT id, fname, lname FROM customer WHERE id = 1 LIMIT 5").unwrap(), @r###"
+    SelectNode {
+        modifier: Distinct,
+        projections: SelectList(
+            [
+                Expr(
+                    Ident(
+                        Ident {
+                            value: "id",
+                        },
+                    ),
+                ),
+                Expr(
+                    Ident(
+                        Ident {
+                            value: "fname",
+                        },
+                    ),
+                ),
+                AliasedExpr(
+                    Ident(
+                        Ident {
+                            value: "lname",
+                        },
+                    ),
+                    Ident {
+                        value: "FROM",
+                    },
+                ),
+            ],
+        ),
+        from: TableList(
+            [],
+        ),
+        where_expr: None,
+        group_by: None,
+        having: None,
+        order_by: None,
+        limit: None,
+        offset: None,
+    }
+    "###);
 }
 
 #[test]
@@ -487,88 +692,770 @@ fn parse_table_or_subquery() {
 }
 
 #[test]
-fn parse_group_by_expr() {
+fn parse_group_by_list() {
     // Group by expressions
-    assert_debug_snapshot!(parse_ast::<GroupByExpr>("col1, col2, 3, 4").unwrap(), @r###"
-    Exprs(
-        [
-            Ident(
-                Ident {
-                    value: "col1",
-                },
-            ),
-            Ident(
-                Ident {
-                    value: "col2",
-                },
-            ),
-            Literal(
-                Number(
-                    "3",
+    assert_debug_snapshot!(parse_ast::<GroupByList>("col1, col2, 3, 4").unwrap(), @r###"
+    Exprs {
+        exprs: [
+            Expr(
+                Ident(
+                    Ident {
+                        value: "col1",
+                    },
                 ),
             ),
-            Literal(
-                Number(
-                    "4",
+            Expr(
+                Ident(
+                    Ident {
+                        value: "col2",
+                    },
+                ),
+            ),
+            Expr(
+                Literal(
+                    Number(
+                        "3",
+                    ),
+                ),
+            ),
+            Expr(
+                Literal(
+                    Number(
+                        "4",
+                    ),
                 ),
             ),
         ],
-    )
+    }
+    "###);
+
+    // Group by ident which happens to match a keyword.
+    assert_debug_snapshot!(parse_ast::<GroupByList>("last").unwrap(), @r###"
+    Exprs {
+        exprs: [
+            Expr(
+                Ident(
+                    Ident {
+                        value: "last",
+                    },
+                ),
+            ),
+        ],
+    }
     "###);
 
     // Group by all
-    assert_debug_snapshot!(parse_ast::<GroupByExpr>("ALL").unwrap(), @"All");
+    assert_debug_snapshot!(parse_ast::<GroupByList>("ALL").unwrap(), @"All");
 
     // Group by cube
-    assert_debug_snapshot!(parse_ast::<GroupByExpr>("CUBE (col1, 2)").unwrap(), @r###"
-    Cube(
-        [
-            Ident(
-                Ident {
-                    value: "col1",
-                },
-            ),
-            Literal(
-                Number(
-                    "2",
-                ),
+    assert_debug_snapshot!(parse_ast::<GroupByList>("CUBE (col1, 2)").unwrap(), @r###"
+    Exprs {
+        exprs: [
+            Cube(
+                [
+                    Ident(
+                        Ident {
+                            value: "col1",
+                        },
+                    ),
+                    Literal(
+                        Number(
+                            "2",
+                        ),
+                    ),
+                ],
             ),
         ],
-    )
+    }
     "###);
 
     // Group by rollup
-    assert_debug_snapshot!(parse_ast::<GroupByExpr>("ROLLUP (col1, 2)").unwrap(), @r###"
-    Rollup(
-        [
-            Ident(
-                Ident {
-                    value: "col1",
-                },
+    assert_debug_snapshot!(parse_ast::<GroupByList>("ROLLUP (col1, 2)").unwrap(), @r###"
+    Exprs {
+        exprs: [
+            Rollup(
+                [
+                    Ident(
+                        Ident {
+                            value: "col1",
+                        },
+                    ),
+                    Literal(
+                        Number(
+                            "2",
+                        ),
+                    ),
+                ],
             ),
-            Literal(
-                Number(
-                    "2",
+        ],
+    }
+    "###);
+
+    // Group by grouping sets
+    assert_debug_snapshot!(parse_ast::<GroupByList>("GROUPING SETS (col1, 2)").unwrap(), @r###"
+    Exprs {
+        exprs: [
+            GroupingSets(
+                [
+                    Ident(
+                        Ident {
+                            value: "col1",
+                        },
+                    ),
+                    Literal(
+                        Number(
+                            "2",
+                        ),
+                    ),
+                ],
+            ),
+        ],
+    }
+    "###);
+
+    // Mix of expressions
+    assert_debug_snapshot!(parse_ast::<GroupByList>("col1, CUBE(col2, 3)").unwrap(), @r###"
+    Exprs {
+        exprs: [
+            Expr(
+                Ident(
+                    Ident {
+                        value: "col1",
+                    },
                 ),
             ),
+            Cube(
+                [
+                    Ident(
+                        Ident {
+                            value: "col2",
+                        },
+                    ),
+                    Literal(
+                        Number(
+                            "3",
+                        ),
+                    ),
+                ],
+            ),
+        ],
+    }
+    "###);
+}
+
+#[test]
+fn parse_order_by_list() {
+    assert_debug_snapshot!(parse_ast::<OrderByList>("col1").unwrap(), @r###"
+    Exprs {
+        exprs: [
+            OrderByExpr {
+                expr: Ident(
+                    Ident {
+                        value: "col1",
+                    },
+                ),
+                options: OrderByOptions {
+                    asc: None,
+                    nulls: None,
+                },
+            },
+        ],
+    }
+    "###);
+
+    assert_debug_snapshot!(parse_ast::<OrderByList>("col1, col2").unwrap(), @r###"
+    Exprs {
+        exprs: [
+            OrderByExpr {
+                expr: Ident(
+                    Ident {
+                        value: "col1",
+                    },
+                ),
+                options: OrderByOptions {
+                    asc: None,
+                    nulls: None,
+                },
+            },
+            OrderByExpr {
+                expr: Ident(
+                    Ident {
+                        value: "col2",
+                    },
+                ),
+                options: OrderByOptions {
+                    asc: None,
+                    nulls: None,
+                },
+            },
+        ],
+    }
+    "###);
+
+    assert_debug_snapshot!(parse_ast::<OrderByList>("col1 NULLS LAST, col2").unwrap(), @r###"
+    Exprs {
+        exprs: [
+            OrderByExpr {
+                expr: Ident(
+                    Ident {
+                        value: "col1",
+                    },
+                ),
+                options: OrderByOptions {
+                    asc: None,
+                    nulls: Some(
+                        Last,
+                    ),
+                },
+            },
+            OrderByExpr {
+                expr: Ident(
+                    Ident {
+                        value: "col2",
+                    },
+                ),
+                options: OrderByOptions {
+                    asc: None,
+                    nulls: None,
+                },
+            },
+        ],
+    }
+    "###);
+
+    assert_debug_snapshot!(parse_ast::<OrderByList>("col1 ASC NULLS LAST, col2").unwrap(), @r###"
+    Exprs {
+        exprs: [
+            OrderByExpr {
+                expr: Ident(
+                    Ident {
+                        value: "col1",
+                    },
+                ),
+                options: OrderByOptions {
+                    asc: Some(
+                        Ascending,
+                    ),
+                    nulls: Some(
+                        Last,
+                    ),
+                },
+            },
+            OrderByExpr {
+                expr: Ident(
+                    Ident {
+                        value: "col2",
+                    },
+                ),
+                options: OrderByOptions {
+                    asc: None,
+                    nulls: None,
+                },
+            },
+        ],
+    }
+    "###);
+
+    assert_debug_snapshot!(parse_ast::<OrderByList>("col1 ASC NULLS LAST, col2 DESC").unwrap(), @r###"
+    Exprs {
+        exprs: [
+            OrderByExpr {
+                expr: Ident(
+                    Ident {
+                        value: "col1",
+                    },
+                ),
+                options: OrderByOptions {
+                    asc: Some(
+                        Ascending,
+                    ),
+                    nulls: Some(
+                        Last,
+                    ),
+                },
+            },
+            OrderByExpr {
+                expr: Ident(
+                    Ident {
+                        value: "col2",
+                    },
+                ),
+                options: OrderByOptions {
+                    asc: Some(
+                        Descending,
+                    ),
+                    nulls: None,
+                },
+            },
+        ],
+    }
+    "###);
+}
+
+#[test]
+fn parse_table_list() {
+    assert_debug_snapshot!(parse_ast::<TableList>("my_table").unwrap(), @r###"
+    TableList(
+        [
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "my_table",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [],
+            },
         ],
     )
     "###);
 
-    // Group by grouping sets
-    assert_debug_snapshot!(parse_ast::<GroupByExpr>("GROUPING SETS (col1, 2)").unwrap(), @r###"
-    GroupingSets(
+    // Alias
+    // TODO: Column aliases
+    assert_debug_snapshot!(parse_ast::<TableList>("t1 as a1(c1, c2, c3)").unwrap(), @r###"
+    TableList(
         [
-            Ident(
-                Ident {
-                    value: "col1",
-                },
-            ),
-            Literal(
-                Number(
-                    "2",
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t1",
+                            },
+                        ],
+                    ),
                 ),
-            ),
+                joins: [],
+            },
+        ],
+    )
+    "###);
+
+    // Implicit cross join
+    assert_debug_snapshot!(parse_ast::<TableList>("t1, t2").unwrap(), @r###"
+    TableList(
+        [
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t1",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [],
+            },
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t2",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [],
+            },
+        ],
+    )
+    "###);
+
+    // Cross join
+    assert_debug_snapshot!(parse_ast::<TableList>("t1 cross join t2").unwrap(), @r###"
+    TableList(
+        [
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t1",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [
+                    Join {
+                        join: JoinOperation {
+                            join_modifier: None,
+                            join_type: Cross,
+                        },
+                        table: Table(
+                            ObjectReference(
+                                [
+                                    Ident {
+                                        value: "t2",
+                                    },
+                                ],
+                            ),
+                        ),
+                    },
+                ],
+            },
+        ],
+    )
+    "###);
+
+    // Implicit inner
+    assert_debug_snapshot!(parse_ast::<TableList>("t1 join t2").unwrap(), @r###"
+    TableList(
+        [
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t1",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [
+                    Join {
+                        join: JoinOperation {
+                            join_modifier: None,
+                            join_type: Inner(
+                                None,
+                            ),
+                        },
+                        table: Table(
+                            ObjectReference(
+                                [
+                                    Ident {
+                                        value: "t2",
+                                    },
+                                ],
+                            ),
+                        ),
+                    },
+                ],
+            },
+        ],
+    )
+    "###);
+
+    // Inner
+    assert_debug_snapshot!(parse_ast::<TableList>("t1 inner join t2 on true").unwrap(), @r###"
+    TableList(
+        [
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t1",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [
+                    Join {
+                        join: JoinOperation {
+                            join_modifier: None,
+                            join_type: Inner(
+                                On(
+                                    Literal(
+                                        Boolean(
+                                            true,
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        },
+                        table: Table(
+                            ObjectReference(
+                                [
+                                    Ident {
+                                        value: "t2",
+                                    },
+                                ],
+                            ),
+                        ),
+                    },
+                ],
+            },
+        ],
+    )
+    "###);
+
+    // Left
+    assert_debug_snapshot!(parse_ast::<TableList>("t1 left join t2 on true").unwrap(), @r###"
+    TableList(
+        [
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t1",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [
+                    Join {
+                        join: JoinOperation {
+                            join_modifier: None,
+                            join_type: Left(
+                                On(
+                                    Literal(
+                                        Boolean(
+                                            true,
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        },
+                        table: Table(
+                            ObjectReference(
+                                [
+                                    Ident {
+                                        value: "t2",
+                                    },
+                                ],
+                            ),
+                        ),
+                    },
+                ],
+            },
+        ],
+    )
+    "###);
+
+    // Right
+    assert_debug_snapshot!(parse_ast::<TableList>("t1 right join t2 on true").unwrap(), @r###"
+    TableList(
+        [
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t1",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [
+                    Join {
+                        join: JoinOperation {
+                            join_modifier: None,
+                            join_type: Right(
+                                On(
+                                    Literal(
+                                        Boolean(
+                                            true,
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        },
+                        table: Table(
+                            ObjectReference(
+                                [
+                                    Ident {
+                                        value: "t2",
+                                    },
+                                ],
+                            ),
+                        ),
+                    },
+                ],
+            },
+        ],
+    )
+    "###);
+
+    // Full
+    assert_debug_snapshot!(parse_ast::<TableList>("t1 full join t2 on true").unwrap(), @r###"
+    TableList(
+        [
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t1",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [
+                    Join {
+                        join: JoinOperation {
+                            join_modifier: None,
+                            join_type: Full(
+                                On(
+                                    Literal(
+                                        Boolean(
+                                            true,
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        },
+                        table: Table(
+                            ObjectReference(
+                                [
+                                    Ident {
+                                        value: "t2",
+                                    },
+                                ],
+                            ),
+                        ),
+                    },
+                ],
+            },
+        ],
+    )
+    "###);
+
+    // Full optional outer
+    assert_debug_snapshot!(parse_ast::<TableList>("t1 full outer join t2 on true").unwrap(), @r###"
+    TableList(
+        [
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t1",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [
+                    Join {
+                        join: JoinOperation {
+                            join_modifier: None,
+                            join_type: Full(
+                                On(
+                                    Literal(
+                                        Boolean(
+                                            true,
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        },
+                        table: Table(
+                            ObjectReference(
+                                [
+                                    Ident {
+                                        value: "t2",
+                                    },
+                                ],
+                            ),
+                        ),
+                    },
+                ],
+            },
+        ],
+    )
+    "###);
+
+    // Inner using
+    assert_debug_snapshot!(parse_ast::<TableList>("t1 full outer join t2 using (c1)").unwrap(), @r###"
+    TableList(
+        [
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t1",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [
+                    Join {
+                        join: JoinOperation {
+                            join_modifier: None,
+                            join_type: Full(
+                                Using(
+                                    [
+                                        Ident {
+                                            value: "c1",
+                                        },
+                                    ],
+                                ),
+                            ),
+                        },
+                        table: Table(
+                            ObjectReference(
+                                [
+                                    Ident {
+                                        value: "t2",
+                                    },
+                                ],
+                            ),
+                        ),
+                    },
+                ],
+            },
+        ],
+    )
+    "###);
+
+    // Inner and implicit cross join
+    assert_debug_snapshot!(parse_ast::<TableList>("t1 inner join t2 on true, t3").unwrap(), @r###"
+    TableList(
+        [
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t1",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [
+                    Join {
+                        join: JoinOperation {
+                            join_modifier: None,
+                            join_type: Inner(
+                                On(
+                                    Literal(
+                                        Boolean(
+                                            true,
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        },
+                        table: Table(
+                            ObjectReference(
+                                [
+                                    Ident {
+                                        value: "t2",
+                                    },
+                                ],
+                            ),
+                        ),
+                    },
+                ],
+            },
+            TableWithJoins {
+                table: Table(
+                    ObjectReference(
+                        [
+                            Ident {
+                                value: "t3",
+                            },
+                        ],
+                    ),
+                ),
+                joins: [],
+            },
         ],
     )
     "###);

@@ -21,13 +21,7 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    /// Create a parser using an arbitrary string (not necessarily a complete
-    /// SQL statement).
-    pub fn with_sql_string(s: &'a str) -> Result<Self> {
-        let toks = Tokenizer::new(s).tokenize()?;
-        Ok(Self::with_tokens(toks))
-    }
-
+    /// Create a parser with arbitrary tokens.
     pub fn with_tokens(toks: Vec<TokenWithLocation<'a>>) -> Self {
         Parser { toks, idx: 0 }
     }
