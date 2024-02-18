@@ -84,6 +84,14 @@ impl<'a> TokenWithLocation<'a> {
         };
         keyword == other
     }
+
+    /// Return the keyword for this token if available.
+    pub fn keyword(&self) -> Option<Keyword> {
+        match &self.token {
+            Token::Word(w) => w.keyword,
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

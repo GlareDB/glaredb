@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Expr, Ident, Literal, ObjectReference, SelectModifer, SelectNode},
+    ast::{AstParseable, Expr, Ident, Literal, ObjectReference, SelectModifer, SelectNode},
     keywords::{self, Keyword, RESERVED_FOR_COLUMN_ALIAS, RESERVED_FOR_TABLE_ALIAS},
     statement::Statement,
     tokens::{Token, TokenWithLocation, Tokenizer, Word},
@@ -120,7 +120,7 @@ impl<'a> Parser<'a> {
 
             let if_not_exists =
                 self.parse_keyword_sequence(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
-            let reference = self.parse_object_reference()?;
+            let reference = ObjectReference::parse(self)?;
 
             Ok(Statement::CreateSchema {
                 reference,
@@ -132,9 +132,9 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_set(&mut self) -> Result<Statement<'a>> {
-        let name = self.parse_object_reference()?;
+        let name = ObjectReference::parse(self)?;
         if self.parse_keyword(Keyword::TO) || self.consume_token(&Token::Eq) {
-            let expr = self.parse_expr()?;
+            let expr = Expr::parse(self)?;
             return Ok(Statement::SetVariable {
                 reference: name,
                 value: expr,
@@ -163,79 +163,6 @@ impl<'a> Parser<'a> {
         };
 
         unimplemented!()
-    }
-
-    /// Parse an object reference.
-    pub(crate) fn parse_object_reference(&mut self) -> Result<ObjectReference<'a>> {
-        let mut idents = Vec::new();
-        loop {
-            let tok = match self.next() {
-                Some(tok) => tok,
-                None => break,
-            };
-            let ident = match &tok.token {
-                Token::Word(w) => Ident { value: w.value },
-                other => {
-                    return Err(RayexecError::new(format!(
-                        "Unexpected token: {other:?}. Expected an object reference.",
-                    )))
-                }
-            };
-            idents.push(ident);
-
-            // Check if the next token is a period for possible compound
-            // identifiers. If not, we're done.
-            if !self.consume_token(&Token::Period) {
-                break;
-            }
-        }
-
-        Ok(ObjectReference(idents))
-    }
-
-    /// Parse a sql expression.
-    pub(crate) fn parse_expr(&mut self) -> Result<Expr<'a>> {
-        let expr = self.parse_prefix_expr()?;
-
-        // TODO: Infix
-
-        Ok(expr)
-    }
-
-    pub(crate) fn parse_prefix_expr(&mut self) -> Result<Expr<'a>> {
-        // TODO: Typed string
-
-        let tok = match self.next() {
-            Some(tok) => tok,
-            None => {
-                return Err(RayexecError::new(
-                    "Unexpected end of statement. Expected expression.",
-                ))
-            }
-        };
-
-        let expr = match &tok.token {
-            Token::Word(w) => match w.keyword {
-                Some(kw) => match kw {
-                    Keyword::TRUE => Expr::Literal(Literal::Boolean(true)),
-                    Keyword::FALSE => Expr::Literal(Literal::Boolean(false)),
-                    Keyword::NULL => Expr::Literal(Literal::Null),
-                    _ => unimplemented!(),
-                },
-                None => {
-                    unimplemented!()
-                }
-            },
-            Token::SingleQuotedString(s) => Expr::Literal(Literal::SingleQuotedString(s)),
-            Token::Number(s) => Expr::Literal(Literal::Number(s)),
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Unexpected token '{other:?}'. Expected expression."
-                )))
-            }
-        };
-
-        Ok(expr)
     }
 
     /// Parse an optional alias.
@@ -317,6 +244,18 @@ impl<'a> Parser<'a> {
         Ok(values)
     }
 
+    /// Parse a comma separated list of one or more items surrounded by
+    /// parentheses.
+    pub(crate) fn parse_parenthesized_comma_separated<T>(
+        &mut self,
+        mut f: impl FnMut(&mut Parser<'a>) -> Result<T>,
+    ) -> Result<Vec<T>> {
+        self.expect_token(&Token::LeftParen)?;
+        let vals = self.parse_comma_separated(f)?;
+        self.expect_token(&Token::RightParen)?;
+        Ok(vals)
+    }
+
     /// Parse a single keyword.
     pub(crate) fn parse_keyword(&mut self, keyword: Keyword) -> bool {
         let idx = self.idx;
@@ -380,6 +319,18 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    pub(crate) fn expect_one_of_tokens(&mut self, expected: &[&Token]) -> Result<()> {
+        for tok in expected {
+            if self.consume_token(tok) {
+                return Ok(());
+            }
+        }
+        return Err(RayexecError::new(format!(
+            "Expected one of {expected:?}, got {:?}",
+            self.peek()
+        )));
+    }
+
     /// Consume the current keyword if it matches expected, otherwise return an
     /// error.
     pub(crate) fn expect_keyword(&mut self, expected: Keyword) -> Result<()> {
@@ -432,6 +383,13 @@ impl<'a> Parser<'a> {
     ///
     /// Ignores whitespace.
     pub(crate) fn peek(&mut self) -> Option<&TokenWithLocation<'a>> {
+        self.peek_nth(0)
+    }
+
+    /// Get the nth next token without altering the current index.
+    ///
+    /// Ignores whitespace.
+    pub(crate) fn peek_nth(&mut self, mut n: usize) -> Option<&TokenWithLocation<'a>> {
         let mut idx = self.idx;
         loop {
             if idx >= self.toks.len() {
@@ -445,7 +403,10 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
-            return Some(tok);
+            if n == 0 {
+                return Some(tok);
+            }
+            n -= 1;
         }
     }
 }

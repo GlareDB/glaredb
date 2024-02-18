@@ -1,4 +1,4 @@
-use crate::keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS};
+use crate::keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS, RESERVED_FOR_TABLE_ALIAS};
 use crate::parser::Parser;
 use crate::tokens::Token;
 use rayexec_error::{RayexecError, Result};
@@ -18,6 +18,26 @@ pub struct Ident<'a> {
     pub value: &'a str,
 }
 
+impl<'a> AstParseable<'a> for Ident<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        let tok = match parser.next() {
+            Some(tok) => &tok.token,
+            None => {
+                return Err(RayexecError::new(
+                    "Expected identifier, found end of statement",
+                ))
+            }
+        };
+
+        match tok {
+            Token::Word(w) => Ok(Ident { value: w.value }),
+            other => Err(RayexecError::new(format!(
+                "Unexpected token: {other:?}. Expected an identifier.",
+            ))),
+        }
+    }
+}
+
 impl<'a> fmt::Display for Ident<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.value)
@@ -26,6 +46,35 @@ impl<'a> fmt::Display for Ident<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ObjectReference<'a>(pub Vec<Ident<'a>>);
+
+impl<'a> AstParseable<'a> for ObjectReference<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        let mut idents = Vec::new();
+        loop {
+            let tok = match parser.next() {
+                Some(tok) => tok,
+                None => break,
+            };
+            let ident = match &tok.token {
+                Token::Word(w) => Ident { value: w.value },
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Unexpected token: {other:?}. Expected an object reference.",
+                    )))
+                }
+            };
+            idents.push(ident);
+
+            // Check if the next token is a period for possible compound
+            // identifiers. If not, we're done.
+            if !parser.consume_token(&Token::Period) {
+                break;
+            }
+        }
+
+        Ok(ObjectReference(idents))
+    }
+}
 
 impl<'a> fmt::Display for ObjectReference<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -251,9 +300,9 @@ pub struct SelectNode<'a> {
     /// A FROM clause including joins.
     ///
     /// `FROM <table|function|subquery> [, | <join> <select-node>]
-    pub from: Vec<FromItem<'a>>,
+    pub from: FromList<'a>,
     /// Group by expression.
-    pub group_by: Option<GroupBy<'a>>,
+    pub group_by: Option<GroupByExpr<'a>>,
     /// Having expression.
     ///
     /// May exist even if group by isn't provided.
@@ -263,6 +312,20 @@ pub struct SelectNode<'a> {
     pub limit: Option<Expr<'a>>,
     pub offset: Option<Expr<'a>>,
     // TODO: Window
+}
+
+impl<'a> AstParseable<'a> for SelectNode<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        parser.expect_keyword(Keyword::SELECT)?;
+
+        // DISTINCT/DISTINCT ON
+        let modifier = SelectModifer::parse(parser)?;
+
+        // Projection list
+        let projections = SelectList::parse(parser)?;
+
+        unimplemented!()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -373,9 +436,18 @@ pub struct ReplaceColumn<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FromList<'a>(pub Vec<FromItem<'a>>);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FromItem<'a> {
     pub join: Option<JoinOperation<'a>>,
     pub table: TableLike<'a>,
+}
+
+impl<'a> AstParseable<'a> for FromItem<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        unimplemented!()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -415,11 +487,32 @@ pub enum JoinConstraint<'a> {
 /// A table or subquery with optional table and column aliases.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableOrSubquery<'a> {
-    pub item: TableLike<'a>,
+    pub table: TableLike<'a>,
     /// FROM <table> AS <alias>
     pub alias: Option<Ident<'a>>,
     /// FROM <table> AS <alias>(<col-alias>, ...)
     pub col_aliases: Option<Vec<Ident<'a>>>,
+}
+
+impl<'a> AstParseable<'a> for TableOrSubquery<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        let table = TableLike::parse(parser)?;
+
+        let alias = parser.parse_alias(RESERVED_FOR_TABLE_ALIAS)?;
+        let col_aliases = if alias.is_some() && parser.consume_token(&Token::LeftParen) {
+            let aliases = parser.parse_comma_separated(Ident::parse)?;
+            parser.expect_token(&Token::RightParen)?;
+            Some(aliases)
+        } else {
+            None
+        };
+
+        Ok(TableOrSubquery {
+            table,
+            alias,
+            col_aliases,
+        })
+    }
 }
 
 /// A table-like item in the query.
@@ -432,23 +525,135 @@ pub enum TableLike<'a> {
     /// FROM <function>(<expr>)
     Function {
         name: ObjectReference<'a>,
-        args: Vec<Expr<'a>>,
+        args: Vec<FunctionArg<'a>>,
     },
-    /// FROM <subquery>
-    Subquery(
+    Derived {
         // TODO
-    ),
-    Values(
-        // TODO
-    ),
+    },
+}
+
+impl<'a> AstParseable<'a> for TableLike<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        // TODO: Few others as well.
+        if parser.consume_token(&Token::LeftParen) {
+            // TODO: derived table
+            unimplemented!()
+        } else {
+            // Normal table or table function.
+            let name = ObjectReference::parse(parser)?;
+
+            if parser.consume_token(&Token::LeftParen) {
+                // Table function
+                //
+                // `table_func(<exprs>, ...)`
+
+                // Maybe be a function with no args.
+                let args = if parser.consume_token(&Token::RightParen) {
+                    Vec::new()
+                } else {
+                    let args = parser.parse_comma_separated(FunctionArg::parse)?;
+                    parser.expect_token(&Token::RightParen)?;
+                    args
+                };
+
+                Ok(TableLike::Function { name, args })
+            } else {
+                // Just a table.
+                Ok(TableLike::Table(name))
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GroupBy<'a> {
+pub enum FunctionArg<'a> {
+    /// A named argument. Allows use of either `=>` or `=` for assignment.
+    ///
+    /// `ident => <expr>` or `ident = <expr>`
+    Named { name: Ident<'a>, arg: Expr<'a> },
+    /// `<expr>`
+    Unnamed { arg: Expr<'a> },
+}
+
+impl<'a> AstParseable<'a> for FunctionArg<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        let is_named = match parser.peek_nth(1) {
+            Some(tok) => matches!(tok.token, Token::RightArrow | Token::Eq),
+            None => false,
+        };
+
+        if is_named {
+            let ident = Ident::parse(parser)?;
+            parser.expect_one_of_tokens(&[&Token::RightArrow, &Token::Eq])?;
+            let expr = Expr::parse(parser)?;
+
+            Ok(FunctionArg::Named {
+                name: ident,
+                arg: expr,
+            })
+        } else {
+            let expr = Expr::parse(parser)?;
+            Ok(FunctionArg::Unnamed { arg: expr })
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GroupByExpr<'a> {
     /// `GROUP BY ALL`
     All,
     /// `GROUP BY <expr>[, ...]`
     Exprs(Vec<Expr<'a>>),
+    /// `GROUP BY CUBE (<expr>)`
+    Cube(Vec<Expr<'a>>),
+    /// `GROUP BY ROLLUP (<expr>)`
+    Rollup(Vec<Expr<'a>>),
+    /// `GROUP BY GROUPING SETS (<expr>)`
+    GroupingSets(Vec<Expr<'a>>),
+}
+
+impl<'a> AstParseable<'a> for GroupByExpr<'a> {
+    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+        let tok = match parser.peek() {
+            Some(tok) => tok,
+            None => {
+                return Err(RayexecError::new(
+                    "Expected expression for GROUP BY, found end of statement",
+                ))
+            }
+        };
+
+        if let Some(kw) = tok.keyword() {
+            match kw {
+                Keyword::ALL => {
+                    parser.next();
+                    Ok(GroupByExpr::All)
+                },
+                Keyword::CUBE => {
+                    parser.next();
+                    let exprs = parser.parse_parenthesized_comma_separated(Expr::parse)?;
+                    Ok(GroupByExpr::Cube(exprs))
+                },
+                Keyword::ROLLUP => {
+                    parser.next();
+                    let exprs = parser.parse_parenthesized_comma_separated(Expr::parse)?;
+                    Ok(GroupByExpr::Rollup(exprs))
+                },
+                Keyword::GROUPING => {
+                    parser.next();
+                    parser.expect_keyword(Keyword::SETS)?;
+                    let exprs = parser.parse_parenthesized_comma_separated(Expr::parse)?;
+                    Ok(GroupByExpr::GroupingSets(exprs))
+                },
+                other => Err(RayexecError::new(
+                    format!("Expected one of ALL, CUBE, GROUPING SETS, ROLLUP, or <expression> for GROUP BY. Found {other:?}"),
+                ))
+            }
+        } else {
+            let exprs = parser.parse_comma_separated(Expr::parse)?;
+            Ok(GroupByExpr::Exprs(exprs))
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
