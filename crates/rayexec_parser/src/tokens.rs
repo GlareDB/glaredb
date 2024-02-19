@@ -35,6 +35,8 @@ pub enum Token<'a> {
     IntDiv,
     /// '%'
     Mod,
+    /// '|'
+    Pipe,
     /// '||'
     Concat,
     /// ','
@@ -256,6 +258,64 @@ impl<'a> Tokenizer<'a> {
             '*' => {
                 self.state.next();
                 Token::Mul
+            }
+            '+' => {
+                self.state.next();
+                Token::Plus
+            }
+            '-' => {
+                self.state.next();
+                Token::Minus
+            }
+            '/' => {
+                self.state.next();
+                match self.state.peek() {
+                    Some('/') => {
+                        self.state.next();
+                        Token::IntDiv
+                    }
+                    _ => Token::Div,
+                }
+            }
+            '>' => {
+                self.state.next();
+                match self.state.peek() {
+                    Some('=') => {
+                        self.state.next();
+                        Token::GtEq
+                    }
+                    _ => Token::Gt,
+                }
+            }
+            '<' => {
+                self.state.next();
+                match self.state.peek() {
+                    Some('=') => {
+                        self.state.next();
+                        Token::LtEq
+                    }
+                    _ => Token::Lt,
+                }
+            }
+            '|' => {
+                self.state.next();
+                match self.state.peek() {
+                    Some('|') => {
+                        self.state.next();
+                        Token::Concat
+                    }
+                    _ => Token::Pipe,
+                }
+            }
+            ':' => {
+                self.state.next();
+                match self.state.peek() {
+                    Some(':') => {
+                        self.state.next();
+                        Token::DoubleColon
+                    }
+                    _ => Token::Colon,
+                }
             }
             // Strings
             '\'' => {

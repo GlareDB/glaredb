@@ -1,11 +1,10 @@
 use crate::{
-    ast::{AstParseable, Expr, Ident, Literal, ObjectReference, SelectModifer, SelectNode},
+    ast::{AstParseable, Expr, Ident, Literal, ObjectReference, Query, SelectModifer, SelectNode},
     keywords::{self, Keyword, RESERVED_FOR_COLUMN_ALIAS, RESERVED_FOR_TABLE_ALIAS},
     statement::Statement,
     tokens::{Token, TokenWithLocation, Tokenizer, Word},
 };
 use rayexec_error::{RayexecError, Result};
-use std::fmt;
 
 /// Parse a sql query into statements.
 pub fn parse(sql: &str) -> Result<Vec<Statement<'_>>> {
@@ -58,7 +57,7 @@ impl<'a> Parser<'a> {
 
     /// Parse a single statement.
     pub fn parse_statement(&mut self) -> Result<Statement<'a>> {
-        let tok = match self.next() {
+        let tok = match self.peek() {
             Some(tok) => tok,
             None => return Err(RayexecError::new("Empty SQL statement")),
         };
@@ -78,6 +77,9 @@ impl<'a> Parser<'a> {
                 match keyword {
                     Keyword::CREATE => self.parse_create(),
                     Keyword::SET => self.parse_set(),
+                    Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
+                        Ok(Statement::Query(Query::parse(self)?))
+                    }
                     other => {
                         return Err(RayexecError::new(format!("Unexpected keyword: {other:?}",)))
                     }
@@ -93,8 +95,12 @@ impl<'a> Parser<'a> {
 
     /// Parse `CREATE ...`
     pub fn parse_create(&mut self) -> Result<Statement<'a>> {
+        self.expect_keyword(Keyword::CREATE)?;
+
         let or_replace = self.parse_keyword_sequence(&[Keyword::OR, Keyword::REPLACE]);
-        let temp = self.parse_one_of_keywords(&[Keyword::TEMP, Keyword::TEMPORARY]);
+        let temp = self
+            .parse_one_of_keywords(&[Keyword::TEMP, Keyword::TEMPORARY])
+            .is_some();
 
         if self.parse_keyword(Keyword::TABLE) {
             // Table
@@ -126,6 +132,8 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_set(&mut self) -> Result<Statement<'a>> {
+        self.expect_keyword(Keyword::SET)?;
+
         let name = ObjectReference::parse(self)?;
         if self.parse_keyword(Keyword::TO) || self.consume_token(&Token::Eq) {
             let expr = Expr::parse(self)?;
@@ -138,25 +146,6 @@ impl<'a> Parser<'a> {
         Err(RayexecError::new(format!(
             "Expected 'SET {name} TO <value>' or SET {name} = <value>'"
         )))
-    }
-
-    /// Parse a single `SELECT ...`
-    pub(crate) fn parse_select_node(&mut self) -> Result<SelectNode<'a>> {
-        self.expect_keyword(Keyword::SELECT)?;
-
-        let all = self.parse_keyword(Keyword::ALL);
-        let distinct = self.parse_keyword(Keyword::DISTINCT);
-        if all && distinct {
-            return Err(RayexecError::new("Cannot specifiy both ALL and DISTINCT"));
-        }
-
-        let modifier: Option<SelectModifer> = if self.parse_keyword(Keyword::DISTINCT) {
-            unimplemented!()
-        } else {
-            None
-        };
-
-        unimplemented!()
     }
 
     /// Parse an optional alias.
@@ -242,7 +231,7 @@ impl<'a> Parser<'a> {
     /// parentheses.
     pub(crate) fn parse_parenthesized_comma_separated<T>(
         &mut self,
-        mut f: impl FnMut(&mut Parser<'a>) -> Result<T>,
+        f: impl FnMut(&mut Parser<'a>) -> Result<T>,
     ) -> Result<Vec<T>> {
         self.expect_token(&Token::LeftParen)?;
         let vals = self.parse_comma_separated(f)?;
@@ -284,21 +273,24 @@ impl<'a> Parser<'a> {
         true
     }
 
-    /// Parse any of the provided keywords.
-    pub(crate) fn parse_one_of_keywords(&mut self, keywords: &[Keyword]) -> bool {
+    /// Parse any of the provided keywords, returning which keyword was parsed.
+    pub(crate) fn parse_one_of_keywords(&mut self, keywords: &[Keyword]) -> Option<Keyword> {
         let idx = self.idx;
         let tok = match self.next() {
             Some(tok) => tok,
-            None => return false,
+            None => return None,
         };
 
-        if keywords.iter().any(|k| tok.is_keyword(*k)) {
-            return true;
+        for &kw in keywords {
+            match &tok.token {
+                Token::Word(w) if w.keyword == Some(kw) => return Some(kw),
+                _ => (),
+            }
         }
 
         // No matches, reset index.
         self.idx = idx;
-        false
+        None
     }
 
     /// Consume the current token if it matches expected, otherwise return an

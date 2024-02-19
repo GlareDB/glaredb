@@ -418,3 +418,64 @@ fn tokenize_number_too_many_periods() {
     ]
     "###);
 }
+
+#[test]
+fn tokenize_compound_operators() {
+    assert_debug_snapshot!(Tokenizer::new("1 >= 2").tokenize().unwrap(), @r###"
+    [
+        TokenWithLocation {
+            token: Number(
+                "1",
+            ),
+            line: 0,
+            col: 0,
+        },
+        TokenWithLocation {
+            token: Whitespace,
+            line: 0,
+            col: 0,
+        },
+        TokenWithLocation {
+            token: GtEq,
+            line: 0,
+            col: 0,
+        },
+        TokenWithLocation {
+            token: Whitespace,
+            line: 0,
+            col: 0,
+        },
+        TokenWithLocation {
+            token: Number(
+                "2",
+            ),
+            line: 0,
+            col: 0,
+        },
+    ]
+    "###);
+
+    assert_debug_snapshot!(Tokenizer::new("1>=2").tokenize().unwrap(), @r###"
+    [
+        TokenWithLocation {
+            token: Number(
+                "1",
+            ),
+            line: 0,
+            col: 0,
+        },
+        TokenWithLocation {
+            token: GtEq,
+            line: 0,
+            col: 0,
+        },
+        TokenWithLocation {
+            token: Number(
+                "2",
+            ),
+            line: 0,
+            col: 0,
+        },
+    ]
+    "###);
+}
