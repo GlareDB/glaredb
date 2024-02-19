@@ -69,7 +69,7 @@ impl Sink for Filter {
 mod tests {
     use crate::{
         expr::{
-            binary::{Operator, PhysicalBinaryExpr},
+            binary::{BinaryOperator, PhysicalBinaryExpr},
             column::ColumnExpr,
             literal::LiteralExpr,
             scalar::ScalarValue,
@@ -106,8 +106,8 @@ mod tests {
 
         let pred = PhysicalBinaryExpr {
             left: Box::new(ColumnExpr::Index(0)),
-            op: Operator::Gt,
-            right: Box::new(LiteralExpr::new(ScalarValue::Int32(Some(3)))),
+            op: BinaryOperator::Gt,
+            right: Box::new(LiteralExpr::new(ScalarValue::Int32(3))),
         };
 
         let plan = Filter::try_new(Box::new(pred), &schema).unwrap();

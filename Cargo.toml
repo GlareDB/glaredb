@@ -24,4 +24,3 @@ parking_lot = "0.12"
 parquet = { version = "50.0.0", default-features = false }
 rayon = "1.8.1"
 smallvec = "1.13.1"
-thiserror = "1.0.44" # TODO: Remove

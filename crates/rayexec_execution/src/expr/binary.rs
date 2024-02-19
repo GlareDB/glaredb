@@ -2,6 +2,7 @@ use arrow::error::ArrowError;
 use arrow_array::{new_empty_array, ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Schema};
 use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_parser::ast;
 use std::fmt;
 use std::hash::Hash;
 use std::sync::Arc;
@@ -9,7 +10,7 @@ use std::sync::Arc;
 use super::{logical::LogicalExpr, PhysicalExpr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Operator {
+pub enum BinaryOperator {
     Eq,
     NotEq,
     Lt,
@@ -25,25 +26,51 @@ pub enum Operator {
     Or,
 }
 
-impl fmt::Display for Operator {
+impl TryFrom<ast::BinaryOperator> for BinaryOperator {
+    type Error = RayexecError;
+    fn try_from(value: ast::BinaryOperator) -> Result<Self> {
+        Ok(match value {
+            ast::BinaryOperator::Plus => BinaryOperator::Plus,
+            ast::BinaryOperator::Minus => BinaryOperator::Minus,
+            ast::BinaryOperator::Multiply => BinaryOperator::Multiply,
+            ast::BinaryOperator::Divide => BinaryOperator::Divide,
+            ast::BinaryOperator::Modulo => BinaryOperator::Modulo,
+            ast::BinaryOperator::Eq => BinaryOperator::Eq,
+            ast::BinaryOperator::NotEq => BinaryOperator::NotEq,
+            ast::BinaryOperator::Gt => BinaryOperator::Gt,
+            ast::BinaryOperator::GtEq => BinaryOperator::GtEq,
+            ast::BinaryOperator::Lt => BinaryOperator::Lt,
+            ast::BinaryOperator::LtEq => BinaryOperator::LtEq,
+            ast::BinaryOperator::And => BinaryOperator::And,
+            ast::BinaryOperator::Or => BinaryOperator::Or,
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Unsupported SQL operator: {other:?}"
+                )))
+            }
+        })
+    }
+}
+
+impl fmt::Display for BinaryOperator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                Operator::Eq => "=",
-                Operator::NotEq => "!=",
-                Operator::Lt => "<",
-                Operator::LtEq => "<=",
-                Operator::Gt => ">",
-                Operator::GtEq => ">=",
-                Operator::Plus => "+",
-                Operator::Minus => "-",
-                Operator::Multiply => "*",
-                Operator::Divide => "/",
-                Operator::Modulo => "%",
-                Operator::And => "AND",
-                Operator::Or => "OR",
+                BinaryOperator::Eq => "=",
+                BinaryOperator::NotEq => "!=",
+                BinaryOperator::Lt => "<",
+                BinaryOperator::LtEq => "<=",
+                BinaryOperator::Gt => ">",
+                BinaryOperator::GtEq => ">=",
+                BinaryOperator::Plus => "+",
+                BinaryOperator::Minus => "-",
+                BinaryOperator::Multiply => "*",
+                BinaryOperator::Divide => "/",
+                BinaryOperator::Modulo => "%",
+                BinaryOperator::And => "AND",
+                BinaryOperator::Or => "OR",
             }
         )
     }
@@ -52,31 +79,31 @@ impl fmt::Display for Operator {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BinaryExpr<'a> {
     pub left: Box<LogicalExpr<'a>>,
-    pub op: Operator,
+    pub op: BinaryOperator,
     pub right: Box<LogicalExpr<'a>>,
 }
 
 #[derive(Debug)]
 pub struct PhysicalBinaryExpr {
     pub left: Box<dyn PhysicalExpr>,
-    pub op: Operator,
+    pub op: BinaryOperator,
     pub right: Box<dyn PhysicalExpr>,
 }
 
 impl PhysicalBinaryExpr {
     fn eval_inner(&self, left: ArrayRef, right: ArrayRef) -> Result<ArrayRef, ArrowError> {
         let arr = match self.op {
-            Operator::Eq => Arc::new(arrow::compute::kernels::cmp::eq(&left, &right)?),
-            Operator::NotEq => Arc::new(arrow::compute::kernels::cmp::neq(&left, &right)?),
-            Operator::Lt => Arc::new(arrow::compute::kernels::cmp::lt(&left, &right)?),
-            Operator::LtEq => Arc::new(arrow::compute::kernels::cmp::lt_eq(&left, &right)?),
-            Operator::Gt => Arc::new(arrow::compute::kernels::cmp::gt(&left, &right)?),
-            Operator::GtEq => Arc::new(arrow::compute::kernels::cmp::gt_eq(&left, &right)?),
-            Operator::Plus => arrow::compute::kernels::numeric::add(&left, &right)?,
-            Operator::Minus => arrow::compute::kernels::numeric::sub(&left, &right)?,
-            Operator::Multiply => arrow::compute::kernels::numeric::mul(&left, &right)?,
-            Operator::Divide => arrow::compute::kernels::numeric::div(&left, &right)?,
-            Operator::Modulo => arrow::compute::kernels::numeric::rem(&left, &right)?,
+            BinaryOperator::Eq => Arc::new(arrow::compute::kernels::cmp::eq(&left, &right)?),
+            BinaryOperator::NotEq => Arc::new(arrow::compute::kernels::cmp::neq(&left, &right)?),
+            BinaryOperator::Lt => Arc::new(arrow::compute::kernels::cmp::lt(&left, &right)?),
+            BinaryOperator::LtEq => Arc::new(arrow::compute::kernels::cmp::lt_eq(&left, &right)?),
+            BinaryOperator::Gt => Arc::new(arrow::compute::kernels::cmp::gt(&left, &right)?),
+            BinaryOperator::GtEq => Arc::new(arrow::compute::kernels::cmp::gt_eq(&left, &right)?),
+            BinaryOperator::Plus => arrow::compute::kernels::numeric::add(&left, &right)?,
+            BinaryOperator::Minus => arrow::compute::kernels::numeric::sub(&left, &right)?,
+            BinaryOperator::Multiply => arrow::compute::kernels::numeric::mul(&left, &right)?,
+            BinaryOperator::Divide => arrow::compute::kernels::numeric::div(&left, &right)?,
+            BinaryOperator::Modulo => arrow::compute::kernels::numeric::rem(&left, &right)?,
             _ => unimplemented!(),
         };
 
@@ -93,19 +120,19 @@ impl fmt::Display for PhysicalBinaryExpr {
 impl PhysicalExpr for PhysicalBinaryExpr {
     fn data_type(&self, input: &Schema) -> Result<DataType> {
         match self.op {
-            Operator::Eq
-            | Operator::NotEq
-            | Operator::Lt
-            | Operator::LtEq
-            | Operator::Gt
-            | Operator::GtEq
-            | Operator::And
-            | Operator::Or => Ok(DataType::Boolean),
-            Operator::Plus
-            | Operator::Minus
-            | Operator::Multiply
-            | Operator::Divide
-            | Operator::Modulo => {
+            BinaryOperator::Eq
+            | BinaryOperator::NotEq
+            | BinaryOperator::Lt
+            | BinaryOperator::LtEq
+            | BinaryOperator::Gt
+            | BinaryOperator::GtEq
+            | BinaryOperator::And
+            | BinaryOperator::Or => Ok(DataType::Boolean),
+            BinaryOperator::Plus
+            | BinaryOperator::Minus
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo => {
                 let left_dt = self.left.data_type(input)?;
                 let right_dt = self.right.data_type(input)?;
 
@@ -113,11 +140,13 @@ impl PhysicalExpr for PhysicalBinaryExpr {
                 let right = new_empty_array(&right_dt);
 
                 let result = match self.op {
-                    Operator::Plus => arrow::compute::kernels::numeric::add(&left, &right),
-                    Operator::Minus => arrow::compute::kernels::numeric::sub(&left, &right),
-                    Operator::Multiply => arrow::compute::kernels::numeric::mul(&left, &right),
-                    Operator::Divide => arrow::compute::kernels::numeric::div(&left, &right),
-                    Operator::Modulo => arrow::compute::kernels::numeric::rem(&left, &right),
+                    BinaryOperator::Plus => arrow::compute::kernels::numeric::add(&left, &right),
+                    BinaryOperator::Minus => arrow::compute::kernels::numeric::sub(&left, &right),
+                    BinaryOperator::Multiply => {
+                        arrow::compute::kernels::numeric::mul(&left, &right)
+                    }
+                    BinaryOperator::Divide => arrow::compute::kernels::numeric::div(&left, &right),
+                    BinaryOperator::Modulo => arrow::compute::kernels::numeric::rem(&left, &right),
                     _ => unreachable!(),
                 };
 

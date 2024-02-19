@@ -23,4 +23,6 @@ parking_lot = { workspace = true }
 parquet = { workspace = true }
 rayon = { workspace = true }
 smallvec = { workspace = true }
-thiserror = { workspace = true }
+
+[dev-dependencies]
+insta = "1.34.0"

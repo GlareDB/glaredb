@@ -91,7 +91,7 @@ impl Sink for Projection {
 mod tests {
     use crate::{
         expr::{
-            binary::{Operator, PhysicalBinaryExpr},
+            binary::{BinaryOperator, PhysicalBinaryExpr},
             column::ColumnExpr,
             literal::LiteralExpr,
             scalar::ScalarValue,
@@ -132,12 +132,10 @@ mod tests {
             Box::new(ColumnExpr::Index(1)),
             Box::new(PhysicalBinaryExpr {
                 left: Box::new(ColumnExpr::Index(0)),
-                op: Operator::Plus,
-                right: Box::new(LiteralExpr::new(ScalarValue::Int32(Some(1)))),
+                op: BinaryOperator::Plus,
+                right: Box::new(LiteralExpr::new(ScalarValue::Int32(1))),
             }),
-            Box::new(LiteralExpr::new(ScalarValue::Utf8(Some(
-                "hello".to_string(),
-            )))),
+            Box::new(LiteralExpr::new(ScalarValue::Utf8("hello".to_string()))),
         ];
 
         let plan = Projection::try_new(exprs, vec!["col1", "col2", "col3"], &schema).unwrap();

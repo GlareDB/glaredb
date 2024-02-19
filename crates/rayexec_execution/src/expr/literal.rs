@@ -31,7 +31,7 @@ impl PhysicalExpr for LiteralExpr {
     }
 
     fn nullable(&self, _input: &Schema) -> Result<bool> {
-        Ok(self.value.is_null())
+        Ok(matches!(self.value, ScalarValue::Null))
     }
 
     fn eval(&self, batch: &RecordBatch) -> Result<ArrayRef> {

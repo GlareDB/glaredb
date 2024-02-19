@@ -1,4 +1,4 @@
-use crate::expr::logical::LogicalExpr;
+use crate::expr::logical::{LogicalExpr, OrderByExpr};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
@@ -66,7 +66,7 @@ impl<'a> LogicalPlan<'a> {
     pub fn project(mut self, exprs: Vec<LogicalExpr<'a>>) -> Result<Self> {
         // TODO: Validate exprs
 
-        let input = self.nodes.len();
+        let input = self.nodes.len() - 1;
         let node = LogicalPlanNode::Projection(Projection { exprs, input });
 
         self.nodes.push(node);
@@ -77,22 +77,52 @@ impl<'a> LogicalPlan<'a> {
     pub fn filter(mut self, predicate: LogicalExpr<'a>) -> Result<Self> {
         // TODO: Ensure predicate returns bool.
 
-        let input = self.nodes.len();
+        let input = self.nodes.len() - 1;
         let node = LogicalPlanNode::Filter(Filter { predicate, input });
 
         self.nodes.push(node);
         Ok(self)
     }
 
+    pub fn order_by(mut self, exprs: Vec<OrderByExpr<'a>>) -> Result<Self> {
+        if self.nodes.is_empty() {
+            return Err(RayexecError::new(
+                "No nodes in logical plan, nothing to sort",
+            ));
+        }
+        let input = self.nodes.len() - 1;
+        let node = LogicalPlanNode::OrderBy(OrderBy {
+            order_by_exprs: exprs,
+            input,
+        });
+
+        self.nodes.push(node);
+        Ok(self)
+    }
+
     /// Limit the number of rows returned.
-    pub fn limit(mut self, skip: usize, limit: usize) -> Result<Self> {
+    pub fn limit(mut self, limit: usize) -> Result<Self> {
         if self.nodes.is_empty() {
             return Err(RayexecError::new(
                 "No nodes in logical plan, nothing to limit",
             ));
         }
-        let input = self.nodes.len();
-        let node = LogicalPlanNode::Limit(Limit { skip, limit, input });
+        let input = self.nodes.len() - 1;
+        let node = LogicalPlanNode::Limit(Limit { limit, input });
+
+        self.nodes.push(node);
+        Ok(self)
+    }
+
+    pub fn distinct(mut self) -> Result<Self> {
+        if self.nodes.is_empty() {
+            return Err(RayexecError::new(
+                "No nodes in logical plan, nothing to distinct",
+            ));
+        }
+
+        let input = self.nodes.len() - 1;
+        let node = LogicalPlanNode::Distinct(Distinct::Distinct { input });
 
         self.nodes.push(node);
         Ok(self)
@@ -103,11 +133,14 @@ impl<'a> LogicalPlan<'a> {
 pub enum LogicalPlanNode<'a> {
     Projection(Projection<'a>),
     Filter(Filter<'a>),
+    OrderBy(OrderBy<'a>),
     Limit(Limit),
+    Aggregate(Aggregate<'a>),
     CrossJoin(CrossJoin),
     Join(Join<'a>),
     Values(Values<'a>),
     Empty(Empty),
+    Distinct(Distinct<'a>),
     UnboundTable(UnboundTable<'a>),
     UnboundTableFunc(UnboundTableFunc<'a>),
 }
@@ -139,20 +172,19 @@ pub struct Filter<'a> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Aggregate<'a> {
+    pub input: usize,
     pub group_by_exprs: Vec<LogicalExpr<'a>>,
     pub agg_exprs: Vec<LogicalExpr<'a>>,
-    pub input: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OrderBy<'a> {
-    pub order_by_exprs: Vec<LogicalExpr<'a>>,
+    pub order_by_exprs: Vec<OrderByExpr<'a>>,
     pub input: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Limit {
-    pub skip: usize,
     pub limit: usize,
     pub input: usize,
 }
@@ -186,6 +218,17 @@ pub struct Join<'a> {
 pub struct CrossJoin {
     pub left_input: usize,
     pub right_input: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Distinct<'a> {
+    Distinct {
+        input: usize,
+    },
+    DistinctOn {
+        input: usize,
+        on_exprs: Vec<LogicalExpr<'a>>,
+    },
 }
 
 /// An unbound table element. This can represent a normal table, or a CTE.
