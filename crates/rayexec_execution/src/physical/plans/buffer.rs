@@ -1,6 +1,6 @@
-use crate::errors::{err, Result};
 use arrow_array::RecordBatch;
 use parking_lot::Mutex;
+use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
@@ -56,7 +56,9 @@ impl Source for BatchBuffer {
 impl Sink for BatchBuffer {
     fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()> {
         if child != 0 {
-            return Err(err(format!("non-zero child, push, batch buffer: {child}")));
+            return Err(RayexecError::new(format!(
+                "non-zero child, push, batch buffer: {child}"
+            )));
         }
 
         let mut buffer = self.buffers.get(partition).unwrap().lock();
@@ -70,7 +72,7 @@ impl Sink for BatchBuffer {
 
     fn finish(&self, child: usize, partition: usize) -> Result<()> {
         if child != 0 {
-            return Err(err(format!(
+            return Err(RayexecError::new(format!(
                 "non-zero child, finish, batch buffer: {child}"
             )));
         }

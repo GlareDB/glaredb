@@ -1,6 +1,6 @@
-use crate::errors::{err, Result};
 use arrow_array::{new_empty_array, ArrayRef, BooleanArray, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
+use rayexec_error::{RayexecError, Result};
 use std::fmt;
 use std::hash::Hash;
 use std::sync::Arc;
@@ -22,14 +22,14 @@ impl ColumnExpr {
                 let field = input
                     .fields()
                     .get(*idx)
-                    .ok_or_else(|| err(format!("missing column for index {idx}")))?;
+                    .ok_or_else(|| RayexecError::new(format!("missing column for index {idx}")))?;
                 Ok(field)
             }
             Self::Name(name) => {
                 let (_, field) = input
                     .fields()
                     .find(name)
-                    .ok_or_else(|| err(format!("missing column for name {name}")))?;
+                    .ok_or_else(|| RayexecError::new(format!("missing column for name {name}")))?;
                 Ok(field)
             }
         }

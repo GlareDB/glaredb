@@ -1,4 +1,3 @@
-use crate::errors::{err, Result};
 use crate::expr::PhysicalExpr;
 use crate::hash::build_hashes;
 use arrow_array::cast::AsArray;

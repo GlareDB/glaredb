@@ -1,7 +1,7 @@
-use crate::errors::{err, Result};
 use crate::expr::PhysicalExpr;
 use arrow_array::RecordBatch;
 use arrow_schema::{Field, Schema};
+use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
@@ -21,7 +21,7 @@ impl Projection {
         input_schema: &Schema,
     ) -> Result<Self> {
         if exprs.len() != output_names.len() {
-            return Err(err(format!(
+            return Err(RayexecError::new(format!(
                 "numbers of expressions and output names don't match, exprs: {}, names: {}",
                 exprs.len(),
                 output_names.len()
@@ -65,7 +65,9 @@ impl Source for Projection {
 impl Sink for Projection {
     fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()> {
         if child != 0 {
-            return Err(err(format!("non-zero child, push, projection: {child}")));
+            return Err(RayexecError::new(format!(
+                "non-zero child, push, projection: {child}"
+            )));
         }
 
         let arrs = self

@@ -1,4 +1,3 @@
-use crate::errors::{err, Result};
 use crate::expr::PhysicalExpr;
 use arrow::compute::filter_record_batch;
 use arrow_array::cast::AsArray;

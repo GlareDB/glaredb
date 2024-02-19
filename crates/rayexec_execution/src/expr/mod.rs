@@ -9,7 +9,7 @@ use arrow_array::{ArrayRef, BooleanArray, RecordBatch};
 use arrow_schema::{DataType, Schema};
 use std::fmt::{self, Debug, Display};
 
-use crate::errors::Result;
+use rayexec_error::Result;
 
 pub trait PhysicalExpr: Send + Sync + Display + Debug {
     /// Data type of the result based on the input schema.

@@ -1,9 +1,9 @@
-use crate::errors::Result;
 use arrow_array::{
     new_null_array, ArrayRef, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array,
     StringArray,
 };
 use arrow_schema::DataType;
+use rayexec_error::Result;
 use std::fmt;
 use std::sync::Arc;
 

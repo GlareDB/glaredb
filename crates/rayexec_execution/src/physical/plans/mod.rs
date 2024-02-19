@@ -11,8 +11,8 @@ pub mod values;
 #[cfg(test)]
 mod test_util;
 
-use crate::errors::Result;
 use arrow_array::RecordBatch;
+use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::{Context, Poll};
 

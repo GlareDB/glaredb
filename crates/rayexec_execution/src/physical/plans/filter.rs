@@ -1,9 +1,9 @@
-use crate::errors::{err, Result};
 use crate::expr::PhysicalExpr;
 use arrow::compute::filter_record_batch;
 use arrow_array::cast::AsArray;
 use arrow_array::RecordBatch;
 use arrow_schema::{DataType, Schema};
+use rayexec_error::{RayexecError, Result, ResultExt};
 use std::task::{Context, Poll};
 
 use super::{buffer::BatchBuffer, Sink, Source};
@@ -18,7 +18,9 @@ impl Filter {
     pub fn try_new(predicate: Box<dyn PhysicalExpr>, input_schema: &Schema) -> Result<Self> {
         let ret_type = predicate.data_type(input_schema)?;
         if ret_type != DataType::Boolean {
-            return Err(err("expr {expr} does not return a boolean"));
+            return Err(RayexecError::new(format!(
+                "expr {predicate} does not return a boolean"
+            )));
         }
 
         Ok(Filter {
@@ -45,7 +47,9 @@ impl Source for Filter {
 impl Sink for Filter {
     fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()> {
         if child != 0 {
-            return Err(err(format!("non-zero child, push, filter: {child}")));
+            return Err(RayexecError::new(format!(
+                "non-zero child, push, filter: {child}"
+            )));
         }
 
         let selection = self.predicate.eval(&input)?;

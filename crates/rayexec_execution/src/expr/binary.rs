@@ -1,6 +1,7 @@
-use crate::errors::Result;
+use arrow::error::ArrowError;
 use arrow_array::{new_empty_array, ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Schema};
+use rayexec_error::{RayexecError, Result, ResultExt};
 use std::fmt;
 use std::hash::Hash;
 use std::sync::Arc;
@@ -49,10 +50,10 @@ impl fmt::Display for Operator {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct BinaryExpr {
-    pub left: Box<LogicalExpr>,
+pub struct BinaryExpr<'a> {
+    pub left: Box<LogicalExpr<'a>>,
     pub op: Operator,
-    pub right: Box<LogicalExpr>,
+    pub right: Box<LogicalExpr<'a>>,
 }
 
 #[derive(Debug)]
@@ -60,6 +61,27 @@ pub struct PhysicalBinaryExpr {
     pub left: Box<dyn PhysicalExpr>,
     pub op: Operator,
     pub right: Box<dyn PhysicalExpr>,
+}
+
+impl PhysicalBinaryExpr {
+    fn eval_inner(&self, left: ArrayRef, right: ArrayRef) -> Result<ArrayRef, ArrowError> {
+        let arr = match self.op {
+            Operator::Eq => Arc::new(arrow::compute::kernels::cmp::eq(&left, &right)?),
+            Operator::NotEq => Arc::new(arrow::compute::kernels::cmp::neq(&left, &right)?),
+            Operator::Lt => Arc::new(arrow::compute::kernels::cmp::lt(&left, &right)?),
+            Operator::LtEq => Arc::new(arrow::compute::kernels::cmp::lt_eq(&left, &right)?),
+            Operator::Gt => Arc::new(arrow::compute::kernels::cmp::gt(&left, &right)?),
+            Operator::GtEq => Arc::new(arrow::compute::kernels::cmp::gt_eq(&left, &right)?),
+            Operator::Plus => arrow::compute::kernels::numeric::add(&left, &right)?,
+            Operator::Minus => arrow::compute::kernels::numeric::sub(&left, &right)?,
+            Operator::Multiply => arrow::compute::kernels::numeric::mul(&left, &right)?,
+            Operator::Divide => arrow::compute::kernels::numeric::div(&left, &right)?,
+            Operator::Modulo => arrow::compute::kernels::numeric::rem(&left, &right)?,
+            _ => unimplemented!(),
+        };
+
+        Ok(arr)
+    }
 }
 
 impl fmt::Display for PhysicalBinaryExpr {
@@ -100,7 +122,7 @@ impl PhysicalExpr for PhysicalBinaryExpr {
                 };
 
                 // TODO: Try coerce on error.
-                let arr = result?;
+                let arr = result.context("arrow kernel")?;
 
                 Ok(arr.data_type().clone())
             }
@@ -114,21 +136,9 @@ impl PhysicalExpr for PhysicalBinaryExpr {
     fn eval(&self, batch: &RecordBatch) -> Result<ArrayRef> {
         let left = self.left.eval(batch)?;
         let right = self.right.eval(batch)?;
-
-        let arr = match self.op {
-            Operator::Eq => Arc::new(arrow::compute::kernels::cmp::eq(&left, &right)?),
-            Operator::NotEq => Arc::new(arrow::compute::kernels::cmp::neq(&left, &right)?),
-            Operator::Lt => Arc::new(arrow::compute::kernels::cmp::lt(&left, &right)?),
-            Operator::LtEq => Arc::new(arrow::compute::kernels::cmp::lt_eq(&left, &right)?),
-            Operator::Gt => Arc::new(arrow::compute::kernels::cmp::gt(&left, &right)?),
-            Operator::GtEq => Arc::new(arrow::compute::kernels::cmp::gt_eq(&left, &right)?),
-            Operator::Plus => arrow::compute::kernels::numeric::add(&left, &right)?,
-            Operator::Minus => arrow::compute::kernels::numeric::sub(&left, &right)?,
-            Operator::Multiply => arrow::compute::kernels::numeric::mul(&left, &right)?,
-            Operator::Divide => arrow::compute::kernels::numeric::div(&left, &right)?,
-            Operator::Modulo => arrow::compute::kernels::numeric::rem(&left, &right)?,
-            _ => unimplemented!(),
-        };
+        let arr = self
+            .eval_inner(left, right)
+            .context("eval binary expression")?;
 
         Ok(arr)
     }

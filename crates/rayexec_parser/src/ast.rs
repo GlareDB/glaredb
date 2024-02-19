@@ -783,6 +783,10 @@ pub struct ReplaceColumn<'a> {
 pub struct TableList<'a>(pub Vec<TableWithJoins<'a>>);
 
 impl<'a> TableList<'a> {
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     pub fn empty() -> Self {
         Self::default()
     }

@@ -1,5 +1,5 @@
-use crate::errors::Result;
 use arrow_array::RecordBatch;
+use rayexec_error::Result;
 use std::task::{Context, Poll};
 
 /// Unwraps a record batch from a poll.

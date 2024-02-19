@@ -1,6 +1,6 @@
-use crate::errors::{err, Result};
 use ahash::RandomState;
 use arrow_array::ArrayRef;
+use rayexec_error::Result;
 
 pub const RANDOM_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);
 

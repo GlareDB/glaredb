@@ -1,4 +1,4 @@
-use crate::errors::{err, Result};
+use rayexec_error::{RayexecError, Result};
 use rayon::ThreadPool;
 use std::{
     sync::Arc,

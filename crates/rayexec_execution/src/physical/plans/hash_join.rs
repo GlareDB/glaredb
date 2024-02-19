@@ -1,4 +1,3 @@
-use crate::errors::{err, Result};
 use crate::expr::PhysicalExpr;
 use crate::hash::build_hashes;
 use crate::logical::JoinType;
@@ -7,6 +6,7 @@ use arrow_array::{ArrayRef, BooleanArray, RecordBatch, UInt32Array, UInt64Array}
 use arrow_schema::{Field, Schema};
 use hashbrown::raw::RawTable;
 use parking_lot::Mutex;
+use rayexec_error::{RayexecError, Result};
 use smallvec::{smallvec, SmallVec};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;

@@ -1,3 +1,4 @@
+use arrow::error::ArrowError;
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::error::Error;
 use std::fmt;
@@ -36,6 +37,12 @@ impl RayexecError {
     }
 }
 
+impl From<ArrowError> for RayexecError {
+    fn from(value: ArrowError) -> Self {
+        Self::with_source("Arrow error", Box::new(value))
+    }
+}
+
 impl fmt::Display for RayexecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.msg)?;
@@ -54,5 +61,19 @@ impl fmt::Display for RayexecError {
 impl Error for RayexecError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.source.as_ref().map(|e| e.as_ref())
+    }
+}
+
+/// An extension trait for adding context to the Error variant of a result.
+pub trait ResultExt<T, E> {
+    fn context(self: Self, msg: &'static str) -> Result<T>;
+}
+
+impl<T, E: Error + 'static> ResultExt<T, E> for std::result::Result<T, E> {
+    fn context(self: Self, msg: &'static str) -> Result<T> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(e) => Err(RayexecError::with_source(msg, Box::new(e))),
+        }
     }
 }
