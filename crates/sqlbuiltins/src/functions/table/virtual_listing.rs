@@ -48,6 +48,14 @@ impl ConstBuiltinFunction for ListSchemas {
     const DESCRIPTION: &'static str = "Lists schemas in a database";
     const EXAMPLE: &'static str = "SELECT * FROM list_schemas('database')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::uniform(
+            1,
+            vec![DataType::Utf8],
+            Volatility::Stable,
+        ))
+    }
 }
 
 #[async_trait]
@@ -105,7 +113,7 @@ impl ConstBuiltinFunction for ListTables {
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
-            3,
+            2,
             vec![DataType::Utf8],
             Volatility::Stable,
         ))
