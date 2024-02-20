@@ -6,7 +6,6 @@ from tests.fixtures.glaredb import glaredb_connection, debug_path
 
 from dbt.cli.main import dbtRunner, dbtRunnerResult
 
-print("LISTDIR", os.listdir('.'))
 
 @pytest.mark.parametrize("model_name,run_success,query_result",
                          [
@@ -20,6 +19,7 @@ def test_dbt_glaredb(
     run_success,
     query_result
 ):
+    print("LISTDIR", os.listdir('.'))
     dbt: dbtRunner = dbtRunner()
 
     os.environ["DBT_USER"] = glaredb_connection.info.user
