@@ -629,6 +629,8 @@ impl TableFunc for GlareDBUpload {
             return Err(ExtensionError::InvalidNumArgs);
         }
 
+        let session_state = ctx.get_session_state();
+
         // NativeTableStorage is available on Remote ctx. Use store already
         // constructed there.
         let storage = ctx
@@ -644,36 +646,44 @@ impl TableFunc for GlareDBUpload {
                     .to_string(),
                 )
             })?;
+        let store = storage.store.clone(); // Cheap to clone
 
         // TODO: Parse format from argument. We can start by only accepting
         //       csv, ndJSON, parquet
+        // let format = match ext.as_str() {
+        //     "csv" => Some(CsvFormat::default().with_schema_infer_max_rec(Some(20480))),
+        //     // TODO: Add Parquet, ndJSON
+        //     _ext => None,
+        // }.ok_or_else(|| ExtensionError::String(format!("unsupported file extension: {fname}")))?;
+        // let _format: Arc<dyn FileFormat> = Arc::new(format);
         let file_format = CsvFormat::default().with_schema_infer_max_rec(Some(20480));
         let file_format: Arc<dyn FileFormat> = Arc::new(file_format);
 
-        let store = storage.store.clone(); // Cheap to clone
-
+        // TODO: I'm unsure how this is getting applied still - is it needed
+        //       after we get the obj meta still, or is the base_url and objs
+        //       list good enough?
         let prefix: ObjectStorePath = format!("databases/{}/uploads/", storage.db_id()).into();
         
+        // It's unfortunate that we need this and prefix...maybe there's a
+        // refactor on ObjStoreTableProvider...need to look more deeply
         let base_url = format!("{}", storage.root_url);
         let base_url = ObjectStoreUrl::parse(base_url)?;
 
-        // There should only be one object (we can make this more apparent)
+        // There should only be one object...just getting to compile and copying
+        // approach using in other obj stores. Probably some cleaner syntax.
         let mut objects = store.list(Some(&prefix));
         let meta = objects
             .next()
             .await
             .ok_or_else(|| ExtensionError::String("todo".to_string()))?
             .expect("todo");
-
         let mut objects: Vec<ObjectMeta> = Vec::new();
         objects.push(meta);
 
-        let state = ctx.get_session_state();
-
+        // Infer schema
         let arrow_schema = file_format
-            .infer_schema(&state, &store.inner, &objects)
+            .infer_schema(&session_state, &store.inner, &objects)
             .await?;
-
 
         return Ok(Arc::new(ObjStoreTableProvider::new(
             store.inner.clone(),
@@ -682,83 +692,5 @@ impl TableFunc for GlareDBUpload {
             objects,
             file_format,
         )));
-
-        // let base_url = format!("gs://{}", storage.);
-        // let u = ObjectStoreUrl::parse(u)?;
-
-        // let state = ctx.get_session_state();
-        // let arrow_schema = format.infer_schema(&state, &store, &objects).await?;
-
-        // return Ok(ObjStoreTableProvider{
-        //     store,
-        //     arrow_schema,
-        //     "base-url",
-        // });
-
-        // This is bad, just getting to compile
-        // let locations: Vec<DatasourceUrl> = vec![
-        //     DatasourceUrl::try_new("gs://")
-        // ]
-
-        // let mut objects = Vec::new();
-        //     let list = self
-        //         .list_globbed(&store, &loc.path())
-        //         .await
-        //         .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        //     if list.is_empty() {
-        //         let e = object_store::path::Error::InvalidPath {
-        //             path: loc.to_string().into(),
-        //         };
-        //         return Err(ObjectStoreSourceError::ObjectStorePath(e));
-        //     }
-
-        //     objects.push(list);
-        // let objects = objects.into_iter().flatten().collect::<Vec<_>>();
-
-        // let state = ctx.get_session_state();
-        // let arrow_schema = format.infer_schema(&state, &store, &objects).await?;
-        // let base_url = self.base_url()?;
-
-        // Ok(Arc::new(ObjStoreTableProvider {
-        //     store,
-        //     arrow_schema,
-        //     base_url,
-        //     objects,
-        //     file_format,
-        // }))
-
-        // let _store_credentials = storage.credential_options().ok_or_else(|| {
-        //     ExtensionError::String(
-        //         format!(
-        //             "access unavailable, {} is not supported in local environments",
-        //             self.name(),
-        //         )
-        //         .to_string(),
-        //     )
-        // })?;
-
-        // let ext = Path::new(fname.as_str())
-        //     .extension()
-        //     .ok_or_else(|| ExtensionError::String(format!("missing file extension: {fname}")))?
-        //     .to_str()
-        //     .ok_or_else(|| ExtensionError::String(format!("unsupported file extension: {fname}")))?
-        //     .to_lowercase();
-
-        // let format = match ext.as_str() {
-        //     "csv" => Some(CsvFormat::default().with_schema_infer_max_rec(Some(20480))),
-        //     // TODO: Add Parquet, ndJSON
-        //     _ext => None,
-        // }.ok_or_else(|| ExtensionError::String(format!("unsupported file extension: {fname}")))?;
-        // let _format: Arc<dyn FileFormat> = Arc::new(format);
-
-        // return get_table_provider(ctx, _format.clone(), );
-
-        // let source_url = fname;
-
-        // let access = create_gcs_table_provider(source_url, service_account_key);
-
-        // let provider = get_table_provider(ctx, format.clone(), access, locations.into_iter());
-
-        // return Err(ExtensionError::Unimplemented("hello"));
     }
 }
