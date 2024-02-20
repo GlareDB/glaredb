@@ -612,6 +612,7 @@ pub enum TableOptions {
     Bson(TableOptionsObjectStore),
     Clickhouse(TableOptionsClickhouse),
     Cassandra(TableOptionsCassandra),
+    Excel(TableOptionsExcel),
     Sqlite(TableOptionsSqlite),
 }
 
@@ -634,6 +635,7 @@ impl TableOptions {
     pub const BSON: &'static str = "bson";
     pub const CLICKHOUSE: &'static str = "clickhouse";
     pub const CASSANDRA: &'static str = "cassandra";
+    pub const EXCEL: &'static str = "excel";
     pub const SQLITE: &'static str = "sqlite";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
@@ -660,6 +662,7 @@ impl TableOptions {
             TableOptions::Bson(_) => Self::BSON,
             TableOptions::Clickhouse(_) => Self::CLICKHOUSE,
             TableOptions::Cassandra(_) => Self::CASSANDRA,
+            TableOptions::Excel(_) => Self::EXCEL,
             TableOptions::Sqlite(_) => Self::SQLITE,
         }
     }
@@ -695,6 +698,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
                 TableOptions::Clickhouse(v.try_into()?)
             }
             options::table_options::Options::Cassandra(v) => TableOptions::Cassandra(v.try_into()?),
+            options::table_options::Options::Excel(v) => TableOptions::Excel(v.try_into()?),
             options::table_options::Options::Sqlite(v) => TableOptions::Sqlite(v.try_into()?),
         })
     }
@@ -729,6 +733,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Bson(v) => options::table_options::Options::Bson(v.into()),
             TableOptions::Clickhouse(v) => options::table_options::Options::Clickhouse(v.into()),
             TableOptions::Cassandra(v) => options::table_options::Options::Cassandra(v.into()),
+            TableOptions::Excel(v) => options::table_options::Options::Excel(v.into()),
             TableOptions::Sqlite(v) => options::table_options::Options::Sqlite(v.into()),
         })
     }
@@ -1040,6 +1045,43 @@ impl From<TableOptionsMongoDb> for options::TableOptionsMongo {
             connection_string: value.connection_string,
             database: value.database,
             collection: value.collection,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct TableOptionsExcel {
+    pub location: String,
+    pub storage_options: StorageOptions,
+    pub file_type: Option<String>,
+    pub compression: Option<String>,
+    pub sheet_name: Option<String>,
+    pub has_header: bool,
+}
+
+impl TryFrom<options::TableOptionsExcel> for TableOptionsExcel {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsExcel) -> Result<Self, Self::Error> {
+        Ok(TableOptionsExcel {
+            location: value.location,
+            storage_options: value.storage_options.required("storage_options")?,
+            file_type: value.file_type,
+            compression: value.compression,
+            sheet_name: value.sheet_name,
+            has_header: value.has_header,
+        })
+    }
+}
+
+impl From<TableOptionsExcel> for options::TableOptionsExcel {
+    fn from(value: TableOptionsExcel) -> Self {
+        options::TableOptionsExcel {
+            location: value.location,
+            storage_options: Some(value.storage_options.into()),
+            file_type: value.file_type,
+            compression: value.compression,
+            sheet_name: value.sheet_name,
+            has_header: value.has_header,
         }
     }
 }

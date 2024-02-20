@@ -141,9 +141,10 @@ message TableOptions {
     TableOptionsObjectStore bson = 16;
     TableOptionsClickhouse clickhouse = 17;
     TableOptionsCassandra cassandra = 18;
-    TableOptionsSqlite sqlite = 19;
+    TableOptionsExcel excel = 19;
+    TableOptionsSqlite sqlite = 20;
   }
-  // next: 19
+  // next: 21
 }
 
 message TableOptionsInternal {
@@ -202,6 +203,15 @@ message TableOptionsMongo {
   string connection_string = 1;
   string database = 2;
   string collection = 3;
+}
+
+message TableOptionsExcel{
+  string location = 1;
+  StorageOptions storage_options = 2;
+  optional string file_type = 3;
+  optional string compression = 4;
+  optional string sheet_name = 5;
+  bool has_header = 6;
 }
 
 message TableOptionsSnowflake {

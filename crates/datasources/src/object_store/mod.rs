@@ -431,6 +431,7 @@ pub fn init_session_registry<'a>(
             | TableOptions::SqlServer(_)
             | TableOptions::Clickhouse(_)
             | TableOptions::Cassandra(_)
+            | TableOptions::Excel(_)
             | TableOptions::Sqlite(_) => continue,
         };
 

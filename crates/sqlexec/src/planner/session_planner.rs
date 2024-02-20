@@ -86,6 +86,7 @@ use protogen::metastore::types::options::{
     TableOptionsCassandra,
     TableOptionsClickhouse,
     TableOptionsDebug,
+    TableOptionsExcel,
     TableOptionsGcs,
     TableOptionsLocal,
     TableOptionsMongoDb,
@@ -892,6 +893,33 @@ impl<'a> SessionPlanner<'a> {
                     file_type: None,
                     compression: None,
                     schema_sample_size,
+                })
+            }
+            TableOptions::EXCEL => {
+                let location: String = m.remove_required("location")?;
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+                let sheet_name = Some(
+                    storage_options
+                        .inner
+                        .get("sheet_name")
+                        .map(|val| val.to_owned())
+                        .unwrap_or(String::from("Sheet1")),
+                );
+                let has_header = storage_options
+                    .inner
+                    .get("has_header")
+                    .map(|val| val.parse::<bool>().unwrap_or(true))
+                    .unwrap();
+                TableOptions::Excel(TableOptionsExcel {
+                    location,
+                    storage_options,
+                    file_type: None,
+                    compression: None,
+                    sheet_name,
+                    has_header,
                 })
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
