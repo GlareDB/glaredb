@@ -652,7 +652,8 @@ impl TableFunc for GlareDBUpload {
 
         let store = storage.store.clone(); // Cheap to clone
 
-        let prefix: ObjectStorePath = format!("databases/{}/", storage.db_id()).into();
+        let prefix: ObjectStorePath = format!("databases/{}/uploads/", storage.db_id()).into();
+        
         let base_url = format!("{}", storage.root_url);
         let base_url = ObjectStoreUrl::parse(base_url)?;
 
