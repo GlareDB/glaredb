@@ -563,9 +563,7 @@ jobs:
               export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
           - name: Sqlite
             path: "sqllogictests_sqlite/*"
-            prepare: |
-              ./scripts/prepare-testdata.sh
-              export SQLITE_DB_LOCATION=$(./scripts/create-test-sqlite-db.sh)
+            prepare: ""
           - name: Cassandra
             path: "sqllogictests_cassandra/*"
             prepare: |

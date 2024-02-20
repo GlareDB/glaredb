@@ -1,13 +1,15 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use once_cell::sync::Lazy;
 use tokio::net::TcpListener;
 use tokio::process::Command;
 use tokio::time::{sleep as tokio_sleep, Instant};
 use tokio_postgres::{Client, Config};
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 use super::test::{Hook, TestClient};
 
@@ -237,5 +239,44 @@ impl Hook for SshTunnelHook {
             .output()
             .await?;
         Ok(())
+    }
+}
+
+static SQLITE_SETUP: Lazy<PathBuf> = Lazy::new(|| {
+    let path = PathBuf::from("testdata/sqllogictests_sqlite/data/db.sqlite3");
+    let p = path.to_string_lossy();
+    if path.exists() {
+        info!(%p, "sqlite database exists, skipping setup; to re-create delete the old database file");
+    } else {
+        info!(%p, "creating sqlite database");
+        let output = std::process::Command::new("sqlite3")
+            .arg(&path)
+            .arg(".read testdata/sqllogictests_sqlite/data/setup-test-sqlite-db.sql")
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            panic!("failed to setup sqlite db:\n  STDOUT: {stdout}\n  STDERR: {stderr}");
+        }
+    }
+    path
+});
+
+pub struct SqliteTestsHook;
+
+#[async_trait]
+impl Hook for SqliteTestsHook {
+    async fn pre(
+        &self,
+        _config: &Config,
+        _client: TestClient,
+        vars: &mut HashMap<String, String>,
+    ) -> Result<bool> {
+        vars.insert(
+            "SQLITE_DB_LOCATION".to_string(),
+            SQLITE_SETUP.to_string_lossy().into_owned(),
+        );
+        Ok(true)
     }
 }

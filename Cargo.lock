@@ -577,8 +577,9 @@ dependencies = [
 
 [[package]]
 name = "async-sqlite"
-version = "0.2.1"
-source = "git+https://github.com/ryanfowler/async-sqlite?rev=97ae7d6867af3e76f23b24578e2de7e5a9639dca#97ae7d6867af3e76f23b24578e2de7e5a9639dca"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3d493cddf3cbfc2026299a8b1e1970d9ee539fd6bb1af420c5a48b5c9e2d539"
 dependencies = [
  "crossbeam-channel",
  "futures-channel",
@@ -7677,6 +7678,7 @@ dependencies = [
  "logutil",
  "metastore",
  "object_store",
+ "once_cell",
  "pgrepr",
  "pgsrv",
  "regex",

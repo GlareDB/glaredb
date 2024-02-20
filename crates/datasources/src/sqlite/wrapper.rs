@@ -91,10 +91,10 @@ impl SqliteAsyncClient {
                 let mut stmt = conn.prepare(&s)?;
 
                 let cols = stmt
-                    .columns()
+                    .column_names()
                     .into_iter()
                     .map(|c| Column {
-                        name: c.name().to_owned(),
+                        name: c.to_string(),
                     })
                     .collect::<Vec<_>>();
 
