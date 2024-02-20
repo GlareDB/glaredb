@@ -7678,7 +7678,6 @@ dependencies = [
  "logutil",
  "metastore",
  "object_store",
- "once_cell",
  "pgrepr",
  "pgsrv",
  "regex",

@@ -297,7 +297,7 @@ impl RunCommand for SltArgs {
             // Add hooks
             .hook("*", Arc::new(AllTestsHook))?
             // Sqlite tests
-            .hook("sqllogictests_sqlite/*", Arc::new(SqliteTestsHook))?
+            .hook("sqllogictests_sqlite/*", Arc::new(SqliteTestsHook::new()?))?
             // SSH Tunnels hook
             .hook("*/tunnels/ssh", Arc::new(SshTunnelHook))?;
 
