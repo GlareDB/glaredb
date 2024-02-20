@@ -1,0 +1,31 @@
+# Validation tests for sqlite external database and external tables
+
+# External database validation
+
+# Validation test error with the wrong location
+statement error unable to open database file
+CREATE EXTERNAL DATABASE wrong_location
+	FROM sqlite
+	OPTIONS (
+		location = '/some/path/not/exists.db'
+	);
+
+# External table validation
+
+# Validation test error with the wrong location
+statement error unable to open database file
+CREATE EXTERNAL TABLE wrong_location
+	FROM sqlite
+	OPTIONS (
+		location = '/some/path/not/exists.db',
+		table = 'datatypes'
+	);
+
+# Validation test error with the wrong table
+statement error no such table
+CREATE EXTERNAL TABLE wrong_table
+	FROM sqlite
+	OPTIONS (
+		location = '${SQLITE_DB_LOCATION}',
+		table = 'invalid_table'
+	);
