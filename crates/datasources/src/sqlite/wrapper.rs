@@ -9,9 +9,8 @@ use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::DataFusionError;
 use datafusion::physical_plan::RecordBatchStream;
-use futures::{Future, FutureExt, Stream, TryFutureExt};
+use futures::{Future, FutureExt, Stream};
 use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
 use super::convert::Converter;
 use crate::sqlite::errors::Result;
@@ -47,7 +46,7 @@ impl SqliteAsyncClient {
         let client = self.inner.clone();
         let conv = Converter::new(schema.clone());
 
-        let handle = tokio::spawn(async move {
+        let handle = Box::pin(async move {
             client
                 .conn(move |conn| {
                     let mut stmt = conn.prepare(&s)?;
@@ -74,7 +73,12 @@ impl SqliteAsyncClient {
             Ok(())
         });
 
-        SqliteRecordBatchStream { rx, handle, schema }
+        SqliteRecordBatchStream {
+            rx,
+            handle,
+            handle_finished: false,
+            schema,
+        }
     }
 
     // Collects and returns all the rows from the query.
@@ -146,7 +150,8 @@ impl SqliteBatch {
 
 pub struct SqliteRecordBatchStream {
     rx: mpsc::Receiver<Result<RecordBatch, DataFusionError>>,
-    handle: JoinHandle<Result<()>>,
+    handle: Pin<Box<dyn Future<Output = Result<()>> + Send>>,
+    handle_finished: bool,
     schema: SchemaRef,
 }
 
@@ -154,17 +159,15 @@ impl Stream for SqliteRecordBatchStream {
     type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        // Check if handle is finished since polling a finished handle panics
-        // the current thread.
-        if !self.handle.is_finished() {
+        if !self.handle_finished {
+            // Poll only if the handle hasn't yielded yet.
             match self.handle.poll_unpin(cx) {
-                Poll::Pending | Poll::Ready(Ok(Ok(()))) => (),
-                Poll::Ready(Err(e)) => {
-                    return Poll::Ready(Some(Err(DataFusionError::Execution(format!(
-                        "stream panic: {e}"
-                    )))));
+                Poll::Pending => (),
+                Poll::Ready(Ok(())) => {
+                    self.handle_finished = true;
                 }
-                Poll::Ready(Ok(Err(e))) => {
+                Poll::Ready(Err(e)) => {
+                    self.handle_finished = true;
                     return Poll::Ready(Some(Err(DataFusionError::Execution(format!("{e}")))));
                 }
             }
