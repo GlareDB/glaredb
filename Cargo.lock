@@ -1467,7 +1467,6 @@ version = "0.8.5"
 dependencies = [
  "datafusion",
  "logutil",
- "metastore",
  "object_store",
  "parking_lot",
  "protogen",
@@ -4783,6 +4782,7 @@ version = "0.8.5"
 dependencies = [
  "async-trait",
  "bytes",
+ "catalog",
  "dashmap",
  "datafusion",
  "futures",
