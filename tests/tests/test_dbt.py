@@ -24,8 +24,8 @@ def test_dbt_glaredb(
 
     os.environ["DBT_USER"] = glaredb_connection.info.user
 
-    project_directory: str = "../fixtures/dbt_project/"
-    dbt_profiles_directory: str = "../fixtures/dbt_project/"
+    project_directory: str = "tests/fixtures/dbt_project/"
+    dbt_profiles_directory: str = "tests/fixtures/dbt_project/"
 
     with glaredb_connection.cursor() as curr:
         curr.execute("create table dbt_test (amount int)")
