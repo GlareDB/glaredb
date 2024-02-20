@@ -1,3 +1,4 @@
+use catalog::errors::CatalogError;
 use protogen::metastore::strategy::{ResolveErrorStrategy, RESOLVE_ERROR_STRATEGY_META};
 use protogen::metastore::types::catalog::CatalogEntry;
 
@@ -104,6 +105,9 @@ pub enum MetastoreError {
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Catalog(#[from] CatalogError),
 }
 
 pub type Result<T, E = MetastoreError> = std::result::Result<T, E>;

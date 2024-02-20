@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -37,6 +37,7 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use datasources::sqlite::SqliteAccess;
 use datasources::sqlserver::SqlServerAccess;
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::azure::AzureConfigKey;
@@ -76,6 +77,7 @@ use protogen::metastore::types::options::{
     DatabaseOptionsPostgres,
     DatabaseOptionsSnowflake,
     DatabaseOptionsSqlServer,
+    DatabaseOptionsSqlite,
     DeltaLakeCatalog,
     DeltaLakeUnityCatalog,
     StorageOptions,
@@ -94,6 +96,7 @@ use protogen::metastore::types::options::{
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
+    TableOptionsSqlite,
     TunnelOptions,
     TunnelOptionsDebug,
     TunnelOptionsInternal,
@@ -419,6 +422,16 @@ impl<'a> SessionPlanner<'a> {
                     password,
                 })
             }
+            DatabaseOptions::SQLITE => {
+                let location: String = m.remove_required("location")?;
+
+                let access = SqliteAccess {
+                    db: PathBuf::from(&location),
+                };
+                access.validate_access().await?;
+
+                DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location })
+            }
             DatabaseOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
                 DatabaseOptions::Debug(DatabaseOptionsDebug {})
@@ -653,6 +666,17 @@ impl<'a> SessionPlanner<'a> {
                     username,
                     password,
                 })
+            }
+            TableOptions::SQLITE => {
+                let location: String = m.remove_required("location")?;
+                let table: String = m.remove_required("table")?;
+
+                let access = SqliteAccess {
+                    db: PathBuf::from(&location),
+                };
+                access.validate_table_access(&table).await?;
+
+                TableOptions::Sqlite(TableOptionsSqlite { location, table })
             }
             TableOptions::LOCAL => {
                 let location: String = m.remove_required("location")?;

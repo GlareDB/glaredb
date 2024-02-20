@@ -93,6 +93,7 @@ pub enum DatabaseOptions {
     SqlServer(DatabaseOptionsSqlServer),
     Clickhouse(DatabaseOptionsClickhouse),
     Cassandra(DatabaseOptionsCassandra),
+    Sqlite(DatabaseOptionsSqlite),
 }
 
 impl DatabaseOptions {
@@ -107,6 +108,7 @@ impl DatabaseOptions {
     pub const SQL_SERVER: &'static str = "sql_server";
     pub const CLICKHOUSE: &'static str = "clickhouse";
     pub const CASSANDRA: &'static str = "cassandra";
+    pub const SQLITE: &'static str = "sqlite";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -121,6 +123,7 @@ impl DatabaseOptions {
             DatabaseOptions::SqlServer(_) => Self::SQL_SERVER,
             DatabaseOptions::Clickhouse(_) => Self::CLICKHOUSE,
             DatabaseOptions::Cassandra(_) => Self::CASSANDRA,
+            DatabaseOptions::Sqlite(_) => Self::SQLITE,
         }
     }
 }
@@ -162,6 +165,7 @@ impl TryFrom<options::database_options::Options> for DatabaseOptions {
             options::database_options::Options::Cassandra(v) => {
                 DatabaseOptions::Cassandra(v.try_into()?)
             }
+            options::database_options::Options::Sqlite(v) => DatabaseOptions::Sqlite(v.try_into()?),
         })
     }
 }
@@ -195,6 +199,7 @@ impl From<DatabaseOptions> for options::database_options::Options {
             DatabaseOptions::Cassandra(v) => {
                 options::database_options::Options::Cassandra(v.into())
             }
+            DatabaseOptions::Sqlite(v) => options::database_options::Options::Sqlite(v.into()),
         }
     }
 }
@@ -402,6 +407,28 @@ impl From<DatabaseOptionsCassandra> for options::DatabaseOptionsCassandra {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct DatabaseOptionsSqlite {
+    pub location: String,
+}
+
+impl TryFrom<options::DatabaseOptionsSqlite> for DatabaseOptionsSqlite {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DatabaseOptionsSqlite) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsSqlite {
+            location: value.location,
+        })
+    }
+}
+
+impl From<DatabaseOptionsSqlite> for options::DatabaseOptionsSqlite {
+    fn from(value: DatabaseOptionsSqlite) -> Self {
+        options::DatabaseOptionsSqlite {
+            location: value.location,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsSnowflake {
     pub account_name: String,
     pub login_name: String,
@@ -586,6 +613,7 @@ pub enum TableOptions {
     Clickhouse(TableOptionsClickhouse),
     Cassandra(TableOptionsCassandra),
     Excel(TableOptionsExcel),
+    Sqlite(TableOptionsSqlite),
 }
 
 impl TableOptions {
@@ -608,6 +636,7 @@ impl TableOptions {
     pub const CLICKHOUSE: &'static str = "clickhouse";
     pub const CASSANDRA: &'static str = "cassandra";
     pub const EXCEL: &'static str = "excel";
+    pub const SQLITE: &'static str = "sqlite";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -634,6 +663,7 @@ impl TableOptions {
             TableOptions::Clickhouse(_) => Self::CLICKHOUSE,
             TableOptions::Cassandra(_) => Self::CASSANDRA,
             TableOptions::Excel(_) => Self::EXCEL,
+            TableOptions::Sqlite(_) => Self::SQLITE,
         }
     }
 }
@@ -669,6 +699,7 @@ impl TryFrom<options::table_options::Options> for TableOptions {
             }
             options::table_options::Options::Cassandra(v) => TableOptions::Cassandra(v.try_into()?),
             options::table_options::Options::Excel(v) => TableOptions::Excel(v.try_into()?),
+            options::table_options::Options::Sqlite(v) => TableOptions::Sqlite(v.try_into()?),
         })
     }
 }
@@ -703,6 +734,7 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Clickhouse(v) => options::table_options::Options::Clickhouse(v.into()),
             TableOptions::Cassandra(v) => options::table_options::Options::Cassandra(v.into()),
             TableOptions::Excel(v) => options::table_options::Options::Excel(v.into()),
+            TableOptions::Sqlite(v) => options::table_options::Options::Sqlite(v.into()),
         })
     }
 }
@@ -1140,6 +1172,31 @@ impl From<TableOptionsCassandra> for options::TableOptionsCassandra {
             table: value.table,
             username: value.username,
             password: value.password,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct TableOptionsSqlite {
+    pub location: String,
+    pub table: String,
+}
+
+impl TryFrom<options::TableOptionsSqlite> for TableOptionsSqlite {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsSqlite) -> Result<Self, Self::Error> {
+        Ok(TableOptionsSqlite {
+            location: value.location,
+            table: value.table,
+        })
+    }
+}
+
+impl From<TableOptionsSqlite> for options::TableOptionsSqlite {
+    fn from(value: TableOptionsSqlite) -> Self {
+        options::TableOptionsSqlite {
+            location: value.location,
+            table: value.table,
         }
     }
 }

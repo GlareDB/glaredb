@@ -22,6 +22,7 @@ use datasources::mongodb::MongoDbAccessor;
 use datasources::mysql::MysqlAccessor;
 use datasources::postgres::PostgresAccess;
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection};
+use datasources::sqlite::SqliteAccess;
 use datasources::sqlserver::SqlServerAccess;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{
@@ -34,6 +35,7 @@ use protogen::metastore::types::options::{
     DatabaseOptionsPostgres,
     DatabaseOptionsSnowflake,
     DatabaseOptionsSqlServer,
+    DatabaseOptionsSqlite,
 };
 
 use super::TableFunc;
@@ -378,6 +380,13 @@ pub(crate) async fn get_virtual_lister_for_external_db(
                     .connect()
                     .await
                     .map_err(ExtensionError::access)?;
+            Box::new(state)
+        }
+        DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
+            let access = SqliteAccess {
+                db: location.into(),
+            };
+            let state = access.connect().await.map_err(ExtensionError::access)?;
             Box::new(state)
         }
         DatabaseOptions::Delta(_) => {

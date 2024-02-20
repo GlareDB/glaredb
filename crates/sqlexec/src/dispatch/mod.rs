@@ -86,6 +86,8 @@ pub enum DispatchError {
     ExtensionError(#[from] datafusion_ext::errors::ExtensionError),
     #[error(transparent)]
     CassandraDatasource(#[from] datasources::cassandra::CassandraError),
+    #[error(transparent)]
+    SqliteDatasource(#[from] datasources::sqlite::errors::SqliteError),
 
     #[error("{0}")]
     String(String),
