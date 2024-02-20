@@ -30,7 +30,7 @@ use object_store::prefix::PrefixStore;
 use object_store::ObjectStore;
 use object_store_util::shared::SharedObjectStore;
 use protogen::metastore::types::catalog::TableEntry;
-use protogen::metastore::types::options::{CredentialsOptions, TableOptions, TableOptionsInternal};
+use protogen::metastore::types::options::{TableOptions, TableOptionsInternal};
 use serde_json::{json, Value};
 use url::Url;
 use uuid::Uuid;
@@ -59,8 +59,6 @@ pub struct NativeTableStorage {
     ///
     /// Arcs all the way down...
     pub store: SharedObjectStore,
-
-    creds: Option<CredentialsOptions>,
 }
 
 /// Deltalake is expecting a factory that implements [`ObjectStoreFactory`] and
@@ -175,7 +173,6 @@ impl NativeTableStorage {
             db_id,
             root_url,
             store: SharedObjectStore::new(store),
-            creds: None,
         }
     }
 
@@ -187,10 +184,6 @@ impl NativeTableStorage {
     /// Returns the location of 'native' Delta Lake tables.
     fn table_prefix(&self, tbl_id: u32) -> String {
         format!("databases/{}/tables/{}", self.db_id, tbl_id)
-    }
-
-    pub fn credential_options(&self) -> Option<CredentialsOptions> {
-        self.creds.clone()
     }
 
     /// Calculates the total size of storage being used by the database in
