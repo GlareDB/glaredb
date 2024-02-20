@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
-// use std::path::Path;
+use std::path::Path;
 use std::sync::Arc;
 use std::vec;
 
@@ -648,35 +648,46 @@ impl TableFunc for GlareDBUpload {
             })?;
         let store = storage.store.clone(); // Cheap to clone
 
-        // TODO: Parse format from argument. We can start by only accepting
-        //       csv, ndJSON, parquet
-        // let format = match ext.as_str() {
-        //     "csv" => Some(CsvFormat::default().with_schema_infer_max_rec(Some(20480))),
-        //     // TODO: Add Parquet, ndJSON
-        //     _ext => None,
-        // }.ok_or_else(|| ExtensionError::String(format!("unsupported file extension: {fname}")))?;
-        // let _format: Arc<dyn FileFormat> = Arc::new(format);
-        let file_format = CsvFormat::default().with_schema_infer_max_rec(Some(20480));
-        let file_format: Arc<dyn FileFormat> = Arc::new(file_format);
+        let file_name: String = args.into_iter().next().unwrap().try_into()?;
+        let ext = Path::new(&file_name)
+            .extension()
+            .ok_or_else(|| {
+                ExtensionError::String(
+                    "missing file extension, supported: [.csv, .json, .parquet]".to_string(),
+                )
+            })?
+            .to_str()
+            .ok_or_else(|| {
+                ExtensionError::String(format!("unsupported file extension: {file_name}"))
+            })?
+            .to_lowercase();
+        let file_format: Arc<dyn FileFormat> = match ext.as_str() {
+            "csv" => Arc::new(CsvFormat::default().with_schema_infer_max_rec(Some(20480))),
+            "json" => Arc::new(JsonFormat::default()),
+            "parquet" => Arc::new(ParquetFormat::default()),
+            ext => {
+                return Err(ExtensionError::String(format!(
+                    "unsupported file extension: {ext}"
+                )))
+            }
+        };
 
-        // TODO: I'm unsure how this is getting applied still - is it needed
-        //       after we get the obj meta still, or is the base_url and objs
-        //       list good enough?
-        let prefix: ObjectStorePath = format!("databases/{}/uploads/", storage.db_id()).into();
-
-        // It's unfortunate that we need this and prefix...maybe there's a
-        // refactor on ObjStoreTableProvider...need to look more deeply
+        // This is required to read the object meta, but we unfortunately also
+        // need the base_url below for ObjStoreTableProvider impl. Maybe there's
+        // a refactor opportunity.
+        let prefix: ObjectStorePath =
+            format!("databases/{}/uploads/{}", storage.db_id(), file_name).into();
         let base_url = format!("{}", storage.root_url);
         let base_url = ObjectStoreUrl::parse(base_url)?;
 
-        // There should only be one object...just getting to compile and copying
-        // approach using in other obj stores. Probably some cleaner syntax.
+        // glaredb_upload currently does not support globbing, and therefore we
+        // do not need to iterate: there should only be one.
         let mut objects = store.list(Some(&prefix));
         let meta = objects
             .next()
             .await
-            .ok_or_else(|| ExtensionError::String("todo".to_string()))?
-            .expect("todo");
+            .ok_or_else(|| ExtensionError::String(format!("file not found: {}", file_name)))?
+            .or_else(|_| return Err(ExtensionError::ObjectStore("read file".to_string())))?;
         let objects: Vec<ObjectMeta> = vec![meta];
 
         // Infer schema
