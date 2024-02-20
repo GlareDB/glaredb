@@ -48,7 +48,7 @@ fn get_replacer(pattern: &str) -> Result<Replacer, ReplacerFindError> {
 
     let pattern = &pattern[start + 1..end];
 
-    let vec = if pattern.contains(',') {
+    let ranges = if pattern.contains(',') {
         pattern
             .split(',')
             .map(validate_string)
@@ -73,7 +73,7 @@ fn get_replacer(pattern: &str) -> Result<Replacer, ReplacerFindError> {
     Ok(Replacer {
         start,
         end,
-        iter: vec.into_iter(),
+        iter: ranges.into_iter(),
     })
 }
 
