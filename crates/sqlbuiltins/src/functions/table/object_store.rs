@@ -663,7 +663,7 @@ impl TableFunc for GlareDBUpload {
         //       after we get the obj meta still, or is the base_url and objs
         //       list good enough?
         let prefix: ObjectStorePath = format!("databases/{}/uploads/", storage.db_id()).into();
-        
+
         // It's unfortunate that we need this and prefix...maybe there's a
         // refactor on ObjStoreTableProvider...need to look more deeply
         let base_url = format!("{}", storage.root_url);
@@ -677,8 +677,7 @@ impl TableFunc for GlareDBUpload {
             .await
             .ok_or_else(|| ExtensionError::String("todo".to_string()))?
             .expect("todo");
-        let mut objects: Vec<ObjectMeta> = Vec::new();
-        objects.push(meta);
+        let objects: Vec<ObjectMeta> = vec![meta];
 
         // Infer schema
         let arrow_schema = file_format
