@@ -43,7 +43,6 @@ tracing = "0.1"
 url = "2.5.0"
 
 [workspace.dependencies.deltalake]
-
 git = "https://github.com/delta-io/delta-rs.git"
 rev = "993e2c202936719855f8831513bcbab1b9930b94"
 features = ["s3", "gcs", "azure", "datafusion"]

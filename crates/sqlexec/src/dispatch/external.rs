@@ -30,6 +30,7 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use datasources::sqlite::{SqliteAccess, SqliteTableProvider};
 use datasources::sqlserver::{
     SqlServerAccess,
     SqlServerTableProvider,
@@ -48,6 +49,7 @@ use protogen::metastore::types::options::{
     DatabaseOptionsPostgres,
     DatabaseOptionsSnowflake,
     DatabaseOptionsSqlServer,
+    DatabaseOptionsSqlite,
     TableOptions,
     TableOptionsBigQuery,
     TableOptionsCassandra,
@@ -64,6 +66,7 @@ use protogen::metastore::types::options::{
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
+    TableOptionsSqlite,
     TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
@@ -264,6 +267,14 @@ impl<'a> ExternalDispatcher<'a> {
                     password.to_owned(),
                 )
                 .await?;
+                Ok(Arc::new(table))
+            }
+            DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
+                let access = SqliteAccess {
+                    db: location.into(),
+                };
+                let state = access.connect().await?;
+                let table = SqliteTableProvider::try_new(state, name).await?;
                 Ok(Arc::new(table))
             }
         }
@@ -555,6 +566,14 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await?;
 
+                Ok(Arc::new(table))
+            }
+            TableOptions::Sqlite(TableOptionsSqlite { location, table }) => {
+                let access = SqliteAccess {
+                    db: location.into(),
+                };
+                let state = access.connect().await?;
+                let table = SqliteTableProvider::try_new(state, table).await?;
                 Ok(Arc::new(table))
             }
         }

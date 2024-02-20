@@ -1,0 +1,6 @@
+# Tests for the `read_*` function.
+
+query I
+SELECT count(*) FROM read_sqlite('${SQLITE_DB_LOCATION}', 'bikeshare_stations');
+----
+102
