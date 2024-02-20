@@ -561,7 +561,7 @@ jobs:
               ./scripts/prepare-testdata.sh
               source ./scripts/ci-install-clickhouse.sh
               export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
-          - name: Sqlite
+          - name: SQLite
             path: "sqllogictests_sqlite/*"
             prepare: |
               ./scripts/prepare-testdata.sh
