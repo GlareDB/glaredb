@@ -32,9 +32,6 @@ use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use protogen::metastore::types::catalog::RuntimePreference;
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
-use crate::functions::alias_map::AliasMap;
-use crate::functions::BuiltinFunction;
-
 use self::bigquery::ReadBigQuery;
 use self::bson::BsonScan;
 use self::cassandra::ReadCassandra;
@@ -55,6 +52,8 @@ use self::snowflake::ReadSnowflake;
 use self::sqlserver::ReadSqlServer;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
+use crate::functions::alias_map::AliasMap;
+use crate::functions::BuiltinFunction;
 
 /// A builtin table function.
 /// Table functions are ones that are used in the FROM clause.

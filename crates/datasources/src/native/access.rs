@@ -59,7 +59,7 @@ pub struct NativeTableStorage {
     ///
     /// Arcs all the way down...
     store: SharedObjectStore,
-    
+
     creds: Option<CredentialsOptions>,
 }
 

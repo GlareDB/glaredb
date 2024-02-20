@@ -54,7 +54,6 @@ pub trait BuiltinFunction: Sync + Send {
 
     /// Return the signature for this function.
     /// Defaults to None.
-    ///
     // TODO: Remove the default impl once we have `signature` implemented for all functions
     fn signature(&self) -> Option<Signature> {
         None
