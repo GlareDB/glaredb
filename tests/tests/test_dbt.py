@@ -23,7 +23,6 @@ def test_dbt_glaredb(
 
     os.environ["DBT_USER"] = glaredb_connection.info.user
 
-    # model_name: str = "view_materialization" # TODO
     project_directory: str = "../fixtures/dbt_project/"
     dbt_profiles_directory: str = "../fixtures/dbt_project/"
 
