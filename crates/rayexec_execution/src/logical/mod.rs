@@ -1,3 +1,5 @@
+pub mod explainable;
+
 use crate::expr::logical::{LogicalExpr, OrderByExpr};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;

@@ -1,4 +1,5 @@
 use crate::expr::PhysicalExpr;
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use arrow::compute::filter_record_batch;
 use arrow_array::cast::AsArray;
 use arrow_array::RecordBatch;
@@ -62,6 +63,12 @@ impl Sink for Filter {
 
     fn finish(&self, child: usize, partition: usize) -> Result<()> {
         self.buffer.finish(child, partition)
+    }
+}
+
+impl Explainable for Filter {
+    fn explain_entry(_conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Filter")
     }
 }
 

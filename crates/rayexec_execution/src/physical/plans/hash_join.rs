@@ -1,5 +1,6 @@
 use crate::expr::PhysicalExpr;
 use crate::hash::build_hashes;
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::JoinType;
 use arrow_array::cast::AsArray;
 use arrow_array::{ArrayRef, BooleanArray, RecordBatch, UInt32Array, UInt64Array};
@@ -44,6 +45,12 @@ impl Sink for HashJoin {
 
     fn finish(&self, child: usize, partition: usize) -> Result<()> {
         unimplemented!()
+    }
+}
+
+impl Explainable for HashJoin {
+    fn explain_entry(_conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("HashJoin")
     }
 }
 

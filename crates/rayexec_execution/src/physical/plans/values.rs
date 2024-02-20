@@ -1,5 +1,6 @@
 use crate::expr::PhysicalExpr;
 use crate::hash::build_hashes;
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use arrow_array::cast::AsArray;
 use arrow_array::{ArrayRef, BooleanArray, RecordBatch, UInt32Array, UInt64Array};
 use arrow_schema::{Field, Schema};
@@ -34,5 +35,11 @@ impl Source for Values {
             Some(batch) => Poll::Ready(Some(Ok(batch))),
             None => Poll::Ready(None),
         }
+    }
+}
+
+impl Explainable for Values {
+    fn explain_entry(_conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Values")
     }
 }

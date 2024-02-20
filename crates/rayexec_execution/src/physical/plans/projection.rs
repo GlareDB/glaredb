@@ -1,4 +1,5 @@
 use crate::expr::PhysicalExpr;
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use arrow_array::RecordBatch;
 use arrow_schema::{Field, Schema};
 use rayexec_error::{RayexecError, Result};
@@ -84,6 +85,12 @@ impl Sink for Projection {
 
     fn finish(&self, child: usize, partition: usize) -> Result<()> {
         self.buffer.finish(child, partition)
+    }
+}
+
+impl Explainable for Projection {
+    fn explain_entry(_conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Projection")
     }
 }
 
