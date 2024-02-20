@@ -431,7 +431,8 @@ pub fn init_session_registry<'a>(
             | TableOptions::SqlServer(_)
             | TableOptions::Clickhouse(_)
             | TableOptions::Cassandra(_)
-            | TableOptions::Excel(_) => continue,
+            | TableOptions::Excel(_)
+            | TableOptions::Sqlite(_) => continue,
         };
 
         let base_url = access.base_url()?;

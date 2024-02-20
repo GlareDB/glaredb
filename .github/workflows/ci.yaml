@@ -561,6 +561,13 @@ jobs:
               ./scripts/prepare-testdata.sh
               source ./scripts/ci-install-clickhouse.sh
               export CLICKHOUSE_CONN_STRING=$(./scripts/create-test-clickhouse-db.sh)
+          - name: SQLite
+            path: "sqllogictests_sqlite/*"
+            prepare: |
+              ./scripts/prepare-testdata.sh
+
+              # If there's an old data-set in the cache, remove it so we can create a new one.
+              test -f testdata/sqllogictests_sqlite/data/db.sqlite3 && rm testdata/sqllogictests_sqlite/data/db.sqlite3
           - name: Cassandra
             path: "sqllogictests_cassandra/*"
             prepare: |

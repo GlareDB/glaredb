@@ -48,8 +48,9 @@ message DatabaseOptions {
     DatabaseOptionsSqlServer sql_server = 9;
     DatabaseOptionsClickhouse clickhouse = 10;
     DatabaseOptionsCassandra cassandra = 11;
+    DatabaseOptionsSqlite sqlite = 12;
   }
-  // next: 11
+  // next: 12
 }
 
 message DatabaseOptionsInternal {}
@@ -85,6 +86,10 @@ message DatabaseOptionsCassandra {
   string host = 1;
   optional string username = 2;
   optional string password = 3;
+}
+
+message DatabaseOptionsSqlite {
+  string location = 1;
 }
 
 message DatabaseOptionsSnowflake {
@@ -137,8 +142,9 @@ message TableOptions {
     TableOptionsClickhouse clickhouse = 17;
     TableOptionsCassandra cassandra = 18;
     TableOptionsExcel excel = 19;
+    TableOptionsSqlite sqlite = 20;
   }
-  // next: 20
+  // next: 21
 }
 
 message TableOptionsInternal {
@@ -254,6 +260,11 @@ message TableOptionsCassandra {
   string table = 3;
   optional string username = 4;
   optional string password = 5;
+}
+
+message TableOptionsSqlite {
+  string location = 1;
+  string table = 2;
 }
 
 // Tunnel options

@@ -10,7 +10,7 @@ use ioutil::ensure_dir;
 use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use slt::discovery::SltDiscovery;
-use slt::hooks::{AllTestsHook, SshTunnelHook};
+use slt::hooks::{AllTestsHook, SqliteTestsHook, SshTunnelHook};
 use slt::tests::{PgBinaryEncoding, SshKeysTest};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
@@ -296,6 +296,8 @@ impl RunCommand for SltArgs {
             .test("pgproto/binary_encoding", Box::new(PgBinaryEncoding))?
             // Add hooks
             .hook("*", Arc::new(AllTestsHook))?
+            // Sqlite tests
+            .hook("sqllogictests_sqlite/*", Arc::new(SqliteTestsHook))?
             // SSH Tunnels hook
             .hook("*/tunnels/ssh", Arc::new(SshTunnelHook))?;
 

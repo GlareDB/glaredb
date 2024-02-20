@@ -1,0 +1,17 @@
+# Basic tests for external tables.
+
+statement ok
+CREATE EXTERNAL TABLE external_table
+	FROM sqlite
+	OPTIONS (
+		location = '${SQLITE_DB_LOCATION}',
+		table = 'bikeshare_stations',
+	);
+
+query I
+SELECT count(*) FROM external_table;
+----
+102
+
+statement ok
+DROP TABLE external_table;
