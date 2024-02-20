@@ -6,14 +6,11 @@ mod wrapper;
 use std::any::Any;
 use std::fmt::Write as _;
 use std::path::PathBuf;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 
 use async_sqlite::rusqlite::types::Value;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef, TimeUnit};
-use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
@@ -26,7 +23,6 @@ use datafusion::physical_plan::{
     DisplayFormatType,
     ExecutionPlan,
     Partitioning,
-    RecordBatchStream,
     SendableRecordBatchStream,
     Statistics,
 };
@@ -34,9 +30,7 @@ use datafusion::prelude::Expr;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
-use futures::{Stream, StreamExt};
 
-use self::convert::Converter;
 use self::errors::Result;
 use self::wrapper::SqliteAsyncClient;
 use crate::common::util;
@@ -347,38 +341,7 @@ impl ExecutionPlan for SqliteQueryExec {
             )));
         }
 
-        let state = self.state.clone();
-        let query = self.query.clone();
-        let schema = self.schema.clone();
-
-        let stream = async_stream::stream! {
-            let mut stream = state.client.query(query);
-            let conv = Converter::new(schema);
-
-            while let Some(batch) = stream.next().await {
-                let data = match batch {
-                    Ok(b) => b.data,
-                    Err(e) => {
-                        yield Err(DataFusionError::Execution(e.to_string()));
-                        return;
-                    }
-                };
-                match conv.create_record_batch(data) {
-                    Ok(rb) => {
-                        yield Ok(rb);
-                    },
-                    Err(e) => {
-                        yield Err(DataFusionError::Execution(e.to_string()));
-                        return;
-                    }
-                };
-            }
-        };
-
-        let stream = SqliteRecordBatchStream {
-            schema: self.schema.clone(),
-            inner: Box::pin(stream),
-        };
+        let stream = self.state.client.query(self.schema.clone(), &self.query);
 
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
             stream,
@@ -399,25 +362,6 @@ impl ExecutionPlan for SqliteQueryExec {
 impl DisplayAs for SqliteQueryExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "SqliteQueryExec")
-    }
-}
-
-struct SqliteRecordBatchStream {
-    schema: SchemaRef,
-    inner: Pin<Box<dyn Stream<Item = DataFusionResult<RecordBatch>> + Send>>,
-}
-
-impl Stream for SqliteRecordBatchStream {
-    type Item = DataFusionResult<RecordBatch>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.inner.poll_next_unpin(cx)
-    }
-}
-
-impl RecordBatchStream for SqliteRecordBatchStream {
-    fn schema(&self) -> SchemaRef {
-        self.schema.clone()
     }
 }
 

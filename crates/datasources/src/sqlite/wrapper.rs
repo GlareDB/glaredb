@@ -5,13 +5,16 @@ use std::task::{Context, Poll};
 
 use async_sqlite::rusqlite::types::Value;
 use async_sqlite::rusqlite::{self, OpenFlags};
+use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::DataFusionError;
-use futures::Stream;
+use datafusion::physical_plan::RecordBatchStream;
+use futures::{Future, FutureExt, Stream, TryFutureExt};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use crate::sqlite::errors::{Result, SqliteError};
+use super::convert::Converter;
+use crate::sqlite::errors::Result;
 
 #[derive(Clone)]
 pub struct SqliteAsyncClient {
@@ -35,74 +38,43 @@ impl SqliteAsyncClient {
         Ok(Self { path, inner })
     }
 
-    pub fn query(&self, s: impl Into<String>) -> SqliteRecordBatchStream {
+    /// Query and return a RecordBatchStream for sqlite data.
+    pub fn query(&self, schema: SchemaRef, s: impl Into<String>) -> SqliteRecordBatchStream {
         let s = s.into();
 
         let (tx, rx) = mpsc::channel(1);
 
         let client = self.inner.clone();
+        let conv = Converter::new(schema.clone());
+
         let handle = tokio::spawn(async move {
             client
                 .conn(move |conn| {
                     let mut stmt = conn.prepare(&s)?;
-
-                    let cols = stmt
-                        .columns()
-                        .into_iter()
-                        .map(|c| Column {
-                            name: c.name().to_owned(),
-                        })
-                        .collect::<Vec<_>>();
-
-                    let num_cols = cols.len();
-
-                    let mut rows = stmt.query([])?.mapped(|r| {
-                        (0..num_cols)
-                            .map(|idx| {
-                                let v = r.get_ref(idx)?;
-                                Ok(Value::from(v))
-                            })
-                            .collect::<Result<Vec<_>, rusqlite::Error>>()
-                    });
-
+                    let mut rows = stmt.query([])?;
                     loop {
-                        // Collect the next "n" rows for the batch.
-                        const BATCH_SIZE: usize = 1000;
+                        let batch = conv
+                            .create_record_batch(&mut rows)
+                            .map_err(|e| DataFusionError::Execution(format!("{e}")))
+                            .transpose();
 
-                        let data = (0..BATCH_SIZE)
-                            .filter_map(|_| rows.next())
-                            .collect::<Result<Vec<_>, _>>();
-
-                        let batch = match data {
-                            Ok(data) if data.is_empty() => {
-                                // Exit when there's nothing more to process. This
-                                // should drop the only response sender and hence,
-                                // end the stream.
+                        if let Some(batch) = batch {
+                            if tx.blocking_send(batch).is_err() {
+                                // Receiver is dropped so we can exit.
                                 break;
                             }
-                            Ok(data) => Ok(SqliteBatch {
-                                cols: cols.clone(),
-                                data,
-                            }),
-                            Err(e) => Err(SqliteError::from(e)),
-                        };
-
-                        if tx.blocking_send(batch).is_err() {
-                            // Receiver is dropped so we can exit.
+                        } else {
+                            // No more rows to process, we can end here.
                             break;
                         }
                     }
-
                     Ok(())
                 })
                 .await?;
             Ok(())
         });
 
-        SqliteRecordBatchStream {
-            rx,
-            _handle: handle,
-        }
+        SqliteRecordBatchStream { rx, handle, schema }
     }
 
     // Collects and returns all the rows from the query.
@@ -173,14 +145,36 @@ impl SqliteBatch {
 }
 
 pub struct SqliteRecordBatchStream {
-    rx: mpsc::Receiver<Result<SqliteBatch>>,
-    _handle: JoinHandle<Result<()>>,
+    rx: mpsc::Receiver<Result<RecordBatch, DataFusionError>>,
+    handle: JoinHandle<Result<()>>,
+    schema: SchemaRef,
 }
 
 impl Stream for SqliteRecordBatchStream {
     type Item = Result<RecordBatch, DataFusionError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // Check if handle is finished since polling a finished handle panics
+        // the current thread.
+        if !self.handle.is_finished() {
+            match self.handle.poll_unpin(cx) {
+                Poll::Pending | Poll::Ready(Ok(Ok(()))) => (),
+                Poll::Ready(Err(e)) => {
+                    return Poll::Ready(Some(Err(DataFusionError::Execution(format!(
+                        "stream panic: {e}"
+                    )))));
+                }
+                Poll::Ready(Ok(Err(e))) => {
+                    return Poll::Ready(Some(Err(DataFusionError::Execution(format!("{e}")))));
+                }
+            }
+        }
         self.rx.poll_recv(cx)
+    }
+}
+
+impl RecordBatchStream for SqliteRecordBatchStream {
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
     }
 }
