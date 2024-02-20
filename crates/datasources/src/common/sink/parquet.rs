@@ -15,7 +15,10 @@ use futures::StreamExt;
 use object_store::path::Path as ObjectPath;
 use object_store::ObjectStore;
 
+use super::hive_partitioning::SinkProducer;
+
 const BUFFER_SIZE: usize = 8 * 1024 * 1024;
+
 
 #[derive(Debug, Clone)]
 pub struct ParquetSinkOpts {
@@ -109,5 +112,27 @@ impl DataSink for ParquetSink {
         _context: &Arc<TaskContext>,
     ) -> DfResult<u64> {
         self.stream_into_inner(data).await.map(|x| x as u64)
+    }
+}
+
+#[derive(Debug)]
+pub struct ParquetSinkProducer {
+    store: Arc<dyn ObjectStore>,
+    opts: ParquetSinkOpts,
+}
+
+impl ParquetSinkProducer {
+    pub fn from_obj_store(store: Arc<dyn ObjectStore>, opts: ParquetSinkOpts) -> Self {
+        ParquetSinkProducer { store, opts }
+    }
+
+    pub fn create_sink(&self, loc: impl Into<ObjectPath>) -> ParquetSink {
+        ParquetSink::from_obj_store(self.store.clone(), loc, self.opts.clone())
+    }
+}
+
+impl SinkProducer for ParquetSinkProducer {
+    fn create_sink(&self, loc: ObjectPath) -> Box<dyn DataSink> {
+        Box::new(self.create_sink(loc))
     }
 }

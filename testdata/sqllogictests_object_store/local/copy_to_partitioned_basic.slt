@@ -1,0 +1,43 @@
+# Tests for COPY TO with partitioning.
+
+statement ok
+create schema copy_to_partitioned_basic;
+
+statement ok
+set search_path = copy_to_partitioned_basic;
+
+statement ok
+CREATE TABLE copy_to_hive_table_text (year TEXT, quarter TEXT, data TEXT);
+
+statement ok
+INSERT INTO copy_to_hive_table_text VALUES
+	('2020', 'Q1', 'abc'),
+	('2020', 'Q2', 'def'),
+  ('2020', 'Q3', 'hij'),
+  ('2020', 'Q4', 'klm'),
+  ('2021', 'Q1', 'nop'),
+	('2021', 'Q2', 'qrs'),
+  ('2021', 'Q3', 'tuv'),
+  ('2021', 'Q4', 'wxy');
+
+statement ok
+COPY ( SELECT * FROM copy_to_hive_table_text LIMIT 8 )
+	TO '${TMP}/hive_partitioned'
+  FORMAT parquet PARTITION BY (year, quarter);
+
+statement error
+COPY ( SELECT * FROM copy_to_hive_table_text LIMIT 8 )
+	TO '${TMP}/hive_partitioned'
+  FORMAT lance PARTITION BY (year, quarter);
+
+statement ok
+CREATE EXTERNAL TABLE data_2020_q1
+    FROM local
+    OPTIONS (
+        location = '${TMP}/hive_partitioned/year=2020/quarter=Q1/*.parquet'
+    );
+
+query T
+SELECT data FROM data_2020_q1;
+----
+abc

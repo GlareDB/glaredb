@@ -1,0 +1,85 @@
+# # Tests for COPY TO with partitioning.
+
+# statement ok
+# create schema copy_to_partitioned;
+
+# statement ok
+# set search_path = copy_to_partitioned;
+
+# # All fields as 'TEXT'.
+
+# statement ok
+# CREATE TEMP TABLE copy_to_hive_table_text (year TEXT, quarter TEXT, data TEXT);
+
+# statement ok
+# INSERT INTO copy_to_hive_table_text VALUES
+# 	('2020', 'Q1', 'abc'),
+# 	('2020', 'Q2', 'def'),
+#   ('2020', 'Q3', 'hij'),
+#   ('2020', 'Q4', 'klm'),
+#   ('2021', 'Q1', 'nop'),
+# 	('2021', 'Q2', 'qrs'),
+#   ('2021', 'Q3', 'tuv'),
+#   ('2021', 'Q4', 'wxy');
+
+# statement ok
+# COPY ( SELECT * FROM copy_to_hive_table_text LIMIT 8 )
+# 	TO '${TMP}/hive_partitioned'
+#   FORMAT parquet PARTITION BY (year, quarter);
+
+# statement error
+# COPY ( SELECT * FROM copy_to_hive_table_text LIMIT 8 )
+# 	TO '${TMP}/hive_partitioned'
+#   FORMAT json PARTITION BY (year, quarter);
+
+# statement ok
+# CREATE EXTERNAL TABLE data_2020_q1
+#     FROM local
+#     OPTIONS (
+#         location = '${TMP}/hive_partitioned/year=2020/quarter=Q1/*.parquet'
+#     );
+
+# query T
+# SELECT data FROM data_2020_q1;
+# ----
+# abc
+
+# # Mixed fields.
+
+# statement ok
+# CREATE TEMP TABLE copy_to_hive_table_mixed (completed BOOLEAN, category INT, data FLOAT);
+
+# statement ok
+# INSERT INTO copy_to_hive_table_mixed VALUES
+# 	(true, 1, 0.1),
+# 	(true, 2, 0.2),
+# 	(true, 3, 0.3),
+#   (true, 4, 0.4),
+#   (false, 1, 0.5),
+# 	(false, 2, 0.6),
+# 	(false, 3, 0.7),
+#   (false, 4, 0.8),
+
+# statement ok
+# COPY ( SELECT * FROM copy_to_hive_table_mixed LIMIT 8 )
+# 	TO '${TMP}/hive_partitioned_mixed'
+#   FORMAT parquet PARTITION BY (completed, category);
+
+# statement ok
+# CREATE EXTERNAL TABLE true_1_0_1
+#     FROM local
+#     OPTIONS (
+#         location = '${TMP}/hive_partitioned_mixed/completed=true/category=1/*.parquet'
+#     );
+
+# query F
+# SELECT data FROM true_1_0_1;
+# ----
+# 0.1
+
+# # Partition file contents should not include partition columns
+
+# statement error No field named completed
+# SELECT completed FROM true_1_0_1;
+
+# # Mixed fields, JSON format.

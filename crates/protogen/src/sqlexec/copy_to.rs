@@ -90,12 +90,18 @@ pub struct CopyToFormatOptionsCsv {
 pub struct CopyToFormatOptionsJson {
     #[prost(bool, tag = "1")]
     pub array: bool,
+
+    #[prost(string, repeated, tag = "2")]
+    pub partition_columns: Vec<String>,
 }
 
 #[derive(Clone, PartialEq, Message)]
 pub struct CopyToFormatOptionsParquet {
     #[prost(uint64, tag = "1")]
     pub row_group_size: u64,
+
+    #[prost(string, repeated, tag = "2")]
+    pub partition_columns: Vec<String>,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -147,7 +153,10 @@ impl TryFrom<crate::metastore::types::options::CopyToFormatOptions> for CopyToFo
             crate::metastore::types::options::CopyToFormatOptions::Json(json) => {
                 Ok(CopyToFormatOptions {
                     copy_to_format_options_enum: Some(CopyToFormatOptionsEnum::Json(
-                        CopyToFormatOptionsJson { array: json.array },
+                        CopyToFormatOptionsJson {
+                            array: json.array,
+                            partition_columns: json.partition_columns,
+                        },
                     )),
                 })
             }
@@ -156,6 +165,7 @@ impl TryFrom<crate::metastore::types::options::CopyToFormatOptions> for CopyToFo
                     copy_to_format_options_enum: Some(CopyToFormatOptionsEnum::Parquet(
                         CopyToFormatOptionsParquet {
                             row_group_size: parquet.row_group_size as u64,
+                            partition_columns: parquet.partition_columns,
                         },
                     )),
                 })
@@ -195,13 +205,17 @@ impl TryFrom<CopyToFormatOptions> for crate::metastore::types::options::CopyToFo
             ),
             CopyToFormatOptionsEnum::Json(json) => {
                 Ok(crate::metastore::types::options::CopyToFormatOptions::Json(
-                    crate::metastore::types::options::CopyToFormatOptionsJson { array: json.array },
+                    crate::metastore::types::options::CopyToFormatOptionsJson {
+                        array: json.array,
+                        partition_columns: json.partition_columns,
+                    },
                 ))
             }
             CopyToFormatOptionsEnum::Parquet(parquet) => Ok(
                 crate::metastore::types::options::CopyToFormatOptions::Parquet(
                     crate::metastore::types::options::CopyToFormatOptionsParquet {
                         row_group_size: parquet.row_group_size as usize,
+                        partition_columns: parquet.partition_columns,
                     },
                 ),
             ),

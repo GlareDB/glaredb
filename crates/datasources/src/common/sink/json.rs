@@ -16,6 +16,7 @@ use object_store::path::Path as ObjectPath;
 use object_store::ObjectStore;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
+use super::hive_partitioning::SinkProducer;
 use super::SharedBuffer;
 use crate::common::errors::Result;
 
@@ -162,5 +163,28 @@ impl<W: AsyncWrite + Unpin + Send, F: JsonFormat> AsyncJsonWriter<W, F> {
         buf.clear();
 
         Ok(())
+    }
+}
+
+
+#[derive(Debug)]
+pub struct JsonSinkProducer {
+    store: Arc<dyn ObjectStore>,
+    opts: JsonSinkOpts,
+}
+
+impl JsonSinkProducer {
+    pub fn from_obj_store(store: Arc<dyn ObjectStore>, opts: JsonSinkOpts) -> Self {
+        JsonSinkProducer { store, opts }
+    }
+
+    pub fn create_sink(&self, loc: impl Into<ObjectPath>) -> JsonSink {
+        JsonSink::from_obj_store(self.store.clone(), loc, self.opts.clone())
+    }
+}
+
+impl SinkProducer for JsonSinkProducer {
+    fn create_sink(&self, loc: ObjectPath) -> Box<dyn DataSink> {
+        Box::new(self.create_sink(loc))
     }
 }

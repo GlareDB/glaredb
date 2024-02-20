@@ -21,9 +21,10 @@ use datafusion::physical_plan::{
 use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use datasources::common::sink::bson::BsonSink;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
-use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
+use datasources::common::sink::hive_partitioning::HivePartitionedSinkAdapter;
+use datasources::common::sink::json::{JsonSinkOpts, JsonSinkProducer};
 use datasources::common::sink::lance::{LanceSink, LanceSinkOpts, LanceWriteParams};
-use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
+use datasources::common::sink::parquet::{ParquetSinkOpts, ParquetSinkProducer};
 use datasources::common::url::DatasourceUrl;
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::generic::GenericStoreAccess;
@@ -120,22 +121,38 @@ impl CopyToExec {
                     CopyToFormatOptions::Lance(opts),
                     &LocalStoreAccess {},
                     &local_options.location,
+                    &self.source,
                 )?
             }
             (CopyToDestinationOptions::Local(local_options), format) => {
                 {
                     // Create the path if it doesn't exist (for local).
-                    let _ = tokio::fs::File::create(&local_options.location).await?;
+                    match &format {
+                        CopyToFormatOptions::Parquet(options)
+                            if !options.partition_columns.is_empty() =>
+                        {
+                            tokio::fs::create_dir_all(&local_options.location).await?;
+                        }
+                        CopyToFormatOptions::Json(options)
+                            if !options.partition_columns.is_empty() =>
+                        {
+                            tokio::fs::create_dir_all(&local_options.location).await?;
+                        }
+                        _ => {
+                            tokio::fs::File::create(&local_options.location).await?;
+                        }
+                    }
                 }
+
                 let access = LocalStoreAccess;
-                get_sink_for_obj(format, &access, &local_options.location)?
+                get_sink_for_obj(format, &access, &local_options.location, &self.source)?
             }
             (CopyToDestinationOptions::Gcs(gcs_options), format) => {
                 let access = GcsStoreAccess {
                     bucket: gcs_options.bucket,
                     service_account_key: gcs_options.service_account_key,
                 };
-                get_sink_for_obj(format, &access, &gcs_options.location)?
+                get_sink_for_obj(format, &access, &gcs_options.location, &self.source)?
             }
             (CopyToDestinationOptions::S3(s3_options), format) => {
                 let access = S3StoreAccess {
@@ -144,7 +161,7 @@ impl CopyToExec {
                     access_key_id: s3_options.access_key_id,
                     secret_access_key: s3_options.secret_access_key,
                 };
-                get_sink_for_obj(format, &access, &s3_options.location)?
+                get_sink_for_obj(format, &access, &s3_options.location, &self.source)?
             }
             (CopyToDestinationOptions::Azure(azure_options), format) => {
                 // Create storage options using well-known key names.
@@ -173,7 +190,7 @@ impl CopyToExec {
                 let source_url = DatasourceUrl::try_new(&azure_options.location)
                     .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-                get_sink_for_obj(format, &access, &source_url.path())?
+                get_sink_for_obj(format, &access, &source_url.path(), &self.source)?
             }
         };
 
@@ -189,6 +206,7 @@ fn get_sink_for_obj(
     format: CopyToFormatOptions,
     access: &dyn ObjStoreAccess,
     location: &str,
+    source: &Arc<WriteOnlyDataSourceMetricsExecAdapter>,
 ) -> DataFusionResult<Box<dyn DataSink>> {
     let store = access
         .create_store()
@@ -207,13 +225,21 @@ fn get_sink_for_obj(
                 header: csv_opts.header,
             },
         )),
-        CopyToFormatOptions::Parquet(parquet_opts) => Box::new(ParquetSink::from_obj_store(
-            store,
-            path,
-            ParquetSinkOpts {
-                row_group_size: parquet_opts.row_group_size,
-            },
-        )),
+        CopyToFormatOptions::Parquet(parquet_opts) => {
+            let schema = source.schema();
+            Box::new(HivePartitionedSinkAdapter::new(
+                ParquetSinkProducer::from_obj_store(
+                    store,
+                    ParquetSinkOpts {
+                        row_group_size: parquet_opts.row_group_size,
+                    },
+                ),
+                parquet_opts.partition_columns,
+                location.into(),
+                ".parquet".to_string(),
+                schema,
+            ))
+        }
         CopyToFormatOptions::Lance(opts) => {
             let wp = LanceWriteParams::default();
 
@@ -237,13 +263,24 @@ fn get_sink_for_obj(
                 },
             ))
         }
-        CopyToFormatOptions::Json(json_opts) => Box::new(JsonSink::from_obj_store(
-            store,
-            path,
-            JsonSinkOpts {
-                array: json_opts.array,
-            },
-        )),
+        CopyToFormatOptions::Json(json_opts) => {
+            let schema = source.schema();
+
+            println!("location: {}", location);
+
+            Box::new(HivePartitionedSinkAdapter::new(
+                JsonSinkProducer::from_obj_store(
+                    store,
+                    JsonSinkOpts {
+                        array: json_opts.array,
+                    },
+                ),
+                json_opts.partition_columns,
+                location.into(),
+                ".json".to_string(),
+                schema,
+            ))
+        }
         CopyToFormatOptions::Bson => Box::new(BsonSink::from_obj_store(store, path)),
     };
     Ok(sink)
