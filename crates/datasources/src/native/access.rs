@@ -47,7 +47,7 @@ pub struct NativeTableStorage {
     ///
     /// In other words this is the location to which the the table prefix is
     /// applied to get a full table URL.
-    root_url: Url,
+    pub root_url: Url,
 
     /// Tables are only located in one bucket which the provided service account
     /// should have access to.
@@ -58,7 +58,7 @@ pub struct NativeTableStorage {
     /// what this type is for.
     ///
     /// Arcs all the way down...
-    store: SharedObjectStore,
+    pub store: SharedObjectStore,
 
     creds: Option<CredentialsOptions>,
 }
