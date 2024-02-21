@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use catalog::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
 use catalog::session_catalog::{ResolveConfig, SessionCatalog};
 use datafusion_ext::vars::SessionVars;
 use datasources::common::errors::DatasourceCommonError;
@@ -14,6 +13,7 @@ use datasources::native::access::NativeTableStorage;
 use distexec::executor::TaskExecutor;
 use distexec::scheduler::Scheduler;
 use ioutil::ensure_dir;
+use metastore::client::{MetastoreClientSupervisor, DEFAULT_METASTORE_CLIENT_CONFIG};
 use metastore::local::start_inprocess;
 use metastore::util::MetastoreClientMode;
 use object_store::aws::AmazonS3ConfigKey;
