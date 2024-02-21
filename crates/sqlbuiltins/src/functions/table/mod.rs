@@ -47,7 +47,7 @@ use self::json::JsonScan;
 use self::lance::LanceScan;
 use self::mongodb::ReadMongoDb;
 use self::mysql::ReadMysql;
-use self::object_store::{GlareDBUpload, READ_CSV, READ_JSON, READ_PARQUET};
+use self::object_store::{CloudUpload, READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
 use self::sqlite::ReadSqlite;
@@ -103,7 +103,7 @@ impl BuiltinTableFuncs {
             Arc::new(READ_JSON),
             Arc::new(BsonScan),
             Arc::new(JsonScan),
-            Arc::new(GlareDBUpload),
+            Arc::new(CloudUpload),
             // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),

@@ -587,12 +587,12 @@ fn create_azure_store_access(
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct GlareDBUpload;
+pub struct CloudUpload;
 
-impl ConstBuiltinFunction for GlareDBUpload {
-    const NAME: &'static str = "glaredb_upload";
+impl ConstBuiltinFunction for CloudUpload {
+    const NAME: &'static str = "cloud_upload";
     const DESCRIPTION: &'static str = "Reads a file that was uploaded to GlareDB Cloud.";
-    const EXAMPLE: &'static str = "SELECT * FROM glaredb_upload('my_upload.csv')";
+    const EXAMPLE: &'static str = "SELECT * FROM cloud_upload('my_upload.csv')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 
     // GlareUpload accepts a single argument, filename. The filename **must**
@@ -609,7 +609,7 @@ impl ConstBuiltinFunction for GlareDBUpload {
 }
 
 #[async_trait]
-impl TableFunc for GlareDBUpload {
+impl TableFunc for CloudUpload {
     fn detect_runtime(
         &self,
         _args: &[FuncParamValue],
