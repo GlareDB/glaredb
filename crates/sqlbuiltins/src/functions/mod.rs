@@ -218,7 +218,7 @@ impl FunctionRegistry {
             Arc::new(PartitionResults),
             // OpenAI
             Arc::new(OpenAIEmbed),
-            // Similary
+            // Similarity
             Arc::new(CosineSimilarity),
         ];
         let udfs = udfs
