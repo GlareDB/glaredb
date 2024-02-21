@@ -30,6 +30,7 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use datasources::sqlite::{SqliteAccess, SqliteTableProvider};
 use datasources::sqlserver::{
     SqlServerAccess,
     SqlServerTableProvider,
@@ -48,11 +49,13 @@ use protogen::metastore::types::options::{
     DatabaseOptionsPostgres,
     DatabaseOptionsSnowflake,
     DatabaseOptionsSqlServer,
+    DatabaseOptionsSqlite,
     TableOptions,
     TableOptionsBigQuery,
     TableOptionsCassandra,
     TableOptionsClickhouse,
     TableOptionsDebug,
+    TableOptionsExcel,
     TableOptionsGcs,
     TableOptionsInternal,
     TableOptionsLocal,
@@ -63,6 +66,7 @@ use protogen::metastore::types::options::{
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
+    TableOptionsSqlite,
     TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
@@ -265,6 +269,14 @@ impl<'a> ExternalDispatcher<'a> {
                 .await?;
                 Ok(Arc::new(table))
             }
+            DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
+                let access = SqliteAccess {
+                    db: location.into(),
+                };
+                let state = access.connect().await?;
+                let table = SqliteTableProvider::try_new(state, name).await?;
+                Ok(Arc::new(table))
+            }
         }
     }
 
@@ -276,6 +288,7 @@ impl<'a> ExternalDispatcher<'a> {
 
         match &table.options {
             TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
+            TableOptions::Excel(TableOptionsExcel { .. }) => todo!(),
             TableOptions::Debug(TableOptionsDebug { table_type }) => {
                 let provider = DebugTableType::from_str(table_type)?;
                 Ok(provider.into_table_provider(tunnel.as_ref()))
@@ -553,6 +566,14 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await?;
 
+                Ok(Arc::new(table))
+            }
+            TableOptions::Sqlite(TableOptionsSqlite { location, table }) => {
+                let access = SqliteAccess {
+                    db: location.into(),
+                };
+                let state = access.connect().await?;
+                let table = SqliteTableProvider::try_new(state, table).await?;
                 Ok(Arc::new(table))
             }
         }

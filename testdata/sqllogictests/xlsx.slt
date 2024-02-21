@@ -1,13 +1,40 @@
+statement ok
+select count(*) from read_excel('file://${PWD}/testdata/xlsx/userdata1.xlsx');
 
 statement ok
-select count(*) from read_excel('file://${PWD}/testdata/xlsx/userdata1.xlsx')
+select count(*) from './testdata/xlsx/userdata1.xlsx';
+
+statement ok
+select count(*) from 'file://${PWD}/testdata/xlsx/userdata1.xlsx'
+
+query
+select count(*) from './testdata/xlsx/userdata1.xlsx';
+----
+1000
+
+query I
+select count(*) from read_excel('./testdata/xlsx/userdata1.xlsx', has_header => true);
+----
+1000
+
+query I
+select count(*) from read_excel('./testdata/xlsx/userdata1.xlsx', has_header => false);
+----
+1001
+
+
+query I
+select count(*) from read_xlsx('${PWD}/testdata/xlsx/userdata1.xlsx');
+----
+1000
+
 
 # infer rows
 statement ok
 select count(*) from read_excel(
   'file://${PWD}/testdata/xlsx/userdata1.xlsx',
   infer_rows => 10
-)
+);
 
 
 # https://github.com/GlareDB/glaredb/issues/2372
@@ -30,5 +57,3 @@ select "HEADING" from read_excel('file://${PWD}/testdata/xlsx/multiple_sheets.xl
 # negatives are not allowed for infer_rows
 statement error
 select * from read_excel('file://${PWD}/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', infer_rows => -1);
-
-

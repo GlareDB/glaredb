@@ -2,6 +2,6 @@ version: 2
 
 sources:
   - name: public
-    database: glaredb
+    database: default
     tables: 
       - name: dbt_test

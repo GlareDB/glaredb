@@ -14,6 +14,7 @@ mod mysql;
 mod object_store;
 mod postgres;
 mod snowflake;
+mod sqlite;
 mod sqlserver;
 pub mod system;
 mod virtual_listing;
@@ -46,14 +47,15 @@ use self::json::JsonScan;
 use self::lance::LanceScan;
 use self::mongodb::ReadMongoDb;
 use self::mysql::ReadMysql;
-use self::object_store::{READ_CSV, READ_JSON, READ_PARQUET};
+use self::object_store::{CloudUpload, READ_CSV, READ_JSON, READ_PARQUET};
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
+use self::sqlite::ReadSqlite;
 use self::sqlserver::ReadSqlServer;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
-use super::alias_map::AliasMap;
-use super::BuiltinFunction;
+use crate::functions::alias_map::AliasMap;
+use crate::functions::BuiltinFunction;
 
 /// A builtin table function.
 /// Table functions are ones that are used in the FROM clause.
@@ -92,6 +94,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
             Arc::new(ReadClickhouse),
+            Arc::new(ReadSqlite),
             Arc::new(ReadSqlServer),
             Arc::new(ReadCassandra),
             // Object store
@@ -100,6 +103,7 @@ impl BuiltinTableFuncs {
             Arc::new(READ_JSON),
             Arc::new(BsonScan),
             Arc::new(JsonScan),
+            Arc::new(CloudUpload),
             // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),

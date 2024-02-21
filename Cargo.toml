@@ -4,7 +4,7 @@ default-members = ["crates/*", "xtask"]
 resolver = "2"
 
 [workspace.package]
-version = "0.8.4"
+version = "0.8.5"
 edition = "2021"
 
 [profile.release]
@@ -17,7 +17,7 @@ strip = true
 wildcard_imports = "deny"
 
 [workspace.dependencies]
-clap = { version = "4.5.0", features = ["derive"] }
+clap = { version = "4.5.1", features = ["derive"] }
 datafusion = { version = "35.0.0", features = ["avro"] }
 arrow-flight = { version = "50.0.0", features = ["flight-sql-experimental"] }
 datafusion-proto = { version = "35.0.0" }
@@ -30,7 +30,7 @@ tokio = { version = "1", features = ["full"] }
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 anyhow = "1.0.79"
 async-trait = "0.1.77"
-chrono = "0.4.33"
+chrono = "0.4.34"
 futures = "0.3.30"
 object_store = "0.9"
 prost = "0.12"
@@ -43,7 +43,6 @@ tracing = "0.1"
 url = "2.5.0"
 
 [workspace.dependencies.deltalake]
-
 git = "https://github.com/delta-io/delta-rs.git"
 rev = "993e2c202936719855f8831513bcbab1b9930b94"
 features = ["s3", "gcs", "azure", "datafusion"]
