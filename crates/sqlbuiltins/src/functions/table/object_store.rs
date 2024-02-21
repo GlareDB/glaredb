@@ -683,11 +683,14 @@ impl TableFunc for GlareDBUpload {
         // glaredb_upload currently does not support globbing, and therefore we
         // do not need to iterate: there should only be one.
         let mut objects = store.list(Some(&prefix));
-        let meta = objects
+        let meta = match objects
             .next()
             .await
             .ok_or_else(|| ExtensionError::String(format!("file not found: {}", file_name)))?
-            .or_else(|_| return Err(ExtensionError::ObjectStore("read file".to_string())))?;
+        {
+            Ok(meta) => meta,
+            Err(e) => return Err(ExtensionError::ObjectStore(e.to_string())),
+        };
         let objects: Vec<ObjectMeta> = vec![meta];
 
         // Infer schema
