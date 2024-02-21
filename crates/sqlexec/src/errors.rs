@@ -162,6 +162,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    Metastore(#[from] metastore::errors::MetastoreError),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;
