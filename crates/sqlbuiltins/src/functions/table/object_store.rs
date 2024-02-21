@@ -630,8 +630,6 @@ impl TableFunc for GlareDBUpload {
             return Err(ExtensionError::InvalidNumArgs);
         }
 
-        let session_state = ctx.get_session_state();
-
         // NativeTableStorage is available on Remote ctx. Use store already
         // constructed there.
         let storage = ctx
@@ -696,6 +694,7 @@ impl TableFunc for GlareDBUpload {
         };
         let objects: Vec<ObjectMeta> = vec![meta]; // needed for ObjStoreTableProvider impl
 
+        let session_state = ctx.get_session_state();
         let arrow_schema = file_format
             .infer_schema(&session_state, &store.inner, &objects)
             .await?;
