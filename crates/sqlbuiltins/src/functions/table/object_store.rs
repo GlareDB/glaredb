@@ -595,7 +595,7 @@ impl ConstBuiltinFunction for CloudUpload {
     const EXAMPLE: &'static str = "SELECT * FROM cloud_upload('my_upload.csv')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 
-    // GlareUpload accepts a single argument, filename. The filename **must**
+    // CloudUpload accepts a single argument, filename. The filename **must**
     // contain an extension. Valid extensions are `.csv`, `.json`, and
     // `.parquet`. The filename should not be a path and may only contain
     // alphanumeric characters in front of the extension.
