@@ -3,12 +3,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use catalog::session_catalog::SessionCatalog;
-use datafusion::common::FileType;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
-use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::TableProvider;
 use datafusion::prelude::SessionContext;
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
@@ -594,36 +592,46 @@ impl<'a> ExternalDispatcher<'a> {
             .transpose()?
             .unwrap_or(FileCompressionType::UNCOMPRESSED);
 
-        match file_type.parse() {
-            Ok(v) => {
-                let ft: Arc<dyn FileFormat> = match v {
-                    FileType::CSV => Arc::new(
+        let accessor = ObjStoreAccessor::new(access.clone())?;
+
+        match file_type {
+            "csv" => Ok(accessor
+                .clone()
+                .into_table_provider(
+                    &self.df_ctx.state(),
+                    Arc::new(
                         CsvFormat::default()
                             .with_file_compression_type(compression)
                             .with_schema_infer_max_rec(Some(20480)),
                     ),
-                    FileType::PARQUET => Arc::new(ParquetFormat::default()),
-                    FileType::JSON => {
-                        Arc::new(JsonFormat::default().with_file_compression_type(compression))
-                    }
-                    _ => return Err(DispatchError::InvalidDispatch("Unsupported file type")),
-                };
-
-                let accessor = ObjStoreAccessor::new(access)?;
-                let objects = accessor.list_globbed(path).await?;
-
-                let state = self.df_ctx.state();
-                let provider = accessor.into_table_provider(&state, ft, objects).await?;
-
-                Ok(provider)
+                    accessor.clone().list_globbed(path).await?,
+                )
+                .await?),
+            "parquet" => Ok(accessor
+                .clone()
+                .into_table_provider(
+                    &self.df_ctx.state(),
+                    Arc::new(ParquetFormat::default()),
+                    accessor.clone().list_globbed(path).await?,
+                )
+                .await?),
+            "ndjson" | "json" => Ok(accessor
+                .clone()
+                .into_table_provider(
+                    &self.df_ctx.state(),
+                    Arc::new(JsonFormat::default().with_file_compression_type(compression)),
+                    accessor.clone().list_globbed(path).await?,
+                )
+                .await?),
+            "bson" => {
+                Ok(
+                    bson_streaming_table(access.clone(), Some(128), DatasourceUrl::try_new(path)?)
+                        .await?,
+                )
             }
-            Err(e) => match file_type {
-                "bson" => {
-                    let source_url = DatasourceUrl::try_new(path)?;
-                    Ok(bson_streaming_table(access, Some(128), source_url).await?)
-                }
-                _ => Err(e.into()),
-            },
+            _ => Err(DispatchError::String(
+                format!("Unsupported file type: {}, for '{}'", file_type, path,).to_string(),
+            )),
         }
     }
 

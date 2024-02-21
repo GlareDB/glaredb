@@ -2069,7 +2069,7 @@ async fn validate_and_get_file_type_and_compression(
             let mut ft = None;
             for obj in objects {
                 ft = match file_type_from_path(&obj.location) {
-                    Ok(file_type) => Some(file_type),
+                    Ok(file_type) => Some(file_type.to_string()),
                     Err(_) => match obj.location.extension() {
                         Some("bson") => Some("bson".to_string()),
                         _ => continue,
@@ -2085,7 +2085,6 @@ async fn validate_and_get_file_type_and_compression(
             .to_string()
         }
     };
-
     Ok((file_type, compression))
 }
 
