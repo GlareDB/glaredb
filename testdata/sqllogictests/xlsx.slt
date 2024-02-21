@@ -10,7 +10,7 @@ select count(*) from 'file://${PWD}/testdata/xlsx/userdata1.xlsx'
 query
 select count(*) from './testdata/xlsx/userdata1.xlsx';
 ----
-1001
+1000
 
 query I
 select count(*) from read_excel('./testdata/xlsx/userdata1.xlsx', has_header => true);

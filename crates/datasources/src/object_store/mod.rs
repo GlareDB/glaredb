@@ -430,7 +430,9 @@ pub fn init_session_registry<'a>(
             | TableOptions::Snowflake(_)
             | TableOptions::SqlServer(_)
             | TableOptions::Clickhouse(_)
-            | TableOptions::Cassandra(_) => continue,
+            | TableOptions::Cassandra(_)
+            | TableOptions::Excel(_)
+            | TableOptions::Sqlite(_) => continue,
         };
 
         let base_url = access.base_url()?;

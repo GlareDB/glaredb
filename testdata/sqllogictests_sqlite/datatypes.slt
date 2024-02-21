@@ -1,0 +1,42 @@
+# Test if the datasource supports the different datatypes (and NULLs).
+
+# Create an external table that connects to the datatypes table.
+statement ok
+CREATE EXTERNAL TABLE datatypes
+	FROM sqlite
+	OPTIONS (
+		location = '${SQLITE_DB_LOCATION}',
+		table = 'datatypes'
+	);
+
+# Check if we can fetch contents of the datatype table.
+query TTTTTTTTTTTTTTTT
+SELECT * FROM datatypes;
+----
+f  t  1999-09-30  16:32:24.123  1999-09-30 16:32:34  1999-09-30 16:32:34.123456  123  -456789  a  abc  abcdef  xyz  1.5  2.25  3.625  \x616263
+NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL
+
+skipif glaredb_rpc
+
+query TTTTTTTTTTTTTTTTTTT
+SELECT
+	arrow_typeof(c1),
+	arrow_typeof(c2),
+	arrow_typeof(c3),
+	arrow_typeof(c4),
+	arrow_typeof(c5),
+	arrow_typeof(c6),
+	arrow_typeof(c7),
+	arrow_typeof(c8),
+	arrow_typeof(c9),
+	arrow_typeof(c10),
+	arrow_typeof(c11),
+	arrow_typeof(c12),
+	arrow_typeof(c13),
+	arrow_typeof(c14),
+	arrow_typeof(c15),
+	arrow_typeof(c16)
+FROM datatypes
+LIMIT 1;
+----
+Boolean  Boolean  Date32  Time64(Microsecond)  Timestamp(Microsecond, None)  Timestamp(Microsecond, None)  Int64  Int64  Utf8  Utf8  Utf8  Utf8  Float64  Float64  Float64  Binary
