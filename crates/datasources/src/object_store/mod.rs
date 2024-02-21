@@ -284,6 +284,24 @@ pub struct ObjStoreTableProvider {
     file_format: Arc<dyn FileFormat>,
 }
 
+impl ObjStoreTableProvider {
+    pub fn new(
+        store: Arc<dyn ObjectStore>,
+        arrow_schema: SchemaRef,
+        base_url: ObjectStoreUrl,
+        objects: Vec<ObjectMeta>,
+        file_format: Arc<dyn FileFormat>,
+    ) -> ObjStoreTableProvider {
+        ObjStoreTableProvider {
+            store,
+            arrow_schema,
+            base_url,
+            objects,
+            file_format,
+        }
+    }
+}
+
 #[async_trait]
 impl TableProvider for ObjStoreTableProvider {
     fn as_any(&self) -> &dyn Any {
