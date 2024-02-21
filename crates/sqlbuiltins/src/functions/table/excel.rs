@@ -24,6 +24,8 @@ impl ConstBuiltinFunction for ExcelScan {
     const EXAMPLE: &'static str =
         "SELECT * FROM read_excel('file:///path/to/file.xlsx', sheet_name => 'Sheet1')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const ALIASES: &'static [&'static str] = &["read_xlsx"];
+
     fn signature(&self) -> Option<Signature> {
         let options: Fields = vec![
             Field::new("sheet_name", DataType::Utf8, true),

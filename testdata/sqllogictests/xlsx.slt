@@ -17,10 +17,16 @@ select count(*) from read_excel('./testdata/xlsx/userdata1.xlsx', has_header => 
 ----
 1000
 
-query 1
+query I
 select count(*) from read_excel('./testdata/xlsx/userdata1.xlsx', has_header => false);
 ----
 1001
+
+
+query I
+select count(*) from read_xlsx('${PWD}/testdata/xlsx/userdata1.xlsx');
+----
+1000
 
 
 # infer rows
