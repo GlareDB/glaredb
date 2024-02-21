@@ -632,12 +632,12 @@ impl TableFunc for GlareDBUpload {
 
         if !ctx.get_session_vars().is_cloud_instance() {
             return Err(ExtensionError::String(
-                    format!(
-                        "access unavailable, {} is not supported in local environments",
-                        self.name(),
-                    )
-                    .to_string(),
-                ))
+                format!(
+                    "access unavailable, {} is not supported in local environments",
+                    self.name(),
+                )
+                .to_string(),
+            ));
         }
 
         // NativeTableStorage is available on Remote ctx. Use store already
