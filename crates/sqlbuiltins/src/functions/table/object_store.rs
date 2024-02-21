@@ -680,7 +680,7 @@ impl TableFunc for GlareDBUpload {
             storage.db_id(),
             file_name
         ));
-        let base_url =  storage.root_url.to_string();
+        let base_url = storage.root_url.to_string();
         let base_url = ObjectStoreUrl::parse(base_url)?;
 
         // No globbing: just retrieve meta for the requested file
