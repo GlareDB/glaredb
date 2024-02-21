@@ -81,6 +81,8 @@ pub trait ConstBuiltinFunction: Sync + Send {
     const DESCRIPTION: &'static str;
     const EXAMPLE: &'static str;
     const FUNCTION_TYPE: FunctionType;
+    const ALIASES: &'static [&'static str] = &[];
+
     fn signature(&self) -> Option<Signature> {
         None
     }
@@ -137,17 +139,25 @@ where
     fn name(&self) -> &str {
         Self::NAME
     }
+
     fn sql_example(&self) -> Option<&str> {
         Some(Self::EXAMPLE)
     }
+
     fn description(&self) -> Option<&str> {
         Some(Self::DESCRIPTION)
     }
+
     fn function_type(&self) -> FunctionType {
         Self::FUNCTION_TYPE
     }
+
     fn signature(&self) -> Option<Signature> {
         self.signature()
+    }
+
+    fn aliases(&self) -> &[&str] {
+        Self::ALIASES
     }
 }
 
