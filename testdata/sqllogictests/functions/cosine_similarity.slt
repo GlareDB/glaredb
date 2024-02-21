@@ -1,0 +1,31 @@
+# tests for cosine similarity function
+
+statement ok
+create table test_cosine_similarity (v1 double[]);
+
+statement ok
+insert into test_cosine_similarity values ([1.0, 2.0, 3.0]);
+
+# floating point precision results in 5.9604645e-8 instead of 0.0
+query I 
+select cosine_similarity([1.0, 2.0, 3.0], v1) from test_cosine_similarity; 
+----
+5.9604645e-8 
+
+
+# make sure it works with scalar values
+query I
+select cosine_similarity([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]);
+----
+5.9604645e-8
+
+# sad path
+statement error Query vector and target vector must have the same length
+select cosine_similarity([1.0, 2.0, 3.0], [1.0, 2.0, 3.0, 4.0]);
+
+# unsupported datatypes
+statement error  Unsupported data type for cosine_similarity query vector
+select cosine_similarity([1], [1]);
+
+statement error  Unsupported data type for cosine_similarity target vector
+select cosine_similarity([1.0], [1]);

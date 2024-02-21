@@ -7741,6 +7741,7 @@ dependencies = [
 name = "sqlbuiltins"
 version = "0.8.4"
 dependencies = [
+ "arrow-cast",
  "async-openai",
  "async-trait",
  "catalog",
@@ -7752,6 +7753,7 @@ dependencies = [
  "futures",
  "ioutil",
  "kdl",
+ "lance-linalg",
  "logutil",
  "memoize",
  "num-traits",
