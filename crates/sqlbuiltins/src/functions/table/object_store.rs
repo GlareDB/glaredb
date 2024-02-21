@@ -24,7 +24,7 @@ use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess, ObjStoreTableProvider};
-use futures::{StreamExt, TryStreamExt};
+use futures::TryStreamExt;
 use object_store::azure::AzureConfigKey;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
@@ -672,28 +672,29 @@ impl TableFunc for GlareDBUpload {
             }
         };
 
-        // This is required to read the object meta, but we unfortunately also
-        // need the base_url below for ObjStoreTableProvider impl. Maybe there's
-        // a refactor opportunity.
-        let prefix: ObjectStorePath =
-            format!("databases/{}/uploads/{}", storage.db_id(), file_name).into();
-        let base_url = format!("{}", storage.root_url);
+        // Path is required to read the object_store meta, but we unfortunately
+        // also need the base_url below for ObjStoreTableProvider impl.
+        // Maybe there's a refactor opportunity.
+        let path = ObjectStorePath::from(format!(
+            "databases/{}/uploads/{}",
+            storage.db_id(),
+            file_name
+        ));
+        let base_url =  storage.root_url.to_string();
         let base_url = ObjectStoreUrl::parse(base_url)?;
 
-        // glaredb_upload currently does not support globbing, and therefore we
-        // do not need to iterate: there should only be one.
-        let mut objects = store.list(Some(&prefix));
-        let meta = match objects
-            .next()
-            .await
-            .ok_or_else(|| ExtensionError::String(format!("file not found: {}", file_name)))?
-        {
+        // No globbing: just retrieve meta for the requested file
+        let meta: ObjectMeta = match store.head(&path).await {
             Ok(meta) => meta,
-            Err(e) => return Err(ExtensionError::ObjectStore(e.to_string())),
+            Err(_) => {
+                return Err(ExtensionError::String(format!(
+                    "file not found: {}",
+                    file_name
+                )))
+            }
         };
-        let objects: Vec<ObjectMeta> = vec![meta];
+        let objects: Vec<ObjectMeta> = vec![meta]; // needed for ObjStoreTableProvider impl
 
-        // Infer schema
         let arrow_schema = file_format
             .infer_schema(&session_state, &store.inner, &objects)
             .await?;
