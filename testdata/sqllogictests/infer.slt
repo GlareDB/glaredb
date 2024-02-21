@@ -184,63 +184,52 @@ select id, "./testdata/json/userdata1.json.zst".first_name
 
 #For infering function from parquet compressed formats .bz2, .xz, .zst, .gz 
 #parquet.bz2
-query
+statement error compression not supported for parquet
 select count(*) from './testdata/parquet/userdata1.parquet.bz2'
-----
-1000
+
 
 #parquet.bz2
-query IT
+statement error compression not supported for parquet
 select id, "./testdata/parquet/userdata1.parquet.bz2".first_name
   from './testdata/parquet/userdata1.parquet.bz2'
   order by id
   limit 1
-----
-1  Amanda
+
 
 #parquet.xz
-query
+statement error compression not supported for parquet
 select count(*) from './testdata/parquet/userdata1.parquet.xz'
-----
-1000
+
 
 #parquet.xz
-query IT
+statement error compression not supported for parquet
 select id, "./testdata/parquet/userdata1.parquet.xz".first_name
   from './testdata/parquet/userdata1.parquet.xz'
   order by id
   limit 1
-----
-1  Amanda
 
 
 #parquet.zst
-query
+statement error compression not supported for parquet
 select count(*) from './testdata/parquet/userdata1.parquet.zst'
-----
-1000
+
 
 #parquet.zst
-query IT
+statement error compression not supported for parquet
 select id, "./testdata/parquet/userdata1.parquet.zst".first_name
   from './testdata/parquet/userdata1.parquet.zst'
   order by id
   limit 1
-----
-1  Amanda
 
 
 #parquet.gz
-query
+statement error compression not supported for parquet
 select count(*) from './testdata/parquet/userdata1.parquet.gz'
-----
-1000
+
 
 #parquet.gz
-query IT
+statement error compression not supported for parquet
 select id, "./testdata/parquet/userdata1.parquet.gz".first_name
   from './testdata/parquet/userdata1.parquet.gz'
   order by id
   limit 1
-----
-1  Amanda
