@@ -1,3 +1,6 @@
+import pathlib
+import tests
+
 import psycopg2.extensions
 import pytest
 import os
@@ -6,6 +9,9 @@ from tests.fixtures.glaredb import glaredb_connection, debug_path
 
 from dbt.cli.main import dbtRunner, dbtRunnerResult
 
+@pytest.fixture
+def dbt_project_path() -> pathlib.Path:
+    return tests.PKG_DIRECTORY.joinpath("tests", "fixtures", "dbt_project")
 
 @pytest.mark.parametrize("model_name,run_success,query_result",
                          [
@@ -15,6 +21,7 @@ from dbt.cli.main import dbtRunner, dbtRunnerResult
                          )
 def test_dbt_glaredb(
     glaredb_connection: psycopg2.extensions.connection,
+    dbt_project_path,
     model_name,
     run_success,
     query_result
@@ -24,20 +31,19 @@ def test_dbt_glaredb(
 
     os.environ["DBT_USER"] = glaredb_connection.info.user
 
-    project_directory: str = "tests/fixtures/dbt_project/"
-    dbt_profiles_directory: str = "tests/fixtures/dbt_project/"
+    dbt_project_directory: pathlib.Path = dbt_project_path
+    dbt_profiles_directory: pathlib.Path = dbt_project_path
 
     with glaredb_connection.cursor() as curr:
         curr.execute("create table dbt_test (amount int)")
         curr.execute(
             "INSERT INTO dbt_test (amount) VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9)"
         )
-        1 == 1
-        
+
     cli_args: list = [
         "run",
         "--project-dir",
-        project_directory,
+        dbt_project_directory,
         "--profiles-dir",
         dbt_profiles_directory,
         "-m",
@@ -50,6 +56,6 @@ def test_dbt_glaredb(
 
     with glaredb_connection.cursor() as curr:
         curr.execute(f"select count(*) from {model_name}")
-        result: list = curr.fetchone()
+        result: list = curr.fetchone()[0]
 
-    assert result == (query_result,)
+    assert result == query_result
