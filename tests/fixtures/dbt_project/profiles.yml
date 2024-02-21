@@ -1,7 +1,7 @@
 glaredb_dbt_test:
   outputs:
     test_target:
-      dbname: glaredb
+      dbname: default
       host: 127.0.0.1
       pass: ""
       port: 5432
