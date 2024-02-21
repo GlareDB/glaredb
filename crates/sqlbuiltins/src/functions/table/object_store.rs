@@ -595,9 +595,10 @@ impl ConstBuiltinFunction for GlareDBUpload {
     const EXAMPLE: &'static str = "SELECT * FROM glaredb_upload('my_upload.csv')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
 
-    // signature for GlareUpload is a single filename. The filename may
-    // optionally contain an extension, though it is not required. Filename
-    // should not be a path.
+    // GlareUpload accepts a single argument, filename. The filename **must**
+    // contain an extension. Valid extensions are `.csv`, `.json`, and
+    // `.parquet`. The filename should not be a path and may only contain
+    // alphanumeric characters in front of the extension.
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
             1,
