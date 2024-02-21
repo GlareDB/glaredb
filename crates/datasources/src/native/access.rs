@@ -41,11 +41,13 @@ use crate::native::insert::NativeTableInsertExec;
 #[derive(Debug, Clone)]
 pub struct NativeTableStorage {
     db_id: Uuid,
-    /// URL pointing to the bucket and/or directory which is the root of the native storage.
+
+    /// URL pointing to the bucket and/or directory which is the root of the
+    /// native storage, for example `gs://<bucket-name>`.
     ///
-    /// In other words this is the location to which the the table prefix is applied to get
-    /// a full table URL.
-    root_url: Url,
+    /// In other words this is the location to which the the table prefix is
+    /// applied to get a full table URL.
+    pub root_url: Url,
 
     /// Tables are only located in one bucket which the provided service account
     /// should have access to.
@@ -56,12 +58,15 @@ pub struct NativeTableStorage {
     /// what this type is for.
     ///
     /// Arcs all the way down...
-    store: SharedObjectStore,
+    pub store: SharedObjectStore,
 }
-// Deltalake is expecting a factory that implements `ObjectStoreFactory` and `LogStoreFactory`.
-// Since we already have an object store, we don't need to do anything here,
-// but we still need to register the url with delta-rs so it does't error when it tries to validate the object-store.
-// So we just create a fake factory that returns the object store we already have and register it with the root url.
+
+/// Deltalake is expecting a factory that implements [`ObjectStoreFactory`] and
+/// [`LogStoreFactory`]. Since we already have an object store, we don't need to
+/// do anything here, but we still need to register the url with delta-rs so it
+/// does't error when it tries to validate the object-store. So we just create a
+/// fake factory that returns the object store we already have and register it
+/// with the root url.
 struct FakeStoreFactory {
     pub store: ObjectStoreRef,
 }
@@ -88,6 +93,10 @@ impl LogStoreFactory for FakeStoreFactory {
         Ok(default_logstore(store, location, options))
     }
 }
+
+/// DeltaField represents data types as stored in Delta Lake, with additional
+/// metadata for indicating the 'real' (original) type, for cases when
+/// downcasting occurs.
 struct DeltaField {
     data_type: DeltaDataType,
     metadata: Option<HashMap<String, Value>>,
@@ -142,8 +151,8 @@ fn arrow_to_delta_safe(arrow_type: &DataType) -> DeltaResult<DeltaField> {
 }
 
 impl NativeTableStorage {
-    /// Create a native table storage provider from a URL and an object store instance
-    /// rooted at that location.
+    /// Create a native table storage provider from a URL and an object store
+    /// instance rooted at that location.
     pub fn new(db_id: Uuid, root_url: Url, store: Arc<dyn ObjectStore>) -> NativeTableStorage {
         // register the default handlers
         // TODO, this should only happen once
@@ -172,6 +181,7 @@ impl NativeTableStorage {
         self.db_id
     }
 
+    /// Returns the location of 'native' Delta Lake tables.
     fn table_prefix(&self, tbl_id: u32) -> String {
         format!("databases/{}/tables/{}", self.db_id, tbl_id)
     }

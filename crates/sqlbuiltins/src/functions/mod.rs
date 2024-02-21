@@ -35,13 +35,11 @@ use table::{BuiltinTableFuncs, TableFunc};
 use self::alias_map::AliasMap;
 use crate::functions::scalars::openai::OpenAIEmbed;
 
-/// All builtin functions available for all sessions.
+/// FUNCTION_REGISTRY provides all implementations of [`BuiltinFunction`]
 pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
 
-/// A builtin function.
-/// This trait is implemented by all builtin functions.
-/// This is used to derive catalog entries for all supported functions.
-/// Any new function MUST implement this trait.
+/// BuiltinFunction **MUST** be implemented by all builtin functions, including
+/// new ones. This is used to derive catalog entries for all supported functions.
 pub trait BuiltinFunction: Sync + Send {
     /// The name for this function. This name will be used when looking up
     /// function implementations.
@@ -87,6 +85,7 @@ pub trait ConstBuiltinFunction: Sync + Send {
         None
     }
 }
+
 /// The namespace of a function.
 ///
 /// Optional -> "namespace.function" || "function"
