@@ -29,3 +29,17 @@ select cosine_similarity([1], [1]);
 
 statement error  Unsupported data type for cosine_similarity target vector
 select cosine_similarity([1.0], [1]);
+
+# edge cases
+
+statement error
+select cosine_similarity([], [1.0]);
+
+statement error
+select cosine_similarity(1);
+
+statement error
+select cosine_similarity(1.0, [1.0])
+
+statement error 
+cosine_similarity('abc', 'def')
