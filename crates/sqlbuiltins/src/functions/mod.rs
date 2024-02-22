@@ -34,14 +34,13 @@ use table::{BuiltinTableFuncs, TableFunc};
 
 use self::alias_map::AliasMap;
 use crate::functions::scalars::openai::OpenAIEmbed;
+use crate::functions::scalars::similarity::CosineSimilarity;
 
-/// All builtin functions available for all sessions.
+/// FUNCTION_REGISTRY provides all implementations of [`BuiltinFunction`]
 pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
 
-/// A builtin function.
-/// This trait is implemented by all builtin functions.
-/// This is used to derive catalog entries for all supported functions.
-/// Any new function MUST implement this trait.
+/// BuiltinFunction **MUST** be implemented by all builtin functions, including
+/// new ones. This is used to derive catalog entries for all supported functions.
 pub trait BuiltinFunction: Sync + Send {
     /// The name for this function. This name will be used when looking up
     /// function implementations.
@@ -83,10 +82,13 @@ pub trait ConstBuiltinFunction: Sync + Send {
     const DESCRIPTION: &'static str;
     const EXAMPLE: &'static str;
     const FUNCTION_TYPE: FunctionType;
+    const ALIASES: &'static [&'static str] = &[];
+
     fn signature(&self) -> Option<Signature> {
         None
     }
 }
+
 /// The namespace of a function.
 ///
 /// Optional -> "namespace.function" || "function"
@@ -138,17 +140,25 @@ where
     fn name(&self) -> &str {
         Self::NAME
     }
+
     fn sql_example(&self) -> Option<&str> {
         Some(Self::EXAMPLE)
     }
+
     fn description(&self) -> Option<&str> {
         Some(Self::DESCRIPTION)
     }
+
     fn function_type(&self) -> FunctionType {
         Self::FUNCTION_TYPE
     }
+
     fn signature(&self) -> Option<Signature> {
         self.signature()
+    }
+
+    fn aliases(&self) -> &[&str] {
+        Self::ALIASES
     }
 }
 
@@ -217,6 +227,8 @@ impl FunctionRegistry {
             Arc::new(PartitionResults),
             // OpenAI
             Arc::new(OpenAIEmbed),
+            // Similarity
+            Arc::new(CosineSimilarity),
         ];
         let udfs = udfs
             .into_iter()

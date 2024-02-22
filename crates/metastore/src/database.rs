@@ -935,19 +935,17 @@ impl State {
                             Some(id) => id,
                         };
 
-                        let mut table = match self.entries.remove(&oid)?.unwrap() {
-                            CatalogEntry::Table(ent) => ent,
-                            other => unreachable!("unexpected entry type: {:?}", other),
-                        };
+                        let mut ent = self.entries.remove(&oid)?.unwrap();
 
-                        table.meta.name = new_name;
+                        // The entry must be a "table" or a "view".
+                        assert!(
+                            matches!(ent, CatalogEntry::Table(_) | CatalogEntry::View(_)),
+                            "unexpected entry type: {ent:?}"
+                        );
 
-                        self.try_insert_table_namespace(
-                            CatalogEntry::Table(table.clone()),
-                            schema_id,
-                            table.meta.id,
-                            CreatePolicy::Create,
-                        )?;
+                        ent.get_meta_mut().name = new_name;
+
+                        self.try_insert_table_namespace(ent, schema_id, oid, CreatePolicy::Create)?;
                     }
                     AlterTableOperation::SetAccessMode { access_mode } => {
                         let oid = match objs.tables.get(&alter_table.name) {

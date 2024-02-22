@@ -19,7 +19,8 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use async_recursion::async_recursion;
-use datafusion::common::{DataFusionError, OwnedTableReference, Result};
+use datafusion::common::{DataFusionError, GetExt, OwnedTableReference, Result};
+use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
@@ -247,15 +248,15 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
     Ok(match ext.as_str() {
         "parquet" => OwnedTableReference::Partial {
             schema: "public".into(),
-            table: "parquet_scan".into(),
+            table: "read_parquet".into(),
         },
         "csv" => OwnedTableReference::Partial {
             schema: "public".into(),
-            table: "csv_scan".into(),
+            table: "read_csv".into(),
         },
         "json" | "jsonl" | "ndjson" => OwnedTableReference::Partial {
             schema: "public".into(),
-            table: "ndjson_scan".into(),
+            table: "read_ndjson".into(),
         },
         "bson" => OwnedTableReference::Partial {
             schema: "public".into(),
@@ -266,9 +267,15 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
             table: "read_excel".into(),
         },
         ext => {
-            return Err(DataFusionError::Plan(format!(
-                "unable to infer how to handle file extension: {ext}"
-            )))
+            if let Ok(compression_type) = ext.parse::<FileCompressionType>() {
+                let ext = compression_type.get_ext();
+                let path = path.trim_end_matches(ext.as_str());
+                infer_func_for_file(path)?
+            } else {
+                return Err(DataFusionError::Plan(format!(
+                    "unable to infer how to handle file extension: {ext}"
+                )));
+            }
         }
     })
 }
