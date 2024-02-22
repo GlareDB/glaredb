@@ -687,7 +687,7 @@ impl<'a> SessionPlanner<'a> {
 
                 TableOptions::Local(TableOptionsLocal {
                     location,
-                    file_type: format!("{file_type:?}").to_lowercase(),
+                    file_type: file_type.to_string().to_lowercase(),
                     compression: compression.map(|c| c.to_string()),
                 })
             }
@@ -2085,6 +2085,7 @@ async fn validate_and_get_file_type_and_compression(
             .to_string()
         }
     };
+
     Ok((file_type, compression))
 }
 
