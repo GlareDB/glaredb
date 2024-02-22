@@ -1,0 +1,47 @@
+# Basic tests for external database.
+
+statement ok
+CREATE EXTERNAL DATABASE external_db
+	FROM sqlite
+	OPTIONS (
+		location = '${SQLITE_DB_LOCATION}',
+	);
+
+query I
+SELECT count(*) FROM external_db.default.bikeshare_stations;
+----
+102
+
+# Ensure we can query into the virtual schema.
+
+# Should only return 1 schema (default) since sqlite doesn't have any.
+query T
+SELECT * FROM list_schemas(external_db);
+----
+default
+
+query T
+SELECT table_name
+	FROM list_tables(external_db, default)
+	WHERE table_name = 'bikeshare_stations';
+----
+bikeshare_stations
+
+query TTT rowsort
+SELECT column_name, data_type, nullable
+	FROM list_columns(external_db, default, bikeshare_stations)
+	WHERE data_type = 'Int64';
+----
+city_asset_number	Int64	t
+council_district	Int64	t
+footprint_length	Int64	t
+number_of_docks		Int64	t
+station_id			Int64	t
+
+# Try to query non-existent table.
+statement error no such table
+SELECT * FROM external_db.default.doesnotexist;
+
+statement ok
+DROP DATABASE external_db;
+

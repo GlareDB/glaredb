@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -11,7 +11,7 @@ use datafusion::arrow::datatypes::{
     DECIMAL_DEFAULT_SCALE,
 };
 use datafusion::common::parsers::CompressionTypeVariant;
-use datafusion::common::{FileType, OwnedSchemaReference, OwnedTableReference, ToDFSchema};
+use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
 use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
@@ -27,7 +27,7 @@ use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
-use datasources::lance::scan_lance_table;
+use datasources::lance::LanceTable;
 use datasources::mongodb::{MongoDbAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
@@ -37,6 +37,7 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use datasources::sqlite::SqliteAccess;
 use datasources::sqlserver::SqlServerAccess;
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::azure::AzureConfigKey;
@@ -76,6 +77,7 @@ use protogen::metastore::types::options::{
     DatabaseOptionsPostgres,
     DatabaseOptionsSnowflake,
     DatabaseOptionsSqlServer,
+    DatabaseOptionsSqlite,
     DeltaLakeCatalog,
     DeltaLakeUnityCatalog,
     StorageOptions,
@@ -84,6 +86,7 @@ use protogen::metastore::types::options::{
     TableOptionsCassandra,
     TableOptionsClickhouse,
     TableOptionsDebug,
+    TableOptionsExcel,
     TableOptionsGcs,
     TableOptionsLocal,
     TableOptionsMongoDb,
@@ -93,6 +96,7 @@ use protogen::metastore::types::options::{
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
+    TableOptionsSqlite,
     TunnelOptions,
     TunnelOptionsDebug,
     TunnelOptionsInternal,
@@ -418,6 +422,16 @@ impl<'a> SessionPlanner<'a> {
                     password,
                 })
             }
+            DatabaseOptions::SQLITE => {
+                let location: String = m.remove_required("location")?;
+
+                let access = SqliteAccess {
+                    db: PathBuf::from(&location),
+                };
+                access.validate_access().await?;
+
+                DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location })
+            }
             DatabaseOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
                 DatabaseOptions::Debug(DatabaseOptionsDebug {})
@@ -653,6 +667,17 @@ impl<'a> SessionPlanner<'a> {
                     password,
                 })
             }
+            TableOptions::SQLITE => {
+                let location: String = m.remove_required("location")?;
+                let table: String = m.remove_required("table")?;
+
+                let access = SqliteAccess {
+                    db: PathBuf::from(&location),
+                };
+                access.validate_table_access(&table).await?;
+
+                TableOptions::Sqlite(TableOptionsSqlite { location, table })
+            }
             TableOptions::LOCAL => {
                 let location: String = m.remove_required("location")?;
 
@@ -662,7 +687,7 @@ impl<'a> SessionPlanner<'a> {
 
                 TableOptions::Local(TableOptionsLocal {
                     location,
-                    file_type: format!("{file_type:?}").to_lowercase(),
+                    file_type: file_type.to_string().to_lowercase(),
                     compression: compression.map(|c| c.to_string()),
                 })
             }
@@ -689,7 +714,7 @@ impl<'a> SessionPlanner<'a> {
                     bucket,
                     service_account_key,
                     location,
-                    file_type: file_type.to_string(),
+                    file_type,
                     compression: compression.map(|c| c.to_string()),
                 })
             }
@@ -840,7 +865,7 @@ impl<'a> SessionPlanner<'a> {
                     storage_options_with_credentials(&mut storage_options, creds);
                 }
                 // Validate that the table exists.
-                let _table = scan_lance_table(&location, storage_options.clone()).await?;
+                let _table = LanceTable::new(&location, storage_options.clone()).await?;
                 TableOptions::Lance(TableOptionsObjectStore {
                     location,
                     storage_options,
@@ -868,6 +893,33 @@ impl<'a> SessionPlanner<'a> {
                     file_type: None,
                     compression: None,
                     schema_sample_size,
+                })
+            }
+            TableOptions::EXCEL => {
+                let location: String = m.remove_required("location")?;
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+                let sheet_name = Some(
+                    storage_options
+                        .inner
+                        .get("sheet_name")
+                        .map(|val| val.to_owned())
+                        .unwrap_or(String::from("Sheet1")),
+                );
+                let has_header = storage_options
+                    .inner
+                    .get("has_header")
+                    .map(|val| val.parse::<bool>().unwrap_or(true))
+                    .unwrap();
+                TableOptions::Excel(TableOptionsExcel {
+                    location,
+                    storage_options,
+                    file_type: None,
+                    compression: None,
+                    sheet_name,
+                    has_header,
                 })
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
@@ -1173,17 +1225,14 @@ impl<'a> SessionPlanner<'a> {
                     return Err(PlanError::UnsupportedFeature("view options"));
                 }
 
-                match query.body.as_ref() {
-                    ast::SetExpr::Select(select) => select.projection.len(),
-                    ast::SetExpr::Values(values) => {
-                        values.rows.first().map(|first| first.len()).unwrap_or(0)
-                    }
-                    _ => {
-                        return Err(PlanError::InvalidViewStatement {
-                            msg: "view body must either be a SELECT or VALUES statement",
-                        })
-                    }
-                };
+                if !matches!(
+                    query.body.as_ref(),
+                    ast::SetExpr::Values(_) | ast::SetExpr::Query(_) | ast::SetExpr::Select(_)
+                ) {
+                    return Err(PlanError::InvalidViewStatement {
+                        msg: "view body must either be a SELECT or VALUES statement",
+                    });
+                }
 
                 let query_string = query.to_string();
 
@@ -1981,7 +2030,7 @@ async fn validate_and_get_file_type_and_compression(
     access: Arc<dyn ObjStoreAccess>,
     path: impl AsRef<str>,
     m: &mut StmtOptions,
-) -> Result<(FileType, Option<CompressionTypeVariant>)> {
+) -> Result<(String, Option<CompressionTypeVariant>)> {
     let path = path.as_ref();
     let accessor =
         ObjStoreAccessor::new(access.clone()).map_err(|e| PlanError::InvalidExternalTable {
@@ -2014,21 +2063,26 @@ async fn validate_and_get_file_type_and_compression(
             .and_then(|ext| ext.parse().ok()),
     };
 
-    let file_type = match m.remove_optional::<FileType>("file_type")? {
+    let file_type = match m.remove_optional("file_type")? {
         Some(file_type) => file_type,
         None => {
             let mut ft = None;
             for obj in objects {
                 ft = match file_type_from_path(&obj.location) {
-                    Err(_) => continue,
-                    Ok(file_type) => Some(file_type),
+                    Ok(file_type) => Some(file_type.to_string()),
+                    Err(_) => match obj.location.extension() {
+                        Some("bson") => Some("bson".to_string()),
+                        _ => continue,
+                    },
                 };
             }
+
             ft.ok_or_else(|| PlanError::InvalidExternalTable {
                 source: Box::new(internal!(
                     "unable to resolve file type from the objects, try passing `file_type` option"
                 )),
             })?
+            .to_string()
         }
     };
 

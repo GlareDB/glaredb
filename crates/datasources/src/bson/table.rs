@@ -14,11 +14,10 @@ use crate::bson::errors::BsonError;
 use crate::bson::schema::{merge_schemas, schema_from_document};
 use crate::bson::stream::BsonPartitionStream;
 use crate::common::url::DatasourceUrl;
-use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::ObjStoreAccess;
 
 pub async fn bson_streaming_table(
-    store_access: GenericStoreAccess,
+    store_access: Arc<dyn ObjStoreAccess>,
     schema_inference_sample_size: Option<i64>,
     source_url: DatasourceUrl,
 ) -> Result<Arc<dyn TableProvider>, BsonError> {
@@ -75,7 +74,7 @@ pub async fn bson_streaming_table(
                     // field name against the schema, and only pull out the
                     // fields that match. This is easier in the short term
                     // but less performant for large documents where the
-                    // docuemnts are a superset of the schema, we'll end up
+                    // documents are a superset of the schema, we'll end up
                     // doing much more parsing work than is actually needed
                     // for the bson documents.
                     |bt: Result<BytesMut, std::io::Error>| -> Result<RawDocumentBuf, BsonError> {
@@ -112,7 +111,7 @@ pub async fn bson_streaming_table(
         readers.pop_front();
     }
 
-    // infer the sechema; in the future we can allow users to specify the
+    // infer the schema; in the future we can allow users to specify the
     // schema directly; in the future users could specify the schema (kind
     // of as a base-level projection, but we'd need a schema specification
     // language). Or have some other strategy for inference rather than
