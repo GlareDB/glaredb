@@ -35,7 +35,7 @@ statement error Query vector and target vector must have the same length
 select cosine_similarity([1.0, 2.0, 3.0], [1.0, 2.0, 3.0, 4.0]);
 
 # unsupported datatypes
-statement error  Unsupported data type for cosine_similarity query vector
+statement error  Unsupported data type for cosine_similarity target vector inner type: Int64
 select cosine_similarity([1], [1]);
 
 statement error  Unsupported data type for cosine_similarity target vector
@@ -64,3 +64,21 @@ query I
 select cosine_similarity([1.0, 2.0, 3.0], [-1.1, 1.9, 9999.77727881778846]);
 ----
 0.19814414
+
+# make sure it works with Float32 -> Float64 cast
+statement ok
+select cosine_similarity(arrow_cast([0.001, 0.0], 'FixedSizeList(2, Float32)'), [0.9, -0.1]);
+
+# make sure it works with Float64 -> Float32 cast
+statement ok
+select cosine_similarity([0.9, -0.1], arrow_cast([0.001, 0.0], 'FixedSizeList(2, Float32)'));
+
+
+# make sure it works with Float16 -> Float64 cast
+statement ok
+select cosine_similarity(arrow_cast([0.001, 0.0], 'FixedSizeList(2, Float16)'), [0.9, -0.1]);
+
+
+# make sure it works with Float64 -> Float16 cast
+statement ok
+select cosine_similarity([0.9, -0.1], arrow_cast([0.001, 0.0], 'FixedSizeList(2, Float16)'));

@@ -46,11 +46,15 @@ impl ConstBuiltinFunction for CosineSimilarity {
     }
 }
 
-fn arr_to_query_vec(arr: &dyn Array) -> datafusion::error::Result<Arc<dyn Array>> {
+fn arr_to_query_vec(
+    arr: &dyn Array,
+    to_type: &DataType,
+) -> datafusion::error::Result<Arc<dyn Array>> {
     Ok(match arr.data_type() {
         dtype @ DataType::List(fld) => match fld.data_type() {
             DataType::Float64 | DataType::Float16 | DataType::Float32 => {
-                arr.as_any().downcast_ref::<ListArray>().unwrap().value(0)
+                let arr = arr.as_any().downcast_ref::<ListArray>().unwrap().value(0);
+                arrow_cast::cast(&arr, to_type)?
             }
             _ => {
                 return Err(DataFusionError::Execution(format!(
@@ -60,11 +64,14 @@ fn arr_to_query_vec(arr: &dyn Array) -> datafusion::error::Result<Arc<dyn Array>
             }
         },
         dtype @ DataType::FixedSizeList(fld, _) => match fld.data_type() {
-            DataType::Float64 | DataType::Float16 | DataType::Float32 => arr
-                .as_any()
-                .downcast_ref::<FixedSizeListArray>()
-                .unwrap()
-                .value(0),
+            DataType::Float64 | DataType::Float16 | DataType::Float32 => {
+                let arr = arr
+                    .as_any()
+                    .downcast_ref::<FixedSizeListArray>()
+                    .unwrap()
+                    .value(0);
+                arrow_cast::cast(&arr, to_type)?
+            }
             _ => {
                 return Err(DataFusionError::Execution(format!(
                     "Unsupported data type for cosine_similarity query vector: {:?}",
@@ -148,18 +155,6 @@ impl BuiltinScalarUDF for CosineSimilarity {
         args: Vec<Expr>,
     ) -> datafusion::error::Result<Expr> {
         let scalar_f: ScalarFunctionImplementation = Arc::new(move |args| {
-            let query_vec = match &args[0] {
-                ColumnarValue::Array(arr) => arr_to_query_vec(arr),
-                ColumnarValue::Scalar(ScalarValue::List(arr)) => arr_to_query_vec(arr.as_ref()),
-                ColumnarValue::Scalar(ScalarValue::FixedSizeList(arr)) => {
-                    arr_to_query_vec(arr.as_ref())
-                }
-                _ => {
-                    return Err(DataFusionError::Execution(
-                        "Invalid argument type".to_string(),
-                    ))
-                }
-            }?;
             let target_vec = match &args[1] {
                 ColumnarValue::Array(arr) => arr_to_target_vec(arr),
                 ColumnarValue::Scalar(ScalarValue::List(arr)) => arr_to_target_vec(arr.as_ref()),
@@ -172,6 +167,25 @@ impl BuiltinScalarUDF for CosineSimilarity {
                     ))
                 }
             }?;
+
+            let v0 = target_vec.value(0);
+            let to_type = v0.data_type();
+
+            let query_vec = match &args[0] {
+                ColumnarValue::Array(arr) => arr_to_query_vec(arr, &to_type),
+                ColumnarValue::Scalar(ScalarValue::List(arr)) => {
+                    arr_to_query_vec(arr.as_ref(), &to_type)
+                }
+                ColumnarValue::Scalar(ScalarValue::FixedSizeList(arr)) => {
+                    arr_to_query_vec(arr.as_ref(), &to_type)
+                }
+                _ => {
+                    return Err(DataFusionError::Execution(
+                        "Invalid argument type".to_string(),
+                    ))
+                }
+            }?;
+
 
             let dimension = target_vec.value_length() as usize;
             if query_vec.len() != dimension {
