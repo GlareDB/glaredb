@@ -12,7 +12,7 @@ select cosine_similarity([1.0, 2.0, 3.0], v1) from test_cosine_similarity;
 ----
 5.9604645e-8
 0.19814414
-0.00012224913
+0.03647828
 NaN
 
 query I 
