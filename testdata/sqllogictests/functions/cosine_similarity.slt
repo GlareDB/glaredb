@@ -56,11 +56,11 @@ statement error
 cosine_similarity('abc', 'def')
 
 query I
-select cosine_similarity([-1.0], [1.0]);
+select cosine_similarity([0.001, 0.0], [0.9, -0.1]);
 ----
-2.0
+0.0061163306
 
 query I
 select cosine_similarity([1.0, 2.0, 3.0], [-1.1, 1.9, 9999.77727881778846]);
 ----
-2.0
+0.19814414
