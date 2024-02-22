@@ -241,7 +241,17 @@ impl LocalSession {
                     )
                     .await?
                 }
-                other => println!("{}", other),
+                res @ (ExecutionResult::CopySuccess
+                | ExecutionResult::DeleteSuccess { .. }
+                | ExecutionResult::InsertSuccess { .. }
+                | ExecutionResult::UpdateSuccess { .. }) => {
+                    println!("{}", res);
+                    print_time_elapsed(now);
+                }
+
+                other => {
+                    println!("{}", other);
+                }
             }
         }
         Ok(())
@@ -346,12 +356,15 @@ async fn print_stream(
         OutputMode::Json => write_json::<JsonArrayNewLines>(&batches)?,
         OutputMode::Ndjson => write_json::<JsonLineDelimted>(&batches)?,
     }
-
-    if let Some(now) = maybe_now {
-        println!("Time: {:.3}s", now.elapsed().as_secs_f64())
-    }
+    print_time_elapsed(maybe_now);
 
     Ok(())
+}
+
+pub(crate) fn print_time_elapsed(maybe_now: Option<Instant>) {
+    if let Some(now) = maybe_now {
+        println!("Time: {:.3}s", now.elapsed().as_secs_f64());
+    }
 }
 
 pub(crate) fn is_client_cmd(s: &str) -> bool {
