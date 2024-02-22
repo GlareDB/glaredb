@@ -36,3 +36,12 @@ select count(*) from test;
 
 statement error
 select * from parquet_metadata('s3://testdata/parquet/userdata1.parquet');
+
+
+# zero args
+statement error Invalid number of arguments.
+select * from parquet_metadata();
+
+# too many args
+statement error Invalid number of arguments.
+select * from parquet_metadata('a', 'b');

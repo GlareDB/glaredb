@@ -42,6 +42,10 @@ impl TableFunc for ParquetMetadataFunc {
         args: Vec<FuncParamValue>,
         _opts: HashMap<String, FuncParamValue>,
     ) -> datafusion_ext::errors::Result<Arc<dyn TableProvider>> {
+        if args.len() != 1 {
+            return Err(datafusion_ext::errors::ExtensionError::InvalidNumArgs);
+        }
+
         let filename: DatasourceUrl = match args.first() {
             Some(v) => v.clone().try_into()?,
             _ => return Err(datafusion_ext::errors::ExtensionError::InvalidNumArgs),
