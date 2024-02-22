@@ -1,0 +1,38 @@
+
+statement ok
+create table test as select * from parquet_metadata('./testdata/parquet/userdata1.parquet');
+
+query III
+describe test;
+----
+filename Utf8 t
+row_group_id Int64 t
+row_group_num_rows Int64 t
+row_group_num_columns Int64 t
+row_group_bytes Int64 t
+column_id Int64 t
+file_offset Int64 t
+num_values Int64 t
+path_in_schema Utf8 t
+type Utf8 t
+stats_min Utf8 t
+stats_max Utf8 t
+stats_null_count Int64 t
+stats_distinct_count Int64 t
+stats_min_value Utf8 t
+stats_max_value Utf8 t
+compression Utf8 t
+encodings Utf8 t
+index_page_offset Int64 t
+dictionary_page_offset Int64 t
+data_page_offset Int64 t
+total_compressed_size Int64 t
+total_uncompressed_size Int64 t
+
+query I
+select count(*) from test;
+----
+13
+
+statement error
+select * from parquet_metadata('s3://testdata/parquet/userdata1.parquet');
