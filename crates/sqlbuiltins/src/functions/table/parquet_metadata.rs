@@ -5,7 +5,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use datafusion::arrow::array::{Int64Array, RecordBatch, StringArray};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
-
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result;
 use datafusion::execution::context::SessionState;
@@ -15,14 +14,12 @@ use datafusion::parquet::file::reader::{FileReader, SerializedFileReader};
 use datafusion::parquet::file::statistics::Statistics;
 use datafusion::physical_plan::memory::MemoryExec;
 use datafusion::physical_plan::ExecutionPlan;
-
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::common::url::DatasourceUrl;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
-use crate::functions::ConstBuiltinFunction;
-
 use super::TableFunc;
+use crate::functions::ConstBuiltinFunction;
 
 /// Modified implementation from datafusion-cli https://github.com/GlareDB/arrow-datafusion/blob/777235199414c7e83ffd5f5008fd2de8139a83d7/datafusion-cli/src/functions.rs#L296
 /// It's slightly adapted to work with our codebase
@@ -61,7 +58,7 @@ impl TableFunc for ParquetMetadataFunc {
 
         let file = File::open(filename.clone())?;
         let reader = SerializedFileReader::new(file)
-            .map_err(|e| datafusion_ext::errors::ExtensionError::access(e))?;
+            .map_err(datafusion_ext::errors::ExtensionError::access)?;
         let metadata = reader.metadata();
 
         let schema = Arc::new(Schema::new(vec![
