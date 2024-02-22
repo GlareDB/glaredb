@@ -18,16 +18,6 @@ use crate::document;
 use crate::errors::BuiltinError;
 use crate::functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction};
 
-pub struct FfiPlugin;
-impl ConstBuiltinFunction for FfiPlugin {
-    const NAME: &'static str = "ffi_plugin";
-
-    const DESCRIPTION: &'static str = "";
-
-    const EXAMPLE: &'static str = "";
-
-    const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-}
 
 pub struct ConnectionId;
 
