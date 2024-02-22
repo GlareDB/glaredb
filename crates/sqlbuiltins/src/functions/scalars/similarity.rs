@@ -121,7 +121,7 @@ fn arr_to_target_vec(arr: &dyn Array) -> datafusion::error::Result<Cow<FixedSize
                 let to_type = Arc::new(Field::new("item", DataType::Float64, false));
 
                 let target_vec = cast_list_to_fixed_size_list(
-                    &to_cast,
+                    to_cast,
                     &to_type,
                     fsl_len as i32,
                     &Default::default(),
@@ -172,12 +172,12 @@ impl BuiltinScalarUDF for CosineSimilarity {
             let to_type = v0.data_type();
 
             let query_vec = match &args[0] {
-                ColumnarValue::Array(arr) => arr_to_query_vec(arr, &to_type),
+                ColumnarValue::Array(arr) => arr_to_query_vec(arr, to_type),
                 ColumnarValue::Scalar(ScalarValue::List(arr)) => {
-                    arr_to_query_vec(arr.as_ref(), &to_type)
+                    arr_to_query_vec(arr.as_ref(), to_type)
                 }
                 ColumnarValue::Scalar(ScalarValue::FixedSizeList(arr)) => {
-                    arr_to_query_vec(arr.as_ref(), &to_type)
+                    arr_to_query_vec(arr.as_ref(), to_type)
                 }
                 _ => {
                     return Err(DataFusionError::Execution(
