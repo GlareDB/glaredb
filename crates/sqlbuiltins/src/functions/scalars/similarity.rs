@@ -209,7 +209,9 @@ impl BuiltinScalarUDF for CosineSimilarity {
     }
 }
 
-// modified/copied from arrow_cast
+/// modified/copied from arrow_cast
+/// https://github.com/apache/arrow-rs/blob/865a9d3fe81587ad85e9b4c9577948701f7cb3d9/arrow-cast/src/cast.rs#L3229
+/// modified to return FixedSizeListArray instead of ArrayRef
 fn cast_list_to_fixed_size_list<OffsetSize>(
     array: &GenericListArray<OffsetSize>,
     field: &FieldRef,
@@ -282,6 +284,11 @@ where
 
 
 // modified copy from arrow_cast
+
+/// modified/copied from arrow_cast
+/// https://github.com/apache/arrow-rs/blob/865a9d3fe81587ad85e9b4c9577948701f7cb3d9/arrow-cast/src/cast.rs#L3229
+/// modified to take in FixedSizeListArray instead of GenericListArray
+/// and return FixedSizeListArray instead of ArrayRef
 fn cast_fsl_inner(
     array: &FixedSizeListArray,
     field: &FieldRef,
