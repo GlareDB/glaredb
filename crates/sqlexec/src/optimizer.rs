@@ -149,12 +149,12 @@ mod test {
             .unwrap(),
         );
 
-        let plan = DFLogicalPlan::Limit(Limit {
+
+        DFLogicalPlan::Limit(Limit {
             skip: 0,
             fetch: Some(1),
             input: Arc::new(plan.clone()),
-        });
-        plan
+        })
     }
 
     #[test]
