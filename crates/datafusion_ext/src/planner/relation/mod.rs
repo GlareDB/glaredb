@@ -250,10 +250,6 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
             schema: "public".into(),
             table: "read_parquet".into(),
         },
-        "xlsx" => OwnedTableReference::Partial {
-            schema: "public".into(),
-            table: "read_excel".into(),
-        },
         "csv" => OwnedTableReference::Partial {
             schema: "public".into(),
             table: "read_csv".into(),
@@ -265,6 +261,10 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
         "bson" => OwnedTableReference::Partial {
             schema: "public".into(),
             table: "read_bson".into(),
+        },
+        "xlsx" => OwnedTableReference::Partial {
+            schema: "public".into(),
+            table: "read_excel".into(),
         },
         ext => {
             if let Ok(compression_type) = ext.parse::<FileCompressionType>() {
