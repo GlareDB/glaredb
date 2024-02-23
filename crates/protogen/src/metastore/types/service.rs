@@ -336,7 +336,7 @@ impl TryFrom<CreateFunction> for service::CreateFunction {
         Ok(service::CreateFunction {
             name: value.name,
             aliases: value.aliases,
-            signature: Some(value.signature.try_into()?),
+            signature: Some(value.signature.into()),
             r#type: value.function_type as i32,
         })
     }
