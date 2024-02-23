@@ -194,6 +194,7 @@ impl<'a> Dispatcher<'a> {
             return ExternalDispatcher::new(
                 self.catalog,
                 self.df_ctx,
+                self.function_registry,
                 self.disable_local_fs_access,
             )
             .dispatch_external_table(tbl)
@@ -224,9 +225,14 @@ impl<'a> Dispatcher<'a> {
     ) -> Result<Arc<dyn TableProvider>> {
         let schema = schema.as_ref();
         let name = name.as_ref();
-        ExternalDispatcher::new(self.catalog, self.df_ctx, self.disable_local_fs_access)
-            .dispatch_external(&db_ent.meta.name, schema, name)
-            .await
+        ExternalDispatcher::new(
+            self.catalog,
+            self.df_ctx,
+            self.function_registry,
+            self.disable_local_fs_access,
+        )
+        .dispatch_external(&db_ent.meta.name, schema, name)
+        .await
     }
 
     pub async fn dispatch_table_function(
