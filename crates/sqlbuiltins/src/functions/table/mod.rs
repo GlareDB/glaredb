@@ -12,6 +12,7 @@ mod lance;
 mod mongodb;
 mod mysql;
 mod object_store;
+mod parquet_metadata;
 mod postgres;
 mod snowflake;
 mod sqlite;
@@ -48,6 +49,7 @@ use self::lance::LanceScan;
 use self::mongodb::ReadMongoDb;
 use self::mysql::ReadMysql;
 use self::object_store::{CloudUpload, READ_CSV, READ_JSON, READ_PARQUET};
+use self::parquet_metadata::ParquetMetadataFunc;
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
 use self::sqlite::ReadSqlite;
@@ -119,6 +121,8 @@ impl BuiltinTableFuncs {
             Arc::new(GenerateSeries),
             // System operations
             Arc::new(CacheExternalDatabaseTables),
+            // Metadata functions
+            Arc::new(ParquetMetadataFunc),
         ];
 
         let funcs: AliasMap<String, Arc<dyn TableFunc>> = funcs
