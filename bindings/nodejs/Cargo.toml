@@ -38,4 +38,4 @@ serde_json.workspace = true
 lzma-sys = { version = "*", features = ["static"] }
 
 [build-dependencies]
-napi-build = "2.1.0"
+napi-build = "2.1.2"
