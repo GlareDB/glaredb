@@ -4,8 +4,11 @@ use std::sync::Arc;
 
 use catalog::mutator::CatalogMutator;
 use catalog::session_catalog::SessionCatalog;
+use datafusion::common::not_impl_err;
 use datafusion::datasource::TableProvider;
+use datafusion::error::DataFusionError;
 use datafusion::execution::context::{SessionConfig, SessionContext as DfSessionContext};
+use datafusion::execution::FunctionRegistry as DFRegistry;
 use datafusion::physical_plan::{execute_stream, ExecutionPlan, SendableRecordBatchStream};
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_ext::vars::SessionVars;
@@ -13,6 +16,7 @@ use datasources::native::access::NativeTableStorage;
 use distexec::scheduler::Scheduler;
 use protogen::metastore::types::catalog::{CatalogEntry, CatalogState};
 use protogen::rpcsrv::types::service::ResolvedTableReference;
+use sqlbuiltins::functions::FunctionRegistry;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -42,6 +46,7 @@ pub struct RemoteSessionContext {
     df_ctx: DfSessionContext,
     /// Cached table providers.
     provider_cache: ProviderCache,
+    functions: FunctionRegistry,
 }
 
 impl RemoteSessionContext {
@@ -78,6 +83,7 @@ impl RemoteSessionContext {
             tables: native_tables,
             df_ctx,
             provider_cache: ProviderCache::default(),
+            functions: FunctionRegistry::default(),
         })
     }
 
@@ -194,5 +200,42 @@ impl RemoteSessionContext {
         self.provider_cache.put(id, prov.clone());
 
         Ok((id, prov))
+    }
+}
+
+impl DFRegistry for RemoteSessionContext {
+    fn udfs(&self) -> std::collections::HashSet<String> {
+        self.functions
+            .scalar_udfs_iter()
+            .map(|k| k.name().to_string())
+            .collect()
+    }
+
+    fn udf(
+        &self,
+        name: &str,
+    ) -> datafusion::error::Result<Arc<datafusion::logical_expr::ScalarUDF>> {
+        self.functions
+            .get_scalar_udf(name)
+            .map(|f| f.try_into_scalar_udf())
+            .transpose()?
+            .map(Arc::new)
+            .ok_or_else(|| {
+                datafusion::error::DataFusionError::Plan(format!("UDF not found: {name}").into())
+            })
+    }
+
+    fn udaf(
+        &self,
+        _name: &str,
+    ) -> datafusion::error::Result<Arc<datafusion::logical_expr::AggregateUDF>> {
+        not_impl_err!("aggregate functions")
+    }
+
+    fn udwf(
+        &self,
+        _name: &str,
+    ) -> datafusion::error::Result<Arc<datafusion::logical_expr::WindowUDF>> {
+        not_impl_err!("window functions")
     }
 }

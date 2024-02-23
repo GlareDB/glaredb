@@ -1,12 +1,19 @@
 //! Builtin functions.
 mod aggregates;
 mod alias_map;
-mod scalars;
+pub mod scalars;
 pub mod table;
 
 use std::sync::Arc;
 
-use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
+use datafusion::common::not_impl_err;
+use datafusion::logical_expr::{
+    AggregateFunction,
+    BuiltinScalarFunction,
+    Expr,
+    ScalarUDF,
+    Signature,
+};
 use once_cell::sync::Lazy;
 use protogen::metastore::types::catalog::FunctionType;
 use scalars::df_scalars::ArrowCastFunction;
@@ -131,6 +138,11 @@ pub trait BuiltinScalarUDF: BuiltinFunction {
     fn namespace(&self) -> FunctionNamespace {
         FunctionNamespace::None
     }
+
+    fn try_into_scalar_udf(self: Arc<Self>) -> datafusion::error::Result<ScalarUDF> {
+        use datafusion::error::DataFusionError;
+        not_impl_err!("try_into_scalar_udf")
+    }
 }
 
 impl<T> BuiltinFunction for T
@@ -228,7 +240,7 @@ impl FunctionRegistry {
             // OpenAI
             Arc::new(OpenAIEmbed),
             // Similarity
-            Arc::new(CosineSimilarity),
+            Arc::new(CosineSimilarity::new()),
         ];
         let udfs = udfs
             .into_iter()
@@ -348,6 +360,16 @@ impl FunctionRegistry {
             return func.sql_example();
         }
         None
+    }
+
+    pub fn register_udf(&mut self, udf: Arc<dyn BuiltinScalarUDF>) {
+        let aliases = udf
+            .aliases()
+            .iter()
+            .map(|s| s.to_string())
+            .chain(std::iter::once(udf.name().to_string()))
+            .collect::<Vec<_>>();
+        self.udfs.insert_aliases(aliases, udf);
     }
 }
 

@@ -1033,6 +1033,31 @@ impl State {
                 // Update the new storage size
                 self.deployment.storage_size = update_deployment_storage.new_storage_size;
             }
+            Mutation::CreateFunction(f) => {
+                let schema_id = self.get_schema_id(DEFAULT_SCHEMA)?;
+
+                let oid = self.get_or_next_oid(schema_id, &f.name);
+                let ent = FunctionEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Function,
+                        id: oid,
+                        parent: schema_id,
+                        name: f.name.clone(),
+                        builtin: false,
+                        external: true,
+                        is_temp: false,
+                    },
+                    func_type: f.function_type,
+                    signature: Some(f.signature),
+                    user_defined: true,
+                };
+                self.entries.insert(oid, CatalogEntry::Function(ent))?;
+                self.schema_objects
+                    .entry(schema_id)
+                    .or_default()
+                    .functions
+                    .insert(f.name, oid);
+            }
         };
 
         Ok(())
@@ -1364,6 +1389,7 @@ impl BuiltinCatalog {
                     meta,
                     func_type: func.function_type(),
                     signature: func.signature(),
+                    user_defined: false,
                 })
             }
         }
