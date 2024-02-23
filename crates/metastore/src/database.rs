@@ -38,7 +38,7 @@ use sqlbuiltins::builtins::{
     FIRST_NON_STATIC_OID,
     SCHEMA_DEFAULT,
 };
-use sqlbuiltins::functions::{BuiltinFunction, FUNCTION_REGISTRY};
+use sqlbuiltins::functions::{BuiltinFunction, DEFAULT_BUILTIN_FUNCTIONS};
 use sqlbuiltins::validation::{
     validate_database_tunnel_support,
     validate_object_name,
@@ -1312,17 +1312,17 @@ impl BuiltinCatalog {
         let table_func_ents = Self::builtin_function_to_entries(
             &mut oid_gen,
             schema_id,
-            FUNCTION_REGISTRY.table_funcs_iter(),
+            DEFAULT_BUILTIN_FUNCTIONS.table_funcs_iter(),
         );
         let scalar_func_ents = Self::builtin_function_to_entries(
             &mut oid_gen,
             schema_id,
-            FUNCTION_REGISTRY.scalar_funcs_iter(),
+            DEFAULT_BUILTIN_FUNCTIONS.scalar_funcs_iter(),
         );
         let scalar_udf_ents = Self::builtin_function_to_entries(
             &mut oid_gen,
             schema_id,
-            FUNCTION_REGISTRY.scalar_udfs_iter(),
+            DEFAULT_BUILTIN_FUNCTIONS.scalar_udfs_iter(),
         );
 
         for func_ent in table_func_ents

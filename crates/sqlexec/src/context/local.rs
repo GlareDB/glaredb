@@ -200,7 +200,7 @@ impl LocalSessionContext {
                 panic!("UDF {} does not have a signature", name);
             }
         };
-        let function_type = udf.function_type().clone();
+        let function_type = udf.function_type();
 
         let catalog_version = self.catalog.version();
         let mutations = vec![Mutation::CreateFunction(CreateFunction {

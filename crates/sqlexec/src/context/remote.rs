@@ -162,7 +162,7 @@ impl RemoteSessionContext {
 
         // Since this is operating on a remote node, always disable local fs
         // access.
-        let dispatcher = ExternalDispatcher::new(&catalog, &self.df_ctx, true);
+        let dispatcher = ExternalDispatcher::new(&catalog, &self.df_ctx, &self.functions, true);
 
         let prov: Arc<dyn TableProvider> = match table_ref {
             ResolvedTableReference::Internal { table_oid } => match catalog.get_by_oid(table_oid) {
@@ -221,7 +221,7 @@ impl DFRegistry for RemoteSessionContext {
             .transpose()?
             .map(Arc::new)
             .ok_or_else(|| {
-                datafusion::error::DataFusionError::Plan(format!("UDF not found: {name}").into())
+                datafusion::error::DataFusionError::Plan(format!("UDF not found: {name}"))
             })
     }
 

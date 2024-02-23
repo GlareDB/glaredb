@@ -28,6 +28,12 @@ pub struct CosineSimilarity {
     signature: Signature,
 }
 
+impl Default for CosineSimilarity {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CosineSimilarity {
     pub fn new() -> Self {
         Self {

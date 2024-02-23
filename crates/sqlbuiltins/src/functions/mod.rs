@@ -43,8 +43,9 @@ use self::alias_map::AliasMap;
 use crate::functions::scalars::openai::OpenAIEmbed;
 use crate::functions::scalars::similarity::CosineSimilarity;
 
-/// FUNCTION_REGISTRY provides all implementations of [`BuiltinFunction`]
-pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
+/// `DEFAULT_BUILTIN_FUNCTIONS` provides all implementations of [`BuiltinFunction`]
+/// These are functions that are globally available to all sessions.
+pub static DEFAULT_BUILTIN_FUNCTIONS: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
 
 /// BuiltinFunction **MUST** be implemented by all builtin functions, including
 /// new ones. This is used to derive catalog entries for all supported functions.
