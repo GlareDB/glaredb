@@ -2,6 +2,7 @@ use crate::keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS, RESERVED_FOR_TABLE_ALI
 use crate::parser::Parser;
 use crate::tokens::Token;
 use rayexec_error::{RayexecError, Result};
+use std::borrow::Cow;
 use std::fmt;
 use std::hash::Hash;
 
@@ -15,7 +16,7 @@ pub trait AstParseable<'a>: Sized {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Ident<'a> {
-    pub value: &'a str,
+    pub value: Cow<'a, str>,
 }
 
 impl<'a> AstParseable<'a> for Ident<'a> {
@@ -30,7 +31,9 @@ impl<'a> AstParseable<'a> for Ident<'a> {
         };
 
         match tok {
-            Token::Word(w) => Ok(Ident { value: w.value }),
+            Token::Word(w) => Ok(Ident {
+                value: w.value.into(),
+            }),
             other => Err(RayexecError::new(format!(
                 "Unexpected token: {other:?}. Expected an identifier.",
             ))),
@@ -47,6 +50,15 @@ impl<'a> fmt::Display for Ident<'a> {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ObjectReference<'a>(pub Vec<Ident<'a>>);
 
+impl<'a> ObjectReference<'a> {
+    pub fn base(&self) -> Result<Ident<'a>> {
+        match self.0.last() {
+            Some(ident) => Ok(ident.clone()),
+            None => Err(RayexecError::new("Empty object reference")),
+        }
+    }
+}
+
 impl<'a> AstParseable<'a> for ObjectReference<'a> {
     fn parse(parser: &mut Parser<'a>) -> Result<Self> {
         let mut idents = Vec::new();
@@ -56,7 +68,9 @@ impl<'a> AstParseable<'a> for ObjectReference<'a> {
                 None => break,
             };
             let ident = match &tok.token {
-                Token::Word(w) => Ident { value: w.value },
+                Token::Word(w) => Ident {
+                    value: w.value.into(),
+                },
                 other => {
                     return Err(RayexecError::new(format!(
                         "Unexpected token: {other:?}. Expected an object reference.",
@@ -167,11 +181,15 @@ impl<'a> Expr<'a> {
                     Keyword::TRUE => Expr::Literal(Literal::Boolean(true)),
                     Keyword::FALSE => Expr::Literal(Literal::Boolean(false)),
                     Keyword::NULL => Expr::Literal(Literal::Null),
-                    _ => Expr::Ident(Ident { value: w.value }),
+                    _ => Expr::Ident(Ident {
+                        value: w.value.into(),
+                    }),
                 },
                 None => {
                     // TODO: Extend, compound idents.
-                    Expr::Ident(Ident { value: w.value })
+                    Expr::Ident(Ident {
+                        value: w.value.into(),
+                    })
                 }
             },
             Token::SingleQuotedString(s) => Expr::Literal(Literal::SingleQuotedString(s)),
@@ -381,8 +399,10 @@ impl<'a> AstParseable<'a> for WildcardExpr<'a> {
         // `table.*` or `'table'.*`
         if matches!(tok, Token::Word(_) | Token::SingleQuotedString(_)) {
             let ident = match tok {
-                Token::Word(w) => Ident { value: w.value },
-                Token::SingleQuotedString(s) => Ident { value: s },
+                Token::Word(w) => Ident {
+                    value: w.value.into(),
+                },
+                Token::SingleQuotedString(s) => Ident { value: (*s).into() },
                 _ => unreachable!("token variants previously matched on"),
             };
 
@@ -399,8 +419,10 @@ impl<'a> AstParseable<'a> for WildcardExpr<'a> {
                         };
 
                     match next {
-                        Token::Word(w) => idents.push(Ident { value: w.value }),
-                        Token::SingleQuotedString(s) => idents.push(Ident { value: s }),
+                        Token::Word(w) => idents.push(Ident {
+                            value: w.value.into(),
+                        }),
+                        Token::SingleQuotedString(s) => idents.push(Ident { value: (*s).into() }),
                         Token::Mul => {
                             return Ok(WildcardExpr::QualifiedWildcard(ObjectReference(idents)))
                         }
@@ -579,7 +601,7 @@ pub struct SelectNode<'a> {
     /// A FROM clause including joins.
     ///
     /// `FROM <table|function|subquery> [, | <join> <select-node>]
-    pub from: TableList<'a>,
+    pub from: Vec<FromItem<'a>>,
     /// WHERE
     pub where_expr: Option<Expr<'a>>,
     /// Group by expression.
@@ -607,9 +629,9 @@ impl<'a> AstParseable<'a> for SelectNode<'a> {
 
         // FROM
         let from = if parser.parse_keyword(Keyword::FROM) {
-            TableList::parse(parser)?
+            FromList::parse(parser)?
         } else {
-            TableList::empty()
+            FromList::empty()
         };
 
         // WHERE
@@ -657,17 +679,18 @@ impl<'a> AstParseable<'a> for SelectNode<'a> {
             None
         };
 
-        Ok(SelectNode {
-            modifier,
-            projections,
-            from,
-            where_expr,
-            group_by,
-            having,
-            order_by,
-            limit,
-            offset,
-        })
+        unimplemented!()
+        // Ok(SelectNode {
+        //     modifier,
+        //     projections,
+        //     from,
+        //     where_expr,
+        //     group_by,
+        //     having,
+        //     order_by,
+        //     limit,
+        //     offset,
+        // })
     }
 }
 
@@ -778,11 +801,38 @@ pub struct ReplaceColumn<'a> {
     pub expr: Expr<'a>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FromItem<'a> {
+    /// A base table.
+    Table {
+        name: ObjectReference<'a>,
+        alias: Option<Ident<'a>>,
+        column_aliases: Option<Vec<Ident<'a>>>,
+    },
+    /// A table function with arguments.
+    TableFunc {
+        name: ObjectReference<'a>,
+        args: Vec<FunctionArg<'a>>,
+        alias: Option<Ident<'a>>,
+        column_aliases: Option<Vec<Ident<'a>>>,
+    },
+    /// Subquery
+    Subquery {
+        select: Box<SelectNode<'a>>,
+        alias: Option<Ident<'a>>,
+        column_aliases: Option<Vec<Ident<'a>>>,
+    },
+    /// Join
+    Join {
+        // TODO:
+    },
+}
+
 /// A list of tables with their joins.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct TableList<'a>(pub Vec<TableWithJoins<'a>>);
+pub struct FromList<'a>(pub Vec<TableWithJoins<'a>>);
 
-impl<'a> TableList<'a> {
+impl<'a> FromList<'a> {
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -792,10 +842,10 @@ impl<'a> TableList<'a> {
     }
 }
 
-impl<'a> AstParseable<'a> for TableList<'a> {
+impl<'a> AstParseable<'a> for FromList<'a> {
     fn parse(parser: &mut Parser<'a>) -> Result<Self> {
         let tables = parser.parse_comma_separated(TableWithJoins::parse)?;
-        Ok(TableList(tables))
+        Ok(FromList(tables))
     }
 }
 

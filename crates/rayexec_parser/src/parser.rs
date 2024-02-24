@@ -160,18 +160,22 @@ impl<'a> Parser<'a> {
 
         let ident: Option<Ident> = match tok {
             // Allow any alias if `AS` was explicitly provided.
-            Token::Word(w) if has_as => Some(Ident { value: w.value }),
+            Token::Word(w) if has_as => Some(Ident {
+                value: w.value.into(),
+            }),
 
             // If `AS` wasn't provided, allow the next word to be used as the
             // alias if it's not a reserved word. Otherwise assume it's not an
             // alias.
             Token::Word(w) => match &w.keyword {
                 Some(kw) if reserved.binary_search(kw).is_ok() => None,
-                _ => Some(Ident { value: w.value }),
+                _ => Some(Ident {
+                    value: w.value.into(),
+                }),
             },
 
             // Allow any singly quoted string.
-            Token::SingleQuotedString(s) => Some(Ident { value: s }),
+            Token::SingleQuotedString(s) => Some(Ident { value: (*s).into() }),
 
             _ => {
                 if has_as {

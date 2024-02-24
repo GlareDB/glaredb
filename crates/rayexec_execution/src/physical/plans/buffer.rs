@@ -5,6 +5,8 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
+use crate::types::batch::DataBatch;
+
 use super::{Sink, Source};
 
 #[derive(Debug)]
@@ -34,7 +36,7 @@ impl Source for BatchBuffer {
         &self,
         cx: &mut Context<'_>,
         partition: usize,
-    ) -> Poll<Option<Result<RecordBatch>>> {
+    ) -> Poll<Option<Result<DataBatch>>> {
         let mut buffer = self.buffers.get(partition).unwrap().lock();
 
         // Always check if we have stuff in the buffer first before checking if
@@ -54,7 +56,7 @@ impl Source for BatchBuffer {
 }
 
 impl Sink for BatchBuffer {
-    fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()> {
+    fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
         if child != 0 {
             return Err(RayexecError::new(format!(
                 "non-zero child, push, batch buffer: {child}"
@@ -92,5 +94,5 @@ struct PartitionBuffer {
     finished: bool,
     waker: Option<Waker>,
     // TODO: Bounded, will require push to be a "future".
-    batches: VecDeque<RecordBatch>,
+    batches: VecDeque<DataBatch>,
 }

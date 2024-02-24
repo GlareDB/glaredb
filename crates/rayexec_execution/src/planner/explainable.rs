@@ -24,21 +24,21 @@ impl ExplainEntry {
     }
 
     /// Put a value in the explain entry.
-    pub fn with_value(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+    pub fn with_value(mut self, key: impl Into<String>, value: impl fmt::Display) -> Self {
         let key = key.into();
-        let val = ExplainValue::Value(value.into());
+        let val = ExplainValue::Value(value.to_string());
         self.items.insert(key, val);
         self
     }
 
     /// Put a list of values in the explain entry.
-    pub fn with_values<S: Into<String>>(
+    pub fn with_values<S: fmt::Display>(
         mut self,
         key: impl Into<String>,
         values: impl IntoIterator<Item = S>,
     ) -> Self {
         let key = key.into();
-        let vals = ExplainValue::Values(values.into_iter().map(|s| s.into()).collect());
+        let vals = ExplainValue::Values(values.into_iter().map(|s| s.to_string()).collect());
         self.items.insert(key, vals);
         self
     }
@@ -85,7 +85,7 @@ pub struct ExplainConfig {
 /// Trait for explaining nodes in a query tree.
 pub trait Explainable {
     /// Create an ExplainEntry for this node.
-    fn explain_entry(conf: ExplainConfig) -> ExplainEntry;
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry;
 }
 
 #[cfg(test)]

@@ -7,7 +7,9 @@ use std::fmt;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use super::{logical::LogicalExpr, PhysicalExpr};
+use crate::types::batch::{DataBatch, DataBatchSchema};
+
+use super::{Expression, PhysicalExpr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinaryOperator {
@@ -76,11 +78,11 @@ impl fmt::Display for BinaryOperator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct BinaryExpr<'a> {
-    pub left: Box<LogicalExpr<'a>>,
+#[derive(Debug)]
+pub struct BinaryExpr {
+    pub left: Box<Expression>,
     pub op: BinaryOperator,
-    pub right: Box<LogicalExpr<'a>>,
+    pub right: Box<Expression>,
 }
 
 #[derive(Debug)]
@@ -118,7 +120,7 @@ impl fmt::Display for PhysicalBinaryExpr {
 }
 
 impl PhysicalExpr for PhysicalBinaryExpr {
-    fn data_type(&self, input: &Schema) -> Result<DataType> {
+    fn data_type(&self, input: &DataBatchSchema) -> Result<DataType> {
         match self.op {
             BinaryOperator::Eq
             | BinaryOperator::NotEq
@@ -158,11 +160,11 @@ impl PhysicalExpr for PhysicalBinaryExpr {
         }
     }
 
-    fn nullable(&self, input: &Schema) -> Result<bool> {
+    fn nullable(&self, input: &DataBatchSchema) -> Result<bool> {
         Ok(self.left.nullable(input)? || self.right.nullable(input)?)
     }
 
-    fn eval(&self, batch: &RecordBatch) -> Result<ArrayRef> {
+    fn eval(&self, batch: &DataBatch) -> Result<ArrayRef> {
         let left = self.left.eval(batch)?;
         let right = self.right.eval(batch)?;
         let arr = self

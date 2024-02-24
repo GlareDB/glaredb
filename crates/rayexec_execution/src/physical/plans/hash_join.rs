@@ -1,7 +1,8 @@
 use crate::expr::PhysicalExpr;
 use crate::hash::build_hashes;
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::logical::JoinType;
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::planner::operator::JoinType;
+use crate::types::batch::{DataBatch, DataBatchSchema};
 use arrow_array::cast::AsArray;
 use arrow_array::{ArrayRef, BooleanArray, RecordBatch, UInt32Array, UInt64Array};
 use arrow_schema::{Field, Schema};
@@ -16,15 +17,15 @@ use std::task::{Context, Poll};
 use super::{buffer::BatchBuffer, Sink, Source};
 
 #[derive(Debug)]
-pub struct HashJoin {
-    schema: Arc<Schema>,
+pub struct PhysicalHashJoin {
+    schema: DataBatchSchema,
     join_type: JoinType,
     // (left, right) indices pairs.
     join_on: Vec<(usize, usize)>,
     buffer: BatchBuffer,
 }
 
-impl Source for HashJoin {
+impl Source for PhysicalHashJoin {
     fn output_partitions(&self) -> usize {
         self.buffer.output_partitions()
     }
@@ -33,13 +34,13 @@ impl Source for HashJoin {
         &self,
         cx: &mut Context<'_>,
         partition: usize,
-    ) -> Poll<Option<Result<RecordBatch>>> {
+    ) -> Poll<Option<Result<DataBatch>>> {
         self.buffer.poll_partition(cx, partition)
     }
 }
 
-impl Sink for HashJoin {
-    fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()> {
+impl Sink for PhysicalHashJoin {
+    fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
         unimplemented!()
     }
 
@@ -48,8 +49,8 @@ impl Sink for HashJoin {
     }
 }
 
-impl Explainable for HashJoin {
-    fn explain_entry(_conf: ExplainConfig) -> ExplainEntry {
+impl Explainable for PhysicalHashJoin {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("HashJoin")
     }
 }

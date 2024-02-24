@@ -1,6 +1,6 @@
 use crate::expr::PhysicalExpr;
 use crate::hash::build_hashes;
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use arrow_array::cast::AsArray;
 use arrow_array::{ArrayRef, BooleanArray, RecordBatch, UInt32Array, UInt64Array};
 use arrow_schema::{Field, Schema};
@@ -14,10 +14,10 @@ use std::task::{Context, Poll};
 use super::{buffer::BatchBuffer, Sink, Source};
 
 /// Aggregates with grouping.
-pub struct HashAggregate {}
+pub struct PhysicalHashAggregate {}
 
-impl Explainable for HashAggregate {
-    fn explain_entry(_conf: ExplainConfig) -> ExplainEntry {
+impl Explainable for PhysicalHashAggregate {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("HashAggregate")
     }
 }

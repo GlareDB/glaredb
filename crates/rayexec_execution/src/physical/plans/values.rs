@@ -1,6 +1,8 @@
 use crate::expr::PhysicalExpr;
 use crate::hash::build_hashes;
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::physical::PhysicalOperator;
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::types::batch::{DataBatch, DataBatchSchema};
 use arrow_array::cast::AsArray;
 use arrow_array::{ArrayRef, BooleanArray, RecordBatch, UInt32Array, UInt64Array};
 use arrow_schema::{Field, Schema};
@@ -15,12 +17,11 @@ use std::task::{Context, Poll};
 use super::{buffer::BatchBuffer, Sink, Source};
 
 #[derive(Debug)]
-pub struct Values {
-    schema: Arc<Schema>,
-    partitions: Vec<Mutex<Option<RecordBatch>>>,
+pub struct PhysicalValues {
+    partitions: Vec<Mutex<Option<DataBatch>>>,
 }
 
-impl Source for Values {
+impl Source for PhysicalValues {
     fn output_partitions(&self) -> usize {
         self.partitions.len()
     }
@@ -29,7 +30,7 @@ impl Source for Values {
         &self,
         _cx: &mut Context<'_>,
         partition: usize,
-    ) -> Poll<Option<Result<RecordBatch>>> {
+    ) -> Poll<Option<Result<DataBatch>>> {
         let mut partition = self.partitions[partition].lock();
         match partition.take() {
             Some(batch) => Poll::Ready(Some(Ok(batch))),
@@ -38,8 +39,20 @@ impl Source for Values {
     }
 }
 
-impl Explainable for Values {
-    fn explain_entry(_conf: ExplainConfig) -> ExplainEntry {
+impl Sink for PhysicalValues {
+    fn push(&self, _input: DataBatch, _child: usize, _partition: usize) -> Result<()> {
+        Err(RayexecError::new("Cannot push to values"))
+    }
+
+    fn finish(&self, _child: usize, _partition: usize) -> Result<()> {
+        Err(RayexecError::new("Cannot finish values"))
+    }
+}
+
+impl PhysicalOperator for PhysicalValues {}
+
+impl Explainable for PhysicalValues {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Values")
     }
 }

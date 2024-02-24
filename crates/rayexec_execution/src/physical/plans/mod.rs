@@ -11,10 +11,11 @@ pub mod values;
 #[cfg(test)]
 mod test_util;
 
-use arrow_array::RecordBatch;
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::{Context, Poll};
+
+use crate::types::batch::DataBatch;
 
 pub trait Source: Sync + Send + Debug {
     /// Return the number of partitions this source outputs.
@@ -25,7 +26,7 @@ pub trait Source: Sync + Send + Debug {
         &self,
         cx: &mut Context<'_>,
         partition: usize,
-    ) -> Poll<Option<Result<RecordBatch>>>;
+    ) -> Poll<Option<Result<DataBatch>>>;
 }
 
 pub trait Sink: Sync + Send + Debug {
@@ -34,7 +35,7 @@ pub trait Sink: Sync + Send + Debug {
     /// Child indicates which of the children of the pipeline are pushing to the
     /// sink. Most sinks accept only a single child, but sinks like hash join
     /// accept two children (0 -> left, 1 -> right).
-    fn push(&self, input: RecordBatch, child: usize, partition: usize) -> Result<()>;
+    fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()>;
 
     /// Mark the partition as finished for the specific child.
     fn finish(&self, child: usize, partition: usize) -> Result<()>;

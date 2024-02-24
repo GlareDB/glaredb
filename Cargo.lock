@@ -1038,6 +1038,7 @@ dependencies = [
  "arrow-ipc",
  "arrow-ord",
  "arrow-schema",
+ "arrow-select",
  "chrono",
  "futures",
  "hashbrown",

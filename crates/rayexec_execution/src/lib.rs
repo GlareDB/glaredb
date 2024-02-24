@@ -1,5 +1,8 @@
+pub mod engine;
 pub mod expr;
+pub mod functions;
 pub mod hash;
-pub mod logical;
+pub mod optimizer;
 pub mod physical;
-pub mod sql;
+pub mod planner;
+pub mod types;

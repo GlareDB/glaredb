@@ -1,6 +1,7 @@
 use rayexec_error::{RayexecError, Result};
 use rayon::ThreadPool;
 use std::{
+    fmt,
     sync::Arc,
     task::{Context, Poll, Wake, Waker},
 };
@@ -12,6 +13,14 @@ pub struct Scheduler {
     sync_pool: Arc<ThreadPool>,
     // TODO: At some point including an "io thread pool" (tokio) for async io
     // stuff if needed.
+}
+
+impl fmt::Debug for Scheduler {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Scheduler")
+            .field("num_threads", &self.sync_pool.current_num_threads())
+            .finish_non_exhaustive()
+    }
 }
 
 impl Scheduler {
