@@ -58,7 +58,8 @@ from `sqlparser-rs` that doesn't benefit us.
 ### Optimizer
 
 - Only logical plan optimizations.
-- No physical planning. Stuff like join selection should happen during planning.
+- No physical plan optimizations. Stuff like join selection should happen during
+  planning.
 
 ### Data scans
 
