@@ -45,7 +45,6 @@ pub struct ComputeServerBuilder {
     pg_listener: Option<TcpListener>,
     /// Listener to use for rpc handler.
     rpc_listener: Option<TcpListener>,
-    metastore_addr: Option<String>,
     segment_key: Option<String>,
     authenticator: Option<Box<dyn LocalAuthenticator>>,
     data_dir: Option<PathBuf>,
@@ -57,6 +56,8 @@ pub struct ComputeServerBuilder {
     disable_rpc_auth: bool,
     enable_simple_query_rpc: bool,
     enable_flight_api: bool,
+    metastore_service_account_path: Option<String>,
+    metastore_local_file_path: Option<PathBuf>,
 }
 
 impl ComputeServerBuilder {
@@ -64,7 +65,6 @@ impl ComputeServerBuilder {
         ComputeServerBuilder {
             pg_listener: None,
             rpc_listener: None,
-            metastore_addr: None,
             segment_key: None,
             authenticator: None,
             data_dir: None,
@@ -103,16 +103,6 @@ impl ComputeServerBuilder {
         self.rpc_listener = rpc_listener;
         self
     }
-    /// Add a metastore address to use for connecting to a remote metastore.
-    pub fn with_metastore_addr(mut self, metastore_addr: String) -> Self {
-        self.metastore_addr = Some(metastore_addr);
-        self
-    }
-    /// Optionally add a metastore address to use for connecting to a remote metastore.
-    pub fn with_metastore_addr_opt(mut self, metastore_addr: Option<String>) -> Self {
-        self.metastore_addr = metastore_addr;
-        self
-    }
     pub fn with_segment_key(mut self, segment_key: String) -> Self {
         self.segment_key = Some(segment_key);
         self
@@ -141,7 +131,6 @@ impl ComputeServerBuilder {
         self.location = Some(location);
         self
     }
-
     pub fn with_location_opt(mut self, location: Option<String>) -> Self {
         self.location = location;
         self
@@ -151,14 +140,38 @@ impl ComputeServerBuilder {
         self.storage_options = storage_options;
         self
     }
+
     pub fn with_spill_path(mut self, spill_path: PathBuf) -> Self {
         self.spill_path = Some(spill_path);
         self
     }
+
     pub fn with_spill_path_opt(mut self, spill_path: Option<PathBuf>) -> Self {
         self.spill_path = spill_path;
         self
     }
+
+    pub fn with_metastore_local_file_path(mut self, path: PathBuf) -> Self {
+        self.metastore_local_file_path = Some(path);
+        self
+    }
+
+    pub fn with_metastore_local_file_path_opt(mut self, path: Option<PathBuf>) -> Self {
+        self.metastore_local_file_path = path;
+        self
+    }
+
+    pub fn with_metastore_service_account_path(mut self, path: String) -> Self {
+        self.metastore_service_account_path = Some(path);
+        self
+    }
+
+    pub fn with_metastore_service_account_path_opt(mut self, path: Option<String>) -> Self {
+        self.metastore_service_account_path = path;
+        self
+    }
+
+
     pub fn integration_testing_mode(mut self, integration_testing: bool) -> Self {
         self.integration_testing = integration_testing;
         self
@@ -178,7 +191,6 @@ impl ComputeServerBuilder {
 
     pub async fn connect(self) -> Result<ComputeServer> {
         let ComputeServerBuilder {
-            metastore_addr,
             segment_key,
             authenticator,
             data_dir,
@@ -192,6 +204,8 @@ impl ComputeServerBuilder {
             pg_listener,
             rpc_listener,
             enable_flight_api,
+            metastore_local_file_path,
+            metastore_service_account_path,
         } = self;
 
         // Invalid state if we have a pg_listener but no authenticator.
@@ -221,7 +235,6 @@ impl ComputeServerBuilder {
             location,
             storage_options,
             tracker,
-            metastore_addr,
             data_dir,
             service_account_path,
             spill_path,
@@ -263,7 +276,6 @@ async fn create_engine_from_opts(
     location: Option<String>,
     storage_options: HashMap<String, String>,
     tracker: Tracker,
-    metastore_addr: Option<String>,
     data_dir: Option<PathBuf>,
     service_account_path: Option<String>,
     spill_path: Option<PathBuf>,
@@ -275,18 +287,6 @@ async fn create_engine_from_opts(
                 .await?;
         Arc::new(engine.with_tracker(Arc::new(tracker)))
     } else {
-        // Connect to metastore.
-        let mode = match (metastore_addr, &data_dir) {
-            (Some(_), Some(_)) => {
-                return Err(anyhow!(
-                    "Only one of metastore address or metastore path may be provided."
-                ))
-            }
-            (Some(addr), None) => MetastoreClientMode::Remote { addr },
-            _ => MetastoreClientMode::new_local(data_dir.clone()),
-        };
-        let metastore_client = mode.into_client().await?;
-
         // TODO: There's going to need to more validation needed to ensure we're
         // using a metastore that makes sense. E.g. using a remote metastore and
         // in-memory table storage would cause inconsistency.

@@ -247,45 +247,6 @@ impl RunCommand for RpcProxyArgs {
     }
 }
 
-impl RunCommand for MetastoreArgs {
-    fn run(self) -> Result<()> {
-        let Self {
-            bind,
-            bucket,
-            service_account_path,
-            local_file_path,
-        } = self;
-        let conf = match (bucket, service_account_path, local_file_path) {
-            (Some(bucket), Some(service_account_path), None) => {
-                let service_account_key = std::fs::read_to_string(service_account_path)?;
-                StorageConfig::Gcs {
-                    bucket: Some(bucket),
-                    service_account_key,
-                }
-            }
-            (None, None, Some(p)) => {
-                ensure_dir(&p)?;
-                StorageConfig::Local { path: p }
-            }
-            (None, None, None) => StorageConfig::Memory,
-            _ => {
-                return Err(anyhow!(
-                    "Invalid arguments, 'service-account-path' and 'bucket' must both be provided."
-                ))
-            }
-        };
-        let addr: SocketAddr = bind.parse()?;
-        let runtime = build_runtime("metastore")?;
-
-        info!(?conf, "starting Metastore with object store config");
-
-        runtime.block_on(async move {
-            let store = conf.new_object_store()?;
-            let metastore = Metastore::new(store)?;
-            metastore.serve(addr).await
-        })
-    }
-}
 
 impl RunCommand for SltArgs {
     fn run(self) -> Result<()> {
