@@ -4,7 +4,7 @@ glaredb_dbt_test:
       dbname: default
       host: 127.0.0.1
       pass: ""
-      port: 5432
+      port: 5436
       schema: public
       threads: 1
       type: postgres
