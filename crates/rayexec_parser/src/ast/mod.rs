@@ -8,6 +8,8 @@ pub mod modifiers;
 pub use modifiers::*;
 pub mod select;
 pub use select::*;
+pub mod explain;
+pub use explain::*;
 
 use crate::parser::Parser;
 use crate::tokens::Token;

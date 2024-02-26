@@ -18,8 +18,6 @@ pub fn main() -> Result<()> {
         std::process::abort();
     }));
 
-    return Ok(());
-
     let mut paths = Vec::new();
     find_files(Path::new(SLTS_PATH), &mut paths)?;
 

@@ -1,6 +1,6 @@
 use crate::ast::{Expr, ObjectReference, QueryNode};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement<'a> {
     Query(QueryNode<'a>),
 
