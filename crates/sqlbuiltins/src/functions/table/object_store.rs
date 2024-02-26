@@ -633,7 +633,7 @@ impl TableFunc for CloudUpload {
         if !ctx.get_session_vars().is_cloud_instance() {
             return Err(ExtensionError::String(
                 format!(
-                    "access unavailable, {} is not supported in local environments",
+                    "{} is only available when connected to GlareDB Cloud",
                     self.name(),
                 )
                 .to_string(),
@@ -649,7 +649,7 @@ impl TableFunc for CloudUpload {
             .ok_or_else(|| {
                 ExtensionError::String(
                     format!(
-                        "access unavailable, {} is not supported in local environments",
+                        "{} is only available when connected to GlareDB Cloud",
                         self.name(),
                     )
                     .to_string(),
