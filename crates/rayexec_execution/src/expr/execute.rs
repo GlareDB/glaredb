@@ -6,7 +6,7 @@ use crate::types::batch::{DataBatch, DataBatchSchema};
 
 use super::Expression;
 
-/// Execute scalar expressions on input batches.
+/// Execute a single scalar expression on input batches.
 // TODO: This should hold a reference to query params for prepared queries. This
 // would allow us to cache the physical plans for a prepared query, and
 // dynamically insert the parameters during execution.
@@ -39,6 +39,37 @@ impl ScalarExecutor {
 
     /// Evaluate the expression on a selection of the input batch.
     pub fn eval_selection(&self, input: &DataBatch, selection: &BooleanArray) -> Result<ArrayRef> {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug)]
+pub struct MultiScalarExecutor {
+    exprs: Vec<Expression>,
+}
+
+impl MultiScalarExecutor {
+    pub fn try_new(exprs: Vec<Expression>) -> Result<Self> {
+        Ok(MultiScalarExecutor { exprs })
+    }
+
+    pub fn expressions(&self) -> &[Expression] {
+        &self.exprs
+    }
+
+    pub fn data_types(&self, input: &DataBatchSchema) -> Result<Vec<DataType>> {
+        unimplemented!()
+    }
+
+    pub fn eval(&self, input: &DataBatch) -> Result<Vec<ArrayRef>> {
+        unimplemented!()
+    }
+
+    pub fn eval_selection(
+        &self,
+        input: &DataBatch,
+        selection: &BooleanArray,
+    ) -> Result<Vec<ArrayRef>> {
         unimplemented!()
     }
 }

@@ -1,4 +1,5 @@
-use crate::expr::PhysicalExpr;
+use crate::expr::execute::MultiScalarExecutor;
+use crate::expr::{Expression, PhysicalExpr};
 use crate::hash::build_hashes;
 use crate::physical::PhysicalOperator;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -18,21 +19,28 @@ use super::{buffer::BatchBuffer, Sink, Source};
 
 #[derive(Debug)]
 pub struct PhysicalValues {
-    partitions: Vec<Mutex<Option<DataBatch>>>,
+    batch: Mutex<Option<DataBatch>>,
+}
+
+impl PhysicalValues {
+    pub fn new(batch: DataBatch) -> Self {
+        PhysicalValues {
+            batch: Mutex::new(Some(batch)),
+        }
+    }
 }
 
 impl Source for PhysicalValues {
     fn output_partitions(&self) -> usize {
-        self.partitions.len()
+        1
     }
 
     fn poll_partition(
         &self,
         _cx: &mut Context<'_>,
-        partition: usize,
+        _partition: usize,
     ) -> Poll<Option<Result<DataBatch>>> {
-        let mut partition = self.partitions[partition].lock();
-        match partition.take() {
+        match self.batch.lock().take() {
             Some(batch) => Poll::Ready(Some(Ok(batch))),
             None => Poll::Ready(None),
         }

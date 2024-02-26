@@ -3,15 +3,16 @@ use super::{
     Destination, LinkedOperator, PhysicalOperator, Pipeline,
 };
 use crate::{
-    expr::{Expression, PhysicalExpr},
+    expr::{execute::MultiScalarExecutor, Expression, PhysicalExpr},
     functions::table::Pushdown,
-    physical::plans::filter::PhysicalFilter,
+    physical::plans::{filter::PhysicalFilter, values::PhysicalValues},
     planner::{
         bind_context::BindContext,
         operator::{self, LogicalOperator},
     },
-    types::batch::DataBatchSchema,
+    types::batch::{DataBatch, DataBatchSchema},
 };
+use arrow_array::{Array, ArrayRef};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
@@ -29,7 +30,7 @@ impl PhysicalPlanner {
         &self,
         plan: LogicalOperator,
         context: &BindContext,
-        dest: Arc<dyn Sink>,
+        dest: Box<dyn Sink>,
     ) -> Result<Pipeline> {
         let mut builder = PipelineBuilder::new(dest, context);
         builder.walk_plan(plan, Destination::PipelineOutput)?;
@@ -48,7 +49,7 @@ struct PipelineBuilder<'a> {
 impl<'a> PipelineBuilder<'a> {
     /// Create a new builder for a pipeline that outputs the final result to
     /// `dest`.
-    fn new(dest: Arc<dyn Sink>, context: &'a BindContext) -> Self {
+    fn new(dest: Box<dyn Sink>, context: &'a BindContext) -> Self {
         let pipeline = Pipeline::new_empty(dest);
         PipelineBuilder { pipeline, context }
     }
@@ -60,6 +61,7 @@ impl<'a> PipelineBuilder<'a> {
             LogicalOperator::Projection(proj) => self.plan_projection(proj, output),
             LogicalOperator::Filter(filter) => self.plan_filter(filter, output),
             LogicalOperator::Scan(scan) => self.plan_scan(scan, output),
+            LogicalOperator::Values(values) => self.plan_values(values, output),
             _ => unimplemented!(),
         }
     }
@@ -114,6 +116,51 @@ impl<'a> PipelineBuilder<'a> {
         let operator = table.create_operator(scan.projection.unwrap().clone(), Pushdown::default());
         let linked = LinkedOperator {
             operator,
+            dest: output,
+        };
+
+        self.pipeline.operators.push(linked);
+
+        Ok(())
+    }
+
+    fn plan_values(&mut self, values: operator::Values, output: Destination) -> Result<()> {
+        let mut row_arrs: Vec<Vec<ArrayRef>> = Vec::new(); // Row oriented.
+
+        let dummy_batch = DataBatch::empty_with_num_rows(1);
+
+        // Convert expressions into arrays of one element each.
+        for row_exprs in values.rows {
+            let executor = MultiScalarExecutor::try_new(row_exprs)?;
+            let arrs = executor.eval(&dummy_batch)?;
+            row_arrs.push(arrs);
+        }
+
+        let num_cols = row_arrs.first().map(|row| row.len()).unwrap_or(0);
+        let mut col_arrs = Vec::with_capacity(num_cols); // Column oriented.
+
+        // Convert the row-oriented vector into a column oriented one.
+        for _ in 0..num_cols {
+            let cols: Vec<_> = row_arrs.iter_mut().map(|row| row.pop().unwrap()).collect();
+            col_arrs.push(cols);
+        }
+
+        // Reverse since we worked from right to left when converting to
+        // column-oriented.
+        col_arrs.reverse();
+
+        // Concat column values into a single array.
+        let mut cols = Vec::with_capacity(col_arrs.len());
+        for arrs in col_arrs {
+            let refs: Vec<&dyn Array> = arrs.iter().map(|a| a.as_ref()).collect();
+            let col = arrow::compute::concat(&refs)?;
+            cols.push(col);
+        }
+
+        let batch = DataBatch::try_new(cols)?;
+        let operator = PhysicalValues::new(batch);
+        let linked = LinkedOperator {
+            operator: Arc::new(operator),
             dest: output,
         };
 

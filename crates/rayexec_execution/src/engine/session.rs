@@ -4,12 +4,14 @@ use rayexec_parser::{ast, parser};
 use std::sync::Arc;
 
 use crate::{
-    engine::materialize::MaterializedBatches,
     functions::table::{self, TableFunction},
     optimizer::Optimizer,
     physical::{planner::PhysicalPlanner, scheduler::Scheduler, Pipeline},
     planner::planner::{Planner, Resolver},
+    types::batch::DataBatchSchema,
 };
+
+use super::materialize::MaterializedBatchStream;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DebugResolver;
@@ -38,6 +40,12 @@ impl Resolver for DebugResolver {
 }
 
 #[derive(Debug)]
+pub struct ExecutionResult {
+    pub output_schema: DataBatchSchema,
+    pub stream: MaterializedBatchStream,
+}
+
+#[derive(Debug)]
 pub struct Session {
     scheduler: Scheduler,
 }
@@ -47,7 +55,7 @@ impl Session {
         Session { scheduler }
     }
 
-    pub fn execute(&self, sql: &str) -> Result<Arc<MaterializedBatches>> {
+    pub fn execute(&self, sql: &str) -> Result<ExecutionResult> {
         let stmts = parser::parse(sql)?;
         if stmts.len() != 1 {
             return Err(RayexecError::new("Expected one statement")); // TODO, allow any number
@@ -60,13 +68,17 @@ impl Session {
         let optimizer = Optimizer::new();
         let logical = optimizer.optimize(&context, logical)?;
 
-        let dest = Arc::new(MaterializedBatches::new());
+        let mut output_stream = MaterializedBatchStream::new();
 
         let physical_planner = PhysicalPlanner::new();
-        let pipeline = physical_planner.create_plan(logical, &context, dest.clone())?;
+        let pipeline =
+            physical_planner.create_plan(logical, &context, output_stream.take_sink()?)?;
 
         self.scheduler.execute(pipeline)?;
 
-        Ok(dest)
+        Ok(ExecutionResult {
+            output_schema: DataBatchSchema::new(Vec::new()), // TODO
+            stream: output_stream,
+        })
     }
 }

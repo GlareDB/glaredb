@@ -11,7 +11,7 @@ pub struct RayexecError {
     pub msg: String,
 
     /// Source of the error.
-    pub source: Option<Box<dyn Error>>,
+    pub source: Option<Box<dyn Error + Send + Sync>>,
 
     /// Captured backtrace for the error.
     ///
@@ -28,7 +28,7 @@ impl RayexecError {
         }
     }
 
-    pub fn with_source(msg: impl Into<String>, source: Box<dyn Error>) -> Self {
+    pub fn with_source(msg: impl Into<String>, source: Box<dyn Error + Send + Sync>) -> Self {
         RayexecError {
             msg: msg.into(),
             source: Some(source),
@@ -60,7 +60,7 @@ impl fmt::Display for RayexecError {
 
 impl Error for RayexecError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.source.as_ref().map(|e| e.as_ref())
+        self.source.as_ref().map(|e| e.as_ref() as _)
     }
 }
 
@@ -69,7 +69,7 @@ pub trait ResultExt<T, E> {
     fn context(self: Self, msg: &'static str) -> Result<T>;
 }
 
-impl<T, E: Error + 'static> ResultExt<T, E> for std::result::Result<T, E> {
+impl<T, E: Error + Send + Sync + 'static> ResultExt<T, E> for std::result::Result<T, E> {
     fn context(self: Self, msg: &'static str) -> Result<T> {
         match self {
             Ok(v) => Ok(v),

@@ -14,6 +14,7 @@ pub enum LogicalOperator {
     CrossJoin(CrossJoin),
     Limit(Limit),
     Scan(Scan),
+    Values(Values),
     Empty(Empty),
 }
 
@@ -76,6 +77,12 @@ pub struct Scan {
     pub projection: Option<Vec<usize>>,
     pub input: BindIdx,
     // TODO: Pushdowns
+}
+
+#[derive(Debug)]
+pub struct Values {
+    pub rows: Vec<Vec<Expression>>,
+    // TODO: Table index.
 }
 
 #[derive(Debug)]

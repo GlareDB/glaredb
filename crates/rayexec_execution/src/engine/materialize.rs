@@ -4,18 +4,30 @@ use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
 use crate::{physical::plans::Sink, types::batch::DataBatch};
 
-/// Implements a physical Sink for getting the materialized batches for a query.
+/// Stream for materialized batches for a query.
 #[derive(Debug)]
-pub struct MaterializedBatches {
-    inner: Mutex<MaterializedBatchesInner>,
+pub struct MaterializedBatchStream {
+    state: Arc<Mutex<MaterializedBatchesState>>,
+    sink: Option<MaterializedBatchSink>,
+}
+
+impl MaterializedBatchStream {
+    /// Take the configured sink for the stream. Cannot be taken more than once.
+    pub(crate) fn take_sink(&mut self) -> Result<Box<dyn Sink>> {
+        match self.sink.take() {
+            Some(sink) => Ok(Box::new(sink)),
+            None => Err(RayexecError::new("Attempted to take sink more than once")),
+        }
+    }
 }
 
 #[derive(Debug)]
-struct MaterializedBatchesInner {
+struct MaterializedBatchesState {
     /// The materialized batches.
     batches: VecDeque<DataBatch>,
     /// Pending waker for the async stream implementation.
@@ -24,19 +36,31 @@ struct MaterializedBatchesInner {
     finished: bool,
 }
 
-impl MaterializedBatches {
+impl MaterializedBatchStream {
     pub fn new() -> Self {
-        MaterializedBatches {
-            inner: Mutex::new(MaterializedBatchesInner {
-                batches: VecDeque::new(),
-                waker: None,
-                finished: false,
-            }),
+        let state = Arc::new(Mutex::new(MaterializedBatchesState {
+            batches: VecDeque::new(),
+            waker: None,
+            finished: false,
+        }));
+
+        let sink = MaterializedBatchSink {
+            state: state.clone(),
+        };
+
+        MaterializedBatchStream {
+            state,
+            sink: Some(sink),
         }
     }
 }
 
-impl Sink for MaterializedBatches {
+#[derive(Debug)]
+struct MaterializedBatchSink {
+    state: Arc<Mutex<MaterializedBatchesState>>,
+}
+
+impl Sink for MaterializedBatchSink {
     fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
         if child != 0 {
             return Err(RayexecError::new(format!("non-zero child")));
@@ -45,7 +69,7 @@ impl Sink for MaterializedBatches {
             return Err(RayexecError::new(format!("non-zero partition")));
         }
 
-        let mut inner = self.inner.lock();
+        let mut inner = self.state.lock();
         inner.batches.push_back(input);
         if let Some(waker) = inner.waker.take() {
             waker.wake();
@@ -61,7 +85,7 @@ impl Sink for MaterializedBatches {
             return Err(RayexecError::new(format!("non-zero partition")));
         }
 
-        let mut inner = self.inner.lock();
+        let mut inner = self.state.lock();
         inner.finished = true;
         if let Some(waker) = inner.waker.take() {
             waker.wake();
@@ -70,11 +94,11 @@ impl Sink for MaterializedBatches {
     }
 }
 
-impl Stream for MaterializedBatches {
+impl Stream for MaterializedBatchStream {
     type Item = DataBatch;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut inner = self.inner.lock();
+        let mut inner = self.state.lock();
 
         match inner.batches.pop_front() {
             Some(batch) => Poll::Ready(Some(batch)),

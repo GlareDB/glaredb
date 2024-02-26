@@ -1,0 +1,6 @@
+# Simple test cases just to get things going.
+
+query I
+select 1;
+----
+1

@@ -1,8 +1,8 @@
-use crate::ast::{Expr, ObjectReference, Query};
+use crate::ast::{Expr, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone)]
 pub enum Statement<'a> {
-    Query(Query<'a>),
+    Query(QueryNode<'a>),
 
     /// CREATE SCHEMA ...
     CreateSchema {

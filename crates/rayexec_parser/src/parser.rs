@@ -1,5 +1,5 @@
 use crate::{
-    ast::{AstParseable, Expr, Ident, Literal, ObjectReference, Query, SelectModifer, SelectNode},
+    ast::{AstParseable, Expr, Ident, Literal, ObjectReference, QueryNode},
     keywords::{self, Keyword, RESERVED_FOR_COLUMN_ALIAS, RESERVED_FOR_TABLE_ALIAS},
     statement::Statement,
     tokens::{Token, TokenWithLocation, Tokenizer, Word},
@@ -78,7 +78,7 @@ impl<'a> Parser<'a> {
                     Keyword::CREATE => self.parse_create(),
                     Keyword::SET => self.parse_set(),
                     Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
-                        Ok(Statement::Query(Query::parse(self)?))
+                        Ok(Statement::Query(QueryNode::parse(self)?))
                     }
                     other => {
                         return Err(RayexecError::new(format!("Unexpected keyword: {other:?}",)))
@@ -149,8 +149,6 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse an optional alias.
-    ///
-    /// `reserved` must be sorted.
     pub(crate) fn parse_alias(&mut self, reserved: &[Keyword]) -> Result<Option<Ident<'a>>> {
         let has_as = self.parse_keyword(Keyword::AS);
         let tok = match self.peek() {
@@ -168,7 +166,14 @@ impl<'a> Parser<'a> {
             // alias if it's not a reserved word. Otherwise assume it's not an
             // alias.
             Token::Word(w) => match &w.keyword {
-                Some(kw) if reserved.binary_search(kw).is_ok() => None,
+                Some(kw)
+                    if reserved
+                        .iter()
+                        .position(|reserved| reserved == kw)
+                        .is_some() =>
+                {
+                    None
+                }
                 _ => Some(Ident {
                     value: w.value.into(),
                 }),

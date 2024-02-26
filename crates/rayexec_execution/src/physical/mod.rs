@@ -13,7 +13,7 @@ pub trait PhysicalOperator: Source + Sink {}
 #[derive(Debug)]
 pub struct Pipeline {
     /// Destination for all resulting record batches.
-    pub destination: Arc<dyn Sink>,
+    pub destination: Box<dyn Sink>,
 
     /// Linked operators for the pipeline.
     // TODO: This also includes data sources (stuff we're not pushing to).
@@ -23,7 +23,7 @@ pub struct Pipeline {
 
 impl Pipeline {
     /// Create a new pipeline with no operators.
-    pub fn new_empty(destination: Arc<dyn Sink>) -> Self {
+    pub fn new_empty(destination: Box<dyn Sink>) -> Self {
         Pipeline {
             destination,
             operators: Vec::new(),

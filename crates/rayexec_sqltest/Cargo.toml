@@ -1,0 +1,20 @@
+[package]
+name = "rayexec_sqltest"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rayexec_error = { path = '../rayexec_error' }
+rayexec_execution = { path = '../rayexec_execution' }
+sqllogictest = "0.19.1"
+arrow = { workspace = true }
+env_logger = "0.11.2"
+log = "0.4.20"
+futures = { workspace = true, features = ["executor"] }
+
+[[test]]
+harness = false
+name = "rayexec_sqltest"
+path = "bin/rayexec_sqltest.rs"
