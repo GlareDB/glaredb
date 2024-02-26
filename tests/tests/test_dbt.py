@@ -108,11 +108,3 @@ def test_dbt_glaredb_external_postgres(
         result: list = curr.fetchone()[0]
 
     assert result == 5
-
-
-@pytest.fixture
-def test_fixture(a, b):
-    return a+b
-
-def test_my_fixture(test_fixture):
-    1 ==1
