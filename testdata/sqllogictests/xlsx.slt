@@ -57,3 +57,37 @@ select "HEADING" from read_excel('file://${PWD}/testdata/xlsx/multiple_sheets.xl
 # negatives are not allowed for infer_rows
 statement error
 select * from read_excel('file://${PWD}/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', infer_rows => -1);
+
+
+# create external table
+statement ok
+create external table multi_report from excel options(location='./testdata/xlsx/multiple_sheets.xlsx', file_type = 'xlsx', sheet_name = 'other', has_header = false);
+
+statement ok
+create external table basic_report from excel options(location='./testdata/xlsx/userdata1.xlsx', has_header='false');
+
+statement ok
+create external table basic_report_two from excel options(location='./testdata/xlsx/userdata1.xlsx', has_header='true');
+
+query
+select count(*) from basic_report;
+----
+1001
+
+query
+select count(*) from basic_report_two;
+----
+1000
+
+query
+select "HEADING" from multi_report;
+----
+1
+2
+3
+
+statement ok
+drop table basic_report;
+
+statement error
+create external table bad_report from excel options(location='./invalid_path/random.abc');
