@@ -4,7 +4,9 @@ use std::sync::Arc;
 use std::{env, fs};
 
 use anyhow::{anyhow, Result};
-use metastore::util::MetastoreClientMode;
+use ioutil::ensure_dir;
+use metastore::local::start_inprocess;
+use object_store_util::conf::StorageConfig;
 use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
@@ -56,6 +58,7 @@ pub struct ComputeServerBuilder {
     disable_rpc_auth: bool,
     enable_simple_query_rpc: bool,
     enable_flight_api: bool,
+    metastore_bucket: Option<String>,
     metastore_service_account_path: Option<String>,
     metastore_local_file_path: Option<PathBuf>,
 }
@@ -76,6 +79,9 @@ impl ComputeServerBuilder {
             disable_rpc_auth: false,
             enable_simple_query_rpc: false,
             enable_flight_api: false,
+            metastore_local_file_path: None,
+            metastore_service_account_path: None,
+            metastore_bucket: None,
         }
     }
     /// Set the authenticator to use for the pg handler.
@@ -151,6 +157,18 @@ impl ComputeServerBuilder {
         self
     }
 
+
+    pub fn with_metastore_bucket(mut self, name: String) -> Self {
+        self.metastore_bucket = Some(name);
+        self
+    }
+
+    pub fn with_metastore_bucket_opt(mut self, bucket: Option<String>) -> Self {
+        self.metastore_bucket = bucket;
+        self
+    }
+
+
     pub fn with_metastore_local_file_path(mut self, path: PathBuf) -> Self {
         self.metastore_local_file_path = Some(path);
         self
@@ -190,26 +208,8 @@ impl ComputeServerBuilder {
     }
 
     pub async fn connect(self) -> Result<ComputeServer> {
-        let ComputeServerBuilder {
-            segment_key,
-            authenticator,
-            data_dir,
-            service_account_path,
-            location,
-            storage_options,
-            spill_path,
-            integration_testing,
-            disable_rpc_auth,
-            enable_simple_query_rpc,
-            pg_listener,
-            rpc_listener,
-            enable_flight_api,
-            metastore_local_file_path,
-            metastore_service_account_path,
-        } = self;
-
         // Invalid state if we have a pg_listener but no authenticator.
-        if pg_listener.is_some() && authenticator.is_none() {
+        if self.pg_listener.is_some() && self.authenticator.is_none() {
             return Err(anyhow!("pg_listener provided but no authenticator"));
         }
 
@@ -219,7 +219,7 @@ impl ComputeServerBuilder {
         debug!(?env_tmp, "ensuring temp dir");
         fs::create_dir_all(&env_tmp)?;
 
-        let tracker = match segment_key {
+        let tracker = match self.segment_key.clone() {
             Some(key) => {
                 debug!("initializing segment telemetry tracker");
                 SegmentTracker::new(key).into()
@@ -231,24 +231,16 @@ impl ComputeServerBuilder {
         };
 
         // Create the `Engine` instance
-        let engine = create_engine_from_opts(
-            location,
-            storage_options,
-            tracker,
-            data_dir,
-            service_account_path,
-            spill_path,
-        )
-        .await?;
+        let engine = self.create_engine_from_opts(tracker).await?;
 
-        let pg_config = if let Some(listener) = pg_listener {
+        let pg_config = if let Some(listener) = self.pg_listener {
             let handler_conf = ProtocolHandlerConfig {
-                authenticator: authenticator.unwrap(),
+                authenticator: self.authenticator.unwrap(),
                 // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I
                 // want to hold off on doing that until we have a shared config
                 // between the proxy and GlareDB.
                 ssl_conf: None,
-                integration_testing,
+                integration_testing: self.integration_testing,
             };
             let pg_handler = Arc::new(ProtocolHandler::new(engine.clone(), handler_conf));
             Some(PostgresProtocolConfig {
@@ -261,64 +253,93 @@ impl ComputeServerBuilder {
         };
 
         Ok(ComputeServer {
-            integration_testing,
-            disable_rpc_auth,
-            enable_simple_query_rpc,
-            enable_flight_api,
+            integration_testing: self.integration_testing,
+            disable_rpc_auth: self.disable_rpc_auth,
+            enable_simple_query_rpc: self.enable_simple_query_rpc,
+            enable_flight_api: self.enable_flight_api,
             pg_config,
             engine,
-            rpc_listener,
+            rpc_listener: self.rpc_listener,
         })
+    }
+
+    async fn create_engine_from_opts(
+        &self,
+        tracker: Tracker,
+    ) -> Result<Arc<Engine>, anyhow::Error> {
+        let engine = if let Some(location) = self.location.clone() {
+            // TODO: try to consolidate with --data-dir and --metastore-addr options
+            let engine = Engine::from_storage_options(
+                &location,
+                &HashMap::from_iter(self.storage_options.clone()),
+            )
+            .await?;
+            Arc::new(engine.with_tracker(Arc::new(tracker)))
+        } else {
+            // TODO: There's going to need to more validation needed to ensure we're
+            // using a metastore that makes sense. E.g. using a remote metastore and
+            // in-memory table storage would cause inconsistency.
+            //
+            // We don't want to end up in a situation where a metastore thinks a
+            // table exists but it really doesn't (or the other way around).
+            let storage_conf = match (self.data_dir.clone(), self.service_account_path.clone()) {
+                (None, Some(path)) => EngineStorageConfig::try_from_options(
+                    "gs://",
+                    HashMap::from_iter([("service_account_path".to_string(), path)]),
+                )?,
+                (Some(dir), None) => EngineStorageConfig::try_from_path_buf(&dir)?,
+                (None, None) => {
+                    EngineStorageConfig::try_from_options("memory://", Default::default())?
+                }
+                (Some(_), Some(_)) => {
+                    return Err(anyhow!(
+                        "Data directory and service account both provided. Expected at most one."
+                    ))
+                }
+            };
+
+            let metastore_storage_conf = match (
+                self.metastore_bucket.clone(),
+                self.metastore_service_account_path.clone(),
+                self.metastore_local_file_path.clone(),
+            ) {
+                (Some(bucket), Some(service_account_path), None) => {
+                    let service_account_key = std::fs::read_to_string(service_account_path)?;
+                    StorageConfig::Gcs {
+                        bucket: Some(bucket),
+                        service_account_key,
+                    }
+                }
+                (None, None, Some(p)) => {
+                    ensure_dir(&p)?;
+                    StorageConfig::Local { path: p }
+                }
+                (None, None, None) => StorageConfig::Memory,
+                _ => {
+                    return Err(anyhow!(
+                    "Invalid arguments, 'metastore-service-account-path' and 'metastore-bucket' must both be provided."
+                ))
+                }
+            };
+
+
+            let metastore_client =
+                start_inprocess(metastore_storage_conf.new_object_store()?).await?;
+
+            Arc::new(
+                Engine::new(
+                    metastore_client,
+                    storage_conf,
+                    Arc::new(tracker),
+                    self.spill_path.clone(),
+                )
+                .await?,
+            )
+        };
+        Ok(engine)
     }
 }
 
-async fn create_engine_from_opts(
-    location: Option<String>,
-    storage_options: HashMap<String, String>,
-    tracker: Tracker,
-    data_dir: Option<PathBuf>,
-    service_account_path: Option<String>,
-    spill_path: Option<PathBuf>,
-) -> Result<Arc<Engine>, anyhow::Error> {
-    let engine = if let Some(location) = location {
-        // TODO: try to consolidate with --data-dir and --metastore-addr options
-        let engine =
-            Engine::from_storage_options(&location, &HashMap::from_iter(storage_options.clone()))
-                .await?;
-        Arc::new(engine.with_tracker(Arc::new(tracker)))
-    } else {
-        // TODO: There's going to need to more validation needed to ensure we're
-        // using a metastore that makes sense. E.g. using a remote metastore and
-        // in-memory table storage would cause inconsistency.
-        //
-        // We don't want to end up in a situation where a metastore thinks a
-        // table exists but it really doesn't (or the other way around).
-        let storage_conf = match (data_dir, service_account_path) {
-            (None, Some(path)) => EngineStorageConfig::try_from_options(
-                "gs://",
-                HashMap::from_iter([("service_account_path".to_string(), path)]),
-            )?,
-            (Some(dir), None) => EngineStorageConfig::try_from_path_buf(&dir)?,
-            (None, None) => EngineStorageConfig::try_from_options("memory://", Default::default())?,
-            (Some(_), Some(_)) => {
-                return Err(anyhow!(
-                    "Data directory and service account both provided. Expected at most one."
-                ))
-            }
-        };
-
-        Arc::new(
-            Engine::new(
-                metastore_client,
-                storage_conf,
-                Arc::new(tracker),
-                spill_path,
-            )
-            .await?,
-        )
-    };
-    Ok(engine)
-}
 
 impl ComputeServer {
     pub fn builder() -> ComputeServerBuilder {

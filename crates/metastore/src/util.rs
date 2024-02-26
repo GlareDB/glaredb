@@ -1,10 +1,8 @@
 use std::path::PathBuf;
-use std::time::Duration;
 
 use ioutil::ensure_dir;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
-use tonic::transport::{Channel, Endpoint};
-use tracing::info;
+use tonic::transport::Channel;
 
 use crate::errors::Result;
 use crate::local::{start_inprocess_inmemory, start_inprocess_local};

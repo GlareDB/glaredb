@@ -1,26 +1,21 @@
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use atty::Stream;
 use clap::Subcommand;
-use ioutil::ensure_dir;
-use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use slt::discovery::SltDiscovery;
 use slt::hooks::{AllTestsHook, SqliteTestsHook, SshTunnelHook};
 use slt::tests::{PgBinaryEncoding, SshKeysTest};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
-use tracing::info;
 
 use crate::args::server::ServerArgs;
-use crate::args::{LocalArgs, MetastoreArgs, PgProxyArgs, RpcProxyArgs, SltArgs};
+use crate::args::{LocalArgs, PgProxyArgs, RpcProxyArgs, SltArgs};
 use crate::built_info;
 use crate::local::LocalSession;
-use crate::metastore::Metastore;
 use crate::proxy::{PgProxy, RpcProxy};
 use crate::server::ComputeServer;
 
@@ -36,9 +31,6 @@ pub enum Commands {
     /// Starts an instance of the rpcsrv proxy.
     #[clap(hide = true)]
     RpcProxy(RpcProxyArgs),
-    /// Starts an instance of the Metastore.
-    #[clap(hide = true)]
-    Metastore(MetastoreArgs),
     /// Runs SQL Logic Tests
     #[clap(hide = true, alias = "slt")]
     SqlLogicTests(SltArgs),
@@ -51,7 +43,6 @@ impl Commands {
             Commands::Server(server) => server.run(),
             Commands::PgProxy(pg_proxy) => pg_proxy.run(),
             Commands::RpcProxy(rpc_proxy) => rpc_proxy.run(),
-            Commands::Metastore(metastore) => metastore.run(),
             Commands::SqlLogicTests(slt) => slt.run(),
         }
     }
@@ -138,7 +129,6 @@ impl RunCommand for ServerArgs {
         let Self {
             bind,
             rpc_bind,
-            metastore_addr,
             user,
             password,
             data_dir,
@@ -151,6 +141,9 @@ impl RunCommand for ServerArgs {
             enable_simple_query_rpc,
             enable_flight_api,
             disable_postgres_api,
+            metastore_bucket,
+            metastore_local_file_path,
+            metastore_service_account_path,
         } = self;
 
         // Map an empty string to None. Makes writing the terraform easier.
@@ -191,13 +184,15 @@ impl RunCommand for ServerArgs {
                 .with_authenticator(auth)
                 .with_pg_listener_opt(pg_listener)
                 .with_rpc_listener_opt(rpc_listener)
-                .with_metastore_addr_opt(metastore_addr)
                 .with_segment_key_opt(segment_key)
                 .with_data_dir_opt(data_dir)
                 .with_service_account_path_opt(service_account_path)
                 .with_location_opt(storage_config.location)
                 .with_storage_options(HashMap::from_iter(storage_config.storage_options.clone()))
                 .with_spill_path_opt(spill_path)
+                .with_metastore_bucket_opt(metastore_bucket)
+                .with_metastore_local_file_path_opt(metastore_local_file_path)
+                .with_metastore_service_account_path_opt(metastore_service_account_path)
                 .disable_rpc_auth(disable_rpc_auth)
                 .enable_simple_query_rpc(enable_simple_query_rpc)
                 .enable_flight_api(enable_flight_api)

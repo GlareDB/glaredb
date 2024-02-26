@@ -21,9 +21,6 @@ pub enum OutputMode {
 }
 
 #[derive(Parser)]
-pub struct MetastoreArgs {}
-
-#[derive(Parser)]
 pub struct RpcProxyArgs {
     /// TCP address to bind to.
     #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6444"))]
