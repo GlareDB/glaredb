@@ -90,27 +90,26 @@ impl RecordStructBuilder {
 
     pub fn append_record(&mut self, doc: &RawDocument) -> Result<()> {
         let mut cols_set: BitVec<u8, Lsb0> = BitVec::repeat(false, self.fields.len());
+        let doc_buf = doc.to_raw_document_buf();
+        let iter = doc_buf.iter_elements();
 
-        for iter_result in doc {
-            match iter_result {
-                Ok((key, val)) => {
-                    let idx = *self
-                        .field_index
-                        .get(key)
-                        .ok_or_else(|| BsonError::ColumnNotInInferredSchema(key.to_string()))?;
+        for item in iter {
+            let elem = item?;
 
-                    if *cols_set.get(idx).unwrap() {
-                        continue;
-                    }
+            let idx = *self
+                .field_index
+                .get(elem.key())
+                .ok_or_else(|| BsonError::ColumnNotInInferredSchema(elem.key().to_string()))?;
 
-                    // Add value to columns.
-                    self.add_value_at_index(idx, Some(val))?;
-
-                    // Track which columns we've added values to.
-                    cols_set.set(idx, true);
-                }
-                Err(_) => return Err(BsonError::FailedToReadRawBsonDocument),
+            if *cols_set.get(idx).unwrap() {
+                continue;
             }
+
+            // Add value to columns.
+            self.add_value_at_index(idx, Some(elem.value()?))?;
+
+            // Track which columns we've added values to.
+            cols_set.set(idx, true);
         }
 
         // Append nulls to all columns not included in the doc.
