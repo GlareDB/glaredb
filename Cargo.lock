@@ -7806,6 +7806,7 @@ dependencies = [
 name = "sqlbuiltins"
 version = "0.8.5"
 dependencies = [
+ "arrow",
  "arrow-cast",
  "arrow-schema",
  "async-openai",

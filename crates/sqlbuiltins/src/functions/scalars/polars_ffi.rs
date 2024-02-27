@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::ffi::CStr;
 use std::sync::{Arc, RwLock};
 
+use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use datafusion::arrow::array::ArrayRef;
 use datafusion::arrow::datatypes::{DataType, Field};
-use datafusion::arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use datafusion::error::{DataFusionError, Result};
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
@@ -139,7 +139,7 @@ impl SeriesExport {
 
     pub fn from_array(array: ArrayRef) -> Self {
         let data = array.to_data();
-        let (ffi_arr, ffi_schema) = datafusion::arrow::ffi::to_ffi(&data).unwrap();
+        let (ffi_arr, ffi_schema) = arrow::ffi::to_ffi(&data).unwrap();
         let ffi_schema = Box::new(ffi_schema);
         let field = ffi_schema.as_ref() as *const FFI_ArrowSchema as *mut _;
         let mut arrays = Box::new([Box::into_raw(Box::new(ffi_arr))]);
@@ -400,7 +400,7 @@ unsafe fn retrieve_error_msg(lib: &Library) -> &CStr {
 /// # Safety
 /// `ArrowArray` and `ArrowSchema` must be valid
 unsafe fn import_array(array: FFI_ArrowArray, schema: &FFI_ArrowSchema) -> Result<ArrayRef> {
-    let data = datafusion::arrow::ffi::from_ffi(array, schema).unwrap();
+    let data = arrow::ffi::from_ffi(array, schema).unwrap();
     let arr = datafusion::arrow::array::make_array(data);
     Ok(arr)
 }
