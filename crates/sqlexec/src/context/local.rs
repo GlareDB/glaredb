@@ -180,6 +180,8 @@ impl LocalSessionContext {
         &self.functions
     }
 
+    /// Register a UDF with the session.
+    /// This will error if the function already exists in the catalog.
     pub async fn register_function(&mut self, udf: Arc<dyn BuiltinScalarUDF>) -> Result<()> {
         let catalog_mutator = self.catalog_mutator();
         // This is only empty when running hybrid exec
@@ -193,7 +195,6 @@ impl LocalSessionContext {
             .iter()
             .map(|a| a.to_string())
             .collect::<Vec<_>>();
-
         let signature = match udf.signature() {
             Some(s) => s.clone(),
             None => {
@@ -210,6 +211,7 @@ impl LocalSessionContext {
             function_type,
         })];
 
+        // This will error if the catalog already has a function with the same
         catalog_mutator.mutate(catalog_version, mutations).await?;
         self.functions.register_udf(udf);
         Ok(())

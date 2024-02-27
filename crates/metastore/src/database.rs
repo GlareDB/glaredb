@@ -1035,8 +1035,13 @@ impl State {
             }
             Mutation::CreateFunction(f) => {
                 let schema_id = self.get_schema_id(DEFAULT_SCHEMA)?;
+                let oid = self
+                    .schema_objects
+                    .get(&schema_id)
+                    .and_then(|objs| objs.functions.get(&f.name))
+                    .copied()
+                    .unwrap_or_else(|| self.next_oid());
 
-                let oid = self.get_or_next_oid(schema_id, &f.name);
                 let ent = FunctionEntry {
                     meta: EntryMeta {
                         entry_type: EntryType::Function,
@@ -1051,6 +1056,9 @@ impl State {
                     signature: Some(f.signature),
                     user_defined: true,
                 };
+                if let Some(ent) = self.entries.get(&oid)? {
+                    return Err(MetastoreError::DuplicateName(ent.get_meta().name.clone()));
+                }
                 self.entries.insert(oid, CatalogEntry::Function(ent))?;
                 self.schema_objects
                     .entry(schema_id)
