@@ -21,6 +21,7 @@ url.workspace = true
 anyhow = { workspace = true }
 pyo3 = { version = "0.20.3", features = ["abi3-py37", "extension-module"] }
 sqlexec = { path = "../../crates/sqlexec" }
+sqlbuiltins = { path = "../../crates/sqlbuiltins" }
 metastore = { path = "../../crates/metastore" }
 telemetry = { path = "../../crates/telemetry" }
 pgsrv = { path = "../../crates/pgsrv" }

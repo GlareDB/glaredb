@@ -38,6 +38,7 @@ fn glaredb(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(execute, m)?)?;
 
     m.add_function(wrap_pyfunction!(connect::connect, m)?)?;
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
 
     Ok(())
 }

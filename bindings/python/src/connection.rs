@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
-use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
+use datafusion::logical_expr::{LogicalPlan as DFLogicalPlan, Signature};
 use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
 use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
 use pyo3::types::PyType;
+use sqlbuiltins::functions::scalars::polars_ffi::PolarsFFIPlugin;
+use sqlbuiltins::functions::BuiltinScalarUDF;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::{LogicalPlan, OperationInfo};
 
@@ -200,9 +202,107 @@ impl Connection {
         Ok(PyExecutionResult(exec_result))
     }
 
+    fn register_plugin(
+        &mut self,
+        py: Python<'_>,
+        lib: &str,
+        namespace: &str,
+        name: &str,
+        symbol: &str,
+    ) -> PyResult<()> {
+        let sess = self.sess.clone();
+        wait_for_future(py, async move {
+            let mut sess = sess.lock().await;
+
+            // lifetime is static as we never deregister plugins.
+            let namespace = unsafe { std::mem::transmute::<&str, &'static str>(namespace) };
+            let polars_func = PolarsFFIPlugin {
+                namespace: Some(namespace),
+                name: Arc::from(name),
+                lib: Arc::from(lib),
+                symbol: Arc::from(symbol),
+                // TODO: support kwargs
+                kwargs: Arc::new([]),
+                signature: Signature::variadic_any(datafusion::logical_expr::Volatility::Volatile),
+            };
+            let udf: Arc<dyn BuiltinScalarUDF> = Arc::new(polars_func);
+
+            sess.register_function(udf).await
+        })
+        .map_err(PyGlareDbError::from)?;
+
+        Ok(())
+    }
+
+    /// Register a Polars extension with the current session.
+    pub fn register_polars_extension(&mut self, py: Python<'_>, module: &PyModule) -> PyResult<()> {
+        let fun = PyModule::from_code(py, VISITOR_CODE, "", "")?.getattr("visit_module")?;
+        let res = fun.call1((module,))?;
+        let funcs_and_symbols: Vec<(String, String, String)> =
+            res.get_item("functions_and_symbols")?.extract()?;
+
+        let lib: String = res.get_item("lib")?.extract()?;
+        for (namespace, name, symbol) in funcs_and_symbols {
+            self.register_plugin(py, &lib, &namespace, &name, &symbol)?;
+        }
+        Ok(())
+    }
+
     /// Close the current session.
     pub fn close(&mut self, _py: Python<'_>) -> PyResult<()> {
         // TODO: Remove this method. No longer required.
         Ok(())
     }
 }
+
+
+/// This is too complex to try to write in Rust, so we'll just use Python to do it.
+/// This just inspects the module to get all of the symbols and functions that are registered
+const VISITOR_CODE: &str = r#"
+import inspect
+import ast
+from polars.utils.udfs import _get_shared_lib_location
+
+class MyVisitor(ast.NodeVisitor):
+    def __init__(self):
+        self.functions_and_symbols = []
+
+    def visit_ClassDef(self, node):
+        namespace = None
+        for deco in node.decorator_list:
+            if isinstance(deco, ast.Call) and hasattr(deco.func, 'attr'):
+                if deco.func.attr == 'register_expr_namespace':
+                    namespace = deco.args[0].s
+
+        for item in node.body:
+            if isinstance(item, ast.FunctionDef):
+                self.handle_function(item, namespace)
+
+    def handle_function(self, func_node, namespace):
+        func_name = func_node.name
+        for node in ast.walk(func_node):
+            if isinstance(node, ast.Call) and hasattr(node.func, 'attr') and node.func.attr == 'register_plugin':
+                symbol_value = None
+                values = (namespace, func_name, symbol_value)
+                for kw in node.keywords:
+                    if kw.arg == 'symbol':
+                        symbol_value = kw.value.s
+                        values = (namespace, func_name, symbol_value)
+                    elif kw.arg == 'kwargs':
+                        print("KWARGS not yet supported, skipping", f"{namespace}.{func_name}")
+                        break
+
+                    self.functions_and_symbols.append(values)
+
+
+def visit_module(module):
+    source_code = inspect.getsource(module)
+    # Parse the source code
+    tree = ast.parse(source_code)
+    visitor = MyVisitor()
+    visitor.visit(tree)
+    return {
+        "lib": _get_shared_lib_location(module.__file__),
+        "functions_and_symbols": visitor.functions_and_symbols
+    }
+"#;
