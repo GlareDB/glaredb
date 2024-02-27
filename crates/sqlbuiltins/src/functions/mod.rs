@@ -369,6 +369,28 @@ impl FunctionRegistry {
             .iter()
             .map(|s| s.to_string())
             .chain(std::iter::once(udf.name().to_string()))
+            .flat_map(|s| {
+                
+                match udf.namespace() {
+                    // we register the function under both the namespaced entry and the normal entry
+                    // e.g. select foo.my_function() or select my_function()
+                    FunctionNamespace::Optional(namespace) => {
+                        let namespaced_entry = format!("{}.{}", namespace, s);
+                        vec![s, namespaced_entry]
+                    }
+                    // we only register the function under the namespaced entry
+                    // e.g. select foo.my_function()
+                    FunctionNamespace::Required(namespace) => {
+                        let namespaced_entry = format!("{}.{}", namespace, s);
+                        vec![namespaced_entry]
+                    }
+                    // we only register the function under the normal entry
+                    // e.g. select my_function()
+                    FunctionNamespace::None => {
+                        vec![s]
+                    }
+                }
+            })
             .collect::<Vec<_>>();
         self.udfs.insert_aliases(aliases, udf);
     }

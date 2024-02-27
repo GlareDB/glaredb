@@ -6204,6 +6204,7 @@ dependencies = [
  "pgrepr",
  "pgsrv",
  "pyo3",
+ "sqlbuiltins",
  "sqlexec",
  "telemetry",
  "terminal_util",
@@ -7806,6 +7807,7 @@ name = "sqlbuiltins"
 version = "0.8.5"
 dependencies = [
  "arrow-cast",
+ "arrow-schema",
  "async-openai",
  "async-trait",
  "catalog",
@@ -7818,6 +7820,7 @@ dependencies = [
  "ioutil",
  "kdl",
  "lance-linalg",
+ "libloading 0.8.1",
  "logutil",
  "memoize",
  "num-traits",

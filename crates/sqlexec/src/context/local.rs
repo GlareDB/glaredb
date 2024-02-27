@@ -193,7 +193,6 @@ impl LocalSessionContext {
             .iter()
             .map(|a| a.to_string())
             .collect::<Vec<_>>();
-
         let signature = match udf.signature() {
             Some(s) => s.clone(),
             None => {

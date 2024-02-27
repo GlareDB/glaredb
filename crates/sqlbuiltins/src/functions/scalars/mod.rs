@@ -2,6 +2,7 @@ pub mod df_scalars;
 pub mod hashing;
 pub mod kdl;
 pub mod openai;
+pub mod polars_ffi;
 pub mod postgres;
 pub mod similarity;
 use std::sync::Arc;
