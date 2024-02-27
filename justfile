@@ -8,9 +8,8 @@ alias slt := sql-logic-tests
 
 os_arch := os() + '-' + arch()
 
-
+VENV := ".venv"
 VENV_BIN := VENV / "bin"
-VENV := env_var_or_default("VENV", ".venv")
 
 # Run benchmarks subcommands. see `benchmarks/justfile` for more details.
 bench cmd *args:
@@ -122,10 +121,9 @@ protoc:
 # Installs python dependencies for testing
 venv:
   python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
-  python3 -m virtualenv {{VENV}} --quiet
+  python3 -m virtualenv .venv --quiet
   {{VENV_BIN}}/python -m pip install poetry
   {{VENV_BIN}}/poetry -C tests install
-
 
 # Runs pytest in the tests directory.
 pytest *args:
