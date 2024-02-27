@@ -1714,7 +1714,7 @@ pub enum CopyToFormatOptions {
     Parquet(CopyToFormatOptionsParquet),
     Lance(CopyToFormatOptionsLance),
     Json(CopyToFormatOptionsJson),
-    Bson,
+    Bson(CopyToFormatOptionsBson),
 }
 
 impl Default for CopyToFormatOptions {
@@ -1738,7 +1738,7 @@ impl CopyToFormatOptions {
             Self::Csv(_) => Self::CSV,
             Self::Parquet(_) => Self::PARQUET,
             Self::Json(_) => Self::JSON,
-            Self::Bson => Self::BSON,
+            Self::Bson(_) => Self::BSON,
             Self::Lance(_) => Self::LANCE,
         }
     }
@@ -1759,6 +1759,10 @@ pub struct CopyToFormatOptionsParquet {
 pub struct CopyToFormatOptionsJson {
     pub array: bool,
 }
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct CopyToFormatOptionsBson {}
+
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToFormatOptionsLance {
