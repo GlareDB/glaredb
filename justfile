@@ -8,9 +8,8 @@ alias slt := sql-logic-tests
 
 os_arch := os() + '-' + arch()
 
-
-VENV_BIN := VENV / "bin"
 VENV := env_var_or_default("VENV", ".venv")
+VENV_BIN := VENV / "bin"
 
 # Run benchmarks subcommands. see `benchmarks/justfile` for more details.
 bench cmd *args:
