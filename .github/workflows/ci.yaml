@@ -34,16 +34,14 @@ jobs:
           key: ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-pkg-build-
       - uses: actions/cache@v4
-        name: build cache
+        name: build-cache
         with:
           path: |
             target/
             !target/**/glaredb
             !target/**/pgprototest
           key: ${{ runner.os }}-cargo-glaredb-build-${{ github.ref_name }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-glaredb-build-${{ hashFiles('**/Cargo.lock') }}
-            ${{ runner.os }}-cargo-glaredb-build-
+          restore-keys: ${{ runner.os }}-cargo-glaredb-build-${{ hashFiles('**/Cargo.lock') }}
       - run: just build
       - run: cargo build --bin pgprototest
       - uses: actions/cache/save@v4
@@ -100,10 +98,7 @@ jobs:
         with:
           path: ~/.cargo/
           key: ${{ runner.os }}-cargo-pkg-lint-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
-            ${{ runner.os }}-cargo-pkg-lint-
-            ${{ runner.os }}-cargo-pkg-build-
+          restore-keys: ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/cache/restore@v4
         name: build cache
         with:
@@ -134,11 +129,8 @@ jobs:
         with:
           path: ~/.cargo/
           key: ${{ runner.os }}-cargo-pkg-python-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
-            ${{ runner.os }}-cargo-pkg-python-
-            ${{ runner.os }}-cargo-pkg-build-
-      - uses: actions/cache@v4
+          restore-keys: ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache/restore@v4
         name: build cache
         with:
           path: |
@@ -204,10 +196,6 @@ jobs:
         with:
           path: ~/.cargo/
           key: ${{ runner.os }}-cargo-pkg-unit-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-pkg-build-${{ hashFiles('**/Cargo.lock') }}
-            ${{ runner.os }}-cargo-pkg-unit-
-            ${{ runner.os }}-cargo-pkg-build-
       - uses: actions/cache/restore@v4
         name: build cache
         with:
@@ -233,7 +221,7 @@ jobs:
     needs: ["build"]
     # parent branches can't use caches from child branches, so no need
     # to update this cache _except_ on main.
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/cache@v4
         name: cache check

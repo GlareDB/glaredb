@@ -54,7 +54,7 @@ lzma-sys = { version = "*", features = ["static"] }
 
 [dev-dependencies]
 predicates = "3.1.0"
-assert_cmd = "2.0.13"
+assert_cmd = "2.0.14"
 tokio-postgres = "0.7.8"
 tempfile = { workspace = true }
 

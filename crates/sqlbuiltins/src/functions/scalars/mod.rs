@@ -18,6 +18,7 @@ use crate::document;
 use crate::errors::BuiltinError;
 use crate::functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction};
 
+
 pub struct ConnectionId;
 
 impl ConstBuiltinFunction for ConnectionId {
