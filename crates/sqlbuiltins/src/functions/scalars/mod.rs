@@ -3,6 +3,7 @@ pub mod hashing;
 pub mod kdl;
 pub mod openai;
 pub mod polars_ffi;
+pub mod glaredb_ffl;
 pub mod postgres;
 pub mod similarity;
 use std::sync::Arc;

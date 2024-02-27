@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::env;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{anyhow, Result};
@@ -16,12 +17,15 @@ use datafusion::arrow::json::writer::{
     Writer as JsonWriter,
 };
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::logical_expr::{Signature, Volatility};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_ext::vars::SessionVars;
 use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::notice::NoticeSeverity;
 use reedline::{FileBackedHistory, Reedline, Signal};
+use sqlbuiltins::functions::scalars::glaredb_ffl::GlaredbFFIPlugin;
+use sqlbuiltins::functions::BuiltinScalarUDF;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::session::ExecutionResult;
@@ -93,6 +97,7 @@ impl LocalSession {
             let mut sess = engine
                 .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
                 .await?;
+
             sess.attach_remote_session(exec_client.clone(), None)
                 .await?;
 
@@ -100,9 +105,20 @@ impl LocalSession {
 
             sess
         } else {
-            engine
+            let mut sess = engine
                 .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
-                .await?
+                .await?;
+            let f: Arc<dyn BuiltinScalarUDF> = Arc::new(GlaredbFFIPlugin {
+                namespace: None,
+                name: Arc::from("foo"),
+                lib: Arc::from("/Users/corygrinstead/Development/glaredb_extension/target/debug/libexpression_lib.dylib"),
+                symbol: Arc::from("foo"),
+                kwargs: Arc::new([]),
+                signature: Signature::variadic_any(Volatility::Volatile),
+            });
+            println!("Registering function");
+            sess.register_function(f).await.unwrap();
+            sess
         };
 
         Ok(LocalSession {
