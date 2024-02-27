@@ -8,8 +8,8 @@ import psycopg2.extras
 import pytest
 
 
-import tools
-from fixtures.glaredb import glaredb_connection, debug_path
+import tests.tools
+from tests.fixtures.glaredb import glaredb_connection, debug_path
 
 
 def test_sanity_check(
@@ -64,7 +64,7 @@ def test_copy_to_round_trip(
 
     output_path_rel = tmp_path_factory.mktemp("lance-rel")
 
-    with tools.cd(output_path_rel):
+    with tests.tools.cd(output_path_rel):
         with glaredb_connection.cursor() as curr:
             curr.execute("COPY lance_test TO './' FORMAT lance")
 
@@ -91,10 +91,10 @@ def test_copy_to_round_trip(
         curr.execute(f"COPY lance_test TO '{output_path}' FORMAT lance")
         curr.execute(f"create external table lance_import from lance options (location '{output_path}')")
         curr.execute("alter table lance_import set access_mode to read_write")
-        
+
         for i in range(10):
             curr.execute("insert into lance_import values (%s)", str(i))
-        
+
     with glaredb_connection.cursor() as curr:
         curr.execute("select count(*) from lance_import;")
         assert curr.fetchone()[0] == 20

@@ -9,8 +9,8 @@ import psycopg2.extensions
 import psycopg2.extras
 import pytest
 
-from fixtures.glaredb import glaredb_connection, debug_path
-import tools
+from tests.fixtures.glaredb import glaredb_connection, debug_path
+import tests.tools
 
 
 def test_bson_copy_to(
@@ -45,7 +45,7 @@ def test_bson_copy_to(
             assert "amount" in doc
             assert doc["amount"] == idx
 
-    with tools.cd(output_dir):
+    with tests.tools.cd(output_dir):
         out = subprocess.run(
             [
                 f"{debug_path}",
