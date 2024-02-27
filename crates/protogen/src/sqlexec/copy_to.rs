@@ -76,6 +76,8 @@ pub enum CopyToFormatOptionsEnum {
     Parquet(CopyToFormatOptionsParquet),
     #[prost(message, tag = "4")]
     Lance(CopyToFormatOptionsLance),
+    #[prost(message, tag = "5")]
+    Bson(CopyToFormatOptionsBson),
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -119,7 +121,7 @@ impl TryFrom<crate::metastore::types::options::CopyToFormatOptions> for CopyToFo
         value: crate::metastore::types::options::CopyToFormatOptions,
     ) -> Result<Self, Self::Error> {
         match value {
-            crate::metastore::types::options::CopyToFormatOptions::Bson => {
+            crate::metastore::types::options::CopyToFormatOptions::Bson(_) => {
                 Ok(CopyToFormatOptions::default())
             }
             crate::metastore::types::options::CopyToFormatOptions::Lance(opts) => {
@@ -196,6 +198,11 @@ impl TryFrom<CopyToFormatOptions> for crate::metastore::types::options::CopyToFo
             CopyToFormatOptionsEnum::Json(json) => {
                 Ok(crate::metastore::types::options::CopyToFormatOptions::Json(
                     crate::metastore::types::options::CopyToFormatOptionsJson { array: json.array },
+                ))
+            }
+            CopyToFormatOptionsEnum::Bson(_) => {
+                Ok(crate::metastore::types::options::CopyToFormatOptions::Bson(
+                    crate::metastore::types::options::CopyToFormatOptionsBson {},
                 ))
             }
             CopyToFormatOptionsEnum::Parquet(parquet) => Ok(
