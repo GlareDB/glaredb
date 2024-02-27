@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -27,11 +28,12 @@ use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
+use datasources::lake::storage_options_into_object_store;
 use datasources::lance::LanceTable;
 use datasources::mongodb::{MongoDbAccessor, MongoDbConnection};
 use datasources::mysql::{MysqlAccessor, MysqlDbConnection, MysqlTableAccess};
+use datasources::object_store::azure::AzureStoreAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
-use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
@@ -700,12 +702,13 @@ impl<'a> SessionPlanner<'a> {
                 let service_account_key =
                     m.remove_optional_or("service_account_key", service_account_key)?;
 
-                let bucket: String = m.remove_required("bucket")?;
-                let location: String = m.remove_required("location")?;
+                let (bucket, location) =
+                    get_obj_store_bucket_and_location(m, DatasourceUrlType::Gcs, "bucket")?;
 
                 let access = Arc::new(GcsStoreAccess {
                     bucket: bucket.clone(),
                     service_account_key: service_account_key.clone(),
+                    opts: HashMap::new(),
                 });
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
@@ -737,14 +740,16 @@ impl<'a> SessionPlanner<'a> {
                     m.remove_optional_or("secret_access_key", secret_access_key)?;
 
                 let region: String = m.remove_required("region")?;
-                let bucket: String = m.remove_required("bucket")?;
-                let location: String = m.remove_required("location")?;
+
+                let (bucket, location) =
+                    get_obj_store_bucket_and_location(m, DatasourceUrlType::S3, "bucket")?;
 
                 let access = Arc::new(S3StoreAccess {
-                    region: region.clone(),
                     bucket: bucket.clone(),
+                    region: Some(region.clone()),
                     access_key_id: access_key_id.clone(),
                     secret_access_key: secret_access_key.clone(),
+                    opts: HashMap::new(),
                 });
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
@@ -772,36 +777,39 @@ impl<'a> SessionPlanner<'a> {
                     None => (None, None),
                 };
 
-                let account = m.remove_required_or("account_name", account)?;
+                let account_name = m.remove_required_or("account_name", account)?;
                 let access_key = m.remove_required_or("access_key", access_key)?;
 
-                let location: String = m.remove_required("location")?;
+                let (container, location) =
+                    get_obj_store_bucket_and_location(m, DatasourceUrlType::Azure, "container")?;
 
-                let mut opts = StorageOptions::default();
-                opts.inner
-                    .insert(AzureConfigKey::AccountName.as_ref().to_string(), account);
-                opts.inner
-                    .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
-
-                let access = Arc::new(GenericStoreAccess::new_from_location_and_opts(
-                    &location,
-                    opts.clone(),
-                )?);
+                let access = Arc::new(AzureStoreAccess {
+                    container,
+                    account_name: Some(account_name.clone()),
+                    access_key: Some(access_key.clone()),
+                    opts: HashMap::new(),
+                });
 
                 // TODO: Creating a data source url here is a workaround for
                 // getting the path to the file. Since we're using the generic
-                // object store access, it requires that "location" is the full
-                // url of the object, but that goes against our other
+                // object store access, it requires that "location" is the
+                // full url of the object, but that goes against our other
                 // assumptions that "location" is just the path.
-                let (file_type, compression) = validate_and_get_file_type_and_compression(
-                    access,
-                    DatasourceUrl::try_new(location.clone())?.path(),
-                    m,
-                )
-                .await?;
+                let (file_type, compression) =
+                    validate_and_get_file_type_and_compression(access.clone(), &location, m)
+                        .await?;
+
+                let source_url = format!("{}{}", access.base_url()?, access.path(&location)?);
+                let mut opts = StorageOptions::default();
+                opts.inner.insert(
+                    AzureConfigKey::AccountName.as_ref().to_string(),
+                    account_name,
+                );
+                opts.inner
+                    .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
 
                 TableOptions::Azure(TableOptionsObjectStore {
-                    location,
+                    location: source_url,
                     storage_options: opts,
                     file_type: Some(file_type.to_string()),
                     compression: compression.map(|c| c.to_string()),
@@ -828,11 +836,7 @@ impl<'a> SessionPlanner<'a> {
                     })
                 } else {
                     let url = DatasourceUrl::try_new(&location)?;
-                    let store = GenericStoreAccess::new_from_location_and_opts(
-                        &location,
-                        storage_options.clone(),
-                    )?
-                    .create_store()?;
+                    let store = storage_options_into_object_store(&url, &storage_options)?;
                     let _table = IcebergTable::open(url, store).await?;
 
                     TableOptions::Iceberg(TableOptionsObjectStore {
@@ -1758,14 +1762,22 @@ impl<'a> SessionPlanner<'a> {
         // is what lets us differentiate between those, and if `url` is `None`,
         // we'll resolve the actual object destination from the OPTIONS down
         // below.
-        let (dest, uri) = if matches!(
+        let (dest, uri, location) = if matches!(
             dest.as_str(),
             CopyToDestinationOptions::LOCAL
                 | CopyToDestinationOptions::GCS
                 | CopyToDestinationOptions::S3_STORAGE
                 | CopyToDestinationOptions::AZURE
         ) {
-            (dest.as_str(), None)
+            let loc: String = m.remove_required("location")?;
+            let (uri, location) = match DatasourceUrl::try_new(&loc) {
+                Ok(uri) => {
+                    let loc = uri.path().into_owned();
+                    (Some(uri), loc)
+                }
+                Err(_) => (None, loc),
+            };
+            (dest.as_str(), uri, location)
         } else {
             let u = DatasourceUrl::try_new(&dest)?;
             let d = match u.datasource_url_type() {
@@ -1775,7 +1787,8 @@ impl<'a> SessionPlanner<'a> {
                 DatasourceUrlType::Azure => CopyToDestinationOptions::AZURE,
                 DatasourceUrlType::Http => return Err(internal!("invalid URL scheme")),
             };
-            (d, Some(u))
+            let l = u.path().into_owned();
+            (d, Some(u), l)
         };
 
         let creds = stmt.credentials.map(normalize_ident);
@@ -1788,28 +1801,23 @@ impl<'a> SessionPlanner<'a> {
             })?;
         }
 
-        fn get_location(m: &mut StmtOptions, uri: &Option<DatasourceUrl>) -> Result<String> {
-            let location = match uri.as_ref() {
-                Some(u) => u.path().into_owned(),
-                None => m.remove_required("location")?,
-            };
-            Ok(location)
-        }
-
-        fn get_bucket(m: &mut StmtOptions, uri: &Option<DatasourceUrl>) -> Result<String> {
+        fn get_bucket(
+            m: &mut StmtOptions,
+            uri: &Option<DatasourceUrl>,
+            bucket_key: &str,
+        ) -> Result<String> {
             let bucket = match uri.as_ref() {
                 Some(u) => u
                     .host()
                     .ok_or(internal!("missing bucket name in URL"))?
                     .to_string(),
-                None => m.remove_required("bucket")?,
+                None => m.remove_required(bucket_key)?,
             };
             Ok(bucket)
         }
 
         let dest = match dest {
             CopyToDestinationOptions::LOCAL => {
-                let location = get_location(&mut m, &uri)?;
                 CopyToDestinationOptions::Local(CopyToDestinationOptionsLocal { location })
             }
             CopyToDestinationOptions::GCS => {
@@ -1821,8 +1829,7 @@ impl<'a> SessionPlanner<'a> {
                 let service_account_key =
                     m.remove_optional_or("service_account_key", service_account_key)?;
 
-                let bucket = get_bucket(&mut m, &uri)?;
-                let location = get_location(&mut m, &uri)?;
+                let bucket = get_bucket(&mut m, &uri, "bucket")?;
 
                 CopyToDestinationOptions::Gcs(CopyToDestinationOptionsGcs {
                     service_account_key,
@@ -1849,8 +1856,7 @@ impl<'a> SessionPlanner<'a> {
                     m.remove_optional_or("secret_access_key", secret_access_key)?;
 
                 let region = m.remove_required("region")?;
-                let bucket = get_bucket(&mut m, &uri)?;
-                let location = get_location(&mut m, &uri)?;
+                let bucket = get_bucket(&mut m, &uri, "bucket")?;
 
                 CopyToDestinationOptions::S3(CopyToDestinationOptionsS3 {
                     access_key_id,
@@ -1882,16 +1888,12 @@ impl<'a> SessionPlanner<'a> {
                     ),
                 };
 
-                // Grab location from the 'TO <location>' if provided, or from
-                // OPTIONS.
-                let location = match uri {
-                    Some(uri) => uri.to_string(),
-                    None => m.remove_required("location")?,
-                };
+                let container = get_bucket(&mut m, &uri, "container")?;
 
                 CopyToDestinationOptions::Azure(CopyToDestinationOptionsAzure {
                     account,
                     access_key,
+                    container,
                     location,
                 })
             }
@@ -2021,6 +2023,35 @@ impl<'a> SessionPlanner<'a> {
             _ => None,
         })
     }
+}
+
+/// Get the object store bucket and location.
+fn get_obj_store_bucket_and_location(
+    m: &mut StmtOptions,
+    ty: DatasourceUrlType,
+    bucket_key: &str,
+) -> Result<(String, String)> {
+    let location: String = m.remove_required("location")?;
+    Ok(match DatasourceUrl::try_new(&location) {
+        Ok(u) => {
+            if u.datasource_url_type() != ty {
+                return Err(PlanError::String(format!(
+                    "expected {} URL, found {}",
+                    ty,
+                    u.datasource_url_type()
+                )));
+            }
+            let bucket = u.host().ok_or_else(|| {
+                PlanError::String(format!("missing {} name in {} URL", bucket_key, ty))
+            })?;
+            let path = u.path();
+            (bucket.to_owned(), path.into_owned())
+        }
+        Err(_) => {
+            let bucket = m.remove_required(bucket_key)?;
+            (bucket, location)
+        }
+    })
 }
 
 /// Creates an accessor from object store external table and validates if the

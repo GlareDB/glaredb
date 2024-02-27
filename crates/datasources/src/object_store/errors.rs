@@ -27,15 +27,23 @@ pub enum ObjectStoreSourceError {
     #[error(transparent)]
     IoError(#[from] std::io::Error),
 
+    #[error(transparent)]
+    DatasourceCommonError(#[from] crate::common::errors::DatasourceCommonError),
+
     #[error("No file extension provided")]
     NoFileExtension,
 
     #[error("This file type is not supported: {0}")]
     NotSupportFileType(String),
+
     #[error("{0}")]
     InvalidHttpStatus(String),
+
     #[error("{0}")]
     Static(&'static str),
+
+    #[error("{0}")]
+    String(String),
 
     #[error("Failed to read object over http: {0}")]
     Reqwest(#[from] reqwest::Error),

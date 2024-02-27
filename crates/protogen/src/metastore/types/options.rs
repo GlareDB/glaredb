@@ -1705,6 +1705,7 @@ pub struct CopyToDestinationOptionsS3 {
 pub struct CopyToDestinationOptionsAzure {
     pub account: String,
     pub access_key: String,
+    pub container: String,
     pub location: String,
 }
 
