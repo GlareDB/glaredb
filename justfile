@@ -125,7 +125,6 @@ venv:
   {{VENV_BIN}}/python -m pip install poetry
   {{VENV_BIN}}/poetry -C tests install
 
-
 # Runs pytest in the tests directory.
 pytest *args:
   {{VENV_BIN}}/poetry -C tests lock --no-update

@@ -1,14 +1,13 @@
 import pathlib
 import tests
-
-import psycopg2.extensions
-import pytest
 import os
 
-import tools
-from tests.fixtures.glaredb import glaredb_connection, debug_path
-
+import psycopg2.extensions
 from dbt.cli.main import dbtRunner, dbtRunnerResult
+import pytest
+
+import tests.tools
+from tests.fixtures.glaredb import glaredb_connection, debug_path
 
 
 @pytest.fixture
@@ -39,7 +38,7 @@ def test_dbt_glaredb(
             "INSERT INTO dbt_test (amount) VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9)"
         )
 
-    with tools.env("DBT_USER", glaredb_connection.info.user):
+    with tests.tools.env("DBT_USER", glaredb_connection.info.user):
         res: dbtRunnerResult = dbtRunner().invoke(
             [
                 "run",

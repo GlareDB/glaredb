@@ -5,7 +5,7 @@ import subprocess
 import pytest
 import psycopg2
 
-from fixtures.glaredb import glaredb_connection, release_path, debug_path
+from tests.fixtures.glaredb import glaredb_connection, release_path, debug_path
 
 
 def test_release_exists(release_path: pathlib.Path):
