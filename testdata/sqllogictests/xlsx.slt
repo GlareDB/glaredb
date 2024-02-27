@@ -64,6 +64,9 @@ statement ok
 create external table multi_report from excel options(location='./testdata/xlsx/multiple_sheets.xlsx', file_type = 'xlsx', sheet_name = 'other', has_header = false);
 
 statement ok
+create external table quarter_projection from excel options(location='./testdata/xlsx/multiple_sheets.xlsx', sheet_name='cost_projection', has_header='true');
+
+statement ok
 create external table basic_report from excel options(location='./testdata/xlsx/userdata1.xlsx', has_header='false');
 
 statement ok
@@ -85,6 +88,15 @@ select "HEADING" from multi_report;
 1
 2
 3
+
+query
+select "Resources", "Cost", "Revenue" from quarter_projection;
+----
+1 10 100
+2 20 200
+3 30 300
+4 40 400
+5 50 500
 
 statement ok
 drop table basic_report;

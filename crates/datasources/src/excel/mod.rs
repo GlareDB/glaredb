@@ -60,6 +60,10 @@ impl ExcelTable {
                     return Err(ExcelError::Load(
                         "could not find .xlsx file at remote".to_string(),
                     ));
+                } else if list.len() > 1 {
+                    return Err(ExcelError::Load(
+                        "single file sheet on remote supported".to_string(),
+                    ));
                 };
 
                 let meta = list.first().expect("remote file has a sheet");
@@ -188,12 +192,15 @@ pub fn infer_schema(
     for row in rows.take(infer_schema_length) {
         for (i, col_val) in row.iter().enumerate() {
             let col_name = col_names.get(i).unwrap();
-            let col_type = infer_value_type(col_val).unwrap();
-            if col_type == DataType::Null {
+            if let Ok(col_type) = infer_value_type(col_val) {
+                if col_type == DataType::Null {
+                    continue;
+                }
+                let entry = col_types.entry(col_name).or_default();
+                entry.insert(col_type);
+            } else {
                 continue;
             }
-            let entry = col_types.entry(col_name).or_default();
-            entry.insert(col_type);
         }
     }
 
@@ -206,8 +213,7 @@ pub fn infer_schema(
                 set
             });
 
-            let mut dt_iter = set.iter().cloned();
-            let dt = dt_iter.next().unwrap_or(DataType::Utf8);
+            let dt = set.iter().next().cloned().unwrap_or(DataType::Utf8);
             Field::new(col_name.replace(' ', "_"), dt, true)
         })
         .collect();

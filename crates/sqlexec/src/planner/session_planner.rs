@@ -914,9 +914,9 @@ impl<'a> SessionPlanner<'a> {
 
                 if let DatasourceUrl::File(p) = DatasourceUrl::try_new(&location)? {
                     if !p.exists() {
-                        return Err(PlanError::String(format!(
-                            "invalid local file path specified"
-                        )));
+                        return Err(PlanError::String(
+                            "invalid local file path specified".to_string(),
+                        ));
                     }
                 };
 
