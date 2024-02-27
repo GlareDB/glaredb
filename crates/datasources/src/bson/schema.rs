@@ -15,7 +15,7 @@ pub fn schema_from_document(doc: &RawDocumentBuf) -> Result<Schema> {
     Ok(Schema::new(fields_from_document(0, doc)?))
 }
 
-fn fields_from_document<'a>(depth: usize, doc: &RawDocumentBuf) -> Result<Vec<Field>> {
+fn fields_from_document(depth: usize, doc: &RawDocumentBuf) -> Result<Vec<Field>> {
     if depth >= RECURSION_LIMIT {
         return Err(BsonError::RecursionLimitExceeded(RECURSION_LIMIT));
     }
