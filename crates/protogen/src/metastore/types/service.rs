@@ -735,20 +735,3 @@ impl From<UpdateDeploymentStorage> for service::UpdateDeploymentStorage {
         }
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use proptest::arbitrary::any;
-//     use proptest::proptest;
-
-//     use super::*;
-
-//     proptest! {
-//         #[test]
-//         fn roundtrip_mutation(expected in any::<Mutation>()) {
-//             let p: service::mutation::Mutation = expected.clone().try_into().unwrap();
-//             let got: Mutation = p.try_into().unwrap();
-//             assert_eq!(expected, got)
-//         }
-//     }
-// }
