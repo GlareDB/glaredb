@@ -1,3 +1,6 @@
+pub mod hive_partitioning;
+mod write;
+
 pub mod bson;
 pub mod csv;
 pub mod json;

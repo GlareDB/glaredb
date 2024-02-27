@@ -1,0 +1,77 @@
+# Tests for COPY TO with partitioning.
+
+statement ok
+create schema copy_to_partitioned_mixed;
+
+statement ok
+set search_path = copy_to_partitioned_mixed;
+
+statement ok
+CREATE TABLE source_table (completed BOOLEAN, category INT, data FLOAT, other_data TEXT);
+
+statement ok
+INSERT INTO source_table VALUES
+	(true, 1, 0.1, 'abc'),
+	(true, 2, 0.2, 'def'),
+	(true, 3, 0.3, 'ghi'),
+  (true, 4, 0.4, 'jkl'),
+  (false, 1, 0.5, 'mno'),
+	(false, 2, 0.6, 'pqr'),
+	(false, 3, 0.7, 'stu'),
+  (false, 4, 0.8, 'vwx'),
+
+statement ok
+COPY ( SELECT * FROM source_table LIMIT 8 )
+	TO '${TMP}/hive_partitioned_mixed'
+  FORMAT parquet PARTITION BY (completed, category);
+
+statement ok
+CREATE EXTERNAL TABLE parquet_true_1
+    FROM local
+    OPTIONS (
+        location = '${TMP}/hive_partitioned_mixed/completed=true/category=1/*.parquet'
+    );
+
+query FT
+SELECT data, other_data FROM parquet_true_1;
+----
+0.1 abc
+
+# Partition file contents should not include partition columns.
+statement error No field named completed
+SELECT completed FROM parquet_true_1;
+
+# Partition file contents should not include partition columns.
+statement error No field named category
+SELECT category FROM parquet_true_1;
+
+# Supports JSON format.
+statement ok
+COPY ( SELECT * FROM source_table LIMIT 8 )
+	TO '${TMP}/hive_partitioned_mixed_json'
+  FORMAT json PARTITION BY (completed, category);
+
+statement ok
+CREATE EXTERNAL TABLE json_true_1
+    FROM local
+    OPTIONS (
+        location = '${TMP}/hive_partitioned_mixed_json/completed=true/category=1/*.json'
+    );
+
+query FT
+SELECT data, other_data FROM json_true_1;
+----
+0.1 abc
+
+# General sanity check against a different partition
+statement ok
+CREATE EXTERNAL TABLE parquet_false_2
+    FROM local
+    OPTIONS (
+        location = '${TMP}/hive_partitioned_mixed/completed=false/category=2/*.parquet'
+    );
+
+query FT
+SELECT data, other_data FROM parquet_false_2;
+----
+0.6 pqr

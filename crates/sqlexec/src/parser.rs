@@ -6,7 +6,7 @@ use std::fmt;
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName};
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
-use datafusion::sql::sqlparser::parser::{Parser, ParserError, ParserOptions};
+use datafusion::sql::sqlparser::parser::{IsOptional, Parser, ParserError, ParserOptions};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer, Word};
 use datafusion_ext::vars::Dialect;
 use prql_compiler::sql::Dialect as PrqlDialect;
@@ -382,6 +382,8 @@ pub struct CopyToStmt {
     pub dest: Ident,
     /// Optional format (in which to copy the data in).
     pub format: Option<Ident>,
+    /// Optional partition by (hive partitioning).
+    pub partition_by: Option<Vec<Ident>>,
     /// Optional credentials (for cloud storage).
     pub credentials: Option<Ident>,
     /// COPY TO specific options.
@@ -393,6 +395,15 @@ impl fmt::Display for CopyToStmt {
         write!(f, "COPY {} TO {}", self.source, self.dest)?;
         if let Some(format) = self.format.as_ref() {
             write!(f, " FORMAT {format}")?;
+        }
+        if let Some(partition_by) = self.partition_by.as_ref() {
+            let items: String = partition_by
+                .iter()
+                .map(|i| i.to_string())
+                .collect::<Vec<String>>()
+                .join(", ");
+
+            write!(f, " PARTITION BY ({items})")?;
         }
         if let Some(creds) = self.credentials.as_ref() {
             write!(f, " CREDENTIALS {creds}")?;
@@ -638,6 +649,9 @@ impl<'a> CustomParser<'a> {
         // [FORMAT ..]
         let format = self.parse_data_format()?;
 
+        // [PARTITION BY ..]
+        let partition_by = self.parse_partition_by()?;
+
         // [CREDENTIALS ..]
         let credentials = self.parse_connection_credentials()?;
 
@@ -649,6 +663,7 @@ impl<'a> CustomParser<'a> {
             dest,
             format,
             credentials,
+            partition_by,
             options,
         }))
     }
@@ -821,6 +836,18 @@ impl<'a> CustomParser<'a> {
 
     fn parse_data_format(&mut self) -> Result<Option<Ident>, ParserError> {
         self.parse_optional_ref("FORMAT")
+    }
+
+    fn parse_partition_by(&mut self) -> Result<Option<Vec<Ident>>, ParserError> {
+        if self.consume_token(&Token::make_keyword("PARTITION")) {
+            self.expect_token(&Token::make_keyword("BY"))?;
+
+            self.parser
+                .parse_parenthesized_column_list(IsOptional::Mandatory, false)
+                .map(Option::Some)
+        } else {
+            Ok(None)
+        }
     }
 
     /// Parse options block.
@@ -1372,6 +1399,20 @@ mod tests {
             assert_eq!(test_case, stmt.to_string().as_str());
         }
     }
+
+    #[test]
+    fn copy_to_partition_by() {
+        let test_cases = ["COPY table TO './dest' FORMAT parquet PARTITION BY (year, quarter)"];
+
+        for test_case in test_cases {
+            let stmt = CustomParser::parse_sql(test_case)
+                .unwrap()
+                .pop_front()
+                .unwrap();
+            assert_eq!(test_case, stmt.to_string().as_str());
+        }
+    }
+
 
     #[test]
     fn options_parse() {

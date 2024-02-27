@@ -1753,11 +1753,13 @@ pub struct CopyToFormatOptionsCsv {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToFormatOptionsParquet {
     pub row_group_size: usize,
+    pub partition_columns: Vec<String>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToFormatOptionsJson {
     pub array: bool,
+    pub partition_columns: Vec<String>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

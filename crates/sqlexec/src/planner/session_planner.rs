@@ -107,6 +107,7 @@ use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
 use sqlbuiltins::validation::{
     validate_copyto_dest_creds_support,
     validate_copyto_dest_format_support,
+    validate_copyto_format_partition_support,
     validate_database_creds_support,
     validate_database_tunnel_support,
     validate_table_creds_support,
@@ -1909,6 +1910,21 @@ impl<'a> SessionPlanner<'a> {
             .and_then(|ext| ext.to_str())
             .map(|ext| ext.to_lowercase());
 
+        let maybe_partition_by = if let Some(partition_by) = stmt.partition_by {
+            let partition_by = partition_by
+                .into_iter()
+                .map(|col| {
+                    validate_ident(&col)?;
+                    Ok(normalize_ident(col))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Some(partition_by)
+        } else {
+            None
+        };
+
+        let has_partitions = maybe_partition_by.is_some();
+
         let format = match stmt
             .format
             .as_ref()
@@ -1932,11 +1948,19 @@ impl<'a> SessionPlanner<'a> {
                 let row_group_size = m
                     .remove_optional::<usize>("row_group_size")?
                     .unwrap_or(122880);
-                CopyToFormatOptions::Parquet(CopyToFormatOptionsParquet { row_group_size })
+
+                CopyToFormatOptions::Parquet(CopyToFormatOptionsParquet {
+                    row_group_size,
+                    partition_columns: maybe_partition_by.unwrap_or_default(),
+                })
             }
             Some(CopyToFormatOptions::JSON) => {
                 let array = m.remove_optional::<bool>("array")?.unwrap_or(false);
-                CopyToFormatOptions::Json(CopyToFormatOptionsJson { array })
+
+                CopyToFormatOptions::Json(CopyToFormatOptionsJson {
+                    array,
+                    partition_columns: maybe_partition_by.unwrap_or_default(),
+                })
             }
             Some(CopyToFormatOptions::BSON) => CopyToFormatOptions::Bson {},
             Some(CopyToFormatOptions::LANCE) => {
@@ -1949,6 +1973,14 @@ impl<'a> SessionPlanner<'a> {
             }
             Some(other) => return Err(internal!("unsupported output format: {other}")),
         };
+
+        if has_partitions {
+            validate_copyto_format_partition_support(format.as_str()).map_err(|e| {
+                PlanError::InvalidCopyToStatement {
+                    source: Box::new(e),
+                }
+            })?;
+        }
 
         validate_copyto_dest_format_support(dest.as_str(), format.as_str()).map_err(|e| {
             PlanError::InvalidExternalTable {

@@ -22,6 +22,9 @@ pub enum ValidationError {
 
     #[error("Format '{format}' not supported by datasource '{datasource}'")]
     FormatNotSupportedByDatasource { format: String, datasource: String },
+
+    #[error("Partitioning is not supported by format '{format}'")]
+    PartitionByNotSupportedByFormat { format: String },
 }
 
 type Result<T> = std::result::Result<T, ValidationError>;
@@ -162,6 +165,16 @@ pub fn validate_copyto_dest_format_support(dest: &str, format: &str) -> Result<(
         Err(ValidationError::FormatNotSupportedByDatasource {
             format: format.to_owned(),
             datasource: dest.to_owned(),
+        })
+    }
+}
+
+pub fn validate_copyto_format_partition_support(format: &str) -> Result<()> {
+    if matches!(format, |"parquet"| "json") {
+        Ok(())
+    } else {
+        Err(ValidationError::PartitionByNotSupportedByFormat {
+            format: format.to_owned(),
         })
     }
 }
