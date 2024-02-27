@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use std::ffi::{c_void, CStr};
+use std::ffi::CStr;
 use std::sync::{Arc, RwLock};
 
 use datafusion::arrow::array::ArrayRef;
-use datafusion::arrow::datatypes::{DataType, Field};
+use datafusion::arrow::datatypes::DataType;
 use datafusion::arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
-use datafusion::error::{DataFusionError, Result};
+use datafusion::error::Result;
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
     ColumnarValue,
@@ -43,21 +43,27 @@ impl GlaredbFFIPlugin {
         let slf = self.clone();
         Arc::new(move |args| unsafe {
             let plugin = get_lib(&slf.lib)?;
-            println!("plugin: {:?}", plugin);
             let lib = &plugin.0;
             let _major = plugin.1;
             let symbol: libloading::Symbol<
                 unsafe extern "C" fn(
-                    *mut *mut FFI_ArrowArray,
-                    usize,
-                    *const u8,
-                    usize,
+                    // *mut ArrowArray: input arrays
                     *mut FFI_ArrowArray,
+                    // *mut ArrowSchema: input schemas
+                    *mut FFI_ArrowSchema,
+                    // usize: length of the input arrays
+                    usize,
+                    // *mut FFI_ArrowArray: return value
+                    *mut FFI_ArrowArray,
+                    // *mut FFI_ArrowSchema: return schema
+                    *mut FFI_ArrowSchema,
                 ),
             > = lib
                 .get(format!("_glaredb_plugin_{}", slf.symbol).as_bytes())
                 .unwrap();
-            let input = args
+
+
+            let (arrays, schemas): (Vec<_>, Vec<_>) = args
                 .iter()
                 .map(|arg| {
                     let input = match arg {
@@ -66,17 +72,42 @@ impl GlaredbFFIPlugin {
                     };
                     let data = input.to_data();
                     let (ffi_arr, ffi_schema) = datafusion::arrow::ffi::to_ffi(&data).unwrap();
+
                     (ffi_arr, ffi_schema)
                 })
-                .collect::<Vec<_>>();
-            println!("input = {:?}", input);
+                .unzip();
+            let mut arrays = arrays.into_boxed_slice();
+            let mut schemas = schemas.into_boxed_slice();
+
             let input_len = args.len();
-            let slice_ptr = input.as_ptr();
+            let slice_ptr = arrays.as_mut_ptr();
+            let schema_ptr = schemas.as_mut_ptr();
+            // we pass the ownership of the arrays and schemas to the FFI function
+            std::mem::forget(arrays);
+            std::mem::forget(schemas);
 
-            let kwargs_ptr = slf.kwargs.as_ptr();
-            let kwargs_len = slf.kwargs.len();
 
-            todo!()
+            let mut return_value = FFI_ArrowArray::empty();
+            let mut return_schema = FFI_ArrowSchema::empty();
+            let return_value_ptr = &mut return_value as *mut FFI_ArrowArray;
+            let return_schema_ptr = &mut return_schema as *mut FFI_ArrowSchema;
+            symbol(
+                slice_ptr,
+                schema_ptr,
+                input_len,
+                return_value_ptr,
+                return_schema_ptr,
+            );
+
+
+            if return_value.is_empty() {
+                let msg = retrieve_error_msg(lib);
+                let msg = msg.to_string_lossy();
+                panic!("{}", msg.as_ref());
+            } else {
+                let return_value = import_array(return_value, &return_schema)?;
+                Ok(ColumnarValue::Array(return_value))
+            }
         })
     }
 
@@ -86,100 +117,6 @@ impl GlaredbFFIPlugin {
     }
 }
 
-#[repr(C)]
-#[derive(Debug)]
-pub struct SeriesExport {
-    schema: *mut FFI_ArrowSchema,
-    arrays: *mut *mut FFI_ArrowArray,
-    release: Option<unsafe extern "C" fn(arg1: *mut SeriesExport)>,
-    // When exported, this MUST contain everything that is owned by this array.
-    // for example, any buffer pointed to in `buffers` must be here, as well
-    // as the `buffers` pointer itself.
-    // In other words, everything in [FFI_ArrowArray] must be owned by
-    // `private_data` and can assume that they do not outlive `private_data`.
-    private_data: *mut c_void,
-}
-
-
-impl SeriesExport {
-    pub fn empty() -> Self {
-        Self {
-            schema: std::ptr::null_mut(),
-            arrays: std::ptr::null_mut(),
-            release: None,
-            private_data: std::ptr::null_mut(),
-        }
-    }
-
-    pub fn is_null(&self) -> bool {
-        self.private_data.is_null()
-    }
-
-    pub fn from_array(array: ArrayRef) -> Self {
-        let data = array.to_data();
-        let (ffi_arr, ffi_schema) = datafusion::arrow::ffi::to_ffi(&data).unwrap();
-        let ffi_schema = Box::new(ffi_schema);
-        let field = ffi_schema.as_ref() as *const FFI_ArrowSchema as *mut _;
-        let ffi_arr = Box::new(ffi_arr);
-        let ptr = ffi_arr.as_ref() as *const FFI_ArrowArray as *mut _;
-
-
-        Self {
-            schema: field,
-            arrays: ptr,
-            release: Some(c_release_series_export),
-            private_data: Box::into_raw(Box::new(PrivateData {
-                array: ffi_arr,
-                schema: ffi_schema,
-            })) as *mut std::os::raw::c_void,
-        }
-    }
-}
-// A utility that helps releasing/owning memory.
-#[allow(dead_code)]
-struct PrivateData {
-    schema: Box<FFI_ArrowSchema>,
-    array: Box<FFI_ArrowArray>,
-}
-
-impl Drop for SeriesExport {
-    fn drop(&mut self) {
-        if let Some(release) = self.release {
-            unsafe { release(self) }
-        }
-    }
-}
-
-/// Passed to an expression.
-/// This contains information for the implementer of the expression on what it is allowed to do.
-#[derive(Copy, Clone, Debug, Default)]
-#[repr(C)]
-pub struct CallerContext {
-    // bit
-    // 1: PARALLEL
-    bitflags: u64,
-}
-
-impl CallerContext {
-    const fn kth_bit_set(&self, k: u64) -> bool {
-        (self.bitflags & (1 << k)) > 0
-    }
-
-    fn set_kth_bit(&mut self, k: u64) {
-        self.bitflags |= 1 << k
-    }
-
-    /// Parallelism is done by polars' main engine, the plugin should not run run its own parallelism.
-    /// If this is `false`, the plugin could use parallelism without (much) contention with polars
-    /// parallelism strategies.
-    pub fn parallel(&self) -> bool {
-        self.kth_bit_set(0)
-    }
-
-    pub fn _set_parallel(&mut self) {
-        self.set_kth_bit(0)
-    }
-}
 
 impl ScalarUDFImpl for GlaredbFFIPlugin {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -297,8 +234,6 @@ unsafe fn plugin_return_type(
     kwargs: &[u8],
 ) -> Result<DataType> {
     let plugin = get_lib(lib)?;
-    println!("fields = {:?}", fields);
-    println!("plugin: {:?}", plugin);
     let lib = &plugin.0;
     let major = plugin.1;
     let minor = plugin.2;
@@ -356,8 +291,7 @@ unsafe fn plugin_return_type(
             }
         }
 
-        let ret_val_ptr = &return_value as *const FFI_ArrowSchema;
-        if !ret_val_ptr.is_null() {
+        if !return_value_ptr.is_null() {
             let out = DataType::try_from(&return_value).unwrap();
 
             Ok(out)
@@ -386,20 +320,4 @@ unsafe fn import_array(array: FFI_ArrowArray, schema: &FFI_ArrowSchema) -> Resul
     let data = datafusion::arrow::ffi::from_ffi(array, schema).unwrap();
     let arr = datafusion::arrow::array::make_array(data);
     Ok(arr)
-}
-
-/// # Safety
-/// `SeriesExport` must be valid
-unsafe fn import_series(e: SeriesExport) -> Result<ArrayRef> {
-    let schema = FFI_ArrowSchema::from_raw(e.schema);
-    todo!()
-}
-
-// callback used to drop [SeriesExport] when it is exported.
-unsafe extern "C" fn c_release_series_export(e: *mut SeriesExport) {
-    if e.is_null() {
-        return;
-    }
-    let e = &mut *e;
-    e.release = None;
 }
