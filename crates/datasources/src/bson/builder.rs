@@ -598,10 +598,10 @@ mod test {
         buf.append("index", 1);
         buf.append("values", 3);
         assert_eq!(buf.iter().count(), 2);
-        rsb.append_record(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
+        rsb.append_record(&buf.clone())
             .expect_err("for append_record schema changes are an error");
         assert_eq!(rsb.len(), 1);
-        rsb.project_and_append(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
+        rsb.project_and_append(&buf.clone())
             .expect("project and append should filter out unrequired fields");
         assert_eq!(rsb.len(), 2);
 
@@ -616,7 +616,7 @@ mod test {
         // the first value was added successfully to another buffer to the rsb grew
         assert_eq!(rsb.len(), 3);
 
-        rsb.project_and_append(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
+        rsb.project_and_append(&buf.clone())
             .expect("project and append should filter out unrequired fields");
         assert_eq!(rsb.len(), 4);
     }
