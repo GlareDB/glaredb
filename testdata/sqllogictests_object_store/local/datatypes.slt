@@ -8,11 +8,10 @@ CREATE EXTERNAL TABLE datatypes
         location = '${PWD}/testdata/sqllogictests_object_store/local/data/datatypes-data.csv',
     );
 
-# TODO fix representation of timestamp value, epoch is valid
 query TTIRTTTTTTT
 SELECT * FROM datatypes;
 ----
-t     abc      123   123.456  Ymlu     938709124
-NULL  (empty)  NULL  NULL     (empty)  NULL
+t     abc      123   123.456  Ymlu     1999-09-30 16:32:04
+NULL  NULL     NULL  NULL     NULL     NULL
 
 # TODO add tests for all parquet data types

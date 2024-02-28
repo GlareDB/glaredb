@@ -4,10 +4,48 @@ pub mod schema;
 pub mod stream;
 pub mod table;
 
+use bson::DateTime;
 use datafusion::arrow::array::cast::as_string_array;
-use datafusion::arrow::array::{types::*, Array, ArrayRef, AsArray, StructArray};
-use datafusion::arrow::datatypes::{DataType, Fields, IntervalUnit, TimeUnit};
+use datafusion::arrow::array::types::{
+    Date32Type,
+    Date64Type,
+    Decimal128Type,
+    DurationMicrosecondType,
+    DurationMillisecondType,
+    DurationNanosecondType,
+    DurationSecondType,
+    Float16Type,
+    Float32Type,
+    Float64Type,
+    GenericBinaryType,
+    Int16Type,
+    Int32Type,
+    Int64Type,
+    Int8Type,
+    IntervalDayTimeType,
+    IntervalYearMonthType,
+    Time32MillisecondType,
+    Time32SecondType,
+    Time64MicrosecondType,
+    Time64NanosecondType,
+    TimestampMicrosecondType,
+    TimestampMillisecondType,
+    TimestampSecondType,
+    UInt16Type,
+    UInt32Type,
+    UInt64Type,
+    UInt8Type,
+};
+use datafusion::arrow::array::{Array, AsArray, StructArray};
+use datafusion::arrow::datatypes::{
+    DataType,
+    Fields,
+    IntervalUnit,
+    TimeUnit,
+    TimestampNanosecondType,
+};
 use datafusion::arrow::error::ArrowError;
+use datafusion::arrow::record_batch::RecordBatch;
 
 pub struct BsonBatchConverter {
     batch: StructArray,
@@ -33,12 +71,24 @@ impl BsonBatchConverter {
         }
     }
 
+    pub fn from_record_batch(value: RecordBatch) -> Self {
+        Self::new(
+            StructArray::new(
+                value.schema().fields.clone(),
+                value.columns().to_vec(),
+                None,
+            ),
+            value.schema().fields.clone(),
+        )
+    }
+
     fn setup(&mut self) -> Result<(), ArrowError> {
-        for col in self.batch.columns().iter() {
-            self.columns
-                .push(array_to_bson(col).map_err(|e| ArrowError::from_external_error(Box::new(e)))?)
+        if !self.started {
+            for col in self.batch.columns().iter() {
+                self.columns.push(array_to_bson(col)?)
+            }
+            self.started = true
         }
-        self.started = true;
         Ok(())
     }
 }
@@ -47,10 +97,8 @@ impl Iterator for BsonBatchConverter {
     type Item = Result<bson::Document, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if !self.started {
-            if let Err(e) = self.setup() {
-                return Some(Err(e));
-            }
+        if let Err(e) = self.setup() {
+            return Some(Err(e));
         }
 
         if self.row >= self.batch.len() {
@@ -59,7 +107,26 @@ impl Iterator for BsonBatchConverter {
 
         let mut doc = bson::Document::new();
         for (i, field) in self.schema.iter().enumerate() {
-            doc.insert(field.to_string(), self.columns[i][self.row].to_owned());
+            let value = &self.columns[i][self.row];
+            match (field.as_str(), value) {
+                ("_id", bson::Bson::Binary(v)) => {
+                    // if we have a binary-typed _id field where the
+                    // value is empty, this is (almost certainly the
+                    // result of an unpopulated object_id field in a
+                    // round-trip from mongodb where an insert in GlareDB omitted an generating an object id.)
+                    if v.as_raw_binary().bytes.is_empty() {
+                        doc.insert(
+                            field.to_string(),
+                            bson::Bson::ObjectId(bson::oid::ObjectId::new()),
+                        );
+                    } else {
+                        doc.insert(field.to_string(), value.to_owned());
+                    }
+                }
+                _ => {
+                    doc.insert(field.to_string(), value.to_owned());
+                }
+            }
         }
 
         self.row += 1;
@@ -67,7 +134,7 @@ impl Iterator for BsonBatchConverter {
     }
 }
 
-fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
+pub fn array_to_bson(array: &dyn Array) -> Result<Vec<bson::Bson>, ArrowError> {
     let mut out = Vec::<bson::Bson>::with_capacity(array.len());
     let dt = array.data_type().to_owned();
     match dt {
@@ -163,14 +230,16 @@ fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
                     }))
                 })
         }
-        DataType::Date32 => array
-            .as_primitive::<Date32Type>()
-            .iter()
-            .for_each(|val| out.push(bson::Bson::Int32(val.unwrap_or_default()))),
-        DataType::Date64 => array
-            .as_primitive::<Date64Type>()
-            .iter()
-            .for_each(|val| out.push(bson::Bson::Int64(val.unwrap_or_default()))),
+        DataType::Date64 => array.as_primitive::<Date64Type>().iter().for_each(|val| {
+            out.push(bson::Bson::DateTime(DateTime::from_millis(
+                val.unwrap_or_default(),
+            )))
+        }),
+        DataType::Date32 => array.as_primitive::<Date32Type>().iter().for_each(|val| {
+            out.push(bson::Bson::DateTime(DateTime::from_millis(
+                (val.unwrap_or_default() / 1000) as i64,
+            )))
+        }),
         DataType::Interval(IntervalUnit::DayTime) => array
             .as_primitive::<IntervalDayTimeType>()
             .iter()
@@ -205,11 +274,11 @@ fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
             .iter()
             .for_each(|val| {
                 out.push(bson::Bson::DateTime(bson::datetime::DateTime::from_millis(
-                    val.unwrap_or_default() / 100,
+                    val.unwrap_or_default() / 1000,
                 )))
             }),
         DataType::Timestamp(TimeUnit::Nanosecond, _) => array
-            .as_primitive::<TimestampMicrosecondType>()
+            .as_primitive::<TimestampNanosecondType>()
             .iter()
             .for_each(|val| {
                 out.push(bson::Bson::DateTime(bson::datetime::DateTime::from_millis(
@@ -224,14 +293,6 @@ fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
             .as_primitive::<Time32MillisecondType>()
             .iter()
             .for_each(|val| out.push(bson::Bson::Int32(val.unwrap_or_default()))),
-        DataType::Time32(TimeUnit::Nanosecond)
-        | DataType::Time32(TimeUnit::Microsecond)
-        | DataType::Time64(TimeUnit::Second)
-        | DataType::Time64(TimeUnit::Millisecond) => {
-            return Err(ArrowError::CastError(
-                "unreasonable time value conversion BSON".to_string(),
-            ))
-        }
         DataType::Time64(TimeUnit::Microsecond) => array
             .as_primitive::<Time64MicrosecondType>()
             .iter()
@@ -240,6 +301,11 @@ fn array_to_bson(array: &ArrayRef) -> Result<Vec<bson::Bson>, ArrowError> {
             .as_primitive::<Time64NanosecondType>()
             .iter()
             .for_each(|val| out.push(bson::Bson::Int64(val.unwrap_or_default()))),
+        DataType::Time32(_) | DataType::Time64(_) => {
+            return Err(ArrowError::CastError(
+                "unreasonable time value conversion BSON".to_string(),
+            ))
+        }
         DataType::Duration(TimeUnit::Second) => array
             .as_primitive::<DurationSecondType>()
             .iter()

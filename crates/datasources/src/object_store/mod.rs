@@ -13,13 +13,13 @@ use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::execution::runtime_env::RuntimeEnv;
-use datafusion::logical_expr::TableType;
+use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
+use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::union::UnionExec;
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::{project_schema, ExecutionPlan};
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
-use errors::ObjectStoreSourceError;
-use errors::Result;
+use errors::{ObjectStoreSourceError, Result};
 use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
 use object_store::path::Path as ObjectStorePath;
@@ -106,6 +106,16 @@ impl TableProvider for MultiSourceTableProvider {
             Ok(Arc::new(UnionExec::new(plans)))
         }
     }
+    fn supports_filters_pushdown(
+        &self,
+        filters: &[&Expr],
+    ) -> datafusion::common::Result<Vec<TableProviderFilterPushDown>> {
+        // we just look at the first source
+        self.sources
+            .first()
+            .unwrap()
+            .supports_filters_pushdown(filters)
+    }
 }
 
 #[async_trait]
@@ -116,7 +126,6 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
     /// * `s3//bucket/path/to/file.csv`: `s3://bucket`
     /// * `/some/local/file`: `file://`
     /// * `https://abc.com/xyz/pqr`: `https://abc.com__slash__xyz__slash__pqr`
-    ///
     fn base_url(&self) -> Result<ObjectStoreUrl>;
 
     /// Creates an object store.
@@ -143,7 +152,7 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
                 .transpose()?;
 
             let objects = {
-                let mut object_futs = store.list(prefix.as_ref()).await?;
+                let mut object_futs = store.list(prefix.as_ref());
 
                 let pattern = Pattern::new(pattern)?;
                 const MATCH_OPTS: MatchOptions = MatchOptions {
@@ -275,6 +284,24 @@ pub struct ObjStoreTableProvider {
     file_format: Arc<dyn FileFormat>,
 }
 
+impl ObjStoreTableProvider {
+    pub fn new(
+        store: Arc<dyn ObjectStore>,
+        arrow_schema: SchemaRef,
+        base_url: ObjectStoreUrl,
+        objects: Vec<ObjectMeta>,
+        file_format: Arc<dyn FileFormat>,
+    ) -> ObjStoreTableProvider {
+        ObjStoreTableProvider {
+            store,
+            arrow_schema,
+            base_url,
+            objects,
+            file_format,
+        }
+    }
+}
+
 #[async_trait]
 impl TableProvider for ObjStoreTableProvider {
     fn as_any(&self) -> &dyn Any {
@@ -310,6 +337,13 @@ impl TableProvider for ObjStoreTableProvider {
             .buffered(ctx.config_options().execution.meta_fetch_concurrency);
         let (files, statistics) = get_statistics_with_limit(files, self.schema(), limit).await?;
 
+        // If there are no files, return an empty exec plan.
+        if files.is_empty() {
+            let schema = self.schema();
+            let projected_schema = project_schema(&schema, projection)?;
+            return Ok(Arc::new(EmptyExec::new(projected_schema)));
+        }
+
         let config = FileScanConfig {
             object_store_url: self.base_url.clone(),
             file_schema: self.arrow_schema.clone(),
@@ -319,7 +353,6 @@ impl TableProvider for ObjStoreTableProvider {
             limit,
             table_partition_cols: Vec::new(),
             output_ordering: Vec::new(),
-            infinite_source: false,
         };
         let filters = exprs_to_phys_exprs(filters, ctx, &self.arrow_schema)?;
 
@@ -333,8 +366,19 @@ impl TableProvider for ObjStoreTableProvider {
             .create_physical_plan(ctx, config, filters.as_ref())
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
         Ok(Arc::new(ReadOnlyDataSourceMetricsExecAdapter::new(plan)))
+    }
+
+    fn supports_filters_pushdown(
+        &self,
+        filters: &[&Expr],
+    ) -> std::result::Result<Vec<TableProviderFilterPushDown>, datafusion::error::DataFusionError>
+    {
+        // todo: support exact pushdonws based on hive style partitioning
+        filters
+            .iter()
+            .map(|_| Ok(TableProviderFilterPushDown::Inexact))
+            .collect()
     }
 }
 
@@ -404,7 +448,9 @@ pub fn init_session_registry<'a>(
             | TableOptions::Snowflake(_)
             | TableOptions::SqlServer(_)
             | TableOptions::Clickhouse(_)
-            | TableOptions::Cassandra(_) => continue,
+            | TableOptions::Cassandra(_)
+            | TableOptions::Excel(_)
+            | TableOptions::Sqlite(_) => continue,
         };
 
         let base_url = access.base_url()?;

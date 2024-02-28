@@ -74,6 +74,10 @@ pub enum CopyToFormatOptionsEnum {
     Json(CopyToFormatOptionsJson),
     #[prost(message, tag = "3")]
     Parquet(CopyToFormatOptionsParquet),
+    #[prost(message, tag = "4")]
+    Lance(CopyToFormatOptionsLance),
+    #[prost(message, tag = "5")]
+    Bson(CopyToFormatOptionsBson),
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -96,14 +100,41 @@ pub struct CopyToFormatOptionsParquet {
     pub row_group_size: u64,
 }
 
+#[derive(Clone, PartialEq, Message)]
+pub struct CopyToFormatOptionsLance {
+    #[prost(uint64, optional, tag = "1")]
+    pub max_rows_per_file: Option<u64>,
+    #[prost(uint64, optional, tag = "2")]
+    pub max_rows_per_group: Option<u64>,
+    #[prost(uint64, optional, tag = "3")]
+    pub max_bytes_per_file: Option<u64>,
+    #[prost(uint64, optional, tag = "4")]
+    pub input_batch_size: Option<u64>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct CopyToFormatOptionsBson {}
+
 impl TryFrom<crate::metastore::types::options::CopyToFormatOptions> for CopyToFormatOptions {
     type Error = crate::errors::ProtoConvError;
     fn try_from(
         value: crate::metastore::types::options::CopyToFormatOptions,
     ) -> Result<Self, Self::Error> {
         match value {
-            crate::metastore::types::options::CopyToFormatOptions::Bson => {
+            crate::metastore::types::options::CopyToFormatOptions::Bson(_) => {
                 Ok(CopyToFormatOptions::default())
+            }
+            crate::metastore::types::options::CopyToFormatOptions::Lance(opts) => {
+                Ok(CopyToFormatOptions {
+                    copy_to_format_options_enum: Some(CopyToFormatOptionsEnum::Lance(
+                        CopyToFormatOptionsLance {
+                            max_rows_per_file: opts.max_rows_per_file.map(|v| v as u64),
+                            max_rows_per_group: opts.max_rows_per_group.map(|v| v as u64),
+                            max_bytes_per_file: opts.max_bytes_per_file.map(|v| v as u64),
+                            input_batch_size: opts.input_batch_size.map(|v| v as u64),
+                        },
+                    )),
+                })
             }
             crate::metastore::types::options::CopyToFormatOptions::Csv(csv) => {
                 Ok(CopyToFormatOptions {
@@ -154,12 +185,26 @@ impl TryFrom<CopyToFormatOptions> for crate::metastore::types::options::CopyToFo
                     },
                 ))
             }
+            CopyToFormatOptionsEnum::Lance(lance) => Ok(
+                crate::metastore::types::options::CopyToFormatOptions::Lance(
+                    crate::metastore::types::options::CopyToFormatOptionsLance {
+                        max_rows_per_file: lance.max_rows_per_file.map(|v| v as usize),
+                        max_rows_per_group: lance.max_rows_per_group.map(|v| v as usize),
+                        max_bytes_per_file: lance.max_rows_per_group.map(|v| v as usize),
+                        input_batch_size: lance.input_batch_size.map(|v| v as usize),
+                    },
+                ),
+            ),
             CopyToFormatOptionsEnum::Json(json) => {
                 Ok(crate::metastore::types::options::CopyToFormatOptions::Json(
                     crate::metastore::types::options::CopyToFormatOptionsJson { array: json.array },
                 ))
             }
-
+            CopyToFormatOptionsEnum::Bson(_) => {
+                Ok(crate::metastore::types::options::CopyToFormatOptions::Bson(
+                    crate::metastore::types::options::CopyToFormatOptionsBson {},
+                ))
+            }
             CopyToFormatOptionsEnum::Parquet(parquet) => Ok(
                 crate::metastore::types::options::CopyToFormatOptions::Parquet(
                     crate::metastore::types::options::CopyToFormatOptionsParquet {

@@ -1,6 +1,12 @@
 //! Table functions for triggering system-related functionality. Users are
 //! unlikely to use these, but there's no harm if they do.
 pub mod cache_external_tables;
+pub mod remove_delta_tables;
+
+use std::any::Any;
+use std::fmt;
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use cache_external_tables::CacheExternalDatabaseTablesOperation;
@@ -13,17 +19,20 @@ use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
 use datafusion::logical_expr::TableType;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use datafusion::prelude::Expr;
 use futures::stream;
 use once_cell::sync::Lazy;
-use std::any::Any;
-use std::fmt;
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+
+use self::remove_delta_tables::DeleteDeltaTablesOperation;
 
 /// A system operation can execute an arbitrary operation.
 ///
@@ -32,6 +41,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Clone)]
 pub enum SystemOperation {
     CacheExternalTables(CacheExternalDatabaseTablesOperation),
+    DeleteDeltaTables(DeleteDeltaTablesOperation),
 }
 
 impl SystemOperation {
@@ -40,6 +50,7 @@ impl SystemOperation {
     pub fn name(&self) -> &'static str {
         match self {
             Self::CacheExternalTables(inner) => inner.name(),
+            Self::DeleteDeltaTables(_) => DeleteDeltaTablesOperation::NAME,
         }
     }
 
@@ -50,6 +61,7 @@ impl SystemOperation {
     pub async fn execute(&self, context: Arc<TaskContext>) -> Result<(), DataFusionError> {
         match self {
             Self::CacheExternalTables(inner) => inner.execute(context).await?,
+            Self::DeleteDeltaTables(inner) => inner.execute(context).await?,
         }
         Ok(())
     }
@@ -109,6 +121,15 @@ pub struct SystemOperationExec {
     operation: SystemOperation,
     projection: Option<Vec<usize>>,
 }
+impl SystemOperationExec {
+    /// Create a new system operation exec.
+    pub fn new(operation: SystemOperation) -> Self {
+        Self {
+            operation,
+            projection: None,
+        }
+    }
+}
 
 impl ExecutionPlan for SystemOperationExec {
     fn as_any(&self) -> &dyn Any {
@@ -136,11 +157,15 @@ impl ExecutionPlan for SystemOperationExec {
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Plan(
-            "Cannot change children for SystemOperationExec".to_string(),
-        ))
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Plan(
+                "Cannot change children for SystemOperationExec".to_string(),
+            ))
+        }
     }
 
     fn execute(
@@ -190,8 +215,8 @@ impl ExecutionPlan for SystemOperationExec {
         Ok(Box::pin(RecordBatchStreamAdapter::new(self.schema(), out)))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

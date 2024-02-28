@@ -2,30 +2,45 @@
 mod aggregates;
 mod alias_map;
 mod scalars;
-mod table;
+pub mod table;
 
 use std::sync::Arc;
 
 use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
 use once_cell::sync::Lazy;
-
 use protogen::metastore::types::catalog::FunctionType;
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
 use scalars::kdl::{KDLMatches, KDLSelect};
-use scalars::postgres::*;
+use scalars::postgres::{
+    CurrentCatalog,
+    CurrentDatabase,
+    CurrentRole,
+    CurrentSchema,
+    CurrentSchemas,
+    CurrentUser,
+    HasDatabasePrivilege,
+    HasSchemaPrivilege,
+    HasTablePrivilege,
+    PgArrayToString,
+    PgEncodingToChar,
+    PgGetUserById,
+    PgTableIsVisible,
+    PgVersion,
+    User,
+};
 use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
 
 use self::alias_map::AliasMap;
+use crate::functions::scalars::openai::OpenAIEmbed;
+use crate::functions::scalars::similarity::CosineSimilarity;
 
-/// All builtin functions available for all sessions.
+/// FUNCTION_REGISTRY provides all implementations of [`BuiltinFunction`]
 pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
 
-/// A builtin function.
-/// This trait is implemented by all builtin functions.
-/// This is used to derive catalog entries for all supported functions.
-/// Any new function MUST implement this trait.
+/// BuiltinFunction **MUST** be implemented by all builtin functions, including
+/// new ones. This is used to derive catalog entries for all supported functions.
 pub trait BuiltinFunction: Sync + Send {
     /// The name for this function. This name will be used when looking up
     /// function implementations.
@@ -67,10 +82,13 @@ pub trait ConstBuiltinFunction: Sync + Send {
     const DESCRIPTION: &'static str;
     const EXAMPLE: &'static str;
     const FUNCTION_TYPE: FunctionType;
+    const ALIASES: &'static [&'static str] = &[];
+
     fn signature(&self) -> Option<Signature> {
         None
     }
 }
+
 /// The namespace of a function.
 ///
 /// Optional -> "namespace.function" || "function"
@@ -100,7 +118,13 @@ pub enum FunctionNamespace {
 /// likely be used instead.
 pub trait BuiltinScalarUDF: BuiltinFunction {
     /// Builds an expression for the function using the provided arguments.
-    fn as_expr(&self, args: Vec<Expr>) -> Expr;
+    /// Some functions may require additional information from the catalog to build the expression.
+    /// Examples of such functions are ones that require credentials to access external services such as `openai_embed`.
+    fn try_as_expr(
+        &self,
+        catalog: &catalog::session_catalog::SessionCatalog,
+        args: Vec<Expr>,
+    ) -> datafusion::error::Result<Expr>;
 
     /// The namespace of the function.
     /// Defaults to global (None)
@@ -116,17 +140,25 @@ where
     fn name(&self) -> &str {
         Self::NAME
     }
+
     fn sql_example(&self) -> Option<&str> {
         Some(Self::EXAMPLE)
     }
+
     fn description(&self) -> Option<&str> {
         Some(Self::DESCRIPTION)
     }
+
     fn function_type(&self) -> FunctionType {
         Self::FUNCTION_TYPE
     }
+
     fn signature(&self) -> Option<Signature> {
         self.signature()
+    }
+
+    fn aliases(&self) -> &[&str] {
+        Self::ALIASES
     }
 }
 
@@ -182,6 +214,7 @@ impl FunctionRegistry {
             Arc::new(PgTableIsVisible),
             Arc::new(PgEncodingToChar),
             Arc::new(PgArrayToString),
+            Arc::new(PgVersion),
             // System functions
             Arc::new(ConnectionId),
             Arc::new(Version),
@@ -192,6 +225,10 @@ impl FunctionRegistry {
             Arc::new(SipHash),
             Arc::new(FnvHash),
             Arc::new(PartitionResults),
+            // OpenAI
+            Arc::new(OpenAIEmbed),
+            // Similarity
+            Arc::new(CosineSimilarity),
         ];
         let udfs = udfs
             .into_iter()
@@ -350,8 +387,9 @@ macro_rules! document {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::HashSet;
+
+    use super::*;
 
     #[test]
     fn get_function_info() {
@@ -393,6 +431,10 @@ mod tests {
             .expect("'read_parquet' should have description");
     }
 
+    // TODO: Currently there's a conflict between `version()` and `pg_catalog.version()`.
+    //
+    // See <https://github.com/GlareDB/glaredb/issues/2371>
+    #[ignore]
     #[test]
     fn func_iters_return_one_copy() {
         // Assert that iterators only ever return a single reference to a

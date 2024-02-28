@@ -1,23 +1,29 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
-};
+use std::collections::{BTreeMap, HashMap};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use clap::Args;
-use tokio::{net::TcpListener, runtime::Builder, sync::mpsc, time::Instant};
+use pgsrv::auth::SingleUserAuthenticator;
+use slt::test::{
+    ClientProtocol,
+    FlightSqlTestClient,
+    PgTestClient,
+    RpcTestClient,
+    Test,
+    TestClient,
+    TestHooks,
+};
+use tokio::net::TcpListener;
+use tokio::runtime::Builder;
+use tokio::sync::mpsc;
+use tokio::time::Instant;
 use tokio_postgres::config::Config as ClientConfig;
-use tracing::info;
 use uuid::Uuid;
 
 use crate::args::StorageConfigArgs;
 use crate::server::ComputeServer;
-use pgsrv::auth::SingleUserAuthenticator;
-use slt::test::{
-    ClientProtocol, FlightSqlTestClient, PgTestClient, RpcTestClient, Test, TestClient, TestHooks,
-};
 
 #[derive(Args)]
 pub struct SltArgs {
@@ -369,7 +375,7 @@ impl SltArgs {
         client_config: ClientConfig,
         hooks: Arc<TestHooks>,
     ) -> Result<()> {
-        info!("Running test: `{}`", test_name);
+        tracing::info!("Running test: `{}`", test_name);
         let client = match mode {
             ClientProtocol::Postgres => TestClient::Pg(PgTestClient::new(&client_config).await?),
             ClientProtocol::Rpc => {
@@ -406,8 +412,13 @@ impl SltArgs {
         // Run the pre-test hooks
         for (pattern, hook) in hooks.clone() {
             tracing::debug!(%pattern, %test_name, "Running pre hook for test");
-            hook.pre(client_config, client.clone(), &mut local_vars)
+            let ok_to_continue = hook
+                .pre(client_config, client.clone(), &mut local_vars)
                 .await?;
+            if !ok_to_continue {
+                tracing::warn!("skipping test, as indicated by pre-hook for {}", test_name);
+                return Ok(());
+            }
         }
 
         // Run the actual test

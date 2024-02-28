@@ -1,9 +1,9 @@
-use crate::errors::ProtoConvError;
-use crate::gen::rpcsrv::simple;
-use crate::FromOptionalField;
 use uuid::Uuid;
 
 use super::common::SessionStorageConfig;
+use crate::errors::ProtoConvError;
+use crate::gen::rpcsrv::simple;
+use crate::FromOptionalField;
 
 #[derive(Debug, Clone)]
 pub struct ExecuteQueryRequest {

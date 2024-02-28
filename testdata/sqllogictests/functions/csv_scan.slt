@@ -53,7 +53,7 @@ select count(*) from csv_scan([
 ----
 204
 
-statement error at least one url expected
+statement error Expected at least one url.
 select * from csv_scan([]);
 
 # Glob patterns not supported on HTTP

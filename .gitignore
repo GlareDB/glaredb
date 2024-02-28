@@ -8,6 +8,8 @@ glaredb_image
 pgsrv_image
 # Downloaded artifacts from GCS
 gcs-artifacts/
+# Prepared sqlite database
+testdata/sqllogictests_sqlite/data/db.sqlite3
 # Outputs from cargo flamegraph
 flamegraph.svg
 # Benchmark artifacts
@@ -34,3 +36,8 @@ bench_data/
 
 # Logs
 *.log
+
+# dbt compiled models
+tests/fixtures/dbt_project/target/
+tests/fixtures/dbt_project/.user.yml
+tests/fixtures/dbt_project/logs/

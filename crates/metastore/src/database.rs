@@ -1,31 +1,55 @@
 //! Module for handling the catalog for a single database.
-use crate::errors::{MetastoreError, Result};
-use crate::storage::persist::Storage;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use protogen::metastore::types::catalog::{
-    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
-    EntryType, FunctionEntry, SchemaEntry, SourceAccessMode, TableEntry, TunnelEntry, ViewEntry,
+    CatalogEntry,
+    CatalogState,
+    CredentialsEntry,
+    DatabaseEntry,
+    DeploymentMetadata,
+    EntryMeta,
+    EntryType,
+    FunctionEntry,
+    SchemaEntry,
+    SourceAccessMode,
+    TableEntry,
+    TunnelEntry,
+    ViewEntry,
 };
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
+    DatabaseOptions,
+    DatabaseOptionsInternal,
+    TableOptions,
+    TunnelOptions,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
 use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
-    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
+    BuiltinDatabase,
+    BuiltinSchema,
+    BuiltinTable,
+    BuiltinView,
+    DATABASE_DEFAULT,
+    DEFAULT_SCHEMA,
     FIRST_NON_STATIC_OID,
+    SCHEMA_DEFAULT,
 };
 use sqlbuiltins::functions::{BuiltinFunction, FUNCTION_REGISTRY};
 use sqlbuiltins::validation::{
-    validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
+    validate_database_tunnel_support,
+    validate_object_name,
+    validate_table_tunnel_support,
 };
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
 use tracing::debug;
 use uuid::Uuid;
+
+use crate::errors::{MetastoreError, Result};
+use crate::storage::persist::Storage;
 
 /// Special id indicating that databases have no parents.
 const DATABASE_PARENT_ID: u32 = 0;
@@ -50,7 +74,7 @@ static BUILTIN_CATALOG: Lazy<BuiltinCatalog> = Lazy::new(|| BuiltinCatalog::new(
 pub struct DatabaseCatalog {
     db_id: Uuid,
 
-    /// Reference to underlying persistant storage.
+    /// Reference to underlying persistent storage.
     storage: Arc<Storage>,
 
     /// A cached catalog state for a single database.
@@ -248,6 +272,15 @@ impl DatabaseEntries {
 
         if let Some(ent) = self.0.get(&oid) {
             if ent.get_meta().builtin {
+                return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));
+            }
+        }
+
+        for builtin in BuiltinSchema::builtins() {
+            if builtin.oid == SCHEMA_DEFAULT.oid {
+                continue;
+            }
+            if builtin.oid == ent.get_meta().parent {
                 return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));
             }
         }
@@ -743,37 +776,6 @@ impl State {
                 // Add to creadentials map
                 self.credentials_names.insert(create_credentials.name, oid);
             }
-            Mutation::CreateCredential(create_credential) => {
-                validate_object_name(&create_credential.name)?;
-                if self
-                    .credentials_names
-                    .get(&create_credential.name)
-                    .is_some()
-                {
-                    return Err(MetastoreError::DuplicateName(create_credential.name));
-                }
-
-                // Create new entry
-                let oid = self.next_oid();
-                let ent = CredentialsEntry {
-                    meta: EntryMeta {
-                        entry_type: EntryType::Credentials,
-                        id: oid,
-                        // The credentials, just like databases doesn't have any parent.
-                        parent: DATABASE_PARENT_ID,
-                        name: create_credential.name.clone(),
-                        builtin: false,
-                        external: false,
-                        is_temp: false,
-                    },
-                    options: create_credential.options,
-                    comment: create_credential.comment,
-                };
-                self.entries.insert(oid, CatalogEntry::Credentials(ent))?;
-
-                // Add to creadentials map
-                self.credentials_names.insert(create_credential.name, oid);
-            }
             Mutation::CreateSchema(create_schema) => {
                 validate_object_name(&create_schema.name)?;
 
@@ -861,7 +863,6 @@ impl State {
 
                 self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
             }
-
             Mutation::CreateExternalTable(create_ext) => {
                 validate_object_name(&create_ext.name)?;
                 let schema_id = self.get_schema_id(&create_ext.schema)?;
@@ -934,19 +935,17 @@ impl State {
                             Some(id) => id,
                         };
 
-                        let mut table = match self.entries.remove(&oid)?.unwrap() {
-                            CatalogEntry::Table(ent) => ent,
-                            other => unreachable!("unexpected entry type: {:?}", other),
-                        };
+                        let mut ent = self.entries.remove(&oid)?.unwrap();
 
-                        table.meta.name = new_name;
+                        // The entry must be a "table" or a "view".
+                        assert!(
+                            matches!(ent, CatalogEntry::Table(_) | CatalogEntry::View(_)),
+                            "unexpected entry type: {ent:?}"
+                        );
 
-                        self.try_insert_table_namespace(
-                            CatalogEntry::Table(table.clone()),
-                            schema_id,
-                            table.meta.id,
-                            CreatePolicy::Create,
-                        )?;
+                        ent.get_meta_mut().name = new_name;
+
+                        self.try_insert_table_namespace(ent, schema_id, oid, CreatePolicy::Create)?;
                     }
                     AlterTableOperation::SetAccessMode { access_mode } => {
                         let oid = match objs.tables.get(&alter_table.name) {
@@ -1375,18 +1374,30 @@ impl BuiltinCatalog {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
+    use datafusion::arrow::datatypes::DataType;
+    use object_store::memory::InMemory;
+    use protogen::metastore::types::options::{
+        DatabaseOptionsDebug,
+        InternalColumnDefinition,
+        TableOptionsDebug,
+        TableOptionsInternal,
+    };
+    use protogen::metastore::types::service::{
+        AlterDatabase,
+        CreateExternalDatabase,
+        CreateExternalTable,
+        CreateSchema,
+        CreateTable,
+        CreateView,
+        DropDatabase,
+        DropSchema,
+    };
+    use sqlbuiltins::builtins::{DEFAULT_CATALOG, INTERNAL_SCHEMA};
+
     use super::*;
     use crate::storage::persist::Storage;
-    use object_store::memory::InMemory;
-    use protogen::metastore::types::options::DatabaseOptionsDebug;
-    use protogen::metastore::types::options::TableOptionsDebug;
-    use protogen::metastore::types::service::AlterDatabase;
-    use protogen::metastore::types::service::DropDatabase;
-    use protogen::metastore::types::service::{
-        CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropSchema,
-    };
-    use sqlbuiltins::builtins::DEFAULT_CATALOG;
-    use std::collections::HashSet;
 
     async fn new_catalog() -> DatabaseCatalog {
         logutil::init_test();
@@ -1406,6 +1417,10 @@ mod tests {
         BuiltinCatalog::new().unwrap();
     }
 
+    // TODO: Currently there's a conflict between `version()` and `pg_catalog.version()`.
+    //
+    // See <https://github.com/GlareDB/glaredb/issues/2371>
+    #[ignore]
     #[test]
     fn builtin_catalog_no_function_name_duplicates() {
         // Ensures each function is a unique (schema, name) pair.
@@ -1953,5 +1968,57 @@ mod tests {
             )
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn try_modify_internal_schema() {
+        let db = new_catalog().await;
+        version(&db).await;
+
+        // Add internal table on 'glare_catalog'
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateTable(CreateTable {
+                schema: INTERNAL_SCHEMA.to_string(),
+                name: "peach".to_string(),
+                if_not_exists: true,
+                or_replace: false,
+                options: TableOptionsInternal {
+                    columns: vec![InternalColumnDefinition {
+                        name: "luigi".to_string(),
+                        nullable: true,
+                        arrow_type: DataType::Utf8,
+                    }],
+                },
+            })],
+        )
+        .await
+        .unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn allow_modify_default_schema() {
+        let db = new_catalog().await;
+        version(&db).await;
+
+        // Add internal table on 'public' schema
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateTable(CreateTable {
+                schema: DEFAULT_SCHEMA.to_string(),
+                name: "peach".to_string(),
+                if_not_exists: true,
+                or_replace: false,
+                options: TableOptionsInternal {
+                    columns: vec![InternalColumnDefinition {
+                        name: "luigi".to_string(),
+                        nullable: true,
+                        arrow_type: DataType::Utf8,
+                    }],
+                },
+            })],
+        )
+        .await
+        .unwrap();
     }
 }

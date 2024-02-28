@@ -6,49 +6,57 @@ use std::task::{Context, Poll};
 
 use async_stream::stream;
 use datafusion::arrow::array::Array;
-use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
-use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
+use datafusion::arrow::record_batch::{RecordBatch, RecordBatchOptions};
+use datafusion::common::stats::Precision;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    RecordBatchStream,
+    SendableRecordBatchStream,
+    Statistics,
 };
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{Stream, StreamExt};
 use mongodb::bson::RawDocumentBuf;
 use mongodb::Cursor;
-
-use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 
 use super::errors::{MongoDbError, Result};
 use crate::bson::builder::RecordStructBuilder;
 
 #[derive(Debug)]
-pub struct MongoDbBsonExec {
+pub struct MongoDbQueryExecPlan {
     cursor: Mutex<Option<Cursor<RawDocumentBuf>>>,
     schema: Arc<ArrowSchema>,
     limit: Option<usize>,
     metrics: ExecutionPlanMetricsSet,
+    estimated_rows: u64,
 }
 
-impl MongoDbBsonExec {
+impl MongoDbQueryExecPlan {
     pub fn new(
         cursor: Mutex<Option<Cursor<RawDocumentBuf>>>,
         schema: Arc<ArrowSchema>,
         limit: Option<usize>,
-    ) -> MongoDbBsonExec {
-        MongoDbBsonExec {
+        estimated_rows: u64,
+    ) -> MongoDbQueryExecPlan {
+        MongoDbQueryExecPlan {
             cursor,
             schema,
             limit,
             metrics: ExecutionPlanMetricsSet::new(),
+            estimated_rows,
         }
     }
 }
 
-impl ExecutionPlan for MongoDbBsonExec {
+impl ExecutionPlan for MongoDbQueryExecPlan {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -71,11 +79,15 @@ impl ExecutionPlan for MongoDbBsonExec {
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Execution(
-            "cannot replace children for MongoDB Exec".to_string(),
-        ))
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Execution(
+                "cannot replace children for MongoDB Exec".to_string(),
+            ))
+        }
     }
 
     fn execute(
@@ -97,7 +109,6 @@ impl ExecutionPlan for MongoDbBsonExec {
                 ))
             })?
         };
-
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
             BsonStream::new(cursor, self.schema.clone(), self.limit),
             partition,
@@ -105,8 +116,13 @@ impl ExecutionPlan for MongoDbBsonExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DatafusionResult<Statistics> {
+        let statistics = Statistics {
+            num_rows: Precision::Inexact(self.estimated_rows as usize),
+            total_byte_size: Precision::Absent,
+            column_statistics: Statistics::unknown_column(&self.schema),
+        };
+        Ok(statistics)
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
@@ -114,9 +130,9 @@ impl ExecutionPlan for MongoDbBsonExec {
     }
 }
 
-impl DisplayAs for MongoDbBsonExec {
+impl DisplayAs for MongoDbQueryExecPlan {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MongoBsonExec")
+        write!(f, "MongoDbQueryExec")
     }
 }
 
@@ -128,12 +144,13 @@ struct BsonStream {
 impl BsonStream {
     fn new(cursor: Cursor<RawDocumentBuf>, schema: Arc<ArrowSchema>, limit: Option<usize>) -> Self {
         let schema_stream = schema.clone();
+
         let mut row_count = 0;
         // Build "inner" stream.
         let stream = stream! {
             let mut chunked = cursor.chunks(100);
             while let Some(result) = chunked.next().await {
-                let result = document_chunk_to_record_batch(result, schema_stream.fields.clone());
+                let result = document_chunk_to_record_batch(result, schema_stream.clone());
                 match result {
                     Ok(batch) => {
                         let len = batch.num_rows();
@@ -176,22 +193,28 @@ impl RecordBatchStream for BsonStream {
 
 fn document_chunk_to_record_batch<E: Into<MongoDbError>>(
     chunk: Vec<Result<RawDocumentBuf, E>>,
-    fields: Fields,
+    schema: ArrowSchemaRef,
 ) -> Result<RecordBatch> {
     let chunk = chunk
         .into_iter()
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.into())?;
 
+    let fields = schema.fields().clone();
+
+    if fields.is_empty() {
+        let options = RecordBatchOptions::new().with_row_count(Some(chunk.len()));
+        return RecordBatch::try_new_with_options(schema, vec![], &options).map_err(|e| e.into());
+    }
+
     let mut builder = RecordStructBuilder::new_with_capacity(fields, chunk.len())?;
     for doc in chunk {
         builder.append_record(&doc)?;
     }
 
-    let (fields, builders) = builder.into_fields_and_builders();
-    let cols: Vec<Arc<dyn Array>> = builders.into_iter().map(|mut col| col.finish()).collect();
-    let schema = ArrowSchema::new(fields);
+    let mut builders = builder.into_builders();
+    let cols: Vec<Arc<dyn Array>> = builders.iter_mut().map(|col| col.finish()).collect();
 
-    let batch = RecordBatch::try_new(Arc::new(schema), cols)?;
+    let batch = RecordBatch::try_new(schema, cols)?;
     Ok(batch)
 }

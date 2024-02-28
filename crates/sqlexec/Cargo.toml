@@ -3,7 +3,8 @@ name = "sqlexec"
 version = { workspace = true }
 edition = { workspace = true }
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lints]
+workspace = true
 
 [dependencies]
 ioutil = { path = "../ioutil" }
@@ -18,6 +19,7 @@ sqlbuiltins = { path = "../sqlbuiltins" }
 datasources = { path = "../datasources" }
 datafusion_ext = { path = "../datafusion_ext" }
 object_store_util = { path = "../object_store_util" }
+distexec = { path = "../distexec" }
 dashmap = "5.5.0"
 metastore = { path = "../metastore" }
 thiserror.workspace = true
@@ -30,7 +32,7 @@ bytes = "1.4.0"
 futures = { workspace = true }
 tracing = { workspace = true }
 object_store = { workspace = true }
-uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.7.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tonic = { workspace = true }
 tokio-postgres = "0.7.8"
 once_cell = "1.19.0"
@@ -38,9 +40,8 @@ url.workspace = true
 parking_lot = "0.12.1"
 serde = { workspace = true }
 reqwest = { workspace = true }
-prql-compiler = "0.10.1"
+prql-compiler = "0.11.3"
 num_cpus = "1.16.0"
-async-channel = "2.1.1"
 
 [dev-dependencies]
 tempfile = "3"

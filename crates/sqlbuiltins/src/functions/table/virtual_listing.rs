@@ -9,7 +9,10 @@ use datafusion::datasource::{MemTable, TableProvider};
 use datafusion::logical_expr::{Signature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{
-    FuncParamValue, IdentValue, TableFuncContextProvider, VirtualLister,
+    FuncParamValue,
+    IdentValue,
+    TableFuncContextProvider,
+    VirtualLister,
 };
 use datasources::bigquery::BigQueryAccessor;
 use datasources::cassandra::CassandraAccess;
@@ -19,12 +22,20 @@ use datasources::mongodb::MongoDbAccessor;
 use datasources::mysql::MysqlAccessor;
 use datasources::postgres::PostgresAccess;
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection};
+use datasources::sqlite::SqliteAccess;
 use datasources::sqlserver::SqlServerAccess;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsCassandra, DatabaseOptionsClickhouse,
-    DatabaseOptionsMongoDb, DatabaseOptionsMysql, DatabaseOptionsPostgres,
-    DatabaseOptionsSnowflake, DatabaseOptionsSqlServer,
+    DatabaseOptions,
+    DatabaseOptionsBigQuery,
+    DatabaseOptionsCassandra,
+    DatabaseOptionsClickhouse,
+    DatabaseOptionsMongoDb,
+    DatabaseOptionsMysql,
+    DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake,
+    DatabaseOptionsSqlServer,
+    DatabaseOptionsSqlite,
 };
 
 use super::TableFunc;
@@ -37,6 +48,14 @@ impl ConstBuiltinFunction for ListSchemas {
     const DESCRIPTION: &'static str = "Lists schemas in a database";
     const EXAMPLE: &'static str = "SELECT * FROM list_schemas('database')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::uniform(
+            1,
+            vec![DataType::Utf8],
+            Volatility::Stable,
+        ))
+    }
 }
 
 #[async_trait]
@@ -94,7 +113,7 @@ impl ConstBuiltinFunction for ListTables {
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
     fn signature(&self) -> Option<Signature> {
         Some(Signature::uniform(
-            3,
+            2,
             vec![DataType::Utf8],
             Volatility::Stable,
         ))
@@ -351,11 +370,23 @@ pub(crate) async fn get_virtual_lister_for_external_db(
                 .map_err(ExtensionError::access)?;
             Box::new(state)
         }
-        DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host }) => {
-            let state = CassandraAccess::new(host.to_string())
-                .connect()
-                .await
-                .map_err(ExtensionError::access)?;
+        DatabaseOptions::Cassandra(DatabaseOptionsCassandra {
+            host,
+            username,
+            password,
+        }) => {
+            let state =
+                CassandraAccess::new(host.to_string(), username.to_owned(), password.to_owned())
+                    .connect()
+                    .await
+                    .map_err(ExtensionError::access)?;
+            Box::new(state)
+        }
+        DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
+            let access = SqliteAccess {
+                db: location.into(),
+            };
+            let state = access.connect().await.map_err(ExtensionError::access)?;
             Box::new(state)
         }
         DatabaseOptions::Delta(_) => {

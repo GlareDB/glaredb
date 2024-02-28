@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field, Fields};
 use datafusion::datasource::TableProvider;
@@ -8,8 +11,6 @@ use datasources::common::url::DatasourceUrl;
 use datasources::excel::read_excel_impl;
 use ioutil::resolve_path;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
-use std::collections::HashMap;
-use std::sync::Arc;
 
 use super::{table_location_and_opts, TableFunc};
 use crate::functions::ConstBuiltinFunction;
@@ -23,6 +24,8 @@ impl ConstBuiltinFunction for ExcelScan {
     const EXAMPLE: &'static str =
         "SELECT * FROM read_excel('file:///path/to/file.xlsx', sheet_name => 'Sheet1')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const ALIASES: &'static [&'static str] = &["read_xlsx"];
+
     fn signature(&self) -> Option<Signature> {
         let options: Fields = vec![
             Field::new("sheet_name", DataType::Utf8, true),
@@ -75,10 +78,11 @@ impl TableFunc for ExcelScan {
             .map(FuncParamValue::try_into)
             .transpose()?;
 
-        let has_header: Option<bool> = opts
+        let has_header: bool = opts
             .remove("has_header")
             .map(FuncParamValue::try_into)
-            .transpose()?;
+            .transpose()?
+            .unwrap_or(true);
 
         let infer_schema_len = opts
             .remove("infer_rows")

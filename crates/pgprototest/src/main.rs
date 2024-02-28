@@ -1,5 +1,6 @@
-use clap::Parser;
 use std::time::Duration;
+
+use clap::Parser;
 
 mod messages;
 mod proto;
@@ -9,8 +10,10 @@ mod proto;
 #[clap(about = "Data driven postgres protocol testing", long_about = None)]
 struct Cli {
     /// The directory containing the test files.
+    ///
+    /// Maybe specified multiple times to run tests from multiple directories.
     #[clap(long)]
-    dir: String,
+    dir: Vec<String>,
     /// Address of the postgres compatible server.
     #[clap(long)]
     addr: String,

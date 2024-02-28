@@ -146,7 +146,7 @@ pub enum ExecError {
     Catalog(#[from] catalog::errors::CatalogError),
 
     #[error(transparent)]
-    DistExecError(#[from] crate::distexec::DistExecError),
+    DistExecError(#[from] distexec::DistExecError),
 
     #[error("{0:?}")]
     TonicTransport(#[from] tonic::transport::Error),
@@ -162,6 +162,9 @@ pub enum ExecError {
 
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    Metastore(#[from] metastore::errors::MetastoreError),
 }
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;

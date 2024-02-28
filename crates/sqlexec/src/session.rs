@@ -5,20 +5,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
-use crate::distexec::scheduler::{OutputSink, Scheduler};
-use crate::distexec::stream::create_coalescing_adapter;
-use crate::environment::EnvironmentReader;
-use crate::errors::{ExecError, Result};
-use crate::parser::StatementWithExtensions;
-use crate::planner::logical_plan::*;
-use crate::planner::physical_plan::{
-    get_count_from_batch, get_operation_from_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
-    GENERIC_OPERATION_PHYSICAL_SCHEMA,
-};
-use crate::planner::session_planner::SessionPlanner;
-use crate::remote::client::RemoteClient;
-use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 use catalog::mutator::CatalogMutator;
 use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::Schema;
@@ -27,28 +13,48 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::LogicalPlan as DfLogicalPlan;
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::{
-    execute_stream, ExecutionPlan, RecordBatchStream, SendableRecordBatchStream,
+    execute_stream,
+    ExecutionPlan,
+    RecordBatchStream,
+    SendableRecordBatchStream,
 };
 use datafusion::physical_planner::{DefaultPhysicalPlanner, PhysicalPlanner};
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::metrics::AggregatedMetrics;
 use datafusion_ext::session_metrics::{
-    BatchStreamWithMetricSender, ExecutionStatus, QueryMetrics, SessionMetricsHandler,
+    BatchStreamWithMetricSender,
+    ExecutionStatus,
+    QueryMetrics,
+    SessionMetricsHandler,
 };
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
+use distexec::scheduler::{OutputSink, Scheduler};
+use distexec::stream::create_coalescing_adapter;
 use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
 use pgrepr::format::Format;
+use pgrepr::notice::{Notice, NoticeSeverity, SqlState};
 use telemetry::Tracker;
 use uuid::Uuid;
 
-static EMPTY_EXEC_PLAN: Lazy<Arc<dyn ExecutionPlan>> = Lazy::new(|| {
-    Arc::new(EmptyExec::new(
-        /* produce_one_row = */ false,
-        Arc::new(Schema::empty()),
-    ))
-});
+use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
+use crate::environment::EnvironmentReader;
+use crate::errors::{ExecError, Result};
+use crate::parser::StatementWithExtensions;
+use crate::planner::logical_plan::{LogicalPlan, OperationInfo, TransactionPlan};
+use crate::planner::physical_plan::{
+    get_count_from_batch,
+    get_operation_from_batch,
+    GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
+    GENERIC_OPERATION_PHYSICAL_SCHEMA,
+};
+use crate::planner::session_planner::SessionPlanner;
+use crate::remote::client::RemoteClient;
+use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
+
+static EMPTY_EXEC_PLAN: Lazy<Arc<dyn ExecutionPlan>> =
+    Lazy::new(|| Arc::new(EmptyExec::new(Arc::new(Schema::empty()))));
 
 /// Results from a sql statement execution.
 pub enum ExecutionResult {
@@ -542,6 +548,10 @@ impl Session {
         self.ctx.remove_portal(name);
     }
 
+    pub fn take_notices(&mut self) -> Vec<Notice> {
+        self.ctx.take_notices()
+    }
+
     /// Bind the parameters of a prepared statement to the given values.
     ///
     /// If successful, the bound statement will create a portal which can be
@@ -570,8 +580,23 @@ impl Session {
         // try to open a transaction for some queries.
         match plan {
             LogicalPlan::Noop => Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery)),
-            LogicalPlan::Transaction(_plan) => {
-                Ok((EMPTY_EXEC_PLAN.clone(), ExecutionResult::EmptyQuery))
+            LogicalPlan::Transaction(plan) => {
+                // Push a notice to let the user know about our current
+                // transaction handling.
+                self.ctx.push_notice(Notice{
+                    severity: NoticeSeverity::Warning,
+                    code: SqlState::FeatureNotSupported,
+                    message: "GlareDB does not support proper transactional semantics. Do not rely on transactions for correctness. Transactions are stubbed out to enable compatability with existing Postgres tools.".to_string(),
+                });
+
+                Ok((
+                    EMPTY_EXEC_PLAN.clone(),
+                    match plan {
+                        TransactionPlan::Begin => ExecutionResult::Begin,
+                        TransactionPlan::Commit => ExecutionResult::Commit,
+                        TransactionPlan::Abort => ExecutionResult::Rollback,
+                    },
+                ))
             }
             LogicalPlan::Datafusion(plan) => {
                 let physical = self.create_physical_plan(plan, op).await?;
@@ -762,15 +787,11 @@ impl Session {
 
     /// Execute a SQL query.
     /// if the query doesn't contain exactly one statement, an error is returned.
-    pub async fn execute_sql(
-        &mut self,
-        query: &str,
-        op_info: Option<OperationInfo>,
-    ) -> Result<SendableRecordBatchStream> {
+    pub async fn execute_sql(&mut self, query: &str) -> Result<SendableRecordBatchStream> {
         let plan = self.create_logical_plan(query).await?;
         let plan = plan.try_into_datafusion_plan()?;
         let plan = self
-            .create_physical_plan(plan, &op_info.unwrap_or_default())
+            .create_physical_plan(plan, &OperationInfo::new().with_query_text(query))
             .await?;
         let stream = self.execute_physical_plan(plan).await?;
 

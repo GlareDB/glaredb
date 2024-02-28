@@ -34,7 +34,7 @@ SELECT b, a FROM csv_scan(
 # Credentials
 statement ok
 CREATE CREDENTIALS gcp_creds PROVIDER gcp
-	( service_account_key '${GCP_SERVICE_ACCOUNT_KEY}' );
+	OPTIONS ( service_account_key '${GCP_SERVICE_ACCOUNT_KEY}' );
 
 statement ok
 COPY ( SELECT 5 AS a, 6 AS b )

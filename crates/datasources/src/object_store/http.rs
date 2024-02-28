@@ -1,22 +1,23 @@
-use std::{fmt::Display, sync::Arc};
+use std::fmt::Display;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::Utc;
-use datafusion::{
-    arrow::datatypes::Schema,
-    datasource::{file_format::FileFormat, TableProvider},
-    error::DataFusionError,
-    execution::{context::SessionState, object_store::ObjectStoreUrl},
-};
-use object_store::{http::HttpBuilder, path::Path as ObjectStorePath, ObjectMeta, ObjectStore};
+use datafusion::arrow::datatypes::Schema;
+use datafusion::datasource::file_format::FileFormat;
+use datafusion::datasource::TableProvider;
+use datafusion::error::DataFusionError;
+use datafusion::execution::context::SessionState;
+use datafusion::execution::object_store::ObjectStoreUrl;
+use object_store::http::HttpBuilder;
+use object_store::path::Path as ObjectStorePath;
+use object_store::{ObjectMeta, ObjectStore};
 use url::Url;
 
-use crate::{
-    common::url::DatasourceUrl,
-    object_store::{errors::ObjectStoreSourceError, Result},
-};
-
 use super::{MultiSourceTableProvider, ObjStoreAccess, ObjStoreTableProvider};
+use crate::common::url::DatasourceUrl;
+use crate::object_store::errors::ObjectStoreSourceError;
+use crate::object_store::Result;
 
 #[derive(Debug, Clone)]
 pub struct HttpStoreAccess {
@@ -90,16 +91,27 @@ impl ObjStoreAccess for HttpStoreAccess {
                 status, self.url
             )));
         }
+        // reqwest doesn't check the content length header, instead looks at the contents
+        // See: https://github.com/seanmonstar/reqwest/issues/843
+        let len: u64 = res
+            .headers()
+            .get("Content-Length")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| res.content_length().unwrap_or(0));
+        if len == 0 {
+            return Err(ObjectStoreSourceError::Static(
+                "Missing content-length header",
+            ));
+        }
 
-        let len = res.content_length().ok_or(ObjectStoreSourceError::Static(
-            "Missing content-length header",
-        ))?;
 
         Ok(ObjectMeta {
             location: location.clone(),
             last_modified: Utc::now(),
             size: len as usize,
             e_tag: None,
+            version: None,
         })
     }
 
@@ -117,7 +129,6 @@ impl ObjStoreAccess for HttpStoreAccess {
         let next = locations
             .next()
             .ok_or(ObjectStoreSourceError::Static("No locations provided"))?;
-
         let objects = self
             .list_globbed(&store, &next.path())
             .await

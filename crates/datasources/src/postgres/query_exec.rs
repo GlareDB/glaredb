@@ -1,39 +1,41 @@
-use std::{
-    any::Any,
-    fmt,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
-};
+use std::any::Any;
+use std::fmt;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 
-use datafusion::{
-    arrow::{datatypes::Schema as ArrowSchema, record_batch::RecordBatch},
-    error::{DataFusionError, Result as DataFusionResult},
-    execution::TaskContext,
-    physical_expr::PhysicalSortExpr,
-    physical_plan::{
-        metrics::{ExecutionPlanMetricsSet, MetricsSet},
-        DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-        SendableRecordBatchStream, Statistics,
-    },
+use datafusion::arrow::datatypes::Schema as ArrowSchema;
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::execution::TaskContext;
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion::physical_plan::{
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    RecordBatchStream,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
-use futures::{future::BoxFuture, ready, FutureExt, Stream};
-
-use crate::common::util::{create_count_record_batch, COUNT_SCHEMA};
+use futures::future::BoxFuture;
+use futures::{ready, FutureExt, Stream};
 
 use super::PostgresAccessState;
+use crate::common::util::{create_count_record_batch, COUNT_SCHEMA};
 
 #[derive(Debug)]
-pub struct PostgresQueryExec {
+pub struct PostgresInsertExec {
     query: String,
     state: Arc<PostgresAccessState>,
     metrics: ExecutionPlanMetricsSet,
 }
 
-impl PostgresQueryExec {
+impl PostgresInsertExec {
     pub fn new(query: String, state: Arc<PostgresAccessState>) -> Self {
-        PostgresQueryExec {
+        PostgresInsertExec {
             query,
             state,
             metrics: ExecutionPlanMetricsSet::new(),
@@ -41,7 +43,7 @@ impl PostgresQueryExec {
     }
 }
 
-impl ExecutionPlan for PostgresQueryExec {
+impl ExecutionPlan for PostgresInsertExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -64,11 +66,15 @@ impl ExecutionPlan for PostgresQueryExec {
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Execution(
-            "cannot replace children for PostgresQueryExec".to_string(),
-        ))
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Execution(
+                "cannot replace children for PostgresQueryExec".to_string(),
+            ))
+        }
     }
 
     fn execute(
@@ -90,8 +96,8 @@ impl ExecutionPlan for PostgresQueryExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
@@ -99,9 +105,9 @@ impl ExecutionPlan for PostgresQueryExec {
     }
 }
 
-impl DisplayAs for PostgresQueryExec {
+impl DisplayAs for PostgresInsertExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "PostgresQueryExec(query = {})", self.query)
+        write!(f, "PostgresInsertExec(query = {})", self.query)
     }
 }
 

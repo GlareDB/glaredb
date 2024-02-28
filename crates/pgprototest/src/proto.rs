@@ -1,12 +1,23 @@
-use crate::messages::*;
-use anyhow::{anyhow, Result};
-use bytes::{BufMut, BytesMut};
-use postgres_protocol::message::{backend::Message, frontend};
-use postgres_protocol::IsNull;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::time::{Duration, Instant};
+
+use anyhow::{anyhow, Result};
+use bytes::{BufMut, BytesMut};
+use postgres_protocol::message::backend::Message;
+use postgres_protocol::message::frontend;
+use postgres_protocol::IsNull;
+
+use crate::messages::{
+    Bind,
+    ClosePortal,
+    CloseStatement,
+    Execute,
+    Parse,
+    Query,
+    SerializedMessage,
+};
 
 /// Walk the directory, running each test file against some Postgres compatible
 /// server.
@@ -14,29 +25,33 @@ use std::time::{Duration, Instant};
 /// Each file will open a unique connection, with each test case in that file
 /// being ran sequentially using that connection.
 pub fn walk(
-    dir: String,
+    dirs: Vec<String>,
     addr: String,
     options: HashMap<String, String>,
     password: Option<String>,
     timeout: Duration,
     verbose: bool,
 ) {
-    datadriven::walk(&dir, |file| {
-        let mut conn = PgConn::connect(&addr, &options, &password, timeout).unwrap();
-        file.run(|testcase| {
-            if verbose {
-                println!();
-                println!("--- TESTCASE ({}) ---", testcase.directive);
-                println!("{}", testcase.input);
-            }
+    for dir in dirs {
+        datadriven::walk(&dir, |file| {
+            let mut conn = PgConn::connect(&addr, &options, &password, timeout).unwrap();
+            file.run(|testcase| {
+                if verbose {
+                    println!();
+                    println!("--- TESTCASE ({}) ---", testcase.directive);
+                    println!("{}", testcase.input);
+                }
 
-            match testcase.directive.as_str() {
-                "send" => run_send(&mut conn, &testcase.args, &testcase.input, verbose),
-                "until" => run_until(&mut conn, &testcase.args, &testcase.input, timeout, verbose),
-                unknown => panic!("unknown directive: {}", unknown),
-            }
+                match testcase.directive.as_str() {
+                    "send" => run_send(&mut conn, &testcase.args, &testcase.input, verbose),
+                    "until" => {
+                        run_until(&mut conn, &testcase.args, &testcase.input, timeout, verbose)
+                    }
+                    unknown => panic!("unknown directive: {}", unknown),
+                }
+            });
         });
-    });
+    }
 }
 
 /// Run a "send" directive.

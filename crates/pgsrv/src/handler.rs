@@ -1,16 +1,7 @@
-use crate::auth::{LocalAuthenticator, PasswordMode};
-use crate::codec::server::{FramedConn, PgCodec};
-use crate::errors::{PgSrvError, Result};
-use crate::messages::{
-    BackendMessage, DescribeObjectType, ErrorResponse, FieldDescriptionBuilder, FrontendMessage,
-    SqlState, StartupMessage, TransactionStatus,
-};
-use crate::proxy::{
-    ProxyKey, GLAREDB_DATABASE_ID_KEY, GLAREDB_GCS_STORAGE_BUCKET_KEY,
-    GLAREDB_MAX_CREDENTIALS_COUNT_KEY, GLAREDB_MAX_DATASOURCE_COUNT_KEY,
-    GLAREDB_MAX_TUNNEL_COUNT_KEY, GLAREDB_MEMORY_LIMIT_BYTES_KEY, GLAREDB_USER_ID_KEY,
-};
-use crate::ssl::{Connection, SslConfig};
+use std::collections::{HashMap, VecDeque};
+use std::ops::DerefMut;
+use std::sync::Arc;
+
 use datafusion::arrow::datatypes::DataType;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion::scalar::ScalarValue;
@@ -20,20 +11,37 @@ use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::scalar::Scalar;
 use sqlexec::context::local::{OutputFields, Portal, PreparedStatement};
-use sqlexec::engine::SessionStorageConfig;
-use sqlexec::{
-    engine::Engine,
-    parser::{self, StatementWithExtensions},
-    session::{ExecutionResult, Session},
-};
-use std::collections::HashMap;
-use std::collections::VecDeque;
-use std::ops::DerefMut;
-use std::sync::Arc;
+use sqlexec::engine::{Engine, SessionStorageConfig};
+use sqlexec::parser::{self, StatementWithExtensions};
+use sqlexec::session::{ExecutionResult, Session};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_postgres::types::Type as PgType;
 use tracing::{debug, debug_span, warn, Instrument};
 use uuid::Uuid;
+
+use crate::auth::{LocalAuthenticator, PasswordMode};
+use crate::codec::server::{FramedConn, PgCodec};
+use crate::errors::{PgSrvError, Result};
+use crate::messages::{
+    BackendMessage,
+    DescribeObjectType,
+    ErrorResponse,
+    FieldDescriptionBuilder,
+    FrontendMessage,
+    StartupMessage,
+    TransactionStatus,
+};
+use crate::proxy::{
+    ProxyKey,
+    GLAREDB_DATABASE_ID_KEY,
+    GLAREDB_GCS_STORAGE_BUCKET_KEY,
+    GLAREDB_MAX_CREDENTIALS_COUNT_KEY,
+    GLAREDB_MAX_DATASOURCE_COUNT_KEY,
+    GLAREDB_MAX_TUNNEL_COUNT_KEY,
+    GLAREDB_MEMORY_LIMIT_BYTES_KEY,
+    GLAREDB_USER_ID_KEY,
+};
+use crate::ssl::{Connection, SslConfig};
 
 pub struct ProtocolHandlerConfig {
     /// Authenticor to use on the server side.
@@ -426,6 +434,16 @@ where
     }
 
     async fn ready_for_query(&mut self) -> Result<()> {
+        // Display notice messages before indicating we're ready for the next
+        // query. The pg protocol does not presribe a specific flow for notice
+        // messages, and so frontends should be capable of handling notices at
+        // any point in the message flow.
+        for notice in self.session.take_notices() {
+            self.conn
+                .send(BackendMessage::NoticeResponse(notice))
+                .await?;
+        }
+
         // TODO: Proper status.
         self.conn
             .send(BackendMessage::ReadyForQuery(TransactionStatus::Idle))
@@ -774,8 +792,14 @@ where
             let batch = match result {
                 Ok(r) => r,
                 Err(e) => {
-                    conn.send(ErrorResponse::error(SqlState::InternalError, e.to_string()).into())
-                        .await?;
+                    conn.send(
+                        ErrorResponse::error(
+                            pgrepr::notice::SqlState::InternalError,
+                            e.to_string(),
+                        )
+                        .into(),
+                    )
+                    .await?;
                     return Ok(None);
                 }
             };
@@ -804,7 +828,7 @@ fn parse_sql(
         Dialect::Prql => parser::parse_prql(sql),
         Dialect::Sql => parser::parse_sql(sql),
     }
-    .map_err(|e| ErrorResponse::error(SqlState::SyntaxError, e.to_string()))
+    .map_err(|e| ErrorResponse::error(pgrepr::notice::SqlState::SyntaxError, e.to_string()))
 }
 
 /// Decodes inputs for a prepared query into the appropriate scalar values.

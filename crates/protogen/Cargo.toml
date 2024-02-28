@@ -3,7 +3,8 @@ name = "protogen"
 version.workspace = true
 edition.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lints]
+workspace = true
 
 [dependencies]
 datafusion = { workspace = true }
@@ -14,10 +15,10 @@ prost = { workspace = true }
 prost-types = { workspace = true }
 proptest = "1.4"
 proptest-derive = "0.4"
-uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.7.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tracing = { workspace = true }
 
 [build-dependencies]
-tonic-build = "0.10"
+tonic-build = "0.11"
 # Only needed to handle custom btree mapping; can be removed when we bump the tonic version which will have this too
 prost-build = { workspace = true }

@@ -1,18 +1,19 @@
 pub mod options;
 
-use crate::errors::Result;
+use std::collections::{BTreeMap, VecDeque};
+use std::fmt;
+
 use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName};
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError, ParserOptions};
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer, Word};
 use datafusion_ext::vars::Dialect;
-use prql_compiler::{compile, sql::Dialect as PrqlDialect, Options, Target};
-use std::collections::BTreeMap;
-use std::collections::VecDeque;
-use std::fmt;
+use prql_compiler::sql::Dialect as PrqlDialect;
+use prql_compiler::{compile, Options, Target};
 
 use self::options::{OptionValue, StmtOptions};
+use crate::errors::Result;
 
 /// Wrapper around our custom parse for parsing a sql statement.
 pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
@@ -274,24 +275,32 @@ pub struct CreateCredentialsStmt {
     pub comment: String,
     /// replace if it exists
     pub or_replace: bool,
+    /// Whether or not we're using the old syntax CREATE CREDENTIALS. New syntax
+    /// is just CREATE CREDENTIAL.
+    pub deprecated: bool,
 }
 
 impl fmt::Display for CreateCredentialsStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "CREATE {or_replace}CREDENTIALS {name} PROVIDER {provider}",
-            or_replace = if self.or_replace { "OR REPLACE " } else { "" },
-            name = self.name,
-            provider = self.provider
-        )?;
+        write!(f, "CREATE ")?;
+        if self.or_replace {
+            write!(f, "OR REPLACE ")?;
+        }
+        if self.deprecated {
+            write!(f, "CREDENTIALS ")?;
+        } else {
+            write!(f, "CREDENTIAL ")?;
+        }
+        write!(f, "{} ", self.name)?;
+        write!(f, "PROVIDER {}", self.provider)?;
+
         if !self.options.is_empty() {
             write!(f, " {}", self.options)?;
         }
-
         if !self.comment.is_empty() {
-            write!(f, " COMMENT '{}'", self.comment)?;
+            write!(f, " COMMENT '{}'", self.comment)?
         }
+
         Ok(())
     }
 }
@@ -416,8 +425,6 @@ pub enum StatementWithExtensions {
     /// Alter tunnel extension.
     AlterTunnel(AlterTunnelStmt),
     /// Create credentials extension.
-    CreateCredential(CreateCredentialStmt),
-    /// Create credentials extension.
     CreateCredentials(CreateCredentialsStmt),
     /// Drop credentials extension.
     DropCredentials(DropCredentialsStmt),
@@ -437,7 +444,6 @@ impl fmt::Display for StatementWithExtensions {
             StatementWithExtensions::CreateTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropTunnel(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::AlterTunnel(stmt) => write!(f, "{}", stmt),
-            StatementWithExtensions::CreateCredential(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CreateCredentials(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::DropCredentials(stmt) => write!(f, "{}", stmt),
             StatementWithExtensions::CopyTo(stmt) => write!(f, "{}", stmt),
@@ -772,25 +778,16 @@ impl<'a> CustomParser<'a> {
             "".to_owned()
         };
 
-        let stmt = if deprecated {
-            StatementWithExtensions::CreateCredentials(CreateCredentialsStmt {
+        Ok(StatementWithExtensions::CreateCredentials(
+            CreateCredentialsStmt {
                 name,
                 provider,
                 options,
                 comment,
                 or_replace,
-            })
-        } else {
-            StatementWithExtensions::CreateCredential(CreateCredentialStmt {
-                name,
-                provider,
-                options,
-                comment,
-                or_replace,
-            })
-        };
-
-        Ok(stmt)
+                deprecated,
+            },
+        ))
     }
 
     fn parse_object_type(&mut self, object_type: &str) -> Result<Ident, ParserError> {
@@ -826,15 +823,31 @@ impl<'a> CustomParser<'a> {
         self.parse_optional_ref("FORMAT")
     }
 
-    /// Parse options for a datasource.
+    /// Parse options block.
     fn parse_options(&mut self) -> Result<StmtOptions, ParserError> {
-        // Optional "OPTIONS" keyword
-        let _ = self.consume_token(&Token::make_keyword("OPTIONS"));
+        let has_options_keyword = self.consume_token(&Token::make_keyword("OPTIONS"));
+        let has_block_opening = self.parser.consume_token(&Token::LParen);
 
-        if !self.parser.consume_token(&Token::LParen) {
-            // If there's no "(" assume there's no options.
+        if !has_options_keyword && has_block_opening {
+            return self.expected("OPTIONS", Token::LParen);
+        };
+
+        if !has_options_keyword && !has_block_opening {
             return Ok(StmtOptions::new(BTreeMap::new()));
+        };
+
+        if has_options_keyword && !has_block_opening {
+            return self.expected("OPTIONS block ( )", Token::EOF);
         }
+
+        // reject options clause without options keyword, and options
+        // keyword with no parenthetical block.
+        //
+        // return empty option maps when no OPTIONS clause-and-block
+        // are provied
+        //
+        // CONSIDER: return error for `OPTIONS ( )` [no options
+        // specified], as this seems unlikely to be intentional.
 
         let mut options = BTreeMap::new();
         loop {
@@ -1233,8 +1246,12 @@ mod tests {
     #[test]
     fn create_credentials_roundtrips() {
         let test_cases = [
+            // Deprecated syntax
             "CREATE CREDENTIALS qa PROVIDER debug OPTIONS (table_type = 'never_ending')",
             "CREATE CREDENTIALS qa PROVIDER debug OPTIONS (table_type = 'never_ending') COMMENT 'for debug'",
+            // New syntax
+            "CREATE CREDENTIAL qa PROVIDER debug OPTIONS (table_type = 'never_ending')",
+            "CREATE CREDENTIAL qa PROVIDER debug OPTIONS (table_type = 'never_ending') COMMENT 'for debug'",
         ];
 
         for test_case in test_cases {
@@ -1386,7 +1403,7 @@ mod tests {
                 options.clone(),
             ),
             (
-                "(
+                "OPTIONS (
                     o1 = 'abc',
                     o2 = TRUE,
                     o3 = def,
@@ -1406,7 +1423,7 @@ mod tests {
                 options.clone(),
             ),
             (
-                "(
+                "OPTIONS (
                     o1 'abc',
                     o2 TRUE,
                     o3 def,
@@ -1427,7 +1444,7 @@ mod tests {
                 options.clone(),
             ),
             (
-                "(
+                "OPTIONS (
                     o1 = 'abc',
                     o2 = TRUE,
                     o3 = def,
@@ -1447,7 +1464,7 @@ mod tests {
                 options.clone(),
             ),
             (
-                "(
+                "OPTIONS (
                     o1 'abc',
                     o2 TRUE,
                     o3 def,
@@ -1459,7 +1476,6 @@ mod tests {
             // Empty
             ("", BTreeMap::new()),
             ("OPTIONS ( )", BTreeMap::new()),
-            ("()", BTreeMap::new()),
         ];
 
         for (sql, map) in test_cases {

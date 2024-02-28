@@ -16,6 +16,7 @@
 <a href="https://docs.glaredb.com"><img src="https://img.shields.io/static/v1?label=docs&message=GlareDB%20Reference&color=55A39B&style=flat-square"></img></a>
 <a href="https://github.com/GlareDB/glaredb/releases"><img src="https://img.shields.io/github/v/release/glaredb/glaredb?display_name=tag&style=flat-square"></img></a>
 <a href="https://pypi.org/project/glaredb"><img src="https://img.shields.io/pypi/v/glaredb?style=flat-square"</img></a>
+<a href="https://www.npmjs.com/package/@glaredb/glaredb"><img src="https://img.shields.io/npm/v/%40glaredb%2Fglaredb?style=flat-square"</img></a>
 <a href="https://twitter.com/glaredb"><img src="https://img.shields.io/twitter/follow/glaredb?color=blue&logo=twitter&style=flat-square"></img></a>
 <a href="https://discord.gg/2D7qxC5xkf"><img src="https://img.shields.io/static/v1?label=Chat on Discord&message= &color=360066&style=flat-square"></img></a>
 </div>
@@ -204,7 +205,7 @@ DROP DATABASE my_pg;
 | PostgreSQL             |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
 | MariaDB _(via mysql)_  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
 | Microsoft SQL Server   |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
-| MongoDB                |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
+| MongoDB                |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
 | Snowflake              |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
 | BigQuery               |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
 | Cassandra/ScyllaDB     |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
@@ -220,9 +221,9 @@ DROP DATABASE my_pg;
 | Newline Delimited JSON |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
 | Apache Parquet         |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
 | BSON                   |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
+| Lance                  |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
 | Delta                  |  ✅  |  🚧   |       ✅       |       ✅       | ➖                |
 | Iceberg                |  ✅  |  🚧   |       ✅       |       ✅       | ➖                |
-| Lance                  |  ✅  |  🚧   |       ✅       |       ✅       | ➖                |
 | Microsoft Excel        |  ✅  |  🚧   |       ✅       |       🚧       | ➖                |
 | JSON                   |  🚧  |  🚧   |       🚧       |       🚧       | ➖                |
 | Apache Avro            |  🚧  |  🚧   |       🚧       |       🚧       | ➖                |

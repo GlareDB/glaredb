@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
@@ -8,16 +9,15 @@ use datafusion::common::Result as DfResult;
 use datafusion::error::DataFusionError;
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::insert::DataSink;
-use datafusion::physical_plan::DisplayAs;
-use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
+use datafusion::physical_plan::metrics::MetricsSet;
+use datafusion::physical_plan::{DisplayAs, DisplayFormatType, SendableRecordBatchStream};
 use futures::StreamExt;
 use object_store::path::Path as ObjectPath;
 use object_store::ObjectStore;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
-use crate::common::errors::Result;
-
 use super::SharedBuffer;
+use crate::common::errors::Result;
 
 const BUFFER_SIZE: usize = 2 * 1024 * 1024;
 
@@ -89,20 +89,23 @@ impl CsvSink {
 
 #[async_trait]
 impl DataSink for CsvSink {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        None
+    }
+
     async fn write_all(
         &self,
-        data: Vec<SendableRecordBatchStream>,
+        data: SendableRecordBatchStream,
         _context: &Arc<TaskContext>,
     ) -> DfResult<u64> {
-        let mut count = 0;
-        for stream in data {
-            count += self
-                .stream_into_inner(stream)
-                .await
-                .map(|x| x as u64)
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        }
-        Ok(count)
+        self.stream_into_inner(data)
+            .await
+            .map(|x| x as u64)
+            .map_err(|e| DataFusionError::External(Box::new(e)))
     }
 }
 
@@ -121,7 +124,7 @@ impl<W: AsyncWrite + Unpin + Send> AsyncCsvWriter<W> {
         let buf = SharedBuffer::with_capacity(buf_size);
         let sync_writer = CsvWriterBuilder::new()
             .with_delimiter(sink_opts.delim)
-            .has_headers(sink_opts.header)
+            .with_header(sink_opts.header)
             .build(buf.clone());
 
         AsyncCsvWriter {

@@ -1,14 +1,13 @@
+use std::collections::BTreeMap;
+use std::fmt;
+
+use datafusion::arrow::datatypes::{DataType, Field, Fields, SchemaRef};
+use datafusion::common::DFSchemaRef;
+use proptest_derive::Arbitrary;
+
 use crate::gen::common::arrow;
 use crate::gen::metastore::options;
 use crate::{FromOptionalField, ProtoConvError};
-use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::{
-    arrow::datatypes::{DataType, Field},
-    common::DFSchemaRef,
-};
-use proptest_derive::Arbitrary;
-use std::collections::BTreeMap;
-use std::fmt;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct InternalColumnDefinition {
@@ -94,6 +93,7 @@ pub enum DatabaseOptions {
     SqlServer(DatabaseOptionsSqlServer),
     Clickhouse(DatabaseOptionsClickhouse),
     Cassandra(DatabaseOptionsCassandra),
+    Sqlite(DatabaseOptionsSqlite),
 }
 
 impl DatabaseOptions {
@@ -108,6 +108,7 @@ impl DatabaseOptions {
     pub const SQL_SERVER: &'static str = "sql_server";
     pub const CLICKHOUSE: &'static str = "clickhouse";
     pub const CASSANDRA: &'static str = "cassandra";
+    pub const SQLITE: &'static str = "sqlite";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -122,6 +123,7 @@ impl DatabaseOptions {
             DatabaseOptions::SqlServer(_) => Self::SQL_SERVER,
             DatabaseOptions::Clickhouse(_) => Self::CLICKHOUSE,
             DatabaseOptions::Cassandra(_) => Self::CASSANDRA,
+            DatabaseOptions::Sqlite(_) => Self::SQLITE,
         }
     }
 }
@@ -163,6 +165,7 @@ impl TryFrom<options::database_options::Options> for DatabaseOptions {
             options::database_options::Options::Cassandra(v) => {
                 DatabaseOptions::Cassandra(v.try_into()?)
             }
+            options::database_options::Options::Sqlite(v) => DatabaseOptions::Sqlite(v.try_into()?),
         })
     }
 }
@@ -196,6 +199,7 @@ impl From<DatabaseOptions> for options::database_options::Options {
             DatabaseOptions::Cassandra(v) => {
                 options::database_options::Options::Cassandra(v.into())
             }
+            DatabaseOptions::Sqlite(v) => options::database_options::Options::Sqlite(v.into()),
         }
     }
 }
@@ -377,18 +381,50 @@ impl From<DatabaseOptionsClickhouse> for options::DatabaseOptionsClickhouse {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsCassandra {
     pub host: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
 }
 
 impl TryFrom<options::DatabaseOptionsCassandra> for DatabaseOptionsCassandra {
     type Error = ProtoConvError;
     fn try_from(value: options::DatabaseOptionsCassandra) -> Result<Self, Self::Error> {
-        Ok(DatabaseOptionsCassandra { host: value.host })
+        Ok(DatabaseOptionsCassandra {
+            host: value.host,
+            username: value.username,
+            password: value.password,
+        })
     }
 }
 
 impl From<DatabaseOptionsCassandra> for options::DatabaseOptionsCassandra {
     fn from(value: DatabaseOptionsCassandra) -> Self {
-        options::DatabaseOptionsCassandra { host: value.host }
+        options::DatabaseOptionsCassandra {
+            host: value.host,
+            username: value.username,
+            password: value.password,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct DatabaseOptionsSqlite {
+    pub location: String,
+}
+
+impl TryFrom<options::DatabaseOptionsSqlite> for DatabaseOptionsSqlite {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DatabaseOptionsSqlite) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsSqlite {
+            location: value.location,
+        })
+    }
+}
+
+impl From<DatabaseOptionsSqlite> for options::DatabaseOptionsSqlite {
+    fn from(value: DatabaseOptionsSqlite) -> Self {
+        options::DatabaseOptionsSqlite {
+            location: value.location,
+        }
     }
 }
 
@@ -576,6 +612,8 @@ pub enum TableOptions {
     Bson(TableOptionsObjectStore),
     Clickhouse(TableOptionsClickhouse),
     Cassandra(TableOptionsCassandra),
+    Excel(TableOptionsExcel),
+    Sqlite(TableOptionsSqlite),
 }
 
 impl TableOptions {
@@ -597,6 +635,8 @@ impl TableOptions {
     pub const BSON: &'static str = "bson";
     pub const CLICKHOUSE: &'static str = "clickhouse";
     pub const CASSANDRA: &'static str = "cassandra";
+    pub const EXCEL: &'static str = "excel";
+    pub const SQLITE: &'static str = "sqlite";
 
     pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptions {
         TableOptions::Internal(TableOptionsInternal { columns })
@@ -622,6 +662,8 @@ impl TableOptions {
             TableOptions::Bson(_) => Self::BSON,
             TableOptions::Clickhouse(_) => Self::CLICKHOUSE,
             TableOptions::Cassandra(_) => Self::CASSANDRA,
+            TableOptions::Excel(_) => Self::EXCEL,
+            TableOptions::Sqlite(_) => Self::SQLITE,
         }
     }
 }
@@ -656,6 +698,8 @@ impl TryFrom<options::table_options::Options> for TableOptions {
                 TableOptions::Clickhouse(v.try_into()?)
             }
             options::table_options::Options::Cassandra(v) => TableOptions::Cassandra(v.try_into()?),
+            options::table_options::Options::Excel(v) => TableOptions::Excel(v.try_into()?),
+            options::table_options::Options::Sqlite(v) => TableOptions::Sqlite(v.try_into()?),
         })
     }
 }
@@ -689,6 +733,8 @@ impl TryFrom<TableOptions> for options::table_options::Options {
             TableOptions::Bson(v) => options::table_options::Options::Bson(v.into()),
             TableOptions::Clickhouse(v) => options::table_options::Options::Clickhouse(v.into()),
             TableOptions::Cassandra(v) => options::table_options::Options::Cassandra(v.into()),
+            TableOptions::Excel(v) => options::table_options::Options::Excel(v.into()),
+            TableOptions::Sqlite(v) => options::table_options::Options::Sqlite(v.into()),
         })
     }
 }
@@ -1004,6 +1050,43 @@ impl From<TableOptionsMongoDb> for options::TableOptionsMongo {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct TableOptionsExcel {
+    pub location: String,
+    pub storage_options: StorageOptions,
+    pub file_type: Option<String>,
+    pub compression: Option<String>,
+    pub sheet_name: Option<String>,
+    pub has_header: bool,
+}
+
+impl TryFrom<options::TableOptionsExcel> for TableOptionsExcel {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsExcel) -> Result<Self, Self::Error> {
+        Ok(TableOptionsExcel {
+            location: value.location,
+            storage_options: value.storage_options.required("storage_options")?,
+            file_type: value.file_type,
+            compression: value.compression,
+            sheet_name: value.sheet_name,
+            has_header: value.has_header,
+        })
+    }
+}
+
+impl From<TableOptionsExcel> for options::TableOptionsExcel {
+    fn from(value: TableOptionsExcel) -> Self {
+        options::TableOptionsExcel {
+            location: value.location,
+            storage_options: Some(value.storage_options.into()),
+            file_type: value.file_type,
+            compression: value.compression,
+            sheet_name: value.sheet_name,
+            has_header: value.has_header,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct TableOptionsSqlServer {
     pub connection_string: String,
     pub schema: String,
@@ -1064,6 +1147,8 @@ pub struct TableOptionsCassandra {
     pub host: String,
     pub keyspace: String,
     pub table: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
 }
 
 impl TryFrom<options::TableOptionsCassandra> for TableOptionsCassandra {
@@ -1073,6 +1158,8 @@ impl TryFrom<options::TableOptionsCassandra> for TableOptionsCassandra {
             host: value.host,
             keyspace: value.keyspace,
             table: value.table,
+            username: value.username,
+            password: value.password,
         })
     }
 }
@@ -1082,6 +1169,33 @@ impl From<TableOptionsCassandra> for options::TableOptionsCassandra {
         options::TableOptionsCassandra {
             host: value.host,
             keyspace: value.keyspace,
+            table: value.table,
+            username: value.username,
+            password: value.password,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct TableOptionsSqlite {
+    pub location: String,
+    pub table: String,
+}
+
+impl TryFrom<options::TableOptionsSqlite> for TableOptionsSqlite {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsSqlite) -> Result<Self, Self::Error> {
+        Ok(TableOptionsSqlite {
+            location: value.location,
+            table: value.table,
+        })
+    }
+}
+
+impl From<TableOptionsSqlite> for options::TableOptionsSqlite {
+    fn from(value: TableOptionsSqlite) -> Self {
+        options::TableOptionsSqlite {
+            location: value.location,
             table: value.table,
         }
     }
@@ -1286,9 +1400,10 @@ impl From<TunnelOptionsSsh> for options::TunnelOptionsSsh {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use proptest::arbitrary::any;
     use proptest::proptest;
+
+    use super::*;
 
     proptest! {
         #[test]
@@ -1315,6 +1430,7 @@ pub enum CredentialsOptions {
     Gcp(CredentialsOptionsGcp),
     Aws(CredentialsOptionsAws),
     Azure(CredentialsOptionsAzure),
+    OpenAI(CredentialsOptionsOpenAI),
 }
 
 impl CredentialsOptions {
@@ -1322,6 +1438,7 @@ impl CredentialsOptions {
     pub const GCP: &'static str = "gcp";
     pub const AWS: &'static str = "aws";
     pub const AZURE: &'static str = "azure";
+    pub const OPENAI: &'static str = "openai";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -1329,6 +1446,7 @@ impl CredentialsOptions {
             Self::Gcp(_) => Self::GCP,
             Self::Aws(_) => Self::AWS,
             Self::Azure(_) => Self::AZURE,
+            Self::OpenAI(_) => Self::OPENAI,
         }
     }
 }
@@ -1347,6 +1465,7 @@ impl TryFrom<options::credentials_options::Options> for CredentialsOptions {
             options::credentials_options::Options::Gcp(v) => Self::Gcp(v.try_into()?),
             options::credentials_options::Options::Aws(v) => Self::Aws(v.try_into()?),
             options::credentials_options::Options::Azure(v) => Self::Azure(v.try_into()?),
+            options::credentials_options::Options::Openai(v) => Self::OpenAI(v.try_into()?),
         })
     }
 }
@@ -1365,6 +1484,9 @@ impl From<CredentialsOptions> for options::credentials_options::Options {
             CredentialsOptions::Gcp(v) => options::credentials_options::Options::Gcp(v.into()),
             CredentialsOptions::Aws(v) => options::credentials_options::Options::Aws(v.into()),
             CredentialsOptions::Azure(v) => options::credentials_options::Options::Azure(v.into()),
+            CredentialsOptions::OpenAI(v) => {
+                options::credentials_options::Options::Openai(v.into())
+            }
         }
     }
 }
@@ -1471,6 +1593,60 @@ impl From<CredentialsOptionsAzure> for options::CredentialsOptionsAzure {
     }
 }
 
+#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+pub struct CredentialsOptionsOpenAI {
+    pub api_key: String,
+    pub api_base: Option<String>,
+    pub org_id: Option<String>,
+}
+
+impl CredentialsOptionsOpenAI {
+    pub fn fields() -> Fields {
+        vec![
+            Field::new("api_key", DataType::Utf8, false),
+            Field::new("api_base", DataType::Utf8, true),
+            Field::new("org_id", DataType::Utf8, true),
+        ]
+        .into()
+    }
+    pub fn data_type() -> DataType {
+        DataType::Struct(Self::fields())
+    }
+}
+impl From<CredentialsOptionsOpenAI> for datafusion::scalar::ScalarValue {
+    fn from(value: CredentialsOptionsOpenAI) -> Self {
+        datafusion::scalar::ScalarValue::Struct(
+            Some(vec![
+                datafusion::scalar::ScalarValue::Utf8(Some(value.api_key)),
+                datafusion::scalar::ScalarValue::Utf8(value.api_base),
+                datafusion::scalar::ScalarValue::Utf8(value.org_id),
+            ]),
+            CredentialsOptionsOpenAI::fields(),
+        )
+    }
+}
+
+impl TryFrom<options::CredentialsOptionsOpenAi> for CredentialsOptionsOpenAI {
+    type Error = ProtoConvError;
+    fn try_from(value: options::CredentialsOptionsOpenAi) -> Result<Self, Self::Error> {
+        Ok(CredentialsOptionsOpenAI {
+            api_key: value.api_key,
+            api_base: value.api_base,
+            org_id: value.org_id,
+        })
+    }
+}
+
+impl From<CredentialsOptionsOpenAI> for options::CredentialsOptionsOpenAi {
+    fn from(value: CredentialsOptionsOpenAI) -> Self {
+        options::CredentialsOptionsOpenAi {
+            api_key: value.api_key,
+            api_base: value.api_base,
+            org_id: value.org_id,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum CopyToDestinationOptions {
     Local(CopyToDestinationOptionsLocal),
@@ -1536,8 +1712,9 @@ pub struct CopyToDestinationOptionsAzure {
 pub enum CopyToFormatOptions {
     Csv(CopyToFormatOptionsCsv),
     Parquet(CopyToFormatOptionsParquet),
+    Lance(CopyToFormatOptionsLance),
     Json(CopyToFormatOptionsJson),
-    Bson,
+    Bson(CopyToFormatOptionsBson),
 }
 
 impl Default for CopyToFormatOptions {
@@ -1554,13 +1731,15 @@ impl CopyToFormatOptions {
     pub const PARQUET: &'static str = "parquet";
     pub const JSON: &'static str = "json";
     pub const BSON: &'static str = "bson";
+    pub const LANCE: &'static str = "lance";
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Csv(_) => Self::CSV,
             Self::Parquet(_) => Self::PARQUET,
             Self::Json(_) => Self::JSON,
-            Self::Bson => Self::BSON,
+            Self::Bson(_) => Self::BSON,
+            Self::Lance(_) => Self::LANCE,
         }
     }
 }
@@ -1579,4 +1758,16 @@ pub struct CopyToFormatOptionsParquet {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToFormatOptionsJson {
     pub array: bool,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct CopyToFormatOptionsBson {}
+
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct CopyToFormatOptionsLance {
+    pub max_rows_per_file: Option<usize>,
+    pub max_rows_per_group: Option<usize>,
+    pub max_bytes_per_file: Option<usize>,
+    pub input_batch_size: Option<usize>,
 }

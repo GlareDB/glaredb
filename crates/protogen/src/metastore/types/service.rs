@@ -1,10 +1,15 @@
+use proptest_derive::Arbitrary;
+
 use super::catalog::SourceAccessMode;
 use super::options::{
-    CredentialsOptions, DatabaseOptions, TableOptions, TableOptionsInternal, TunnelOptions,
+    CredentialsOptions,
+    DatabaseOptions,
+    TableOptions,
+    TableOptionsInternal,
+    TunnelOptions,
 };
 use crate::gen::metastore::service;
 use crate::{FromOptionalField, ProtoConvError};
-use proptest_derive::Arbitrary;
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub enum Mutation {
@@ -22,7 +27,6 @@ pub enum Mutation {
     DropTunnel(DropTunnel),
     AlterTunnelRotateKeys(AlterTunnelRotateKeys),
     CreateCredentials(CreateCredentials),
-    CreateCredential(CreateCredential),
     DropCredentials(DropCredentials),
     // Deployment metadata updates
     UpdateDeploymentStorage(UpdateDeploymentStorage),
@@ -61,9 +65,6 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             service::mutation::Mutation::CreateCredentials(v) => {
                 Mutation::CreateCredentials(v.try_into()?)
             }
-            service::mutation::Mutation::CreateCredential(v) => {
-                Mutation::CreateCredential(v.try_into()?)
-            }
             service::mutation::Mutation::DropCredentials(v) => {
                 Mutation::DropCredentials(v.try_into()?)
             }
@@ -99,9 +100,6 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
             }
             Mutation::CreateCredentials(v) => {
                 service::mutation::Mutation::CreateCredentials(v.into())
-            }
-            Mutation::CreateCredential(v) => {
-                service::mutation::Mutation::CreateCredential(v.into())
             }
             Mutation::DropCredentials(v) => service::mutation::Mutation::DropCredentials(v.into()),
             Mutation::UpdateDeploymentStorage(v) => {
@@ -648,37 +646,6 @@ impl From<CreateCredentials> for service::CreateCredentials {
 }
 
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
-pub struct CreateCredential {
-    pub name: String,
-    pub options: CredentialsOptions,
-    pub comment: String,
-    pub or_replace: bool,
-}
-
-impl TryFrom<service::CreateCredential> for CreateCredential {
-    type Error = ProtoConvError;
-    fn try_from(value: service::CreateCredential) -> Result<Self, Self::Error> {
-        Ok(CreateCredential {
-            name: value.name,
-            options: value.options.required("options")?,
-            comment: value.comment,
-            or_replace: value.or_replace,
-        })
-    }
-}
-
-impl From<CreateCredential> for service::CreateCredential {
-    fn from(value: CreateCredential) -> Self {
-        service::CreateCredential {
-            name: value.name,
-            options: Some(value.options.into()),
-            comment: value.comment,
-            or_replace: value.or_replace,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
 pub struct DropCredentials {
     pub name: String,
     pub if_exists: bool,
@@ -727,9 +694,10 @@ impl From<UpdateDeploymentStorage> for service::UpdateDeploymentStorage {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use proptest::arbitrary::any;
     use proptest::proptest;
+
+    use super::*;
 
     proptest! {
         #[test]

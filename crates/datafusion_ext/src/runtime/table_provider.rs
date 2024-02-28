@@ -1,15 +1,15 @@
+use std::any::Any;
+use std::sync::Arc;
+
 use async_trait::async_trait;
+use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::datasource::TableProvider;
 use datafusion::error::Result;
-use datafusion::{
-    arrow::datatypes::SchemaRef,
-    datasource::TableProvider,
-    execution::context::SessionState,
-    logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableType},
-    physical_plan::{ExecutionPlan, Statistics},
-    prelude::Expr,
-};
+use datafusion::execution::context::SessionState;
+use datafusion::logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableType};
+use datafusion::physical_plan::{ExecutionPlan, Statistics};
+use datafusion::prelude::Expr;
 use protogen::metastore::types::catalog::RuntimePreference;
-use std::{any::Any, sync::Arc};
 
 use super::runtime_group::RuntimeGroupExec;
 
@@ -75,7 +75,9 @@ impl TableProvider for RuntimeAwareTableProvider {
         &self,
         filters: &[&Expr],
     ) -> Result<Vec<TableProviderFilterPushDown>> {
-        self.provider.supports_filters_pushdown(filters)
+        let supports_pushdowns = self.provider.supports_filters_pushdown(filters)?;
+
+        Ok(supports_pushdowns)
     }
 
     fn statistics(&self) -> Option<Statistics> {

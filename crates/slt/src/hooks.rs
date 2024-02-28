@@ -1,14 +1,15 @@
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use tokio::{
-    net::TcpListener,
-    process::Command,
-    time::{sleep as tokio_sleep, Instant},
-};
+use once_cell::sync::Lazy;
+use tokio::net::TcpListener;
+use tokio::process::Command;
+use tokio::time::{sleep as tokio_sleep, Instant};
 use tokio_postgres::{Client, Config};
-use tracing::warn;
+use tracing::{error, info, warn};
 
 use super::test::{Hook, TestClient};
 
@@ -28,7 +29,7 @@ impl Hook for AllTestsHook {
         config: &Config,
         _: TestClient,
         vars: &mut HashMap<String, String>,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         // Create a unique temp dir and set the variable instead of using the
         // TMP environment variable.
         let tmp_dir = tempfile::tempdir()?;
@@ -42,7 +43,7 @@ impl Hook for AllTestsHook {
             Self::VAR_CURRENT_DATABASE.to_owned(),
             config.get_dbname().unwrap().to_owned(),
         );
-        Ok(())
+        Ok(true)
     }
 
     async fn post(
@@ -192,13 +193,17 @@ impl Hook for SshTunnelHook {
         _: &Config,
         client: TestClient,
         vars: &mut HashMap<String, String>,
-    ) -> Result<()> {
+    ) -> Result<bool> {
+        // TODO: make enum for skip/continue rather than booleans
         let client = match client {
             TestClient::Pg(client) => client,
-            TestClient::Rpc(_) => return Err(anyhow!("cannot run SSH tunnel test on rpc")),
+            TestClient::Rpc(_) => {
+                error!("cannot run SSH tunnel test with the RPC protocol. Skipping...");
+                return Ok(false);
+            }
             TestClient::FlightSql(_) => {
-                warn!("cannot run SSH tunnel test on flight protocol. Skipping...");
-                return Ok(());
+                error!("cannot run SSH tunnel test on FlightSQL protocol. Skipping...");
+                return Ok(false);
             }
         };
 
@@ -210,7 +215,7 @@ impl Hook for SshTunnelHook {
                     Self::wait_for_container_start(&container_id).await?;
                     vars.insert("CONTAINER_ID".to_owned(), container_id);
                     vars.insert("TUNNEL_NAME".to_owned(), tunnel_name);
-                    return Ok(());
+                    return Ok(true);
                 }
                 Err(e) => {
                     err = Some(e);
@@ -234,5 +239,48 @@ impl Hook for SshTunnelHook {
             .output()
             .await?;
         Ok(())
+    }
+}
+
+static SQLITE_DB_LOCATION: Lazy<Result<PathBuf>> = Lazy::new(|| {
+    let path = PathBuf::from("testdata/sqllogictests_sqlite/data/db.sqlite3");
+    let db = path.to_string_lossy();
+    if path.exists() {
+        info!(%db, "sqlite database exists, skipping setup; to re-create delete the old database file");
+    } else {
+        info!(%db, "creating sqlite database");
+        let output = std::process::Command::new("sqlite3")
+            .arg(&path)
+            .arg(".read testdata/sqllogictests_sqlite/data/setup-test-sqlite-db.sql")
+            .output()?;
+
+        if !output.status.success() {
+            return Err(anyhow!(
+                "failed to setup sqlite db (status code: {}):\n  STDOUT: {}\n  STDERR: {}",
+                output.status.code().unwrap_or_default(),
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+    }
+    Ok(path)
+});
+
+pub struct SqliteTestsHook;
+
+#[async_trait]
+impl Hook for SqliteTestsHook {
+    async fn pre(
+        &self,
+        _config: &Config,
+        _client: TestClient,
+        vars: &mut HashMap<String, String>,
+    ) -> Result<bool> {
+        let db_location = match SQLITE_DB_LOCATION.as_ref() {
+            Ok(path) => path.to_string_lossy().into_owned(),
+            Err(e) => return Err(anyhow!("{e}")),
+        };
+        vars.insert("SQLITE_DB_LOCATION".to_string(), db_location);
+        Ok(true)
     }
 }

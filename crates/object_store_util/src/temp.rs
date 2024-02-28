@@ -1,15 +1,22 @@
+use std::ops::Range;
+use std::{env, fmt, fs};
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
-use object_store::GetOptions;
+use object_store::local::LocalFileSystem;
+use object_store::path::Path;
 use object_store::{
-    local::LocalFileSystem, path::Path, GetResult, ListResult, MultipartId, ObjectMeta,
-    ObjectStore, Result,
+    GetOptions,
+    GetResult,
+    ListResult,
+    MultipartId,
+    ObjectMeta,
+    ObjectStore,
+    PutOptions,
+    PutResult,
+    Result,
 };
-use std::env;
-use std::fmt;
-use std::fs;
-use std::ops::Range;
 use tempfile::TempDir;
 use tokio::io::AsyncWrite;
 use tracing::trace;
@@ -44,82 +51,71 @@ impl TempObjectStore {
 
 #[async_trait]
 impl ObjectStore for TempObjectStore {
-    async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
-        self.inner.put(location, bytes).await?;
-        Ok(())
+    async fn put(&self, location: &Path, bytes: Bytes) -> Result<PutResult> {
+        self.inner.put(location, bytes).await
+    }
+
+    async fn put_opts(&self, location: &Path, bytes: Bytes, opts: PutOptions) -> Result<PutResult> {
+        self.inner.put_opts(location, bytes, opts).await
     }
 
     async fn put_multipart(
         &self,
         location: &Path,
     ) -> Result<(MultipartId, Box<dyn AsyncWrite + Unpin + Send>)> {
-        let pair = self.inner.put_multipart(location).await?;
-        Ok(pair)
+        self.inner.put_multipart(location).await
     }
 
     async fn abort_multipart(&self, location: &Path, multipart_id: &MultipartId) -> Result<()> {
-        self.abort_multipart(location, multipart_id).await?;
-        Ok(())
+        self.inner.abort_multipart(location, multipart_id).await
     }
 
     async fn get(&self, location: &Path) -> Result<GetResult> {
-        let result = self.inner.get(location).await?;
-        Ok(result)
+        self.inner.get(location).await
     }
 
     async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<GetResult> {
-        let result = self.inner.get_opts(location, options).await?;
-        Ok(result)
+        self.inner.get_opts(location, options).await
     }
 
     async fn get_range(&self, location: &Path, range: Range<usize>) -> Result<Bytes> {
-        let bs = self.inner.get_range(location, range).await?;
-        Ok(bs)
+        self.inner.get_range(location, range).await
     }
 
     async fn get_ranges(&self, location: &Path, ranges: &[Range<usize>]) -> Result<Vec<Bytes>> {
-        let bs = self.inner.get_ranges(location, ranges).await?;
-        Ok(bs)
+        self.inner.get_ranges(location, ranges).await
     }
 
     async fn head(&self, location: &Path) -> Result<ObjectMeta> {
-        let meta = self.inner.head(location).await?;
-        Ok(meta)
+        self.inner.head(location).await
     }
 
     async fn delete(&self, location: &Path) -> Result<()> {
-        self.inner.delete(location).await?;
-        Ok(())
+        self.inner.delete(location).await
     }
 
-    async fn list(&self, prefix: Option<&Path>) -> Result<BoxStream<'_, Result<ObjectMeta>>> {
-        let meta = self.inner.list(prefix).await?;
-        Ok(meta)
+    fn list(&self, prefix: Option<&Path>) -> BoxStream<'_, Result<ObjectMeta>> {
+        self.inner.list(prefix)
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> Result<ListResult> {
-        let result = self.inner.list_with_delimiter(prefix).await?;
-        Ok(result)
+        self.inner.list_with_delimiter(prefix).await
     }
 
     async fn copy(&self, from: &Path, to: &Path) -> Result<()> {
-        self.inner.copy(from, to).await?;
-        Ok(())
+        self.inner.copy(from, to).await
     }
 
     async fn rename(&self, from: &Path, to: &Path) -> Result<()> {
-        self.inner.rename(from, to).await?;
-        Ok(())
+        self.inner.rename(from, to).await
     }
 
     async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
-        self.inner.copy_if_not_exists(from, to).await?;
-        Ok(())
+        self.inner.copy_if_not_exists(from, to).await
     }
 
     async fn rename_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
-        self.inner.rename_if_not_exists(from, to).await?;
-        Ok(())
+        self.inner.rename_if_not_exists(from, to).await
     }
 }
 

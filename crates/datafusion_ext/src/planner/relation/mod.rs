@@ -18,17 +18,16 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::functions::FuncParamValue;
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
-
 use async_recursion::async_recursion;
-use datafusion::common::{DataFusionError, OwnedTableReference, Result};
-
+use datafusion::common::{DataFusionError, GetExt, OwnedTableReference, Result};
+use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
-
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast;
+
+use crate::functions::FuncParamValue;
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 mod join;
 
@@ -59,8 +58,8 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                         path.clone(),
                     )))];
                     let func = self
-                        .schema_provider
-                        .get_table_func(func_ref, args, HashMap::new())
+                        .context_provider
+                        .get_table_function_source(func_ref, args, HashMap::new())
                         .await?;
 
                     let table_ref = OwnedTableReference::Bare { table: path.into() };
@@ -90,8 +89,12 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                                 }
                             }
                             let provider = self
-                                .schema_provider
-                                .get_table_func(table_ref.clone(), unnamed_args, named_args)
+                                .context_provider
+                                .get_table_function_source(
+                                    table_ref.clone(),
+                                    unnamed_args,
+                                    named_args,
+                                )
                                 .await?;
 
                             let plan_builder = LogicalPlanBuilder::scan(table_ref, provider, None)?;
@@ -108,8 +111,8 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                                 cte_plan.clone()
                             } else {
                                 let provider = self
-                                    .schema_provider
-                                    .get_table_provider(table_ref.clone())
+                                    .context_provider
+                                    .get_table_source(table_ref.clone())
                                     .await?;
                                 let plan_builder =
                                     LogicalPlanBuilder::scan(table_ref, provider, None)?;
@@ -245,20 +248,34 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
     Ok(match ext.as_str() {
         "parquet" => OwnedTableReference::Partial {
             schema: "public".into(),
-            table: "parquet_scan".into(),
+            table: "read_parquet".into(),
         },
         "csv" => OwnedTableReference::Partial {
             schema: "public".into(),
-            table: "csv_scan".into(),
+            table: "read_csv".into(),
         },
         "json" | "jsonl" | "ndjson" => OwnedTableReference::Partial {
             schema: "public".into(),
-            table: "ndjson_scan".into(),
+            table: "read_ndjson".into(),
+        },
+        "bson" => OwnedTableReference::Partial {
+            schema: "public".into(),
+            table: "read_bson".into(),
+        },
+        "xlsx" => OwnedTableReference::Partial {
+            schema: "public".into(),
+            table: "read_excel".into(),
         },
         ext => {
-            return Err(DataFusionError::Plan(format!(
-                "unable to infer how to handle file extension: {ext}"
-            )))
+            if let Ok(compression_type) = ext.parse::<FileCompressionType>() {
+                let ext = compression_type.get_ext();
+                let path = path.trim_end_matches(ext.as_str());
+                infer_func_for_file(path)?
+            } else {
+                return Err(DataFusionError::Plan(format!(
+                    "unable to infer how to handle file extension: {ext}"
+                )));
+            }
         }
     })
 }

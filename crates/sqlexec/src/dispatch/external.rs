@@ -2,12 +2,11 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use datafusion::common::FileType;
+use catalog::session_catalog::SessionCatalog;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
-use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::TableProvider;
 use datafusion::prelude::SessionContext;
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
@@ -19,7 +18,7 @@ use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
-use datasources::lance::scan_lance_table;
+use datasources::lance::LanceTable;
 use datasources::mongodb::{MongoDbAccessor, MongoDbTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
 use datasources::object_store::gcs::GcsStoreAccess;
@@ -29,23 +28,47 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
+use datasources::sqlite::{SqliteAccess, SqliteTableProvider};
 use datasources::sqlserver::{
-    SqlServerAccess, SqlServerTableProvider, SqlServerTableProviderConfig,
+    SqlServerAccess,
+    SqlServerTableProvider,
+    SqlServerTableProviderConfig,
 };
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionEntry, TableEntry};
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsBigQuery, DatabaseOptionsCassandra, DatabaseOptionsClickhouse,
-    DatabaseOptionsDebug, DatabaseOptionsDeltaLake, DatabaseOptionsMongoDb, DatabaseOptionsMysql,
-    DatabaseOptionsPostgres, DatabaseOptionsSnowflake, DatabaseOptionsSqlServer, TableOptions,
-    TableOptionsBigQuery, TableOptionsCassandra, TableOptionsClickhouse, TableOptionsDebug,
-    TableOptionsGcs, TableOptionsInternal, TableOptionsLocal, TableOptionsMongoDb,
-    TableOptionsMysql, TableOptionsObjectStore, TableOptionsPostgres, TableOptionsS3,
-    TableOptionsSnowflake, TableOptionsSqlServer, TunnelOptions,
+    DatabaseOptions,
+    DatabaseOptionsBigQuery,
+    DatabaseOptionsCassandra,
+    DatabaseOptionsClickhouse,
+    DatabaseOptionsDebug,
+    DatabaseOptionsDeltaLake,
+    DatabaseOptionsMongoDb,
+    DatabaseOptionsMysql,
+    DatabaseOptionsPostgres,
+    DatabaseOptionsSnowflake,
+    DatabaseOptionsSqlServer,
+    DatabaseOptionsSqlite,
+    TableOptions,
+    TableOptionsBigQuery,
+    TableOptionsCassandra,
+    TableOptionsClickhouse,
+    TableOptionsDebug,
+    TableOptionsExcel,
+    TableOptionsGcs,
+    TableOptionsInternal,
+    TableOptionsLocal,
+    TableOptionsMongoDb,
+    TableOptionsMysql,
+    TableOptionsObjectStore,
+    TableOptionsPostgres,
+    TableOptionsS3,
+    TableOptionsSnowflake,
+    TableOptionsSqlServer,
+    TableOptionsSqlite,
+    TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FUNCTION_REGISTRY;
-
-use catalog::session_catalog::SessionCatalog;
 
 use super::{DispatchError, Result};
 
@@ -229,13 +252,27 @@ impl<'a> ExternalDispatcher<'a> {
                 let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
                 Ok(Arc::new(table))
             }
-            DatabaseOptions::Cassandra(DatabaseOptionsCassandra { host }) => {
+            DatabaseOptions::Cassandra(DatabaseOptionsCassandra {
+                host,
+                username,
+                password,
+            }) => {
                 let table = CassandraTableProvider::try_new(
                     host.clone(),
                     schema.to_string(),
                     name.to_string(),
+                    username.to_owned(),
+                    password.to_owned(),
                 )
                 .await?;
+                Ok(Arc::new(table))
+            }
+            DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
+                let access = SqliteAccess {
+                    db: location.into(),
+                };
+                let state = access.connect().await?;
+                let table = SqliteTableProvider::try_new(state, name).await?;
                 Ok(Arc::new(table))
             }
         }
@@ -249,6 +286,7 @@ impl<'a> ExternalDispatcher<'a> {
 
         match &table.options {
             TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
+            TableOptions::Excel(TableOptionsExcel { .. }) => todo!(),
             TableOptions::Debug(TableOptionsDebug { table_type }) => {
                 let provider = DebugTableType::from_str(table_type)?;
                 Ok(provider.into_table_provider(tunnel.as_ref()))
@@ -491,10 +529,9 @@ impl<'a> ExternalDispatcher<'a> {
                 location,
                 storage_options,
                 ..
-            }) => {
-                let dataset = scan_lance_table(location, storage_options.clone()).await?;
-                Ok(Arc::new(dataset))
-            }
+            }) => Ok(Arc::new(
+                LanceTable::new(location, storage_options.clone()).await?,
+            )),
             TableOptions::Bson(TableOptionsObjectStore {
                 location,
                 storage_options,
@@ -506,20 +543,37 @@ impl<'a> ExternalDispatcher<'a> {
                     storage_options.to_owned(),
                 )?;
                 let source_url = DatasourceUrl::try_new(location)?;
-                Ok(
-                    bson_streaming_table(store_access, schema_sample_size.to_owned(), source_url)
-                        .await?,
+                Ok(bson_streaming_table(
+                    Arc::new(store_access),
+                    schema_sample_size.to_owned(),
+                    source_url,
                 )
+                .await?)
             }
             TableOptions::Cassandra(TableOptionsCassandra {
                 host,
                 keyspace,
                 table,
+                username,
+                password,
             }) => {
-                let table =
-                    CassandraTableProvider::try_new(host.clone(), keyspace.clone(), table.clone())
-                        .await?;
+                let table = CassandraTableProvider::try_new(
+                    host.clone(),
+                    keyspace.clone(),
+                    table.clone(),
+                    username.clone(),
+                    password.clone(),
+                )
+                .await?;
 
+                Ok(Arc::new(table))
+            }
+            TableOptions::Sqlite(TableOptionsSqlite { location, table }) => {
+                let access = SqliteAccess {
+                    db: location.into(),
+                };
+                let state = access.connect().await?;
+                let table = SqliteTableProvider::try_new(state, table).await?;
                 Ok(Arc::new(table))
             }
         }
@@ -538,27 +592,47 @@ impl<'a> ExternalDispatcher<'a> {
             .transpose()?
             .unwrap_or(FileCompressionType::UNCOMPRESSED);
 
-        let ft: FileType = file_type.parse()?;
-        let ft: Arc<dyn FileFormat> = match ft {
-            FileType::CSV => Arc::new(
-                CsvFormat::default()
-                    .with_file_compression_type(compression)
-                    .with_schema_infer_max_rec(Some(20480)),
-            ),
-            FileType::PARQUET => Arc::new(ParquetFormat::default()),
-            FileType::JSON => {
-                Arc::new(JsonFormat::default().with_file_compression_type(compression))
+        let accessor = ObjStoreAccessor::new(access.clone())?;
+
+        match file_type {
+            "csv" => Ok(accessor
+                .clone()
+                .into_table_provider(
+                    &self.df_ctx.state(),
+                    Arc::new(
+                        CsvFormat::default()
+                            .with_file_compression_type(compression)
+                            .with_schema_infer_max_rec(Some(20480)),
+                    ),
+                    accessor.clone().list_globbed(path).await?,
+                )
+                .await?),
+            "parquet" => Ok(accessor
+                .clone()
+                .into_table_provider(
+                    &self.df_ctx.state(),
+                    Arc::new(ParquetFormat::default()),
+                    accessor.clone().list_globbed(path).await?,
+                )
+                .await?),
+            "ndjson" | "json" => Ok(accessor
+                .clone()
+                .into_table_provider(
+                    &self.df_ctx.state(),
+                    Arc::new(JsonFormat::default().with_file_compression_type(compression)),
+                    accessor.clone().list_globbed(path).await?,
+                )
+                .await?),
+            "bson" => {
+                Ok(
+                    bson_streaming_table(access.clone(), Some(128), DatasourceUrl::try_new(path)?)
+                        .await?,
+                )
             }
-            _ => return Err(DispatchError::InvalidDispatch("Unsupported file type")),
-        };
-
-        let accessor = ObjStoreAccessor::new(access)?;
-        let objects = accessor.list_globbed(path).await?;
-
-        let state = self.df_ctx.state();
-        let provider = accessor.into_table_provider(&state, ft, objects).await?;
-
-        Ok(provider)
+            _ => Err(DispatchError::String(
+                format!("Unsupported file type: {}, for '{}'", file_type, path,).to_string(),
+            )),
+        }
     }
 
     pub async fn dispatch_function(

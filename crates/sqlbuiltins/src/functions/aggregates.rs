@@ -3,9 +3,11 @@
 // `Abs` would otherwise be `Abs` instead of `abs`. and so on.
 #![allow(non_camel_case_types)]
 
-use crate::{document, functions::BuiltinFunction};
 use datafusion::logical_expr::AggregateFunction;
 use protogen::metastore::types::catalog::FunctionType;
+
+use crate::document;
+use crate::functions::BuiltinFunction;
 
 document! {
     doc => "Gives the approximate count of distinct elements using HyperLogLog",
@@ -184,6 +186,12 @@ document! {
 }
 
 document! {
+    doc => "Returns a string by joining all strings in the column using the given seperator",
+    example => "string_agg(a, '_')",
+    name => string_agg
+}
+
+document! {
     doc => "Returns the sum of a column",
     example => "sum(a)",
     name => sum
@@ -198,6 +206,12 @@ document! {
     doc => "Returns the population variance of a column",
     example => "variance_pop(a)",
     name => variance_pop
+}
+
+document! {
+    doc => "Returns the nth value in a column",
+    example => "nth_value(a, 2)",
+    name => nth_value
 }
 
 impl BuiltinFunction for AggregateFunction {
@@ -240,9 +254,11 @@ impl BuiltinFunction for AggregateFunction {
             RegrSYY => regr_syy::NAME,
             Stddev => stddev::NAME,
             StddevPop => stddev_pop::NAME,
+            StringAgg => string_agg::NAME,
             Sum => sum::NAME,
             Variance => variance::NAME,
             VariancePop => variance_pop::NAME,
+            NthValue => nth_value::NAME,
         }
     }
 
@@ -285,9 +301,11 @@ impl BuiltinFunction for AggregateFunction {
             RegrSYY => regr_syy::EXAMPLE,
             Stddev => stddev::EXAMPLE,
             StddevPop => stddev_pop::EXAMPLE,
+            StringAgg => string_agg::EXAMPLE,
             Sum => sum::EXAMPLE,
             Variance => variance::EXAMPLE,
             VariancePop => variance_pop::EXAMPLE,
+            NthValue => nth_value::EXAMPLE,
         })
     }
 
@@ -326,9 +344,11 @@ impl BuiltinFunction for AggregateFunction {
             RegrSYY => regr_syy::DESCRIPTION,
             Stddev => stddev::DESCRIPTION,
             StddevPop => stddev_pop::DESCRIPTION,
+            StringAgg => string_agg::DESCRIPTION,
             Sum => sum::DESCRIPTION,
             Variance => variance::DESCRIPTION,
             VariancePop => variance_pop::DESCRIPTION,
+            NthValue => nth_value::DESCRIPTION,
         })
     }
 }

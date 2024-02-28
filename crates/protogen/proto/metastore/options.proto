@@ -48,8 +48,9 @@ message DatabaseOptions {
     DatabaseOptionsSqlServer sql_server = 9;
     DatabaseOptionsClickhouse clickhouse = 10;
     DatabaseOptionsCassandra cassandra = 11;
+    DatabaseOptionsSqlite sqlite = 12;
   }
-  // next: 11
+  // next: 12
 }
 
 message DatabaseOptionsInternal {}
@@ -83,6 +84,12 @@ message DatabaseOptionsClickhouse {
 
 message DatabaseOptionsCassandra {
   string host = 1;
+  optional string username = 2;
+  optional string password = 3;
+}
+
+message DatabaseOptionsSqlite {
+  string location = 1;
 }
 
 message DatabaseOptionsSnowflake {
@@ -134,8 +141,10 @@ message TableOptions {
     TableOptionsObjectStore bson = 16;
     TableOptionsClickhouse clickhouse = 17;
     TableOptionsCassandra cassandra = 18;
+    TableOptionsExcel excel = 19;
+    TableOptionsSqlite sqlite = 20;
   }
-  // next: 18
+  // next: 21
 }
 
 message TableOptionsInternal {
@@ -196,6 +205,15 @@ message TableOptionsMongo {
   string collection = 3;
 }
 
+message TableOptionsExcel{
+  string location = 1;
+  StorageOptions storage_options = 2;
+  optional string file_type = 3;
+  optional string compression = 4;
+  optional string sheet_name = 5;
+  bool has_header = 6;
+}
+
 message TableOptionsSnowflake {
   string account_name = 1;
   string login_name = 2;
@@ -240,6 +258,13 @@ message TableOptionsCassandra {
   string host = 1;
   string keyspace = 2;
   string table = 3;
+  optional string username = 4;
+  optional string password = 5;
+}
+
+message TableOptionsSqlite {
+  string location = 1;
+  string table = 2;
 }
 
 // Tunnel options
@@ -269,6 +294,7 @@ message CredentialsOptions {
     CredentialsOptionsGcp gcp = 2;
     CredentialsOptionsAws aws = 3;
     CredentialsOptionsAzure azure = 4;
+    CredentialsOptionsOpenAI openai = 5;
   }
 }
 
@@ -290,4 +316,10 @@ message CredentialsOptionsAzure {
   string access_key = 2;
   // TODO: We may want to allow the user to give us just the "connection string"
   // which contains the account and access key.
+}
+
+message CredentialsOptionsOpenAI {
+  string api_key = 1;
+  optional string api_base = 2;
+  optional string org_id = 3;
 }

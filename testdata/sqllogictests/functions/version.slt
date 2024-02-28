@@ -1,4 +1,14 @@
-query B
+query T
 select starts_with(version(), 'v')
+----
+t
+
+# There also exists a stub for pg_catalog.version(). This is hard coded to a
+# postgres version maximize compatability with postgres tooling, and is
+# _different_ than the `version()` function.
+#
+# Needed for great expections: <https://github.com/GlareDB/glaredb/issues/2436#issuecomment-1899383224>
+query T
+select starts_with(pg_catalog.version(), 'PostgreSQL 15.1')
 ----
 t

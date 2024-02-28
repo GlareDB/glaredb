@@ -24,6 +24,26 @@ alter table t1 rename to t2;
 statement ok
 drop table if exists t1, t2;
 
+# Tests alter views (with the same syntax as tables)
+
+statement ok
+create view v1 as values (1), (2);
+
+statement ok
+alter table v1 rename to v2;
+
+statement error Missing database object
+alter table v1 rename to v2;
+
+statement ok
+create view v1 as values (3), (4);
+
+statement error Duplicate name
+alter table v1 rename to v2;
+
+statement ok
+drop view if exists v1, v2;
+
 # Tests alter database
 
 statement ok

@@ -2,12 +2,14 @@
 
 use std::sync::Arc;
 
+use datafusion::arrow::datatypes::Schema;
 use datafusion::common::ToDFSchema;
 use datafusion::error::Result;
-use datafusion::{
-    arrow::datatypes::Schema, execution::context::SessionState, optimizer::utils::conjunction,
-    physical_expr::create_physical_expr, physical_plan::PhysicalExpr, prelude::Expr,
-};
+use datafusion::execution::context::SessionState;
+use datafusion::logical_expr::utils::conjunction;
+use datafusion::physical_expr::create_physical_expr;
+use datafusion::physical_plan::PhysicalExpr;
+use datafusion::prelude::Expr;
 
 pub mod errors;
 pub mod sink;
@@ -22,8 +24,7 @@ pub(crate) fn exprs_to_phys_exprs(
 ) -> Result<Option<Arc<dyn PhysicalExpr>>> {
     if let Some(expr) = conjunction(exprs.to_vec()) {
         let table_df_schema = schema.clone().to_dfschema()?;
-        let filters =
-            create_physical_expr(&expr, &table_df_schema, schema, state.execution_props())?;
+        let filters = create_physical_expr(&expr, &table_df_schema, state.execution_props())?;
         Ok(Some(filters))
     } else {
         Ok(None)

@@ -1,5 +1,37 @@
-use super::{builder::CqlValueArrayBuilder, *};
 use datafusion::arrow::array::ArrayBuilder;
+use datafusion::arrow::record_batch::RecordBatchOptions;
+
+use super::builder::CqlValueArrayBuilder;
+use super::{
+    fmt,
+    stream,
+    Any,
+    Arc,
+    ArrowSchemaRef,
+    Context,
+    DataFusionError,
+    DataSourceMetricsStreamAdapter,
+    DatafusionResult,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    ExecutionPlanMetricsSet,
+    MetricsSet,
+    Partitioning,
+    PhysicalSortExpr,
+    Pin,
+    Poll,
+    RecordBatch,
+    RecordBatchStream,
+    Result,
+    Row,
+    SendableRecordBatchStream,
+    Session,
+    Statistics,
+    Stream,
+    StreamExt,
+    TaskContext,
+};
 
 pub(super) struct CassandraExec {
     schema: ArrowSchemaRef,
@@ -40,13 +72,18 @@ impl ExecutionPlan for CassandraExec {
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
         vec![]
     }
+
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Execution(
-            "cannot replace children for ScyllaExec".to_string(),
-        ))
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Execution(
+                "cannot replace children for ScyllaExec".to_string(),
+            ))
+        }
     }
     fn execute(
         &self,
@@ -69,8 +106,9 @@ impl ExecutionPlan for CassandraExec {
             &self.metrics,
         )))
     }
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+
+    fn statistics(&self) -> DatafusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
@@ -138,6 +176,11 @@ fn rows_to_record_batch(
 ) -> Result<RecordBatch, DataFusionError> {
     match rows {
         None => Ok(RecordBatch::new_empty(schema)),
+        Some(rows) if schema.fields().is_empty() => {
+            let options = RecordBatchOptions::new().with_row_count(Some(rows.len()));
+            RecordBatch::try_new_with_options(schema, vec![], &options)
+                .map_err(DataFusionError::from)
+        }
         Some(rows) => {
             let mut builders = schema
                 .fields()

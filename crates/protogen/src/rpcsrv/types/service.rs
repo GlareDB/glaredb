@@ -1,17 +1,16 @@
-use std::{collections::HashMap, fmt::Display};
+use std::collections::HashMap;
+use std::fmt::Display;
 
 use datafusion::arrow::datatypes::Schema;
 use prost::Message;
 use uuid::Uuid;
 
-use crate::{
-    errors::ProtoConvError,
-    gen::rpcsrv::service::{self, ExternalTableReference, InternalTableReference},
-    metastore::types::{catalog::CatalogState, FromOptionalField},
-};
-
 use super::common::SessionStorageConfig;
 use super::func_param_value::FuncParamValue;
+use crate::errors::ProtoConvError;
+use crate::gen::rpcsrv::service::{self, ExternalTableReference, InternalTableReference};
+use crate::metastore::types::catalog::CatalogState;
+use crate::metastore::types::FromOptionalField;
 
 pub struct InitializeSessionRequestFromClient {
     pub test_db_id: Option<Uuid>,

@@ -1,25 +1,30 @@
-use crate::errors::Result;
-use datafusion::arrow::datatypes::Schema;
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::execution::TaskContext;
-use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::RecordBatchStream;
-use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-    Statistics,
-};
-use futures::{Stream, StreamExt};
-use parking_lot::Mutex;
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+
+use datafusion::arrow::datatypes::Schema;
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::execution::TaskContext;
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::{
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    RecordBatchStream,
+    SendableRecordBatchStream,
+    Statistics,
+};
+use futures::{Stream, StreamExt};
+use parking_lot::Mutex;
 use tokio::task::JoinSet;
 use uuid::Uuid;
 
 use super::client_send::ClientExchangeSendExec;
+use crate::errors::Result;
 
 /// Drives execution of the output stream from the server in conjunction with
 /// the send streams to the server.
@@ -141,8 +146,8 @@ impl ExecutionPlan for SendRecvJoinExec {
         Ok(Box::pin(stream))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

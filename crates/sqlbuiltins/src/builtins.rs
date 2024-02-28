@@ -1,7 +1,8 @@
 //! Builtins as determined by Metastore.
 //!
-//! On catalog initialization, whether that loading in a catalog from storage,
-//! or creating a new one, as set of builtins will be inserted into the catalog.
+//! On catalog initialization, either by loading in a catalog from storage, or
+//! creating a new one, a set of builtins will be inserted into the catalog
+//! (see Storage initialize).
 //!
 //! Two main takeaways:
 //!
@@ -13,11 +14,12 @@
 //! database node will be able to see it, but will not be able to execute
 //! appropriately. We can revisit this if this isn't acceptable long-term.
 
+use std::sync::Arc;
+
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_GLAREDB_BUILTIN_ID;
 use protogen::metastore::types::options::InternalColumnDefinition;
-use std::sync::Arc;
 
 /// The default catalog that exists in all GlareDB databases.
 pub const DEFAULT_CATALOG: &str = "default";
@@ -234,7 +236,6 @@ pub static GLARE_DEPLOYMENT_METADATA: Lazy<BuiltinTable> = Lazy::new(|| BuiltinT
 /// This stores information for all tables, and all columns for each table.
 ///
 /// The cached data lives in an on-disk (delta) table alongside user table data.
-///
 // TODO: Do we want to store columns in a separate table?
 pub static GLARE_CACHED_EXTERNAL_DATABASE_TABLES: Lazy<BuiltinTable> = Lazy::new(|| BuiltinTable {
     schema: INTERNAL_SCHEMA,
@@ -464,10 +465,10 @@ SELECT
     null AS identity_increment,
     null AS identity_maximum,
     null AS identity_minimum,
-    null AS identity_cyle,
+    null AS identity_cycle,
     null AS is_generated,
     null AS generation_expression,
-    'NO' AS is_updateable
+    'NO' AS is_updatable
 FROM glare_catalog.columns c
 INNER JOIN glare_catalog.schemas s ON c.schema_oid = s.oid
 INNER JOIN glare_catalog.databases d ON s.database_oid = d.oid
@@ -494,32 +495,32 @@ pub static PG_ATTRIBUTE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     name: "pg_attribute",
     sql: "
 SELECT
-    c.table_oid AS attrelid,
-    c.column_name AS attname,
-    null AS atttypeid,
-    null AS attstattarget,
-    null AS attlen,
-    null AS attnum,
-    null AS attndims,
-    null AS attcacheoff,
-    null AS atttypmod,
-    null AS attbyval,
-    null AS attalign,
-    null AS attstorage,
-    null AS attcompression,
-    null AS attnotnull,
-    null AS atthasdef,
-    null AS atthasmissing,
-    null AS attidentity,
-    null AS attgenerated,
-    null AS attisdropped,
-    null AS attislocal,
-    null AS attinhcount,
-    null AS attcollation,
-    null AS attacl,
-    null AS attoptions,
-    null AS attfdwoptions,
-    null AS attmissingval
+    null           as attacl,
+    ' '            as attalign,
+    false          as attbyval,
+    0              as attcacheoff,
+    0              as attcollation,
+    ' '            as attcompression,
+    null           as attfdwoptions,
+    ' '            as attgenerated,
+    false          as atthasdef,
+    false          as atthasmissing,
+    ' '            as attidentity,
+    0              as attinhcount,
+    false          as attisdropped,
+    false          as attislocal,
+    0::smallint    as attlen,
+    null           as attmissingval,
+    ''             as attname,
+    0              as attndims,
+    false          as attnotnull,
+    0::smallint    as attnum,
+    null           as attoptions,
+    0              as attrelid,
+    0              as attstattarget,
+    ' '            as attstorage,
+    0              as atttypid,
+    0              as atttypmod
 FROM glare_catalog.columns c",
 });
 
@@ -613,9 +614,9 @@ FROM glare_catalog.databases;
 ",
 });
 
-pub static PG_TABLE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+pub static PG_TABLES: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     schema: POSTGRES_SCHEMA,
-    name: "pg_table",
+    name: "pg_tables",
     sql: "
 SELECT
     schema_name as schemaname,
@@ -643,6 +644,96 @@ FROM glare_catalog.views;
 ",
 });
 
+pub static PG_TYPE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_type",
+    sql: "
+SELECT 
+
+null as typacl,
+0 as typndims,
+0 as typcollation,
+0 as oid,
+0 as typnamespace,
+0 as typowner,
+0 as typlen,
+false as typbyval,
+'r' as typtype,
+'r' as typcategory,
+false as typispreferred,
+false as typisdefined,
+'r' as typdelim,
+0 as typrelid,
+0 as typsubscript,
+0 as typelem,
+0 as typarray,
+0 as typinput,
+0 as typoutput,
+0 as typreceive,
+0 as typsend,
+0 as typmodin,
+0 as typmodout,
+0 as typanalyze,
+'r' as typalign,
+'r' as typstorage,
+false as typnotnull,
+0 as typbasetype,
+0 as typtypmod,
+'r' as typname,
+null as typdefault,
+null as typdefaultbin
+FROM (VALUES (NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL)) WHERE false",
+});
+
+pub static PG_MATVIEWS: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_matviews",
+    sql: "
+    SELECT '' as schemaname,
+    '' as matviewname,
+    '' as matviewowner,
+    '' as tablespace,
+    false as hasindexes,
+    false as ispopulated,
+    '' as definition
+    WHERE false
+    ",
+});
+
+pub static PG_REWRITE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_rewrite",
+    sql: "
+    SELECT 0 as oid,
+    '' as rulename,
+    0 as ev_class,
+    1 as ev_type,
+    'D' as ev_enabled,
+    false as is_instead,
+    null as ev_qual,
+    null as ev_action
+    ",
+});
+
+pub static PG_DEPEND: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
+    schema: POSTGRES_SCHEMA,
+    name: "pg_depend",
+    sql: "
+    SELECT 0 as classid,
+    0 as objid,
+    0 as objsubid,
+    0 as refclassid,
+    0 as refobjid,
+    0 as refobjdubid,
+    'a' as deptype,
+    ",
+});
+
 impl BuiltinView {
     pub fn builtins() -> Vec<&'static BuiltinView> {
         vec![
@@ -656,23 +747,30 @@ impl BuiltinView {
             &PG_NAMESPACE,
             &PG_DESCRIPTION,
             &PG_DATABASE,
-            &PG_TABLE,
+            &PG_TABLES,
             &PG_VIEWS,
+            &PG_TYPE,
+            &PG_MATVIEWS,
+            &PG_REWRITE,
+            &PG_DEPEND,
         ]
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::HashSet;
+
+    use super::*;
 
     #[test]
     fn builtin_schema_oid_range() {
         let mut oids = HashSet::new();
         for schema in BuiltinSchema::builtins() {
             assert!(schema.oid < FIRST_NON_STATIC_OID);
-            assert!(schema.oid >= FIRST_GLAREDB_BUILTIN_ID);
+            assert!(schema.oid > FIRST_GLAREDB_BUILTIN_ID);
+            assert!(schema.oid >= 16385);
+            assert!(schema.oid <= 16400);
             assert!(oids.insert(schema.oid), "duplicate oid: {}", schema.oid);
         }
     }

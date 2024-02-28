@@ -3,7 +3,8 @@ name = "catalog"
 version.workspace = true
 edition.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lints]
+workspace = true
 
 [dependencies]
 datafusion = { workspace = true }
@@ -15,7 +16,5 @@ thiserror.workspace = true
 tokio = { workspace = true }
 tonic = { workspace = true }
 tracing = { workspace = true }
-uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.7.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 
-[dev-dependencies]
-metastore = { path = "../metastore" }

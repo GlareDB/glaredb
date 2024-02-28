@@ -3,7 +3,8 @@ name = "bench_runner"
 version = { workspace = true }
 edition = { workspace = true }
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lints]
+workspace = true
 
 [dependencies]
 logutil = {path = "../logutil"}
@@ -16,4 +17,4 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 tokio-postgres = "0.7.8"
 glob = "0.3.1"
-regex = "1.8.1"
+regex = "1.10.3"

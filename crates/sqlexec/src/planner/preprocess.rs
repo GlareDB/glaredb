@@ -1,8 +1,10 @@
 //! AST visitors for preprocessing queries before planning.
-use crate::context::local::LocalSessionContext;
+use std::ops::ControlFlow;
+
 use datafusion::sql::sqlparser::ast::{self, VisitMut, VisitorMut};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use std::ops::ControlFlow;
+
+use crate::context::local::LocalSessionContext;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PreprocessError {
@@ -49,6 +51,7 @@ impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
             ast::Expr::Cast {
                 expr: inner_expr,
                 data_type: ast::DataType::Regclass,
+                format: _,
             } => {
                 if let ast::Expr::Value(ast::Value::SingleQuotedString(relation)) = &**inner_expr {
                     match find_oid(self.ctx, relation) {

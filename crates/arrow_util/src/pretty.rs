@@ -1,3 +1,7 @@
+use std::fmt;
+use std::ops::Range;
+use std::sync::Arc;
+
 use comfy_table::{Cell, CellAlignment, ColumnConstraint, ContentArrangement, Table};
 use datafusion::arrow::array::{Array, Float64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
@@ -5,10 +9,8 @@ use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow::util::display::{ArrayFormatter, FormatOptions};
 use once_cell::sync::Lazy;
-use std::fmt;
-use std::ops::Range;
-use std::sync::Arc;
-use textwrap::{core::display_width, fill_inplace, wrap};
+use textwrap::core::display_width;
+use textwrap::{fill_inplace, wrap};
 
 const DEFAULT_PRESET: &str = "││──╞═╪╡│    ┬┴┌┐└┘";
 const DEFAULT_MAX_ROWS: usize = 20;
@@ -30,19 +32,6 @@ pub fn pretty_format_batches(
     max_rows: Option<usize>,
 ) -> Result<impl fmt::Display, ArrowError> {
     PrettyTable::try_new(schema, batches, max_width, max_rows)
-}
-
-/// Get the terminal's width in characters.
-///
-/// This can be used as the `max_width` argument when pretty formatting to
-/// ensure the formatted table doesn't exceed the width of the terminal.
-///
-/// If the width can't be determine or is unreasonable (0), then a default width
-/// of 80 is used.
-pub fn term_width() -> usize {
-    crossterm::terminal::size()
-        .map(|(width, _)| if width == 0 { 80 } else { width as usize })
-        .unwrap_or(80)
 }
 
 #[derive(Debug)]
@@ -711,7 +700,7 @@ mod tests {
         .unwrap();
 
         let mut test_cases: Vec<TestCase> = Vec::new();
-        for (_idx, xcol) in test_batch.columns().iter().enumerate() {
+        for xcol in test_batch.columns().iter() {
             let tc = TestCase {
                 input: xcol,
                 truncate: Some(10), // doesn't matter for floats.

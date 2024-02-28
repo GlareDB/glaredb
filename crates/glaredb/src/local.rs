@@ -1,6 +1,9 @@
-use crate::args::{LocalClientOpts, OutputMode, StorageConfigArgs};
-use crate::highlighter::{SQLHighlighter, SQLHinter, SQLValidator};
-use crate::prompt::SQLPrompt;
+use std::collections::HashMap;
+use std::env;
+use std::io::Write;
+use std::path::PathBuf;
+use std::time::Instant;
+
 use anyhow::{anyhow, Result};
 use arrow_util::pretty;
 use clap::ValueEnum;
@@ -8,24 +11,25 @@ use colored::Colorize;
 use datafusion::arrow::csv::writer::WriterBuilder as CsvWriterBuilder;
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::json::writer::{
-    JsonFormat, LineDelimited as JsonLineDelimted, Writer as JsonWriter,
+    JsonFormat,
+    LineDelimited as JsonLineDelimted,
+    Writer as JsonWriter,
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion_ext::vars::SessionVars;
 use futures::StreamExt;
 use pgrepr::format::Format;
+use pgrepr::notice::NoticeSeverity;
 use reedline::{FileBackedHistory, Reedline, Signal};
-use std::collections::HashMap;
-
-use datafusion_ext::vars::SessionVars;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::session::ExecutionResult;
-use std::env;
-use std::io::Write;
-use std::path::PathBuf;
-use std::time::Instant;
 use url::Url;
+
+use crate::args::{LocalClientOpts, OutputMode, StorageConfigArgs};
+use crate::highlighter::{SQLHighlighter, SQLHinter, SQLValidator};
+use crate::prompt::SQLPrompt;
 
 #[derive(Debug, Clone, Copy)]
 enum ClientCommandResult {
@@ -132,7 +136,7 @@ impl LocalSession {
         println!("Type {} for help.", "\\help".bold().italic());
 
         let history = Box::new(
-            FileBackedHistory::with_file(100, get_history_path())
+            FileBackedHistory::with_file(10000, get_history_path())
                 .expect("Error configuring history with file"),
         );
 
@@ -160,6 +164,25 @@ impl LocalSession {
                             Ok(_) => {}
                             Err(e) => println!("Error: {e}"),
                         };
+
+                        // Print out notices as needed.
+                        //
+                        // Note this isn't being called in the above `execute`
+                        // function since that can be called in a
+                        // non-interactive fashion which and having notice
+                        // messages interspersed with the output would be
+                        // annoying.
+                        for notice in self.sess.take_notices() {
+                            eprintln!(
+                                "{}: {}",
+                                match notice.severity {
+                                    s @ (NoticeSeverity::Warning | NoticeSeverity::Error) =>
+                                        s.to_string().red(),
+                                    other => other.to_string().blue(),
+                                },
+                                notice.message
+                            );
+                        }
                     }
                 },
                 Ok(Signal::CtrlD) => break,
@@ -177,7 +200,7 @@ impl LocalSession {
         Ok(())
     }
 
-    async fn execute(&mut self, text: &str) -> Result<()> {
+    pub async fn execute(&mut self, text: &str) -> Result<()> {
         if is_client_cmd(text) {
             self.handle_client_cmd(text).await?;
             return Ok(());
@@ -218,7 +241,17 @@ impl LocalSession {
                     )
                     .await?
                 }
-                other => println!("{}", other),
+                res @ (ExecutionResult::CopySuccess
+                | ExecutionResult::DeleteSuccess { .. }
+                | ExecutionResult::InsertSuccess { .. }
+                | ExecutionResult::UpdateSuccess { .. }) => {
+                    println!("{}", res);
+                    print_time_elapsed(now);
+                }
+
+                other => {
+                    println!("{}", other);
+                }
             }
         }
         Ok(())
@@ -308,14 +341,14 @@ async fn print_stream(
         OutputMode::Table => {
             // If width not explicitly set by the user, try to get the width of ther
             // terminal.
-            let width = max_width.unwrap_or(pretty::term_width());
+            let width = max_width.unwrap_or(terminal_util::term_width());
             let disp = pretty::pretty_format_batches(&schema, &batches, Some(width), max_rows)?;
             println!("{disp}");
         }
         OutputMode::Csv => {
             let stdout = std::io::stdout();
             let buf = std::io::BufWriter::new(stdout);
-            let mut writer = CsvWriterBuilder::new().has_headers(true).build(buf);
+            let mut writer = CsvWriterBuilder::new().with_header(true).build(buf);
             for batch in batches {
                 writer.write(&batch)?; // CSV writer flushes per write.
             }
@@ -323,12 +356,15 @@ async fn print_stream(
         OutputMode::Json => write_json::<JsonArrayNewLines>(&batches)?,
         OutputMode::Ndjson => write_json::<JsonLineDelimted>(&batches)?,
     }
-
-    if let Some(now) = maybe_now {
-        println!("Time: {:.3}s", now.elapsed().as_secs_f64())
-    }
+    print_time_elapsed(maybe_now);
 
     Ok(())
+}
+
+pub(crate) fn print_time_elapsed(maybe_now: Option<Instant>) {
+    if let Some(now) = maybe_now {
+        println!("Time: {:.3}s", now.elapsed().as_secs_f64());
+    }
 }
 
 pub(crate) fn is_client_cmd(s: &str) -> bool {

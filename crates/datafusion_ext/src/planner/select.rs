@@ -15,34 +15,57 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
-use crate::utils::{
-    check_columns_satisfy_exprs, extract_aliases, rebase_expr, resolve_aliases_to_exprs,
-    resolve_columns, resolve_positions_to_exprs,
-};
+use std::collections::HashSet;
+use std::sync::Arc;
+
 use async_recursion::async_recursion;
-use datafusion::common::{plan_err, DataFusionError, Result};
+use datafusion::common::{not_impl_err, plan_err, DataFusionError, Result};
 use datafusion::logical_expr::expr::Alias;
 use datafusion::logical_expr::expr_rewriter::{
-    normalize_col, normalize_col_with_schemas_and_ambiguity_check,
+    normalize_col,
+    normalize_col_with_schemas_and_ambiguity_check,
 };
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::utils::{
-    expand_qualified_wildcard, expand_wildcard, expr_as_column_expr, expr_to_columns,
-    find_aggregate_exprs, find_window_exprs,
+    expand_qualified_wildcard,
+    expand_wildcard,
+    expr_as_column_expr,
+    expr_to_columns,
+    find_aggregate_exprs,
+    find_window_exprs,
 };
 use datafusion::logical_expr::{
-    Expr, Filter, GroupingSet, LogicalPlan, LogicalPlanBuilder, Partitioning,
+    Expr,
+    Filter,
+    GroupingSet,
+    LogicalPlan,
+    LogicalPlanBuilder,
+    Partitioning,
 };
 use datafusion::prelude::Column;
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
-    Distinct, Expr as SQLExpr, GroupByExpr, NamedWindowDefinition, ReplaceSelectItem,
-    WildcardAdditionalOptions, WindowType,
+    Distinct,
+    Expr as SQLExpr,
+    GroupByExpr,
+    NamedWindowDefinition,
+    ReplaceSelectItem,
+    Select,
+    SelectItem,
+    TableWithJoins,
+    WildcardAdditionalOptions,
+    WindowType,
 };
-use datafusion::sql::sqlparser::ast::{Select, SelectItem, TableWithJoins};
-use std::collections::HashSet;
-use std::sync::Arc;
+
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
+use crate::utils::{
+    check_columns_satisfy_exprs,
+    extract_aliases,
+    rebase_expr,
+    resolve_aliases_to_exprs,
+    resolve_columns,
+    resolve_positions_to_exprs,
+};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     /// Generate a logic plan from an SQL select
@@ -53,19 +76,19 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     ) -> Result<LogicalPlan> {
         // check for unsupported syntax first
         if !select.cluster_by.is_empty() {
-            return Err(DataFusionError::NotImplemented("CLUSTER BY".to_string()));
+            return not_impl_err!("CLUSTER BY");
         }
         if !select.lateral_views.is_empty() {
-            return Err(DataFusionError::NotImplemented("LATERAL VIEWS".to_string()));
+            return not_impl_err!("LATERAL VIEWS");
         }
         if select.qualify.is_some() {
-            return Err(DataFusionError::NotImplemented("QUALIFY".to_string()));
+            return not_impl_err!("QUALIFY");
         }
         if select.top.is_some() {
-            return Err(DataFusionError::NotImplemented("TOP".to_string()));
+            return not_impl_err!("TOP");
         }
         if !select.sort_by.is_empty() {
-            return Err(DataFusionError::NotImplemented("SORT BY".to_string()));
+            return not_impl_err!("SORT BY");
         }
 
         // process `from` clause
@@ -73,7 +96,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         let empty_from = matches!(plan, LogicalPlan::EmptyRelation(_));
 
         // process `where` clause
-        let plan = self
+        let base_plan = self
             .plan_selection(select.selection, plan, planner_context)
             .await?;
 
@@ -83,13 +106,13 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
 
         // process the SELECT expressions, with wildcards expanded.
         let select_exprs = self
-            .prepare_select_exprs(&plan, select.projection, empty_from, planner_context)
+            .prepare_select_exprs(&base_plan, select.projection, empty_from, planner_context)
             .await?;
 
         // having and group by clause may reference aliases defined in select projection
-        let projected_plan = self.project(plan.clone(), select_exprs.clone())?;
+        let projected_plan = self.project(base_plan.clone(), select_exprs.clone())?;
         let mut combined_schema = (**projected_plan.schema()).clone();
-        combined_schema.merge(plan.schema());
+        combined_schema.merge(base_plan.schema());
 
         // this alias map is resolved and looked up in both having exprs and group by exprs
         let alias_map = extract_aliases(&select_exprs);
@@ -114,8 +137,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 //   SELECT c1, MAX(c2) AS m FROM t GROUP BY c1 HAVING MAX(c2) > 10;
                 //
                 let having_expr = resolve_aliases_to_exprs(&having_expr, &alias_map)?;
-                let having_expr = normalize_col(having_expr, &projected_plan)?;
-                Some(having_expr)
+                Some(normalize_col(having_expr, &projected_plan)?)
             }
             None => None,
         };
@@ -140,15 +162,14 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     .await?;
                 // aliases from the projection can conflict with same-named expressions in the input
                 let mut alias_map = alias_map.clone();
-                for f in plan.schema().fields() {
+                for f in base_plan.schema().fields() {
                     alias_map.remove(f.name());
                 }
                 let group_by_expr = resolve_aliases_to_exprs(&group_by_expr, &alias_map)?;
                 let group_by_expr = resolve_positions_to_exprs(&group_by_expr, &select_exprs)
                     .unwrap_or(group_by_expr);
                 let group_by_expr = normalize_col(group_by_expr, &projected_plan)?;
-                self.validate_schema_satisfies_exprs(plan.schema(), &[group_by_expr.clone()])?;
-
+                self.validate_schema_satisfies_exprs(base_plan.schema(), &[group_by_expr.clone()])?;
                 group_by_exprs.push(group_by_expr);
             }
             group_by_exprs
@@ -158,9 +179,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             select_exprs
                 .iter()
                 .filter(|select_expr| match select_expr {
-                    Expr::AggregateFunction(_) | Expr::AggregateUDF(_) => false,
-                    Expr::Alias(Alias { expr, name: _ }) => {
-                        !matches!(**expr, Expr::AggregateFunction(_) | Expr::AggregateUDF(_))
+                    Expr::AggregateFunction(_) => false,
+                    Expr::Alias(Alias { expr, name: _, .. }) => {
+                        !matches!(**expr, Expr::AggregateFunction(_))
                     }
                     _ => true,
                 })
@@ -174,17 +195,16 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             || !aggr_exprs.is_empty()
         {
             self.aggregate(
-                plan,
+                &base_plan,
                 &select_exprs,
                 having_expr_opt.as_ref(),
-                group_by_exprs,
-                aggr_exprs,
+                &group_by_exprs,
+                &aggr_exprs,
             )?
         } else {
             match having_expr_opt {
-                Some(having_expr) => return Err(DataFusionError::Plan(
-                    format!("HAVING clause references: {having_expr} must appear in the GROUP BY clause or be used in an aggregate function"))),
-                None => (plan, select_exprs, having_expr_opt)
+                Some(having_expr) => return plan_err!("HAVING clause references: {having_expr} must appear in the GROUP BY clause or be used in an aggregate function"),
+                None => (base_plan.clone(), select_exprs.clone(), having_expr_opt)
             }
         };
 
@@ -217,32 +237,47 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         let plan = project(plan, select_exprs_post_aggr)?;
 
         // process distinct clause
-        let distinct = select
-            .distinct
-            .map(|distinct| match distinct {
-                Distinct::Distinct => Ok(true),
-                Distinct::On(_) => Err(DataFusionError::NotImplemented(
-                    "DISTINCT ON Exprs not supported".to_string(),
-                )),
-            })
-            .transpose()?
-            .unwrap_or(false);
+        let plan = match select.distinct {
+            None => Ok(plan),
+            Some(Distinct::Distinct) => LogicalPlanBuilder::from(plan).distinct()?.build(),
+            Some(Distinct::On(on_expr)) => {
+                if !aggr_exprs.is_empty()
+                    || !group_by_exprs.is_empty()
+                    || !window_func_exprs.is_empty()
+                {
+                    return not_impl_err!("DISTINCT ON expressions with GROUP BY, aggregation or window functions are not supported ");
+                }
 
-        let plan = if distinct {
-            LogicalPlanBuilder::from(plan).distinct()?.build()
-        } else {
-            Ok(plan)
+                let on_expr = {
+                    let mut exprs = Vec::with_capacity(on_expr.len());
+                    for e in on_expr {
+                        let e = self
+                            .sql_expr_to_logical_expr(e, plan.schema(), planner_context)
+                            .await?;
+                        exprs.push(e);
+                    }
+                    exprs
+                };
+
+                // Build the final plan
+                return LogicalPlanBuilder::from(base_plan)
+                    .distinct_on(on_expr, select_exprs, None)?
+                    .build();
+            }
         }?;
 
         // DISTRIBUTE BY
         let plan = if !select.distribute_by.is_empty() {
-            let mut x = Vec::with_capacity(select.distribute_by.len());
-            for e in select.distribute_by {
-                let e = self
-                    .sql_expr_to_logical_expr(e.clone(), &combined_schema, planner_context)
-                    .await?;
-                x.push(e);
-            }
+            let x = {
+                let mut exprs = Vec::with_capacity(select.distribute_by.len());
+                for e in select.distribute_by {
+                    let e = self
+                        .sql_expr_to_logical_expr(e.clone(), &combined_schema, planner_context)
+                        .await?;
+                    exprs.push(e);
+                }
+                exprs
+            };
             LogicalPlanBuilder::from(plan)
                 .repartition(Partitioning::DistributeBy(x))?
                 .build()?
@@ -367,7 +402,12 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     &[&[plan.schema()]],
                     &plan.using_columns()?,
                 )?;
-                let expr = Expr::Alias(Alias::new(col, self.normalizer.normalize(alias)));
+                let name = self.normalizer.normalize(alias);
+                // avoiding adding an alias if the column name is the same.
+                let expr = match &col {
+                    Expr::Column(column) if column.name.eq(&name) => col,
+                    _ => col.alias(name),
+                };
                 Ok(vec![expr])
             }
             SelectItem::Wildcard(options) => {
@@ -453,6 +493,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                         .clone();
                     *expr = Expr::Alias(Alias {
                         expr: Box::new(new_expr),
+                        relation: None,
                         name: name.clone(),
                     });
                 }
@@ -493,16 +534,22 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     ///                              the aggregate
     fn aggregate(
         &self,
-        input: LogicalPlan,
+        input: &LogicalPlan,
         select_exprs: &[Expr],
         having_expr_opt: Option<&Expr>,
-        group_by_exprs: Vec<Expr>,
-        aggr_exprs: Vec<Expr>,
+        group_by_exprs: &[Expr],
+        aggr_exprs: &[Expr],
     ) -> Result<(LogicalPlan, Vec<Expr>, Option<Expr>)> {
         // create the aggregate plan
         let plan = LogicalPlanBuilder::from(input.clone())
-            .aggregate(group_by_exprs.clone(), aggr_exprs.clone())?
+            .aggregate(group_by_exprs.to_vec(), aggr_exprs.to_vec())?
             .build()?;
+
+        let group_by_exprs = if let LogicalPlan::Aggregate(agg) = &plan {
+            &agg.group_expr
+        } else {
+            unreachable!();
+        };
 
         // in this next section of code we are re-writing the projection to refer to columns
         // output by the aggregate plan. For example, if the projection contains the expression
@@ -512,7 +559,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         // combine the original grouping and aggregate expressions into one list (note that
         // we do not add the "having" expression since that is not part of the projection)
         let mut aggr_projection_exprs = vec![];
-        for expr in &group_by_exprs {
+        for expr in group_by_exprs {
             match expr {
                 Expr::GroupingSet(GroupingSet::Rollup(exprs)) => {
                     aggr_projection_exprs.extend_from_slice(exprs)
@@ -528,25 +575,25 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 _ => aggr_projection_exprs.push(expr.clone()),
             }
         }
-        aggr_projection_exprs.extend_from_slice(&aggr_exprs);
+        aggr_projection_exprs.extend_from_slice(aggr_exprs);
 
         // now attempt to resolve columns and replace with fully-qualified columns
         let aggr_projection_exprs = aggr_projection_exprs
             .iter()
-            .map(|expr| resolve_columns(expr, &input))
+            .map(|expr| resolve_columns(expr, input))
             .collect::<Result<Vec<Expr>>>()?;
 
         // next we replace any expressions that are not a column with a column referencing
         // an output column from the aggregate schema
         let column_exprs_post_aggr = aggr_projection_exprs
             .iter()
-            .map(|expr| expr_as_column_expr(expr, &input))
+            .map(|expr| expr_as_column_expr(expr, input))
             .collect::<Result<Vec<Expr>>>()?;
 
         // next we re-write the projection
         let select_exprs_post_aggr = select_exprs
             .iter()
-            .map(|expr| rebase_expr(expr, &aggr_projection_exprs, &input))
+            .map(|expr| rebase_expr(expr, &aggr_projection_exprs, input))
             .collect::<Result<Vec<Expr>>>()?;
 
         // finally, we have some validation that the re-written projection can be resolved
@@ -560,7 +607,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         // Rewrite the HAVING expression to use the columns produced by the
         // aggregation.
         let having_expr_post_aggr = if let Some(having_expr) = having_expr_opt {
-            let having_expr_post_aggr = rebase_expr(having_expr, &aggr_projection_exprs, &input)?;
+            let having_expr_post_aggr = rebase_expr(having_expr, &aggr_projection_exprs, input)?;
 
             check_columns_satisfy_exprs(
                 &column_exprs_post_aggr,

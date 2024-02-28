@@ -3,7 +3,8 @@ name = "proxyutil"
 version.workspace = true
 edition.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lints]
+workspace = true
 
 [dependencies]
 serde = { workspace = true }
@@ -13,4 +14,4 @@ futures = { workspace = true }
 reqwest = { workspace = true }
 async-trait = { workspace = true }
 serde_json = { workspace = true }
-uuid = { version = "1.6.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.7.0", features = ["v4", "fast-rng", "macro-diagnostics"] }

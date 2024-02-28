@@ -1,0 +1,12 @@
+glaredb_dbt_test:
+  outputs:
+    test_target:
+      dbname: default
+      host: 127.0.0.1
+      pass: ""
+      port: 5432
+      schema: public
+      threads: 1
+      type: postgres
+      user: "{{ env_var('DBT_USER') }}"
+  target: test_target

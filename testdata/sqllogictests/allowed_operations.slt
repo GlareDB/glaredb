@@ -45,7 +45,7 @@ READ_ONLY
 
 statement ok
 CREATE EXTERNAL TABLE debug_table
-    FROM debug (
+    FROM debug OPTIONS (
         table_type 'never_ending'
     );
 
@@ -92,4 +92,3 @@ FROM glare_catalog.databases
 WHERE database_name = 'default';
 ----
 READ_WRITE
-
