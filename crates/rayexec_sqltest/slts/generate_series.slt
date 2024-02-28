@@ -1,0 +1,8 @@
+query I
+select * from generate_series(1, 5);
+----
+1
+2
+3
+4
+5

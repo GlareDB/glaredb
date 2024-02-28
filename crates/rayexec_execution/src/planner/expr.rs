@@ -16,6 +16,8 @@ use super::{
 // TODO: Expand wildcard.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpandedSelectExpr {
+    /// A typical expression. Can be a reference to a column, or a more complex
+    /// expression.
     Expr {
         /// The original expression.
         expr: ast::Expr,
@@ -24,12 +26,22 @@ pub enum ExpandedSelectExpr {
         /// match that column.
         name: String,
     },
+    /// An index of a column in the current scope. This is needed for wildcards
+    /// since they're expanded to match some number of columns in the current
+    /// scope.
+    Column {
+        /// Index of the column the current scope.
+        idx: usize,
+        /// Name of the column.
+        name: String,
+    },
 }
 
 impl ExpandedSelectExpr {
     pub fn column_name(&self) -> &str {
         match self {
             ExpandedSelectExpr::Expr { name, .. } => name,
+            Self::Column { name, .. } => name,
         }
     }
 }
@@ -58,17 +70,48 @@ impl<'a> ExpressionContext<'a> {
         }
     }
 
-    pub fn expand_select_expr(&self, expr: ast::SelectExpr) -> Result<ExpandedSelectExpr> {
+    pub fn expand_select_expr(&self, expr: ast::SelectExpr) -> Result<Vec<ExpandedSelectExpr>> {
         Ok(match expr {
-            ast::SelectExpr::Expr(expr) => ExpandedSelectExpr::Expr {
+            ast::SelectExpr::Expr(expr) => vec![ExpandedSelectExpr::Expr {
                 expr,
                 name: "?column?".to_string(),
-            },
-            ast::SelectExpr::AliasedExpr(expr, alias) => ExpandedSelectExpr::Expr {
+            }],
+            ast::SelectExpr::AliasedExpr(expr, alias) => vec![ExpandedSelectExpr::Expr {
                 expr,
                 name: alias.value,
-            },
-            _ => unimplemented!(),
+            }],
+            ast::SelectExpr::Wildcard(wildcard) => {
+                // TODO: Exclude, replace
+                // TODO: Need to omit "hidden" columns that may have been added to the scope.
+                self.scope
+                    .items
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, col)| ExpandedSelectExpr::Column {
+                        idx,
+                        name: col.column.clone(),
+                    })
+                    .collect()
+            }
+            ast::SelectExpr::QualifiedWildcard(reference, wildcard) => {
+                // TODO: Exclude, replace
+                // TODO: Need to omit "hidden" columns that may have been added to the scope.
+                self.scope
+                    .items
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, col)| match &col.alias {
+                        // TODO: I got lazy. Need to check the entire reference.
+                        Some(alias) if alias.table == reference.base().unwrap().value => {
+                            Some(ExpandedSelectExpr::Column {
+                                idx,
+                                name: col.column.clone(),
+                            })
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            }
         })
     }
 

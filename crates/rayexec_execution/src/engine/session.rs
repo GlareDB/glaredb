@@ -34,6 +34,7 @@ impl Resolver for DebugResolver {
 
         Ok(match reference.0[0].value.as_ref() {
             "dummy" => Box::new(table::dummy::DummyTableFunction),
+            "generate_series" => Box::new(table::generate_series::GenerateSeries),
             other => return Err(RayexecError::new(format!("unknown function: {other}"))),
         })
     }

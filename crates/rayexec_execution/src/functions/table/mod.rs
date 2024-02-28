@@ -1,7 +1,7 @@
 pub mod dummy;
 pub mod empty;
+pub mod generate_series;
 
-use arrow_schema::Schema;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 use std::fmt::Debug;

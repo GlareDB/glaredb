@@ -120,21 +120,19 @@ impl PipelineBuilder {
     }
 
     fn plan_scan(&mut self, scan: operator::Scan, output: Destination) -> Result<()> {
-        unimplemented!()
-        // let table = self.context.get_table(scan.input).ok_or_else(|| {
-        //     RayexecError::new(format!("Missing table for bind index: {:?}", scan.input))
-        // })?;
+        let operator = match scan.source {
+            operator::ScanItem::TableFunction(f) => {
+                f.create_operator(Vec::new(), Pushdown::default()) // TODO: Actual projection
+            }
+        };
+        let linked = LinkedOperator {
+            operator,
+            dest: output,
+        };
 
-        // // TODO: If no projection, just do everything.
-        // let operator = table.create_operator(scan.projection.unwrap().clone(), Pushdown::default());
-        // let linked = LinkedOperator {
-        //     operator,
-        //     dest: output,
-        // };
+        self.pipeline.push(linked);
 
-        // self.pipeline.operators.push(linked);
-
-        // Ok(())
+        Ok(())
     }
 
     fn plan_values(&mut self, values: operator::ExpressionList, output: Destination) -> Result<()> {

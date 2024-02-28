@@ -98,11 +98,11 @@ impl<'a> PlanContext<'a> {
         // Expand projections.
         // TODO: Error on wildcards if no from.
         let expr_ctx = ExpressionContext::new(self, &plan.scope, EMPTY_SCHEMA);
-        let projections = select
-            .projections
-            .into_iter()
-            .map(|item| expr_ctx.expand_select_expr(item))
-            .collect::<Result<Vec<_>>>()?;
+        let mut projections = Vec::new();
+        for select_proj in select.projections {
+            let mut expanded = expr_ctx.expand_select_expr(select_proj)?;
+            projections.append(&mut expanded);
+        }
 
         // GROUP BY
         // Aggregates
@@ -116,6 +116,14 @@ impl<'a> PlanContext<'a> {
             match proj {
                 ExpandedSelectExpr::Expr { expr, name } => {
                     let expr = expr_ctx.plan_expression(expr)?;
+                    select_exprs.push(expr);
+                    names.push(name);
+                }
+                ExpandedSelectExpr::Column { idx, name } => {
+                    let expr = LogicalExpression::ColumnRef(ColumnRef {
+                        scope_level: 0,
+                        item_idx: idx,
+                    });
                     select_exprs.push(expr);
                     names.push(name);
                 }

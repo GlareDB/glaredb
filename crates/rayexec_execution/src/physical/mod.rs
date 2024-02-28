@@ -45,7 +45,7 @@ impl fmt::Debug for Pipeline {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (idx, operator) in self.operators.iter().enumerate() {
             if idx != 0 {
-                write!(f, "\n")?;
+                write!(f, ", ")?;
             }
             write!(f, "{idx}: {operator:?}")?;
         }

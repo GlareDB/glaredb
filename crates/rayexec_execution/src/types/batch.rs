@@ -134,7 +134,7 @@ pub struct NamedDataBatchSchema {
 }
 
 impl NamedDataBatchSchema {
-    pub fn try_new(names: Vec<String>, types: Vec<DataType>) -> Result<Self> {
+    pub fn try_new<S: Into<String>>(names: Vec<S>, types: Vec<DataType>) -> Result<Self> {
         if names.len() != types.len() {
             return Err(RayexecError::new(format!(
                 "Names and type vectors having differing lengths, names: {}, types: {}",
@@ -142,6 +142,8 @@ impl NamedDataBatchSchema {
                 types.len()
             )));
         }
+
+        let names = names.into_iter().map(|s| s.into()).collect();
 
         Ok(NamedDataBatchSchema { names, types })
     }

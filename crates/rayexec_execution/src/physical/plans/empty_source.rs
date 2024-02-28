@@ -36,7 +36,7 @@ impl Source for EmptySource {
         assert_eq!(0, partition);
         match self
             .finished
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
         {
             Ok(_) => Poll::Ready(Some(Ok(DataBatch::empty_with_num_rows(1)))),
             Err(_) => Poll::Ready(None),
