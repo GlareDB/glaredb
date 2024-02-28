@@ -38,6 +38,7 @@ pub struct GlaredbFFIPlugin {
     signature: Signature,
 }
 
+
 impl GlaredbFFIPlugin {
     pub fn try_new(
         name: &str,
@@ -45,7 +46,7 @@ impl GlaredbFFIPlugin {
         symbol: &str,
         namespace: Option<&'static str>,
     ) -> Result<Self> {
-        let signature = unsafe { plugin_signature(&lib, &symbol)? };
+        let signature = unsafe { plugin_signature(lib, symbol)? };
 
         Ok(Self {
             namespace,
@@ -71,21 +72,18 @@ impl GlaredbFFIPlugin {
     unsafe fn function_type_impl(&self) -> FunctionType {
         let plugin = get_lib(&self.lib).expect("plugin not found");
         let lib = &plugin.0;
-        check_version(&plugin);
+        check_version(plugin);
 
         let symbol: libloading::Symbol<*mut i32> = lib
             .get((format!("_glaredb_plugin_function_type_{}", self.symbol)).as_bytes())
             .unwrap();
-        let function_type =
-            FunctionType::try_from(**symbol).expect("invalid function type from plugin");
-
-        function_type
+        FunctionType::try_from(**symbol).expect("invalid function type from plugin")
     }
 
     unsafe fn sql_example_impl(&self) -> Option<&str> {
         let plugin = get_lib(&self.lib).expect("plugin not found");
         let lib = &plugin.0;
-        check_version(&plugin);
+        check_version(plugin);
 
         let symbol: libloading::Symbol<unsafe extern "C" fn() -> *const std::os::raw::c_char> = lib
             .get((format!("_glaredb_plugin_sql_example_{}", self.symbol)).as_bytes())
@@ -101,7 +99,7 @@ impl GlaredbFFIPlugin {
     unsafe fn description_impl(&self) -> Option<&str> {
         let plugin = get_lib(&self.lib).expect("plugin not found");
         let lib = &plugin.0;
-        check_version(&plugin);
+        check_version(plugin);
 
         lib.get((format!("_glaredb_plugin_description_{}", self.symbol)).as_bytes())
             .ok()
@@ -120,7 +118,7 @@ impl GlaredbFFIPlugin {
     unsafe fn invoke_impl(&self, args: &[ColumnarValue]) -> Result<ColumnarValue> {
         let plugin = get_lib(&self.lib)?;
         let lib = &plugin.0;
-        check_version(&plugin);
+        check_version(plugin);
 
         let symbol: libloading::Symbol<
             unsafe extern "C" fn(
@@ -212,7 +210,7 @@ impl ScalarUDFImpl for GlaredbFFIPlugin {
     }
 
     fn return_type(&self, arg_types: &[DataType]) -> datafusion::error::Result<DataType> {
-        let dtype = unsafe { plugin_return_type(&arg_types, &self.lib, &self.symbol)? };
+        let dtype = unsafe { plugin_return_type(arg_types, &self.lib, &self.symbol)? };
 
         Ok(dtype)
     }
@@ -380,9 +378,9 @@ unsafe fn plugin_signature(lib: &str, symbol: &str) -> Result<Signature> {
     } else {
         let msg = retrieve_error_msg(lib);
         let msg = msg.to_string_lossy();
-        return Err(datafusion::error::DataFusionError::Execution(
+        Err(datafusion::error::DataFusionError::Execution(
             msg.to_string(),
-        ));
+        ))
     }
 }
 

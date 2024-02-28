@@ -5,6 +5,6 @@ pub mod runtime;
 pub mod session_metrics;
 pub mod vars;
 pub use planner::*;
+pub mod ffi;
 pub mod functions;
 pub mod transform;
-pub mod ffi;

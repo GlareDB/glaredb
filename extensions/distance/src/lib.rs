@@ -2,8 +2,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use arrow_cast::{cast_with_options, CastOptions};
-use datafusion::arrow::array::{
-    make_array,
+use glaredb_ffi::arrow::array::{
     Array,
     BooleanBufferBuilder,
     FixedSizeListArray,
@@ -12,16 +11,9 @@ use datafusion::arrow::array::{
     MutableArrayData,
     OffsetSizeTrait,
 };
-use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
-use datafusion::arrow::error::ArrowError;
-use datafusion::error::DataFusionError;
-use datafusion::logical_expr::expr::ScalarFunction;
-use datafusion::logical_expr::{Expr, ScalarUDF, ScalarUDFImpl, Signature, Volatility};
-use datafusion::physical_plan::ColumnarValue;
-use datafusion::scalar::ScalarValue;
-use protogen::metastore::types::catalog::FunctionType;
-
-use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
+use glaredb_ffi::arrow_schema::{ArrowError, Field, FieldRef};
+use glaredb_ffi::prelude::*;
+use glaredb_ffi::{datafusion, generate_ffi_expr};
 
 #[derive(Debug, Clone)]
 pub struct CosineSimilarity {
@@ -44,16 +36,52 @@ impl CosineSimilarity {
     }
 }
 
-impl ConstBuiltinFunction for CosineSimilarity {
-    const NAME: &'static str = "cosine_similarity";
-    const DESCRIPTION: &'static str =
-        "Returns the cosine similarity between two floating point vectors";
-    const EXAMPLE: &'static str = "cosine_similarity([1.0, 2.0, 3.0], [4.0, 5.0, 6.0])";
-    const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
-    fn signature(&self) -> Option<Signature> {
-        Some(self.signature.clone())
+impl FFIExpr for CosineSimilarity {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        "cosine_similarity"
+    }
+
+    fn description(&self) -> &str {
+        "Computes the cosine similarity between two floating point vectors."
+    }
+
+    fn example(&self) -> &str {
+        "SELECT cosine_similarity([1.0, 2.0], [3.0, 4.0])"
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, _: &[DataType]) -> Result<DataType> {
+        Ok(DataType::Float32)
+    }
+
+    fn invoke(&self, args: &[ArrayRef]) -> Result<ArrayRef> {
+        let target_vec = arr_to_target_vec(&args[1])?;
+        let v0 = target_vec.value(0);
+        let to_type = v0.data_type();
+        let query_vec = arr_to_query_vec(&args[0], to_type)?;
+
+        let dimension = target_vec.value_length() as usize;
+        if query_vec.len() != dimension {
+            return Err(DataFusionError::Execution(
+                "Query vector and target vector must have the same length".to_string(),
+            ));
+        }
+
+        let result: Arc<dyn Array> =
+            lance_linalg::distance::cosine_distance_arrow_batch(query_vec.as_ref(), &target_vec)
+                .map_err(|e| DataFusionError::Execution(e.to_string()))?;
+
+        Ok(result)
     }
 }
+
 
 fn arr_to_query_vec(
     arr: &dyn Array,
@@ -155,89 +183,6 @@ fn arr_to_target_vec(arr: &dyn Array) -> datafusion::error::Result<Cow<FixedSize
     })
 }
 
-impl ScalarUDFImpl for CosineSimilarity {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn name(&self) -> &str {
-        Self::NAME
-    }
-
-    fn signature(&self) -> &Signature {
-        &self.signature
-    }
-
-    fn return_type(&self, _: &[DataType]) -> datafusion::error::Result<DataType> {
-        Ok(DataType::Float32)
-    }
-
-    fn invoke(&self, args: &[ColumnarValue]) -> datafusion::error::Result<ColumnarValue> {
-        let target_vec = match &args[1] {
-            ColumnarValue::Array(arr) => arr_to_target_vec(arr),
-            ColumnarValue::Scalar(ScalarValue::List(arr)) => arr_to_target_vec(arr.as_ref()),
-            ColumnarValue::Scalar(ScalarValue::FixedSizeList(arr)) => {
-                arr_to_target_vec(arr.as_ref())
-            }
-            _ => {
-                return Err(DataFusionError::Execution(
-                    "Invalid argument type".to_string(),
-                ))
-            }
-        }?;
-
-        let v0 = target_vec.value(0);
-        let to_type = v0.data_type();
-
-        let query_vec = match &args[0] {
-            ColumnarValue::Array(arr) => arr_to_query_vec(arr, to_type),
-            ColumnarValue::Scalar(ScalarValue::List(arr)) => {
-                arr_to_query_vec(arr.as_ref(), to_type)
-            }
-            ColumnarValue::Scalar(ScalarValue::FixedSizeList(arr)) => {
-                arr_to_query_vec(arr.as_ref(), to_type)
-            }
-            _ => {
-                return Err(DataFusionError::Execution(
-                    "Invalid argument type".to_string(),
-                ))
-            }
-        }?;
-
-        let dimension = target_vec.value_length() as usize;
-        if query_vec.len() != dimension {
-            return Err(DataFusionError::Execution(
-                "Query vector and target vector must have the same length".to_string(),
-            ));
-        }
-
-        let result: Arc<dyn Array> =
-            lance_linalg::distance::cosine_distance_arrow_batch(query_vec.as_ref(), &target_vec)
-                .map_err(|e| DataFusionError::Execution(e.to_string()))?;
-
-        Ok(ColumnarValue::Array(result))
-    }
-}
-
-impl BuiltinScalarUDF for CosineSimilarity {
-    fn try_as_expr(
-        &self,
-        _: &catalog::session_catalog::SessionCatalog,
-        args: Vec<Expr>,
-    ) -> datafusion::error::Result<Expr> {
-        let udf = ScalarUDF::new_from_impl(Self::new());
-
-        Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
-            Arc::new(udf),
-            args,
-        )))
-    }
-
-    fn try_into_scalar_udf(self: Arc<Self>) -> datafusion::error::Result<ScalarUDF> {
-        let udf = ScalarUDF::new_from_impl(Self::new());
-        Ok(udf)
-    }
-}
 
 /// modified/copied from arrow_cast
 /// https://github.com/apache/arrow-rs/blob/865a9d3fe81587ad85e9b4c9577948701f7cb3d9/arrow-cast/src/cast.rs#L3229
@@ -342,3 +287,6 @@ fn cast_fsl_inner(
     let array = FixedSizeListArray::new(field.clone(), size, values, nulls);
     Ok(array)
 }
+
+
+generate_ffi_expr!(cosine_similarity, CosineSimilarity, COSINE_SIMILARITY);

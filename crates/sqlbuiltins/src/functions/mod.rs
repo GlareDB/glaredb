@@ -370,7 +370,6 @@ impl FunctionRegistry {
             .map(|s| s.to_string())
             .chain(std::iter::once(udf.name().to_string()))
             .flat_map(|s| {
-                
                 match udf.namespace() {
                     // we register the function under both the namespaced entry and the normal entry
                     // e.g. select foo.my_function() or select my_function()
