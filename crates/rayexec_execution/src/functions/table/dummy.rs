@@ -7,7 +7,7 @@ use crate::{
         PhysicalOperator,
     },
     planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    types::batch::DataBatch,
+    types::batch::{DataBatch, NamedDataBatchSchema},
 };
 use arrow_array::{RecordBatch, StringArray};
 use arrow_schema::{DataType, Field, Schema};
@@ -16,14 +16,6 @@ use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 use std::task::{Context, Poll};
-
-static SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
-    Arc::new(Schema::new(vec![Field::new(
-        "dummy",
-        DataType::Utf8,
-        false,
-    )]))
-});
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DummyTableFunction;
@@ -47,8 +39,8 @@ impl TableFunction for DummyTableFunction {
 pub struct BoundDummyTableFunction;
 
 impl BoundTableFunction for BoundDummyTableFunction {
-    fn schema(&self) -> &Arc<Schema> {
-        &SCHEMA
+    fn schema(&self) -> NamedDataBatchSchema {
+        NamedDataBatchSchema::try_new(vec!["dummy".to_string()], vec![DataType::Utf8]).unwrap()
     }
 
     fn statistics(&self) -> Statistics {

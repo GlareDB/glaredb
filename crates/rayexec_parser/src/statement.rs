@@ -1,18 +1,18 @@
 use crate::ast::{Expr, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Statement<'a> {
-    Query(QueryNode<'a>),
+pub enum Statement {
+    Query(QueryNode),
 
     /// CREATE SCHEMA ...
     CreateSchema {
-        reference: ObjectReference<'a>,
+        reference: ObjectReference,
         if_not_exists: bool,
     },
 
     /// SET <variable> TO <value>
     SetVariable {
-        reference: ObjectReference<'a>,
-        value: Expr<'a>,
+        reference: ObjectReference,
+        value: Expr,
     },
 }

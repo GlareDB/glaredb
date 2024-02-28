@@ -10,12 +10,12 @@ pub enum ExplainOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExplainNode<'a> {
-    pub body: Statement<'a>,
+pub struct ExplainNode {
+    pub body: Statement,
     pub output: Option<ExplainOutput>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExplainBody<'a> {
-    Query(QueryNode<'a>),
+pub enum ExplainBody {
+    Query(QueryNode),
 }

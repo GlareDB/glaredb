@@ -1,5 +1,5 @@
 use crate::expr::execute::ScalarExecutor;
-use crate::expr::{Expression, PhysicalExpr};
+use crate::expr::Expression;
 use crate::physical::PhysicalOperator;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, DataBatchSchema};
@@ -78,67 +78,67 @@ impl Explainable for PhysicalProjection {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::{
-        expr::{
-            binary::{BinaryOperator, PhysicalBinaryExpr},
-            column::ColumnIndex,
-            literal::LiteralExpr,
-            scalar::ScalarValue,
-        },
-        physical::plans::test_util::{noop_context, unwrap_poll_partition},
-    };
+// #[cfg(test)]
+// mod tests {
+//     use crate::{
+//         expr::{
+//             binary::{BinaryOperator, PhysicalBinaryExpr},
+//             column::ColumnIndex,
+//             literal::LiteralExpr,
+//             scalar::ScalarValue,
+//         },
+//         physical::plans::test_util::{noop_context, unwrap_poll_partition},
+//     };
 
-    use super::*;
-    use arrow_array::{Int32Array, StringArray};
-    use std::sync::Arc;
+//     use super::*;
+//     use arrow_array::{Int32Array, StringArray};
+//     use std::sync::Arc;
 
-    fn test_batch() -> DataBatch {
-        DataBatch::try_new(vec![
-            Arc::new(Int32Array::from(vec![1, 2, 3, 4, 5])),
-            Arc::new(StringArray::from(vec!["1", "2", "3", "4", "5"])),
-        ])
-        .unwrap()
-    }
+//     fn test_batch() -> DataBatch {
+//         DataBatch::try_new(vec![
+//             Arc::new(Int32Array::from(vec![1, 2, 3, 4, 5])),
+//             Arc::new(StringArray::from(vec!["1", "2", "3", "4", "5"])),
+//         ])
+//         .unwrap()
+//     }
 
-    // #[test]
-    // fn basic() {
-    //     let batch1 = test_batch();
-    //     let batch2 = test_batch();
+//     // #[test]
+//     // fn basic() {
+//     //     let batch1 = test_batch();
+//     //     let batch2 = test_batch();
 
-    //     // Mix of exprs.
-    //     // Equivalent to something like `SELECT b, a+1, 'hello' FROM ...`
-    //     let exprs: Vec<Box<dyn PhysicalExpr>> = vec![
-    //         Box::new(ColumnIndex(1)),
-    //         Box::new(PhysicalBinaryExpr {
-    //             left: Box::new(ColumnIndex(0)),
-    //             op: BinaryOperator::Plus,
-    //             right: Box::new(LiteralExpr::new(ScalarValue::Int32(1))),
-    //         }),
-    //         Box::new(LiteralExpr::new(ScalarValue::Utf8("hello".to_string()))),
-    //     ];
+//     //     // Mix of exprs.
+//     //     // Equivalent to something like `SELECT b, a+1, 'hello' FROM ...`
+//     //     let exprs: Vec<Box<dyn PhysicalExpr>> = vec![
+//     //         Box::new(ColumnIndex(1)),
+//     //         Box::new(PhysicalBinaryExpr {
+//     //             left: Box::new(ColumnIndex(0)),
+//     //             op: BinaryOperator::Plus,
+//     //             right: Box::new(LiteralExpr::new(ScalarValue::Int32(1))),
+//     //         }),
+//     //         Box::new(LiteralExpr::new(ScalarValue::Utf8("hello".to_string()))),
+//     //     ];
 
-    //     let plan = PhysicalProjection::try_new(exprs).unwrap();
+//     //     let plan = PhysicalProjection::try_new(exprs).unwrap();
 
-    //     plan.push(batch1, 0, 0).unwrap();
-    //     plan.push(batch2, 0, 0).unwrap();
+//     //     plan.push(batch1, 0, 0).unwrap();
+//     //     plan.push(batch2, 0, 0).unwrap();
 
-    //     let got1 = unwrap_poll_partition(plan.poll_partition(&mut noop_context(), 0));
-    //     let got2 = unwrap_poll_partition(plan.poll_partition(&mut noop_context(), 0));
+//     //     let got1 = unwrap_poll_partition(plan.poll_partition(&mut noop_context(), 0));
+//     //     let got2 = unwrap_poll_partition(plan.poll_partition(&mut noop_context(), 0));
 
-    //     // Both input batches contain the same data, so both outputs should
-    //     // match this expected batch.
-    //     let expected = DataBatch::try_new(vec![
-    //         Arc::new(StringArray::from(vec!["1", "2", "3", "4", "5"])),
-    //         Arc::new(Int32Array::from(vec![2, 3, 4, 5, 6])),
-    //         Arc::new(StringArray::from(vec![
-    //             "hello", "hello", "hello", "hello", "hello",
-    //         ])),
-    //     ])
-    //     .unwrap();
+//     //     // Both input batches contain the same data, so both outputs should
+//     //     // match this expected batch.
+//     //     let expected = DataBatch::try_new(vec![
+//     //         Arc::new(StringArray::from(vec!["1", "2", "3", "4", "5"])),
+//     //         Arc::new(Int32Array::from(vec![2, 3, 4, 5, 6])),
+//     //         Arc::new(StringArray::from(vec![
+//     //             "hello", "hello", "hello", "hello", "hello",
+//     //         ])),
+//     //     ])
+//     //     .unwrap();
 
-    //     assert_eq!(expected, got1);
-    //     assert_eq!(expected, got2);
-    // }
-}
+//     //     assert_eq!(expected, got1);
+//     //     assert_eq!(expected, got2);
+//     // }
+// }

@@ -8,23 +8,23 @@ use rayexec_error::{RayexecError, Result};
 use super::{AstParseable, DistinctModifier, Expr, FromNode, Ident, ObjectReference};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectNode<'a> {
+pub struct SelectNode {
     /// DISTINCT [ON]
-    pub distinct: Option<DistinctModifier<'a>>,
+    pub distinct: Option<DistinctModifier>,
     /// Projection list. May included wildcards.
-    pub projections: Vec<SelectExpr<'a>>,
+    pub projections: Vec<SelectExpr>,
     /// FROM
-    pub from: Option<FromNode<'a>>,
+    pub from: Option<FromNode>,
     /// WHERE
-    pub where_expr: Option<Expr<'a>>,
+    pub where_expr: Option<Expr>,
     /// GROUP BY
-    pub group_by: Option<GroupByNode<'a>>,
+    pub group_by: Option<GroupByNode>,
     /// HAVING
-    pub having: Option<Expr<'a>>,
+    pub having: Option<Expr>,
 }
 
-impl<'a> AstParseable<'a> for SelectNode<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for SelectNode {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         // TODO: distinct
 
         // Select list
@@ -69,26 +69,26 @@ impl<'a> AstParseable<'a> for SelectNode<'a> {
     }
 }
 
-impl<'a> SelectNode<'a> {}
+impl SelectNode {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SelectExpr<'a> {
+pub enum SelectExpr {
     /// An unaliases expression.
-    Expr(Expr<'a>),
+    Expr(Expr),
     /// An aliased expression.
     ///
     /// `<expr> AS <ident>`
-    AliasedExpr(Expr<'a>, Ident<'a>),
+    AliasedExpr(Expr, Ident),
     /// A qualified wild card.
     ///
     /// `<reference>.*`
-    QualifiedWildcard(ObjectReference<'a>, Wildcard<'a>),
+    QualifiedWildcard(ObjectReference, Wildcard),
     /// An unqualifed wild card.
-    Wildcard(Wildcard<'a>),
+    Wildcard(Wildcard),
 }
 
-impl<'a> AstParseable<'a> for SelectExpr<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for SelectExpr {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let expr = WildcardExpr::parse(parser)?;
 
         match expr {
@@ -112,15 +112,15 @@ impl<'a> AstParseable<'a> for SelectExpr<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Wildcard<'a> {
+pub struct Wildcard {
     /// Columns to exclude in the star select.
     ///
     /// `SELECT * EXCLUDE col1, col2 ...`
-    pub exclude_cols: Vec<Ident<'a>>,
+    pub exclude_cols: Vec<Ident>,
     /// Columns to replace in the star select.
     ///
     /// `SELECT * REPLACE (col1 / 100 AS col1) ...`
-    pub replace_cols: Vec<ReplaceColumn<'a>>,
+    pub replace_cols: Vec<ReplaceColumn>,
     // TODO: `SELECT COLUMNS(...)`
 }
 
@@ -128,14 +128,14 @@ pub struct Wildcard<'a> {
 ///
 /// Parsed from the select list.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum WildcardExpr<'a> {
+pub enum WildcardExpr {
     Wildcard,
-    QualifiedWildcard(ObjectReference<'a>),
-    Expr(Expr<'a>),
+    QualifiedWildcard(ObjectReference),
+    Expr(Expr),
 }
 
-impl<'a> AstParseable<'a> for WildcardExpr<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for WildcardExpr {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let idx = parser.idx; // Needed for resetting the position if this is just an expression.
 
         let tok = match parser.next() {
@@ -158,9 +158,9 @@ impl<'a> AstParseable<'a> for WildcardExpr<'a> {
         if matches!(tok, Token::Word(_) | Token::SingleQuotedString(_)) {
             let ident = match tok {
                 Token::Word(w) => Ident {
-                    value: w.value.into(),
+                    value: w.value.clone(),
                 },
-                Token::SingleQuotedString(s) => Ident { value: (*s).into() },
+                Token::SingleQuotedString(s) => Ident { value: s.clone() },
                 _ => unreachable!("token variants previously matched on"),
             };
 
@@ -178,9 +178,9 @@ impl<'a> AstParseable<'a> for WildcardExpr<'a> {
 
                     match next {
                         Token::Word(w) => idents.push(Ident {
-                            value: w.value.into(),
+                            value: w.value.clone(),
                         }),
-                        Token::SingleQuotedString(s) => idents.push(Ident { value: (*s).into() }),
+                        Token::SingleQuotedString(s) => idents.push(Ident { value: s.clone() }),
                         Token::Mul => {
                             return Ok(WildcardExpr::QualifiedWildcard(ObjectReference(idents)))
                         }
@@ -202,19 +202,19 @@ impl<'a> AstParseable<'a> for WildcardExpr<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReplaceColumn<'a> {
-    pub col: Ident<'a>,
-    pub expr: Expr<'a>,
+pub struct ReplaceColumn {
+    pub col: Ident,
+    pub expr: Expr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GroupByNode<'a> {
+pub enum GroupByNode {
     All,
-    Exprs { exprs: Vec<GroupByExpr<'a>> },
+    Exprs { exprs: Vec<GroupByExpr> },
 }
 
-impl<'a> AstParseable<'a> for GroupByNode<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for GroupByNode {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         if parser.parse_keyword(Keyword::ALL) {
             Ok(GroupByNode::All)
         } else {
@@ -225,19 +225,19 @@ impl<'a> AstParseable<'a> for GroupByNode<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GroupByExpr<'a> {
+pub enum GroupByExpr {
     /// `GROUP BY <expr>[, ...]`
-    Expr(Expr<'a>),
+    Expr(Expr),
     /// `GROUP BY CUBE (<expr>)`
-    Cube(Vec<Expr<'a>>),
+    Cube(Vec<Expr>),
     /// `GROUP BY ROLLUP (<expr>)`
-    Rollup(Vec<Expr<'a>>),
+    Rollup(Vec<Expr>),
     /// `GROUP BY GROUPING SETS (<expr>)`
-    GroupingSets(Vec<Expr<'a>>),
+    GroupingSets(Vec<Expr>),
 }
 
-impl<'a> AstParseable<'a> for GroupByExpr<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for GroupByExpr {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let tok = match parser.peek() {
             Some(tok) => tok,
             None => {

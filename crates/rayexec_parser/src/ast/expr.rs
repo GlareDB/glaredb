@@ -59,11 +59,11 @@ pub enum BinaryOperator {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Literal<'a> {
+pub enum Literal {
     /// Unparsed number literal.
-    Number(&'a str),
+    Number(String),
     /// String literal.
-    SingleQuotedString(&'a str),
+    SingleQuotedString(String),
     /// Boolean literal.
     Boolean(bool),
     /// Null literal
@@ -72,44 +72,44 @@ pub enum Literal<'a> {
     ///
     /// Lengths of keys and values must be the same.
     Struct {
-        keys: Vec<&'a str>,
-        values: Vec<Expr<'a>>,
+        keys: Vec<String>,
+        values: Vec<Expr>,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Expr<'a> {
+pub enum Expr {
     /// Column or table identifier.
-    Ident(Ident<'a>),
+    Ident(Ident),
     /// Compound identifier.
     ///
     /// `table.col`
-    CompoundIdent(Vec<Ident<'a>>),
+    CompoundIdent(Vec<Ident>),
     /// An expression literal,
-    Literal(Literal<'a>),
+    Literal(Literal),
     /// A binary expression.
     BinaryExpr {
-        left: Box<Expr<'a>>,
+        left: Box<Expr>,
         op: BinaryOperator,
-        right: Box<Expr<'a>>,
+        right: Box<Expr>,
     },
     /// A colation.
     ///
     /// `<expr> COLLATE <collation>`
     Collate {
-        expr: Box<Expr<'a>>,
-        collation: ObjectReference<'a>,
+        expr: Box<Expr>,
+        collation: ObjectReference,
     },
 }
 
-impl<'a> AstParseable<'a> for Expr<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for Expr {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         Self::parse_subexpr(parser, 0)
     }
 }
 
-impl<'a> Expr<'a> {
-    fn parse_subexpr(parser: &mut Parser<'a>, precendence: u8) -> Result<Self> {
+impl Expr {
+    fn parse_subexpr(parser: &mut Parser, precendence: u8) -> Result<Self> {
         let mut expr = Expr::parse_prefix(parser)?;
 
         loop {
@@ -124,7 +124,7 @@ impl<'a> Expr<'a> {
         Ok(expr)
     }
 
-    fn parse_prefix(parser: &mut Parser<'a>) -> Result<Self> {
+    fn parse_prefix(parser: &mut Parser) -> Result<Self> {
         // TODO: Typed string
 
         let tok = match parser.next() {
@@ -143,18 +143,18 @@ impl<'a> Expr<'a> {
                     Keyword::FALSE => Expr::Literal(Literal::Boolean(false)),
                     Keyword::NULL => Expr::Literal(Literal::Null),
                     _ => Expr::Ident(Ident {
-                        value: w.value.into(),
+                        value: w.value.clone(),
                     }),
                 },
                 None => {
                     // TODO: Extend, compound idents.
                     Expr::Ident(Ident {
-                        value: w.value.into(),
+                        value: w.value.clone(),
                     })
                 }
             },
-            Token::SingleQuotedString(s) => Expr::Literal(Literal::SingleQuotedString(s)),
-            Token::Number(s) => Expr::Literal(Literal::Number(s)),
+            Token::SingleQuotedString(s) => Expr::Literal(Literal::SingleQuotedString(s.clone())),
+            Token::Number(s) => Expr::Literal(Literal::Number(s.clone())),
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected token '{other:?}'. Expected expression."
@@ -165,7 +165,7 @@ impl<'a> Expr<'a> {
         Ok(expr)
     }
 
-    fn parse_infix(parser: &mut Parser<'a>, prefix: Expr<'a>, precendence: u8) -> Result<Self> {
+    fn parse_infix(parser: &mut Parser, prefix: Expr, precendence: u8) -> Result<Self> {
         let tok = match parser.next() {
             Some(tok) => &tok.token,
             None => {
@@ -228,7 +228,7 @@ impl<'a> Expr<'a> {
     /// operator and zero will be returned.
     ///
     /// See <https://www.postgresql.org/docs/16/sql-syntax-lexical.html#SQL-PRECEDENCE>
-    fn get_infix_precedence(parser: &mut Parser<'a>) -> Result<u8> {
+    fn get_infix_precedence(parser: &mut Parser) -> Result<u8> {
         // Precdences, ordered low to high.
         const PREC_OR: u8 = 10;
         const PREC_AND: u8 = 20;

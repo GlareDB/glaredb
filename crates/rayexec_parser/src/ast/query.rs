@@ -4,15 +4,15 @@ use rayexec_error::{RayexecError, Result};
 use super::{AstParseable, Expr, FromAlias, Ident, LimitModifier, OrderByNode, SelectNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct QueryNode<'a> {
-    pub ctes: Option<Ctes<'a>>,
-    pub body: QueryNodeBody<'a>,
-    pub order_by: Option<OrderByNode<'a>>,
-    pub limit: LimitModifier<'a>,
+pub struct QueryNode {
+    pub ctes: Option<Ctes>,
+    pub body: QueryNodeBody,
+    pub order_by: Option<OrderByNode>,
+    pub limit: LimitModifier,
 }
 
-impl<'a> AstParseable<'a> for QueryNode<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for QueryNode {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let ctes = if parser.parse_keyword(Keyword::WITH) {
             Some(Ctes::parse(parser)?)
         } else {
@@ -39,18 +39,18 @@ impl<'a> AstParseable<'a> for QueryNode<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum QueryNodeBody<'a> {
-    Select(Box<SelectNode<'a>>),
+pub enum QueryNodeBody {
+    Select(Box<SelectNode>),
     Set {
-        left: Box<QueryNodeBody<'a>>,
-        right: Box<QueryNodeBody<'a>>,
+        left: Box<QueryNodeBody>,
+        right: Box<QueryNodeBody>,
         operation: SetOperation,
     },
-    Values(Values<'a>),
+    Values(Values),
 }
 
-impl<'a> AstParseable<'a> for QueryNodeBody<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for QueryNodeBody {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         // TODO: Set operations.
 
         if parser.parse_keyword(Keyword::SELECT) {
@@ -71,12 +71,12 @@ pub enum SetOperation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Values<'a> {
-    pub rows: Vec<Vec<Expr<'a>>>,
+pub struct Values {
+    pub rows: Vec<Vec<Expr>>,
 }
 
-impl<'a> AstParseable<'a> for Values<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for Values {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let rows = parser.parse_comma_separated(|parser| {
             parser.expect_token(&Token::LeftParen)?;
             let exprs = parser.parse_comma_separated(Expr::parse)?;
@@ -89,13 +89,13 @@ impl<'a> AstParseable<'a> for Values<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Ctes<'a> {
+pub struct Ctes {
     pub recursive: bool,
-    pub ctes: Vec<Cte<'a>>,
+    pub ctes: Vec<Cte>,
 }
 
-impl<'a> AstParseable<'a> for Ctes<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for Ctes {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let recursive = parser.parse_keyword(Keyword::RECURSIVE);
         Ok(Ctes {
             recursive,
@@ -105,14 +105,14 @@ impl<'a> AstParseable<'a> for Ctes<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Cte<'a> {
-    pub alias: Ident<'a>,
-    pub column_aliases: Option<Vec<Ident<'a>>>,
-    pub body: Box<QueryNode<'a>>,
+pub struct Cte {
+    pub alias: Ident,
+    pub column_aliases: Option<Vec<Ident>>,
+    pub body: Box<QueryNode>,
 }
 
-impl<'a> AstParseable<'a> for Cte<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for Cte {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let alias = Ident::parse(parser)?;
 
         let column_aliases = if parser.parse_keyword(Keyword::AS) {
@@ -155,8 +155,8 @@ mod tests {
         let values: Values = parse_ast("(1, 2)").unwrap();
         let expected = Values {
             rows: vec![vec![
-                Expr::Literal(Literal::Number("1")),
-                Expr::Literal(Literal::Number("2")),
+                Expr::Literal(Literal::Number("1".to_string())),
+                Expr::Literal(Literal::Number("2".to_string())),
             ]],
         };
         assert_eq!(expected, values);
@@ -168,16 +168,16 @@ mod tests {
         let expected = Values {
             rows: vec![
                 vec![
-                    Expr::Literal(Literal::Number("1")),
-                    Expr::Literal(Literal::Number("2")),
+                    Expr::Literal(Literal::Number("1".to_string())),
+                    Expr::Literal(Literal::Number("2".to_string())),
                 ],
                 vec![
-                    Expr::Literal(Literal::Number("3")),
-                    Expr::Literal(Literal::Number("4")),
+                    Expr::Literal(Literal::Number("3".to_string())),
+                    Expr::Literal(Literal::Number("4".to_string())),
                 ],
                 vec![
-                    Expr::Literal(Literal::Number("5")),
-                    Expr::Literal(Literal::Number("6")),
+                    Expr::Literal(Literal::Number("5".to_string())),
+                    Expr::Literal(Literal::Number("6".to_string())),
                 ],
             ],
         };

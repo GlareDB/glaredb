@@ -1,5 +1,5 @@
 use crate::expr::execute::MultiScalarExecutor;
-use crate::expr::{Expression, PhysicalExpr};
+use crate::expr::Expression;
 use crate::hash::build_hashes;
 use crate::physical::PhysicalOperator;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};

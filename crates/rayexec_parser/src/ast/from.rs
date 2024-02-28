@@ -8,13 +8,13 @@ use rayexec_error::{RayexecError, Result};
 use super::{AstParseable, Expr, Ident, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FromNode<'a> {
-    pub alias: Option<FromAlias<'a>>,
-    pub body: FromNodeBody<'a>,
+pub struct FromNode {
+    pub alias: Option<FromAlias>,
+    pub body: FromNodeBody,
 }
 
-impl<'a> AstParseable<'a> for FromNode<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for FromNode {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         // Build the first part of the FROM clause.
         let node = if parser.consume_token(&Token::LeftParen) {
             // Subquery
@@ -25,7 +25,7 @@ impl<'a> AstParseable<'a> for FromNode<'a> {
             let alias = Self::maybe_parse_alias(parser)?;
             FromNode {
                 alias,
-                body: FromNodeBody::Subquery { query: subquery },
+                body: FromNodeBody::Subquery(FromSubquery { query: subquery }),
             }
         } else {
             // Table or table function.
@@ -34,9 +34,9 @@ impl<'a> AstParseable<'a> for FromNode<'a> {
             let body = match parser.peek() {
                 Some(TokenWithLocation { token, .. }) if token == &Token::LeftParen => {
                     let args = parser.parse_parenthesized_comma_separated(FunctionArg::parse)?;
-                    FromNodeBody::TableFunction { reference, args }
+                    FromNodeBody::TableFunction(FromTableFunction { reference, args })
                 }
-                _ => FromNodeBody::BaseTable { reference },
+                _ => FromNodeBody::BaseTable(FromBaseTable { reference }),
             };
 
             let alias = Self::maybe_parse_alias(parser)?;
@@ -53,12 +53,12 @@ impl<'a> AstParseable<'a> for FromNode<'a> {
             let alias = Self::maybe_parse_alias(parser)?;
             FromNode {
                 alias,
-                body: FromNodeBody::Join {
+                body: FromNodeBody::Join(FromJoin {
                     left: Box::new(node),
                     right: Box::new(right),
                     join_type: JoinType::Inner,
                     join_condition: JoinCondition::Cross,
-                },
+                }),
             }
         } else if parser.consume_token(&Token::Comma) {
             // <left>, <right>
@@ -66,12 +66,12 @@ impl<'a> AstParseable<'a> for FromNode<'a> {
             let alias = Self::maybe_parse_alias(parser)?;
             FromNode {
                 alias,
-                body: FromNodeBody::Join {
+                body: FromNodeBody::Join(FromJoin {
                     left: Box::new(node),
                     right: Box::new(right),
                     join_type: JoinType::Inner,
                     join_condition: JoinCondition::Cross,
-                },
+                }),
             }
         } else {
             let kw = match parser.peek() {
@@ -168,12 +168,12 @@ impl<'a> AstParseable<'a> for FromNode<'a> {
 
             FromNode {
                 alias: None, // TODO: Join alias?
-                body: FromNodeBody::Join {
+                body: FromNodeBody::Join(FromJoin {
                     left: Box::new(node),
                     right: Box::new(right),
                     join_type,
                     join_condition,
-                },
+                }),
             }
         };
 
@@ -181,8 +181,8 @@ impl<'a> AstParseable<'a> for FromNode<'a> {
     }
 }
 
-impl<'a> FromNode<'a> {
-    fn maybe_parse_alias(parser: &mut Parser<'a>) -> Result<Option<FromAlias<'a>>> {
+impl FromNode {
+    fn maybe_parse_alias(parser: &mut Parser) -> Result<Option<FromAlias>> {
         let alias = match parser.parse_alias(RESERVED_FOR_TABLE_ALIAS)? {
             Some(alias) => alias,
             None => return Ok(None),
@@ -200,43 +200,55 @@ impl<'a> FromNode<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FromAlias<'a> {
-    pub alias: Ident<'a>,
-    pub columns: Option<Vec<Ident<'a>>>,
+pub struct FromAlias {
+    pub alias: Ident,
+    pub columns: Option<Vec<Ident>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FromNodeBody<'a> {
-    BaseTable {
-        reference: ObjectReference<'a>,
-    },
-    Subquery {
-        query: QueryNode<'a>,
-    },
-    TableFunction {
-        reference: ObjectReference<'a>,
-        args: Vec<FunctionArg<'a>>,
-    },
-    Join {
-        left: Box<FromNode<'a>>,
-        right: Box<FromNode<'a>>,
-        join_type: JoinType,
-        join_condition: JoinCondition<'a>,
-    },
+pub enum FromNodeBody {
+    BaseTable(FromBaseTable),
+    Subquery(FromSubquery),
+    TableFunction(FromTableFunction),
+    Join(FromJoin),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FunctionArg<'a> {
+pub struct FromBaseTable {
+    pub reference: ObjectReference,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FromSubquery {
+    pub query: QueryNode,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FromTableFunction {
+    pub reference: ObjectReference,
+    pub args: Vec<FunctionArg>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FromJoin {
+    pub left: Box<FromNode>,
+    pub right: Box<FromNode>,
+    pub join_type: JoinType,
+    pub join_condition: JoinCondition,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FunctionArg {
     /// A named argument. Allows use of either `=>` or `=` for assignment.
     ///
     /// `ident => <expr>` or `ident = <expr>`
-    Named { name: Ident<'a>, arg: Expr<'a> },
+    Named { name: Ident, arg: Expr },
     /// `<expr>`
-    Unnamed { arg: Expr<'a> },
+    Unnamed { arg: Expr },
 }
 
-impl<'a> AstParseable<'a> for FunctionArg<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for FunctionArg {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let is_named = match parser.peek_nth(1) {
             Some(tok) => matches!(tok.token, Token::RightArrow | Token::Eq),
             None => false,
@@ -271,9 +283,9 @@ pub enum JoinType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum JoinCondition<'a> {
-    On(Expr<'a>),
-    Using(Vec<Ident<'a>>),
+pub enum JoinCondition {
+    On(Expr),
+    Using(Vec<Ident>),
     Natural,
     Cross,
     None,
@@ -290,11 +302,11 @@ mod tests {
         let node: FromNode = parse_ast("my_table").unwrap();
         let expected = FromNode {
             alias: None,
-            body: FromNodeBody::BaseTable {
+            body: FromNodeBody::BaseTable(FromBaseTable {
                 reference: ObjectReference(vec![Ident {
                     value: "my_table".into(),
                 }]),
-            },
+            }),
         };
         assert_eq!(expected, node)
     }
@@ -305,11 +317,11 @@ mod tests {
         let node: FromNode = parse_ast("my_table ORDER BY c1").unwrap();
         let expected = FromNode {
             alias: None,
-            body: FromNodeBody::BaseTable {
+            body: FromNodeBody::BaseTable(FromBaseTable {
                 reference: ObjectReference(vec![Ident {
                     value: "my_table".into(),
                 }]),
-            },
+            }),
         };
         assert_eq!(expected, node)
     }
@@ -323,11 +335,11 @@ mod tests {
                 alias: Ident::from_string("ORDER"),
                 columns: None,
             }),
-            body: FromNodeBody::BaseTable {
+            body: FromNodeBody::BaseTable(FromBaseTable {
                 reference: ObjectReference(vec![Ident {
                     value: "my_table".into(),
                 }]),
-            },
+            }),
         };
         assert_eq!(expected, node)
     }
@@ -340,11 +352,11 @@ mod tests {
                 alias: Ident { value: "t1".into() },
                 columns: None,
             }),
-            body: FromNodeBody::BaseTable {
+            body: FromNodeBody::BaseTable(FromBaseTable {
                 reference: ObjectReference(vec![Ident {
                     value: "my_table".into(),
                 }]),
-            },
+            }),
         };
         assert_eq!(expected, node)
     }
@@ -361,11 +373,11 @@ mod tests {
                     Ident { value: "c3".into() },
                 ]),
             }),
-            body: FromNodeBody::BaseTable {
+            body: FromNodeBody::BaseTable(FromBaseTable {
                 reference: ObjectReference(vec![Ident {
                     value: "my_table".into(),
                 }]),
-            },
+            }),
         };
         assert_eq!(expected, node)
     }
@@ -375,20 +387,20 @@ mod tests {
         let node: FromNode = parse_ast("my_table_func('arg1', kw = 'arg2')").unwrap();
         let expected = FromNode {
             alias: None,
-            body: FromNodeBody::TableFunction {
+            body: FromNodeBody::TableFunction(FromTableFunction {
                 reference: ObjectReference(vec![Ident {
                     value: "my_table_func".into(),
                 }]),
                 args: vec![
                     FunctionArg::Unnamed {
-                        arg: Expr::Literal(Literal::SingleQuotedString("arg1")),
+                        arg: Expr::Literal(Literal::SingleQuotedString("arg1".to_string())),
                     },
                     FunctionArg::Named {
                         name: Ident { value: "kw".into() },
-                        arg: Expr::Literal(Literal::SingleQuotedString("arg2")),
+                        arg: Expr::Literal(Literal::SingleQuotedString("arg2".to_string())),
                     },
                 ],
-            },
+            }),
         };
         assert_eq!(expected, node)
     }
@@ -398,18 +410,18 @@ mod tests {
         let node: FromNode = parse_ast("table1 INNER JOIN table2 ON (c1 = c2)").unwrap();
         let expected = FromNode {
             alias: None,
-            body: FromNodeBody::Join {
+            body: FromNodeBody::Join(FromJoin {
                 left: Box::new(FromNode {
                     alias: None,
-                    body: FromNodeBody::BaseTable {
+                    body: FromNodeBody::BaseTable(FromBaseTable {
                         reference: ObjectReference::from_strings(["table1"]),
-                    },
+                    }),
                 }),
                 right: Box::new(FromNode {
                     alias: None,
-                    body: FromNodeBody::BaseTable {
+                    body: FromNodeBody::BaseTable(FromBaseTable {
                         reference: ObjectReference::from_strings(["table2"]),
-                    },
+                    }),
                 }),
                 join_type: JoinType::Inner,
                 join_condition: JoinCondition::On(Expr::BinaryExpr {
@@ -417,7 +429,7 @@ mod tests {
                     op: BinaryOperator::Eq,
                     right: Box::new(Expr::Ident(Ident::from_string("c2"))),
                 }),
-            },
+            }),
         };
         assert_eq!(expected, node);
     }
@@ -427,18 +439,18 @@ mod tests {
         let node: FromNode = parse_ast("table1 INNER JOIN table2 USING (c1, c2,c3)").unwrap();
         let expected = FromNode {
             alias: None,
-            body: FromNodeBody::Join {
+            body: FromNodeBody::Join(FromJoin {
                 left: Box::new(FromNode {
                     alias: None,
-                    body: FromNodeBody::BaseTable {
+                    body: FromNodeBody::BaseTable(FromBaseTable {
                         reference: ObjectReference::from_strings(["table1"]),
-                    },
+                    }),
                 }),
                 right: Box::new(FromNode {
                     alias: None,
-                    body: FromNodeBody::BaseTable {
+                    body: FromNodeBody::BaseTable(FromBaseTable {
                         reference: ObjectReference::from_strings(["table2"]),
-                    },
+                    }),
                 }),
                 join_type: JoinType::Inner,
                 join_condition: JoinCondition::Using(vec![
@@ -446,7 +458,7 @@ mod tests {
                     Ident::from_string("c2"),
                     Ident::from_string("c3"),
                 ]),
-            },
+            }),
         };
         assert_eq!(expected, node);
     }
@@ -456,35 +468,35 @@ mod tests {
         let node: FromNode = parse_ast("t1 LEFT JOIN t2 RIGHT JOIN t3").unwrap();
         let expected = FromNode {
             alias: None,
-            body: FromNodeBody::Join {
+            body: FromNodeBody::Join(FromJoin {
                 left: Box::new(FromNode {
                     alias: None,
-                    body: FromNodeBody::BaseTable {
+                    body: FromNodeBody::BaseTable(FromBaseTable {
                         reference: ObjectReference::from_strings(["t1"]),
-                    },
+                    }),
                 }),
                 right: Box::new(FromNode {
                     alias: None,
-                    body: FromNodeBody::Join {
+                    body: FromNodeBody::Join(FromJoin {
                         left: Box::new(FromNode {
                             alias: None,
-                            body: FromNodeBody::BaseTable {
+                            body: FromNodeBody::BaseTable(FromBaseTable {
                                 reference: ObjectReference::from_strings(["t2"]),
-                            },
+                            }),
                         }),
                         right: Box::new(FromNode {
                             alias: None,
-                            body: FromNodeBody::BaseTable {
+                            body: FromNodeBody::BaseTable(FromBaseTable {
                                 reference: ObjectReference::from_strings(["t3"]),
-                            },
+                            }),
                         }),
                         join_type: JoinType::Right,
                         join_condition: JoinCondition::None,
-                    },
+                    }),
                 }),
                 join_type: JoinType::Left,
                 join_condition: JoinCondition::None,
-            },
+            }),
         };
         assert_eq!(expected, node, "left:\n{expected:#?}\nright:\n{node:#?}");
     }

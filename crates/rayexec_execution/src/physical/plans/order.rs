@@ -1,4 +1,3 @@
-use crate::expr::PhysicalExpr;
 use crate::hash::build_hashes;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use arrow_array::cast::AsArray;

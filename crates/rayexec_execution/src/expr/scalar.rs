@@ -3,7 +3,8 @@ use arrow_array::{
     StringArray,
 };
 use arrow_schema::DataType;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
+use rayexec_parser::ast;
 use std::fmt;
 use std::sync::Arc;
 
@@ -93,4 +94,63 @@ impl fmt::Display for ScalarValue {
         // TODO: Actual display impl
         write!(f, "{self:?}")
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum UnaryOperator {
+    IsTrue,
+    IsFalse,
+    IsNull,
+    IsNotNull,
+    Negate,
+    Cast { to: DataType },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum BinaryOperator {
+    Eq,
+    NotEq,
+    Lt,
+    LtEq,
+    Gt,
+    GtEq,
+    Plus,
+    Minus,
+    Multiply,
+    Divide,
+    Modulo,
+    And,
+    Or,
+}
+
+impl TryFrom<ast::BinaryOperator> for BinaryOperator {
+    type Error = RayexecError;
+    fn try_from(value: ast::BinaryOperator) -> Result<Self> {
+        Ok(match value {
+            ast::BinaryOperator::Plus => BinaryOperator::Plus,
+            ast::BinaryOperator::Minus => BinaryOperator::Minus,
+            ast::BinaryOperator::Multiply => BinaryOperator::Multiply,
+            ast::BinaryOperator::Divide => BinaryOperator::Divide,
+            ast::BinaryOperator::Modulo => BinaryOperator::Modulo,
+            ast::BinaryOperator::Eq => BinaryOperator::Eq,
+            ast::BinaryOperator::NotEq => BinaryOperator::NotEq,
+            ast::BinaryOperator::Gt => BinaryOperator::Gt,
+            ast::BinaryOperator::GtEq => BinaryOperator::GtEq,
+            ast::BinaryOperator::Lt => BinaryOperator::Lt,
+            ast::BinaryOperator::LtEq => BinaryOperator::LtEq,
+            ast::BinaryOperator::And => BinaryOperator::And,
+            ast::BinaryOperator::Or => BinaryOperator::Or,
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Unsupported SQL operator: {other:?}"
+                )))
+            }
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum VariadicOperator {
+    And,
+    Or,
 }

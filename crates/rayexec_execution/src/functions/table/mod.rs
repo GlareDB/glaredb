@@ -11,6 +11,7 @@ use crate::expr::scalar::ScalarValue;
 use crate::physical::plans::Source;
 use crate::physical::PhysicalOperator;
 use crate::planner::explainable::Explainable;
+use crate::types::batch::NamedDataBatchSchema;
 
 /// Statistics for a table function.
 #[derive(Debug, Clone, Copy)]
@@ -52,7 +53,7 @@ pub trait BoundTableFunction: Send + Debug + Explainable {
     ///
     /// This should the full output schema without any sort of projections
     /// applied.
-    fn schema(&self) -> &Arc<Schema>;
+    fn schema(&self) -> NamedDataBatchSchema;
 
     /// Returns statistics for the bound function.
     fn statistics(&self) -> Statistics;

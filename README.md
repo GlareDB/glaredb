@@ -67,6 +67,8 @@ from `sqlparser-rs` that doesn't benefit us.
 - Dynamic dispatch based on arguments provided during binding.
   - `read_parquet('./some/path.parquet)` => `ReadParquetLocal`
   - `read_parquet('s3://bucket/some/path.parquet')` => `ReadParquetRemote`
+  - `read_parquet('s3://bucket/some/path.parquet')` && `hybrid == true` =>
+    `ReadParquetCloud`
 - Function implementation implements `PhysicalOperator`.
   - `Source` for producing batches.
   - `Sink` currently errors. Idk if there's something we'd want to do there

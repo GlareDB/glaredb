@@ -7,28 +7,28 @@ use crate::{
 use rayexec_error::{RayexecError, Result};
 
 /// Parse a sql query into statements.
-pub fn parse(sql: &str) -> Result<Vec<Statement<'_>>> {
+pub fn parse(sql: &str) -> Result<Vec<Statement>> {
     let toks = Tokenizer::new(sql).tokenize()?;
     Parser::with_tokens(toks).parse_statements()
 }
 
 #[derive(Debug)]
-pub struct Parser<'a> {
-    toks: Vec<TokenWithLocation<'a>>,
+pub struct Parser {
+    toks: Vec<TokenWithLocation>,
     /// Index of token we should process next.
     pub(crate) idx: usize,
 }
 
-impl<'a> Parser<'a> {
+impl Parser {
     /// Create a parser with arbitrary tokens.
-    pub fn with_tokens(toks: Vec<TokenWithLocation<'a>>) -> Self {
+    pub fn with_tokens(toks: Vec<TokenWithLocation>) -> Self {
         Parser { toks, idx: 0 }
     }
 
     /// Parse any number of statements, including zero statements.
     ///
     /// Statements are expected to be delineated with a semicolon.
-    pub fn parse_statements(&mut self) -> Result<Vec<Statement<'a>>> {
+    pub fn parse_statements(&mut self) -> Result<Vec<Statement>> {
         let mut stmts = Vec::new();
         let mut expect_delimiter = false;
 
@@ -56,7 +56,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse a single statement.
-    pub fn parse_statement(&mut self) -> Result<Statement<'a>> {
+    pub fn parse_statement(&mut self) -> Result<Statement> {
         let tok = match self.peek() {
             Some(tok) => tok,
             None => return Err(RayexecError::new("Empty SQL statement")),
@@ -94,7 +94,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse `CREATE ...`
-    pub fn parse_create(&mut self) -> Result<Statement<'a>> {
+    pub fn parse_create(&mut self) -> Result<Statement> {
         self.expect_keyword(Keyword::CREATE)?;
 
         let or_replace = self.parse_keyword_sequence(&[Keyword::OR, Keyword::REPLACE]);
@@ -131,7 +131,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse_set(&mut self) -> Result<Statement<'a>> {
+    pub fn parse_set(&mut self) -> Result<Statement> {
         self.expect_keyword(Keyword::SET)?;
 
         let name = ObjectReference::parse(self)?;
@@ -149,7 +149,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse an optional alias.
-    pub(crate) fn parse_alias(&mut self, reserved: &[Keyword]) -> Result<Option<Ident<'a>>> {
+    pub(crate) fn parse_alias(&mut self, reserved: &[Keyword]) -> Result<Option<Ident>> {
         let has_as = self.parse_keyword(Keyword::AS);
         let tok = match self.peek() {
             Some(tok) => &tok.token,
@@ -159,7 +159,7 @@ impl<'a> Parser<'a> {
         let ident: Option<Ident> = match tok {
             // Allow any alias if `AS` was explicitly provided.
             Token::Word(w) if has_as => Some(Ident {
-                value: w.value.into(),
+                value: w.value.clone(),
             }),
 
             // If `AS` wasn't provided, allow the next word to be used as the
@@ -175,12 +175,12 @@ impl<'a> Parser<'a> {
                     None
                 }
                 _ => Some(Ident {
-                    value: w.value.into(),
+                    value: w.value.clone(),
                 }),
             },
 
             // Allow any singly quoted string.
-            Token::SingleQuotedString(s) => Some(Ident { value: (*s).into() }),
+            Token::SingleQuotedString(s) => Some(Ident { value: s.clone() }),
 
             _ => {
                 if has_as {
@@ -201,7 +201,7 @@ impl<'a> Parser<'a> {
     /// Parse a comma-separated list of one or more items.
     pub(crate) fn parse_comma_separated<T>(
         &mut self,
-        mut f: impl FnMut(&mut Parser<'a>) -> Result<T>,
+        mut f: impl FnMut(&mut Parser) -> Result<T>,
     ) -> Result<Vec<T>> {
         let mut values = Vec::new();
         loop {
@@ -240,7 +240,7 @@ impl<'a> Parser<'a> {
     /// parentheses.
     pub(crate) fn parse_parenthesized_comma_separated<T>(
         &mut self,
-        f: impl FnMut(&mut Parser<'a>) -> Result<T>,
+        f: impl FnMut(&mut Parser) -> Result<T>,
     ) -> Result<Vec<T>> {
         self.expect_token(&Token::LeftParen)?;
         let vals = self.parse_comma_separated(f)?;
@@ -357,7 +357,7 @@ impl<'a> Parser<'a> {
     /// Get the next token.
     ///
     /// Ignores whitespace.
-    pub(crate) fn next(&mut self) -> Option<&TokenWithLocation<'a>> {
+    pub(crate) fn next(&mut self) -> Option<&TokenWithLocation> {
         loop {
             if self.idx >= self.toks.len() {
                 return None;
@@ -377,14 +377,14 @@ impl<'a> Parser<'a> {
     /// Get the next token without altering the current index.
     ///
     /// Ignores whitespace.
-    pub(crate) fn peek(&mut self) -> Option<&TokenWithLocation<'a>> {
+    pub(crate) fn peek(&mut self) -> Option<&TokenWithLocation> {
         self.peek_nth(0)
     }
 
     /// Get the nth next token without altering the current index.
     ///
     /// Ignores whitespace.
-    pub(crate) fn peek_nth(&mut self, mut n: usize) -> Option<&TokenWithLocation<'a>> {
+    pub(crate) fn peek_nth(&mut self, mut n: usize) -> Option<&TokenWithLocation> {
         let mut idx = self.idx;
         loop {
             if idx >= self.toks.len() {

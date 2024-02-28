@@ -4,10 +4,10 @@ use std::fmt;
 use crate::keywords::{keyword_from_str, Keyword};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Token<'a> {
-    Word(Word<'a>),
-    SingleQuotedString(&'a str),
-    Number(&'a str),
+pub enum Token {
+    Word(Word),
+    SingleQuotedString(String),
+    Number(String),
     Whitespace,
     /// '='
     Eq,
@@ -66,15 +66,15 @@ pub enum Token<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TokenWithLocation<'a> {
-    pub token: Token<'a>,
+pub struct TokenWithLocation {
+    pub token: Token,
     /// Line number for the token.
     pub line: usize,
     /// Column number for where the token starts.
     pub col: usize,
 }
 
-impl<'a> TokenWithLocation<'a> {
+impl TokenWithLocation {
     pub fn is_keyword(&self, other: Keyword) -> bool {
         let word = match &self.token {
             Token::Word(w) => w,
@@ -97,18 +97,19 @@ impl<'a> TokenWithLocation<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Word<'a> {
-    pub value: &'a str,
+pub struct Word {
+    pub value: String,
     pub quote: Option<char>,
     pub keyword: Option<Keyword>,
 }
 
-impl<'a> Word<'a> {
-    pub fn new(value: &'a str, quote: Option<char>) -> Self {
+impl Word {
+    pub fn new(value: impl Into<String>, quote: Option<char>) -> Self {
+        let value = value.into();
         let keyword = if quote.is_some() {
             None
         } else {
-            keyword_from_str(value)
+            keyword_from_str(&value)
         };
         Word {
             value,
@@ -118,7 +119,7 @@ impl<'a> Word<'a> {
     }
 }
 
-impl<'a> fmt::Display for Word<'a> {
+impl fmt::Display for Word {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(quote) = &self.quote {
             write!(f, "{}{}{}", quote, self.value, quote)
@@ -215,7 +216,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     /// Generate tokens for the configured query.
-    pub fn tokenize(&mut self) -> Result<Vec<TokenWithLocation<'a>>> {
+    pub fn tokenize(&mut self) -> Result<Vec<TokenWithLocation>> {
         let mut tokens = Vec::new();
         while let Some(token) = self.next_token()? {
             tokens.push(TokenWithLocation {
@@ -228,7 +229,7 @@ impl<'a> Tokenizer<'a> {
         Ok(tokens)
     }
 
-    fn next_token(&mut self) -> Result<Option<Token<'a>>> {
+    fn next_token(&mut self) -> Result<Option<Token>> {
         let c = match self.state.peek() {
             Some(c) => c,
             None => return Ok(None),
@@ -321,7 +322,7 @@ impl<'a> Tokenizer<'a> {
             '\'' => {
                 self.state.next();
                 let s = self.take_quoted_string('\'');
-                Token::SingleQuotedString(s)
+                Token::SingleQuotedString(s.to_string())
             }
             // Numbers
             '0'..='9' | '.' => {
@@ -345,7 +346,7 @@ impl<'a> Tokenizer<'a> {
                     return Ok(Some(Token::Period));
                 }
 
-                Token::Number(s)
+                Token::Number(s.to_string())
             }
             // Operators
             '=' => {
@@ -379,7 +380,7 @@ impl<'a> Tokenizer<'a> {
         s
     }
 
-    fn take_identifier(&mut self) -> Word<'a> {
+    fn take_identifier(&mut self) -> Word {
         let s = self.state.take_while(|c| c.is_alphanumeric() || c == '_');
         Word::new(s, None)
     }

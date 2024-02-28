@@ -1,5 +1,5 @@
 use crate::expr::execute::ScalarExecutor;
-use crate::expr::{Expression, PhysicalExpr};
+use crate::expr::Expression;
 use crate::physical::PhysicalOperator;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, DataBatchSchema};
@@ -85,59 +85,59 @@ impl Explainable for PhysicalFilter {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::{
-        expr::{
-            binary::{BinaryOperator, PhysicalBinaryExpr},
-            column::ColumnIndex,
-            literal::LiteralExpr,
-            scalar::ScalarValue,
-        },
-        physical::plans::test_util::{noop_context, unwrap_poll_partition},
-    };
+// #[cfg(test)]
+// mod tests {
+//     use crate::{
+//         expr::{
+//             binary::{BinaryOperator, PhysicalBinaryExpr},
+//             column::ColumnIndex,
+//             literal::LiteralExpr,
+//             scalar::ScalarValue,
+//         },
+//         physical::plans::test_util::{noop_context, unwrap_poll_partition},
+//     };
 
-    use super::*;
-    use arrow_array::{Int32Array, StringArray};
-    use std::sync::Arc;
+//     use super::*;
+//     use arrow_array::{Int32Array, StringArray};
+//     use std::sync::Arc;
 
-    fn test_batch() -> DataBatch {
-        DataBatch::try_new(vec![
-            Arc::new(Int32Array::from(vec![1, 2, 3, 4, 5])),
-            Arc::new(StringArray::from(vec!["1", "2", "3", "4", "5"])),
-        ])
-        .unwrap()
-    }
+//     fn test_batch() -> DataBatch {
+//         DataBatch::try_new(vec![
+//             Arc::new(Int32Array::from(vec![1, 2, 3, 4, 5])),
+//             Arc::new(StringArray::from(vec!["1", "2", "3", "4", "5"])),
+//         ])
+//         .unwrap()
+//     }
 
-    // #[test]
-    // fn basic() {
-    //     let batch1 = test_batch();
-    //     let batch2 = test_batch();
-    //     let schema = batch1.schema();
+//     // #[test]
+//     // fn basic() {
+//     //     let batch1 = test_batch();
+//     //     let batch2 = test_batch();
+//     //     let schema = batch1.schema();
 
-    //     let pred = PhysicalBinaryExpr {
-    //         left: Box::new(ColumnIndex(0)),
-    //         op: BinaryOperator::Gt,
-    //         right: Box::new(LiteralExpr::new(ScalarValue::Int32(3))),
-    //     };
+//     //     let pred = PhysicalBinaryExpr {
+//     //         left: Box::new(ColumnIndex(0)),
+//     //         op: BinaryOperator::Gt,
+//     //         right: Box::new(LiteralExpr::new(ScalarValue::Int32(3))),
+//     //     };
 
-    //     let plan = PhysicalFilter::try_new(Box::new(pred), &schema).unwrap();
+//     //     let plan = PhysicalFilter::try_new(Box::new(pred), &schema).unwrap();
 
-    //     plan.push(batch1, 0, 0).unwrap();
-    //     plan.push(batch2, 0, 0).unwrap();
+//     //     plan.push(batch1, 0, 0).unwrap();
+//     //     plan.push(batch2, 0, 0).unwrap();
 
-    //     let got1 = unwrap_poll_partition(plan.poll_partition(&mut noop_context(), 0));
-    //     let got2 = unwrap_poll_partition(plan.poll_partition(&mut noop_context(), 0));
+//     //     let got1 = unwrap_poll_partition(plan.poll_partition(&mut noop_context(), 0));
+//     //     let got2 = unwrap_poll_partition(plan.poll_partition(&mut noop_context(), 0));
 
-    //     // Both input batches contain the same data, so both outputs should
-    //     // match this expected batch.
-    //     let expected = DataBatch::try_new(vec![
-    //         Arc::new(Int32Array::from(vec![4, 5])),
-    //         Arc::new(StringArray::from(vec!["4", "5"])),
-    //     ])
-    //     .unwrap();
+//     //     // Both input batches contain the same data, so both outputs should
+//     //     // match this expected batch.
+//     //     let expected = DataBatch::try_new(vec![
+//     //         Arc::new(Int32Array::from(vec![4, 5])),
+//     //         Arc::new(StringArray::from(vec!["4", "5"])),
+//     //     ])
+//     //     .unwrap();
 
-    //     assert_eq!(expected, got1);
-    //     assert_eq!(expected, got2);
-    // }
-}
+//     //     assert_eq!(expected, got1);
+//     //     assert_eq!(expected, got2);
+//     // }
+// }

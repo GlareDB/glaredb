@@ -5,14 +5,14 @@ use super::{AstParseable, Expr};
 
 /// A single node in an ORDER BY clause.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OrderByNode<'a> {
+pub struct OrderByNode {
     pub typ: Option<OrderByType>,
     pub nulls: Option<OrderByNulls>,
-    pub expr: Expr<'a>,
+    pub expr: Expr,
 }
 
-impl<'a> AstParseable<'a> for OrderByNode<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for OrderByNode {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let expr = Expr::parse(parser)?;
 
         let typ = if parser.parse_keyword(Keyword::ASC) {
@@ -48,13 +48,13 @@ pub enum OrderByNulls {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LimitModifier<'a> {
-    pub limit: Option<Expr<'a>>,
-    pub offset: Option<Expr<'a>>,
+pub struct LimitModifier {
+    pub limit: Option<Expr>,
+    pub offset: Option<Expr>,
 }
 
-impl<'a> AstParseable<'a> for LimitModifier<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for LimitModifier {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let mut limit = None;
         let mut offset = None;
 
@@ -76,8 +76,8 @@ impl<'a> AstParseable<'a> for LimitModifier<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DistinctModifier<'a> {
-    On(Vec<Expr<'a>>),
+pub enum DistinctModifier {
+    On(Vec<Expr>),
     All,
 }
 

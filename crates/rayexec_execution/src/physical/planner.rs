@@ -3,12 +3,12 @@ use super::{
     Destination, LinkedOperator, PhysicalOperator, Pipeline,
 };
 use crate::{
-    expr::{execute::MultiScalarExecutor, Expression, PhysicalExpr},
+    expr::{execute::MultiScalarExecutor, Expression},
     functions::table::Pushdown,
     physical::plans::{filter::PhysicalFilter, values::PhysicalValues},
     planner::{
-        bind_context::BindContext,
         operator::{self, LogicalOperator},
+        BindContext,
     },
     types::batch::{DataBatch, DataBatchSchema},
 };
@@ -61,7 +61,7 @@ impl<'a> PipelineBuilder<'a> {
             LogicalOperator::Projection(proj) => self.plan_projection(proj, output),
             LogicalOperator::Filter(filter) => self.plan_filter(filter, output),
             LogicalOperator::Scan(scan) => self.plan_scan(scan, output),
-            LogicalOperator::Values(values) => self.plan_values(values, output),
+            LogicalOperator::ExpressionList(values) => self.plan_values(values, output),
             _ => unimplemented!(),
         }
     }
@@ -108,23 +108,24 @@ impl<'a> PipelineBuilder<'a> {
     }
 
     fn plan_scan(&mut self, scan: operator::Scan, output: Destination) -> Result<()> {
-        let table = self.context.get_table(scan.input).ok_or_else(|| {
-            RayexecError::new(format!("Missing table for bind index: {:?}", scan.input))
-        })?;
+        unimplemented!()
+        // let table = self.context.get_table(scan.input).ok_or_else(|| {
+        //     RayexecError::new(format!("Missing table for bind index: {:?}", scan.input))
+        // })?;
 
-        // TODO: If no projection, just do everything.
-        let operator = table.create_operator(scan.projection.unwrap().clone(), Pushdown::default());
-        let linked = LinkedOperator {
-            operator,
-            dest: output,
-        };
+        // // TODO: If no projection, just do everything.
+        // let operator = table.create_operator(scan.projection.unwrap().clone(), Pushdown::default());
+        // let linked = LinkedOperator {
+        //     operator,
+        //     dest: output,
+        // };
 
-        self.pipeline.operators.push(linked);
+        // self.pipeline.operators.push(linked);
 
-        Ok(())
+        // Ok(())
     }
 
-    fn plan_values(&mut self, values: operator::Values, output: Destination) -> Result<()> {
+    fn plan_values(&mut self, values: operator::ExpressionList, output: Destination) -> Result<()> {
         let mut row_arrs: Vec<Vec<ArrayRef>> = Vec::new(); // Row oriented.
 
         let dummy_batch = DataBatch::empty_with_num_rows(1);

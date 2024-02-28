@@ -102,6 +102,10 @@ pub struct DataBatchSchema {
 }
 
 impl DataBatchSchema {
+    pub fn empty() -> Self {
+        DataBatchSchema { types: Vec::new() }
+    }
+
     pub fn new(types: Vec<DataType>) -> Self {
         DataBatchSchema { types }
     }
@@ -120,5 +124,35 @@ impl<S: AsRef<Schema>> From<S> for DataBatchSchema {
             .map(|f| f.data_type().clone())
             .collect();
         Self::new(types)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NamedDataBatchSchema {
+    names: Vec<String>,
+    types: Vec<DataType>,
+}
+
+impl NamedDataBatchSchema {
+    pub fn try_new(names: Vec<String>, types: Vec<DataType>) -> Result<Self> {
+        if names.len() != types.len() {
+            return Err(RayexecError::new(format!(
+                "Names and type vectors having differing lengths, names: {}, types: {}",
+                names.len(),
+                types.len()
+            )));
+        }
+
+        Ok(NamedDataBatchSchema { names, types })
+    }
+
+    pub fn get_name_and_type(&self, idx: usize) -> Option<(&str, &DataType)> {
+        let name = self.names.get(idx)?;
+        let typ = self.types.get(idx)?;
+        Some((name, typ))
+    }
+
+    pub fn into_names_and_types(self) -> (Vec<String>, Vec<DataType>) {
+        (self.names, self.types)
     }
 }

@@ -1,6 +1,6 @@
 use crate::types::batch::{DataBatch, DataBatchSchema};
 
-use super::{scalar::ScalarValue, PhysicalExpr};
+use super::scalar::ScalarValue;
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Schema};
 use rayexec_error::Result;
@@ -24,19 +24,5 @@ impl LiteralExpr {
 impl fmt::Display for LiteralExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.value)
-    }
-}
-
-impl PhysicalExpr for LiteralExpr {
-    fn data_type(&self, _input: &DataBatchSchema) -> Result<DataType> {
-        Ok(self.value.data_type())
-    }
-
-    fn nullable(&self, _input: &DataBatchSchema) -> Result<bool> {
-        Ok(matches!(self.value, ScalarValue::Null))
-    }
-
-    fn eval(&self, batch: &DataBatch) -> Result<ArrayRef> {
-        self.value.as_array(batch.num_rows())
     }
 }

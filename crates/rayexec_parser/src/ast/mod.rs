@@ -18,12 +18,12 @@ use std::borrow::Cow;
 use std::fmt;
 use std::hash::Hash;
 
-pub trait AstParseable<'a>: Sized {
+pub trait AstParseable: Sized {
     /// Parse an instance of Self from the provided parser.
     ///
     /// It's assumed that the parser is in the correct state for parsing Self,
     /// and if it isn't, an error should be returned.
-    fn parse(parser: &mut Parser<'a>) -> Result<Self>;
+    fn parse(parser: &mut Parser) -> Result<Self>;
 }
 
 #[cfg(test)]
@@ -33,7 +33,7 @@ mod testutil {
     use super::*;
 
     /// Parse an AST node directly from a string.
-    pub(crate) fn parse_ast<'a, A: AstParseable<'a>>(s: &'a str) -> Result<A> {
+    pub(crate) fn parse_ast<A: AstParseable>(s: &str) -> Result<A> {
         let toks = Tokenizer::new(s).tokenize()?;
         let mut parser = Parser::with_tokens(toks);
         A::parse(&mut parser)
@@ -41,18 +41,18 @@ mod testutil {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Ident<'a> {
-    pub value: Cow<'a, str>,
+pub struct Ident {
+    pub value: String,
 }
 
-impl<'a> Ident<'a> {
-    pub fn from_string(s: impl Into<Cow<'a, str>>) -> Self {
+impl Ident {
+    pub fn from_string(s: impl Into<String>) -> Self {
         Ident { value: s.into() }
     }
 }
 
-impl<'a> AstParseable<'a> for Ident<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for Ident {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let tok = match parser.next() {
             Some(tok) => &tok.token,
             None => {
@@ -64,7 +64,7 @@ impl<'a> AstParseable<'a> for Ident<'a> {
 
         match tok {
             Token::Word(w) => Ok(Ident {
-                value: w.value.into(),
+                value: w.value.clone(),
             }),
             other => Err(RayexecError::new(format!(
                 "Unexpected token: {other:?}. Expected an identifier.",
@@ -73,22 +73,22 @@ impl<'a> AstParseable<'a> for Ident<'a> {
     }
 }
 
-impl<'a> fmt::Display for Ident<'a> {
+impl fmt::Display for Ident {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.value)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ObjectReference<'a>(pub Vec<Ident<'a>>);
+pub struct ObjectReference(pub Vec<Ident>);
 
-impl<'a> ObjectReference<'a> {
+impl ObjectReference {
     /// Create an object from an iterator of strings.
     ///
     /// Useful in tests, probably unlikely that it should be used anywhere else.
     pub fn from_strings<S>(strings: impl IntoIterator<Item = S>) -> Self
     where
-        S: Into<Cow<'a, str>>,
+        S: Into<String>,
     {
         let mut idents = Vec::new();
         for s in strings {
@@ -97,7 +97,7 @@ impl<'a> ObjectReference<'a> {
         ObjectReference(idents)
     }
 
-    pub fn base(&self) -> Result<Ident<'a>> {
+    pub fn base(&self) -> Result<Ident> {
         match self.0.last() {
             Some(ident) => Ok(ident.clone()),
             None => Err(RayexecError::new("Empty object reference")),
@@ -105,8 +105,8 @@ impl<'a> ObjectReference<'a> {
     }
 }
 
-impl<'a> AstParseable<'a> for ObjectReference<'a> {
-    fn parse(parser: &mut Parser<'a>) -> Result<Self> {
+impl AstParseable for ObjectReference {
+    fn parse(parser: &mut Parser) -> Result<Self> {
         let mut idents = Vec::new();
         loop {
             let tok = match parser.next() {
@@ -115,7 +115,7 @@ impl<'a> AstParseable<'a> for ObjectReference<'a> {
             };
             let ident = match &tok.token {
                 Token::Word(w) => Ident {
-                    value: w.value.into(),
+                    value: w.value.clone(),
                 },
                 other => {
                     return Err(RayexecError::new(format!(
@@ -136,7 +136,7 @@ impl<'a> AstParseable<'a> for ObjectReference<'a> {
     }
 }
 
-impl<'a> fmt::Display for ObjectReference<'a> {
+impl fmt::Display for ObjectReference {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let strings: Vec<_> = self.0.iter().map(|ident| ident.value.to_string()).collect();
         write!(f, "{}", strings.join("."))

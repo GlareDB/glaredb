@@ -5,9 +5,8 @@ use std::sync::Arc;
 
 use crate::{
     functions::table::{self, TableFunction},
-    optimizer::Optimizer,
     physical::{planner::PhysicalPlanner, scheduler::Scheduler, Pipeline},
-    planner::planner::{Planner, Resolver},
+    planner::Resolver,
     types::batch::DataBatchSchema,
 };
 
@@ -17,12 +16,12 @@ use super::materialize::MaterializedBatchStream;
 pub struct DebugResolver;
 
 impl Resolver for DebugResolver {
-    fn resolve_for_table_scan(
-        &self,
-        reference: &ast::ObjectReference,
-    ) -> Result<Box<dyn TableFunction>> {
-        unimplemented!()
-    }
+    // fn resolve_for_table_scan(
+    //     &self,
+    //     reference: &ast::ObjectReference,
+    // ) -> Result<Box<dyn TableFunction>> {
+    //     unimplemented!()
+    // }
 
     fn resolve_table_function(
         &self,
@@ -62,23 +61,24 @@ impl Session {
         }
         let mut stmts = stmts.into_iter();
 
-        let planner = Planner::new(DebugResolver);
-        let (logical, context) = planner.plan_statement(stmts.next().unwrap())?;
+        unimplemented!()
+        // let planner = Planner::new(DebugResolver);
+        // let (logical, context) = planner.plan_statement(stmts.next().unwrap())?;
 
-        let optimizer = Optimizer::new();
-        let logical = optimizer.optimize(&context, logical)?;
+        // let optimizer = Optimizer::new();
+        // let logical = optimizer.optimize(&context, logical)?;
 
-        let mut output_stream = MaterializedBatchStream::new();
+        // let mut output_stream = MaterializedBatchStream::new();
 
-        let physical_planner = PhysicalPlanner::new();
-        let pipeline =
-            physical_planner.create_plan(logical, &context, output_stream.take_sink()?)?;
+        // let physical_planner = PhysicalPlanner::new();
+        // let pipeline =
+        //     physical_planner.create_plan(logical, &context, output_stream.take_sink()?)?;
 
-        self.scheduler.execute(pipeline)?;
+        // self.scheduler.execute(pipeline)?;
 
-        Ok(ExecutionResult {
-            output_schema: DataBatchSchema::new(Vec::new()), // TODO
-            stream: output_stream,
-        })
+        // Ok(ExecutionResult {
+        //     output_schema: DataBatchSchema::new(Vec::new()), // TODO
+        //     stream: output_stream,
+        // })
     }
 }
