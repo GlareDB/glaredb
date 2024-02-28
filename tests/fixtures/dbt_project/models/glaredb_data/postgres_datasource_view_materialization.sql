@@ -1,4 +1,4 @@
 {{ config(materialized='view') }}
 
 select *
-from {{ source('basic', 'dbt_test')}}
+from {{ source('my_pg', 'borough_lookup')}}
