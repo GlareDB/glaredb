@@ -113,6 +113,7 @@ mod test {
         CopyToDestinationOptions,
         CopyToDestinationOptionsLocal,
         CopyToFormatOptions,
+        CopyToFormatOptionsBson,
     };
     use uuid::Uuid;
 
@@ -214,7 +215,7 @@ mod test {
                 dest: CopyToDestinationOptions::Local(CopyToDestinationOptionsLocal {
                     location: "/tmp".to_string(),
                 }),
-                format: CopyToFormatOptions::Bson,
+                format: CopyToFormatOptions::Bson(CopyToFormatOptionsBson {}),
             }
             .into_extension(),
         );

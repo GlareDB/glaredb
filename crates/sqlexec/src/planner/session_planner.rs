@@ -56,6 +56,7 @@ use protogen::metastore::types::options::{
     CopyToDestinationOptionsLocal,
     CopyToDestinationOptionsS3,
     CopyToFormatOptions,
+    CopyToFormatOptionsBson,
     CopyToFormatOptionsCsv,
     CopyToFormatOptionsJson,
     CopyToFormatOptionsLance,
@@ -1945,7 +1946,9 @@ impl<'a> SessionPlanner<'a> {
                 let array = m.remove_optional::<bool>("array")?.unwrap_or(false);
                 CopyToFormatOptions::Json(CopyToFormatOptionsJson { array })
             }
-            Some(CopyToFormatOptions::BSON) => CopyToFormatOptions::Bson {},
+            Some(CopyToFormatOptions::BSON) => {
+                CopyToFormatOptions::Bson(CopyToFormatOptionsBson {})
+            }
             Some(CopyToFormatOptions::LANCE) => {
                 CopyToFormatOptions::Lance(CopyToFormatOptionsLance {
                     max_rows_per_file: m.remove_optional("max_rows_per_file")?,
