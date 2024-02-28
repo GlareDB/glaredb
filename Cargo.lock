@@ -2434,6 +2434,7 @@ dependencies = [
 name = "datafusion_ext"
 version = "0.8.5"
 dependencies = [
+ "arrow",
  "async-recursion",
  "async-trait",
  "bson",

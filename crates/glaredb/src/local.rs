@@ -12,10 +12,11 @@ use colored::Colorize;
 use datafusion::arrow::csv::writer::WriterBuilder as CsvWriterBuilder;
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::json::writer::{
-    JsonFormat, LineDelimited as JsonLineDelimted, Writer as JsonWriter,
+    JsonFormat,
+    LineDelimited as JsonLineDelimted,
+    Writer as JsonWriter,
 };
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::logical_expr::{Signature, Volatility};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_ext::vars::SessionVars;
 use futures::StreamExt;
@@ -106,13 +107,14 @@ impl LocalSession {
             let mut sess = engine
                 .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
                 .await?;
-            let f: Arc<dyn BuiltinScalarUDF> = Arc::new(GlaredbFFIPlugin {
-                namespace: None,
-                name: Arc::from("foo"),
-                lib: Arc::from("/Users/corygrinstead/Development/glaredb_extension/target/debug/libexpression_lib.dylib"),
-                symbol: Arc::from("foo"),
-                signature: Signature::variadic_any(Volatility::Volatile),
-            });
+            let f = GlaredbFFIPlugin::try_new(
+                "ffi_echo",
+                "/Users/corygrinstead/Development/glaredb_extension/target/debug/libexpression_lib.dylib",
+                "echo",
+                None
+            ).unwrap();
+
+            let f: Arc<dyn BuiltinScalarUDF> = Arc::new(f);
             sess.register_function(f).await.unwrap();
             sess
         };

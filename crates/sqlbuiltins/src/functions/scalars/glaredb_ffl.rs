@@ -8,11 +8,18 @@ use datafusion::arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use datafusion::error::Result;
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
-    ColumnarValue, Expr, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF,
-    ScalarUDFImpl, Signature,
+    ColumnarValue,
+    Expr,
+    ReturnTypeFunction,
+    ScalarFunctionImplementation,
+    ScalarUDF,
+    ScalarUDFImpl,
+    Signature,
 };
+use datafusion_ext::ffi::FFI_Signature;
 use libloading::Library;
 use once_cell::sync::Lazy;
+use protogen::metastore::types::catalog::FunctionType;
 
 use crate::functions::{BuiltinFunction, BuiltinScalarUDF};
 
@@ -28,7 +35,26 @@ pub struct GlaredbFFIPlugin {
     pub lib: Arc<str>,
     /// Identifier in the shared lib.
     pub symbol: Arc<str>,
-    pub signature: Signature,
+    signature: Signature,
+}
+
+impl GlaredbFFIPlugin {
+    pub fn try_new(
+        name: &str,
+        lib: &str,
+        symbol: &str,
+        namespace: Option<&'static str>,
+    ) -> Result<Self> {
+        let signature = unsafe { plugin_signature(&lib, &symbol)? };
+
+        Ok(Self {
+            namespace,
+            name: Arc::from(name),
+            lib: Arc::from(lib),
+            symbol: Arc::from(symbol),
+            signature,
+        })
+    }
 }
 
 impl GlaredbFFIPlugin {
@@ -40,15 +66,15 @@ impl GlaredbFFIPlugin {
             let _major = plugin.1;
             let symbol: libloading::Symbol<
                 unsafe extern "C" fn(
-                    // *mut ArrowArray: input arrays
+                    // input arrays
                     *mut FFI_ArrowArray,
-                    // *mut ArrowSchema: input schemas
+                    // input schemas
                     *mut FFI_ArrowSchema,
-                    // usize: length of the input arrays
+                    // length of the input arrays/schemas
                     usize,
-                    // *mut FFI_ArrowArray: return value
+                    // return value
                     *mut FFI_ArrowArray,
-                    // *mut FFI_ArrowSchema: return schema
+                    // return data type
                     *mut FFI_ArrowSchema,
                 ),
             > = lib
@@ -74,6 +100,7 @@ impl GlaredbFFIPlugin {
             let input_len = args.len();
             let slice_ptr = arrays.as_mut_ptr();
             let schema_ptr = schemas.as_mut_ptr();
+
             // we pass the ownership of the arrays and schemas to the FFI function
             std::mem::forget(arrays);
             std::mem::forget(schemas);
@@ -104,6 +131,61 @@ impl GlaredbFFIPlugin {
         let slf = self.clone();
         Arc::new(move |arg_types: &[DataType]| slf.return_type(arg_types).map(Arc::new))
     }
+
+    unsafe fn function_type_impl(&self) -> FunctionType {
+        let plugin = get_lib(&self.lib).expect("plugin not found");
+        let lib = &plugin.0;
+        check_version(&plugin);
+
+        let symbol: libloading::Symbol<*mut i32> = lib
+            .get((format!("_glaredb_plugin_function_type_{}", self.symbol)).as_bytes())
+            .unwrap();
+        let function_type =
+            FunctionType::try_from(**symbol).expect("invalid function type from plugin");
+
+        function_type
+    }
+
+    unsafe fn sql_example_impl(&self) -> Option<&str> {
+        let plugin = get_lib(&self.lib).expect("plugin not found");
+        let lib = &plugin.0;
+        check_version(&plugin);
+
+        let symbol: libloading::Symbol<unsafe extern "C" fn() -> *const std::os::raw::c_char> = lib
+            .get((format!("_glaredb_plugin_sql_example_{}", self.symbol)).as_bytes())
+            .unwrap();
+        let example = symbol();
+        if example.is_null() {
+            None
+        } else {
+            Some(CStr::from_ptr(example).to_str().unwrap())
+        }
+    }
+
+    unsafe fn description_impl(&self) -> Option<&str> {
+        let plugin = get_lib(&self.lib).expect("plugin not found");
+        let lib = &plugin.0;
+        check_version(&plugin);
+
+        lib.get((format!("_glaredb_plugin_description_{}", self.symbol)).as_bytes())
+            .ok()
+            .and_then(
+                |sym: libloading::Symbol<unsafe extern "C" fn() -> *const std::os::raw::c_char>| {
+                    let description = sym();
+                    if description.is_null() {
+                        None
+                    } else {
+                        Some(CStr::from_ptr(description).to_str().unwrap())
+                    }
+                },
+            )
+    }
+}
+
+fn check_version(plugin: &PluginAndVersion) {
+    if !matches!((plugin.1, plugin.2), (0, 0)) {
+        todo!("unsupported versions");
+    }
 }
 
 impl ScalarUDFImpl for GlaredbFFIPlugin {
@@ -120,8 +202,7 @@ impl ScalarUDFImpl for GlaredbFFIPlugin {
     }
 
     fn return_type(&self, arg_types: &[DataType]) -> datafusion::error::Result<DataType> {
-        let dtype =
-            unsafe { plugin_return_type(&arg_types, &self.lib, &self.symbol, &self.kwargs)? };
+        let dtype = unsafe { plugin_return_type(&arg_types, &self.lib, &self.symbol)? };
 
         Ok(dtype)
     }
@@ -140,12 +221,21 @@ impl BuiltinFunction for GlaredbFFIPlugin {
         &self.name
     }
 
-    fn function_type(&self) -> protogen::metastore::types::catalog::FunctionType {
-        protogen::metastore::types::catalog::FunctionType::Scalar
+    fn function_type(&self) -> FunctionType {
+        unsafe { self.function_type_impl() }
     }
 
     fn signature(&self) -> Option<Signature> {
         Some(self.signature.clone())
+    }
+
+
+    fn sql_example(&self) -> Option<&str> {
+        unsafe { self.sql_example_impl() }
+    }
+
+    fn description(&self) -> Option<&str> {
+        unsafe { self.description_impl() }
     }
 }
 
@@ -212,14 +302,10 @@ fn get_lib(lib: &str) -> Result<&'static PluginAndVersion> {
     }
 }
 
+
 /// # Safety
 /// `lib` and `symbol` must be valid
-unsafe fn plugin_return_type(
-    fields: &[DataType],
-    lib: &str,
-    symbol: &str,
-    kwargs: &[u8],
-) -> Result<DataType> {
+unsafe fn plugin_return_type(fields: &[DataType], lib: &str, symbol: &str) -> Result<DataType> {
     let plugin = get_lib(lib)?;
     let lib = &plugin.0;
     let major = plugin.1;
@@ -250,31 +336,8 @@ unsafe fn plugin_return_type(
                     .unwrap();
                 symbol(slice_ptr, n_args, return_value_ptr);
             }
-            1 => {
-                // *const FFI_ArrowSchema: pointer to heap Box<FFI_ArrowSchema>
-                // usize: length of the boxed slice
-                // *mut FFI_ArrowSchema: pointer where the return value can be written
-                // *const u8: pointer to &[u8] (kwargs)
-                // usize: length of the u8 slice
-                let symbol: libloading::Symbol<
-                    unsafe extern "C" fn(
-                        *const FFI_ArrowSchema,
-                        usize,
-                        *mut FFI_ArrowSchema,
-                        *const u8,
-                        usize,
-                    ),
-                > = lib
-                    .get((format!("_glaredb_plugin_return_type_{}", symbol)).as_bytes())
-                    .unwrap();
-
-                let kwargs_ptr = kwargs.as_ptr();
-                let kwargs_len = kwargs.len();
-
-                symbol(slice_ptr, n_args, return_value_ptr, kwargs_ptr, kwargs_len);
-            }
             _ => {
-                todo!()
+                todo!("unsupported minor version");
             }
         }
 
@@ -288,7 +351,38 @@ unsafe fn plugin_return_type(
             panic!("{}", msg.as_ref());
         }
     } else {
-        todo!()
+        todo!("unsupported major version")
+    }
+}
+
+/// # Safety
+/// `lib` and `symbol` must be valid
+unsafe fn plugin_signature(lib: &str, symbol: &str) -> Result<Signature> {
+    let plugin = get_lib(lib)?;
+    let lib = &plugin.0;
+
+    let symbol: libloading::Symbol<unsafe extern "C" fn(*mut FFI_Signature)> = lib
+        .get((format!("_glaredb_plugin_signature_{}", symbol)).as_bytes())
+        .map_err(|e| {
+            let msg = e.to_string();
+            datafusion::error::DataFusionError::Execution(msg)
+        })?;
+
+    let signature = FFI_Signature::empty();
+    let signature_ptr = &signature as *const FFI_Signature as *mut FFI_Signature;
+
+    symbol(signature_ptr);
+    if !signature_ptr.is_null() {
+        let signature = std::ptr::read(signature_ptr);
+        let signature = Signature::try_from(&signature)?;
+
+        Ok(signature)
+    } else {
+        let msg = retrieve_error_msg(lib);
+        let msg = msg.to_string_lossy();
+        return Err(datafusion::error::DataFusionError::Execution(
+            msg.to_string(),
+        ));
     }
 }
 

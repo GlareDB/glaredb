@@ -1,5 +1,6 @@
 [workspace]
 members = ["crates/*", "xtask", "bindings/*"]
+exclude = ["examples/rust/glaredb_extension"]
 default-members = ["crates/*", "xtask"]
 resolver = "2"
 
