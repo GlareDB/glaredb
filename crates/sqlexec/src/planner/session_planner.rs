@@ -337,7 +337,7 @@ impl<'a> SessionPlanner<'a> {
                     })?;
                 DatabaseOptions::MongoDb(DatabaseOptionsMongoDb {
                     connection_string,
-                    columns: None,
+                    columns: Vec::new(),
                 })
             }
             DatabaseOptions::SNOWFLAKE => {
@@ -832,7 +832,7 @@ impl<'a> SessionPlanner<'a> {
                     file_type: Some(file_type.to_string()),
                     compression: compression.map(|c| c.to_string()),
                     schema_sample_size: None,
-                    columns: None,
+                    columns: Vec::new(),
                 })
             }
             TableOptions::DELTA | TableOptions::ICEBERG => {
@@ -851,7 +851,7 @@ impl<'a> SessionPlanner<'a> {
                         storage_options,
                         file_type: None,
                         compression: None,
-                        columns: None,
+                        columns: Vec::new(),
                         schema_sample_size: None,
                     })
                 } else {
@@ -869,7 +869,7 @@ impl<'a> SessionPlanner<'a> {
                         file_type: None,
                         compression: None,
                         schema_sample_size: None,
-                        columns: None,
+                        columns: Vec::new(),
                     })
                 }
             }
@@ -901,7 +901,7 @@ impl<'a> SessionPlanner<'a> {
                     file_type: None,
                     compression: None,
                     schema_sample_size: None,
-                    columns: None,
+                    columns: Vec::new(),
                 })
             }
             TableOptions::BSON => {
@@ -926,7 +926,8 @@ impl<'a> SessionPlanner<'a> {
                     schema_sample_size,
                     columns: columns
                         .clone()
-                        .map(InternalColumnDefinition::from_arrow_fields),
+                        .map(InternalColumnDefinition::from_arrow_fields)
+                        .unwrap_or(Vec::new()),
                 })
             }
             TableOptions::EXCEL => {

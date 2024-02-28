@@ -554,12 +554,17 @@ impl<'a> ExternalDispatcher<'a> {
                     )?);
                 let source_url = DatasourceUrl::try_new(location)?;
 
+                let columns = if columns.is_empty() {
+                    None
+                } else {
+                    Some(InternalColumnDefinition::to_arrow_fields(
+                        columns.to_owned(),
+                    ))
+                };
                 Ok(bson_streaming_table(
                     store_access,
                     source_url,
-                    columns
-                        .to_owned()
-                        .map(InternalColumnDefinition::to_arrow_fields),
+                    columns,
                     schema_sample_size.to_owned(),
                 )
                 .await?)

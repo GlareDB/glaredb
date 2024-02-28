@@ -325,48 +325,33 @@ impl From<DatabaseOptionsMysql> for options::DatabaseOptionsMysql {
 #[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsMongoDb {
     pub connection_string: String,
-    pub columns: Option<Vec<InternalColumnDefinition>>,
+    pub columns: Vec<InternalColumnDefinition>,
 }
 
 impl TryFrom<options::DatabaseOptionsMongoDb> for DatabaseOptionsMongoDb {
     type Error = ProtoConvError;
     fn try_from(value: options::DatabaseOptionsMongoDb) -> Result<Self, Self::Error> {
-        let columns = if value.columns.is_empty() {
-            None
-        } else {
-            Some(
-                value
-                    .columns
-                    .iter()
-                    .map(|i| self::InternalColumnDefinition::try_from(i.to_owned()))
-                    .collect::<Result<_, _>>()?,
-            )
-        };
-
         Ok(DatabaseOptionsMongoDb {
             connection_string: value.connection_string,
-            columns,
+            columns: value
+                .columns
+                .iter()
+                .map(|i| self::InternalColumnDefinition::try_from(i.to_owned()))
+                .collect::<Result<_, _>>()?,
         })
     }
 }
 
 impl From<DatabaseOptionsMongoDb> for options::DatabaseOptionsMongoDb {
     fn from(value: DatabaseOptionsMongoDb) -> Self {
-        let columns = if value.columns.is_none() {
-            Vec::new()
-        } else {
-            value
+        options::DatabaseOptionsMongoDb {
+            connection_string: value.connection_string,
+            columns: value
                 .columns
-                .unwrap()
                 .into_iter()
                 .map(|v| v.try_into())
                 .collect::<Result<_, _>>()
-                .unwrap_or_else(|_| Vec::new())
-        };
-
-        options::DatabaseOptionsMongoDb {
-            connection_string: value.connection_string,
-            columns,
+                .unwrap_or_else(|_| Vec::new()),
         }
     }
 }
@@ -1314,56 +1299,41 @@ pub struct TableOptionsObjectStore {
     pub file_type: Option<String>,
     pub compression: Option<String>,
     pub schema_sample_size: Option<i64>,
-    pub columns: Option<Vec<InternalColumnDefinition>>,
+    pub columns: Vec<InternalColumnDefinition>,
 }
 
 impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsObjectStore) -> Result<Self, Self::Error> {
-        let columns = if value.columns.is_empty() {
-            None
-        } else {
-            Some(
-                value
-                    .columns
-                    .iter()
-                    .map(|i| self::InternalColumnDefinition::try_from(i.to_owned()))
-                    .collect::<Result<_, _>>()?,
-            )
-        };
-
         Ok(TableOptionsObjectStore {
             location: value.location,
             storage_options: value.storage_options.required("storage_options")?,
             file_type: value.file_type,
             compression: value.compression,
             schema_sample_size: value.schema_sample_size,
-            columns,
+            columns: value
+                .columns
+                .iter()
+                .map(|i| self::InternalColumnDefinition::try_from(i.to_owned()))
+                .collect::<Result<_, _>>()?,
         })
     }
 }
 
 impl From<TableOptionsObjectStore> for options::TableOptionsObjectStore {
     fn from(value: TableOptionsObjectStore) -> Self {
-        let columns = if value.columns.is_none() {
-            Vec::new()
-        } else {
-            value
-                .columns
-                .unwrap()
-                .into_iter()
-                .map(|v| v.try_into())
-                .collect::<Result<_, _>>()
-                .unwrap_or_else(|_| Vec::new())
-        };
-
         options::TableOptionsObjectStore {
             location: value.location,
             storage_options: Some(value.storage_options.into()),
             file_type: value.file_type,
             compression: value.compression,
             schema_sample_size: value.schema_sample_size,
-            columns,
+            columns: value
+                .columns
+                .into_iter()
+                .map(|v| v.try_into())
+                .collect::<Result<_, _>>()
+                .unwrap_or_else(|_| Vec::new()),
         }
     }
 }
