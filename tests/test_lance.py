@@ -72,6 +72,7 @@ def test_copy_to_round_trip(
             res = curr.fetchone()
             assert res[0] == 10
 
+
 def test_copy_to_round_trip(
     glaredb_connection: psycopg2.extensions.connection,
     tmp_path_factory: pytest.TempPathFactory,
@@ -89,7 +90,9 @@ def test_copy_to_round_trip(
         assert curr.fetchone()[0] == 10
 
         curr.execute(f"COPY lance_test TO '{output_path}' FORMAT lance")
-        curr.execute(f"create external table lance_import from lance options (location '{output_path}')")
+        curr.execute(
+            f"create external table lance_import from lance options (location '{output_path}')"
+        )
         curr.execute("alter table lance_import set access_mode to read_write")
 
         for i in range(10):
