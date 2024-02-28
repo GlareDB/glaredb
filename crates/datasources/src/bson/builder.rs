@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use bitvec::order::Lsb0;
 use bitvec::vec::BitVec;
-use bson::{RawBsonRef, RawDocument};
+use bson::{RawBsonRef, RawDocumentBuf};
 use datafusion::arrow::array::{
     Array,
     ArrayBuilder,
@@ -88,12 +88,10 @@ impl RecordStructBuilder {
         Ok(())
     }
 
-    pub fn append_record(&mut self, doc: &RawDocument) -> Result<()> {
+    pub fn append_record(&mut self, doc: &RawDocumentBuf) -> Result<()> {
         let mut cols_set: BitVec<u8, Lsb0> = BitVec::repeat(false, self.fields.len());
-        let doc_buf = doc.to_raw_document_buf();
-        let iter = doc_buf.iter_elements();
 
-        for item in iter {
+        for item in doc.iter_elements() {
             let elem = item?;
 
             let idx = *self
@@ -123,13 +121,13 @@ impl RecordStructBuilder {
         Ok(())
     }
 
-    pub fn project_and_append(&mut self, doc: &RawDocument) -> Result<()> {
+    pub fn project_and_append(&mut self, doc: &RawDocumentBuf) -> Result<()> {
         let mut cols_set: BitVec<u8, Lsb0> = BitVec::repeat(false, self.fields.len());
 
-        for iter_result in doc {
+        for iter_result in doc.iter_elements() {
             match iter_result {
-                Ok((key, val)) => {
-                    if let Some(&idx) = self.field_index.get(key) {
+                Ok(elem) => {
+                    if let Some(&idx) = self.field_index.get(elem.key()) {
                         if cols_set.get(idx).is_some_and(|v| v == true) {
                             // If this happens it means that the bson document has a field
                             // name that appears more than once. This is legal and possible to build
@@ -140,7 +138,7 @@ impl RecordStructBuilder {
                         }
 
                         // Add value to columns.
-                        self.add_value_at_index(idx, Some(val))?;
+                        self.add_value_at_index(idx, Some(elem.value()?))?;
 
                         // Track which columns we've added values to.
                         cols_set.set(idx, true);
@@ -365,7 +363,7 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
                 .as_any_mut()
                 .downcast_mut::<RecordStructBuilder>()
                 .unwrap();
-            builder.project_and_append(nested)?;
+            builder.project_and_append(&nested.to_raw_document_buf())?;
         }
 
         // Array
@@ -559,8 +557,7 @@ mod test {
             buf.append("value", "second");
             assert_eq!(buf.iter().count(), 4);
 
-            rsb.append_record(RawDocument::from_bytes(&buf.into_bytes()).unwrap())
-                .unwrap();
+            rsb.append_record(&buf).unwrap();
         }
         assert_eq!(rsb.len(), 100);
         for value in rsb
@@ -593,7 +590,7 @@ mod test {
         buf.append("value", "first");
         assert_eq!(buf.iter().count(), 3);
 
-        rsb.append_record(RawDocument::from_bytes(&buf.into_bytes()).unwrap())
+        rsb.append_record(&buf)
             .expect("first record matchex expectations");
         assert_eq!(rsb.len(), 1);
 
@@ -614,7 +611,7 @@ mod test {
         buf.append("values", 3);
         assert_eq!(buf.iter().count(), 3);
 
-        rsb.append_record(RawDocument::from_bytes(&buf.clone().into_bytes()).unwrap())
+        rsb.append_record(&buf)
             .expect_err("for append_record schema changes are an error");
         // the first value was added successfully to another buffer to the rsb grew
         assert_eq!(rsb.len(), 3);
