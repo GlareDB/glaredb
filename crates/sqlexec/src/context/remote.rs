@@ -56,6 +56,10 @@ impl RemoteSessionContext {
     ) -> Result<Self> {
         // TODO: We'll want to remove this eventually. We should be able to
         // create a datafusion context/runtime without needing these vars.
+        //
+        // `with_is_cloud_instance` is set here (for all remote sessions) for
+        // builtins that run _only_ in remote/cloud contexts, such as
+        // `cloud_upload`.
         let vars: SessionVars =
             SessionVars::default().with_is_cloud_instance(true, VarType::System);
 
