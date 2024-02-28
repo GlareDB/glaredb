@@ -92,30 +92,6 @@ pub async fn bson_streaming_table(
         );
     }
 
-    // iterate through the readers and build up a sample of the first <n>
-    // documents to be used to infer the schema.
-    let mut sample = Vec::with_capacity(sample_size as usize);
-    let mut first_active: usize = 0;
-    'readers: for reader in readers.iter_mut() {
-        while let Some(res) = reader.next().await {
-            match res {
-                Ok(doc) => sample.push(doc),
-                Err(e) => return Err(e),
-            };
-
-            if sample.len() >= sample_size as usize {
-                break 'readers;
-            }
-        }
-        first_active += 1;
-    }
-
-    // if we had to read through one or more than of the input files in the
-    // glob, we already have their documents and should truncate the vector
-    // of readers.
-    for _ in 0..first_active {
-        readers.pop_front();
-    }
 
     let mut streams = Vec::<Arc<(dyn PartitionStream + 'static)>>::with_capacity(readers.len() + 1);
 
