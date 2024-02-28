@@ -12,9 +12,7 @@ use colored::Colorize;
 use datafusion::arrow::csv::writer::WriterBuilder as CsvWriterBuilder;
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::json::writer::{
-    JsonFormat,
-    LineDelimited as JsonLineDelimted,
-    Writer as JsonWriter,
+    JsonFormat, LineDelimited as JsonLineDelimted, Writer as JsonWriter,
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::logical_expr::{Signature, Volatility};
@@ -113,10 +111,8 @@ impl LocalSession {
                 name: Arc::from("foo"),
                 lib: Arc::from("/Users/corygrinstead/Development/glaredb_extension/target/debug/libexpression_lib.dylib"),
                 symbol: Arc::from("foo"),
-                kwargs: Arc::new([]),
                 signature: Signature::variadic_any(Volatility::Volatile),
             });
-            println!("Registering function");
             sess.register_function(f).await.unwrap();
             sess
         };

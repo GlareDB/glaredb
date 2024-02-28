@@ -1,9 +1,8 @@
 pub mod df_scalars;
+pub mod glaredb_ffl;
 pub mod hashing;
 pub mod kdl;
 pub mod openai;
-pub mod polars_ffi;
-pub mod glaredb_ffl;
 pub mod postgres;
 pub mod similarity;
 use std::sync::Arc;
@@ -19,7 +18,6 @@ use protogen::metastore::types::catalog::FunctionType;
 use crate::document;
 use crate::errors::BuiltinError;
 use crate::functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction};
-
 
 pub struct ConnectionId;
 

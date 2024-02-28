@@ -8,13 +8,8 @@ use datafusion::arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use datafusion::error::Result;
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
-    ColumnarValue,
-    Expr,
-    ReturnTypeFunction,
-    ScalarFunctionImplementation,
-    ScalarUDF,
-    ScalarUDFImpl,
-    Signature,
+    ColumnarValue, Expr, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF,
+    ScalarUDFImpl, Signature,
 };
 use libloading::Library;
 use once_cell::sync::Lazy;
@@ -33,8 +28,6 @@ pub struct GlaredbFFIPlugin {
     pub lib: Arc<str>,
     /// Identifier in the shared lib.
     pub symbol: Arc<str>,
-    /// Pickle serialized keyword arguments.
-    pub kwargs: Arc<[u8]>,
     pub signature: Signature,
 }
 
@@ -62,7 +55,6 @@ impl GlaredbFFIPlugin {
                 .get(format!("_glaredb_plugin_{}", slf.symbol).as_bytes())
                 .unwrap();
 
-
             let (arrays, schemas): (Vec<_>, Vec<_>) = args
                 .iter()
                 .map(|arg| {
@@ -86,7 +78,6 @@ impl GlaredbFFIPlugin {
             std::mem::forget(arrays);
             std::mem::forget(schemas);
 
-
             let mut return_value = FFI_ArrowArray::empty();
             let mut return_schema = FFI_ArrowSchema::empty();
             let return_value_ptr = &mut return_value as *mut FFI_ArrowArray;
@@ -99,15 +90,13 @@ impl GlaredbFFIPlugin {
                 return_schema_ptr,
             );
 
-
             if return_value.is_empty() {
                 let msg = retrieve_error_msg(lib);
                 let msg = msg.to_string_lossy();
                 panic!("{}", msg.as_ref());
-            } else {
-                let return_value = import_array(return_value, &return_schema)?;
-                Ok(ColumnarValue::Array(return_value))
             }
+            let return_value = import_array(return_value, &return_schema)?;
+            Ok(ColumnarValue::Array(return_value))
         })
     }
 
@@ -116,7 +105,6 @@ impl GlaredbFFIPlugin {
         Arc::new(move |arg_types: &[DataType]| slf.return_type(arg_types).map(Arc::new))
     }
 }
-
 
 impl ScalarUDFImpl for GlaredbFFIPlugin {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -211,7 +199,6 @@ fn get_lib(lib: &str) -> Result<&'static PluginAndVersion> {
                 .get("_glaredb_plugin_get_version".as_bytes())
                 .unwrap()
         };
-
 
         let version = unsafe { version_function() };
         let major = (version >> 16) as u16;
@@ -312,7 +299,6 @@ unsafe fn retrieve_error_msg(lib: &Library) -> &CStr {
     let msg_ptr = symbol();
     CStr::from_ptr(msg_ptr)
 }
-
 
 /// # Safety
 /// `ArrowArray` and `ArrowSchema` must be valid
