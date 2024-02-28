@@ -36,7 +36,6 @@ def test_dbt_glaredb(
         )
         curr.execute("SELECT * FROM public.dbt_test")
         a = curr.fetchall()
-        1 == 1
 
     with tests.tools.env("DBT_USER", glaredb_connection.info.user):
         res: dbtRunnerResult = dbtRunner().invoke(
