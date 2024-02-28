@@ -60,71 +60,7 @@ impl GlaredbFFIPlugin {
 impl GlaredbFFIPlugin {
     pub fn scalar_fn_impl(&self) -> ScalarFunctionImplementation {
         let slf = self.clone();
-        Arc::new(move |args| unsafe {
-            let plugin = get_lib(&slf.lib)?;
-            let lib = &plugin.0;
-            let _major = plugin.1;
-            let symbol: libloading::Symbol<
-                unsafe extern "C" fn(
-                    // input arrays
-                    *mut FFI_ArrowArray,
-                    // input schemas
-                    *mut FFI_ArrowSchema,
-                    // length of the input arrays/schemas
-                    usize,
-                    // return value
-                    *mut FFI_ArrowArray,
-                    // return data type
-                    *mut FFI_ArrowSchema,
-                ),
-            > = lib
-                .get(format!("_glaredb_plugin_{}", slf.symbol).as_bytes())
-                .unwrap();
-
-            let (arrays, schemas): (Vec<_>, Vec<_>) = args
-                .iter()
-                .map(|arg| {
-                    let input = match arg {
-                        datafusion::physical_plan::ColumnarValue::Array(array) => array.clone(),
-                        ColumnarValue::Scalar(s) => s.to_array().unwrap(),
-                    };
-                    let data = input.to_data();
-                    let (ffi_arr, ffi_schema) = datafusion::arrow::ffi::to_ffi(&data).unwrap();
-
-                    (ffi_arr, ffi_schema)
-                })
-                .unzip();
-            let mut arrays = arrays.into_boxed_slice();
-            let mut schemas = schemas.into_boxed_slice();
-
-            let input_len = args.len();
-            let slice_ptr = arrays.as_mut_ptr();
-            let schema_ptr = schemas.as_mut_ptr();
-
-            // we pass the ownership of the arrays and schemas to the FFI function
-            std::mem::forget(arrays);
-            std::mem::forget(schemas);
-
-            let mut return_value = FFI_ArrowArray::empty();
-            let mut return_schema = FFI_ArrowSchema::empty();
-            let return_value_ptr = &mut return_value as *mut FFI_ArrowArray;
-            let return_schema_ptr = &mut return_schema as *mut FFI_ArrowSchema;
-            symbol(
-                slice_ptr,
-                schema_ptr,
-                input_len,
-                return_value_ptr,
-                return_schema_ptr,
-            );
-
-            if return_value.is_empty() {
-                let msg = retrieve_error_msg(lib);
-                let msg = msg.to_string_lossy();
-                panic!("{}", msg.as_ref());
-            }
-            let return_value = import_array(return_value, &return_schema)?;
-            Ok(ColumnarValue::Array(return_value))
-        })
+        Arc::new(move |args| unsafe { slf.invoke_impl(args) })
     }
 
     pub fn return_type_impl(&self) -> ReturnTypeFunction {
@@ -180,6 +116,80 @@ impl GlaredbFFIPlugin {
                 },
             )
     }
+
+    unsafe fn invoke_impl(&self, args: &[ColumnarValue]) -> Result<ColumnarValue> {
+        let plugin = get_lib(&self.lib)?;
+        let lib = &plugin.0;
+        check_version(&plugin);
+
+        let symbol: libloading::Symbol<
+            unsafe extern "C" fn(
+                // input arrays
+                *mut FFI_ArrowArray,
+                // input schemas
+                *mut FFI_ArrowSchema,
+                // length of the input arrays/schemas
+                usize,
+                // return value
+                *mut FFI_ArrowArray,
+                // return data type
+                *mut FFI_ArrowSchema,
+            ),
+        > = lib
+            .get(format!("_glaredb_plugin_{}", self.symbol).as_bytes())
+            .map_err(|e| {
+                let msg = e.to_string();
+                datafusion::error::DataFusionError::Execution(msg)
+            })?;
+
+        let (arrays, schemas): (Vec<_>, Vec<_>) = args
+            .iter()
+            .map(|arg| {
+                let input = match arg {
+                    datafusion::physical_plan::ColumnarValue::Array(array) => array.clone(),
+                    ColumnarValue::Scalar(s) => s.to_array().unwrap(),
+                };
+                let data = input.to_data();
+                let (ffi_arr, ffi_schema) = datafusion::arrow::ffi::to_ffi(&data).unwrap();
+
+                (ffi_arr, ffi_schema)
+            })
+            .unzip();
+
+        let mut arrays = arrays.into_boxed_slice();
+        let mut schemas = schemas.into_boxed_slice();
+
+        let input_len = args.len();
+        let slice_ptr = arrays.as_mut_ptr();
+        let schema_ptr = schemas.as_mut_ptr();
+
+        // the ffi functions will take ownership of the arrays and schemas
+        // TODO: should we instead pass a double reference (*mut *mut) instead of (*mut)?
+        std::mem::forget(arrays);
+        std::mem::forget(schemas);
+
+        let mut return_value = FFI_ArrowArray::empty();
+        let mut return_schema = FFI_ArrowSchema::empty();
+
+        let return_value_ptr = &mut return_value as *mut FFI_ArrowArray;
+        let return_schema_ptr = &mut return_schema as *mut FFI_ArrowSchema;
+
+        symbol(
+            slice_ptr,
+            schema_ptr,
+            input_len,
+            return_value_ptr,
+            return_schema_ptr,
+        );
+
+        if return_value.is_empty() {
+            let msg = retrieve_error_msg(lib);
+            let msg = msg.to_string_lossy();
+            panic!("{}", msg.as_ref());
+        }
+        let return_value = import_array(return_value, &return_schema)?;
+        Ok(ColumnarValue::Array(return_value))
+    }
 }
 
 fn check_version(plugin: &PluginAndVersion) {
@@ -211,8 +221,7 @@ impl ScalarUDFImpl for GlaredbFFIPlugin {
         &self,
         args: &[datafusion::physical_plan::ColumnarValue],
     ) -> datafusion::error::Result<datafusion::physical_plan::ColumnarValue> {
-        let f = self.scalar_fn_impl();
-        f(args)
+        unsafe { self.invoke_impl(args) }
     }
 }
 
@@ -308,8 +317,8 @@ fn get_lib(lib: &str) -> Result<&'static PluginAndVersion> {
 unsafe fn plugin_return_type(fields: &[DataType], lib: &str, symbol: &str) -> Result<DataType> {
     let plugin = get_lib(lib)?;
     let lib = &plugin.0;
-    let major = plugin.1;
-    let minor = plugin.2;
+    check_version(plugin);
+
 
     // we deallocate the fields buffer
     let ffi_fields = fields
@@ -323,35 +332,25 @@ unsafe fn plugin_return_type(fields: &[DataType], lib: &str, symbol: &str) -> Re
     let mut return_value = FFI_ArrowSchema::empty();
     let return_value_ptr = &mut return_value as *mut FFI_ArrowSchema;
 
-    if major == 0 {
-        match minor {
-            0 => {
-                // *const ArrowSchema: pointer to heap Box<ArrowSchema>
-                // usize: length of the boxed slice
-                // *mut ArrowSchema: pointer where the return value can be written
-                let symbol: libloading::Symbol<
-                    unsafe extern "C" fn(*const FFI_ArrowSchema, usize, *mut FFI_ArrowSchema),
-                > = lib
-                    .get((format!("_glaredb_plugin_return_type_{}", symbol)).as_bytes())
-                    .unwrap();
-                symbol(slice_ptr, n_args, return_value_ptr);
-            }
-            _ => {
-                todo!("unsupported minor version");
-            }
-        }
 
-        if !return_value_ptr.is_null() {
-            let out = DataType::try_from(&return_value).unwrap();
+    // *const ArrowSchema: pointer to heap Box<ArrowSchema>
+    // usize: length of the boxed slice
+    // *mut ArrowSchema: pointer where the return value can be written
+    let symbol: libloading::Symbol<
+        unsafe extern "C" fn(*const FFI_ArrowSchema, usize, *mut FFI_ArrowSchema),
+    > = lib
+        .get((format!("_glaredb_plugin_return_type_{}", symbol)).as_bytes())
+        .unwrap();
+    symbol(slice_ptr, n_args, return_value_ptr);
 
-            Ok(out)
-        } else {
-            let msg = retrieve_error_msg(lib);
-            let msg = msg.to_string_lossy();
-            panic!("{}", msg.as_ref());
-        }
+    if !return_value_ptr.is_null() {
+        let out = DataType::try_from(&return_value).unwrap();
+
+        Ok(out)
     } else {
-        todo!("unsupported major version")
+        let msg = retrieve_error_msg(lib);
+        let msg = msg.to_string_lossy();
+        panic!("{}", msg.as_ref());
     }
 }
 
@@ -360,6 +359,7 @@ unsafe fn plugin_return_type(fields: &[DataType], lib: &str, symbol: &str) -> Re
 unsafe fn plugin_signature(lib: &str, symbol: &str) -> Result<Signature> {
     let plugin = get_lib(lib)?;
     let lib = &plugin.0;
+    check_version(plugin);
 
     let symbol: libloading::Symbol<unsafe extern "C" fn(*mut FFI_Signature)> = lib
         .get((format!("_glaredb_plugin_signature_{}", symbol)).as_bytes())
