@@ -1,36 +1,34 @@
 import pathlib
 import tests
-
-import psycopg2.extensions
-import pytest
 import os
 
+import psycopg2.extensions
+from dbt.cli.main import dbtRunner, dbtRunnerResult
+import pytest
+
+import tests.tools
 from tests.fixtures.glaredb import glaredb_connection, debug_path
 
-from dbt.cli.main import dbtRunner, dbtRunnerResult
 
 @pytest.fixture
 def dbt_project_path() -> pathlib.Path:
     return tests.PKG_DIRECTORY.joinpath("tests", "fixtures", "dbt_project")
 
 
-@pytest.mark.parametrize("model_name,run_success,query_result",
-                         [
-                             ("table_materialization", True, 10),
-                             ("view_materialization", True, 10),
-                         ]
-                         )
-def test_dbt_glaredb_basic(
+@pytest.mark.parametrize(
+    "model_name,run_success,query_result",
+    [
+        ("table_materialization", True, 10),
+        ("view_materialization", True, 10),
+    ],
+)
+def test_dbt_glaredb(
     glaredb_connection: psycopg2.extensions.connection,
     dbt_project_path,
     model_name,
     run_success,
-    query_result
+    query_result,
 ):
-    dbt: dbtRunner = dbtRunner()
-
-    os.environ["DBT_USER"] = glaredb_connection.info.user
-
     dbt_project_directory: pathlib.Path = dbt_project_path
     dbt_profiles_directory: pathlib.Path = dbt_project_path
 
@@ -43,25 +41,26 @@ def test_dbt_glaredb_basic(
         a = curr.fetchall()
         1==1
 
-    cli_args: list = [
-        "run",
-        "--project-dir",
-        dbt_project_directory,
-        "--profiles-dir",
-        dbt_profiles_directory,
-        "-m",
-        model_name
-    ]
-    #
-    res: dbtRunnerResult = dbt.invoke(cli_args)
+    with tests.tools.env("DBT_USER", glaredb_connection.info.user):
+        res: dbtRunnerResult = dbtRunner().invoke(
+            [
+                "run",
+                "--project-dir",
+                dbt_project_directory,
+                "--profiles-dir",
+                dbt_profiles_directory,
+                "-m",
+                model_name,
+            ]
+        )
 
-    assert res.success is run_success
+        assert res.success is run_success
 
     with glaredb_connection.cursor() as curr:
         curr.execute(f"select count(*) from {model_name}")
         result: list = curr.fetchone()[0]
 
-    assert result == query_result
+        assert result == query_result
 
 def test_dbt_glaredb_external_postgres(
     glaredb_connection: psycopg2.extensions.connection,
