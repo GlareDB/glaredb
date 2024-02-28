@@ -15,45 +15,21 @@ use bson::RawBson;
 use datafusion::arrow::datatypes::{
     FieldRef,
     Fields,
-    Fields,
     Schema as ArrowSchema,
-    Schema as ArrowSchema,
-    SchemaRef as ArrowSchemaRef,
     SchemaRef as ArrowSchemaRef,
 };
 use datafusion::datasource::TableProvider;
-use datafusion::error::{DataFusionError, Result as DatafusionResult, Result as DatafusionResult};
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::{
-    Expr,
-    Operator,
-    Operator,
-    TableProviderFilterPushDown,
-    TableProviderFilterPushDown,
-    TableType,
-    TableType,
-};
+use datafusion::logical_expr::{Expr, Operator, TableProviderFilterPushDown, TableType};
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
-use errors::{MongoDbError, Result};
-use exec::MongoDbBsonExec;
-use infer::TableSampler;
 use mongodb::bson::spec::BinarySubtype;
-use mongodb::bson::{
-    bson,
-    Binary,
-    Binary,
-    Bson,
-    Bson,
-    Document,
-    Document,
-    RawDocumentBuf,
-    RawDocumentBuf,
-};
-use mongodb::options::{ClientOptions, FindOptions, FindOptions};
-use mongodb::{Client, Collection, Collection};
+use mongodb::bson::{bson, Binary, Bson, Document, RawDocumentBuf};
+use mongodb::options::{ClientOptions, FindOptions};
+use mongodb::{Client, Collection};
 use tracing::debug;
 
 use crate::bson::array_to_bson;
@@ -260,21 +236,21 @@ impl MongoDbTableAccessor {
     }
 
     pub async fn into_table_provider(self) -> Result<MongoDbTableProvider> {
+        let collection = self
+            .client
+            .database(&self.info.database)
+            .collection(&self.info.collection);
+
         let schema = if self.info.fields.is_some() {
             ArrowSchema::new(self.info.fields.unwrap())
         } else {
-            let collection = self
-                .client
-                .database(&self.info.database)
-                .collection(&self.info.collection);
-
-            TableSampler::new(collection)
-                .infer_schema_from_sample()
+            TableSampler::new(&collection)
+                .infer_schema_from_sample(128)
                 .await?
         };
 
         Ok(MongoDbTableProvider {
-            estimated_count,
+            estimated_count: collection.estimated_document_count(None).await?,
             schema: Arc::new(schema),
             collection: self
                 .client

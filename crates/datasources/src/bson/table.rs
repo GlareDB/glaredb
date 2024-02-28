@@ -117,17 +117,6 @@ pub async fn bson_streaming_table(
         readers.pop_front();
     }
 
-    // infer the schema; in the future we can allow users to specify the
-    // schema directly; in the future users could specify the schema (kind
-    // of as a base-level projection, but we'd need a schema specification
-    // language). Or have some other strategy for inference rather than
-    // every unique field from the first <n> documents.
-    let schema = Arc::new(merge_schemas(
-        sample
-            .iter()
-            .map(|doc| schema_from_document(&doc.to_raw_document_buf())),
-    )?);
-
     let mut streams = Vec::<Arc<(dyn PartitionStream + 'static)>>::with_capacity(readers.len() + 1);
 
     // get the schema; if provided as an argument, just use that, otherwise, sample.

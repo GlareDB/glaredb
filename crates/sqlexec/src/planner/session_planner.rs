@@ -81,6 +81,7 @@ use protogen::metastore::types::options::{
     DatabaseOptionsSqlite,
     DeltaLakeCatalog,
     DeltaLakeUnityCatalog,
+    InternalColumnDefinition,
     StorageOptions,
     TableOptions,
     TableOptionsBigQuery,

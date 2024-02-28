@@ -48,6 +48,7 @@ use protogen::metastore::types::options::{
     DatabaseOptionsSnowflake,
     DatabaseOptionsSqlServer,
     DatabaseOptionsSqlite,
+    InternalColumnDefinition,
     TableOptions,
     TableOptionsBigQuery,
     TableOptionsCassandra,
@@ -546,10 +547,11 @@ impl<'a> ExternalDispatcher<'a> {
                 columns,
                 ..
             }) => {
-                let store_access = GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.to_owned(),
-                )?;
+                let store_access: Arc<dyn ObjStoreAccess> =
+                    Arc::new(GenericStoreAccess::new_from_location_and_opts(
+                        location,
+                        storage_options.to_owned(),
+                    )?);
                 let source_url = DatasourceUrl::try_new(location)?;
 
                 Ok(bson_streaming_table(
@@ -635,12 +637,13 @@ impl<'a> ExternalDispatcher<'a> {
                     accessor.clone().list_globbed(path).await?,
                 )
                 .await?),
-            "bson" => {
-                Ok(
-                    bson_streaming_table(access.clone(), Some(128), DatasourceUrl::try_new(path)?)
-                        .await?,
-                )
-            }
+            "bson" => Ok(bson_streaming_table(
+                access.clone(),
+                DatasourceUrl::try_new(path)?,
+                None,
+                Some(128),
+            )
+            .await?),
             _ => Err(DispatchError::String(
                 format!("Unsupported file type: {}, for '{}'", file_type, path,).to_string(),
             )),

@@ -75,6 +75,6 @@ impl TableFunc for BsonScan {
             storage_options,
         )?;
 
-        Ok(bson_streaming_table(Arc::new(store_access), Some(sample_size), url).await?)
+        Ok(bson_streaming_table(Arc::new(store_access), url, None, Some(sample_size)).await?)
     }
 }
