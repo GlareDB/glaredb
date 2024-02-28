@@ -1,31 +1,55 @@
 //! Module for handling the catalog for a single database.
-use crate::errors::{MetastoreError, Result};
-use crate::storage::persist::Storage;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use protogen::metastore::types::catalog::{
-    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
-    EntryType, SchemaEntry, SourceAccessMode, TableEntry, TunnelEntry, ViewEntry,
+    CatalogEntry,
+    CatalogState,
+    CredentialsEntry,
+    DatabaseEntry,
+    DeploymentMetadata,
+    EntryMeta,
+    EntryType,
+    FunctionEntry,
+    SchemaEntry,
+    SourceAccessMode,
+    TableEntry,
+    TunnelEntry,
+    ViewEntry,
 };
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsInternal, TableOptions, TunnelOptions,
+    DatabaseOptions,
+    DatabaseOptionsInternal,
+    TableOptions,
+    TunnelOptions,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
 use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
-    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
+    BuiltinDatabase,
+    BuiltinSchema,
+    BuiltinTable,
+    BuiltinView,
+    DATABASE_DEFAULT,
+    DEFAULT_SCHEMA,
     FIRST_NON_STATIC_OID,
+    SCHEMA_DEFAULT,
 };
-use sqlbuiltins::functions::FUNCTION_REGISTRY;
+use sqlbuiltins::functions::{BuiltinFunction, FUNCTION_REGISTRY};
 use sqlbuiltins::validation::{
-    validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
+    validate_database_tunnel_support,
+    validate_object_name,
+    validate_table_tunnel_support,
 };
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
 use tracing::debug;
 use uuid::Uuid;
+
+use crate::errors::{MetastoreError, Result};
+use crate::storage::persist::Storage;
 
 /// Special id indicating that databases have no parents.
 const DATABASE_PARENT_ID: u32 = 0;
@@ -50,7 +74,7 @@ static BUILTIN_CATALOG: Lazy<BuiltinCatalog> = Lazy::new(|| BuiltinCatalog::new(
 pub struct DatabaseCatalog {
     db_id: Uuid,
 
-    /// Reference to underlying persistant storage.
+    /// Reference to underlying persistent storage.
     storage: Arc<Storage>,
 
     /// A cached catalog state for a single database.
@@ -248,6 +272,15 @@ impl DatabaseEntries {
 
         if let Some(ent) = self.0.get(&oid) {
             if ent.get_meta().builtin {
+                return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));
+            }
+        }
+
+        for builtin in BuiltinSchema::builtins() {
+            if builtin.oid == SCHEMA_DEFAULT.oid {
+                continue;
+            }
+            if builtin.oid == ent.get_meta().parent {
                 return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));
             }
         }
@@ -669,8 +702,6 @@ impl State {
                         builtin: false,
                         external: true,
                         is_temp: false,
-                        sql_example: None,
-                        description: None,
                     },
                     options: create_database.options,
                     tunnel_id,
@@ -701,8 +732,6 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
-                        sql_example: None,
-                        description: None,
                     },
                     options: create_tunnel.options,
                 };
@@ -738,8 +767,6 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
-                        sql_example: None,
-                        description: None,
                     },
                     options: create_credentials.options,
                     comment: create_credentials.comment,
@@ -748,39 +775,6 @@ impl State {
 
                 // Add to creadentials map
                 self.credentials_names.insert(create_credentials.name, oid);
-            }
-            Mutation::CreateCredential(create_credential) => {
-                validate_object_name(&create_credential.name)?;
-                if self
-                    .credentials_names
-                    .get(&create_credential.name)
-                    .is_some()
-                {
-                    return Err(MetastoreError::DuplicateName(create_credential.name));
-                }
-
-                // Create new entry
-                let oid = self.next_oid();
-                let ent = CredentialsEntry {
-                    meta: EntryMeta {
-                        entry_type: EntryType::Credentials,
-                        id: oid,
-                        // The credentials, just like databases doesn't have any parent.
-                        parent: DATABASE_PARENT_ID,
-                        name: create_credential.name.clone(),
-                        builtin: false,
-                        external: false,
-                        is_temp: false,
-                        sql_example: None,
-                        description: None,
-                    },
-                    options: create_credential.options,
-                    comment: create_credential.comment,
-                };
-                self.entries.insert(oid, CatalogEntry::Credentials(ent))?;
-
-                // Add to creadentials map
-                self.credentials_names.insert(create_credential.name, oid);
             }
             Mutation::CreateSchema(create_schema) => {
                 validate_object_name(&create_schema.name)?;
@@ -805,8 +799,6 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
-                        sql_example: None,
-                        description: None,
                     },
                 };
                 self.entries.insert(oid, CatalogEntry::Schema(ent))?;
@@ -830,8 +822,6 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
-                        sql_example: None,
-                        description: None,
                     },
                     sql: create_view.sql,
                     columns: create_view.columns,
@@ -862,8 +852,6 @@ impl State {
                         builtin: false,
                         external: false,
                         is_temp: false,
-                        sql_example: None,
-                        description: None,
                     },
                     options: TableOptions::Internal(create_table.options),
                     tunnel_id: None,
@@ -876,7 +864,6 @@ impl State {
 
                 self.try_insert_table_namespace(CatalogEntry::Table(ent), schema_id, oid, policy)?;
             }
-
             Mutation::CreateExternalTable(create_ext) => {
                 validate_object_name(&create_ext.name)?;
                 let schema_id = self.get_schema_id(&create_ext.schema)?;
@@ -906,8 +893,6 @@ impl State {
                         builtin: false,
                         external: true,
                         is_temp: false,
-                        sql_example: None,
-                        description: None,
                     },
                     options: create_ext.options,
                     tunnel_id,
@@ -952,19 +937,17 @@ impl State {
                             Some(id) => id,
                         };
 
-                        let mut table = match self.entries.remove(&oid)?.unwrap() {
-                            CatalogEntry::Table(ent) => ent,
-                            other => unreachable!("unexpected entry type: {:?}", other),
-                        };
+                        let mut ent = self.entries.remove(&oid)?.unwrap();
 
-                        table.meta.name = new_name;
+                        // The entry must be a "table" or a "view".
+                        assert!(
+                            matches!(ent, CatalogEntry::Table(_) | CatalogEntry::View(_)),
+                            "unexpected entry type: {ent:?}"
+                        );
 
-                        self.try_insert_table_namespace(
-                            CatalogEntry::Table(table.clone()),
-                            schema_id,
-                            table.meta.id,
-                            CreatePolicy::Create,
-                        )?;
+                        ent.get_meta_mut().name = new_name;
+
+                        self.try_insert_table_namespace(ent, schema_id, oid, CreatePolicy::Create)?;
                     }
                     AlterTableOperation::SetAccessMode { access_mode } => {
                         let oid = match objs.tables.get(&alter_table.name) {
@@ -1204,8 +1187,6 @@ impl BuiltinCatalog {
                         builtin: true,
                         external: false,
                         is_temp: false,
-                        sql_example: None,
-                        description: None,
                     },
                     options: DatabaseOptions::Internal(DatabaseOptionsInternal {}),
                     tunnel_id: None,
@@ -1228,8 +1209,6 @@ impl BuiltinCatalog {
                         builtin: true,
                         external: false,
                         is_temp: false,
-                        sql_example: None,
-                        description: None,
                     },
                 }),
             )?;
@@ -1250,8 +1229,6 @@ impl BuiltinCatalog {
                         builtin: true,
                         external: false,
                         is_temp: false,
-                        sql_example: None,
-                        description: None,
                     },
                     options: TableOptions::new_internal(table.columns.clone()),
                     tunnel_id: None,
@@ -1284,8 +1261,6 @@ impl BuiltinCatalog {
                         builtin: true,
                         external: false,
                         is_temp: false,
-                        sql_example: None,
-                        description: None,
                     },
                     sql: view.sql.to_string(),
                     columns: Vec::new(),
@@ -1300,59 +1275,47 @@ impl BuiltinCatalog {
             oid += 1;
         }
 
-        for func in FUNCTION_REGISTRY.table_funcs() {
-            // Put them all in the default schema.
-            let schema_id = schema_names
-                .get(DEFAULT_SCHEMA)
-                .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
+        // All functions get inserted into the default schema.
+        let schema_id = *schema_names
+            .get(DEFAULT_SCHEMA)
+            .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
 
-            let entry = func.as_function_entry(oid, *schema_id);
-            insert_entry(oid, CatalogEntry::Function(entry))?;
-
-            schema_objects
-                .get_mut(schema_id)
-                .unwrap()
-                .functions
-                .insert(func.name().to_string(), oid);
-
+        // Oid generator for functions, just increments every time it's called.
+        let mut oid_gen = || {
+            let curr_oid = oid;
             oid += 1;
-        }
+            curr_oid
+        };
 
-        for func in FUNCTION_REGISTRY.scalar_functions() {
-            // Put them all in the default schema.
-            let schema_id = schema_names
-                .get(DEFAULT_SCHEMA)
-                .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
+        let table_func_ents = Self::builtin_function_to_entries(
+            &mut oid_gen,
+            schema_id,
+            FUNCTION_REGISTRY.table_funcs_iter(),
+        );
+        let scalar_func_ents = Self::builtin_function_to_entries(
+            &mut oid_gen,
+            schema_id,
+            FUNCTION_REGISTRY.scalar_funcs_iter(),
+        );
+        let scalar_udf_ents = Self::builtin_function_to_entries(
+            &mut oid_gen,
+            schema_id,
+            FUNCTION_REGISTRY.scalar_udfs_iter(),
+        );
 
-            insert_entry(
-                oid,
-                CatalogEntry::Function(func.as_function_entry(oid, *schema_id)),
-            )?;
+        for func_ent in table_func_ents
+            .into_iter()
+            .chain(scalar_func_ents)
+            .chain(scalar_udf_ents)
+        {
+            let name = func_ent.meta.name.to_string();
+            let oid = func_ent.meta.id;
+            insert_entry(oid, CatalogEntry::Function(func_ent))?;
             schema_objects
-                .get_mut(schema_id)
-                .unwrap()
+                .get_mut(&schema_id)
+                .expect("default schema should exist")
                 .functions
-                .insert(func.name().to_string(), oid);
-
-            oid += 1;
-        }
-        for func in FUNCTION_REGISTRY.scalar_udfs() {
-            // Put them all in the default schema.
-            let schema_id = schema_names
-                .get(DEFAULT_SCHEMA)
-                .ok_or_else(|| MetastoreError::MissingNamedSchema(DEFAULT_SCHEMA.to_string()))?;
-
-            insert_entry(
-                oid,
-                CatalogEntry::Function(func.as_function_entry(oid, *schema_id)),
-            )?;
-            schema_objects
-                .get_mut(schema_id)
-                .unwrap()
-                .functions
-                .insert(func.name().to_string(), oid);
-
-            oid += 1;
+                .insert(name, oid);
         }
 
         Ok(BuiltinCatalog {
@@ -1362,22 +1325,82 @@ impl BuiltinCatalog {
             schema_objects,
         })
     }
+
+    /// Convert an iterator of builtin functions into a vec of
+    /// [`FunctionEntry`]s for inserting into the catalog.
+    ///
+    /// The returned Vec will include separate entries for functions with
+    /// aliases. For example, if a function named 'parquet_scan' also has an
+    /// alias 'read_parquet', the returned vector will include two separate
+    /// entries, each with different oids.
+    ///
+    /// `oid_gen` should be used to get the next oid for an entry, and `parent`
+    /// references the parent schema oid and should be used for all entries..
+    // TODO: It may make sense to add aliases support to `EntryMeta` to avoid
+    // needing separate oids for each alias.
+    fn builtin_function_to_entries<B: BuiltinFunction + ?Sized, F: AsRef<B>>(
+        mut oid_gen: impl FnMut() -> u32,
+        parent: u32,
+        funcs: impl Iterator<Item = F>,
+    ) -> Vec<FunctionEntry> {
+        let mut ents = Vec::new();
+
+        for func in funcs {
+            let func = func.as_ref();
+            let aliases = func.aliases();
+
+            for name in [aliases, &[func.name()]].concat() {
+                // Note each name/alias gets its own oid.
+                let oid = oid_gen();
+
+                let meta = EntryMeta {
+                    entry_type: EntryType::Function,
+                    id: oid,
+                    parent,
+                    name: name.to_string(),
+                    builtin: true,
+                    external: false,
+                    is_temp: false,
+                };
+
+                ents.push(FunctionEntry {
+                    meta,
+                    func_type: func.function_type(),
+                    signature: func.signature(),
+                })
+            }
+        }
+
+        ents
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
+    use datafusion::arrow::datatypes::DataType;
+    use object_store::memory::InMemory;
+    use protogen::metastore::types::options::{
+        DatabaseOptionsDebug,
+        InternalColumnDefinition,
+        TableOptionsDebug,
+        TableOptionsInternal,
+    };
+    use protogen::metastore::types::service::{
+        AlterDatabase,
+        CreateExternalDatabase,
+        CreateExternalTable,
+        CreateSchema,
+        CreateTable,
+        CreateView,
+        DropDatabase,
+        DropSchema,
+    };
+    use sqlbuiltins::builtins::{DEFAULT_CATALOG, INTERNAL_SCHEMA};
+
     use super::*;
     use crate::storage::persist::Storage;
-    use object_store::memory::InMemory;
-    use protogen::metastore::types::options::DatabaseOptionsDebug;
-    use protogen::metastore::types::options::TableOptionsDebug;
-    use protogen::metastore::types::service::AlterDatabase;
-    use protogen::metastore::types::service::DropDatabase;
-    use protogen::metastore::types::service::{
-        CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateView, DropSchema,
-    };
-    use sqlbuiltins::builtins::DEFAULT_CATALOG;
-    use std::collections::HashSet;
 
     async fn new_catalog() -> DatabaseCatalog {
         logutil::init_test();
@@ -1395,6 +1418,36 @@ mod tests {
     #[test]
     fn builtin_catalog_builds() {
         BuiltinCatalog::new().unwrap();
+    }
+
+    // TODO: Currently there's a conflict between `version()` and `pg_catalog.version()`.
+    //
+    // See <https://github.com/GlareDB/glaredb/issues/2371>
+    #[ignore]
+    #[test]
+    fn builtin_catalog_no_function_name_duplicates() {
+        // Ensures each function is a unique (schema, name) pair.
+
+        let catalog = BuiltinCatalog::new().unwrap();
+        let names: Vec<(u32, &String)> = catalog
+            .entries
+            .values()
+            .filter_map(|ent| match ent {
+                CatalogEntry::Function(ent) => Some((ent.meta.parent, &ent.meta.name)),
+                _ => None,
+            })
+            .collect();
+
+        let mut deduped: HashSet<_> = names.clone().into_iter().collect();
+        let diff: Vec<_> = names
+            .into_iter()
+            .filter(|name_and_parent| {
+                let was_present = deduped.remove(name_and_parent);
+                !was_present // We saw this value before, indicates a duplicated name.
+            })
+            .collect();
+
+        assert_eq!(Vec::<(u32, &String)>::new(), diff);
     }
 
     #[tokio::test]
@@ -1918,5 +1971,57 @@ mod tests {
             )
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn try_modify_internal_schema() {
+        let db = new_catalog().await;
+        version(&db).await;
+
+        // Add internal table on 'glare_catalog'
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateTable(CreateTable {
+                schema: INTERNAL_SCHEMA.to_string(),
+                name: "peach".to_string(),
+                if_not_exists: true,
+                or_replace: false,
+                options: TableOptionsInternal {
+                    columns: vec![InternalColumnDefinition {
+                        name: "luigi".to_string(),
+                        nullable: true,
+                        arrow_type: DataType::Utf8,
+                    }],
+                },
+            })],
+        )
+        .await
+        .unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn allow_modify_default_schema() {
+        let db = new_catalog().await;
+        version(&db).await;
+
+        // Add internal table on 'public' schema
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateTable(CreateTable {
+                schema: DEFAULT_SCHEMA.to_string(),
+                name: "peach".to_string(),
+                if_not_exists: true,
+                or_replace: false,
+                options: TableOptionsInternal {
+                    columns: vec![InternalColumnDefinition {
+                        name: "luigi".to_string(),
+                        nullable: true,
+                        arrow_type: DataType::Utf8,
+                    }],
+                },
+            })],
+        )
+        .await
+        .unwrap();
     }
 }

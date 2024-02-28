@@ -1,3 +1,7 @@
+use std::any::Any;
+use std::fmt;
+use std::sync::Arc;
+
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
@@ -6,12 +10,13 @@ use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::common::compute_record_batch_statistics;
 use datafusion::physical_plan::memory::MemoryStream;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
     Statistics,
 };
-use std::any::Any;
-use std::fmt;
-use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct ExtValuesExec {
@@ -42,11 +47,15 @@ impl ExecutionPlan for ExtValuesExec {
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Plan(
-            "Cannot change children for ValuesExec".to_string(),
-        ))
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Plan(
+                "Cannot change children for ValuesExec".to_string(),
+            ))
+        }
     }
 
     fn execute(
@@ -67,8 +76,12 @@ impl ExecutionPlan for ExtValuesExec {
         )?))
     }
 
-    fn statistics(&self) -> Statistics {
-        compute_record_batch_statistics(&[self.data.clone()], &self.schema, None)
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(compute_record_batch_statistics(
+            &[self.data.clone()],
+            &self.schema,
+            None,
+        ))
     }
 }
 

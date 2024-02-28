@@ -1,19 +1,23 @@
 //! Builtin table returning functions.
 mod bigquery;
 mod bson;
+mod cassandra;
 mod clickhouse;
 mod delta;
 mod excel;
 mod generate_series;
 mod iceberg;
+mod json;
 mod lance;
 mod mongodb;
 mod mysql;
 mod object_store;
+mod parquet_metadata;
 mod postgres;
 mod snowflake;
+mod sqlite;
 mod sqlserver;
-mod system;
+pub mod system;
 mod virtual_listing;
 
 use std::collections::HashMap;
@@ -24,7 +28,6 @@ use ::object_store::azure::AzureConfigKey;
 use ::object_store::gcp::GoogleConfigKey;
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
-
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
@@ -33,21 +36,28 @@ use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
 use self::bigquery::ReadBigQuery;
 use self::bson::BsonScan;
+use self::cassandra::ReadCassandra;
 use self::clickhouse::ReadClickhouse;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
-use self::iceberg::{data_files::IcebergDataFiles, scan::IcebergScan, snapshots::IcebergSnapshots};
+use self::iceberg::data_files::IcebergDataFiles;
+use self::iceberg::scan::IcebergScan;
+use self::iceberg::snapshots::IcebergSnapshots;
+use self::json::JsonScan;
 use self::lance::LanceScan;
 use self::mongodb::ReadMongoDb;
 use self::mysql::ReadMysql;
-use self::object_store::{CSV_SCAN, JSON_SCAN, PARQUET_SCAN, READ_CSV, READ_JSON, READ_PARQUET};
+use self::object_store::{CloudUpload, READ_CSV, READ_JSON, READ_PARQUET};
+use self::parquet_metadata::ParquetMetadataFunc;
 use self::postgres::ReadPostgres;
 use self::snowflake::ReadSnowflake;
+use self::sqlite::ReadSqlite;
 use self::sqlserver::ReadSqlServer;
 use self::system::cache_external_tables::CacheExternalDatabaseTables;
 use self::virtual_listing::{ListColumns, ListSchemas, ListTables};
-use super::BuiltinFunction;
+use crate::functions::alias_map::AliasMap;
+use crate::functions::BuiltinFunction;
 
 /// A builtin table function.
 /// Table functions are ones that are used in the FROM clause.
@@ -73,7 +83,7 @@ pub trait TableFunc: BuiltinFunction {
 
 /// All builtin table functions.
 pub struct BuiltinTableFuncs {
-    funcs: HashMap<String, Arc<dyn TableFunc>>,
+    pub funcs: AliasMap<String, Arc<dyn TableFunc>>,
 }
 
 impl BuiltinTableFuncs {
@@ -86,15 +96,16 @@ impl BuiltinTableFuncs {
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
             Arc::new(ReadClickhouse),
+            Arc::new(ReadSqlite),
             Arc::new(ReadSqlServer),
+            Arc::new(ReadCassandra),
             // Object store
-            Arc::new(PARQUET_SCAN),
             Arc::new(READ_PARQUET),
-            Arc::new(CSV_SCAN),
             Arc::new(READ_CSV),
-            Arc::new(JSON_SCAN),
             Arc::new(READ_JSON),
             Arc::new(BsonScan),
+            Arc::new(JsonScan),
+            Arc::new(CloudUpload),
             // Data lakes
             Arc::new(DeltaScan),
             Arc::new(IcebergScan),
@@ -110,24 +121,24 @@ impl BuiltinTableFuncs {
             Arc::new(GenerateSeries),
             // System operations
             Arc::new(CacheExternalDatabaseTables),
+            // Metadata functions
+            Arc::new(ParquetMetadataFunc),
         ];
-        let funcs: HashMap<String, Arc<dyn TableFunc>> = funcs
+
+        let funcs: AliasMap<String, Arc<dyn TableFunc>> = funcs
             .into_iter()
-            .map(|f| (f.name().to_string(), f))
+            .map(|func| {
+                // Ensure function can be referenced through name or alias.
+                let keys = [func.aliases(), &[func.name()]]
+                    .concat()
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect();
+                (keys, func)
+            })
             .collect();
 
         BuiltinTableFuncs { funcs }
-    }
-
-    pub fn find_function(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
-        self.funcs.get(name).cloned()
-    }
-
-    pub fn iter_funcs(&self) -> impl Iterator<Item = &Arc<dyn TableFunc>> {
-        self.funcs.values()
-    }
-    pub fn keys(&self) -> impl Iterator<Item = &String> {
-        self.funcs.keys()
     }
 }
 
@@ -231,4 +242,33 @@ pub fn table_location_and_opts(
     };
 
     Ok((source_url, storage_options))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_scan_function_aliases() {
+        // Ensure we can get functions using both their names and aliases (e.g.
+        // 'parquet_scan' aliased to 'read_parquet').
+
+        let names_and_aliases = [
+            "read_csv", // name
+            "csv_scan", // alias
+            "read_ndjson",
+            "ndjson_scan",
+            "read_parquet",
+            "parquet_scan",
+        ];
+
+        let builtin = BuiltinTableFuncs::new();
+
+        for name in names_and_aliases {
+            builtin
+                .funcs
+                .get(name)
+                .unwrap_or_else(|| panic!("function with name '{name}' should exist"));
+        }
+    }
 }

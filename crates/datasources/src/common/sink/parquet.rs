@@ -1,14 +1,19 @@
-use async_trait::async_trait;
-use datafusion::common::Result as DfResult;
-use datafusion::execution::TaskContext;
-use datafusion::parquet::{arrow::AsyncArrowWriter, file::properties::WriterProperties};
-use datafusion::physical_plan::insert::DataSink;
-use datafusion::physical_plan::DisplayAs;
-use datafusion::physical_plan::{DisplayFormatType, SendableRecordBatchStream};
-use futures::StreamExt;
-use object_store::{path::Path as ObjectPath, ObjectStore};
+use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
+
+use async_trait::async_trait;
+use datafusion::common::Result as DfResult;
+use datafusion::error::DataFusionError;
+use datafusion::execution::TaskContext;
+use datafusion::parquet::arrow::AsyncArrowWriter;
+use datafusion::parquet::file::properties::WriterProperties;
+use datafusion::physical_plan::insert::DataSink;
+use datafusion::physical_plan::metrics::MetricsSet;
+use datafusion::physical_plan::{DisplayAs, DisplayFormatType, SendableRecordBatchStream};
+use futures::StreamExt;
+use object_store::path::Path as ObjectPath;
+use object_store::ObjectStore;
 
 const BUFFER_SIZE: usize = 8 * 1024 * 1024;
 
@@ -64,7 +69,11 @@ impl ParquetSink {
     async fn stream_into_inner(&self, mut stream: SendableRecordBatchStream) -> DfResult<usize> {
         let schema = stream.schema();
 
-        let (_id, obj_handle) = self.store.put_multipart(&self.loc).await?;
+        let (_id, obj_handle) = self
+            .store
+            .put_multipart(&self.loc)
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
         let props = WriterProperties::builder()
             .set_created_by("GlareDB".to_string())
@@ -86,15 +95,19 @@ impl ParquetSink {
 
 #[async_trait]
 impl DataSink for ParquetSink {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        None
+    }
+
     async fn write_all(
         &self,
-        data: Vec<SendableRecordBatchStream>,
+        data: SendableRecordBatchStream,
         _context: &Arc<TaskContext>,
     ) -> DfResult<u64> {
-        let mut count = 0;
-        for stream in data {
-            count += self.stream_into_inner(stream).await.map(|x| x as u64)?;
-        }
-        Ok(count)
+        self.stream_into_inner(data).await.map(|x| x as u64)
     }
 }

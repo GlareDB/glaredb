@@ -1,11 +1,13 @@
-use super::{PartitionField, Schema};
+use std::collections::HashMap;
+use std::fmt;
+use std::str::FromStr;
 
-use crate::lake::iceberg::errors::{IcebergError, Result};
 use apache_avro::{from_value, Reader};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
-use std::fmt;
-use std::{collections::HashMap, str::FromStr};
+
+use super::{PartitionField, Schema};
+use crate::lake::iceberg::errors::{IcebergError, Result};
 
 /// Manifest lists include summary medata for the table alongside the path the
 /// actual manifest.

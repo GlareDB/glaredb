@@ -8,7 +8,7 @@ select count(*) from read_parquet('file://${PWD}/testdata/parquet/userdata1.parq
 
 # Relative path
 query I
-select count(*) from read_parquet('../../testdata/parquet/userdata1.parquet')
+select count(*) from read_parquet('./testdata/parquet/userdata1.parquet')
 ----
 1000
 
@@ -45,14 +45,14 @@ select * from read_parquet('./testdata/parquet/userdata1.paruqet');
 # Ambiguous name.
 # query I
 # select count(*)
-#   from read_parquet('../../testdata/parquet/userdata1.parquet') p
+#   from read_parquet('./testdata/parquet/userdata1.parquet') p
 #   inner join (values ('Sweden')) as c(country) on p.country = c.country
 # ----
 # 1000
 
 # query I
 # select count(*)
-#   from read_parquet('../../testdata/parquet/userdata1.parquet') p
+#   from read_parquet('./testdata/parquet/userdata1.parquet') p
 #   inner join (select 'Sweden') as c(country) on p.country = c.country
 # ----
 # 1000

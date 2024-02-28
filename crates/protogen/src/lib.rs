@@ -4,15 +4,13 @@
 //! this crate. This crate should be able to imported by any other crate in the
 //! project. There should be a minimal amount of logic in this crate.
 #![allow(non_snake_case)]
+#![allow(clippy::wildcard_imports)]
 
 pub mod common;
 pub mod metastore;
 pub mod sqlexec;
 
 pub mod rpcsrv;
-pub mod export {
-    pub use prost;
-}
 pub use errors::ProtoConvError;
 
 pub mod errors {

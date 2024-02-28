@@ -6,8 +6,8 @@ fn test_version() {
     let mut cmd = make_cli();
     let assert = cmd.arg("version").assert();
 
-    assert.failure().code(1).stderr(predicates::str::contains(
-        "Error: 'version' is not a valid command, did you mean '--version'?",
+    assert.failure().stderr(predicates::str::contains(
+        "unrecognized subcommand \'version\'",
     ));
 }
 

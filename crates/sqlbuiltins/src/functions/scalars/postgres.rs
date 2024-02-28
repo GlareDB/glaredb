@@ -1,12 +1,34 @@
+use std::sync::Arc;
+
+use catalog::session_catalog::SessionCatalog;
+use datafusion::arrow::datatypes::{DataType, Field};
+use datafusion::error::Result as DataFusionResult;
 use datafusion::logical_expr::expr::ScalarFunction;
+use datafusion::logical_expr::{
+    BuiltinScalarFunction,
+    ReturnTypeFunction,
+    ScalarFunctionImplementation,
+    ScalarUDF,
+    Signature,
+    TypeSignature,
+    Volatility,
+};
+use datafusion::physical_plan::ColumnarValue;
+use datafusion::prelude::Expr;
+use datafusion::scalar::ScalarValue;
+use pgrepr::compatible::server_version_with_build_info;
+use protogen::metastore::types::catalog::FunctionType;
 
-use crate::functions::FunctionNamespace;
-
-use super::{df_scalars::array_to_string, *};
+use super::df_scalars::array_to_string;
+use super::{get_nth_scalar_value, session_var};
+use crate::errors::BuiltinError;
+use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction, FunctionNamespace};
 
 const PG_CATALOG_NAMESPACE: FunctionNamespace = FunctionNamespace::Optional("pg_catalog");
-#[derive(Clone)]
+
+#[derive(Clone, Copy, Debug)]
 pub struct PgGetUserById;
+
 impl ConstBuiltinFunction for PgGetUserById {
     const NAME: &'static str = "pg_get_userbyid";
     const DESCRIPTION: &'static str = "Postgres `pg_get_userbyid` function";
@@ -21,28 +43,34 @@ impl ConstBuiltinFunction for PgGetUserById {
 }
 
 impl BuiltinScalarUDF for PgGetUserById {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |_| {
-                Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
-                    "unknown".to_string(),
-                ))))
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Utf8)));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |_| {
+            Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
+                "unknown".to_string(),
+            ))))
+        });
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+
+        Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
             Arc::new(udf),
             args,
-        ))
+        )))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
-#[derive(Clone)]
+
+#[derive(Clone, Copy, Debug)]
 pub struct PgTableIsVisible;
+
 impl ConstBuiltinFunction for PgTableIsVisible {
     const NAME: &'static str = "pg_table_is_visible";
     const DESCRIPTION: &'static str = "Postgres `pg_table_is_visible` function";
@@ -55,37 +83,43 @@ impl ConstBuiltinFunction for PgTableIsVisible {
         ))
     }
 }
-impl BuiltinScalarUDF for PgTableIsVisible {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
-            fun: Arc::new(move |input| {
-                Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
-                    ScalarValue,
-                    BuiltinError,
-                > {
-                    match value {
-                        ScalarValue::Int64(Some(_)) => Ok(ScalarValue::Boolean(Some(true))),
-                        _ => Ok(ScalarValue::Boolean(None)),
-                    }
-                })?)
-            }),
-        };
 
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
+impl BuiltinScalarUDF for PgTableIsVisible {
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
+            Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
+                ScalarValue,
+                BuiltinError,
+            > {
+                match value {
+                    ScalarValue::Int64(Some(_)) => Ok(ScalarValue::Boolean(Some(true))),
+                    _ => Ok(ScalarValue::Boolean(None)),
+                }
+            })?)
+        });
+
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+
+        Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
             Arc::new(udf),
             args,
-        ))
+        )))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct PgEncodingToChar;
+
 impl ConstBuiltinFunction for PgEncodingToChar {
     const NAME: &'static str = "pg_encoding_to_char";
     const DESCRIPTION: &'static str = "Postgres `pg_encoding_to_char` function";
@@ -100,37 +134,40 @@ impl ConstBuiltinFunction for PgEncodingToChar {
 }
 
 impl BuiltinScalarUDF for PgEncodingToChar {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-            fun: Arc::new(move |input| {
-                Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
-                    ScalarValue,
-                    BuiltinError,
-                > {
-                    match value {
-                        ScalarValue::Int64(Some(6)) => {
-                            Ok(ScalarValue::Utf8(Some("UTF8".to_string())))
-                        }
-                        ScalarValue::Int64(Some(_)) => Ok(ScalarValue::Utf8(Some("".to_string()))),
-                        _ => Ok(ScalarValue::Utf8(None)),
-                    }
-                })?)
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Utf8)));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
+            Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
+                ScalarValue,
+                BuiltinError,
+            > {
+                match value {
+                    ScalarValue::Int64(Some(6)) => Ok(ScalarValue::Utf8(Some("UTF8".to_string()))),
+                    ScalarValue::Int64(Some(_)) => Ok(ScalarValue::Utf8(Some("".to_string()))),
+                    _ => Ok(ScalarValue::Utf8(None)),
+                }
+            })?)
+        });
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
             Arc::new(udf),
             args,
-        ))
+        )))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
-#[derive(Clone)]
+
+#[derive(Clone, Copy, Debug)]
 pub struct HasSchemaPrivilege;
+
 impl ConstBuiltinFunction for HasSchemaPrivilege {
     const NAME: &'static str = "has_schema_privilege";
     const DESCRIPTION: &'static str = "Returns true if user have privilege for schema";
@@ -146,27 +183,32 @@ impl ConstBuiltinFunction for HasSchemaPrivilege {
         ))
     }
 }
+
 impl BuiltinScalarUDF for HasSchemaPrivilege {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
-            fun: Arc::new(move |_input| {
-                Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
+        let scalar_fn_impl: ScalarFunctionImplementation =
+            Arc::new(move |_input| Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true)))));
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
             Arc::new(udf),
             args,
-        ))
+        )))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
-#[derive(Clone)]
+
+#[derive(Clone, Copy, Debug)]
 pub struct HasDatabasePrivilege;
+
 impl ConstBuiltinFunction for HasDatabasePrivilege {
     const NAME: &'static str = "has_database_privilege";
     const DESCRIPTION: &'static str = "Returns true if user have privilege for database";
@@ -182,27 +224,30 @@ impl ConstBuiltinFunction for HasDatabasePrivilege {
         ))
     }
 }
+
 impl BuiltinScalarUDF for HasDatabasePrivilege {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
-            fun: Arc::new(move |_input| {
-                Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
+        let scalar_fn_impl: ScalarFunctionImplementation =
+            Arc::new(move |_input| Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true)))));
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
             Arc::new(udf),
             args,
-        ))
+        )))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct HasTablePrivilege;
 impl ConstBuiltinFunction for HasTablePrivilege {
     const NAME: &'static str = "has_table_privilege";
@@ -219,28 +264,32 @@ impl ConstBuiltinFunction for HasTablePrivilege {
         ))
     }
 }
+
 impl BuiltinScalarUDF for HasTablePrivilege {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        let udf = ScalarUDF {
-            name: Self::NAME.to_string(),
-            signature: ConstBuiltinFunction::signature(self).unwrap(),
-            return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
-            fun: Arc::new(move |_input| {
-                Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))))
-            }),
-        };
-        Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF::new(
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
+        let scalar_fn_impl: ScalarFunctionImplementation =
+            Arc::new(move |_| Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(true)))));
+        let udf = ScalarUDF::new(
+            Self::NAME,
+            &ConstBuiltinFunction::signature(self).unwrap(),
+            &return_type_fn,
+            &scalar_fn_impl,
+        );
+        Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
             Arc::new(udf),
             args,
-        ))
+        )))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct CurrentSchemas;
+
 impl ConstBuiltinFunction for CurrentSchemas {
     const NAME: &'static str = "current_schemas";
     const DESCRIPTION: &'static str = "Returns current schemas";
@@ -256,8 +305,9 @@ impl ConstBuiltinFunction for CurrentSchemas {
         ))
     }
 }
+
 impl BuiltinScalarUDF for CurrentSchemas {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
         // There's no good way to handle the `include_implicit` argument,
         // but since its a binary value (true/false),
         // we can just assign it to a different variable
@@ -267,18 +317,21 @@ impl BuiltinScalarUDF for CurrentSchemas {
             "current_schemas".to_string()
         };
 
-        Expr::ScalarVariable(
+        Ok(Expr::ScalarVariable(
             DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
             vec![var_name],
         )
-        .alias("current_schemas")
+        .alias("current_schemas"))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
-#[derive(Clone)]
+
+#[derive(Clone, Copy, Debug)]
 pub struct CurrentUser;
+
 impl ConstBuiltinFunction for CurrentUser {
     const NAME: &'static str = "current_user";
     const DESCRIPTION: &'static str = "Returns current user";
@@ -292,13 +345,14 @@ impl ConstBuiltinFunction for CurrentUser {
     }
 }
 impl BuiltinScalarUDF for CurrentUser {
-    fn as_expr(&self, _: Vec<Expr>) -> Expr {
-        session_var("current_user")
+    fn try_as_expr(&self, _: &SessionCatalog, _: Vec<Expr>) -> DataFusionResult<Expr> {
+        Ok(session_var("current_user"))
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct CurrentRole;
+
 impl ConstBuiltinFunction for CurrentRole {
     const NAME: &'static str = "current_role";
     const DESCRIPTION: &'static str = "Returns current role";
@@ -311,17 +365,20 @@ impl ConstBuiltinFunction for CurrentRole {
         ))
     }
 }
+
 impl BuiltinScalarUDF for CurrentRole {
-    fn as_expr(&self, _: Vec<Expr>) -> Expr {
-        session_var("current_role")
+    fn try_as_expr(&self, _: &SessionCatalog, _: Vec<Expr>) -> DataFusionResult<Expr> {
+        Ok(session_var("current_role"))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct CurrentSchema;
+
 impl ConstBuiltinFunction for CurrentSchema {
     const NAME: &'static str = "current_schema";
     const DESCRIPTION: &'static str = "Returns current schema";
@@ -334,16 +391,20 @@ impl ConstBuiltinFunction for CurrentSchema {
         ))
     }
 }
+
 impl BuiltinScalarUDF for CurrentSchema {
-    fn as_expr(&self, _: Vec<Expr>) -> Expr {
-        session_var("current_schema")
+    fn try_as_expr(&self, _: &SessionCatalog, _: Vec<Expr>) -> DataFusionResult<Expr> {
+        Ok(session_var("current_schema"))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
-#[derive(Clone)]
+
+#[derive(Clone, Copy, Debug)]
 pub struct CurrentDatabase;
+
 impl ConstBuiltinFunction for CurrentDatabase {
     const NAME: &'static str = "current_database";
     const DESCRIPTION: &'static str = "Returns current database";
@@ -356,13 +417,16 @@ impl ConstBuiltinFunction for CurrentDatabase {
         ))
     }
 }
+
 impl BuiltinScalarUDF for CurrentDatabase {
-    fn as_expr(&self, _: Vec<Expr>) -> Expr {
-        session_var("current_database")
+    fn try_as_expr(&self, _: &SessionCatalog, _: Vec<Expr>) -> DataFusionResult<Expr> {
+        Ok(session_var("current_database"))
     }
 }
-#[derive(Clone)]
+
+#[derive(Clone, Copy, Debug)]
 pub struct CurrentCatalog;
+
 impl ConstBuiltinFunction for CurrentCatalog {
     const NAME: &'static str = "current_catalog";
     const DESCRIPTION: &'static str = "Returns current catalog";
@@ -375,16 +439,18 @@ impl ConstBuiltinFunction for CurrentCatalog {
         ))
     }
 }
+
 impl BuiltinScalarUDF for CurrentCatalog {
-    fn as_expr(&self, _: Vec<Expr>) -> Expr {
-        session_var("current_catalog")
+    fn try_as_expr(&self, _: &SessionCatalog, _: Vec<Expr>) -> DataFusionResult<Expr> {
+        Ok(session_var("current_catalog"))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         PG_CATALOG_NAMESPACE
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct User;
 
 impl ConstBuiltinFunction for User {
@@ -399,18 +465,21 @@ impl ConstBuiltinFunction for User {
         ))
     }
 }
+
 impl BuiltinScalarUDF for User {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        CurrentUser.as_expr(args).alias("user")
+    fn try_as_expr(&self, ctx: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
+        Ok(CurrentUser.try_as_expr(ctx, args)?.alias("user"))
     }
+
     fn namespace(&self) -> FunctionNamespace {
         CurrentUser.namespace()
     }
 }
 
-#[derive(Clone)]
-// this one is a bit different from the others as it's also handled via datafusion
-// So all we need to do is add it to the pg_catalog namespace and map it to the df implementation
+// This one is a bit different from the others as it's also handled via
+// datafusion. So all we need to do is add it to the pg_catalog namespace and
+// map it to the df implementation
+#[derive(Clone, Copy, Debug)]
 pub struct PgArrayToString;
 
 impl ConstBuiltinFunction for PgArrayToString {
@@ -424,12 +493,46 @@ impl ConstBuiltinFunction for PgArrayToString {
 }
 
 impl BuiltinScalarUDF for PgArrayToString {
-    fn as_expr(&self, args: Vec<Expr>) -> Expr {
-        Expr::ScalarFunction(ScalarFunction::new(
+    fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
+        Ok(Expr::ScalarFunction(ScalarFunction::new(
             BuiltinScalarFunction::ArrayToString,
             args,
-        ))
+        )))
     }
+
+    fn namespace(&self) -> FunctionNamespace {
+        FunctionNamespace::Required("pg_catalog")
+    }
+}
+
+/// `pg_catalog.version()` implementation.
+///
+/// This provides more informatation that just the 'server_version' session
+/// variable, and includes things like the build triple.
+///
+/// This uses a spoofed version (and so does not match the `version()` function)
+/// since many postgres tools, including sqlalchemy, will check the version
+/// against hard coded values.
+#[derive(Clone, Copy, Debug)]
+pub struct PgVersion;
+
+impl ConstBuiltinFunction for PgVersion {
+    const NAME: &'static str = "version";
+    const DESCRIPTION: &'static str = "Returns the spoofed postgres version of the database";
+    const EXAMPLE: &'static str = "pg_catalog.version()";
+    const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::exact(vec![], Volatility::Stable))
+    }
+}
+
+impl BuiltinScalarUDF for PgVersion {
+    fn try_as_expr(&self, _: &SessionCatalog, _: Vec<Expr>) -> DataFusionResult<Expr> {
+        Ok(Expr::Literal(ScalarValue::Utf8(Some(
+            server_version_with_build_info().to_string(),
+        ))))
+    }
+
     fn namespace(&self) -> FunctionNamespace {
         FunctionNamespace::Required("pg_catalog")
     }

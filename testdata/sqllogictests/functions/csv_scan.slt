@@ -33,7 +33,7 @@ select count(*) from csv_scan(
 
 # Relative path
 query I
-select count(*) from csv_scan('../../testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
+select count(*) from csv_scan('./testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
 ----
 102
 
@@ -53,7 +53,7 @@ select count(*) from csv_scan([
 ----
 204
 
-statement error at least one url expected
+statement error Expected at least one url.
 select * from csv_scan([]);
 
 # Glob patterns not supported on HTTP

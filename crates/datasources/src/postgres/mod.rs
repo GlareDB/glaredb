@@ -3,45 +3,68 @@ pub mod errors;
 mod query_exec;
 mod tls;
 
-use crate::common::ssh::session::SshTunnelSession;
-use crate::common::ssh::{key::SshKey, session::SshTunnelAccess};
-use crate::common::util::{self, create_count_record_batch};
-use async_trait::async_trait;
-use chrono::naive::{NaiveDateTime, NaiveTime};
-use chrono::{DateTime, NaiveDate, Timelike, Utc};
-use datafusion::arrow::array::Decimal128Builder;
-use datafusion::arrow::datatypes::{
-    DataType, Field, Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
-};
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::datasource::TableProvider;
-use datafusion::error::{DataFusionError, Result as DatafusionResult};
-use datafusion::execution::context::SessionState;
-use datafusion::execution::context::TaskContext;
-use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
-use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::memory::MemoryExec;
-use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
-use datafusion::physical_plan::metrics::MetricsSet;
-use datafusion::physical_plan::{
-    execute_stream, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, RecordBatchStream,
-    SendableRecordBatchStream, Statistics,
-};
-use datafusion::scalar::ScalarValue;
-use datafusion_ext::errors::ExtensionError;
-use datafusion_ext::functions::VirtualLister;
-use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
-use errors::{PostgresError, Result};
-use futures::{future::BoxFuture, ready, stream::BoxStream, FutureExt, Stream, StreamExt};
-use protogen::metastore::types::options::TunnelOptions;
-use protogen::{FromOptionalField, ProtoConvError};
-use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::borrow::{Borrow, Cow};
 use std::fmt::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+
+use async_trait::async_trait;
+use chrono::naive::{NaiveDateTime, NaiveTime};
+use chrono::{DateTime, NaiveDate, Timelike, Utc};
+use datafusion::arrow::array::{
+    Array,
+    BinaryBuilder,
+    BooleanBuilder,
+    Date32Builder,
+    Decimal128Builder,
+    Float32Builder,
+    Float64Builder,
+    Int16Builder,
+    Int32Builder,
+    Int64Builder,
+    StringBuilder,
+    Time64MicrosecondBuilder,
+    TimestampMicrosecondBuilder,
+};
+use datafusion::arrow::datatypes::{
+    DataType,
+    Field,
+    Fields,
+    Schema as ArrowSchema,
+    SchemaRef as ArrowSchemaRef,
+    TimeUnit,
+};
+use datafusion::arrow::record_batch::{RecordBatch, RecordBatchOptions};
+use datafusion::datasource::TableProvider;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::execution::context::{SessionState, TaskContext};
+use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::memory::MemoryExec;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion::physical_plan::{
+    execute_stream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    RecordBatchStream,
+    SendableRecordBatchStream,
+    Statistics,
+};
+use datafusion::scalar::ScalarValue;
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
+use errors::{PostgresError, Result};
+use futures::future::BoxFuture;
+use futures::stream::BoxStream;
+use futures::{ready, FutureExt, Stream, StreamExt};
+use protogen::metastore::types::options::TunnelOptions;
+use protogen::{FromOptionalField, ProtoConvError};
+use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
@@ -52,7 +75,10 @@ use tokio_postgres::types::{FromSql, Type as PostgresType};
 use tokio_postgres::{Client, Config, Connection, CopyOutStream, NoTls, Socket};
 use tracing::{debug, warn};
 
-use self::query_exec::PostgresQueryExec;
+use self::query_exec::PostgresInsertExec;
+use crate::common::ssh::key::SshKey;
+use crate::common::ssh::session::{SshTunnelAccess, SshTunnelSession};
+use crate::common::util::{self, create_count_record_batch};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PostgresDbConnection {
@@ -613,12 +639,16 @@ impl TableProvider for PostgresTableProvider {
 
         // Get the projected columns, joined by a ','. This will be put in the
         // 'SELECT ...' portion of the query.
-        let projection_string = projected_schema
-            .fields
-            .iter()
-            .map(|f| f.name().clone())
-            .collect::<Vec<_>>()
-            .join(",");
+        let projection_string = if projected_schema.fields().is_empty() {
+            "*".to_string()
+        } else {
+            projected_schema
+                .fields
+                .iter()
+                .map(|f| f.name().clone())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
 
         let limit_string = match limit {
             Some(limit) => format!("LIMIT {}", limit),
@@ -706,7 +736,7 @@ impl TableProvider for PostgresTableProvider {
 
         debug!(%query, "inserting into postgres datasource");
 
-        let exec = PostgresQueryExec::new(query, self.state.clone());
+        let exec = PostgresInsertExec::new(query, self.state.clone());
         Ok(Arc::new(exec))
     }
 }
@@ -834,11 +864,15 @@ impl ExecutionPlan for PostgresBinaryCopyExec {
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Execution(
-            "cannot replace children for PostgresBinaryCopyExec".to_string(),
-        ))
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Execution(
+                "cannot replace children for PostgresBinaryCopyExec".to_string(),
+            ))
+        }
     }
 
     fn execute(
@@ -859,8 +893,8 @@ impl ExecutionPlan for PostgresBinaryCopyExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DatafusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
@@ -1070,11 +1104,10 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
     rows: Vec<Result<BinaryCopyOutRow, E>>,
     schema: ArrowSchemaRef,
 ) -> Result<RecordBatch> {
-    use datafusion::arrow::array::{
-        Array, BinaryBuilder, BooleanBuilder, Date32Builder, Float32Builder, Float64Builder,
-        Int16Builder, Int32Builder, Int64Builder, StringBuilder, Time64NanosecondBuilder,
-        TimestampNanosecondBuilder,
-    };
+    if schema.fields().is_empty() {
+        let options = RecordBatchOptions::new().with_row_count(Some(rows.len()));
+        return Ok(RecordBatch::try_new_with_options(schema, Vec::new(), &options).unwrap());
+    }
 
     let rows = rows
         .into_iter()
@@ -1133,33 +1166,33 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 }
                 Arc::new(arr.finish())
             }
-            DataType::Timestamp(TimeUnit::Nanosecond, None) => {
-                let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len());
+            DataType::Timestamp(TimeUnit::Microsecond, None) => {
+                let mut arr = TimestampMicrosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> = row.try_get(col_idx)?;
-                    let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
+                    let val = val.map(|v| v.timestamp_micros());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
             }
-            dt @ DataType::Timestamp(TimeUnit::Nanosecond, Some(_)) => {
-                let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len())
-                    .with_data_type(dt.clone());
+            DataType::Timestamp(TimeUnit::Microsecond, Some(tz)) => {
+                let mut arr = TimestampMicrosecondBuilder::with_capacity(rows.len())
+                    .with_timezone(tz.clone());
                 for row in rows.iter() {
                     let val: Option<DateTime<Utc>> = row.try_get(col_idx)?;
-                    let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
+                    let val = val.map(|v| v.timestamp_micros());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
             }
-            DataType::Time64(TimeUnit::Nanosecond) => {
-                let mut arr = Time64NanosecondBuilder::with_capacity(rows.len());
+            DataType::Time64(TimeUnit::Microsecond) => {
+                let mut arr = Time64MicrosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveTime> = row.try_get(col_idx)?;
                     let val = val.map(|v| {
-                        let nanos = v.nanosecond() as i64;
+                        let sub_micros = (v.nanosecond() / 1_000) as i64;
                         let secs_since_midnight = v.num_seconds_from_midnight() as i64;
-                        (secs_since_midnight * 1_000_000_000) + nanos
+                        (secs_since_midnight * 1_000_000) + sub_micros
                     });
                     arr.append_option(val);
                 }
@@ -1208,11 +1241,11 @@ fn try_create_arrow_schema(names: Vec<String>, types: &Vec<PostgresType>) -> Res
             // to specify the precision and scale for the column. Setting these
             // same as bigquery.
             &PostgresType::NUMERIC => DataType::Decimal128(38, 9),
-            &PostgresType::TIMESTAMP => DataType::Timestamp(TimeUnit::Nanosecond, None),
+            &PostgresType::TIMESTAMP => DataType::Timestamp(TimeUnit::Microsecond, None),
             &PostgresType::TIMESTAMPTZ => {
-                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into()))
+                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into()))
             }
-            &PostgresType::TIME => DataType::Time64(TimeUnit::Nanosecond),
+            &PostgresType::TIME => DataType::Time64(TimeUnit::Microsecond),
             &PostgresType::DATE => DataType::Date32,
             // TODO: Time with timezone and interval data types in postgres are
             // of 12 and 16 bytes respectively. This kind of size is not
@@ -1309,10 +1342,11 @@ fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use datafusion::common::Column;
     use datafusion::logical_expr::expr::Sort;
     use datafusion::logical_expr::{BinaryExpr, Operator};
+
+    use super::*;
 
     #[test]
     fn connection_string() {

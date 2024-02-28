@@ -3,11 +3,12 @@ name = "repr"
 version = {workspace = true}
 edition = {workspace = true}
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lints]
+workspace = true
 
 [dependencies]
 thiserror.workspace = true
-num-traits = "0.2.17"
+num-traits = "0.2.18"
 dtoa = "1.0.9"
 chrono = { workspace = true }
 decimal = { path = "../decimal" }

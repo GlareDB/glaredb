@@ -6,11 +6,14 @@ version = "0.0.0"
 [lib]
 crate-type = ["cdylib"]
 
+[lints]
+workspace = true
+
 [dependencies]
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
 ioutil = { path = "../../crates/ioutil" }
-napi = { version = "2.14.1", default-features = false, features = ["full"] }
-napi-derive = "2.14.6"
+napi = { version = "2.15.4", default-features = false, features = ["full"] }
+napi-derive = "2.15.3"
 sqlexec = { path = "../../crates/sqlexec" }
 metastore = { path = "../../crates/metastore" }
 telemetry = { path = "../../crates/telemetry" }
@@ -19,6 +22,7 @@ pgrepr = { path = "../../crates/pgrepr" }
 datafusion_ext = { path = "../../crates/datafusion_ext" }
 arrow_util = { path = "../../crates/arrow_util" }
 glaredb = { path = "../../crates/glaredb" }
+terminal_util = { path = "../../crates/terminal_util" }
 futures = { workspace = true }
 datafusion.workspace = true
 thiserror = { workspace = true }
@@ -30,6 +34,8 @@ bytes = "1.5.0"
 serde.workspace = true
 serde_json.workspace = true
 
+# Prevent dynamic linking of lzma, which comes from datafusion
+lzma-sys = { version = "*", features = ["static"] }
 
 [build-dependencies]
-napi-build = "2.1.0"
+napi-build = "2.1.2"

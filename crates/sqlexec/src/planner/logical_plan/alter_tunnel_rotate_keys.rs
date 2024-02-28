@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    DfLogicalPlan,
+    ExtensionNode,
+    UserDefinedLogicalNodeCore,
+    GENERIC_OPERATION_LOGICAL_SCHEMA,
+};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct AlterTunnelRotateKeys {

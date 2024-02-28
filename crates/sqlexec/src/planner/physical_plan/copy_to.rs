@@ -1,18 +1,28 @@
+use std::any::Any;
+use std::fmt;
+use std::sync::Arc;
+
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::execute_stream;
 use datafusion::physical_plan::insert::DataSink;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    execute_stream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use datasources::common::sink::bson::BsonSink;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
+use datasources::common::sink::lance::{LanceSink, LanceSinkOpts, LanceWriteParams};
 use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
 use datasources::common::url::DatasourceUrl;
 use datasources::object_store::gcs::GcsStoreAccess;
@@ -23,11 +33,10 @@ use datasources::object_store::ObjStoreAccess;
 use futures::stream;
 use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::options::{
-    CopyToDestinationOptions, CopyToFormatOptions, StorageOptions,
+    CopyToDestinationOptions,
+    CopyToFormatOptions,
+    StorageOptions,
 };
-use std::any::Any;
-use std::fmt;
-use std::sync::Arc;
 
 use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA};
 
@@ -92,8 +101,8 @@ impl ExecutionPlan for CopyToExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 
@@ -106,6 +115,13 @@ impl DisplayAs for CopyToExec {
 impl CopyToExec {
     async fn copy_to(self, context: Arc<TaskContext>) -> DataFusionResult<RecordBatch> {
         let sink = match (self.dest, self.format) {
+            (CopyToDestinationOptions::Local(local_options), CopyToFormatOptions::Lance(opts)) => {
+                get_sink_for_obj(
+                    CopyToFormatOptions::Lance(opts),
+                    &LocalStoreAccess {},
+                    &local_options.location,
+                )?
+            }
             (CopyToDestinationOptions::Local(local_options), format) => {
                 {
                     // Create the path if it doesn't exist (for local).
@@ -162,7 +178,7 @@ impl CopyToExec {
         };
 
         let stream = execute_stream(self.source, context.clone())?;
-        let count = sink.write_all(vec![stream], &context).await?;
+        let count = sink.write_all(stream, &context).await?;
 
         Ok(new_operation_with_count_batch("copy", count))
     }
@@ -177,6 +193,7 @@ fn get_sink_for_obj(
     let store = access
         .create_store()
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
     let path = access
         .path(location)
         .map_err(|e| DataFusionError::External(Box::new(e)))?;
@@ -197,6 +214,29 @@ fn get_sink_for_obj(
                 row_group_size: parquet_opts.row_group_size,
             },
         )),
+        CopyToFormatOptions::Lance(opts) => {
+            let wp = LanceWriteParams::default();
+
+            Box::new(LanceSink::from_obj_store(
+                store,
+                path,
+                LanceSinkOpts {
+                    url: Some(
+                        url::Url::parse(
+                            access
+                                .base_url()
+                                .map_err(|e| DataFusionError::External(Box::new(e)))?
+                                .as_str(),
+                        )
+                        .map_err(|e| DataFusionError::External(Box::new(e)))?,
+                    ),
+                    max_rows_per_file: opts.max_rows_per_file.unwrap_or(wp.max_rows_per_file),
+                    max_rows_per_group: opts.max_rows_per_group.unwrap_or(wp.max_rows_per_group),
+                    max_bytes_per_file: opts.max_bytes_per_file.unwrap_or(wp.max_bytes_per_file),
+                    input_batch_size: opts.input_batch_size.unwrap_or(64),
+                },
+            ))
+        }
         CopyToFormatOptions::Json(json_opts) => Box::new(JsonSink::from_obj_store(
             store,
             path,
@@ -204,7 +244,7 @@ fn get_sink_for_obj(
                 array: json_opts.array,
             },
         )),
-        CopyToFormatOptions::Bson => Box::new(BsonSink::from_obj_store(store, path)),
+        CopyToFormatOptions::Bson(_) => Box::new(BsonSink::from_obj_store(store, path)),
     };
     Ok(sink)
 }

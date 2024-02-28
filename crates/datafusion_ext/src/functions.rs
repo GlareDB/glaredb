@@ -1,7 +1,5 @@
 use std::fmt::{self, Display};
 
-use crate::errors::{ExtensionError, Result};
-use crate::vars::SessionVars;
 use async_trait::async_trait;
 use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::{Field, Fields};
@@ -11,9 +9,13 @@ use datafusion::scalar::ScalarValue;
 use decimal::Decimal128;
 use protogen::metastore::types::catalog::EntryType;
 use protogen::rpcsrv::types::func_param_value::{
-    FuncParamValue as ProtoFuncParamValue, FuncParamValueArrayVariant,
+    FuncParamValue as ProtoFuncParamValue,
+    FuncParamValueArrayVariant,
     FuncParamValueEnum as ProtoFuncParamValueEnum,
 };
+
+use crate::errors::{ExtensionError, Result};
+use crate::vars::SessionVars;
 
 pub trait TableFuncContextProvider: Sync + Send {
     /// Get a reference to the session catalog.
@@ -250,6 +252,16 @@ impl TryFrom<FuncParamValue> for String {
     }
 }
 
+impl From<FuncParamValue> for Option<String> {
+    fn from(value: FuncParamValue) -> Self {
+        match value {
+            FuncParamValue::Scalar(ScalarValue::Utf8(s))
+            | FuncParamValue::Scalar(ScalarValue::LargeUtf8(s)) => s,
+            _ => None,
+        }
+    }
+}
+
 impl<T> TryFrom<FuncParamValue> for Vec<T>
 where
     T: std::convert::TryFrom<FuncParamValue>,
@@ -280,6 +292,7 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct IdentValue(String);
 
 impl IdentValue {
@@ -324,6 +337,33 @@ impl TryFrom<FuncParamValue> for IdentValue {
             other => Err(ExtensionError::InvalidParamValue {
                 param: other.to_string(),
                 expected: "identifer",
+            }),
+        }
+    }
+}
+
+impl TryFrom<FuncParamValue> for usize {
+    type Error = ExtensionError;
+
+    fn try_from(value: FuncParamValue) -> Result<Self> {
+        match value {
+            FuncParamValue::Scalar(s) => match s {
+                ScalarValue::Int8(Some(v)) if v >= 0 => Ok(v as usize),
+                ScalarValue::Int16(Some(v)) if v >= 0 => Ok(v as usize),
+                ScalarValue::Int32(Some(v)) if v >= 0 => Ok(v as usize),
+                ScalarValue::Int64(Some(v)) if v >= 0 => Ok(v as usize),
+                ScalarValue::UInt8(Some(v)) => Ok(v as usize),
+                ScalarValue::UInt16(Some(v)) => Ok(v as usize),
+                ScalarValue::UInt32(Some(v)) => Ok(v as usize),
+                ScalarValue::UInt64(Some(v)) => Ok(v as usize),
+                other => Err(ExtensionError::InvalidParamValue {
+                    param: other.to_string(),
+                    expected: "integer",
+                }),
+            },
+            other => Err(ExtensionError::InvalidParamValue {
+                param: other.to_string(),
+                expected: "unsigned integer",
             }),
         }
     }

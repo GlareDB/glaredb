@@ -1,9 +1,11 @@
-use std::{collections::BTreeMap, fmt};
+use std::collections::BTreeMap;
+use std::fmt;
 
 use datafusion::common::parsers::CompressionTypeVariant;
 use datafusion::common::FileType;
 use datafusion::sql::sqlparser::parser::ParserError;
-use datasources::{debug::DebugTableType, mongodb::MongoDbProtocol};
+use datasources::debug::DebugTableType;
+use datasources::mongodb::MongoDbProtocol;
 use protogen::metastore::types::options::StorageOptions;
 
 /// Contains the value parsed from Options(...).
@@ -55,6 +57,17 @@ impl ParseOptionValue<String> for OptionValue {
             o => return Err(unexpected_type_err!("string", o)),
         };
         Ok(opt)
+    }
+}
+
+impl ParseOptionValue<Vec<String>> for OptionValue {
+    fn parse_opt(self) -> Result<Vec<String>, ParserError> {
+        match self {
+            Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => {
+                Ok(s.split(',').map(|s| s.to_string()).collect())
+            }
+            o => Err(unexpected_type_err!("string slice", o)),
+        }
     }
 }
 

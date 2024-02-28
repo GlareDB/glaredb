@@ -15,11 +15,10 @@ use crate::bson::errors::BsonError;
 use crate::bson::schema::{merge_schemas, schema_from_document};
 use crate::bson::stream::BsonPartitionStream;
 use crate::common::url::DatasourceUrl;
-use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::ObjStoreAccess;
 
 pub async fn bson_streaming_table(
-    store_access: GenericStoreAccess,
+    store_access: Arc<dyn ObjStoreAccess>,
     source_url: DatasourceUrl,
     fields: Option<Vec<FieldRef>>,
     schema_inference_sample_size: Option<i64>,
@@ -81,7 +80,7 @@ pub async fn bson_streaming_table(
                     // field name against the schema, and only pull out the
                     // fields that match. This is easier in the short term
                     // but less performant for large documents where the
-                    // docuemnts are a superset of the schema, we'll end up
+                    // documents are a superset of the schema, we'll end up
                     // doing much more parsing work than is actually needed
                     // for the bson documents.
                     |bt: Result<BytesMut, std::io::Error>| -> Result<RawDocumentBuf, BsonError> {
@@ -92,6 +91,42 @@ pub async fn bson_streaming_table(
                 ),
         );
     }
+
+    // iterate through the readers and build up a sample of the first <n>
+    // documents to be used to infer the schema.
+    let mut sample = Vec::with_capacity(sample_size as usize);
+    let mut first_active: usize = 0;
+    'readers: for reader in readers.iter_mut() {
+        while let Some(res) = reader.next().await {
+            match res {
+                Ok(doc) => sample.push(doc),
+                Err(e) => return Err(e),
+            };
+
+            if sample.len() >= sample_size as usize {
+                break 'readers;
+            }
+        }
+        first_active += 1;
+    }
+
+    // if we had to read through one or more than of the input files in the
+    // glob, we already have their documents and should truncate the vector
+    // of readers.
+    for _ in 0..first_active {
+        readers.pop_front();
+    }
+
+    // infer the schema; in the future we can allow users to specify the
+    // schema directly; in the future users could specify the schema (kind
+    // of as a base-level projection, but we'd need a schema specification
+    // language). Or have some other strategy for inference rather than
+    // every unique field from the first <n> documents.
+    let schema = Arc::new(merge_schemas(
+        sample
+            .iter()
+            .map(|doc| schema_from_document(&doc.to_raw_document_buf())),
+    )?);
 
     let mut streams = Vec::<Arc<(dyn PartitionStream + 'static)>>::with_capacity(readers.len() + 1);
 

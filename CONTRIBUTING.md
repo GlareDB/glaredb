@@ -63,6 +63,25 @@ provide insight as to whether the system as a whole is working as intended.
 There are two types of functional tests in this repo: **SQL Logic Tests** and
 **Postgres Protocol Tests**.
 
+### Python (pytest) Integration Tests
+
+The `tests` directory contains a pytest environment useful for
+creating black box tests and ecosystem integration tests, and
+providing a low-friction way to exercise parts of the codebase that
+are difficult to interact with in any other way. To use these tests,
+you must:
+
+- build `glaredb` using `just build` or `cargo build --bin glaredb`
+
+- run `just pytest-setup` to configure a virtual environment and
+  install dependencies.
+
+Then run the tests, using:
+
+```shell
+just pytest
+```
+
 #### SQL Logic Tests
 
 SQL logic tests run end-to-end tests that execute actual SQL queries against a
@@ -369,7 +388,16 @@ and asserts that we receive the appropriate backend messages. These tests ensure
 postgres protocol compatability as well as allowing us to assert the contents of
 error and notice messages.
 
-Test cases can be found in `./testdata/pgprototest`.
+Test cases can be found in `./testdata/pgprototest` and
+`./testdata/pgprototest_glaredb`.
+
+The `pgprototest` directory is for test cases to assert that GlareDB matches
+Postgres exactly, and the expected output should be generated from an actual
+Postgres instance.
+
+The `pgprototest_glaredb` directory contains test cases that do match Postgres
+output exactly either because of an incomplete feature, or differing behavior.
+The expected output for these tests need to be hand-crafted.
 
 Tests can be ran with the `pgprototest` command:
 

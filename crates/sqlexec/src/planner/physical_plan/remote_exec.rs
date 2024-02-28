@@ -1,3 +1,11 @@
+use std::any::Any;
+use std::collections::VecDeque;
+use std::fmt;
+use std::io::Cursor;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
 use datafusion::arrow::datatypes::Schema as ArrowSchema;
 use datafusion::arrow::ipc::reader::FileReader as IpcFileReader;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -6,18 +14,15 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_plan::expressions::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
     Statistics,
 };
 use futures::{stream, Stream, StreamExt, TryStreamExt};
 use protogen::gen::rpcsrv::service::RecordBatchResponse;
-use std::any::Any;
-use std::collections::VecDeque;
-use std::fmt;
-use std::io::Cursor;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
 use tonic::Streaming;
 
 use crate::remote::client::RemoteSessionClient;
@@ -101,7 +106,7 @@ impl ExecutionPlan for RemoteExecutionExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
+    fn statistics(&self) -> DataFusionResult<Statistics> {
         self.plan.statistics()
     }
 }
@@ -174,7 +179,7 @@ impl Stream for ExecutionResponseBatchStream {
                     self.buf
                         .extend(reader.into_iter().map(|result| match result {
                             Ok(batch) => Ok(batch),
-                            Err(e) => Err(DataFusionError::ArrowError(e)),
+                            Err(e) => Err(DataFusionError::ArrowError(e, None)),
                         }));
 
                     // See if we got anything.

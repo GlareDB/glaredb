@@ -1,59 +1,58 @@
 //! BigQuery external table implementation.
 pub mod errors;
 
-use crate::common::util;
-use async_channel::Receiver;
-use async_stream::stream;
-use async_trait::async_trait;
-use bigquery_storage::yup_oauth2::{
-    authenticator::{DefaultHyperClient, HyperClientBuilder},
-    ServiceAccountAuthenticator,
-};
-use bigquery_storage::{BufferedArrowIpcReader, Client};
-use datafusion::datasource::TableProvider;
-use datafusion::error::{DataFusionError, Result as DatafusionResult};
-use datafusion::execution::context::SessionState;
-use datafusion::execution::context::TaskContext;
-use datafusion::logical_expr::Expr;
-use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
-use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::{DisplayAs, DisplayFormatType};
-use datafusion::physical_plan::{
-    ExecutionPlan, Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
-};
-use datafusion::{
-    arrow::datatypes::{
-        DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
-    },
-    physical_plan::memory::MemoryExec,
-};
-use datafusion::{
-    arrow::record_batch::RecordBatch, physical_plan::metrics::ExecutionPlanMetricsSet,
-};
-use datafusion::{
-    arrow::{datatypes::Fields, ipc::reader::StreamReader as ArrowStreamReader},
-    physical_plan::metrics::MetricsSet,
-};
-use datafusion_ext::{
-    errors::ExtensionError, functions::VirtualLister, metrics::DataSourceMetricsStreamAdapter,
-};
-use errors::{BigQueryError, Result};
-use futures::{Stream, StreamExt};
-use gcp_bigquery_client::model::table_field_schema::TableFieldSchema as BigQuerySchema;
-use gcp_bigquery_client::Client as BigQueryClient;
-use gcp_bigquery_client::{
-    dataset,
-    model::{field_type::FieldType, table::Table},
-    project::GetOptions,
-    table,
-};
-use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt::{self, Write};
 use std::io::Cursor;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+
+use async_channel::Receiver;
+use async_stream::stream;
+use async_trait::async_trait;
+use bigquery_storage::yup_oauth2::authenticator::{DefaultHyperClient, HyperClientBuilder};
+use bigquery_storage::yup_oauth2::ServiceAccountAuthenticator;
+use bigquery_storage::{BufferedArrowIpcReader, Client};
+use datafusion::arrow::datatypes::{
+    DataType,
+    Field,
+    Fields,
+    Schema as ArrowSchema,
+    SchemaRef as ArrowSchemaRef,
+    TimeUnit,
+};
+use datafusion::arrow::ipc::reader::StreamReader as ArrowStreamReader;
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::datasource::TableProvider;
+use datafusion::error::{DataFusionError, Result as DatafusionResult};
+use datafusion::execution::context::{SessionState, TaskContext};
+use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::memory::MemoryExec;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion::physical_plan::{
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    RecordBatchStream,
+    SendableRecordBatchStream,
+    Statistics,
+};
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
+use errors::{BigQueryError, Result};
+use futures::{Stream, StreamExt};
+use gcp_bigquery_client::model::field_type::FieldType;
+use gcp_bigquery_client::model::table::Table;
+use gcp_bigquery_client::model::table_field_schema::TableFieldSchema as BigQuerySchema;
+use gcp_bigquery_client::project::GetOptions;
+use gcp_bigquery_client::{dataset, table, Client as BigQueryClient};
+use serde::{Deserialize, Serialize};
+
+use crate::common::util;
 
 // Convenience type aliases.
 type DefaultConnector = <DefaultHyperClient as HyperClientBuilder>::Connector;
@@ -401,11 +400,15 @@ impl ExecutionPlan for BigQueryExec {
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Execution(
-            "cannot replace children for BigQueryExec".to_string(),
-        ))
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Execution(
+                "cannot replace children for BigQueryExec".to_string(),
+            ))
+        }
     }
 
     fn execute(
@@ -421,8 +424,8 @@ impl ExecutionPlan for BigQueryExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DatafusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
@@ -644,10 +647,11 @@ fn write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use datafusion::common::Column;
     use datafusion::logical_expr::expr::Sort;
     use datafusion::logical_expr::{BinaryExpr, Operator};
+
+    use super::*;
 
     #[test]
     fn valid_expr_string() {

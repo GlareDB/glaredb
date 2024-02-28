@@ -1,5 +1,9 @@
-use crate::errors::Result;
-use crate::remote::client::RemoteSessionClient;
+use std::any::Any;
+use std::fmt;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
 use datafusion::arrow::array::UInt64Array;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::ipc::writer::FileWriter as IpcFileWriter;
@@ -7,20 +11,23 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
+    Statistics,
 };
 use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
 use protogen::gen::rpcsrv::common;
-use std::any::Any;
-use std::fmt;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
 use tracing::debug;
 use uuid::Uuid;
+
+use crate::errors::Result;
+use crate::remote::client::RemoteSessionClient;
 
 /// Execution plan for sending batches to a remote node.
 #[derive(Debug)]
@@ -64,11 +71,15 @@ impl ExecutionPlan for ClientExchangeSendExec {
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Plan(
-            "Cannot change children for ClientExchangeSendExec".to_string(),
-        ))
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Plan(
+                "Cannot change children for ClientExchangeSendExec".to_string(),
+            ))
+        }
     }
 
     fn execute(
@@ -97,8 +108,8 @@ impl ExecutionPlan for ClientExchangeSendExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

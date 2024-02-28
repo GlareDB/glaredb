@@ -1,0 +1,51 @@
+# Test if the datasource supports the different datatypes (and NULLs).
+
+# Create an external table that connects to the datatypes table.
+statement ok
+CREATE EXTERNAL TABLE datatypes
+	FROM clickhouse
+	OPTIONS (
+		connection_string = '${CLICKHOUSE_CONN_STRING}',
+		table = 'datatypes'
+	);
+
+# Check if we can fetch contents of the datatype table.
+#
+# Note that booleans are returned as uints. See
+# <https://github.com/Protryon/klickhouse/issues/25> for klickhouse author's
+# rationale.
+query ITIIIIIIIIRRTTTTTTT rowsort
+SELECT * FROM datatypes;
+----
+1  t  1  12  1234  12345678  -1  -12  -1234  -12345678  1.25  -34.625  abc  def  1999-09-30  1999-09-30 16:32:34  1999-09-30 16:32:34.123  1999-09-30 16:32:34+00  1999-09-30 16:32:34.123456+00
+2  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL
+
+# Check the actual types of columns.
+
+skipif glaredb_rpc
+
+query TTTTTTTTTTTTTTTTTTT
+SELECT
+	arrow_typeof(c1),
+	arrow_typeof(c2),
+	arrow_typeof(c3),
+	arrow_typeof(c4),
+	arrow_typeof(c5),
+	arrow_typeof(c6),
+	arrow_typeof(c7),
+	arrow_typeof(c8),
+	arrow_typeof(c9),
+	arrow_typeof(c10),
+	arrow_typeof(c11),
+	arrow_typeof(c12),
+	arrow_typeof(c13),
+	arrow_typeof(c14),
+	-- arrow_typeof(c15),
+	arrow_typeof(c16),
+	arrow_typeof(c17),
+	arrow_typeof(c18),
+	arrow_typeof(c19)
+FROM datatypes
+LIMIT 1;
+----
+Boolean  UInt8  UInt16  UInt32  UInt64  Int8  Int16  Int32  Int64  Float32  Float64  Utf8  Utf8  Date32  Timestamp(Second, None)  Timestamp(Millisecond, None)  Timestamp(Second, Some("Asia/Kolkata"))  Timestamp(Microsecond, Some("Asia/Kolkata"))

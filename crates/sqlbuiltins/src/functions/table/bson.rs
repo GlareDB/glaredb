@@ -3,14 +3,15 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
-
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::bson::table::bson_streaming_table;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::object_store::generic::GenericStoreAccess;
+use ioutil::resolve_path;
 use protogen::metastore::types::catalog::RuntimePreference;
 
+use crate::functions::table::object_store::urls_from_args;
 use crate::functions::table::{table_location_and_opts, TableFunc};
 use crate::functions::{ConstBuiltinFunction, FunctionType};
 
@@ -31,24 +32,23 @@ impl TableFunc for BsonScan {
         args: &[FuncParamValue],
         _parent: RuntimePreference,
     ) -> Result<RuntimePreference, ExtensionError> {
-        if let Some(arg) = args.first() {
-            let url: String = arg.clone().try_into()?;
-            let source_url =
-                DatasourceUrl::try_new(url).map_err(|e| ExtensionError::Access(Box::new(e)))?;
-            Ok(match source_url.datasource_url_type() {
-                DatasourceUrlType::File => RuntimePreference::Local,
-                _ => RuntimePreference::Remote,
-            })
-        } else {
-            Err(ExtensionError::ExpectedIndexedArgument {
+        let urls = urls_from_args(args)?;
+        if urls.is_empty() {
+            return Err(ExtensionError::ExpectedIndexedArgument {
                 index: 0,
                 what: "location of the table".to_string(),
-            })
+            });
         }
+
+        Ok(match urls.first().unwrap().datasource_url_type() {
+            DatasourceUrlType::File => RuntimePreference::Local,
+            DatasourceUrlType::Http => RuntimePreference::Remote,
+            DatasourceUrlType::Gcs => RuntimePreference::Remote,
+            DatasourceUrlType::S3 => RuntimePreference::Remote,
+            DatasourceUrlType::Azure => RuntimePreference::Remote,
+        })
     }
 
-    // TODO: most of this should be implemented as a TableProvider in
-    // the datasources bson package and just wrapped here.
     async fn create_provider(
         &self,
         ctx: &dyn TableFuncContextProvider,
@@ -63,14 +63,18 @@ impl TableFunc for BsonScan {
             None => 100,
         };
 
-        // setup storage access
         let (source_url, storage_options) = table_location_and_opts(ctx, args, &mut opts)?;
 
+        let url = match source_url {
+            DatasourceUrl::File(path) => DatasourceUrl::File(resolve_path(&path)?),
+            DatasourceUrl::Url(_) => source_url,
+        };
+
         let store_access = GenericStoreAccess::new_from_location_and_opts(
-            source_url.to_string().as_str(),
+            url.to_string().as_str(),
             storage_options,
         )?;
 
-        Ok(bson_streaming_table(store_access, source_url, None, Some(sample_size)).await?)
+        Ok(bson_streaming_table(Arc::new(store_access), Some(sample_size), url).await?)
     }
 }

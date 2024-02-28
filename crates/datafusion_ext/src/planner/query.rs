@@ -15,17 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
-
 use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, Result, ScalarValue};
-use datafusion::logical_expr::{Expr, LogicalPlan, LogicalPlanBuilder};
+use datafusion::logical_expr::{Distinct, Expr, LogicalPlan, LogicalPlanBuilder};
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
-    Expr as SQLExpr, Offset as SQLOffset, OrderByExpr, Query, Value,
+    Expr as SQLExpr,
+    Offset as SQLOffset,
+    OrderByExpr,
+    Query,
+    Value,
 };
-
 use datafusion::sql::sqlparser::parser::ParserError::ParserError;
+
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     /// Generate a logical plan from an SQL query
@@ -65,9 +68,12 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 // A `WITH` block can't use the same name more than once
                 let cte_name = self.normalizer.normalize(cte.alias.name.clone());
                 if planner_context.contains_cte(&cte_name) {
-                    return Err(DataFusionError::SQL(ParserError(format!(
-                        "WITH query name {cte_name:?} specified more than once"
-                    ))));
+                    return Err(DataFusionError::SQL(
+                        ParserError(format!(
+                            "WITH query name {cte_name:?} specified more than once"
+                        )),
+                        None,
+                    ));
                 }
                 // create logical plan & pass backreferencing CTEs
                 // CTE expr don't need extend outer_query_schema
@@ -149,8 +155,16 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         }
 
         let order_by_rex = self
-            .order_by_to_sort_expr(&order_by, plan.schema(), planner_context)
+            .order_by_to_sort_expr(&order_by, plan.schema(), planner_context, true)
             .await?;
-        LogicalPlanBuilder::from(plan).sort(order_by_rex)?.build()
+
+        if let LogicalPlan::Distinct(Distinct::On(ref distinct_on)) = plan {
+            // In case of `DISTINCT ON` we must capture the sort expressions since during the plan
+            // optimization we're effectively doing a `first_value` aggregation according to them.
+            let distinct_on = distinct_on.clone().with_sort_expr(order_by_rex)?;
+            Ok(LogicalPlan::Distinct(Distinct::On(distinct_on)))
+        } else {
+            LogicalPlanBuilder::from(plan).sort(order_by_rex)?.build()
+        }
     }
 }

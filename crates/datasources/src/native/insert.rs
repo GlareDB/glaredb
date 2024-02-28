@@ -1,28 +1,34 @@
-use datafusion::arrow::array::UInt64Array;
-use datafusion::arrow::datatypes::{DataType, Field, Schema as ArrowSchema, SchemaRef};
-use datafusion::arrow::record_batch::RecordBatch;
+use std::any::Any;
+use std::sync::Arc;
+
+use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, Distribution, ExecutionPlan, Partitioning,
-    SendableRecordBatchStream, Statistics,
+    DisplayAs,
+    DisplayFormatType,
+    Distribution,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
+    Statistics,
 };
+use deltalake::logstore::LogStore;
 use deltalake::operations::write::WriteBuilder;
 use deltalake::protocol::SaveMode;
-use deltalake::storage::DeltaObjectStore;
 use deltalake::table::state::DeltaTableState;
 use futures::StreamExt;
-use std::any::Any;
-use std::sync::Arc;
+
+use crate::common::util::{create_count_record_batch, COUNT_SCHEMA};
 
 /// An execution plan for inserting data into a delta table.
 #[derive(Debug)]
 pub struct NativeTableInsertExec {
     input: Arc<dyn ExecutionPlan>,
-    store: Arc<DeltaObjectStore>,
+    store: Arc<dyn LogStore>,
     snapshot: DeltaTableState,
     save_mode: SaveMode,
 }
@@ -30,7 +36,7 @@ pub struct NativeTableInsertExec {
 impl NativeTableInsertExec {
     pub fn new(
         input: Arc<dyn ExecutionPlan>,
-        store: Arc<DeltaObjectStore>,
+        store: Arc<dyn LogStore>,
         snapshot: DeltaTableState,
         save_mode: SaveMode,
     ) -> Self {
@@ -43,21 +49,13 @@ impl NativeTableInsertExec {
     }
 }
 
-fn output_schema() -> Arc<ArrowSchema> {
-    Arc::new(ArrowSchema::new(vec![Field::new(
-        "count",
-        DataType::UInt64,
-        false,
-    )]))
-}
-
 impl ExecutionPlan for NativeTableInsertExec {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn schema(&self) -> SchemaRef {
-        output_schema()
+        COUNT_SCHEMA.clone()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -113,7 +111,7 @@ impl ExecutionPlan for NativeTableInsertExec {
         // plan.
         //
         // TODO: Possibly try avoiding cloning the snapshot.
-        let builder = WriteBuilder::new(self.store.clone(), self.snapshot.clone())
+        let builder = WriteBuilder::new(self.store.clone(), Some(self.snapshot.clone()))
             .with_input_session_state(state)
             .with_save_mode(self.save_mode.clone())
             .with_input_execution_plan(self.input.clone());
@@ -129,10 +127,7 @@ impl ExecutionPlan for NativeTableInsertExec {
                 .map(|metrics| metrics.output_rows().unwrap_or_default())
                 .unwrap_or_default();
 
-            let arr = UInt64Array::from_value(count as u64, 1);
-            let batch = RecordBatch::try_new(output_schema(), vec![Arc::new(arr)])?;
-
-            Ok(batch)
+            Ok(create_count_record_batch(count as u64))
         })
         .boxed();
 
@@ -142,8 +137,8 @@ impl ExecutionPlan for NativeTableInsertExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 

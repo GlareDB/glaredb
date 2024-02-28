@@ -4,24 +4,26 @@ mod error;
 mod inner;
 mod utils;
 mod value;
-use constants::*;
-use datafusion::arrow::datatypes::{DataType, Field};
-use datafusion::config::{ConfigExtension, ExtensionOptions};
-use datafusion::scalar::ScalarValue;
-use utils::*;
-
-use datafusion::variable::{VarProvider, VarType};
-use inner::*;
-use uuid::Uuid;
-
-pub use inner::Dialect;
-pub use inner::SessionVarsInner;
-use once_cell::sync::Lazy;
-use parking_lot::{RwLock, RwLockReadGuard};
 use std::borrow::ToOwned;
 use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
+
+use catalog::session_catalog::SessionCatalog;
+use constants::IMPLICIT_SCHEMAS;
+use datafusion::arrow::array::{ListBuilder, StringBuilder};
+use datafusion::arrow::datatypes::{DataType, Field};
+use datafusion::config::{ConfigExtension, ExtensionOptions};
+use datafusion::scalar::ScalarValue;
+use datafusion::variable::{VarProvider, VarType};
+use inner::ServerVar;
+pub use inner::{Dialect, SessionVarsInner};
+use once_cell::sync::Lazy;
+use parking_lot::{RwLock, RwLockReadGuard};
+use pgrepr::notice::NoticeSeverity;
+use protogen::metastore::types::options::{CredentialsOptions, CredentialsOptionsOpenAI};
+use utils::split_comma_delimited;
+use uuid::Uuid;
 
 use self::error::VarError;
 
@@ -79,6 +81,7 @@ impl SessionVars {
      datestyle: String,
      transaction_isolation: String,
      search_path: Vec<String>,
+     client_min_messages: NoticeSeverity,
      enable_debug_datasources: bool,
      force_catalog_refresh: bool,
      glaredb_version: String,
@@ -247,25 +250,27 @@ impl VarProvider for SessionVars {
             "current_schema" => ScalarValue::Utf8(self.search_path().first().cloned()),
             "connection_id" => ScalarValue::Utf8(Some(self.connection_id().to_string())),
             "current_schemas" => {
-                let schemas = self
-                    .search_path()
-                    .into_iter()
-                    .map(|path| ScalarValue::Utf8(Some(path)))
-                    .collect::<Vec<_>>();
-                ScalarValue::List(
-                    Some(schemas),
-                    Field::new("item", DataType::Utf8, true).into(),
-                )
+                let search_path = self.search_path();
+                let mut list = ListBuilder::with_capacity(
+                    StringBuilder::with_capacity(search_path.len(), search_path.len() * 10),
+                    /* list capacity = */ 1,
+                );
+                list.append_value(search_path.into_iter().map(Some));
+                let list = list.finish();
+                ScalarValue::List(Arc::new(list))
             }
             "current_schemas_include_implicit" => {
-                let schemas = self
-                    .implicit_search_path_iter()
-                    .map(|path| ScalarValue::Utf8(Some(path)))
-                    .collect::<Vec<_>>();
-                ScalarValue::List(
-                    Some(schemas),
-                    Field::new("item", DataType::Utf8, true).into(),
-                )
+                let implicit_search_path = self.implicit_search_path();
+                let mut list = ListBuilder::with_capacity(
+                    StringBuilder::with_capacity(
+                        implicit_search_path.len(),
+                        implicit_search_path.len() * 10,
+                    ),
+                    /* list capacity = */ 1,
+                );
+                list.append_value(implicit_search_path.into_iter().map(Some));
+                let list = list.finish();
+                ScalarValue::List(Arc::new(list))
             }
             s => Err(datafusion::error::DataFusionError::External(
                 VarError::UnknownVariable(s.to_string()).into(),
@@ -281,6 +286,59 @@ impl VarProvider for SessionVars {
                 Field::new("current_schemas", DataType::Utf8, true).into(),
             )),
 
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CredentialsVarProvider<'a> {
+    pub catalog: &'a SessionCatalog,
+}
+
+impl<'a> CredentialsVarProvider<'a> {
+    const CREDS_PREFIX: &'static str = "@creds";
+    const CREDS_OPENAI_PREFIX: &'static str = "openai";
+
+    pub fn new(catalog: &'a SessionCatalog) -> Self {
+        Self { catalog }
+    }
+}
+
+// Currently only supports OpenAI credentials
+// We can add more providers in the future if needed
+impl VarProvider for CredentialsVarProvider<'_> {
+    fn get_value(&self, var_names: Vec<String>) -> datafusion::error::Result<ScalarValue> {
+        let var_names: Vec<&str> = var_names.iter().map(|s| s.as_str()).collect();
+        match var_names.as_slice() {
+            [Self::CREDS_PREFIX, Self::CREDS_OPENAI_PREFIX, value] => {
+                let openai_cred = self.catalog.resolve_credentials(value).ok_or_else(|| {
+                    datafusion::error::DataFusionError::Internal(
+                        "No openai credentials found".to_string(),
+                    )
+                })?;
+                if let CredentialsOptions::OpenAI(opts) = openai_cred.options.clone() {
+                    Ok(opts.into())
+                } else {
+                    Err(datafusion::error::DataFusionError::Internal(
+                        "Something went wrong. Expected openai credential, found other".to_string(),
+                    ))
+                }
+            }
+            _ => Err(datafusion::error::DataFusionError::Internal(
+                "unsupported variable".to_string(),
+            )),
+        }
+    }
+
+    fn get_type(&self, var_names: &[String]) -> Option<DataType> {
+        let first = var_names.first().map(|s| s.as_str());
+        let second = var_names.get(1).map(|s| s.as_str());
+
+        match (first, second) {
+            (Some(Self::CREDS_PREFIX), Some(Self::CREDS_OPENAI_PREFIX)) => {
+                Some(CredentialsOptionsOpenAI::data_type())
+            }
             _ => None,
         }
     }

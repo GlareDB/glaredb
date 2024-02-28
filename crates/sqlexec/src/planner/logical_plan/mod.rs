@@ -2,7 +2,6 @@ mod alter_database;
 mod alter_table;
 mod alter_tunnel_rotate_keys;
 mod copy_to;
-mod create_credential;
 mod create_credentials;
 mod create_external_database;
 mod create_external_table;
@@ -24,21 +23,6 @@ mod set_variable;
 mod show_variable;
 mod update;
 
-use crate::errors::{internal, Result};
-use crate::planner::extension::ExtensionNode;
-
-use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema};
-use datafusion::common::{DFField, DFSchema, DFSchemaRef};
-use datafusion::logical_expr::UserDefinedLogicalNodeCore;
-use datafusion::logical_expr::{Explain, Expr, LogicalPlan as DfLogicalPlan};
-use datafusion::scalar::ScalarValue;
-use datafusion::sql::sqlparser::ast;
-use datafusion::sql::TableReference;
-use once_cell::sync::Lazy;
-use protogen::metastore::types::options::{CopyToDestinationOptions, CopyToFormatOptions};
-use protogen::metastore::types::options::{
-    CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
-};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
@@ -48,7 +32,6 @@ pub use alter_database::*;
 pub use alter_table::*;
 pub use alter_tunnel_rotate_keys::*;
 pub use copy_to::*;
-pub use create_credential::*;
 pub use create_credentials::*;
 pub use create_external_database::*;
 pub use create_external_table::*;
@@ -57,6 +40,17 @@ pub use create_table::*;
 pub use create_temp_table::*;
 pub use create_tunnel::*;
 pub use create_view::*;
+use datafusion::arrow::datatypes::{DataType, Schema as ArrowSchema};
+use datafusion::common::{DFField, DFSchema, DFSchemaRef, ParamValues};
+use datafusion::logical_expr::{
+    Explain,
+    Expr,
+    LogicalPlan as DfLogicalPlan,
+    UserDefinedLogicalNodeCore,
+};
+use datafusion::scalar::ScalarValue;
+use datafusion::sql::sqlparser::ast;
+use datafusion::sql::TableReference;
 pub use delete::*;
 pub use describe_table::*;
 pub use drop_credentials::*;
@@ -66,13 +60,25 @@ pub use drop_tables::*;
 pub use drop_tunnel::*;
 pub use drop_views::*;
 pub use insert::*;
+use once_cell::sync::Lazy;
+use protogen::metastore::types::options::{
+    CopyToDestinationOptions,
+    CopyToFormatOptions,
+    CredentialsOptions,
+    DatabaseOptions,
+    TableOptions,
+    TunnelOptions,
+};
 pub use set_variable::*;
 pub use show_variable::*;
 pub use update::*;
 
 use super::physical_plan::{
-    GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA, GENERIC_OPERATION_PHYSICAL_SCHEMA,
+    GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
+    GENERIC_OPERATION_PHYSICAL_SCHEMA,
 };
+use crate::errors::{internal, Result};
+use crate::planner::extension::ExtensionNode;
 
 pub static GENERIC_OPERATION_LOGICAL_SCHEMA: Lazy<DFSchemaRef> = Lazy::new(|| {
     Arc::new(
@@ -161,6 +167,8 @@ impl LogicalPlan {
     ///
     /// Note this currently only replaces placeholders for datafusion plans.
     pub fn replace_placeholders(&mut self, scalars: Vec<ScalarValue>) -> Result<()> {
+        let param_values = ParamValues::List(scalars);
+
         if let LogicalPlan::Datafusion(plan) = self {
             // Replace placeholders in the inner plan if the wrapped in an
             // EXPLAIN.
@@ -172,7 +180,7 @@ impl LogicalPlan {
 
                 *plan = DfLogicalPlan::Explain(Explain {
                     verbose: explain.verbose,
-                    plan: Arc::new(inner.replace_params_with_values(&scalars)?),
+                    plan: Arc::new(inner.replace_params_with_values(&param_values)?),
                     stringified_plans: explain.stringified_plans.clone(),
                     schema: explain.schema.clone(),
                     logical_optimization_succeeded: explain.logical_optimization_succeeded,
@@ -181,7 +189,7 @@ impl LogicalPlan {
                 return Ok(());
             }
 
-            *plan = plan.replace_params_with_values(&scalars)?;
+            *plan = plan.replace_params_with_values(&param_values)?;
         }
 
         Ok(())

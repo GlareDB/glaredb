@@ -1,0 +1,52 @@
+# fixed size list
+
+statement ok
+create table test as (select arrow_cast([1,2], 'FixedSizeList(2, Int64)') as f);
+
+
+# Bug in datafusion: https://github.com/apache/arrow-datafusion/issues/9151
+# statement ok
+# insert into test values (arrow_cast([1,2], 'FixedSizeList(2, Int64)') );
+
+
+# arrow will implicitly cast the array to a fixed size list if possible
+statement ok
+insert into test values ([1, 2]);
+
+# implicit cast is impossible as the array is not of the right size
+statement error Cannot cast to FixedSizeList
+insert into test values ([1, 2, 3]);
+
+query III
+describe test
+----
+f FixedSizeList<Int64; 2> t
+
+query I
+select distinct arrow_typeof(f) from test
+----
+FixedSizeList(Field { name: "item", data_type: Int64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 2) 
+
+
+# array functions don't work on fixed size lists
+statement error
+select array_element(1, f) from test;
+
+statement error 
+select array_append(f, 3) from test;
+
+
+
+# 2588 Unsigned integers downgraded to integers in delta-lake 
+statement ok
+create table datatypes (u8 tinyint unsigned, u16 smallint unsigned, u32 int unsigned, u64 bigint unsigned);
+
+
+# Inserting negative values to test validity of unsigned integers
+statement error 
+insert into datatypes (u8, u16, u32, u64) values (-1, -1, -1, -1); 
+
+
+# Inserting positive values 
+statement ok 
+insert into datatypes (u8, u16, u32, u64) values (1, 1, 1, 1);

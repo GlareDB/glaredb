@@ -1,34 +1,46 @@
 pub mod errors;
 
-mod stream;
+mod convert;
 
-use clickhouse_rs::types::DateTimeType;
-use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
-use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
-use errors::{ClickhouseError, Result};
-use parking_lot::Mutex;
+use std::any::Any;
+use std::borrow::Cow;
+use std::fmt::{self, Display, Write};
+use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
-use clickhouse_rs::{ClientHandle, Options, Pool};
 use datafusion::arrow::datatypes::{
-    DataType, Field, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
+    Field,
+    Fields,
+    Schema as ArrowSchema,
+    SchemaRef as ArrowSchemaRef,
 };
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{
-    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
     Statistics,
 };
+use datafusion_ext::errors::ExtensionError;
+use datafusion_ext::functions::VirtualLister;
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
+use errors::{ClickhouseError, Result};
 use futures::StreamExt;
-use std::any::Any;
-use std::fmt;
-use std::sync::Arc;
+use klickhouse::{Client, ClientOptions, KlickhouseError};
+use rustls::ServerName;
+use tokio_rustls::TlsConnector;
 use url::Url;
 
-use crate::clickhouse::stream::BlockStream;
+use self::convert::ConvertStream;
+use crate::common::util;
 
 #[derive(Debug, Clone)]
 pub struct ClickhouseAccess {
@@ -50,136 +62,241 @@ impl ClickhouseAccess {
     }
 
     /// Validate that we have access to a specific table.
-    pub async fn validate_table_access(&self, table: &str) -> Result<()> {
+    pub async fn validate_table_access(&self, table_ref: ClickhouseTableRef<'_>) -> Result<()> {
         let state = ClickhouseAccessState::connect(&self.conn_string).await?;
-        let _schema = state.get_table_schema(table).await?;
+        let _schema = state.get_table_schema(table_ref).await?;
         Ok(())
+    }
+
+    pub async fn connect(&self) -> Result<ClickhouseAccessState> {
+        ClickhouseAccessState::connect(&self.conn_string).await
     }
 }
 
-struct ClickhouseAccessState {
-    // TODO: We currently limit the pool to 1 connection to have it behave
-    // similarly to our other data sources. We will likely want to actually make
-    // use of a connection pool to avoid creating connections on every query.
-    //
-    // A depreceted `connect` method does return us a client direction, unsure
-    // if we want to use that or not.
-    pool: Pool,
+pub struct ClickhouseAccessState {
+    pub(crate) client: Client,
+    database: String,
 }
 
 impl ClickhouseAccessState {
     async fn connect(conn_str: &str) -> Result<Self> {
-        let pool = Pool::new(Options::new(Url::parse(conn_str)?).pool_min(1).pool_max(1));
-        let mut client = pool.get_handle().await?;
-        client.ping().await?;
+        let conn_str = Url::parse(conn_str)?;
 
-        Ok(ClickhouseAccessState { pool })
-    }
+        // Verify that the conn_str has "clickhouse://" or "tcp://" protocol.
+        let scheme = conn_str.scheme();
+        if scheme != "clickhouse" && scheme != "tcp" {
+            return Err(ClickhouseError::String(format!(
+                "Expected url with scheme 'clickhouse://' or 'tcp://', got: `{}`",
+                conn_str.scheme()
+            )));
+        }
 
-    async fn get_table_schema(&self, name: &str) -> Result<ArrowSchema> {
-        let mut client = self.pool.get_handle().await?;
-        // TODO: Does clickhouse actually return blocks for empty data sets?
-        let mut blocks = client
-            .query(format!("SELECT * FROM {name} LIMIT 1"))
-            .stream_blocks();
-
-        let block = match blocks.next().await {
-            Some(block) => block?,
-            None => {
-                return Err(ClickhouseError::String(
-                    "unable to determine schema for table, no blocks returned".to_string(),
-                ))
+        let mut secure = false;
+        for (key, _val) in conn_str.query_pairs() {
+            if key.as_ref() == "s" || key.as_ref() == "secure" {
+                secure = true;
+                break;
             }
+        }
+
+        let host = {
+            let port = if let Some(port) = conn_str.port() {
+                port
+            } else if secure {
+                9440
+            } else {
+                9000
+            };
+            let host = conn_str.host_str().unwrap_or("127.0.0.1");
+            format!("{host}:{port}")
         };
 
-        let mut fields = Vec::with_capacity(block.columns().len());
-        for col in block.columns() {
-            use clickhouse_rs::types::SqlType;
+        // Clickhouse sets the service to "idle" when not queried for a while.
+        // Waking up the service can sometimes take from 20-30 seconds, hence
+        // setting the timeout accordingly.
+        //
+        // TODO: Actually use this (made unused with the switch to klickhouse).
+        let _timeout = Duration::from_secs(30);
 
-            /// Convert a clickhouse sql type to an arrow data type.
-            ///
-            /// Clickhouse type reference: <https://clickhouse.com/docs/en/sql-reference/data-types>
-            ///
-            /// TODO: Support more types. Note that adding a type here requires
-            /// implementing the appropriate conversion in `BlockStream`.
-            fn to_data_type(sql_type: &SqlType) -> Result<DataType> {
-                Ok(match sql_type {
-                    SqlType::Bool => DataType::Boolean,
-                    SqlType::UInt8 => DataType::UInt8,
-                    SqlType::UInt16 => DataType::UInt16,
-                    SqlType::UInt32 => DataType::UInt32,
-                    SqlType::UInt64 => DataType::UInt64,
-                    SqlType::Int8 => DataType::Int8,
-                    SqlType::Int16 => DataType::Int16,
-                    SqlType::Int32 => DataType::Int32,
-                    SqlType::Int64 => DataType::Int64,
-                    SqlType::Float32 => DataType::Float32,
-                    SqlType::Float64 => DataType::Float64,
-                    SqlType::String | SqlType::FixedString(_) => DataType::Utf8,
-                    // Clickhouse has both a 'Date' type (2 bytes) and a
-                    // 'Date32' type (4 bytes). I think they're both represented
-                    // with this one variant.
-                    SqlType::Date => DataType::Date32,
-                    SqlType::DateTime(DateTimeType::DateTime32) => {
-                        DataType::Timestamp(TimeUnit::Second, None)
-                    }
-                    SqlType::DateTime(DateTimeType::DateTime64(precision, tz)) => {
-                        // Precision represents the tick size, computed as
-                        // 10^precision seconds.
-                        //
-                        // <https://clickhouse.com/docs/en/sql-reference/data-types/datetime64>
-                        let unit = match *precision {
-                            0 => TimeUnit::Second,
-                            3 => TimeUnit::Millisecond,
-                            6 => TimeUnit::Microsecond,
-                            9 => TimeUnit::Nanosecond,
-                            other => {
-                                return Err(ClickhouseError::String(format!(
-                                    "unsupported time precision: {other}"
-                                )))
-                            }
-                        };
+        let mut opts = ClientOptions {
+            // Set the default database to "default" if not provided (since
+            // `ClientOptions::default` sets it to an empty string).
+            default_database: "default".to_string(),
+            ..Default::default()
+        };
 
-                        let tz: Arc<str> = tz.to_string().into_boxed_str().into();
-
-                        DataType::Timestamp(unit, Some(tz))
-                    }
-                    other => {
-                        return Err(ClickhouseError::String(format!(
-                            "unsupported Clickhouse type: {other:?}"
-                        )))
-                    }
-                })
+        if let Some(mut path) = conn_str.path_segments() {
+            if let Some(database) = path.next() {
+                opts.default_database = database.to_string();
             }
-
-            let (arrow_typ, nullable) = match col.sql_type() {
-                SqlType::Nullable(typ) => (to_data_type(typ)?, true),
-                typ => (to_data_type(&typ)?, false),
-            };
-
-            let field = Field::new(col.name(), arrow_typ, nullable);
-            fields.push(field);
         }
+
+        let database = opts.default_database.clone();
+
+        let user = conn_str.username();
+        if !user.is_empty() {
+            opts.username = user.to_string();
+        }
+
+        if let Some(password) = conn_str.password() {
+            opts.password = password.to_string();
+        }
+
+        let client = if secure {
+            // TODO: Some of this stuff might be useful to pull out into a
+            // common tls module.
+            //
+            // TODO: Provide a better error when connecting fails (e.g.
+            // authentication failure). Currently the error is 'Error: protocol
+            // error: failed to receive blocks from upstream: channel closed'
+            let mut root_store = rustls::RootCertStore::empty();
+
+            root_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| {
+                rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
+                    r.subject.to_vec(),
+                    r.subject_public_key_info.to_vec(),
+                    r.name_constraints.clone().map(|f| f.to_vec()),
+                )
+            }));
+
+            let config = Arc::new(
+                rustls::ClientConfig::builder()
+                    .with_safe_defaults()
+                    .with_root_certificates(root_store)
+                    .with_no_client_auth(),
+            );
+
+            let server_name = ServerName::try_from(conn_str.host_str().unwrap_or_default())
+                .map_err(|e| {
+                    ClickhouseError::String(format!(
+                        "failed to create server name for {conn_str}: {e}"
+                    ))
+                })?;
+
+            Client::connect_tls(host, opts, server_name, &TlsConnector::from(config)).await?
+        } else {
+            Client::connect(host, opts).await?
+        };
+
+        Ok(ClickhouseAccessState { client, database })
+    }
+
+    async fn get_table_schema(&self, table_ref: ClickhouseTableRef<'_>) -> Result<ArrowSchema> {
+        #[derive(Debug, klickhouse::Row)]
+        struct ColumnInfo {
+            column_name: String,
+            data_type: String,
+        }
+
+        let table: &str = table_ref.table.as_ref();
+        let database = table_ref
+            .database
+            .as_deref()
+            .unwrap_or(self.database.as_str());
+
+        let infos = self
+            .client
+            .query_collect::<ColumnInfo>(format!(
+                "SELECT column_name, data_type FROM information_schema.columns
+                WHERE table_name = '{table}' AND table_catalog = '{database}'",
+            ))
+            .await?;
+
+        if infos.is_empty() {
+            return Err(ClickhouseError::String(format!(
+                "unable to fetch schema: {table_ref} does not exist"
+            )));
+        }
+
+        let fields = infos
+            .into_iter()
+            .map(|info| {
+                let dt = convert::clickhouse_type_to_arrow_type(&info.data_type)?;
+                Ok(Field::new(info.column_name, dt.inner, dt.nullable))
+            })
+            .collect::<Result<Fields, KlickhouseError>>()?;
 
         Ok(ArrowSchema::new(fields))
     }
 }
 
+#[async_trait]
+impl VirtualLister for ClickhouseAccessState {
+    async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
+        let query = "SELECT schema_name FROM information_schema.schemata";
+
+        #[derive(Debug, klickhouse::Row)]
+        struct SchemaInfo {
+            schema_name: String,
+        }
+
+        let names = self
+            .client
+            .query(query)
+            .await
+            .map_err(ExtensionError::access)?
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .map(|result| result.map(|info: SchemaInfo| info.schema_name))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(ExtensionError::access)?;
+
+        Ok(names)
+    }
+
+    async fn list_tables(&self, schema: &str) -> Result<Vec<String>, ExtensionError> {
+        let query = format!(
+            "SELECT table_name FROM information_schema.tables
+        WHERE table_schema = '{schema}'"
+        );
+
+        #[derive(Debug, klickhouse::Row)]
+        struct TableInfo {
+            table_name: String,
+        }
+
+        let names = self
+            .client
+            .query(query)
+            .await
+            .map_err(ExtensionError::access)?
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .map(|result| result.map(|info: TableInfo| info.table_name))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(ExtensionError::access)?;
+
+        Ok(names)
+    }
+
+    async fn list_columns(&self, schema: &str, table: &str) -> Result<Fields, ExtensionError> {
+        let table_ref = ClickhouseTableRef::new(Some(schema), table);
+        self.get_table_schema(table_ref)
+            .await
+            .map(|s| s.fields)
+            .map_err(ExtensionError::access)
+    }
+}
+
 pub struct ClickhouseTableProvider {
     state: Arc<ClickhouseAccessState>,
-    table: String,
+    table_ref: OwnedClickhouseTableRef,
     schema: Arc<ArrowSchema>,
 }
 
 impl ClickhouseTableProvider {
-    pub async fn try_new(access: ClickhouseAccess, table: impl Into<String>) -> Result<Self> {
-        let table = table.into();
+    pub async fn try_new(
+        access: ClickhouseAccess,
+        table_ref: OwnedClickhouseTableRef,
+    ) -> Result<Self> {
         let state = Arc::new(ClickhouseAccessState::connect(&access.conn_string).await?);
-        let schema = Arc::new(state.get_table_schema(&table).await?);
+        let schema = Arc::new(state.get_table_schema(table_ref.as_ref()).await?);
 
         Ok(ClickhouseTableProvider {
             state,
-            table,
+            table_ref,
             schema,
         })
     }
@@ -210,8 +327,8 @@ impl TableProvider for ClickhouseTableProvider {
         &self,
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
-        _limit: Option<usize>,
+        filters: &[Expr],
+        limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         let projected_schema = match projection {
             Some(projection) => Arc::new(self.schema.project(projection)?),
@@ -220,26 +337,35 @@ impl TableProvider for ClickhouseTableProvider {
 
         // Get the projected columns, joined by a ','. This will be put in the
         // 'SELECT ...' portion of the query.
-        let projection_string = projected_schema
-            .fields
-            .iter()
-            .map(|f| f.name().clone())
-            .collect::<Vec<_>>()
-            .join(",");
+        let projection_string = if projected_schema.fields().is_empty() {
+            "*".to_string()
+        } else {
+            projected_schema
+                .fields
+                .iter()
+                .map(|f| f.name().clone())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
 
-        // TODO: Where, Limit
+        let mut query = format!("SELECT {} FROM {}", projection_string, self.table_ref);
 
-        let query = format!("SELECT {} FROM {};", projection_string, self.table);
+        let predicate_string = {
+            exprs_to_predicate_string(filters)
+                .map_err(|e| DataFusionError::External(Box::new(e)))?
+        };
+        if !predicate_string.is_empty() {
+            write!(&mut query, " WHERE {predicate_string}")?;
+        }
 
-        let client =
-            self.state.pool.get_handle().await.map_err(|e| {
-                DataFusionError::Execution(format!("failed to get client handle: {e}"))
-            })?;
+        if let Some(limit) = limit {
+            write!(&mut query, " LIMIT {limit}")?;
+        }
 
         Ok(Arc::new(ClickhouseExec::new(
             projected_schema,
             query,
-            client,
+            self.state.clone(),
         )))
     }
 
@@ -258,20 +384,20 @@ impl TableProvider for ClickhouseTableProvider {
 struct ClickhouseExec {
     /// Output schema.
     schema: ArrowSchemaRef,
-    /// A single-use client handle to clickhouse.
-    handle: Mutex<Option<ClientHandle>>,
-    /// Query to run against clickhouse.
+    /// Stream we're pulling from.
     query: String,
+    /// State for querying the external database.
+    state: Arc<ClickhouseAccessState>,
     /// Execution metrics.
     metrics: ExecutionPlanMetricsSet,
 }
 
 impl ClickhouseExec {
-    fn new(schema: ArrowSchemaRef, query: String, handle: ClientHandle) -> ClickhouseExec {
+    fn new(schema: ArrowSchemaRef, query: String, state: Arc<ClickhouseAccessState>) -> Self {
         ClickhouseExec {
             schema,
-            handle: Mutex::new(Some(handle)),
             query,
+            state,
             metrics: ExecutionPlanMetricsSet::new(),
         }
     }
@@ -300,11 +426,15 @@ impl ExecutionPlan for ClickhouseExec {
 
     fn with_new_children(
         self: Arc<Self>,
-        _children: Vec<Arc<dyn ExecutionPlan>>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
-        Err(DataFusionError::Execution(
-            "cannot replace children for ClickhouseExec".to_string(),
-        ))
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Execution(
+                "cannot replace children for ClickhouseExec".to_string(),
+            ))
+        }
     }
 
     fn execute(
@@ -318,18 +448,8 @@ impl ExecutionPlan for ClickhouseExec {
             ));
         }
 
-        // This would need to be updated for if/when we do multiple partitions
-        // (1 client handle per partition).
-        let client = match self.handle.lock().take() {
-            Some(client) => client,
-            None => {
-                return Err(DataFusionError::Execution(
-                    "client handle already taken".to_string(),
-                ))
-            }
-        };
-
-        let stream = BlockStream::execute(client, self.query.clone(), self.schema());
+        let stream =
+            ConvertStream::new(self.schema.clone(), self.state.clone(), self.query.clone());
 
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
             stream,
@@ -338,8 +458,8 @@ impl ExecutionPlan for ClickhouseExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
+    fn statistics(&self) -> DatafusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
@@ -357,7 +477,113 @@ impl fmt::Debug for ClickhouseExec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ClickhouseExec")
             .field("schema", &self.schema)
-            .field("query", &self.query)
             .finish_non_exhaustive()
+    }
+}
+
+/// Convert filtering expressions to a predicate string usable with the
+/// generated Postgres query.
+fn exprs_to_predicate_string(exprs: &[Expr]) -> Result<String> {
+    let mut ss = Vec::new();
+    let mut buf = String::new();
+    for expr in exprs {
+        if try_write_expr(expr, &mut buf)? {
+            ss.push(buf);
+            buf = String::new();
+        }
+    }
+
+    Ok(ss.join(" AND "))
+}
+
+/// Try to write the expression to the string, returning true if it was written.
+fn try_write_expr(expr: &Expr, buf: &mut String) -> Result<bool> {
+    match expr {
+        Expr::Column(col) => {
+            write!(buf, "{}", col)?;
+        }
+        Expr::Literal(val) => {
+            util::encode_literal_to_text(util::Datasource::Clickhouse, buf, val)?;
+        }
+        Expr::IsNull(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS NULL")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsNotNull(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS NOT NULL")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsTrue(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS TRUE")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::IsFalse(expr) => {
+            if try_write_expr(expr, buf)? {
+                write!(buf, " IS FALSE")?;
+            } else {
+                return Ok(false);
+            }
+        }
+        Expr::BinaryExpr(binary) => {
+            if !try_write_expr(binary.left.as_ref(), buf)? {
+                return Ok(false);
+            }
+            write!(buf, " {} ", binary.op)?;
+            if !try_write_expr(binary.right.as_ref(), buf)? {
+                return Ok(false);
+            }
+        }
+        _ => {
+            // Unsupported.
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
+#[derive(Debug, Clone)]
+pub struct ClickhouseTableRef<'a> {
+    database: Option<Cow<'a, str>>,
+    table: Cow<'a, str>,
+}
+
+impl<'a> ClickhouseTableRef<'a> {
+    pub fn new<S, T>(database: Option<S>, table: T) -> Self
+    where
+        S: Into<Cow<'a, str>>,
+        T: Into<Cow<'a, str>>,
+    {
+        Self {
+            database: database.map(Into::into),
+            table: table.into(),
+        }
+    }
+
+    pub fn as_ref(&self) -> ClickhouseTableRef<'_> {
+        ClickhouseTableRef {
+            database: self.database.as_ref().map(|s| s.as_ref().into()),
+            table: self.table.as_ref().into(),
+        }
+    }
+}
+
+pub type OwnedClickhouseTableRef = ClickhouseTableRef<'static>;
+
+impl<'a> Display for ClickhouseTableRef<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(schema) = self.database.as_ref() {
+            write!(f, "{schema}.")?;
+        }
+        write!(f, "{}", self.table)
     }
 }

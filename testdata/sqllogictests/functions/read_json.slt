@@ -14,7 +14,7 @@ select count(*) from read_ndjson('file://${PWD}/testdata/sqllogictests_datasourc
 
 # # Relative path
 query I
-select count(*) from read_ndjson('../../testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson')
+select count(*) from read_ndjson('./testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson')
 ----
 102
 
@@ -35,12 +35,12 @@ select count(*) from read_ndjson([
 ----
 204
 
-statement error at least one url expected
+statement error Expected at least one url.
 select * from read_ndjson([]);
 
 # Glob patterns not supported on HTTP
 
-statement error Unexpected status code '404 Not Found' 
+statement error Unexpected status code '404 Not Found'
 select * from read_ndjson(
   'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/*.ndjson'
 );
@@ -49,4 +49,4 @@ statement error Note that globbing is not supported for HTTP.
 select * from read_ndjson(
   'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/*.ndjson'
 );
- 
+

@@ -1,18 +1,24 @@
-use crate::database::DatabaseCatalog;
-use crate::errors::MetastoreError;
-use crate::storage::persist::Storage;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use dashmap::DashMap;
 use object_store::ObjectStore;
 use protogen::gen::metastore::service::metastore_service_server::MetastoreService;
 use protogen::gen::metastore::service::{
-    self, FetchCatalogRequest, FetchCatalogResponse, MutateRequest, MutateResponse,
+    self,
+    FetchCatalogRequest,
+    FetchCatalogResponse,
+    MutateRequest,
+    MutateResponse,
 };
 use protogen::metastore::types::service::Mutation;
-use std::sync::Arc;
 use tonic::{Request, Response, Status};
 use tracing::{debug, info};
 use uuid::Uuid;
+
+use crate::database::DatabaseCatalog;
+use crate::errors::MetastoreError;
+use crate::storage::persist::Storage;
 
 /// Metastore GRPC service.
 pub struct Service {
@@ -114,10 +120,11 @@ impl MetastoreService for Service {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use object_store::memory::InMemory;
     use protogen::metastore::types::catalog::{CatalogEntry, CatalogState};
     use protogen::metastore::types::service::{CreateSchema, Mutation};
+
+    use super::*;
 
     fn new_service() -> Service {
         let store = Arc::new(InMemory::new());

@@ -4,11 +4,12 @@
 //! having to deal possible incompatibilities between types and being able to
 //! easily serialize/deserialize in a human readonable format. It also allows
 //! to omit fields that we don't currently care about.
+use std::fmt;
+
 use anyhow::{anyhow, Error};
 use fallible_iterator::FallibleIterator;
 use postgres_protocol::message::backend::Message;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 /// A human-readable serialized backend message.
 pub struct SerializedMessage {
@@ -83,9 +84,15 @@ impl TryFrom<(char, Message)> for SerializedMessage {
                         .collect()?,
                 })?,
             ),
-            Message::NoticeResponse(_msg) => {
-                ("NoticeResponse", serde_json::to_string(&NoticeResponse {})?)
-            }
+            Message::NoticeResponse(msg) => (
+                "NoticeResponse",
+                serde_json::to_string(&ErrorResponse {
+                    fields: msg
+                        .fields()
+                        .map(|field| Ok(field.value().to_string()))
+                        .collect()?,
+                })?,
+            ),
             _ => return Err(anyhow!("unhandle message, type identifier: {}", id)),
         };
         Ok(SerializedMessage {
@@ -177,5 +184,5 @@ pub struct ErrorResponse {
 
 #[derive(Serialize)]
 pub struct NoticeResponse {
-    // TODO: Fill me in. Currently we don't assert notices.
+    pub fields: Vec<String>,
 }

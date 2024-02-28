@@ -2,12 +2,6 @@ name: Benchmarks
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "*"
-    branches:
-      - vrongmeal/benchmark-runner
-      - main
 
 jobs:
   tpch:
@@ -29,18 +23,19 @@ jobs:
 
       - uses: extractions/setup-just@v1
         name: Setup just
-
-      - uses: actions/cache@v3
+        with:
+          just-version: "1.23.0"
+      - uses: actions/cache@v4
         name: Cache
         with:
           path: |
             ~/.cargo/
             target/
           key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Python build (Release)
         run: just python build --release
-      
+
       # TODO: We would want to cache this once we're generating data for a
       # larger scale factor and running benchmarks on each commit. Should be
       # fine for now.

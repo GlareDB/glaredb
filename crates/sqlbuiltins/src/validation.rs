@@ -1,5 +1,9 @@
 use protogen::metastore::types::options::{
-    CopyToDestinationOptions, CredentialsOptions, DatabaseOptions, TableOptions, TunnelOptions,
+    CopyToDestinationOptions,
+    CredentialsOptions,
+    DatabaseOptions,
+    TableOptions,
+    TunnelOptions,
 };
 
 #[derive(thiserror::Error, Debug)]
@@ -22,7 +26,7 @@ pub enum ValidationError {
 
 type Result<T> = std::result::Result<T, ValidationError>;
 
-/// Validate idents as per postgres identifier
+/// Validate identifiers as per [postgres identifier
 /// syntax](https://www.postgresql.org/docs/11/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS)
 pub fn validate_object_name(name: &str) -> Result<()> {
     const POSTGRES_IDENT_MAX_LENGTH: usize = 63;

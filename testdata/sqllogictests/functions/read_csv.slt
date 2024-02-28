@@ -1,5 +1,11 @@
 # Tests `read_csv`
 
+# Assert options show up in catalog
+query T
+select parameters from glare_catalog.functions where function_name = 'read_csv';
+----
+[Utf8, Utf8, delimiter: Utf8, has_header: Boolean, List<Utf8>, List<Utf8>, delimiter: Utf8, has_header: Boolean]
+
 # Absolute path
 query I
 select count(*) from read_csv('file://${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
@@ -33,7 +39,7 @@ select count(*) from read_csv(
 
 # Relative path
 query I
-select count(*) from read_csv('../../testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
+select count(*) from read_csv('./testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv')
 ----
 102
 
@@ -53,7 +59,7 @@ select count(*) from read_csv([
 ----
 204
 
-statement error at least one url expected
+statement error Expected at least one url.
 select * from read_csv([]);
 
 # Glob patterns not supported on HTTP
@@ -62,3 +68,38 @@ statement error Note that globbing is not supported for HTTP.
 select * from read_csv(
   'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/*.csv'
 );
+
+# Alternative delimiters
+
+query ITR rowsort
+select * from read_csv('./testdata/csv/delimiter.csv', delimiter => ';');
+----
+1   hello, world   3.9
+2   HELLO, WORLD   4.9
+
+# Invalid delimiter (longer than one byte)
+statement error delimiters for CSV must fit in one byte \(e.g. ','\)
+select * from read_csv('./testdata/csv/delimiter.csv', delimiter => ';;');
+
+# Headers
+
+query ITTR rowsort
+select * from read_csv('./testdata/csv/headerless.csv', has_header => false);
+----
+1   hello   world   3.9
+2   HELLO   WORLD   4.9
+
+query ITTR rowsort
+select * from read_csv('./testdata/csv/headerless.csv', has_header => 'false');
+----
+1   hello   world   3.9
+2   HELLO   WORLD   4.9
+
+statement error Invalid parameter value hello, expected a boolean
+select * from read_csv('./testdata/csv/headerless.csv', has_header => 'hello');
+
+query I
+select count(*) from read_csv('./testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv', has_header => true)
+----
+102
+

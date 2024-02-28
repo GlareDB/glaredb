@@ -4,7 +4,7 @@ default-members = ["crates/*", "xtask"]
 resolver = "2"
 
 [workspace.package]
-version = "0.7.1"
+version = "0.9.0"
 edition = "2021"
 
 [profile.release]
@@ -13,27 +13,36 @@ opt-level = 3
 codegen-units = 1
 strip = true
 
+[workspace.lints.clippy]
+wildcard_imports = "deny"
+
 [workspace.dependencies]
-anyhow = "1.0.77"
-async-trait = "0.1.75"
-chrono = "0.4.31"
-datafusion = { version = "32.0", features = ["avro"] }
-datafusion-proto = { version = "32.0" }
+clap = { version = "4.5.1", features = ["derive"] }
+datafusion = { version = "35.0.0", features = ["avro"] }
+arrow-flight = { version = "50.0.0", features = ["flight-sql-experimental"] }
+datafusion-proto = { version = "35.0.0" }
+reqwest = { version = "0.11.24", default-features = false, features = [
+  "json",
+  "rustls-tls",
+] }
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
+anyhow = "1.0.80"
+async-trait = "0.1.77"
+chrono = "0.4.34"
 futures = "0.3.30"
-object_store = { version = "0.7" }
+object_store = "0.9"
 prost = "0.12"
 prost-build = "0.12"
 prost-types = "0.12"
-reqwest = { version = "0.11.23", default-features = false, features = ["json", "rustls-tls"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.108"
-tempfile = "3.9.0"
+serde_json = "1.0.114"
+tempfile = "3.10.0"
 thiserror = "1.0"
-tokio = { version = "1", features = ["full"] }
-tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
+tracing = "0.1"
 url = "2.5.0"
 
 [workspace.dependencies.deltalake]
 git = "https://github.com/delta-io/delta-rs.git"
-rev = "5c324ccd0a8738251a9aea9452d7323400e5e8c6"
-features = ["s3", "gcs", "azure", "datafusion", "arrow"]
+rev = "993e2c202936719855f8831513bcbab1b9930b94"
+features = ["s3", "gcs", "azure", "datafusion"]

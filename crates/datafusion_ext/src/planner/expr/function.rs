@@ -15,58 +15,101 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
-use datafusion::common::{DFSchema, DataFusionError, Result};
-use datafusion::logical_expr::expr::ScalarFunction;
-use datafusion::logical_expr::utils::COUNT_STAR_EXPANSION;
-use datafusion::logical_expr::window_frame::regularize;
+use std::str::FromStr;
+
+use datafusion::common::{
+    not_impl_err,
+    plan_datafusion_err,
+    plan_err,
+    DFSchema,
+    DataFusionError,
+    Dependency,
+    Result,
+};
+use datafusion::logical_expr::expr::{find_df_window_func, ScalarFunction};
+use datafusion::logical_expr::function::suggest_valid_function;
+use datafusion::logical_expr::window_frame::{check_window_frame, regularize_window_order_by};
 use datafusion::logical_expr::{
-    expr, window_function, AggregateFunction, BuiltinScalarFunction, Expr, WindowFrame,
-    WindowFunction,
+    expr,
+    AggregateFunction,
+    BuiltinScalarFunction,
+    Expr,
+    WindowFrame,
+    WindowFunctionDefinition,
 };
 use datafusion::sql::planner::PlannerContext;
 use datafusion::sql::sqlparser::ast::{
-    Expr as SQLExpr, Function as SQLFunction, FunctionArg, FunctionArgExpr, WindowType,
+    Expr as SQLExpr,
+    Function as SQLFunction,
+    FunctionArg,
+    FunctionArgExpr,
+    WindowType,
 };
-use std::str::FromStr;
 
 use super::arrow_cast::ARROW_CAST_NAME;
+use crate::planner::expr::arrow_cast::create_arrow_cast;
+use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
 impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
     pub(super) async fn sql_function_to_expr(
         &mut self,
-        mut function: SQLFunction,
+        function: SQLFunction,
         schema: &DFSchema,
         planner_context: &mut PlannerContext,
     ) -> Result<Expr> {
-        let name = if function.name.0.len() > 1 {
+        let SQLFunction {
+            name,
+            args,
+            over,
+            distinct,
+            filter,
+            null_treatment,
+            special: _, // true if not called with trailing parens
+            order_by,
+        } = function;
+
+        if let Some(null_treatment) = null_treatment {
+            return not_impl_err!(
+                "Null treatment in aggregate functions is not supported: {null_treatment}"
+            );
+        }
+
+        let name = if name.0.len() > 1 {
             // DF doesn't handle compound identifiers
             // (e.g. "foo.bar") for function names yet
-            function.name.to_string()
+            name.to_string()
         } else {
-            self.normalizer.normalize(function.name.0[0].clone())
+            crate::planner::utils::normalize_ident(name.0[0].clone())
         };
+
+        let args = self
+            .function_args_to_expr(args, schema, planner_context)
+            .await?;
+
+        // user-defined function (UDF) should have precedence in case it has the same name as a scalar built-in function
+        if let Some(expr) = self
+            .context_provider
+            .get_function_meta(&name, &args)
+            .await?
+        {
+            return Ok(expr);
+        }
 
         // next, scalar built-in
         if let Ok(fun) = BuiltinScalarFunction::from_str(&name) {
-            let args = self
-                .function_args_to_expr(function.args, schema, planner_context)
-                .await?;
             return Ok(Expr::ScalarFunction(ScalarFunction::new(fun, args)));
         };
 
         // If function is a window function (it has an OVER clause),
         // it shouldn't have ordering requirement as function argument
         // required ordering should be defined in OVER clause.
-        let is_function_window = function.over.is_some();
-        if !function.order_by.is_empty() && is_function_window {
-            return Err(DataFusionError::Plan(
-                "Aggregate ORDER BY is not implemented for window functions".to_string(),
-            ));
+        let is_function_window = over.is_some();
+        if !order_by.is_empty() && is_function_window {
+            return plan_err!("Aggregate ORDER BY is not implemented for window functions");
         }
 
         // then, window function
-        if let Some(WindowType::WindowSpec(window)) = function.over.take() {
+        if let Some(WindowType::WindowSpec(window)) = over {
             let partition_by = {
                 let mut partition_by = Vec::with_capacity(window.partition_by.len());
                 for e in window.partition_by {
@@ -77,36 +120,54 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 }
                 partition_by
             };
-            let order_by = self
-                .order_by_to_sort_expr(&window.order_by, schema, planner_context)
+
+            let mut order_by = self
+                .order_by_to_sort_expr(
+                    &window.order_by,
+                    schema,
+                    planner_context,
+                    // Numeric literals in window function ORDER BY are treated as constants
+                    false,
+                )
                 .await?;
+
+            let func_deps = schema.functional_dependencies();
+            // Find whether ties are possible in the given ordering:
+            let is_ordering_strict = order_by.iter().any(|orderby_expr| {
+                if let Expr::Sort(sort_expr) = orderby_expr {
+                    if let Expr::Column(col) = sort_expr.expr.as_ref() {
+                        let idx = schema.index_of_column(col).unwrap();
+                        return func_deps.iter().any(|dep| {
+                            dep.source_indices == vec![idx] && dep.mode == Dependency::Single
+                        });
+                    }
+                }
+                false
+            });
+
             let window_frame = window
                 .window_frame
                 .as_ref()
                 .map(|window_frame| {
                     let window_frame = window_frame.clone().try_into()?;
-                    regularize(window_frame, order_by.len())
+                    check_window_frame(&window_frame, order_by.len()).map(|_| window_frame)
                 })
                 .transpose()?;
+
             let window_frame = if let Some(window_frame) = window_frame {
+                regularize_window_order_by(&window_frame, &mut order_by)?;
                 window_frame
+            } else if is_ordering_strict {
+                WindowFrame::new(Some(true))
             } else {
-                WindowFrame::new(!order_by.is_empty())
+                WindowFrame::new((!order_by.is_empty()).then_some(false))
             };
+
             if let Ok(fun) = self.find_window_func(&name).await {
                 let expr = match fun {
-                    WindowFunction::AggregateFunction(aggregate_fun) => {
-                        let (aggregate_fun, args) = self
-                            .aggregate_fn_to_expr(
-                                aggregate_fun,
-                                function.args,
-                                schema,
-                                planner_context,
-                            )
-                            .await?;
-
+                    WindowFunctionDefinition::AggregateFunction(aggregate_fun) => {
                         Expr::WindowFunction(expr::WindowFunction::new(
-                            WindowFunction::AggregateFunction(aggregate_fun),
+                            WindowFunctionDefinition::AggregateFunction(aggregate_fun),
                             args,
                             partition_by,
                             order_by,
@@ -115,8 +176,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     }
                     _ => Expr::WindowFunction(expr::WindowFunction::new(
                         fun,
-                        self.function_args_to_expr(function.args, schema, planner_context)
-                            .await?,
+                        args,
                         partition_by,
                         order_by,
                         window_frame,
@@ -124,52 +184,45 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 };
                 return Ok(expr);
             }
-        }
+        } else {
+            // User defined aggregate functions (UDAF) have precedence in case it has the same name as a scalar built-in function
+            if let Some(fm) = self.context_provider.get_aggregate_meta(&name).await {
+                return Ok(Expr::AggregateFunction(expr::AggregateFunction::new_udf(
+                    fm, args, false, None, None,
+                )));
+            }
 
-        // next, aggregate built-ins
-        if let Ok(fun) = AggregateFunction::from_str(&name) {
-            let distinct = function.distinct;
-            let order_by = self
-                .order_by_to_sort_expr(&function.order_by, schema, planner_context)
-                .await?;
-            let order_by = (!order_by.is_empty()).then_some(order_by);
-            let (fun, args) = self
-                .aggregate_fn_to_expr(fun, function.args, schema, planner_context)
-                .await?;
-            return Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
-                fun, args, distinct, None, order_by,
-            )));
-        };
+            // next, aggregate built-ins
+            if let Ok(fun) = AggregateFunction::from_str(&name) {
+                let order_by = self
+                    .order_by_to_sort_expr(&order_by, schema, planner_context, true)
+                    .await?;
+                let order_by = (!order_by.is_empty()).then_some(order_by);
 
-        // User defined aggregate functions
-        if let Some(fm) = self.schema_provider.get_aggregate_meta(&name).await {
-            let args = self
-                .function_args_to_expr(function.args, schema, planner_context)
-                .await?;
-            return Ok(Expr::AggregateUDF(expr::AggregateUDF::new(
-                fm, args, None, None,
-            )));
-        }
+                let filter: Option<Box<Expr>> = match filter {
+                    Some(e) => {
+                        let e = self
+                            .sql_expr_to_logical_expr(*e, schema, planner_context)
+                            .await?;
+                        Some(Box::new(e))
+                    }
+                    None => None,
+                };
 
-        // Special case arrow_cast (as its type is dependent on its argument value)
-        if name == ARROW_CAST_NAME {
-            let args = self
-                .function_args_to_expr(function.args, schema, planner_context)
-                .await?;
-            return super::arrow_cast::create_arrow_cast(args, schema);
-        }
+                return Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
+                    fun, args, distinct, filter, order_by,
+                )));
+            };
 
-        // finally, user-defined functions (UDF) and UDAF
-        let args = self
-            .function_args_to_expr(function.args, schema, planner_context)
-            .await?;
-
-        if let Some(expr) = self.schema_provider.get_scalar_udf(&name, args) {
-            return Ok(expr);
+            // Special case arrow_cast (as its type is dependent on its argument value)
+            if name == ARROW_CAST_NAME {
+                return create_arrow_cast(args, schema);
+            }
         }
 
         // Could not find the relevant function, so return an error
-        Err(DataFusionError::Plan(format!("Invalid function '{name}'.")))
+        let suggested_func_name = suggest_valid_function(&name, is_function_window);
+        plan_err!("Invalid function '{name}'.\nDid you mean '{suggested_func_name}'?")
     }
 
     pub(super) async fn sql_named_function_to_expr(
@@ -186,18 +239,25 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         Ok(Expr::ScalarFunction(ScalarFunction::new(fun, args)))
     }
 
-    pub(super) async fn find_window_func(&mut self, name: &str) -> Result<WindowFunction> {
-        let window_fn = if let Some(window_fn) = window_function::find_df_window_func(name) {
-            Some(window_fn)
-        } else {
-            self.schema_provider
-                .get_aggregate_meta(name)
-                .await
-                .map(WindowFunction::AggregateUDF)
-        };
-        window_fn.ok_or_else(|| {
-            DataFusionError::Plan(format!("There is no window function named {name}"))
-        })
+    pub(super) async fn find_window_func(
+        &mut self,
+        name: &str,
+    ) -> Result<WindowFunctionDefinition> {
+        if let Some(func) = find_df_window_func(name) {
+            return Ok(func);
+        }
+
+        if let Some(agg) = self.context_provider.get_aggregate_meta(name).await {
+            return Ok(expr::WindowFunctionDefinition::AggregateUDF(agg));
+        }
+
+        if let Some(win) = self.context_provider.get_window_meta(name).await {
+            return Ok(WindowFunctionDefinition::WindowUDF(win));
+        }
+
+        Err(plan_datafusion_err!(
+            "There is no window function named {name}"
+        ))
     }
 
     async fn sql_fn_arg_to_logical_expr(
@@ -217,15 +277,15 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
-            } => Ok(Expr::Wildcard),
+            } => Ok(Expr::Wildcard { qualifier: None }),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
                 self.sql_expr_to_logical_expr(arg, schema, planner_context)
                     .await
             }
-            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => Ok(Expr::Wildcard),
-            _ => Err(DataFusionError::NotImplemented(format!(
-                "Unsupported qualified wildcard argument: {sql:?}"
-            ))),
+            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
+                Ok(Expr::Wildcard { qualifier: None })
+            }
+            _ => not_impl_err!("Unsupported qualified wildcard argument: {sql:?}"),
         }
     }
 
@@ -243,39 +303,5 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             exprs.push(e);
         }
         Ok(exprs)
-    }
-
-    pub(super) async fn aggregate_fn_to_expr(
-        &mut self,
-        fun: AggregateFunction,
-        args: Vec<FunctionArg>,
-        schema: &DFSchema,
-        planner_context: &mut PlannerContext,
-    ) -> Result<(AggregateFunction, Vec<Expr>)> {
-        let args = match fun {
-            // Special case rewrite COUNT(*) to COUNT(constant)
-            AggregateFunction::Count => {
-                let mut exprs = Vec::with_capacity(args.len());
-                for a in args {
-                    let e = match a {
-                        FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
-                            Expr::Literal(COUNT_STAR_EXPANSION.clone())
-                        }
-                        _ => {
-                            self.sql_fn_arg_to_logical_expr(a, schema, planner_context)
-                                .await?
-                        }
-                    };
-                    exprs.push(e);
-                }
-                exprs
-            }
-            _ => {
-                self.function_args_to_expr(args, schema, planner_context)
-                    .await?
-            }
-        };
-
-        Ok((fun, args))
     }
 }

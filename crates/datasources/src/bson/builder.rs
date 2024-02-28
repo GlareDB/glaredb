@@ -2,13 +2,29 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use bitvec::{order::Lsb0, vec::BitVec};
+use bitvec::order::Lsb0;
+use bitvec::vec::BitVec;
 use bson::{RawBsonRef, RawDocument};
 use datafusion::arrow::array::{
-    Array, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanBuilder, Date32Builder, Date64Builder,
-    Decimal128Builder, Float64Builder, Int32Builder, Int64Builder, LargeBinaryBuilder,
-    LargeStringBuilder, StringBuilder, StructArray, TimestampMicrosecondBuilder,
-    TimestampMillisecondBuilder, TimestampSecondBuilder,
+    Array,
+    ArrayBuilder,
+    ArrayRef,
+    BinaryBuilder,
+    BooleanBuilder,
+    Date32Builder,
+    Date64Builder,
+    Decimal128Builder,
+    Float64Builder,
+    Int32Builder,
+    Int64Builder,
+    LargeBinaryBuilder,
+    LargeStringBuilder,
+    StringBuilder,
+    StructArray,
+    TimestampMicrosecondBuilder,
+    TimestampMillisecondBuilder,
+    TimestampNanosecondBuilder,
+    TimestampSecondBuilder,
 };
 use datafusion::arrow::datatypes::{DataType, Field, Fields, TimeUnit};
 
@@ -146,8 +162,8 @@ impl RecordStructBuilder {
         Ok(())
     }
 
-    pub fn into_fields_and_builders(self) -> (Fields, Vec<Box<dyn ArrayBuilder>>) {
-        (self.fields, self.builders)
+    pub fn into_builders(self) -> Vec<Box<dyn ArrayBuilder>> {
+        self.builders
     }
 
     fn add_value_at_index(&mut self, idx: usize, val: Option<RawBsonRef>) -> Result<()> {
@@ -176,7 +192,7 @@ impl ArrayBuilder for RecordStructBuilder {
         let arrays = builders.into_iter().map(|mut b| b.finish());
 
         let pairs: Vec<(Arc<Field>, Arc<dyn Array>)> =
-            fields.into_iter().map(Arc::clone).zip(arrays).collect();
+            fields.into_iter().cloned().zip(arrays).collect();
 
         let array: StructArray = pairs.into();
 
@@ -187,7 +203,7 @@ impl ArrayBuilder for RecordStructBuilder {
         let arrays: Vec<Arc<dyn Array>> = self.builders.iter().map(|b| b.finish_cloned()).collect();
 
         let pairs: Vec<(Arc<Field>, Arc<dyn Array>)> =
-            self.fields.iter().map(Arc::clone).zip(arrays).collect();
+            self.fields.iter().cloned().zip(arrays).collect();
 
         let array: StructArray = pairs.into();
 
@@ -226,11 +242,16 @@ macro_rules! append_scalar {
 fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
     // So robust
     match (val, typ) {
+        // null
+        (RawBsonRef::Null, _) => append_null(typ, col)?,
+        (RawBsonRef::Undefined, _) => append_null(typ, col)?,
+
         // Boolean
         (RawBsonRef::Boolean(v), DataType::Boolean) => append_scalar!(BooleanBuilder, col, v),
         (RawBsonRef::Boolean(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
         }
+
         // Double
         (RawBsonRef::Double(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
         (RawBsonRef::Double(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),
@@ -311,7 +332,10 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
             )
         }
 
-        // Datetime (actual timestamps that you'd actually use. in an application )
+        // Datetime (actual timestamps that you'd actually use in an application)
+        (RawBsonRef::DateTime(v), DataType::Timestamp(TimeUnit::Second, _)) => {
+            append_scalar!(TimestampSecondBuilder, col, v.timestamp_millis() / 1000)
+        }
         (RawBsonRef::DateTime(v), DataType::Timestamp(TimeUnit::Millisecond, _)) => {
             append_scalar!(TimestampMillisecondBuilder, col, v.timestamp_millis())
         }
@@ -322,8 +346,18 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
                 v.timestamp_millis() * 1000
             )
         }
+        (RawBsonRef::DateTime(v), DataType::Timestamp(TimeUnit::Nanosecond, _)) => {
+            append_scalar!(
+                TimestampNanosecondBuilder,
+                col,
+                v.timestamp_millis() * 1000 * 1000
+            )
+        }
         (RawBsonRef::DateTime(v), DataType::Date64) => {
             append_scalar!(Date64Builder, col, v.timestamp_millis())
+        }
+        (RawBsonRef::DateTime(v), DataType::Date32) => {
+            append_scalar!(Date32Builder, col, (v.timestamp_millis() / 1000) as i32)
         }
 
         // Document
@@ -391,9 +425,34 @@ fn append_null(typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
             .downcast_mut::<Float64Builder>()
             .unwrap()
             .append_null(),
-        &DataType::Timestamp(_, _) => col
+        &DataType::Timestamp(TimeUnit::Nanosecond, _) => col
             .as_any_mut()
-            .downcast_mut::<TimestampMillisecondBuilder>() // TODO: Possibly change to nanosecond.
+            .downcast_mut::<TimestampNanosecondBuilder>()
+            .unwrap()
+            .append_null(),
+        &DataType::Timestamp(TimeUnit::Microsecond, _) => col
+            .as_any_mut()
+            .downcast_mut::<TimestampMillisecondBuilder>()
+            .unwrap()
+            .append_null(),
+        &DataType::Timestamp(TimeUnit::Millisecond, _) => col
+            .as_any_mut()
+            .downcast_mut::<TimestampMillisecondBuilder>()
+            .unwrap()
+            .append_null(),
+        &DataType::Timestamp(TimeUnit::Second, _) => col
+            .as_any_mut()
+            .downcast_mut::<TimestampSecondBuilder>()
+            .unwrap()
+            .append_null(),
+        &DataType::Date64 => col
+            .as_any_mut()
+            .downcast_mut::<Date64Builder>()
+            .unwrap()
+            .append_null(),
+        &DataType::Date32 => col
+            .as_any_mut()
+            .downcast_mut::<Date32Builder>()
             .unwrap()
             .append_null(),
         &DataType::Utf8 => col
@@ -401,9 +460,19 @@ fn append_null(typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
             .downcast_mut::<StringBuilder>()
             .unwrap()
             .append_null(),
+        &DataType::LargeUtf8 => col
+            .as_any_mut()
+            .downcast_mut::<LargeStringBuilder>()
+            .unwrap()
+            .append_null(),
         &DataType::Binary => col
             .as_any_mut()
             .downcast_mut::<BinaryBuilder>()
+            .unwrap()
+            .append_null(),
+        &DataType::LargeBinary => col
+            .as_any_mut()
+            .downcast_mut::<LargeBinaryBuilder>()
             .unwrap()
             .append_null(),
         &DataType::Struct(_) => col
@@ -433,11 +502,24 @@ fn column_builders_for_fields(
             DataType::Int32 => Box::new(Int32Builder::with_capacity(capacity)),
             DataType::Int64 => Box::new(Int64Builder::with_capacity(capacity)),
             DataType::Float64 => Box::new(Float64Builder::with_capacity(capacity)),
-            DataType::Timestamp(_, _) => {
-                Box::new(TimestampMicrosecondBuilder::with_capacity(capacity)) // TODO: Possibly change to nanosecond.
+            DataType::Timestamp(TimeUnit::Second, _) => {
+                Box::new(TimestampSecondBuilder::with_capacity(capacity))
             }
+            DataType::Timestamp(TimeUnit::Microsecond, _) => {
+                Box::new(TimestampMicrosecondBuilder::with_capacity(capacity))
+            }
+            DataType::Timestamp(TimeUnit::Millisecond, _) => {
+                Box::new(TimestampMillisecondBuilder::with_capacity(capacity))
+            }
+            DataType::Timestamp(TimeUnit::Nanosecond, _) => {
+                Box::new(TimestampNanosecondBuilder::with_capacity(capacity))
+            }
+            DataType::Date64 => Box::new(Date64Builder::with_capacity(capacity)),
+            DataType::Date32 => Box::new(Date32Builder::with_capacity(capacity)),
             DataType::Utf8 => Box::new(StringBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.
+            DataType::LargeUtf8 => Box::new(LargeStringBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.
             DataType::Binary => Box::new(BinaryBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.
+            DataType::LargeBinary => Box::new(LargeBinaryBuilder::with_capacity(capacity, 10)), // TODO: Can collect avg when inferring schema.
             DataType::Decimal128(_, _) => Box::new(Decimal128Builder::with_capacity(capacity)), // TODO: Can collect avg when inferring schema.
             DataType::Struct(fields) => {
                 let nested = column_builders_for_fields(fields.clone(), capacity)?;

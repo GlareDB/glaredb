@@ -1,40 +1,51 @@
-use crate::distexec::scheduler::Scheduler;
-use crate::environment::EnvironmentReader;
-use crate::errors::{internal, ExecError, Result};
-use crate::parser::StatementWithExtensions;
-use crate::planner::logical_plan::*;
-use crate::planner::session_planner::SessionPlanner;
-use crate::remote::client::{RemoteClient, RemoteSessionClient};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::slice;
+use std::sync::Arc;
+
 use catalog::mutator::CatalogMutator;
 use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
 use datafusion::common::SchemaReference;
 use datafusion::execution::context::{
-    SessionConfig, SessionContext as DfSessionContext, SessionState, TaskContext,
+    SessionConfig,
+    SessionContext as DfSessionContext,
+    SessionState,
+    TaskContext,
 };
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::TableReference;
+use datafusion::variable::VarType;
+use datafusion_ext::runtime::group_pull_up::RuntimeGroupPullUp;
 use datafusion_ext::session_metrics::SessionMetricsHandler;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
+use distexec::scheduler::Scheduler;
 use pgrepr::format::Format;
+use pgrepr::notice::Notice;
 use pgrepr::types::arrow_to_pg_type;
-
-use datafusion::variable::VarType;
 use protogen::rpcsrv::types::service::{
-    InitializeSessionRequest, InitializeSessionRequestFromClient,
+    InitializeSessionRequest,
+    InitializeSessionRequestFromClient,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::slice;
-use std::sync::Arc;
 use tokio_postgres::types::Type as PgType;
-
-use datafusion_ext::runtime::group_pull_up::RuntimeGroupPullUp;
 use uuid::Uuid;
 
 use super::{new_datafusion_runtime_env, new_datafusion_session_config_opts};
+use crate::environment::EnvironmentReader;
+use crate::errors::{internal, ExecError, Result};
+use crate::optimizer::DdlInputOptimizationRule;
+use crate::parser::StatementWithExtensions;
+use crate::planner::logical_plan::{
+    FullObjectReference,
+    FullSchemaReference,
+    LogicalPlan,
+    OwnedFullObjectReference,
+    OwnedFullSchemaReference,
+};
+use crate::planner::session_planner::SessionPlanner;
+use crate::remote::client::{RemoteClient, RemoteSessionClient};
 
 /// Context for a session used local execution and planning.
 ///
@@ -63,6 +74,8 @@ pub struct LocalSessionContext {
     env_reader: Option<Box<dyn EnvironmentReader>>,
     /// Task scheduler.
     task_scheduler: Scheduler,
+    /// Notices that should be sent to the user.
+    notices: Vec<Notice>,
 }
 
 impl LocalSessionContext {
@@ -82,14 +95,17 @@ impl LocalSessionContext {
         let opts = new_datafusion_session_config_opts(&vars);
 
         let mut conf: SessionConfig = opts.into();
+
         // TODO: Can we remove the temp catalog here? It's pretty disgusting,
         // but it's needed for the create temp table execution plan.
         conf = conf
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
-            .with_extension(Arc::new(catalog.get_temp_catalog().clone()));
+            .with_extension(Arc::new(catalog.get_temp_catalog().clone()))
+            .with_extension(Arc::new(task_scheduler.clone()));
 
         let state = SessionState::new_with_config_rt(conf, Arc::new(runtime))
+            .add_optimizer_rule(Arc::new(DdlInputOptimizationRule::new()))
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
         let df_ctx = DfSessionContext::new_with_state(state);
@@ -106,6 +122,7 @@ impl LocalSessionContext {
             df_ctx,
             env_reader: None,
             task_scheduler,
+            notices: Vec::new(),
         })
     }
 
@@ -141,6 +158,7 @@ impl LocalSessionContext {
             .with_extension(Arc::new(catalog.get_temp_catalog().clone()));
 
         let state = SessionState::new_with_config_rt(conf, runtime)
+            .add_optimizer_rule(Arc::new(DdlInputOptimizationRule::new()))
             .add_physical_optimizer_rule(Arc::new(RuntimeGroupPullUp {}));
 
         let df_ctx = DfSessionContext::new_with_state(state);
@@ -238,7 +256,7 @@ impl LocalSessionContext {
         // being used again.
         if !name.is_empty() && self.prepared.contains_key(&name) {
             return Err(internal!(
-                "named prepared statments must be deallocated before reuse, name: {}",
+                "named prepared statements must be deallocated before reuse, name: {}",
                 name
             ));
         }
@@ -318,6 +336,28 @@ impl LocalSessionContext {
     /// Remove a portal.
     pub fn remove_portal(&mut self, name: &str) {
         self.portals.remove(name);
+    }
+
+    pub(crate) fn push_notice(&mut self, notice: Notice) {
+        self.notices.push(notice)
+    }
+
+    /// Take all notices from the session.
+    ///
+    /// This will take into account the 'client_min_messages' session var to
+    /// filter out notices that shouldn't be sent to the client.
+    pub(crate) fn take_notices(&mut self) -> Vec<Notice> {
+        // Behind an if since this is called every query, and session vars is behind  a lock :)
+        // Let's get rid of the lock.
+        if !self.notices.is_empty() {
+            let min = self.get_session_vars().client_min_messages();
+            self.notices
+                .drain(..)
+                .filter(|notice| notice.severity >= min)
+                .collect()
+        } else {
+            Vec::new()
+        }
     }
 
     /// Get a datafusion task context to use for physical plan execution.

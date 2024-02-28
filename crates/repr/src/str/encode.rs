@@ -1,8 +1,9 @@
+use std::fmt::{Display, Write};
+
 use chrono::{Datelike, Timelike};
 use decimal::{Decimal, DecimalType};
 use dtoa::{Buffer as DtoaBuffer, Float as DtoaFloat};
 use num_traits::{Float as NumFloat, PrimInt as NumInt};
-use std::fmt::{Display, Write};
 
 use crate::error::{ReprError, Result};
 

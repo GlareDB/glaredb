@@ -11,10 +11,22 @@ use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{CatalogEntry, EntryType, SourceAccessMode, TableEntry};
 use protogen::metastore::types::options::TunnelOptions;
 use sqlbuiltins::builtins::{
-    BuiltinTable, DATABASE_DEFAULT, GLARE_CACHED_EXTERNAL_DATABASE_TABLES, GLARE_COLUMNS,
-    GLARE_CREDENTIALS, GLARE_DATABASES, GLARE_DEPLOYMENT_METADATA, GLARE_FUNCTIONS, GLARE_SCHEMAS,
-    GLARE_SSH_KEYS, GLARE_TABLES, GLARE_TUNNELS, GLARE_VIEWS, SCHEMA_CURRENT_SESSION,
+    BuiltinTable,
+    DATABASE_DEFAULT,
+    GLARE_CACHED_EXTERNAL_DATABASE_TABLES,
+    GLARE_COLUMNS,
+    GLARE_CREDENTIALS,
+    GLARE_DATABASES,
+    GLARE_DEPLOYMENT_METADATA,
+    GLARE_FUNCTIONS,
+    GLARE_SCHEMAS,
+    GLARE_SSH_KEYS,
+    GLARE_TABLES,
+    GLARE_TUNNELS,
+    GLARE_VIEWS,
+    SCHEMA_CURRENT_SESSION,
 };
+use sqlbuiltins::functions::FUNCTION_REGISTRY;
 
 use super::{DispatchError, Result};
 
@@ -475,8 +487,8 @@ impl<'a> SystemTableDispatcher<'a> {
             schema_oid.append_value(ent.meta.parent);
             function_name.append_value(&ent.meta.name);
             function_type.append_value(ent.func_type.as_str());
-            sql_examples.append_option(ent.meta.sql_example.as_ref());
-            descriptions.append_option(ent.meta.description.as_ref());
+            sql_examples.append_option(FUNCTION_REGISTRY.get_function_example(&ent.meta.name));
+            descriptions.append_option(FUNCTION_REGISTRY.get_function_description(&ent.meta.name));
 
             const EMPTY: [Option<&'static str>; 0] = [];
             if let Some(sig) = &ent.signature {
@@ -599,6 +611,7 @@ fn sig_to_string_repr(sig: &TypeSignature) -> Vec<String> {
         TypeSignature::VariadicEqual => vec!["T, .., T".to_string()],
         TypeSignature::VariadicAny => vec!["Any, .., Any".to_string()],
         TypeSignature::OneOf(sigs) => sigs.iter().flat_map(sig_to_string_repr).collect(),
+        _ => vec!["Unknown".to_string()],
     }
 }
 

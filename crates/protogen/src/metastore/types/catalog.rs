@@ -8,8 +8,12 @@ use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use proptest_derive::Arbitrary;
 
 use super::options::{
-    CredentialsOptions, DatabaseOptions, InternalColumnDefinition, TableOptions,
-    TableOptionsInternal, TunnelOptions,
+    CredentialsOptions,
+    DatabaseOptions,
+    InternalColumnDefinition,
+    TableOptions,
+    TableOptionsInternal,
+    TunnelOptions,
 };
 use crate::gen::common::arrow::ArrowType;
 use crate::gen::metastore::catalog::{self, type_signature};
@@ -269,8 +273,6 @@ pub struct EntryMeta {
     pub builtin: bool,
     pub external: bool,
     pub is_temp: bool,
-    pub sql_example: Option<String>,
-    pub description: Option<String>,
 }
 
 impl From<EntryMeta> for catalog::EntryMeta {
@@ -284,8 +286,6 @@ impl From<EntryMeta> for catalog::EntryMeta {
             builtin: value.builtin,
             external: value.external,
             is_temp: value.is_temp,
-            sql_example: value.sql_example,
-            description: value.description,
         }
     }
 }
@@ -301,8 +301,6 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
             builtin: value.builtin,
             external: value.external,
             is_temp: value.is_temp,
-            sql_example: value.sql_example,
-            description: value.description,
         })
     }
 }
@@ -764,6 +762,7 @@ impl From<TypeSignature> for catalog::TypeSignature {
                     sigs.into_iter().map(|s| s.into()).collect();
                 ProtoSignature::OneOf(catalog::OneOfSignature { args: sigs })
             }
+            _ => unimplemented!(),
         };
 
         catalog::TypeSignature {
@@ -884,9 +883,10 @@ impl From<CredentialsEntry> for catalog::CredentialsEntry {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use proptest::arbitrary::any;
     use proptest::proptest;
+
+    use super::*;
 
     proptest! {
         #[test]

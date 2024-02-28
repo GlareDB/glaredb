@@ -27,15 +27,13 @@ CONTAINER_ID="$(docker run \
    $MINIO_IMAGE server /data)"
 
 # Create the test container using the minio client
-docker run --rm --net=host --entrypoint=/bin/sh -i minio/mc:latest <<EOF
+# curl was dropped from the minio image in 2023-10-23 release
+docker run --rm --net=host --entrypoint=/bin/sh -i minio/mc:RELEASE.2023-10-14T01-57-03Z <<EOF
 # Wait for minio server to become ready
 curl --retry 5 -f --retry-connrefused --retry-delay 1 http://localhost:9100/minio/health/live
 
 # Configure mc to connect to our above container as host
 mc config host add glaredb_minio http://localhost:9100 $MINIO_ACCESS_KEY $MINIO_SECRET_KEY
-
-# Remove the bucket if it already exists
-mc rm -r --force glaredb_minio/"$TEST_BUCKET"
 
 # Finally create the test bucket
 mc mb glaredb_minio/"$TEST_BUCKET"

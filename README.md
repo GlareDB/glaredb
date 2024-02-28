@@ -16,6 +16,7 @@
 <a href="https://docs.glaredb.com"><img src="https://img.shields.io/static/v1?label=docs&message=GlareDB%20Reference&color=55A39B&style=flat-square"></img></a>
 <a href="https://github.com/GlareDB/glaredb/releases"><img src="https://img.shields.io/github/v/release/glaredb/glaredb?display_name=tag&style=flat-square"></img></a>
 <a href="https://pypi.org/project/glaredb"><img src="https://img.shields.io/pypi/v/glaredb?style=flat-square"</img></a>
+<a href="https://www.npmjs.com/package/@glaredb/glaredb"><img src="https://img.shields.io/npm/v/%40glaredb%2Fglaredb?style=flat-square"</img></a>
 <a href="https://twitter.com/glaredb"><img src="https://img.shields.io/twitter/follow/glaredb?color=blue&logo=twitter&style=flat-square"></img></a>
 <a href="https://discord.gg/2D7qxC5xkf"><img src="https://img.shields.io/static/v1?label=Chat on Discord&message= &color=360066&style=flat-square"></img></a>
 </div>
@@ -94,17 +95,17 @@ Read our [announcement on Hybrid Execution] for more information.
 
 1. Install the official [GlareDB Python library]
 
-     ```shell
-     pip install glaredb
-     ```
+   ```shell
+   pip install glaredb
+   ```
 
 2. Import and use `glaredb`.
 
-     ```python
-     import glaredb
-     con = glaredb.connect()
-     con.sql("select 'hello world';").show()
-     ```
+   ```python
+   import glaredb
+   con = glaredb.connect()
+   con.sql("select 'hello world';").show()
+   ```
 
 To use **Hybrid Execution**, sign up at <https://console.glaredb.com> and
 use the connection string for your deployment. For example:
@@ -194,6 +195,45 @@ Done with this data source? Remove it with the following command:
 ```sql
 DROP DATABASE my_pg;
 ```
+
+## Supported data sources
+
+| Source                 | Read | Write | Table Function | External Table | External Database |
+| ---------------------- | :--: | :---: | :------------: | :------------: | ----------------- |
+| **Databases**          |  --  |       |       --       |       --       | --                |
+| MySQL                  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
+| PostgreSQL             |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
+| MariaDB _(via mysql)_  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
+| Microsoft SQL Server   |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
+| MongoDB                |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
+| Snowflake              |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
+| BigQuery               |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
+| Cassandra/ScyllaDB     |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
+| ClickHouse             |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
+| DuckDB                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
+| Oracle                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
+| SQLite                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
+| ADBC                   |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
+| ODBC                   |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
+| **File Formats**       |  --  |  --   |       --       |       --       | --                |
+| Apache Arrow           |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
+| CSV                    |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
+| Newline Delimited JSON |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
+| Apache Parquet         |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
+| BSON                   |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
+| Lance                  |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
+| Delta                  |  ✅  |  🚧   |       ✅       |       ✅       | ➖                |
+| Iceberg                |  ✅  |  🚧   |       ✅       |       ✅       | ➖                |
+| Microsoft Excel        |  ✅  |  🚧   |       ✅       |       🚧       | ➖                |
+| JSON                   |  🚧  |  🚧   |       🚧       |       🚧       | ➖                |
+| Apache Avro            |  🚧  |  🚧   |       🚧       |       🚧       | ➖                |
+| Apache ORC             |  🚧  |  🚧   |       🚧       |       🚧       | ➖                |
+
+✅ = Supported
+➖ = Not Applicable
+🚧 = Not Yet Supported
+
+\* `COPY TO` support only
 
 ## Building from source
 

@@ -1,6 +1,12 @@
 statement ok
 create external table t1 from debug options (table_type = 'error_during_execution');
 
+statement error
+create external table t1 from debug (table_type = 'error_during_execution');
+
+statement error
+create external table t1 from debug options;
+
 statement error Duplicate name
 create external table t1 from debug options (table_type = 'never_ending');
 
@@ -14,7 +20,7 @@ statement ok
 CREATE OR REPLACE EXTERNAL TABLE T1 FROM DEBUG OPTIONS (TABLE_TYPE = 'never_ending');
 
 statement ok
-CrEaTe ExTeRnAl TaBlE if not exists SuppLIER fRoM lOcAl (LoCaTiOn '../../testdata/parquet/userdata1.parquet');
+CrEaTe ExTeRnAl TaBlE if not exists SuppLIER fRoM lOcAl oPtiOns (LoCaTiOn '${PWD}/testdata/parquet/userdata1.parquet');
 
 statement ok
 drop table supplier;

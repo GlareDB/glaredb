@@ -1,3 +1,9 @@
+use std::collections::VecDeque;
+use std::io::Cursor;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::ipc::reader::FileReader as IpcFileReader;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -5,10 +11,6 @@ use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::physical_plan::RecordBatchStream;
 use futures::{Stream, StreamExt};
 use protogen::gen::rpcsrv::common;
-use std::io::Cursor;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{collections::VecDeque, sync::Arc};
 use tonic::Streaming;
 use uuid::Uuid;
 
@@ -102,7 +104,7 @@ impl ExecutionBatchStream {
         let reader = IpcFileReader::try_new(cursor, None)?;
         Ok(reader.into_iter().map(|result| match result {
             Ok(batch) => Ok(batch),
-            Err(e) => Err(DataFusionError::ArrowError(e)),
+            Err(e) => Err(DataFusionError::ArrowError(e, None)),
         }))
     }
 }

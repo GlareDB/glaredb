@@ -3,7 +3,10 @@ name = "decimal"
 version = {workspace = true}
 edition = {workspace = true}
 
+[lints]
+workspace = true
+
 [dependencies]
 thiserror.workspace = true
-num-traits = "0.2.17"
-regex = "1.8.1"
+num-traits = "0.2.18"
+regex = "1.10.3"

@@ -1,0 +1,45 @@
+statement ok
+COPY (select * from '${PWD}/testdata/parquet/userdata1.parquet') to '${TMP}/userdata1.bson';
+
+query I
+SELECT count(*) FROM '${TMP}/userdata1.bson';
+----
+1000
+
+
+# This is commented out to avoid littering the filesystem with
+# files. Hygenic tests in the pytests for this.
+#
+# statement ok
+# COPY (select * from '${PWD}/testdata/parquet/userdata1.parquet') to 'userdata1.bson';
+#
+# query I
+# SELECT count(*) FROM 'userdata1.bson';
+# ----
+# 1000
+
+statement ok
+create table timestamps (t timestamp);
+
+statement ok
+insert into timestamps values (arrow_cast(946684860000000, 'Timestamp(Microsecond, None)'));
+
+query
+select * from timestamps;
+----
+2000-01-01 00:01:00
+
+statement ok
+copy timestamps to '${TMP}/timestamp_test_out.bson';
+
+# bson's date format is an int64, of milliseconds since unix epoch;
+# which most closely maps to arrow's Date64, and since that's the only
+# date format, (the bson "timestamp" type is really a mongodb
+# implementation detail, generally regarded to be a mistake.) all
+# arrow timetstamp and date types are upcast or truncated into this
+# type. (Time64 and Time32 just go to integers)
+
+query
+select * from '${TMP}/timestamp_test_out.bson';
+----
+946684860000
