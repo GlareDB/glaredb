@@ -1,5 +1,4 @@
-use crate::expr::execute::ScalarExecutor;
-use crate::expr::Expression;
+use crate::expr::{Expression, PhysicalScalarExpression};
 use crate::physical::PhysicalOperator;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, DataBatchSchema};
@@ -13,17 +12,12 @@ use super::{buffer::BatchBuffer, Sink, Source};
 
 #[derive(Debug)]
 pub struct PhysicalProjection {
-    exprs: Vec<ScalarExecutor>,
+    exprs: Vec<PhysicalScalarExpression>,
     buffer: BatchBuffer,
 }
 
 impl PhysicalProjection {
-    pub fn try_new(exprs: Vec<Expression>) -> Result<Self> {
-        let exprs = exprs
-            .into_iter()
-            .map(|expr| ScalarExecutor::try_new(expr))
-            .collect::<Result<Vec<_>, _>>()?;
-
+    pub fn try_new(exprs: Vec<PhysicalScalarExpression>) -> Result<Self> {
         Ok(PhysicalProjection {
             exprs,
             buffer: BatchBuffer::new(1),

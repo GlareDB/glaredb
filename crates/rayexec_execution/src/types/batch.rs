@@ -102,7 +102,7 @@ pub struct DataBatchSchema {
 }
 
 impl DataBatchSchema {
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         DataBatchSchema { types: Vec::new() }
     }
 
@@ -155,4 +155,26 @@ impl NamedDataBatchSchema {
     pub fn into_names_and_types(self) -> (Vec<String>, Vec<DataType>) {
         (self.names, self.types)
     }
+}
+
+/// Try to widen a data type such that both `left` and `right` fit inside that
+/// data type.
+///
+/// Only "reasonable" widening happens here. E.g. this won't return Utf8 to fit
+/// both a List type and a numeric type.
+pub fn maybe_widen(left: &DataType, right: &DataType) -> Option<DataType> {
+    Some(match (left, right) {
+        // Both are signed integers.
+        (DataType::Int64, right) if right.is_signed_integer() => DataType::Int64,
+        (DataType::Int32, right) if right.is_signed_integer() => DataType::Int32,
+        (DataType::Int16, right) if right.is_signed_integer() => DataType::Int16,
+        (DataType::Int8, right) if right.is_signed_integer() => DataType::Int8,
+
+        // Both are unsigned integers.
+        (DataType::UInt64, right) if right.is_unsigned_integer() => DataType::UInt64,
+        (DataType::UInt32, right) if right.is_unsigned_integer() => DataType::UInt32,
+        (DataType::UInt16, right) if right.is_unsigned_integer() => DataType::UInt16,
+        (DataType::UInt8, right) if right.is_unsigned_integer() => DataType::UInt8,
+        _ => return None,
+    })
 }

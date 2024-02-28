@@ -1,9 +1,9 @@
 use super::{
-    plans::{projection::PhysicalProjection, Sink},
+    plans::{empty_source::EmptySource, projection::PhysicalProjection, Sink},
     Destination, LinkedOperator, PhysicalOperator, Pipeline,
 };
 use crate::{
-    expr::{execute::MultiScalarExecutor, Expression},
+    expr::PhysicalScalarExpression,
     functions::table::Pushdown,
     physical::plans::{filter::PhysicalFilter, values::PhysicalValues},
     planner::{
@@ -26,13 +26,8 @@ impl PhysicalPlanner {
     }
 
     /// Create a physical plan from a logical plan.
-    pub fn create_plan(
-        &self,
-        plan: LogicalOperator,
-        context: &BindContext,
-        dest: Box<dyn Sink>,
-    ) -> Result<Pipeline> {
-        let mut builder = PipelineBuilder::new(dest, context);
+    pub fn create_plan(&self, plan: LogicalOperator, dest: Box<dyn Sink>) -> Result<Pipeline> {
+        let mut builder = PipelineBuilder::new(dest);
         builder.walk_plan(plan, Destination::PipelineOutput)?;
 
         Ok(builder.pipeline)
@@ -41,17 +36,16 @@ impl PhysicalPlanner {
 
 /// Iteratively builds up a pipeline from a logical plan.
 #[derive(Debug)]
-struct PipelineBuilder<'a> {
+struct PipelineBuilder {
     pipeline: Pipeline,
-    context: &'a BindContext,
 }
 
-impl<'a> PipelineBuilder<'a> {
+impl PipelineBuilder {
     /// Create a new builder for a pipeline that outputs the final result to
     /// `dest`.
-    fn new(dest: Box<dyn Sink>, context: &'a BindContext) -> Self {
+    fn new(dest: Box<dyn Sink>) -> Self {
         let pipeline = Pipeline::new_empty(dest);
-        PipelineBuilder { pipeline, context }
+        PipelineBuilder { pipeline }
     }
 
     /// Recursively walks the provided plan, creating physical operators along
@@ -62,13 +56,31 @@ impl<'a> PipelineBuilder<'a> {
             LogicalOperator::Filter(filter) => self.plan_filter(filter, output),
             LogicalOperator::Scan(scan) => self.plan_scan(scan, output),
             LogicalOperator::ExpressionList(values) => self.plan_values(values, output),
-            _ => unimplemented!(),
+            LogicalOperator::Empty => self.plan_empty(output),
+            other => unimplemented!("other: {other:?}"),
         }
+    }
+
+    fn plan_empty(&mut self, output: Destination) -> Result<()> {
+        let operator = EmptySource::new();
+        let linked = LinkedOperator {
+            operator: Arc::new(operator),
+            dest: output,
+        };
+
+        self.pipeline.push(linked);
+
+        Ok(())
     }
 
     fn plan_projection(&mut self, proj: operator::Projection, output: Destination) -> Result<()> {
         // Plan projection.
-        let operator = PhysicalProjection::try_new(proj.exprs)?;
+        let projections = proj
+            .exprs
+            .into_iter()
+            .map(|p| PhysicalScalarExpression::try_from_uncorrelated_expr(p))
+            .collect::<Result<Vec<_>>>()?;
+        let operator = PhysicalProjection::try_new(projections)?;
         let linked = LinkedOperator {
             operator: Arc::new(operator),
             dest: output,
@@ -88,8 +100,8 @@ impl<'a> PipelineBuilder<'a> {
 
     fn plan_filter(&mut self, filter: operator::Filter, output: Destination) -> Result<()> {
         // Plan filter.
-        let input = DataBatchSchema::new(Vec::new()); // TODO
-        let operator = PhysicalFilter::try_new(filter.predicate, &input)?;
+        let predicate = PhysicalScalarExpression::try_from_uncorrelated_expr(filter.predicate)?;
+        let operator = PhysicalFilter::try_new(predicate)?;
         let linked = LinkedOperator {
             operator: Arc::new(operator),
             dest: output,
@@ -132,8 +144,14 @@ impl<'a> PipelineBuilder<'a> {
 
         // Convert expressions into arrays of one element each.
         for row_exprs in values.rows {
-            let executor = MultiScalarExecutor::try_new(row_exprs)?;
-            let arrs = executor.eval(&dummy_batch)?;
+            let exprs = row_exprs
+                .into_iter()
+                .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr))
+                .collect::<Result<Vec<_>>>()?;
+            let arrs = exprs
+                .into_iter()
+                .map(|expr| expr.eval(&dummy_batch))
+                .collect::<Result<Vec<_>>>()?;
             row_arrs.push(arrs);
         }
 

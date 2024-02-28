@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
     task::{Context, Poll, Wake, Waker},
 };
+use tracing::trace;
 
 use super::{Destination, LinkedOperator, Pipeline};
 
@@ -35,6 +36,8 @@ impl Scheduler {
     /// only some will make progress while the others will be woken up once
     /// there's batches to begin executing on.
     pub fn execute(&self, pipeline: Pipeline) -> Result<()> {
+        trace!(?pipeline, "executing pipeline");
+
         let pipeline = Arc::new(pipeline);
 
         for (operator_idx, operator) in pipeline.operators.iter().enumerate() {

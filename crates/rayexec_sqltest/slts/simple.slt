@@ -4,3 +4,24 @@ query I
 select 1;
 ----
 1
+
+query II
+select 1, 2;
+----
+1  2
+
+query II
+select 1, 2,;
+----
+1  2
+
+query IT
+select 1, '2';
+----
+1  2
+
+query II
+select 1 as a, 2 as b;
+----
+1  2
+

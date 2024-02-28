@@ -1,4 +1,3 @@
-use crate::expr::execute::MultiScalarExecutor;
 use crate::expr::Expression;
 use crate::hash::build_hashes;
 use crate::physical::PhysicalOperator;

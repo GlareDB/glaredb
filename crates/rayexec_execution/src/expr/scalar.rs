@@ -8,6 +8,8 @@ use rayexec_parser::ast;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::types::batch::maybe_widen;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScalarValue {
     /// represents `DataType::Null` (castable to/from any other type)
@@ -121,6 +123,17 @@ pub enum BinaryOperator {
     Modulo,
     And,
     Or,
+}
+
+impl BinaryOperator {
+    pub fn data_type(&self, left: &DataType, right: &DataType) -> Result<DataType> {
+        use BinaryOperator::*;
+
+        Ok(match self {
+            Eq | NotEq | Lt | LtEq | Gt | GtEq | And | Or => DataType::Boolean,
+            Plus | Minus | Multiply | Divide | Modulo => maybe_widen(left, right).ok_or_else(|| RayexecError::new(format!("Unable to determine output data type for {:?} using arguments {:?} and {:?}", self, left, right)))?
+        })
+    }
 }
 
 impl TryFrom<ast::BinaryOperator> for BinaryOperator {

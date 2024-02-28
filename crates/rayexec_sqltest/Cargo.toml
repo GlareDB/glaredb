@@ -11,8 +11,11 @@ rayexec_execution = { path = '../rayexec_execution' }
 sqllogictest = "0.19.1"
 arrow = { workspace = true }
 env_logger = "0.11.2"
-log = "0.4.20"
 futures = { workspace = true, features = ["executor"] }
+async-trait = "0.1.77"
+tokio = { version = "1", features = ["full"] }
+tracing = { workspace = true }
+tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
 
 [[test]]
 harness = false

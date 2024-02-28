@@ -1,14 +1,14 @@
 use super::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     expr::{
-        scalar::{BinaryOperator, ScalarValue, VariadicOperator},
+        scalar::{BinaryOperator, ScalarValue, UnaryOperator, VariadicOperator},
         Expression,
     },
     functions::table::BoundTableFunction,
     types::batch::DataBatchSchema,
 };
-use rayexec_error::Result;
-use rayexec_parser::ast::UnaryOperator;
+use arrow_schema::DataType;
+use rayexec_error::{RayexecError, Result};
 use std::hash::Hash;
 
 use super::scope::ColumnRef;
@@ -29,17 +29,49 @@ pub enum LogicalOperator {
 
 impl LogicalOperator {
     /// Get the output schema of the operator.
-    pub fn schema(&self) -> Result<&DataBatchSchema> {
-        match self {
-            Self::Scan(scan) => Ok(&scan.schema),
-            _ => unimplemented!(),
-        }
+    ///
+    /// Since we're working with possibly correlated columns, this also accepts
+    /// the schema of the outer scopes.
+    pub fn schema(&self, outer: &[DataBatchSchema]) -> Result<DataBatchSchema> {
+        Ok(match self {
+            Self::Projection(proj) => {
+                let current = proj.input.schema(outer)?;
+                let types = proj
+                    .exprs
+                    .iter()
+                    .map(|expr| expr.data_type(&current, outer))
+                    .collect::<Result<Vec<_>>>()?;
+                DataBatchSchema::new(types)
+            }
+            Self::Filter(filter) => filter.input.schema(outer)?,
+            Self::Aggregate(agg) => unimplemented!(),
+            Self::Order(order) => order.input.schema(outer)?,
+            Self::Join(join) => unimplemented!(),
+            Self::CrossJoin(cross) => unimplemented!(),
+            Self::Limit(limit) => limit.input.schema(outer)?,
+            Self::Scan(scan) => scan.schema.clone(),
+            Self::ExpressionList(list) => {
+                let first = list
+                    .rows
+                    .get(0)
+                    .ok_or_else(|| RayexecError::new("Expression list contians no rows"))?;
+                // No inputs to expression list. Attempting to reference a
+                // column should error.
+                let current = DataBatchSchema::empty();
+                let types = first
+                    .iter()
+                    .map(|expr| expr.data_type(&current, outer))
+                    .collect::<Result<Vec<_>>>()?;
+                DataBatchSchema::new(types)
+            }
+            Self::Empty => DataBatchSchema::empty(),
+        })
     }
 }
 
 #[derive(Debug)]
 pub struct Projection {
-    pub exprs: Vec<Expression>,
+    pub exprs: Vec<LogicalExpression>,
     pub input: Box<LogicalOperator>,
 }
 
@@ -183,4 +215,54 @@ pub enum LogicalExpression {
         /// When <left>, then <right>
         when_then: Vec<(LogicalExpression, LogicalExpression)>,
     },
+}
+
+impl LogicalExpression {
+    /// Get the output data type of this expression.
+    ///
+    /// Since we're working with possibly correlated columns, both the schema of
+    /// the scope and the schema of the outer scopes are provided.
+    pub fn data_type(
+        &self,
+        current: &DataBatchSchema,
+        outer: &[DataBatchSchema],
+    ) -> Result<DataType> {
+        Ok(match self {
+            LogicalExpression::ColumnRef(col) => {
+                if col.scope_level == 0 {
+                    // Get data type from current schema.
+                    current
+                        .get_types()
+                        .get(col.item_idx)
+                        .cloned()
+                        .ok_or_else(|| {
+                            RayexecError::new(
+                                "Column reference points to outside of current schema",
+                            )
+                        })?
+                } else {
+                    // Get data type from one of the outer schemas.
+                    outer
+                        .get(col.scope_level - 1)
+                        .ok_or_else(|| {
+                            RayexecError::new("Column reference points to non-existent schema")
+                        })?
+                        .get_types()
+                        .get(col.item_idx)
+                        .cloned()
+                        .ok_or_else(|| {
+                            RayexecError::new("Column reference points to outside of outer schema")
+                        })?
+                }
+            }
+            LogicalExpression::Literal(lit) => lit.data_type(),
+            LogicalExpression::Unary { op, expr } => unimplemented!(),
+            LogicalExpression::Binary { op, left, right } => {
+                let left = left.data_type(current, outer)?;
+                let right = right.data_type(current, outer)?;
+                op.data_type(&left, &right)?
+            }
+            _ => unimplemented!(),
+        })
+    }
 }

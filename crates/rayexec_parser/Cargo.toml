@@ -6,6 +6,7 @@ edition = { workspace = true }
 [dependencies]
 rayexec_error = { path = '../rayexec_error' }
 unicase = "2.7.0"
+tracing = { workspace = true }
 
 [dev-dependencies]
 insta = "1.34.0"

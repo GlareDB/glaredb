@@ -1,16 +1,32 @@
 //! Bin for running the SLTs.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_sqltest::run_tests;
+use std::fs;
+use std::path::{Path, PathBuf};
+use tracing_subscriber::filter::EnvFilter;
+use tracing_subscriber::FmtSubscriber;
 
 /// Path to slts directory relative to this crate's root.
 const SLTS_PATH: &'static str = "slts/";
 
-pub fn main() -> Result<()> {
-    env_logger::init();
+#[tokio::main(flavor = "current_thread")]
+pub async fn main() -> Result<()> {
+    let env_filter = EnvFilter::builder()
+        .with_default_directive(tracing::Level::TRACE.into())
+        .from_env_lossy()
+        .add_directive("h2=info".parse().unwrap())
+        .add_directive("hyper=info".parse().unwrap())
+        .add_directive("sqllogictest=info".parse().unwrap());
+    let subscriber = FmtSubscriber::builder()
+        .with_test_writer() // TODO: Actually capture
+        .with_env_filter(env_filter)
+        .with_thread_ids(true)
+        .with_thread_names(true)
+        .with_file(true)
+        .with_line_number(true)
+        .finish();
+    let _g = tracing::subscriber::set_default(subscriber);
 
     std::panic::set_hook(Box::new(|info| {
         let backtrace = std::backtrace::Backtrace::force_capture();
@@ -18,12 +34,10 @@ pub fn main() -> Result<()> {
         std::process::abort();
     }));
 
-    return Ok(());
-
     let mut paths = Vec::new();
     find_files(Path::new(SLTS_PATH), &mut paths)?;
 
-    run_tests(paths)
+    run_tests(paths).await
 }
 
 fn find_files(dir: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {

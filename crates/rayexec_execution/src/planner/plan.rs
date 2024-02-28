@@ -8,13 +8,17 @@ use crate::{
 };
 
 use super::{
-    expr::ExpressionContext,
-    operator::{LogicalExpression, LogicalOperator},
+    expr::{ExpandedSelectExpr, ExpressionContext},
+    operator::{LogicalExpression, LogicalOperator, Projection},
     scope::{ColumnRef, Scope, ScopeColumn},
     Resolver,
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{ast, statement::Statement};
+use tracing::trace;
+
+const EMPTY_SCOPE: &'static Scope = &Scope::empty();
+const EMPTY_SCHEMA: &'static DataBatchSchema = &DataBatchSchema::empty();
 
 #[derive(Debug)]
 pub struct LogicalQuery {
@@ -43,6 +47,7 @@ impl<'a> PlanContext<'a> {
     }
 
     pub fn plan_statement(mut self, stmt: Statement) -> Result<LogicalQuery> {
+        trace!(?stmt, "planning statement");
         match stmt {
             Statement::Query(query) => self.plan_query(query),
             _ => unimplemented!(),
@@ -53,7 +58,7 @@ impl<'a> PlanContext<'a> {
         // TODO: CTEs
 
         let planned = match query.body {
-            ast::QueryNodeBody::Select(select) => unimplemented!(),
+            ast::QueryNodeBody::Select(select) => self.plan_select(*select)?,
             ast::QueryNodeBody::Set {
                 left,
                 right,
@@ -62,7 +67,10 @@ impl<'a> PlanContext<'a> {
             ast::QueryNodeBody::Values(values) => self.plan_values(values)?,
         };
 
-        unimplemented!()
+        // ORDER BY
+        // DISTINCT
+
+        Ok(planned)
     }
 
     fn plan_select(&mut self, select: ast::SelectNode) -> Result<LogicalQuery> {
@@ -77,7 +85,7 @@ impl<'a> PlanContext<'a> {
 
         // Handle WHERE
         if let Some(where_expr) = select.where_expr {
-            let expr_ctx = ExpressionContext::new(self, &plan.scope, plan.root.schema()?);
+            let expr_ctx = ExpressionContext::new(self, &plan.scope, EMPTY_SCHEMA);
             let expr = expr_ctx.plan_expression(where_expr)?;
 
             // Add filter to the plan, does not change the scope.
@@ -89,7 +97,7 @@ impl<'a> PlanContext<'a> {
 
         // Expand projections.
         // TODO: Error on wildcards if no from.
-        let expr_ctx = ExpressionContext::new(self, &plan.scope, plan.root.schema()?);
+        let expr_ctx = ExpressionContext::new(self, &plan.scope, EMPTY_SCHEMA);
         let projections = select
             .projections
             .into_iter()
@@ -100,10 +108,30 @@ impl<'a> PlanContext<'a> {
         // Aggregates
         // HAVING
 
-        // ORDER BY
-        // DISTINCT
+        // Add projections to plan using previously expanded select items.
+        let mut select_exprs = Vec::with_capacity(projections.len());
+        let mut names = Vec::with_capacity(projections.len());
+        let expr_ctx = ExpressionContext::new(self, &plan.scope, EMPTY_SCHEMA);
+        for proj in projections {
+            match proj {
+                ExpandedSelectExpr::Expr { expr, name } => {
+                    let expr = expr_ctx.plan_expression(expr)?;
+                    select_exprs.push(expr);
+                    names.push(name);
+                }
+            }
+        }
 
-        unimplemented!()
+        plan = LogicalQuery {
+            root: LogicalOperator::Projection(Projection {
+                exprs: select_exprs,
+                input: Box::new(plan.root),
+            }),
+            // Cleaned scope containing only output columns in the projection.
+            scope: Scope::with_columns(None, names),
+        };
+
+        Ok(plan)
     }
 
     fn plan_from_node(&self, from: ast::FromNode) -> Result<LogicalQuery> {
@@ -115,8 +143,7 @@ impl<'a> PlanContext<'a> {
 
                 // Plan the arguments to the table function. Currently only
                 // constant expressions are allowed.
-                let expr_ctx =
-                    ExpressionContext::new(self, &Scope::empty(), &DataBatchSchema::empty());
+                let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_SCHEMA);
                 let mut func_args = TableFunctionArgs::default();
                 for arg in args {
                     match arg {
@@ -214,7 +241,8 @@ impl<'a> PlanContext<'a> {
         }
 
         // Convert AST expressions to logical expressions.
-        let expr_ctx = ExpressionContext::new(self, &Scope::empty(), &DataBatchSchema::empty());
+        let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_SCHEMA);
+        let num_cols = values.rows[0].len();
         let exprs = values
             .rows
             .into_iter()
@@ -229,7 +257,6 @@ impl<'a> PlanContext<'a> {
         let operator = LogicalOperator::ExpressionList(ExpressionList { rows: exprs });
 
         // Generate output scope with appropriate column names.
-        let num_cols = exprs[0].len();
         let mut scope = Scope::empty();
         scope.add_columns(None, (0..num_cols).map(|i| format!("column{}", i + 1)));
 

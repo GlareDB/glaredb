@@ -6,11 +6,13 @@ pub mod plans;
 pub mod scheduler;
 
 use plans::{Sink, Source};
+use std::fmt;
 use std::sync::Arc;
 
-pub trait PhysicalOperator: Source + Sink {}
+use crate::planner::explainable::{ExplainConfig, Explainable};
 
-#[derive(Debug)]
+pub trait PhysicalOperator: Source + Sink + Explainable {}
+
 pub struct Pipeline {
     /// Destination for all resulting record batches.
     pub destination: Box<dyn Sink>,
@@ -39,8 +41,20 @@ impl Pipeline {
     }
 }
 
+impl fmt::Debug for Pipeline {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (idx, operator) in self.operators.iter().enumerate() {
+            if idx != 0 {
+                write!(f, "\n")?;
+            }
+            write!(f, "{idx}: {operator:?}")?;
+        }
+        Ok(())
+    }
+}
+
 /// Where to send an operator's output.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Destination {
     /// Send to another operator in the pipeline.
     Operator {
@@ -55,9 +69,32 @@ pub enum Destination {
     PipelineOutput,
 }
 
+impl fmt::Debug for Destination {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Operator { operator, child } => f
+                .debug_tuple("Destination")
+                .field(operator)
+                .field(child)
+                .finish(),
+            Self::PipelineOutput => f
+                .debug_tuple("Destination")
+                .field(&"pipeline output")
+                .finish(),
+        }
+    }
+}
+
 /// An operator in the pipeline that will send its output to some destination.
-#[derive(Debug)]
 pub struct LinkedOperator {
     pub operator: Arc<dyn PhysicalOperator>,
     pub dest: Destination,
+}
+
+impl fmt::Debug for LinkedOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let conf = ExplainConfig { verbose: false };
+        let explain = self.operator.explain_entry(conf);
+        write!(f, "{explain} {:?}", self.dest)
+    }
 }

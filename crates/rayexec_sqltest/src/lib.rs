@@ -3,8 +3,8 @@ use arrow::{
     datatypes::DataType,
     util::display::{ArrayFormatter, FormatOptions},
 };
-use futures::executor::block_on_stream;
-use log::info;
+use async_trait::async_trait;
+use futures::StreamExt;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     engine::{session::Session, Engine},
@@ -12,18 +12,21 @@ use rayexec_execution::{
 };
 use sqllogictest::DefaultColumnType;
 use std::path::PathBuf;
+use tracing::{debug, info};
 
-pub fn run_tests(paths: Vec<PathBuf>) -> Result<()> {
+pub async fn run_tests(paths: Vec<PathBuf>) -> Result<()> {
     for path in paths {
-        run_test(path)?;
+        run_test(path).await?;
     }
     Ok(())
 }
 
-fn run_test(path: PathBuf) -> Result<()> {
+async fn run_test(path: PathBuf) -> Result<()> {
+    debug!(?path, "running slt file");
     let mut runner = sqllogictest::Runner::new(|| async { TestSession::try_new() });
     runner
-        .run_file(path)
+        .run_file_async(path)
+        .await
         .map_err(|e| RayexecError::with_source("run file", Box::new(e)))?;
     Ok(())
 }
@@ -42,17 +45,21 @@ impl TestSession {
     }
 }
 
-impl sqllogictest::DB for TestSession {
+#[async_trait]
+impl sqllogictest::AsyncDB for TestSession {
     type Error = RayexecError;
     type ColumnType = DefaultColumnType;
 
-    fn run(&mut self, sql: &str) -> Result<sqllogictest::DBOutput<Self::ColumnType>, Self::Error> {
-        info!("Query: {sql}");
+    async fn run(
+        &mut self,
+        sql: &str,
+    ) -> Result<sqllogictest::DBOutput<Self::ColumnType>, Self::Error> {
+        info!(%sql, "running query");
 
         let mut rows = Vec::new();
-        let output = self.session.execute(sql)?;
+        let mut output = self.session.execute(sql)?;
         let typs = schema_to_types(&output.output_schema);
-        for batch in block_on_stream(output.stream) {
+        while let Some(batch) = output.stream.next().await {
             rows.extend(batch_to_rows(batch)?);
         }
 

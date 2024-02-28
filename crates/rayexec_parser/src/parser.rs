@@ -5,9 +5,11 @@ use crate::{
     tokens::{Token, TokenWithLocation, Tokenizer, Word},
 };
 use rayexec_error::{RayexecError, Result};
+use tracing::trace;
 
 /// Parse a sql query into statements.
 pub fn parse(sql: &str) -> Result<Vec<Statement>> {
+    trace!(%sql, "parsing sql statement");
     let toks = Tokenizer::new(sql).tokenize()?;
     Parser::with_tokens(toks).parse_statements()
 }

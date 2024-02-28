@@ -2,11 +2,12 @@ use arrow_array::RecordBatch;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{ast, parser};
 use std::sync::Arc;
+use tracing::trace;
 
 use crate::{
     functions::table::{self, TableFunction},
     physical::{planner::PhysicalPlanner, scheduler::Scheduler, Pipeline},
-    planner::Resolver,
+    planner::{plan::PlanContext, Resolver},
     types::batch::DataBatchSchema,
 };
 
@@ -61,24 +62,24 @@ impl Session {
         }
         let mut stmts = stmts.into_iter();
 
-        unimplemented!()
-        // let planner = Planner::new(DebugResolver);
-        // let (logical, context) = planner.plan_statement(stmts.next().unwrap())?;
+        let plan_context = PlanContext::new(&DebugResolver);
+        let logical = plan_context.plan_statement(stmts.next().unwrap())?;
+        trace!(?logical, "logical plan created");
 
         // let optimizer = Optimizer::new();
         // let logical = optimizer.optimize(&context, logical)?;
 
-        // let mut output_stream = MaterializedBatchStream::new();
+        let mut output_stream = MaterializedBatchStream::new();
 
-        // let physical_planner = PhysicalPlanner::new();
-        // let pipeline =
-        //     physical_planner.create_plan(logical, &context, output_stream.take_sink()?)?;
+        let physical_planner = PhysicalPlanner::new();
+        let pipeline = physical_planner.create_plan(logical.root, output_stream.take_sink()?)?;
+        trace!(?pipeline, "physical plan created");
 
-        // self.scheduler.execute(pipeline)?;
+        self.scheduler.execute(pipeline)?;
 
-        // Ok(ExecutionResult {
-        //     output_schema: DataBatchSchema::new(Vec::new()), // TODO
-        //     stream: output_stream,
-        // })
+        Ok(ExecutionResult {
+            output_schema: DataBatchSchema::new(Vec::new()), // TODO
+            stream: output_stream,
+        })
     }
 }

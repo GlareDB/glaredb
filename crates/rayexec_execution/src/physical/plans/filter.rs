@@ -1,5 +1,4 @@
-use crate::expr::execute::ScalarExecutor;
-use crate::expr::Expression;
+use crate::expr::{Expression, PhysicalScalarExpression};
 use crate::physical::PhysicalOperator;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, DataBatchSchema};
@@ -14,23 +13,14 @@ use super::{buffer::BatchBuffer, Sink, Source};
 
 #[derive(Debug)]
 pub struct PhysicalFilter {
-    predicate: ScalarExecutor,
+    predicate: PhysicalScalarExpression,
     buffer: BatchBuffer,
 }
 
 impl PhysicalFilter {
-    pub fn try_new(predicate: Expression, input_schema: &DataBatchSchema) -> Result<Self> {
-        let executor = ScalarExecutor::try_new(predicate)?;
-        let ret_type = executor.data_type(input_schema)?;
-        if ret_type != DataType::Boolean {
-            return Err(RayexecError::new(format!(
-                "expr {:?} does not return a boolean",
-                executor.expression(),
-            )));
-        }
-
+    pub fn try_new(predicate: PhysicalScalarExpression) -> Result<Self> {
         Ok(PhysicalFilter {
-            predicate: executor,
+            predicate,
             buffer: BatchBuffer::new(1),
         })
     }

@@ -16,6 +16,19 @@ pub struct ColumnRef {
     pub item_idx: usize,
 }
 
+impl ColumnRef {
+    /// Try to get the uncorrelated column index.
+    ///
+    /// An uncorrelated column index is a column index that exists in "this"
+    /// scope (scope_level == 0).
+    pub fn try_as_uncorrelated(&self) -> Result<usize> {
+        if self.scope_level != 0 {
+            return Err(RayexecError::new("Column is not uncorrelated"));
+        }
+        Ok(self.item_idx)
+    }
+}
+
 /// Reference to a table inside a scope.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableReference {
@@ -60,7 +73,7 @@ pub struct Scope {
 
 impl Scope {
     /// Create a new empty scope.
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Scope { items: Vec::new() }
     }
 
