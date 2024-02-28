@@ -7,6 +7,7 @@ use catalog::session_catalog::SessionCatalog;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::context::{SessionConfig, SessionContext as DfSessionContext};
 use datafusion::physical_plan::{execute_stream, ExecutionPlan, SendableRecordBatchStream};
+use datafusion::variable::VarType;
 use datafusion_ext::functions::FuncParamValue;
 use datafusion_ext::vars::SessionVars;
 use datasources::native::access::NativeTableStorage;
@@ -55,7 +56,8 @@ impl RemoteSessionContext {
     ) -> Result<Self> {
         // TODO: We'll want to remove this eventually. We should be able to
         // create a datafusion context/runtime without needing these vars.
-        let vars = SessionVars::default();
+        let vars: SessionVars =
+            SessionVars::default().with_is_cloud_instance(true, VarType::System);
 
         let runtime = new_datafusion_runtime_env(&vars, &catalog, spill_path)?;
         let opts = new_datafusion_session_config_opts(&vars);
