@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::env;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{anyhow, Result};
@@ -23,8 +22,6 @@ use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::notice::NoticeSeverity;
 use reedline::{FileBackedHistory, Reedline, Signal};
-use sqlbuiltins::functions::scalars::glaredb_ffl::GlaredbFFIPlugin;
-use sqlbuiltins::functions::BuiltinScalarUDF;
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::session::ExecutionResult;
@@ -104,19 +101,9 @@ impl LocalSession {
 
             sess
         } else {
-            let mut sess = engine
+            engine
                 .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
-                .await?;
-            let f = GlaredbFFIPlugin::try_new(
-                "ffi_echo",
-                "/Users/corygrinstead/Development/glaredb_extension/target/debug/libexpression_lib.dylib",
-                "echo",
-                None
-            ).unwrap();
-
-            let f: Arc<dyn BuiltinScalarUDF> = Arc::new(f);
-            sess.register_function(f).await.unwrap();
-            sess
+                .await?
         };
 
         Ok(LocalSession {

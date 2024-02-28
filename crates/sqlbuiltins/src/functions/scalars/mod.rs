@@ -1,5 +1,5 @@
 pub mod df_scalars;
-pub mod glaredb_ffl;
+pub mod glaredb_ffi;
 pub mod hashing;
 pub mod kdl;
 pub mod openai;
