@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::path::Path;
 use std::sync::Arc;
 use std::vec;
 
@@ -16,19 +17,21 @@ use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
+use datasources::native::access::NativeTableStorage;
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess};
+use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess, ObjStoreTableProvider};
 use futures::TryStreamExt;
 use object_store::azure::AzureConfigKey;
+use object_store::path::Path as ObjectStorePath;
+use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
 
-use super::TableFunc;
-use crate::functions::BuiltinFunction;
+use crate::functions::{BuiltinFunction, ConstBuiltinFunction, TableFunc};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ParquetOptionsReader;
@@ -123,7 +126,7 @@ pub trait OptionReader: Sync + Send + Sized {
     /// List of options and their expected data types.
     const OPTIONS: &'static [(&'static str, DataType)];
 
-    /// Read user provided options, and construct a file format usign those options.
+    /// Read user provided options, and construct a file format using those options.
     fn read_options(opts: &HashMap<String, FuncParamValue>) -> Result<Self::Format>;
 }
 
@@ -581,4 +584,137 @@ fn create_azure_store_access(
         base_url: ObjectStoreUrl::try_from(source_url)?,
         storage_options: opts,
     }))
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CloudUpload;
+
+impl ConstBuiltinFunction for CloudUpload {
+    const NAME: &'static str = "cloud_upload";
+    const DESCRIPTION: &'static str = "Reads a file that was uploaded to GlareDB Cloud.";
+    const EXAMPLE: &'static str = "SELECT * FROM cloud_upload('my_upload.csv')";
+    const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+
+    // CloudUpload accepts a single argument, filename. The filename **must**
+    // contain an extension. Valid extensions are `.csv`, `.json`, and
+    // `.parquet`. The filename should not be a path and may only contain
+    // alphanumeric characters in front of the extension.
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::uniform(
+            1,
+            vec![DataType::Utf8],
+            Volatility::Stable,
+        ))
+    }
+}
+
+#[async_trait]
+impl TableFunc for CloudUpload {
+    fn detect_runtime(
+        &self,
+        _args: &[FuncParamValue],
+        _parent: RuntimePreference,
+    ) -> Result<RuntimePreference> {
+        // Uploads can only exist remotely; this operation is not meaningful
+        // when not connected to remote/hybrid.
+        Ok(RuntimePreference::Remote)
+    }
+
+    async fn create_provider(
+        &self,
+        ctx: &dyn TableFuncContextProvider,
+        args: Vec<FuncParamValue>,
+        _opts: HashMap<String, FuncParamValue>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        if args.len() != 1 {
+            return Err(ExtensionError::InvalidNumArgs);
+        }
+
+        if !ctx.get_session_vars().is_cloud_instance() {
+            return Err(ExtensionError::String(
+                format!(
+                    "{} is only available when connected to GlareDB Cloud",
+                    self.name(),
+                )
+                .to_string(),
+            ));
+        }
+
+        // NativeTableStorage is available on Remote ctx. Use store already
+        // constructed there.
+        let storage = ctx
+            .get_session_state()
+            .config()
+            .get_extension::<NativeTableStorage>()
+            .ok_or_else(|| {
+                ExtensionError::String(
+                    format!(
+                        "{} is only available when connected to GlareDB Cloud",
+                        self.name(),
+                    )
+                    .to_string(),
+                )
+            })?;
+        let store = storage.store.clone(); // Cheap to clone
+
+        let file_name: String = args.into_iter().next().unwrap().try_into()?;
+        let ext = Path::new(&file_name)
+            .extension()
+            .ok_or_else(|| {
+                ExtensionError::String(
+                    "missing file extension, supported: [.csv, .json, .parquet]".to_string(),
+                )
+            })?
+            .to_str()
+            .ok_or_else(|| {
+                ExtensionError::String(format!("unsupported file extension: {file_name}"))
+            })?
+            .to_lowercase();
+        let file_format: Arc<dyn FileFormat> = match ext.as_str() {
+            "csv" => Arc::new(CsvFormat::default().with_schema_infer_max_rec(Some(20480))),
+            "json" => Arc::new(JsonFormat::default()),
+            "parquet" => Arc::new(ParquetFormat::default()),
+            ext => {
+                return Err(ExtensionError::String(format!(
+                    "unsupported file extension: {ext}"
+                )))
+            }
+        };
+
+        // Path is required to read the object_store meta, but we unfortunately
+        // also need the base_url below for ObjStoreTableProvider impl.
+        // Maybe there's a refactor opportunity.
+        let path = ObjectStorePath::from(format!(
+            "databases/{}/uploads/{}",
+            storage.db_id(),
+            file_name
+        ));
+        let base_url = storage.root_url.to_string();
+        let base_url = ObjectStoreUrl::parse(base_url)?;
+
+        // No globbing: just retrieve meta for the requested file
+        let meta: ObjectMeta = match store.head(&path).await {
+            Ok(meta) => meta,
+            Err(_) => {
+                return Err(ExtensionError::String(format!(
+                    "file not found: {}",
+                    file_name
+                )))
+            }
+        };
+        let objects: Vec<ObjectMeta> = vec![meta]; // needed for ObjStoreTableProvider impl
+
+        let session_state = ctx.get_session_state();
+        let arrow_schema = file_format
+            .infer_schema(&session_state, &store.inner, &objects)
+            .await?;
+
+        return Ok(Arc::new(ObjStoreTableProvider::new(
+            store.inner.clone(),
+            arrow_schema,
+            base_url,
+            objects,
+            file_format,
+        )));
+    }
 }

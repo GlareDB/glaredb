@@ -36,6 +36,7 @@ use sqlbuiltins::builtins::{
     DATABASE_DEFAULT,
     DEFAULT_SCHEMA,
     FIRST_NON_STATIC_OID,
+    SCHEMA_DEFAULT,
 };
 use sqlbuiltins::functions::{BuiltinFunction, FUNCTION_REGISTRY};
 use sqlbuiltins::validation::{
@@ -73,7 +74,7 @@ static BUILTIN_CATALOG: Lazy<BuiltinCatalog> = Lazy::new(|| BuiltinCatalog::new(
 pub struct DatabaseCatalog {
     db_id: Uuid,
 
-    /// Reference to underlying persistant storage.
+    /// Reference to underlying persistent storage.
     storage: Arc<Storage>,
 
     /// A cached catalog state for a single database.
@@ -271,6 +272,15 @@ impl DatabaseEntries {
 
         if let Some(ent) = self.0.get(&oid) {
             if ent.get_meta().builtin {
+                return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));
+            }
+        }
+
+        for builtin in BuiltinSchema::builtins() {
+            if builtin.oid == SCHEMA_DEFAULT.oid {
+                continue;
+            }
+            if builtin.oid == ent.get_meta().parent {
                 return Err(MetastoreError::CannotModifyBuiltin(ent.clone()));
             }
         }
@@ -925,19 +935,17 @@ impl State {
                             Some(id) => id,
                         };
 
-                        let mut table = match self.entries.remove(&oid)?.unwrap() {
-                            CatalogEntry::Table(ent) => ent,
-                            other => unreachable!("unexpected entry type: {:?}", other),
-                        };
+                        let mut ent = self.entries.remove(&oid)?.unwrap();
 
-                        table.meta.name = new_name;
+                        // The entry must be a "table" or a "view".
+                        assert!(
+                            matches!(ent, CatalogEntry::Table(_) | CatalogEntry::View(_)),
+                            "unexpected entry type: {ent:?}"
+                        );
 
-                        self.try_insert_table_namespace(
-                            CatalogEntry::Table(table.clone()),
-                            schema_id,
-                            table.meta.id,
-                            CreatePolicy::Create,
-                        )?;
+                        ent.get_meta_mut().name = new_name;
+
+                        self.try_insert_table_namespace(ent, schema_id, oid, CreatePolicy::Create)?;
                     }
                     AlterTableOperation::SetAccessMode { access_mode } => {
                         let oid = match objs.tables.get(&alter_table.name) {
@@ -1368,18 +1376,25 @@ impl BuiltinCatalog {
 mod tests {
     use std::collections::HashSet;
 
+    use datafusion::arrow::datatypes::DataType;
     use object_store::memory::InMemory;
-    use protogen::metastore::types::options::{DatabaseOptionsDebug, TableOptionsDebug};
+    use protogen::metastore::types::options::{
+        DatabaseOptionsDebug,
+        InternalColumnDefinition,
+        TableOptionsDebug,
+        TableOptionsInternal,
+    };
     use protogen::metastore::types::service::{
         AlterDatabase,
         CreateExternalDatabase,
         CreateExternalTable,
         CreateSchema,
+        CreateTable,
         CreateView,
         DropDatabase,
         DropSchema,
     };
-    use sqlbuiltins::builtins::DEFAULT_CATALOG;
+    use sqlbuiltins::builtins::{DEFAULT_CATALOG, INTERNAL_SCHEMA};
 
     use super::*;
     use crate::storage::persist::Storage;
@@ -1953,5 +1968,57 @@ mod tests {
             )
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn try_modify_internal_schema() {
+        let db = new_catalog().await;
+        version(&db).await;
+
+        // Add internal table on 'glare_catalog'
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateTable(CreateTable {
+                schema: INTERNAL_SCHEMA.to_string(),
+                name: "peach".to_string(),
+                if_not_exists: true,
+                or_replace: false,
+                options: TableOptionsInternal {
+                    columns: vec![InternalColumnDefinition {
+                        name: "luigi".to_string(),
+                        nullable: true,
+                        arrow_type: DataType::Utf8,
+                    }],
+                },
+            })],
+        )
+        .await
+        .unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn allow_modify_default_schema() {
+        let db = new_catalog().await;
+        version(&db).await;
+
+        // Add internal table on 'public' schema
+        db.try_mutate(
+            version(&db).await,
+            vec![Mutation::CreateTable(CreateTable {
+                schema: DEFAULT_SCHEMA.to_string(),
+                name: "peach".to_string(),
+                if_not_exists: true,
+                or_replace: false,
+                options: TableOptionsInternal {
+                    columns: vec![InternalColumnDefinition {
+                        name: "luigi".to_string(),
+                        nullable: true,
+                        arrow_type: DataType::Utf8,
+                    }],
+                },
+            })],
+        )
+        .await
+        .unwrap();
     }
 }

@@ -20,7 +20,6 @@ use tokio::runtime::Builder;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 use tokio_postgres::config::Config as ClientConfig;
-use tracing::info;
 use uuid::Uuid;
 
 use crate::args::StorageConfigArgs;
@@ -376,7 +375,7 @@ impl SltArgs {
         client_config: ClientConfig,
         hooks: Arc<TestHooks>,
     ) -> Result<()> {
-        info!("Running test: `{}`", test_name);
+        tracing::info!("Running test: `{}`", test_name);
         let client = match mode {
             ClientProtocol::Postgres => TestClient::Pg(PgTestClient::new(&client_config).await?),
             ClientProtocol::Rpc => {
@@ -413,8 +412,13 @@ impl SltArgs {
         // Run the pre-test hooks
         for (pattern, hook) in hooks.clone() {
             tracing::debug!(%pattern, %test_name, "Running pre hook for test");
-            hook.pre(client_config, client.clone(), &mut local_vars)
+            let ok_to_continue = hook
+                .pre(client_config, client.clone(), &mut local_vars)
                 .await?;
+            if !ok_to_continue {
+                tracing::warn!("skipping test, as indicated by pre-hook for {}", test_name);
+                return Ok(());
+            }
         }
 
         // Run the actual test

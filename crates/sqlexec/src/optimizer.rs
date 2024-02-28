@@ -113,6 +113,7 @@ mod test {
         CopyToDestinationOptions,
         CopyToDestinationOptionsLocal,
         CopyToFormatOptions,
+        CopyToFormatOptionsBson,
     };
     use uuid::Uuid;
 
@@ -149,12 +150,12 @@ mod test {
             .unwrap(),
         );
 
-        let plan = DFLogicalPlan::Limit(Limit {
+
+        DFLogicalPlan::Limit(Limit {
             skip: 0,
             fetch: Some(1),
             input: Arc::new(plan.clone()),
-        });
-        plan
+        })
     }
 
     #[test]
@@ -214,7 +215,7 @@ mod test {
                 dest: CopyToDestinationOptions::Local(CopyToDestinationOptionsLocal {
                     location: "/tmp".to_string(),
                 }),
-                format: CopyToFormatOptions::Bson,
+                format: CopyToFormatOptions::Bson(CopyToFormatOptionsBson {}),
             }
             .into_extension(),
         );

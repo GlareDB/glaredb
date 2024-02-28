@@ -87,7 +87,7 @@ impl<'a> PartialContextProvider<'a> {
         Ok(provider)
     }
 
-    /// Find a table provider the given reference, taking into account the
+    /// Find a table provider for the given reference, taking into account the
     /// session's search path.
     ///
     /// This will attempt to resolve either a table, or a table returning
@@ -104,7 +104,7 @@ impl<'a> PartialContextProvider<'a> {
     ) -> Result<RuntimeAwareTableProvider, PlanError> {
         // Try to read from the environment first.
         //
-        // TODO: Determine if this is a behavior we want. This was move to the
+        // TODO: Determine if this is a behavior we want. This was moved to the
         // top to preempt reading from a remote session.
         if let TableReference::Bare { table } = &reference {
             if let Some(reader) = self.ctx.get_env_reader() {

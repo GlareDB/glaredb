@@ -51,3 +51,185 @@ select count(*) from './testdata/parquet/*.parquet'
 statement error missing file extension
 select count(*) from './testdata/parquet/*'
 
+
+
+
+#Tests for inferring table functions from compressed file formats
+
+#Tests for CSV with .gz, .bz2, .xz, .zst 
+#csv.gz
+query
+select count(*) from './testdata/csv/userdata1.csv.gz'
+----
+1000
+
+#csv.gz
+query IT
+select id, "./testdata/csv/userdata1.csv.gz".first_name
+  from './testdata/csv/userdata1.csv.gz'
+  order by id
+  limit 1
+----
+1  Amanda
+
+#csv.bz2
+query
+select count(*) from './testdata/csv/userdata1.csv.bz2'
+----
+1000
+
+#csv.bz2
+query IT
+select id, "./testdata/csv/userdata1.csv.bz2".first_name
+  from './testdata/csv/userdata1.csv.bz2'
+  order by id
+  limit 1
+----
+1  Amanda
+
+#csv.xz
+query
+select count(*) from './testdata/csv/userdata1.csv.xz'
+----
+1000
+
+#csv.xz
+query IT
+select id, "./testdata/csv/userdata1.csv.xz".first_name
+  from './testdata/csv/userdata1.csv.xz'
+  order by id
+  limit 1
+----
+1  Amanda
+
+#csv.zst
+query
+select count(*) from './testdata/csv/userdata1.csv.zst'
+----
+1000
+
+#csv.zst
+query IT
+select id, "./testdata/csv/userdata1.csv.zst".first_name
+  from './testdata/csv/userdata1.csv.zst'
+  order by id
+  limit 1
+----
+1  Amanda
+
+
+
+#Tests for json with .gz, .bz2, .xz, .zst
+#json.gz
+query
+select count(*) from './testdata/json/userdata1.json.gz'
+----
+1000
+
+#json.gz
+query IT
+select id, "./testdata/json/userdata1.json.gz".first_name
+  from './testdata/json/userdata1.json.gz'
+  order by id
+  limit 1
+----
+1  Amanda
+
+#json.bz2
+query
+select count(*) from './testdata/json/userdata1.json.bz2'
+----
+1000
+
+#json.bz2
+query IT
+select id, "./testdata/json/userdata1.json.bz2".first_name
+  from './testdata/json/userdata1.json.bz2'
+  order by id
+  limit 1
+----
+1  Amanda
+
+#json.xz
+query
+select count(*) from './testdata/json/userdata1.json.xz'
+----
+1000
+
+#json.xz
+query IT
+select id, "./testdata/json/userdata1.json.xz".first_name
+  from './testdata/json/userdata1.json.xz'
+  order by id
+  limit 1
+----
+1  Amanda
+
+#json.zst
+query
+select count(*) from './testdata/json/userdata1.json.zst'
+----
+1000
+
+#json.zst
+query IT
+select id, "./testdata/json/userdata1.json.zst".first_name
+  from './testdata/json/userdata1.json.zst'
+  order by id
+  limit 1
+----
+1  Amanda
+
+
+
+#For infering function from parquet compressed formats .bz2, .xz, .zst, .gz 
+#parquet.bz2
+statement error compression not supported for parquet
+select count(*) from './testdata/parquet/userdata1.parquet.bz2'
+
+
+#parquet.bz2
+statement error compression not supported for parquet
+select id, "./testdata/parquet/userdata1.parquet.bz2".first_name
+  from './testdata/parquet/userdata1.parquet.bz2'
+  order by id
+  limit 1
+
+
+#parquet.xz
+statement error compression not supported for parquet
+select count(*) from './testdata/parquet/userdata1.parquet.xz'
+
+
+#parquet.xz
+statement error compression not supported for parquet
+select id, "./testdata/parquet/userdata1.parquet.xz".first_name
+  from './testdata/parquet/userdata1.parquet.xz'
+  order by id
+  limit 1
+
+
+#parquet.zst
+statement error compression not supported for parquet
+select count(*) from './testdata/parquet/userdata1.parquet.zst'
+
+
+#parquet.zst
+statement error compression not supported for parquet
+select id, "./testdata/parquet/userdata1.parquet.zst".first_name
+  from './testdata/parquet/userdata1.parquet.zst'
+  order by id
+  limit 1
+
+
+#parquet.gz
+statement error compression not supported for parquet
+select count(*) from './testdata/parquet/userdata1.parquet.gz'
+
+
+#parquet.gz
+statement error compression not supported for parquet
+select id, "./testdata/parquet/userdata1.parquet.gz".first_name
+  from './testdata/parquet/userdata1.parquet.gz'
+  order by id
+  limit 1

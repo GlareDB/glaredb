@@ -35,30 +35,25 @@ fn infer_value_type(v: &calamine::Data) -> Result<DataType, Error> {
 
 fn infer_schema(
     r: &Range<calamine::Data>,
-    has_header: Option<bool>,
+    has_header: bool,
     infer_schema_length: usize,
-) -> Result<(Schema, bool), Error> {
+) -> Result<Schema, Error> {
     let mut col_types: HashMap<&str, HashSet<DataType>> = HashMap::new();
     let mut rows = r.rows();
-    let mut skip_first = false;
     let col_names: Vec<String> = rows
         .next()
         .unwrap()
         .iter()
         .enumerate()
-        .map(|(i, c)| {
-            let s = c.get_string().map(|s| s.to_string());
-            match (has_header, s) {
-                (Some(true), Some(s)) => {
-                    skip_first = true;
-                    Ok(s)
-                }
-                (Some(true), None) => Err(Error::Load {
+        .map(
+            |(i, c)| match (has_header, c.get_string().map(|s| s.to_string())) {
+                (true, Some(s)) => Ok(s),
+                (true, None) => Err(Error::Load {
                     msg: "failed to parse header".to_string(),
                 }),
-                _ => Ok(format!("col{}", i)),
-            }
-        })
+                (false, _) => Ok(format!("col{}", i)),
+            },
+        )
         .collect::<Result<_, _>>()?;
 
     for row in rows.take(infer_schema_length) {
@@ -87,23 +82,24 @@ fn infer_schema(
             Field::new(col_name.replace(' ', "_"), dt, true)
         })
         .collect();
-    Ok((Schema::new(fields), skip_first))
+
+    Ok(Schema::new(fields))
 }
 
 // TODO: vectorize this to improve performance
 // Ideally we can iterate over the columns instead of iterating over the rows
 fn xlsx_sheet_value_to_record_batch(
     r: Range<calamine::Data>,
-    has_header: Option<bool>,
+    has_header: bool,
     infer_schema_length: usize,
 ) -> Result<RecordBatch, Error> {
-    let (schema, should_skip) = infer_schema(&r, has_header, infer_schema_length)?;
+    let schema = infer_schema(&r, has_header, infer_schema_length)?;
     let arrays = schema
         .fields()
         .iter()
         .enumerate()
         .map(|(i, field)| {
-            let rows = if should_skip {
+            let rows = if has_header {
                 r.rows().skip(1)
             } else {
                 // Rows doesn't behave like a normal iterator here, so we need to skip `0` rows
@@ -150,7 +146,7 @@ fn xlsx_sheet_value_to_record_batch(
 pub async fn read_excel_impl(
     path: &PathBuf,
     sheet_name: Option<&str>,
-    has_header: Option<bool>,
+    has_header: bool,
     infer_schema_length: usize,
 ) -> Result<datafusion::datasource::MemTable, Error> {
     let mut workbook: Xlsx<_> = open_workbook(path)?;

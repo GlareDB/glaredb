@@ -1,0 +1,11 @@
+# Basic tests for postgres external tables
+
+statement ok
+CREATE EXTERNAL TABLE basic
+	FROM sqlite
+	OPTIONS (
+		location = '${SQLITE_DB_LOCATION}',
+		table = 'bikeshare_stations'
+	);
+
+include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti

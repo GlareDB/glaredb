@@ -35,6 +35,7 @@ pub enum Datasource {
     Snowflake,
     Clickhouse,
     SqlServer,
+    Sqlite,
 }
 
 /// Returns true if the literal expression encoding should be wrapped inside

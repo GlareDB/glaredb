@@ -3,7 +3,7 @@ pub mod hashing;
 pub mod kdl;
 pub mod openai;
 pub mod postgres;
-
+pub mod similarity;
 use std::sync::Arc;
 
 use datafusion::arrow::array::Array;
@@ -17,6 +17,7 @@ use protogen::metastore::types::catalog::FunctionType;
 use crate::document;
 use crate::errors::BuiltinError;
 use crate::functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction};
+
 
 pub struct ConnectionId;
 

@@ -12,8 +12,8 @@ workspace = true
 [dependencies]
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
 ioutil = { path = "../../crates/ioutil" }
-napi = { version = "2.15.1", default-features = false, features = ["full"] }
-napi-derive = "2.15.1"
+napi = { version = "2.15.4", default-features = false, features = ["full"] }
+napi-derive = "2.15.3"
 sqlexec = { path = "../../crates/sqlexec" }
 metastore = { path = "../../crates/metastore" }
 telemetry = { path = "../../crates/telemetry" }
@@ -38,4 +38,4 @@ serde_json.workspace = true
 lzma-sys = { version = "*", features = ["static"] }
 
 [build-dependencies]
-napi-build = "2.1.0"
+napi-build = "2.1.2"
