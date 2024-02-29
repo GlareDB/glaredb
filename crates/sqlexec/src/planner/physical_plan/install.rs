@@ -155,14 +155,12 @@ pub(super) fn get_home_dir() -> PathBuf {
     }
 }
 
+// ~/.glaredb/extensions/0.1.0/macos_x86_64
 pub(super) fn get_extension_path() -> PathBuf {
     let mut home_dir = get_home_dir();
     home_dir.push(".glaredb");
     home_dir.push("extensions");
     home_dir.push(env!("CARGO_PKG_VERSION"));
-    // push the arch
     home_dir.push(format!("{}_{}", FAMILY, ARCH));
     home_dir
 }
-// /Users/corygrinstead/.glaredb/extensions/0.9.0/unix_aarch64/glaredb_distance
-// /Users/corygrinstead/.glaredb/extensions/0.9.0/unix_aarch64/glaredb_distance
