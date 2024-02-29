@@ -79,7 +79,7 @@ pub struct LocalSessionContext {
     /// Notices that should be sent to the user.
     notices: Vec<Notice>,
     /// Functions that are available to the session.
-    functions: FunctionRegistry,
+    functions: Arc<FunctionRegistry>,
 }
 
 impl LocalSessionContext {
@@ -99,6 +99,7 @@ impl LocalSessionContext {
         let opts = new_datafusion_session_config_opts(&vars);
 
         let mut conf: SessionConfig = opts.into();
+        let functions = Arc::new(FunctionRegistry::new());
 
         // TODO: Can we remove the temp catalog here? It's pretty disgusting,
         // but it's needed for the create temp table execution plan.
@@ -106,7 +107,8 @@ impl LocalSessionContext {
             .with_extension(Arc::new(catalog_mutator))
             .with_extension(Arc::new(native_tables.clone()))
             .with_extension(Arc::new(catalog.get_temp_catalog().clone()))
-            .with_extension(Arc::new(task_scheduler.clone()));
+            .with_extension(Arc::new(task_scheduler.clone()))
+            .with_extension(functions.clone());
 
         let state = SessionState::new_with_config_rt(conf, Arc::new(runtime))
             .add_optimizer_rule(Arc::new(DdlInputOptimizationRule::new()))
@@ -114,7 +116,7 @@ impl LocalSessionContext {
 
         let df_ctx = DfSessionContext::new_with_state(state);
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
-        let functions = FunctionRegistry::new();
+
         Ok(LocalSessionContext {
             database_id,
             exec_client: None,

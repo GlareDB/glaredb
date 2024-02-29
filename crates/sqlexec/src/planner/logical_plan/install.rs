@@ -1,12 +1,17 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use super::{
-    DfLogicalPlan,
-    ExtensionNode,
-    UserDefinedLogicalNodeCore,
-    GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA,
-};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::common::{DFSchemaRef, ToDFSchema};
+use once_cell::sync::Lazy;
+
+use super::{DfLogicalPlan, ExtensionNode, UserDefinedLogicalNodeCore};
+
+static INSTALL_SCHEMA: Lazy<DFSchemaRef> = Lazy::new(|| {
+    Schema::new(vec![Field::new("extension", DataType::Utf8, false)])
+        .to_dfschema_ref()
+        .unwrap()
+});
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Install {
@@ -23,7 +28,7 @@ impl UserDefinedLogicalNodeCore for Install {
     }
 
     fn schema(&self) -> &datafusion::common::DFSchemaRef {
-        &GENERIC_OPERATION_AND_COUNT_LOGICAL_SCHEMA
+        &INSTALL_SCHEMA
     }
 
     fn expressions(&self) -> Vec<datafusion::prelude::Expr> {

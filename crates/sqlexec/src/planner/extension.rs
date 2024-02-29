@@ -4,7 +4,32 @@ use std::sync::Arc;
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 
 use super::logical_plan::{
-    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredentials, CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable, CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews, Insert, Install, Load, SetVariable, ShowVariable, Update
+    AlterDatabase,
+    AlterTable,
+    AlterTunnelRotateKeys,
+    CopyTo,
+    CreateCredentials,
+    CreateExternalDatabase,
+    CreateExternalTable,
+    CreateSchema,
+    CreateTable,
+    CreateTempTable,
+    CreateTunnel,
+    CreateView,
+    Delete,
+    DescribeTable,
+    DropCredentials,
+    DropDatabase,
+    DropSchemas,
+    DropTables,
+    DropTunnel,
+    DropViews,
+    Insert,
+    Install,
+    Load,
+    SetVariable,
+    ShowVariable,
+    Update,
 };
 use crate::errors::{internal, ExecError, Result};
 use crate::LogicalPlan;

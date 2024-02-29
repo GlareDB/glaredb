@@ -22,6 +22,8 @@ pub mod drop_temp_tables;
 pub mod drop_tunnel;
 pub mod drop_views;
 pub mod insert;
+pub mod install;
+pub mod load;
 pub mod remote_exec;
 pub mod remote_scan;
 pub mod send_recv;
@@ -29,8 +31,6 @@ pub mod set_var;
 pub mod show_var;
 pub mod update;
 pub mod values;
-pub mod load;
-pub mod install;
 
 use std::sync::Arc;
 

@@ -402,19 +402,21 @@ impl TryFrom<&FFI_Signature> for Signature {
 mod tests {
     use super::*;
     fn round_trip_type_signature(type_signature: TypeSignature) {
-        let type_signature_ffi = FFI_TypeSignature::try_from(type_signature).unwrap();
-        let type_signature = TypeSignature::try_from(&type_signature_ffi).unwrap();
-        assert_eq!(type_signature, type_signature);
+        let type_signature_ffi = FFI_TypeSignature::try_from(type_signature.clone()).unwrap();
+        let type_signature_new = TypeSignature::try_from(&type_signature_ffi).unwrap();
+        assert_eq!(type_signature, type_signature_new);
     }
+
     fn round_trip_volatility(volatility: Volatility) {
         let volatility_ffi = FFI_Volatility::from(&volatility);
-        let volatility = Volatility::from(&volatility_ffi);
-        assert_eq!(volatility, volatility);
+        let volatility_new = Volatility::from(&volatility_ffi);
+        assert_eq!(volatility, volatility_new);
     }
+
     fn round_trip_signature(signature: Signature) {
-        let signature_ffi = FFI_Signature::try_from(signature).unwrap();
-        let signature = Signature::try_from(&signature_ffi).unwrap();
-        assert_eq!(signature, signature);
+        let signature_ffi = FFI_Signature::try_from(signature.clone()).unwrap();
+        let signature_new = Signature::try_from(&signature_ffi).unwrap();
+        assert_eq!(signature, signature_new);
     }
 
     #[test]

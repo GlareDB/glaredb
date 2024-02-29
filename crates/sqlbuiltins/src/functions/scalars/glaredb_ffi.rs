@@ -27,6 +27,7 @@ type PluginAndVersion = (Library, u16, u16);
 
 static LOADED: Lazy<RwLock<HashMap<String, PluginAndVersion>>> = Lazy::new(Default::default);
 
+#[derive(Debug)]
 pub struct GlaredbFFIPlugin {
     functions: Vec<GlaredbFFIFunction>,
 }

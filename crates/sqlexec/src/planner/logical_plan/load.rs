@@ -1,6 +1,5 @@
-use datafusion::arrow::datatypes::{Field, Schema};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::common::{DFSchemaRef, ToDFSchema};
-use datafusion::sql::sqlparser::ast::Ident;
 use once_cell::sync::Lazy;
 
 use super::{DfLogicalPlan, ExtensionNode, UserDefinedLogicalNodeCore};
@@ -18,27 +17,13 @@ impl std::fmt::Debug for Load {
     }
 }
 
+
 pub static LOAD_SCHEMA: Lazy<DFSchemaRef> = Lazy::new(|| {
-    Schema::new(vec![
-        Field::new(
-            "extension",
-            datafusion::arrow::datatypes::DataType::Utf8,
-            false,
-        ),
-        Field::new(
-            "loaded",
-            datafusion::arrow::datatypes::DataType::Boolean,
-            false,
-        ),
-        Field::new(
-            "remote",
-            datafusion::arrow::datatypes::DataType::Boolean,
-            false,
-        ),
-    ])
-    .to_dfschema_ref()
-    .unwrap()
+    Schema::new(vec![Field::new("loaded", DataType::Utf8, false)])
+        .to_dfschema_ref()
+        .unwrap()
 });
+
 
 impl UserDefinedLogicalNodeCore for Load {
     fn name(&self) -> &str {
@@ -49,7 +34,7 @@ impl UserDefinedLogicalNodeCore for Load {
         vec![]
     }
 
-    fn schema(&self) -> &datafusion::common::DFSchemaRef {
+    fn schema(&self) -> &DFSchemaRef {
         &LOAD_SCHEMA
     }
 
