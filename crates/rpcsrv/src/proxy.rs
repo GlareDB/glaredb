@@ -133,7 +133,7 @@ impl<A: ProxyAuthenticator> ProxyHandler<A, ExecutionServiceClient<Channel>> {
                     .into_inner()
                     .try_into()?)
             }
-            InitializeSessionRequest::Proxy(_) => Err(RpcsrvError::SessionInitalizeError(
+            InitializeSessionRequest::Proxy(_) => Err(RpcsrvError::SessionInitializeError(
                 "unexpectedly got proxy request from client".to_string(),
             )),
         }
@@ -222,7 +222,7 @@ impl<A: ProxyAuthenticator + 'static> service::execution_service_server::Executi
     }
 }
 
-/// Adapater stream for proxying streaming requests.
+/// Adapter stream for proxying streaming requests.
 pub struct ProxiedRequestStream<M> {
     inner: Streaming<M>,
 }

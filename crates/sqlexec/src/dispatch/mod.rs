@@ -13,7 +13,7 @@ use datafusion::prelude::{Column, Expr, SessionContext as DfSessionContext};
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::native::access::NativeTableStorage;
 use protogen::metastore::types::catalog::{DatabaseEntry, FunctionEntry, TableEntry, ViewEntry};
-use sqlbuiltins::functions::FUNCTION_REGISTRY;
+use sqlbuiltins::functions::FunctionRegistry;
 
 use self::external::ExternalDispatcher;
 use crate::context::local::LocalSessionContext;
@@ -88,6 +88,8 @@ pub enum DispatchError {
     CassandraDatasource(#[from] datasources::cassandra::CassandraError),
     #[error(transparent)]
     SqliteDatasource(#[from] datasources::sqlite::errors::SqliteError),
+    #[error(transparent)]
+    ExcelDatasource(#[from] datasources::excel::errors::ExcelError),
 
     #[error("{0}")]
     String(String),
@@ -147,6 +149,7 @@ pub struct Dispatcher<'a> {
     df_ctx: &'a DfSessionContext,
     /// Whether or not local file system access should be disabled.
     disable_local_fs_access: bool,
+    function_registry: &'a FunctionRegistry,
 }
 
 impl<'a> Dispatcher<'a> {
@@ -156,6 +159,7 @@ impl<'a> Dispatcher<'a> {
         view_planner: &'a dyn ViewPlanner,
         df_ctx: &'a DfSessionContext,
         disable_local_fs_access: bool,
+        function_registry: &'a FunctionRegistry,
     ) -> Self {
         Dispatcher {
             catalog,
@@ -163,6 +167,7 @@ impl<'a> Dispatcher<'a> {
             view_planner,
             df_ctx,
             disable_local_fs_access,
+            function_registry,
         }
     }
 
@@ -181,7 +186,7 @@ impl<'a> Dispatcher<'a> {
 
         // Builtin tables
         if tbl.meta.builtin {
-            return SystemTableDispatcher::new(self.catalog, self.tables)
+            return SystemTableDispatcher::new(self.catalog, self.tables, self.function_registry)
                 .dispatch(tbl)
                 .await;
         }
@@ -191,6 +196,7 @@ impl<'a> Dispatcher<'a> {
             return ExternalDispatcher::new(
                 self.catalog,
                 self.df_ctx,
+                self.function_registry,
                 self.disable_local_fs_access,
             )
             .dispatch_external_table(tbl)
@@ -221,9 +227,14 @@ impl<'a> Dispatcher<'a> {
     ) -> Result<Arc<dyn TableProvider>> {
         let schema = schema.as_ref();
         let name = name.as_ref();
-        ExternalDispatcher::new(self.catalog, self.df_ctx, self.disable_local_fs_access)
-            .dispatch_external(&db_ent.meta.name, schema, name)
-            .await
+        ExternalDispatcher::new(
+            self.catalog,
+            self.df_ctx,
+            self.function_registry,
+            self.disable_local_fs_access,
+        )
+        .dispatch_external(&db_ent.meta.name, schema, name)
+        .await
     }
 
     pub async fn dispatch_table_function(
@@ -232,7 +243,7 @@ impl<'a> Dispatcher<'a> {
         args: Vec<FuncParamValue>,
         opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        let func = match FUNCTION_REGISTRY.get_table_func(&func.meta.name) {
+        let func = match self.function_registry.get_table_func(&func.meta.name) {
             Some(func) => func,
             None => {
                 return Err(DispatchError::String(format!(

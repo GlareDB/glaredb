@@ -16,6 +16,8 @@ use datasources::cassandra::CassandraTableProvider;
 use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider, OwnedClickhouseTableRef};
 use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
+use datasources::excel::table::ExcelTableProvider;
+use datasources::excel::ExcelTable;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lance::LanceTable;
@@ -68,7 +70,7 @@ use protogen::metastore::types::options::{
     TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use sqlbuiltins::functions::FUNCTION_REGISTRY;
+use sqlbuiltins::functions::FunctionRegistry;
 
 use super::{DispatchError, Result};
 
@@ -77,6 +79,8 @@ pub struct ExternalDispatcher<'a> {
     catalog: &'a SessionCatalog,
     // TODO: Remove need for this.
     df_ctx: &'a SessionContext,
+
+    function_registry: &'a FunctionRegistry,
     /// Whether or not local file system access should be disabled.
     disable_local_fs_access: bool,
 }
@@ -85,11 +89,13 @@ impl<'a> ExternalDispatcher<'a> {
     pub fn new(
         catalog: &'a SessionCatalog,
         df_ctx: &'a SessionContext,
+        function_registry: &'a FunctionRegistry,
         disable_local_fs_access: bool,
     ) -> Self {
         ExternalDispatcher {
             catalog,
             df_ctx,
+            function_registry,
             disable_local_fs_access,
         }
     }
@@ -286,11 +292,32 @@ impl<'a> ExternalDispatcher<'a> {
 
         match &table.options {
             TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
-            TableOptions::Excel(TableOptionsExcel { .. }) => todo!(),
             TableOptions::Debug(TableOptionsDebug { table_type }) => {
                 let provider = DebugTableType::from_str(table_type)?;
                 Ok(provider.into_table_provider(tunnel.as_ref()))
             }
+            TableOptions::Excel(TableOptionsExcel {
+                location,
+                storage_options,
+                has_header,
+                sheet_name,
+                ..
+            }) => {
+                let source_url = DatasourceUrl::try_new(location)?;
+                let store_access = GenericStoreAccess::new_from_location_and_opts(
+                    location,
+                    storage_options.to_owned(),
+                )?;
+                let sheet_name: Option<&str> = sheet_name.as_deref();
+
+
+                let table =
+                    ExcelTable::open(store_access, source_url, sheet_name, *has_header).await?;
+                let provider = ExcelTableProvider::try_new(table).await?;
+
+                Ok(Arc::new(provider))
+            }
+
             TableOptions::Postgres(TableOptionsPostgres {
                 connection_string,
                 schema,
@@ -644,7 +671,7 @@ impl<'a> ExternalDispatcher<'a> {
         let args = args.unwrap_or_default();
         let opts = opts.unwrap_or_default();
         let resolve_func = if func.meta.builtin {
-            FUNCTION_REGISTRY.get_table_func(&func.meta.name)
+            self.function_registry.get_table_func(&func.meta.name)
         } else {
             // We only have builtin functions right now.
             None

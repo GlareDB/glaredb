@@ -35,6 +35,7 @@ use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
 use pgrepr::format::Format;
 use pgrepr::notice::{Notice, NoticeSeverity, SqlState};
+use sqlbuiltins::functions::BuiltinScalarUDF;
 use telemetry::Tracker;
 use uuid::Uuid;
 
@@ -423,6 +424,10 @@ impl Session {
         )?;
 
         Ok(Session { ctx })
+    }
+
+    pub async fn register_function(&mut self, udf: Arc<dyn BuiltinScalarUDF>) -> Result<()> {
+        self.ctx.register_function(udf).await
     }
 
     pub async fn attach_remote_session(
