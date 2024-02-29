@@ -16,12 +16,12 @@ use serde_json::{Map, Value};
 use crate::json::errors::JsonError;
 use crate::json::table::push_unwind_json_values;
 
-pub type SendableCheckedRecordBatchStrem =
+pub type SendableCheckedRecordBatchStream =
     Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>;
 
 pub struct JsonStream {
     schema: Arc<Schema>,
-    stream: SendableCheckedRecordBatchStrem,
+    stream: SendableCheckedRecordBatchStream,
 }
 
 impl Stream for JsonStream {
@@ -40,7 +40,7 @@ impl RecordBatchStream for JsonStream {
 
 pub struct JsonPartitionStream {
     schema: Arc<Schema>,
-    stream: Mutex<Option<SendableCheckedRecordBatchStrem>>,
+    stream: Mutex<Option<SendableCheckedRecordBatchStream>>,
 }
 
 impl PartitionStream for JsonPartitionStream {
