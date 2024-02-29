@@ -143,7 +143,6 @@ impl RunCommand for ServerArgs {
             disable_postgres_api,
             metastore_bucket,
             metastore_local_file_path,
-            metastore_service_account_path,
         } = self;
 
         // Map an empty string to None. Makes writing the terraform easier.
@@ -192,7 +191,6 @@ impl RunCommand for ServerArgs {
                 .with_spill_path_opt(spill_path)
                 .with_metastore_bucket_opt(metastore_bucket)
                 .with_metastore_local_file_path_opt(metastore_local_file_path)
-                .with_metastore_service_account_path_opt(metastore_service_account_path)
                 .disable_rpc_auth(disable_rpc_auth)
                 .enable_simple_query_rpc(enable_simple_query_rpc)
                 .enable_flight_api(enable_flight_api)
