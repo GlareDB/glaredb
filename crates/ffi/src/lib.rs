@@ -51,7 +51,7 @@ pub trait FFIExpr: Send + Sync {
 /// $UDF: the function implementation
 /// $GNAME: global name of the function
 /// example
-/// ```rust no_run
+/// ```text
 /// struct EchoExpr;
 /// impl FFIExpr for EchoExpr {
 /// //...
@@ -176,7 +176,7 @@ macro_rules! generate_ffi_expr {
 
 
 /// Usage:
-/// ```rust no_run
+/// ```text
 /// generate_lib!(
 /// my_lib // the namespace
 /// (echo, foo, bar), // the functions
