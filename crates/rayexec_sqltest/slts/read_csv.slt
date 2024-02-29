@@ -47,3 +47,8 @@ select a as aa from read_csv('../../testdata/csv/simple.csv') t1(a,b,c) where a 
 # select a as aa from read_csv('../../testdata/csv/simple.csv') t1(a,b,c) where aa = 1;
 # ----
 # 1
+
+query ITR rowsort
+select a as aa, c2 from (select * from read_csv('../../testdata/csv/simple.csv')) t1(a) where a = 1;
+----
+1  mario

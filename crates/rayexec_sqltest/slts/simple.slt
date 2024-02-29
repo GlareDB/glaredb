@@ -38,3 +38,19 @@ query I
 select 1 + 2 where true;
 ----
 3
+
+query I
+select * from (select 1);
+----
+1
+
+query I
+select a from (select 1 as a);
+----
+1
+
+query I
+select b from (select 1 as a) as t(b);
+----
+1
+

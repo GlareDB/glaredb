@@ -54,6 +54,16 @@ impl<'a> PlanContext<'a> {
         }
     }
 
+    /// Create a new nested plan context for planning subqueries.
+    fn nested(&self, outer: Scope) -> Self {
+        PlanContext {
+            resolver: self.resolver.clone(),
+            outer_scopes: std::iter::once(outer)
+                .chain(self.outer_scopes.clone())
+                .collect(),
+        }
+    }
+
     fn plan_query(&mut self, query: ast::QueryNode) -> Result<LogicalQuery> {
         // TODO: CTEs
 
@@ -76,7 +86,7 @@ impl<'a> PlanContext<'a> {
     fn plan_select(&mut self, select: ast::SelectNode) -> Result<LogicalQuery> {
         // Handle FROM
         let mut plan = match select.from {
-            Some(from) => self.plan_from_node(from)?,
+            Some(from) => self.plan_from_node(from, Scope::empty())?,
             None => LogicalQuery {
                 root: LogicalOperator::Empty,
                 scope: Scope::empty(),
@@ -142,10 +152,14 @@ impl<'a> PlanContext<'a> {
         Ok(plan)
     }
 
-    fn plan_from_node(&self, from: ast::FromNode) -> Result<LogicalQuery> {
-        match from.body {
+    fn plan_from_node(&self, from: ast::FromNode, current_scope: Scope) -> Result<LogicalQuery> {
+        // Plan the "body" of the FROM.
+        let body = match from.body {
             ast::FromNodeBody::BaseTable(_) => unimplemented!(),
-            ast::FromNodeBody::Subquery(_) => unimplemented!(),
+            ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
+                let mut nested = self.nested(current_scope);
+                nested.plan_query(query)?
+            }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
                 let func = self.resolver.resolve_table_function(&reference)?;
 
@@ -183,64 +197,84 @@ impl<'a> PlanContext<'a> {
                 let name = func.name();
                 let bound = func.bind(func_args)?; // The only thing that would benefit from async.
                 let schema = bound.schema();
-                let (orig_names, types) = schema.into_names_and_types();
+                let (col_names, types) = schema.into_names_and_types();
                 let schema = DataBatchSchema::new(types);
 
-                let (reference, col_names) = match from.alias {
-                    Some(ast::FromAlias { alias, columns }) => {
-                        let reference = TableReference {
-                            database: None,
-                            schema: None,
-                            table: alias.value,
-                        };
-                        let col_names = match columns {
-                            Some(columns) => {
-                                if columns.len() > orig_names.len() {
-                                    return Err(RayexecError::new(format!(
-                                        "Specified {} column aliases when only {} columns exist",
-                                        columns.len(),
-                                        orig_names.len()
-                                    )));
-                                }
+                // Create a new scope with just this table function.
+                // TODO: Reference should probably be qualified.
+                let scope = Scope::with_columns(
+                    Some(TableReference {
+                        database: None,
+                        schema: None,
+                        table: name.to_string(),
+                    }),
+                    col_names,
+                );
 
-                                // If user specifies less aliases than columns,
-                                // extend out the aliases with the original
-                                // names.
-                                let mut aliases: Vec<_> =
-                                    columns.into_iter().map(|ident| ident.value).collect();
-                                if aliases.len() < orig_names.len() {
-                                    aliases.extend_from_slice(&orig_names[aliases.len()..]);
-                                }
-                                aliases
-                            }
-                            None => orig_names,
-                        };
-                        (reference, col_names)
-                    }
-                    // TODO: We'll probably want to fully qualify this.
-                    None => (
-                        TableReference {
-                            database: None,
-                            schema: None,
-                            table: name.to_string(),
-                        },
-                        orig_names,
-                    ),
-                };
-
-                let scope = Scope::with_columns(Some(reference), col_names);
                 let operator = LogicalOperator::Scan(Scan {
                     source: ScanItem::TableFunction(bound),
                     schema,
                 });
 
-                Ok(LogicalQuery {
+                LogicalQuery {
                     root: operator,
                     scope,
-                })
+                }
             }
             ast::FromNodeBody::Join(_) => unimplemented!(),
-        }
+        };
+
+        // Apply aliases if provided.
+        let aliased_scope = Self::apply_alias(body.scope, from.alias)?;
+
+        Ok(LogicalQuery {
+            root: body.root,
+            scope: aliased_scope,
+        })
+    }
+
+    /// Apply table and column aliases to a scope.
+    fn apply_alias(mut scope: Scope, alias: Option<ast::FromAlias>) -> Result<Scope> {
+        Ok(match alias {
+            Some(ast::FromAlias { alias, columns }) => {
+                let reference = TableReference {
+                    database: None,
+                    schema: None,
+                    table: alias.value,
+                };
+
+                // Modify all items in the scope to now have the new table
+                // alias.
+                for item in scope.items.iter_mut() {
+                    // TODO: Make sure that it's correct to apply this to
+                    // everything in the scope.
+                    item.alias = Some(reference.clone());
+                }
+
+                // If column aliases are provided as well, apply those to the
+                // columns in the scope.
+                //
+                // Note that if the user supplies less aliases than there are
+                // columns in the scope, then the remaining columns will retain
+                // their original names.
+                if let Some(columns) = columns {
+                    if columns.len() > scope.items.len() {
+                        return Err(RayexecError::new(format!(
+                            "Specified {} column aliases when only {} columns exist",
+                            columns.len(),
+                            scope.items.len()
+                        )));
+                    }
+
+                    for (item, new_alias) in scope.items.iter_mut().zip(columns.into_iter()) {
+                        item.column = new_alias.value;
+                    }
+                }
+
+                scope
+            }
+            None => scope,
+        })
     }
 
     fn plan_values(&self, values: ast::Values) -> Result<LogicalQuery> {
