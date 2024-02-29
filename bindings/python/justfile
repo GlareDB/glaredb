@@ -14,7 +14,7 @@ build *args: venv
   {{VENV_BIN}}/maturin develop --pip-path="{{VENV_BIN}}/pip" --extras="pandas,polars,pyarrow" {{args}}
 
 test: venv
-  {{VENV_BIN}}/pytest --rootdir={{invocation_directory()}}/bindings/python
+  {{VENV_BIN}}/pytest --rootdir={{justfile_directory()}}
 
 ## Run autoformatting and linting
 fmt: venv
