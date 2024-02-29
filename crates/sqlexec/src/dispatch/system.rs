@@ -26,7 +26,7 @@ use sqlbuiltins::builtins::{
     GLARE_VIEWS,
     SCHEMA_CURRENT_SESSION,
 };
-use sqlbuiltins::functions::FUNCTION_REGISTRY;
+use sqlbuiltins::functions::FunctionRegistry;
 
 use super::{DispatchError, Result};
 
@@ -34,12 +34,22 @@ use super::{DispatchError, Result};
 pub struct SystemTableDispatcher<'a> {
     catalog: &'a SessionCatalog,
     tables: &'a NativeTableStorage,
+    function_registry: &'a FunctionRegistry,
 }
 
 impl<'a> SystemTableDispatcher<'a> {
-    pub fn new(catalog: &'a SessionCatalog, tables: &'a NativeTableStorage) -> Self {
-        SystemTableDispatcher { catalog, tables }
+    pub fn new(
+        catalog: &'a SessionCatalog,
+        tables: &'a NativeTableStorage,
+        function_registry: &'a FunctionRegistry,
+    ) -> Self {
+        SystemTableDispatcher {
+            catalog,
+            tables,
+            function_registry,
+        }
     }
+
 
     pub async fn dispatch(&self, ent: &TableEntry) -> Result<Arc<dyn TableProvider>> {
         let schema_ent = self
@@ -487,8 +497,11 @@ impl<'a> SystemTableDispatcher<'a> {
             schema_oid.append_value(ent.meta.parent);
             function_name.append_value(&ent.meta.name);
             function_type.append_value(ent.func_type.as_str());
-            sql_examples.append_option(FUNCTION_REGISTRY.get_function_example(&ent.meta.name));
-            descriptions.append_option(FUNCTION_REGISTRY.get_function_description(&ent.meta.name));
+            sql_examples.append_option(self.function_registry.get_function_example(&ent.meta.name));
+            descriptions.append_option(
+                self.function_registry
+                    .get_function_description(&ent.meta.name),
+            );
 
             const EMPTY: [Option<&'static str>; 0] = [];
             if let Some(sig) = &ent.signature {

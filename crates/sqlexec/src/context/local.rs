@@ -24,11 +24,13 @@ use distexec::scheduler::Scheduler;
 use pgrepr::format::Format;
 use pgrepr::notice::Notice;
 use pgrepr::types::arrow_to_pg_type;
+use protogen::metastore::types::service::{CreateFunction, Mutation};
 use protogen::rpcsrv::types::service::{
     InitializeSessionRequest,
     InitializeSessionRequestFromClient,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
+use sqlbuiltins::functions::{BuiltinScalarUDF, FunctionRegistry};
 use tokio_postgres::types::Type as PgType;
 use uuid::Uuid;
 
@@ -76,6 +78,8 @@ pub struct LocalSessionContext {
     task_scheduler: Scheduler,
     /// Notices that should be sent to the user.
     notices: Vec<Notice>,
+    /// Functions that are available to the session.
+    functions: FunctionRegistry,
 }
 
 impl LocalSessionContext {
@@ -110,7 +114,7 @@ impl LocalSessionContext {
 
         let df_ctx = DfSessionContext::new_with_state(state);
         df_ctx.register_variable(datafusion::variable::VarType::UserDefined, Arc::new(vars));
-
+        let functions = FunctionRegistry::new();
         Ok(LocalSessionContext {
             database_id,
             exec_client: None,
@@ -123,6 +127,7 @@ impl LocalSessionContext {
             env_reader: None,
             task_scheduler,
             notices: Vec::new(),
+            functions,
         })
     }
 
@@ -171,6 +176,47 @@ impl LocalSessionContext {
         Ok(())
     }
 
+    pub fn function_registry(&self) -> &FunctionRegistry {
+        &self.functions
+    }
+
+    /// Register a UDF with the session.
+    /// This will error if the function already exists in the catalog.
+    pub async fn register_function(&mut self, udf: Arc<dyn BuiltinScalarUDF>) -> Result<()> {
+        let catalog_mutator = self.catalog_mutator();
+        // This is only empty when running hybrid exec
+        if catalog_mutator.is_empty() {
+            return Err(internal!("Unable to register function in hybrid exec mode"));
+        }
+
+        let name = udf.name().to_string();
+        let aliases = udf
+            .aliases()
+            .iter()
+            .map(|a| a.to_string())
+            .collect::<Vec<_>>();
+        let signature = match udf.signature() {
+            Some(s) => s.clone(),
+            None => {
+                panic!("UDF {} does not have a signature", name);
+            }
+        };
+        let function_type = udf.function_type();
+
+        let catalog_version = self.catalog.version();
+        let mutations = vec![Mutation::CreateFunction(CreateFunction {
+            name,
+            aliases,
+            signature,
+            function_type,
+        })];
+
+        // This will error if the catalog already has a function with the same
+        catalog_mutator.mutate(catalog_version, mutations).await?;
+        self.functions.register_udf(udf);
+        Ok(())
+    }
+
     pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
         self.env_reader = Some(env_reader);
     }
@@ -210,7 +256,7 @@ impl LocalSessionContext {
             .state()
             .config()
             .get_extension::<CatalogMutator>()
-            .unwrap()
+            .expect("catalog mutator should be present")
     }
 
     /// Get a reference to the session variables.

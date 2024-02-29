@@ -559,32 +559,32 @@ impl FunctionType {
 impl TryFrom<i32> for FunctionType {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        catalog::function_entry::FunctionType::try_from(value)
+        catalog::FunctionType::try_from(value)
             .map_err(|_| ProtoConvError::UnknownEnumVariant("FunctionType", value))
             .and_then(|t| t.try_into())
     }
 }
 
-impl TryFrom<catalog::function_entry::FunctionType> for FunctionType {
+impl TryFrom<catalog::FunctionType> for FunctionType {
     type Error = ProtoConvError;
-    fn try_from(value: catalog::function_entry::FunctionType) -> Result<Self, Self::Error> {
+    fn try_from(value: catalog::FunctionType) -> Result<Self, Self::Error> {
         Ok(match value {
-            catalog::function_entry::FunctionType::Unknown => {
+            catalog::FunctionType::Unknown => {
                 return Err(ProtoConvError::ZeroValueEnumVariant("FunctionType"))
             }
-            catalog::function_entry::FunctionType::Aggregate => FunctionType::Aggregate,
-            catalog::function_entry::FunctionType::Scalar => FunctionType::Scalar,
-            catalog::function_entry::FunctionType::TableReturning => FunctionType::TableReturning,
+            catalog::FunctionType::Aggregate => FunctionType::Aggregate,
+            catalog::FunctionType::Scalar => FunctionType::Scalar,
+            catalog::FunctionType::TableReturning => FunctionType::TableReturning,
         })
     }
 }
 
-impl From<FunctionType> for catalog::function_entry::FunctionType {
+impl From<FunctionType> for catalog::FunctionType {
     fn from(value: FunctionType) -> Self {
         match value {
-            FunctionType::Aggregate => catalog::function_entry::FunctionType::Aggregate,
-            FunctionType::Scalar => catalog::function_entry::FunctionType::Scalar,
-            FunctionType::TableReturning => catalog::function_entry::FunctionType::TableReturning,
+            FunctionType::Aggregate => catalog::FunctionType::Aggregate,
+            FunctionType::Scalar => catalog::FunctionType::Scalar,
+            FunctionType::TableReturning => catalog::FunctionType::TableReturning,
         }
     }
 }
@@ -610,32 +610,28 @@ impl RuntimePreference {
 impl TryFrom<i32> for RuntimePreference {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        let pref = catalog::function_entry::RuntimePreference::try_from(value)
+        let pref = catalog::RuntimePreference::try_from(value)
             .map_err(|_| ProtoConvError::UnknownEnumVariant("RuntimePreference", value))?;
         Ok(pref.into())
     }
 }
 
-impl From<catalog::function_entry::RuntimePreference> for RuntimePreference {
-    fn from(value: catalog::function_entry::RuntimePreference) -> Self {
+impl From<catalog::RuntimePreference> for RuntimePreference {
+    fn from(value: catalog::RuntimePreference) -> Self {
         match value {
-            catalog::function_entry::RuntimePreference::Unspecified => {
-                RuntimePreference::Unspecified
-            }
-            catalog::function_entry::RuntimePreference::Local => RuntimePreference::Local,
-            catalog::function_entry::RuntimePreference::Remote => RuntimePreference::Remote,
+            catalog::RuntimePreference::Unspecified => RuntimePreference::Unspecified,
+            catalog::RuntimePreference::Local => RuntimePreference::Local,
+            catalog::RuntimePreference::Remote => RuntimePreference::Remote,
         }
     }
 }
 
-impl From<RuntimePreference> for catalog::function_entry::RuntimePreference {
+impl From<RuntimePreference> for catalog::RuntimePreference {
     fn from(value: RuntimePreference) -> Self {
         match value {
-            RuntimePreference::Unspecified => {
-                catalog::function_entry::RuntimePreference::Unspecified
-            }
-            RuntimePreference::Local => catalog::function_entry::RuntimePreference::Local,
-            RuntimePreference::Remote => catalog::function_entry::RuntimePreference::Remote,
+            RuntimePreference::Unspecified => catalog::RuntimePreference::Unspecified,
+            RuntimePreference::Local => catalog::RuntimePreference::Local,
+            RuntimePreference::Remote => catalog::RuntimePreference::Remote,
         }
     }
 }
@@ -645,6 +641,7 @@ pub struct FunctionEntry {
     pub meta: EntryMeta,
     pub func_type: FunctionType,
     pub signature: Option<Signature>,
+    pub user_defined: bool,
 }
 
 impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
@@ -655,6 +652,7 @@ impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
             meta,
             func_type: value.func_type.try_into()?,
             signature: value.signature.map(|s| s.try_into()).transpose()?,
+            user_defined: value.user_defined,
         })
     }
 }
@@ -801,11 +799,12 @@ impl TryFrom<catalog::Signature> for Signature {
 
 impl From<FunctionEntry> for catalog::FunctionEntry {
     fn from(value: FunctionEntry) -> Self {
-        let func_type: catalog::function_entry::FunctionType = value.func_type.into();
+        let func_type: catalog::FunctionType = value.func_type.into();
         catalog::FunctionEntry {
             meta: Some(value.meta.into()),
             func_type: func_type as i32,
             signature: value.signature.map(|s| s.into()),
+            user_defined: value.user_defined,
         }
     }
 }

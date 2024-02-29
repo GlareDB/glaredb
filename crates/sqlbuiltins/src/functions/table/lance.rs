@@ -5,9 +5,11 @@ use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
+use datasources::common::url::DatasourceUrlType;
 use datasources::lance::LanceTable;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
+use super::object_store::urls_from_args;
 use super::{table_location_and_opts, TableFunc};
 use crate::functions::ConstBuiltinFunction;
 
@@ -31,11 +33,19 @@ impl ConstBuiltinFunction for LanceScan {
 impl TableFunc for LanceScan {
     fn detect_runtime(
         &self,
-        _args: &[FuncParamValue],
+        args: &[FuncParamValue],
         _parent: RuntimePreference,
     ) -> Result<RuntimePreference> {
-        // TODO: Detect runtime.
-        Ok(RuntimePreference::Remote)
+        let urls = urls_from_args(args)?;
+        // All urls are of the same type, just need to get the runtime from the
+        // first.
+        Ok(match urls.first().unwrap().datasource_url_type() {
+            DatasourceUrlType::File => RuntimePreference::Local,
+            DatasourceUrlType::Http => RuntimePreference::Remote,
+            DatasourceUrlType::Gcs => RuntimePreference::Remote,
+            DatasourceUrlType::S3 => RuntimePreference::Remote,
+            DatasourceUrlType::Azure => RuntimePreference::Remote,
+        })
     }
 
     async fn create_provider(
