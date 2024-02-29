@@ -88,6 +88,8 @@ pub enum DispatchError {
     CassandraDatasource(#[from] datasources::cassandra::CassandraError),
     #[error(transparent)]
     SqliteDatasource(#[from] datasources::sqlite::errors::SqliteError),
+    #[error(transparent)]
+    ExcelDatasource(#[from] datasources::excel::errors::ExcelError),
 
     #[error("{0}")]
     String(String),
