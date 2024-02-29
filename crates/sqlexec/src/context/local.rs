@@ -127,7 +127,7 @@ impl LocalSessionContext {
             env_reader: None,
             task_scheduler,
             notices: Vec::new(),
-            functions: functions,
+            functions,
         })
     }
 

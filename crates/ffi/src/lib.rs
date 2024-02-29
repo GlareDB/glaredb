@@ -1,6 +1,6 @@
 use std::any::Any;
 use std::cell::RefCell;
-use std::ffi::{c_char, CString};
+use std::ffi::CString;
 use std::sync::Arc;
 
 use arrow::array::ArrayRef;
@@ -175,18 +175,6 @@ macro_rules! generate_ffi_expr {
 }
 
 
-pub unsafe extern "C" fn _glaredb_plugin_functions() -> *const *const c_char {
-    let functions = vec!["cosine"];
-    let c_strings: Vec<CString> = functions
-        .into_iter()
-        .map(|s| CString::new(s).unwrap())
-        .collect();
-
-    let c_ptrs: Vec<*const std::os::raw::c_char> = c_strings.iter().map(|s| s.as_ptr()).collect();
-
-    c_ptrs.as_ptr()
-}
-
 /// Usage:
 /// ```rust no_run
 /// generate_lib!(
@@ -222,12 +210,12 @@ macro_rules! generate_lib {
         paste! {
             #[no_mangle]
             pub unsafe extern "C" fn [<_glaredb_plugin_get_last_error_message>]() -> *const std::os::raw::c_char {
-                crate::LAST_ERROR.with(|prev| prev.borrow_mut().as_ptr())
+                glaredb_ffi::LAST_ERROR.with(|prev| prev.borrow_mut().as_ptr())
             }
 
             #[no_mangle]
             pub unsafe extern "C" fn [<_glaredb_plugin_get_version>]() -> u32 {
-                let (major, minor) = crate::get_version();
+                let (major, minor) = glaredb_ffi::get_version();
                 // Stack bits together
                 ((major as u32) << 16) + minor as u32
             }
@@ -253,13 +241,9 @@ pub fn _update_last_error(err: DataFusionError) {
     LAST_ERROR.with(|prev| *prev.borrow_mut() = msg)
 }
 
-pub fn _set_panic() {
-    let msg = format!("PANIC");
-    let msg = CString::new(msg).unwrap();
-    LAST_ERROR.with(|prev| *prev.borrow_mut() = msg)
-}
 
 #[no_mangle]
+/// # Safety
 pub unsafe extern "C" fn _glaredb_plugin_get_last_error_message() -> *const std::os::raw::c_char {
     LAST_ERROR.with(|prev| prev.borrow_mut().as_ptr())
 }
@@ -272,6 +256,8 @@ pub const fn get_version() -> (u16, u16) {
 }
 
 #[no_mangle]
+/// # Safety
+/// this should be safe
 pub unsafe extern "C" fn _glaredb_plugin_get_version() -> u32 {
     let (major, minor) = get_version();
     // Stack bits together

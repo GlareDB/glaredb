@@ -307,7 +307,7 @@ impl FunctionRegistry {
     ///
     /// A function will only be returned once, even if it has multiple aliases.
     pub fn scalar_funcs_iter(&self) -> Vec<Arc<dyn BuiltinFunction>> {
-        self.funcs.lock().values().map(|v| v.clone()).collect()
+        self.funcs.lock().values().cloned().collect()
     }
 
     /// Iterate over all scalar udfs.
@@ -326,7 +326,7 @@ impl FunctionRegistry {
                 // See https://github.com/GlareDB/glaredb/issues/2371
                 func.name() != "array_to_string"
             })
-            .map(|v| v.clone())
+            .cloned()
             .collect()
     }
 
