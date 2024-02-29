@@ -1,12 +1,9 @@
 use std::any::Any;
-use std::cell::RefCell;
-use std::ffi::CString;
-use std::sync::Arc;
 
 use arrow::array::ArrayRef;
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use arrow_schema::DataType;
-use datafusion::error::{DataFusionError, Result};
+use datafusion::error::Result;
 use datafusion::logical_expr::Signature;
 // reexports
 pub use datafusion_ext::ffi;
@@ -184,86 +181,60 @@ macro_rules! generate_ffi_expr {
 /// ```
 #[macro_export]
 macro_rules! generate_lib {
+    ($namespace:ident, (($name:ident))) => {
+        generate_lib!($namespace, ($($name),+));
+    };
+    ($namespace:ident, ($($name:ident),+)) => {
+        #[no_mangle]
+        /// returns a vector of all functions
+        pub unsafe extern "C" fn _glaredb_plugin_functions () -> *const *const std::os::raw::c_char {
+            let functions = vec![$(stringify!($name)),+];
+            let c_strings: Vec<CString> = functions
+                .into_iter()
+                .map(|s| CString::new(s).unwrap())
+                .collect();
 
-    ($namespace:ident, ($($name:ident)+)) => {
-        paste! {
-            #[no_mangle]
-            /// returns a vector of all functions
-            pub unsafe extern "C" fn _glaredb_plugin_functions () -> *const *const std::os::raw::c_char {
-                let functions = vec![$(stringify!($name)),+];
-                let c_strings: Vec<CString> = functions
-                    .into_iter()
-                    .map(|s| CString::new(s).unwrap())
-                    .collect();
+            let c_ptrs: Vec<*const std::os::raw::c_char> = c_strings.iter().map(|s| s.as_ptr()).collect();
+            let ptr = c_ptrs.as_ptr();
 
-                let c_ptrs: Vec<*const std::os::raw::c_char> = c_strings.iter().map(|s| s.as_ptr()).collect();
-                let ptr = c_ptrs.as_ptr();
-                std::mem::forget(c_strings);
-                std::mem::forget(c_ptrs);
-                ptr
-            }
+            // the memory is managed by the caller
+            std::mem::forget(c_strings);
+            std::mem::forget(c_ptrs);
+            ptr
         }
 
-
-    };
-    ($namespace:ident, ($($name:ident),+),) => {
-        paste! {
-            #[no_mangle]
-            pub unsafe extern "C" fn [<_glaredb_plugin_get_last_error_message>]() -> *const std::os::raw::c_char {
-                glaredb_ffi::LAST_ERROR.with(|prev| prev.borrow_mut().as_ptr())
-            }
-
-            #[no_mangle]
-            pub unsafe extern "C" fn [<_glaredb_plugin_get_version>]() -> u32 {
-                let (major, minor) = glaredb_ffi::get_version();
-                // Stack bits together
-                ((major as u32) << 16) + minor as u32
-            }
+        /// # Safety
+        #[no_mangle]
+        pub unsafe extern "C" fn _glaredb_plugin_get_last_error_message() -> *const std::os::raw::c_char {
+            LAST_ERROR.with(|prev| prev.borrow_mut().as_ptr())
         }
-        $(
-            generate_ffi_expr!($name, $namespace::$name, [<_glaredb_plugin_ $name>]);
-        )+
-    };
+
+        pub const MAJOR: u16 = 0;
+        pub const MINOR: u16 = 0;
+
+        pub const fn get_version() -> (u16, u16) {
+            (MAJOR, MINOR)
+        }
+        thread_local! {
+            static LAST_ERROR: std::cell::RefCell<CString> = std::cell::RefCell::new(CString::default());
+        }
+
+        pub fn _update_last_error(err: DataFusionError) {
+            let msg = format!("{}", err);
+            let msg = CString::new(msg).unwrap();
+            LAST_ERROR.with(|prev| *prev.borrow_mut() = msg)
+        }
+        #[no_mangle]
+        /// # Safety
+        /// this should be safe
+        pub unsafe extern "C" fn _glaredb_plugin_get_version() -> u32 {
+            let (major, minor) = get_version();
+            // Stack bits together
+            ((major as u32) << 16) + minor as u32
+        }
+
+    }
 }
-
-pub fn all_functions() -> Vec<Arc<dyn FFIExpr>> {
-    vec![]
-}
-
-
-thread_local! {
-    static LAST_ERROR: RefCell<CString> = RefCell::new(CString::default());
-}
-
-pub fn _update_last_error(err: DataFusionError) {
-    let msg = format!("{}", err);
-    let msg = CString::new(msg).unwrap();
-    LAST_ERROR.with(|prev| *prev.borrow_mut() = msg)
-}
-
-
-#[no_mangle]
-/// # Safety
-pub unsafe extern "C" fn _glaredb_plugin_get_last_error_message() -> *const std::os::raw::c_char {
-    LAST_ERROR.with(|prev| prev.borrow_mut().as_ptr())
-}
-
-pub const MAJOR: u16 = 0;
-pub const MINOR: u16 = 0;
-
-pub const fn get_version() -> (u16, u16) {
-    (MAJOR, MINOR)
-}
-
-#[no_mangle]
-/// # Safety
-/// this should be safe
-pub unsafe extern "C" fn _glaredb_plugin_get_version() -> u32 {
-    let (major, minor) = get_version();
-    // Stack bits together
-    ((major as u32) << 16) + minor as u32
-}
-
 
 /// # Safety
 /// `ArrowArray` and `ArrowSchema` must be valid
