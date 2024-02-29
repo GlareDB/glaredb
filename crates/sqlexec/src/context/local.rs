@@ -127,7 +127,7 @@ impl LocalSessionContext {
             env_reader: None,
             task_scheduler,
             notices: Vec::new(),
-            functions,
+            functions: functions,
         })
     }
 
@@ -180,7 +180,7 @@ impl LocalSessionContext {
         &self.functions
     }
 
-    pub async fn register_function(&mut self, udf: Arc<dyn BuiltinScalarUDF>) -> Result<()> {
+    pub async fn register_function(&self, udf: Arc<dyn BuiltinScalarUDF>) -> Result<()> {
         let catalog_mutator = self.catalog_mutator();
         // This is only empty when running hybrid exec
         if catalog_mutator.is_empty() {

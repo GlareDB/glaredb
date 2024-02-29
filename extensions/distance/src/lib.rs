@@ -13,7 +13,7 @@ use glaredb_ffi::arrow::array::{
 };
 use glaredb_ffi::arrow_schema::{ArrowError, Field, FieldRef};
 use glaredb_ffi::prelude::*;
-use glaredb_ffi::{datafusion, generate_ffi_expr};
+use glaredb_ffi::{datafusion, generate_ffi_expr, generate_lib};
 
 #[derive(Debug, Clone)]
 pub struct CosineSimilarity {
@@ -59,6 +59,10 @@ impl FFIExpr for CosineSimilarity {
 
     fn return_type(&self, _: &[DataType]) -> Result<DataType> {
         Ok(DataType::Float32)
+    }
+
+    fn function_type(&self) -> i32 {
+        2i32
     }
 
     fn invoke(&self, args: &[ArrayRef]) -> Result<ArrayRef> {
@@ -290,3 +294,4 @@ fn cast_fsl_inner(
 
 
 generate_ffi_expr!(cosine_similarity, CosineSimilarity, COSINE_SIMILARITY);
+generate_lib!(distance, (cosine_similarity));

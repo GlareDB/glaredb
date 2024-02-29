@@ -104,6 +104,7 @@ use protogen::metastore::types::options::{
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
+use sqlbuiltins::functions::scalars::glaredb_ffi::GlaredbFFIPlugin;
 use sqlbuiltins::validation::{
     validate_copyto_dest_creds_support,
     validate_copyto_dest_format_support,
@@ -249,6 +250,23 @@ impl<'a> SessionPlanner<'a> {
             }
             StatementWithExtensions::DropCredentials(stmt) => self.plan_drop_credentials(stmt),
             StatementWithExtensions::CopyTo(stmt) => self.plan_copy_to(stmt).await,
+            StatementWithExtensions::Install(name) => {
+                // if it's a path, install the extension from the path
+                let path = Path::new(&name);
+                if path.exists() {
+                    let ext = GlaredbFFIPlugin::try_new(&name)?;
+                    for func in ext.functions() {
+                        self.ctx.register_function(func).await.unwrap();
+                    }
+
+                    Ok(LogicalPlan::Noop)
+                } else {
+                    //download the extension from github
+                    todo!("install external extension: {}", name)
+                }
+                //download the extension from github
+            }
+            StatementWithExtensions::Load(_) => Ok(LogicalPlan::Noop),
         }
     }
 

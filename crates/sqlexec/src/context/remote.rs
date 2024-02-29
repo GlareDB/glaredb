@@ -206,7 +206,8 @@ impl RemoteSessionContext {
 impl DFRegistry for RemoteSessionContext {
     fn udfs(&self) -> std::collections::HashSet<String> {
         self.functions
-            .scalar_udfs_iter()
+            .scalar_udfs()
+            .iter()
             .map(|k| k.name().to_string())
             .collect()
     }

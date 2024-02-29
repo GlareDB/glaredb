@@ -1317,12 +1317,12 @@ impl BuiltinCatalog {
         let scalar_func_ents = Self::builtin_function_to_entries(
             &mut oid_gen,
             schema_id,
-            DEFAULT_BUILTIN_FUNCTIONS.scalar_funcs_iter(),
+            DEFAULT_BUILTIN_FUNCTIONS.scalar_funcs_iter().iter(),
         );
         let scalar_udf_ents = Self::builtin_function_to_entries(
             &mut oid_gen,
             schema_id,
-            DEFAULT_BUILTIN_FUNCTIONS.scalar_udfs_iter(),
+            DEFAULT_BUILTIN_FUNCTIONS.scalar_udfs().iter(),
         );
 
         for func_ent in table_func_ents

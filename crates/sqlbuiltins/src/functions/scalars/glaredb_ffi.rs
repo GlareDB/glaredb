@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::ffi::CStr;
+use std::ffi::{c_char, CStr};
 use std::sync::{Arc, RwLock};
 
 use datafusion::arrow::array::ArrayRef;
@@ -27,8 +27,52 @@ type PluginAndVersion = (Library, u16, u16);
 
 static LOADED: Lazy<RwLock<HashMap<String, PluginAndVersion>>> = Lazy::new(Default::default);
 
-#[derive(Debug, Clone)]
 pub struct GlaredbFFIPlugin {
+    functions: Vec<GlaredbFFIFunction>,
+}
+
+impl GlaredbFFIPlugin {
+    pub fn try_new(lib: &str) -> Result<Self> {
+        let functions = unsafe { plugin_functions(lib)? };
+
+        Ok(Self { functions })
+    }
+
+    pub fn functions(&self) -> Vec<Arc<dyn BuiltinScalarUDF>> {
+        self.functions
+            .iter()
+            .map(|f| Arc::new(f.clone()) as Arc<dyn BuiltinScalarUDF>)
+            .collect()
+    }
+}
+
+unsafe fn plugin_functions(lib_name: &str) -> Result<Vec<GlaredbFFIFunction>> {
+    let plugin = get_lib(lib_name)?;
+    let lib = &plugin.0;
+    check_version(plugin);
+
+    let symbol: libloading::Symbol<unsafe extern "C" fn() -> *const *const c_char> =
+        lib.get(b"_glaredb_plugin_functions\0").map_err(|e| {
+            let msg = e.to_string();
+            datafusion::error::DataFusionError::Execution(msg)
+        })?;
+
+
+    let mut functions = Vec::new();
+    let mut funcs = symbol();
+
+    while !(*funcs).is_null() {
+        let name = CStr::from_ptr(*funcs);
+        let name = name.to_str().unwrap();
+        let func = GlaredbFFIFunction::try_new(name, lib_name, name, None)?;
+        functions.push(func);
+        funcs = funcs.add(1);
+    }
+
+    Ok(functions)
+}
+#[derive(Debug, Clone)]
+pub struct GlaredbFFIFunction {
     pub namespace: Option<&'static str>,
     pub name: Arc<str>,
     /// Shared library.
@@ -39,7 +83,7 @@ pub struct GlaredbFFIPlugin {
 }
 
 
-impl GlaredbFFIPlugin {
+impl GlaredbFFIFunction {
     pub fn try_new(
         name: &str,
         lib: &str,
@@ -58,7 +102,7 @@ impl GlaredbFFIPlugin {
     }
 }
 
-impl GlaredbFFIPlugin {
+impl GlaredbFFIFunction {
     pub fn scalar_fn_impl(&self) -> ScalarFunctionImplementation {
         let slf = self.clone();
         Arc::new(move |args| unsafe { slf.invoke_impl(args) })
@@ -74,10 +118,11 @@ impl GlaredbFFIPlugin {
         let lib = &plugin.0;
         check_version(plugin);
 
-        let symbol: libloading::Symbol<*mut i32> = lib
+        let symbol: libloading::Symbol<unsafe extern "C" fn() -> i32> = lib
             .get((format!("_glaredb_plugin_function_type_{}", self.symbol)).as_bytes())
             .unwrap();
-        FunctionType::try_from(**symbol).expect("invalid function type from plugin")
+        let function_type = symbol();
+        FunctionType::try_from(function_type).expect("invalid function type from plugin")
     }
 
     unsafe fn sql_example_impl(&self) -> Option<&str> {
@@ -86,8 +131,9 @@ impl GlaredbFFIPlugin {
         check_version(plugin);
 
         let symbol: libloading::Symbol<unsafe extern "C" fn() -> *const std::os::raw::c_char> = lib
-            .get((format!("_glaredb_plugin_sql_example_{}", self.symbol)).as_bytes())
-            .unwrap();
+            .get((format!("_glaredb_plugin_example_{}", self.symbol)).as_bytes())
+            .ok()?;
+
         let example = symbol();
         if example.is_null() {
             None
@@ -196,7 +242,7 @@ fn check_version(plugin: &PluginAndVersion) {
     }
 }
 
-impl ScalarUDFImpl for GlaredbFFIPlugin {
+impl ScalarUDFImpl for GlaredbFFIFunction {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -223,7 +269,7 @@ impl ScalarUDFImpl for GlaredbFFIPlugin {
     }
 }
 
-impl BuiltinFunction for GlaredbFFIPlugin {
+impl BuiltinFunction for GlaredbFFIFunction {
     fn name(&self) -> &str {
         &self.name
     }
@@ -246,7 +292,7 @@ impl BuiltinFunction for GlaredbFFIPlugin {
     }
 }
 
-impl BuiltinScalarUDF for GlaredbFFIPlugin {
+impl BuiltinScalarUDF for GlaredbFFIFunction {
     fn try_as_expr(
         &self,
         _: &catalog::session_catalog::SessionCatalog,

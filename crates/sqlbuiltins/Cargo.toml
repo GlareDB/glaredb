@@ -33,6 +33,7 @@ memoize = { version = "0.4.2", features = ["full"] }
 async-openai = "0.18.3"
 tokio.workspace = true
 reqwest.workspace = true
+parking_lot = "0.12.1"
 
 # We just wildcard the version so we can pick it up from datafusion
 # Datafusion uses all of these, but doesn't reexport all of them.

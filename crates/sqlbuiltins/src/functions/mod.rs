@@ -15,6 +15,7 @@ use datafusion::logical_expr::{
     Signature,
 };
 use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 use protogen::metastore::types::catalog::FunctionType;
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
@@ -41,7 +42,6 @@ use table::{BuiltinTableFuncs, TableFunc};
 
 use self::alias_map::AliasMap;
 use crate::functions::scalars::openai::OpenAIEmbed;
-use crate::functions::scalars::similarity::CosineSimilarity;
 
 /// `DEFAULT_BUILTIN_FUNCTIONS` provides all implementations of [`BuiltinFunction`]
 /// These are functions that are globally available to all sessions.
@@ -182,8 +182,8 @@ where
 pub struct FunctionRegistry {
     // TODO: What's the difference between `BuiltinFunction` and
     // `BuiltinScalarUDF`? Still confused.
-    funcs: AliasMap<String, Arc<dyn BuiltinFunction>>,
-    udfs: AliasMap<String, Arc<dyn BuiltinScalarUDF>>,
+    funcs: Arc<Mutex<AliasMap<String, Arc<dyn BuiltinFunction>>>>,
+    udfs: Arc<Mutex<AliasMap<String, Arc<dyn BuiltinScalarUDF>>>>,
 
     // Table functions.
     table_funcs: BuiltinTableFuncs,
@@ -240,8 +240,6 @@ impl FunctionRegistry {
             Arc::new(PartitionResults),
             // OpenAI
             Arc::new(OpenAIEmbed),
-            // Similarity
-            Arc::new(CosineSimilarity::new()),
         ];
         let udfs = udfs
             .into_iter()
@@ -278,16 +276,16 @@ impl FunctionRegistry {
             scalars.chain(aggregates).chain(arrow_cast).collect();
 
         FunctionRegistry {
-            funcs,
-            udfs,
+            funcs: Arc::new(Mutex::new(funcs)),
+            udfs: Arc::new(Mutex::new(udfs)),
             table_funcs: BuiltinTableFuncs::new(),
         }
     }
 
     /// Checks if a function with the the given name exists.
     pub fn contains(&self, name: &str) -> bool {
-        self.funcs.get(name).is_some()
-            || self.udfs.get(name).is_some()
+        self.funcs.lock().get(name).is_some()
+            || self.udfs.lock().get(name).is_some()
             || self.table_funcs.funcs.get(name).is_some()
     }
 
@@ -295,7 +293,7 @@ impl FunctionRegistry {
     /// This is separate from `find_function` because we want to avoid downcasting
     /// We already match on BuiltinScalarFunction and AggregateFunction when parsing the AST, so we just need to match on the UDF here.
     pub fn get_scalar_udf(&self, name: &str) -> Option<Arc<dyn BuiltinScalarUDF>> {
-        self.udfs.get(name).cloned()
+        self.udfs.lock().get(name).cloned()
     }
 
     pub fn get_table_func(&self, name: &str) -> Option<Arc<dyn TableFunc>> {
@@ -305,23 +303,28 @@ impl FunctionRegistry {
     /// Iterate over all scalar funcs.
     ///
     /// A function will only be returned once, even if it has multiple aliases.
-    pub fn scalar_funcs_iter(&self) -> impl Iterator<Item = &Arc<dyn BuiltinFunction>> {
-        self.funcs.values()
+    pub fn scalar_funcs_iter(&self) -> Vec<Arc<dyn BuiltinFunction>> {
+        self.funcs.lock().values().map(|v| v.clone()).collect()
     }
 
     /// Iterate over all scalar udfs.
     ///
     /// A function will only be returned once, even if it has multiple aliases.
-    pub fn scalar_udfs_iter(&self) -> impl Iterator<Item = &Arc<dyn BuiltinScalarUDF>> {
-        self.udfs.values().filter(|func| {
-            // Currently we have two "array_to_string" entries, one provided by
-            // datafusion, and one "aliased" to "pg_catalog.array_to_string".
-            // However those exist in different maps, and so the current
-            // aliasing logic doesn't work well.
-            //
-            // See https://github.com/GlareDB/glaredb/issues/2371
-            func.name() != "array_to_string"
-        })
+    pub fn scalar_udfs(&self) -> Vec<Arc<dyn BuiltinScalarUDF>> {
+        self.udfs
+            .lock()
+            .values()
+            .filter(|func| {
+                // Currently we have two "array_to_string" entries, one provided by
+                // datafusion, and one "aliased" to "pg_catalog.array_to_string".
+                // However those exist in different maps, and so the current
+                // aliasing logic doesn't work well.
+                //
+                // See https://github.com/GlareDB/glaredb/issues/2371
+                func.name() != "array_to_string"
+            })
+            .map(|v| v.clone())
+            .collect()
     }
 
     /// Iterate over all table funcs.
@@ -334,15 +337,15 @@ impl FunctionRegistry {
     /// Get a function description.
     ///
     /// Looks up descriptions for both scalar functions and table functions.
-    pub fn get_function_description(&self, name: &str) -> Option<&str> {
-        if let Some(func) = self.funcs.get(name) {
-            return func.description();
+    pub fn get_function_description(&self, name: &str) -> Option<String> {
+        if let Some(func) = self.funcs.lock().get(name) {
+            return func.description().map(|s| s.to_string());
         }
-        if let Some(func) = self.udfs.get(name) {
-            return func.description();
+        if let Some(func) = self.udfs.lock().get(name) {
+            return func.description().map(|s| s.to_string());
         }
         if let Some(func) = self.table_funcs.funcs.get(name) {
-            return func.description();
+            return func.description().map(|s| s.to_string());
         }
         None
     }
@@ -350,20 +353,20 @@ impl FunctionRegistry {
     /// Get a function example.
     ///
     /// Looks up examples for both scalar functions and table functions.
-    pub fn get_function_example(&self, name: &str) -> Option<&str> {
-        if let Some(func) = self.funcs.get(name) {
-            return func.sql_example();
+    pub fn get_function_example(&self, name: &str) -> Option<String> {
+        if let Some(func) = self.funcs.lock().get(name) {
+            return func.sql_example().map(|s| s.to_string());
         }
-        if let Some(func) = self.udfs.get(name) {
-            return func.sql_example();
+        if let Some(func) = self.udfs.lock().get(name) {
+            return func.sql_example().map(|s| s.to_string());
         }
         if let Some(func) = self.table_funcs.funcs.get(name) {
-            return func.sql_example();
+            return func.sql_example().map(|s| s.to_string());
         }
         None
     }
 
-    pub fn register_udf(&mut self, udf: Arc<dyn BuiltinScalarUDF>) {
+    pub fn register_udf(&self, udf: Arc<dyn BuiltinScalarUDF>) {
         let aliases = udf
             .aliases()
             .iter()
@@ -391,7 +394,7 @@ impl FunctionRegistry {
                 }
             })
             .collect::<Vec<_>>();
-        self.udfs.insert_aliases(aliases, udf);
+        self.udfs.lock().insert_aliases(aliases, udf);
     }
 }
 
@@ -502,11 +505,11 @@ mod tests {
         // https://github.com/GlareDB/glaredb/issues/2371 is fixed, this should
         // concat all iterators, and ensure uniqueness on (namespace,
         // function_name) pairs.
-
-        let names = functions.scalar_udfs_iter().map(|f| f.name()).collect();
+        let names = functions.scalar_udfs();
+        let names = names.iter().map(|f| f.name()).collect();
         assert_eq!(Vec::<&str>::new(), find_duplicates(names));
-
-        let names: Vec<_> = functions.scalar_funcs_iter().map(|f| f.name()).collect();
+        let names = functions.scalar_funcs_iter();
+        let names: Vec<_> = names.iter().map(|f| f.name()).collect();
         assert_eq!(Vec::<&str>::new(), find_duplicates(names));
 
         let names: Vec<_> = functions.table_funcs_iter().map(|f| f.name()).collect();

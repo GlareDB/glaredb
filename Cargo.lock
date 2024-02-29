@@ -7838,6 +7838,7 @@ dependencies = [
  "num-traits",
  "object_store",
  "once_cell",
+ "parking_lot",
  "pgrepr",
  "protogen",
  "reqwest",
