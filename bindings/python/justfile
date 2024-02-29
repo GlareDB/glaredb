@@ -8,18 +8,18 @@ VENV_BIN := VENV / "bin"
   {{VENV_BIN}}/pip install -r requirements.txt
 
 ## Compile and install py-glaredb for development
-build *args: venv
+build *args:
   @unset CONDA_PREFIX
   {{VENV_BIN}}/maturin develop {{args}}
 
-test: venv
+test:
   {{VENV_BIN}}/pytest --rootdir={{justfile_directory()}}
 
 ## Run autoformatting and linting
-fmt: venv
+fmt:
   {{VENV_BIN}}/ruff .
   {{VENV_BIN}}/mypy
   cargo fmt --all
 
-example path: venv
+example path:
   {{VENV_BIN}}/python examples/{{path}}.py

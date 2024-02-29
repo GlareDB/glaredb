@@ -138,6 +138,7 @@ jobs:
             !target/**/glaredb
             !target/**/pgprototest
           key: ${{ runner.os }}-cargo-glaredb-build-${{ github.ref_name }}
+      - run: just python venv
       - run: just python build
       - run: just python test
 

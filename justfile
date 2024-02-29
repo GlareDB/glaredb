@@ -118,7 +118,6 @@ protoc:
     rm protoc.zip
   fi
 
-
 # Installs python dependencies for testing
 venv:
   python3 -m venv {{VENV}}
