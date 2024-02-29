@@ -1,5 +1,5 @@
 # this requirements.txt is for development deps only
-maturin[patchelf]==1.4.0
+maturin==1.4.0
 patchelf
 black==23.3.0
 blackdoc==0.3.8

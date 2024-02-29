@@ -6,6 +6,7 @@ build-backend = "maturin"
 name = "glaredb"
 description = "GlareDB is a fast SQL database for querying and analyzing distributed data."
 readme = "README.md"
+version = "0.0.0"
 requires-python = ">=3.7"
 classifiers = [
     "Programming Language :: Rust",
@@ -13,12 +14,6 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 
-[tool.poetry]
-name = "glaredb"
-version = "0.0.0"
-description = "glaredb bindings"
-authors = ["GlareDB <hello@glaredb.com>"]
-readme = "README.md"
 
 [project.optional-dependencies]
 great-expectations = [

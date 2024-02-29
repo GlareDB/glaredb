@@ -11,7 +11,7 @@ VENV_BIN := VENV / "bin"
 ## Compile and install py-glaredb for development
 build *args: venv
   @unset CONDA_PREFIX
-  {{VENV_BIN}}/maturin develop --pip-path="{{VENV_BIN}}/pip" --extras="pandas,polars,pyarrow" {{args}}
+  {{VENV_BIN}}/maturin develop {{args}}
 
 test: venv
   {{VENV_BIN}}/pytest --rootdir={{justfile_directory()}}
