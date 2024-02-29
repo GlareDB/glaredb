@@ -16,9 +16,7 @@ use datafusion::logical_expr::{
     ScalarUDFImpl,
     Signature,
 };
-
 use glaredb_ffi::prelude::FFI_Signature;
-
 use libloading::Library;
 use once_cell::sync::Lazy;
 use protogen::metastore::types::catalog::FunctionType;
