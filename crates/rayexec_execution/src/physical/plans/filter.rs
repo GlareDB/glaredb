@@ -8,6 +8,7 @@ use arrow_array::RecordBatch;
 use arrow_schema::{DataType, Schema};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use std::task::{Context, Poll};
+use tracing::trace;
 
 use super::{buffer::BatchBuffer, Sink, Source};
 
@@ -19,6 +20,7 @@ pub struct PhysicalFilter {
 
 impl PhysicalFilter {
     pub fn try_new(predicate: PhysicalScalarExpression) -> Result<Self> {
+        trace!(?predicate, "creating physical filter");
         Ok(PhysicalFilter {
             predicate,
             buffer: BatchBuffer::new(1),
@@ -49,7 +51,7 @@ impl Sink for PhysicalFilter {
         }
 
         let selection = self.predicate.eval(&input)?;
-        // Safe since we should have checked the data type during filter construction.
+        // TODO: Need to check that this is actually a boolean somewhere.
         let selection = selection.as_boolean();
 
         let filtered_arrays = input
@@ -57,7 +59,16 @@ impl Sink for PhysicalFilter {
             .iter()
             .map(|a| filter(a, &selection))
             .collect::<Result<Vec<_>, _>>()?;
-        let batch = DataBatch::try_new(filtered_arrays)?;
+
+        let batch = if filtered_arrays.is_empty() {
+            // If we're working on an empty input batch, just produce an new
+            // empty batch with num rows equaling the number of trues in the
+            // selection.
+            DataBatch::empty_with_num_rows(selection.true_count())
+        } else {
+            // Otherwise use the actual filtered arrays.
+            DataBatch::try_new(filtered_arrays)?
+        };
 
         self.buffer.push(batch, 0, partition)
     }

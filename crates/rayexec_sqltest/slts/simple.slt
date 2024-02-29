@@ -25,3 +25,16 @@ select 1 as a, 2 as b;
 ----
 1  2
 
+query I
+select 1 + 2;
+----
+3
+
+query I
+select 1 + 2 where false;
+----
+
+query I
+select 1 + 2 where true;
+----
+3

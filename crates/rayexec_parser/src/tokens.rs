@@ -63,6 +63,8 @@ pub enum Token {
     RightBracket,
     /// '=>'
     RightArrow,
+    /// '!'
+    Exclamation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -295,7 +297,21 @@ impl<'a> Tokenizer<'a> {
                         self.state.next();
                         Token::LtEq
                     }
+                    Some('>') => {
+                        self.state.next();
+                        Token::Neq
+                    }
                     _ => Token::Lt,
+                }
+            }
+            '!' => {
+                self.state.next();
+                match self.state.peek() {
+                    Some('=') => {
+                        self.state.next();
+                        Token::Neq
+                    }
+                    _ => Token::Exclamation,
                 }
             }
             '|' => {

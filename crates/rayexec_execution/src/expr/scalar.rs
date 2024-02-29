@@ -1,5 +1,5 @@
 use arrow_array::{
-    new_null_array, ArrayRef, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array,
+    new_null_array, Array, ArrayRef, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array,
     StringArray,
 };
 use arrow_schema::DataType;
@@ -133,6 +133,25 @@ impl BinaryOperator {
             Eq | NotEq | Lt | LtEq | Gt | GtEq | And | Or => DataType::Boolean,
             Plus | Minus | Multiply | Divide | Modulo => maybe_widen(left, right).ok_or_else(|| RayexecError::new(format!("Unable to determine output data type for {:?} using arguments {:?} and {:?}", self, left, right)))?
         })
+    }
+
+    pub fn eval(&self, left: &dyn Array, right: &dyn Array) -> Result<ArrayRef> {
+        let arr = match self {
+            BinaryOperator::Eq => Arc::new(arrow::compute::kernels::cmp::eq(&left, &right)?),
+            BinaryOperator::NotEq => Arc::new(arrow::compute::kernels::cmp::neq(&left, &right)?),
+            BinaryOperator::Lt => Arc::new(arrow::compute::kernels::cmp::lt(&left, &right)?),
+            BinaryOperator::LtEq => Arc::new(arrow::compute::kernels::cmp::lt_eq(&left, &right)?),
+            BinaryOperator::Gt => Arc::new(arrow::compute::kernels::cmp::gt(&left, &right)?),
+            BinaryOperator::GtEq => Arc::new(arrow::compute::kernels::cmp::gt_eq(&left, &right)?),
+            BinaryOperator::Plus => arrow::compute::kernels::numeric::add(&left, &right)?,
+            BinaryOperator::Minus => arrow::compute::kernels::numeric::sub(&left, &right)?,
+            BinaryOperator::Multiply => arrow::compute::kernels::numeric::mul(&left, &right)?,
+            BinaryOperator::Divide => arrow::compute::kernels::numeric::div(&left, &right)?,
+            BinaryOperator::Modulo => arrow::compute::kernels::numeric::rem(&left, &right)?,
+            _ => unimplemented!(),
+        };
+
+        Ok(arr)
     }
 }
 

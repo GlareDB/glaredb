@@ -91,6 +91,11 @@ impl PhysicalScalarExpression {
                 })?
                 .clone(),
             Self::Literal(lit) => lit.as_array(batch.num_rows())?,
+            Self::Binary { op, left, right } => {
+                let left = left.eval(batch)?;
+                let right = right.eval(batch)?;
+                op.eval(&left, &right)?
+            }
             _ => unimplemented!(),
         })
     }

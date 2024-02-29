@@ -5,6 +5,14 @@ select * from read_csv('../../testdata/csv/simple.csv')
 4  wario  5.6
 7  peach  8.9
 
+query ITR rowsort
+select c1+1, * from read_csv('../../testdata/csv/simple.csv')
+----
+2  1  mario  2.3
+5  4  wario  5.6
+8  7  peach  8.9
+
+
 query R rowsort
 select c3 from read_csv('../../testdata/csv/simple.csv')
 ----
@@ -12,3 +20,30 @@ select c3 from read_csv('../../testdata/csv/simple.csv')
 5.6
 8.9
 
+query ITR rowsort
+select * from read_csv('../../testdata/csv/simple.csv') where c2 <> 'wario'
+----
+1  mario  2.3
+7  peach  8.9
+
+query ITR rowsort
+select * from read_csv('../../testdata/csv/simple.csv') where c2 != 'wario'
+----
+1  mario  2.3
+7  peach  8.9
+
+query ITR rowsort
+select * from read_csv('../../testdata/csv/simple.csv') t1(a,b,c) where b != 'wario'
+----
+1  mario  2.3
+7  peach  8.9
+
+query ITR rowsort
+select a as aa from read_csv('../../testdata/csv/simple.csv') t1(a,b,c) where a = 1;
+----
+1
+
+# query ITR rowsort
+# select a as aa from read_csv('../../testdata/csv/simple.csv') t1(a,b,c) where aa = 1;
+# ----
+# 1
