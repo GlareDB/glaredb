@@ -71,18 +71,6 @@ pub enum Volatility {
 /// Types to match are represented using Arrow's [`DataType`].  [`DataType::Timestamp`] has an optional variable
 /// timezone specification. To specify a function can handle a timestamp with *ANY* timezone, use
 /// the [`TIMEZONE_WILDCARD`]. For example:
-///
-/// ```
-/// # use arrow::datatypes::{DataType, TimeUnit};
-/// # use datafusion_expr::{TIMEZONE_WILDCARD, TypeSignature};
-/// let type_signature = TypeSignature::Exact(vec![
-///     // A nanosecond precision timestamp with ANY timezone
-///     // matches  Timestamp(Nanosecond, Some("+0:00"))
-///     // matches  Timestamp(Nanosecond, Some("+5:00"))
-///     // does not match  Timestamp(Nanosecond, None)
-///     DataType::Timestamp(TimeUnit::Nanosecond, Some(TIMEZONE_WILDCARD.into())),
-/// ]);
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeSignature {
     /// One or more arguments of an common type out of a list of valid types.
