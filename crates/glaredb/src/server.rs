@@ -59,7 +59,6 @@ pub struct ComputeServerBuilder {
     enable_simple_query_rpc: bool,
     enable_flight_api: bool,
     metastore_bucket: Option<String>,
-    metastore_local_file_path: Option<PathBuf>,
 }
 
 impl ComputeServerBuilder {
@@ -78,7 +77,6 @@ impl ComputeServerBuilder {
             disable_rpc_auth: false,
             enable_simple_query_rpc: false,
             enable_flight_api: false,
-            metastore_local_file_path: None,
             metastore_bucket: None,
         }
     }
@@ -176,16 +174,6 @@ impl ComputeServerBuilder {
 
     pub fn with_metastore_bucket_opt(mut self, bucket: Option<String>) -> Self {
         self.metastore_bucket = bucket;
-        self
-    }
-
-    pub fn with_metastore_local_file_path(mut self, path: PathBuf) -> Self {
-        self.metastore_local_file_path = Some(path);
-        self
-    }
-
-    pub fn with_metastore_local_file_path_opt(mut self, path: Option<PathBuf>) -> Self {
-        self.metastore_local_file_path = path;
         self
     }
 
@@ -300,27 +288,24 @@ impl ComputeServerBuilder {
                 }
             };
 
-            let metastore_storage_conf = match (
-                self.metastore_bucket.clone(),
-                self.metastore_local_file_path.clone(),
-            ) {
-                (Some(bucket), None) => {
-                    StorageConfig::Gcs {
+            let metastore_storage_conf =
+                match (self.metastore_bucket.clone(), self.data_dir.clone()) {
+                    (Some(_), Some(_)) => {
+                        return Err(anyhow!(
+                            "cannot specify local datadir and remote metastore bucket"
+                        ))
+                    }
+                    (Some(bucket), None) => StorageConfig::Gcs {
                         bucket: Some(bucket),
                         service_account_key: self.service_account_path.clone().unwrap_or_default(),
+                    },
+                    (None, Some(p)) => {
+                        let p = p.join("__metastore");
+                        ensure_dir(&p)?;
+                        StorageConfig::Local { path: p }
                     }
-                }
-                (None, Some(p)) => {
-                    ensure_dir(&p)?;
-                    StorageConfig::Local { path: p }
-                }
-                (None, None) => StorageConfig::Memory,
-                _ => {
-                    return Err(anyhow!(
-                    "Invalid arguments, 'metastore-service-account-path' and 'metastore-bucket' must both be provided."
-                ))
-                }
-            };
+                    (None, None) => StorageConfig::Memory,
+                };
 
 
             let metastore_client =
