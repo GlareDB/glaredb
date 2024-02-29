@@ -179,7 +179,6 @@ impl ComputeServerBuilder {
         self
     }
 
-
     pub fn with_metastore_local_file_path(mut self, path: PathBuf) -> Self {
         self.metastore_local_file_path = Some(path);
         self
