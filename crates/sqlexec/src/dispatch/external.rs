@@ -16,6 +16,8 @@ use datasources::cassandra::CassandraTableProvider;
 use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider, OwnedClickhouseTableRef};
 use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
+use datasources::excel::table::ExcelTableProvider;
+use datasources::excel::ExcelTable;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lance::LanceTable;
@@ -286,11 +288,32 @@ impl<'a> ExternalDispatcher<'a> {
 
         match &table.options {
             TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
-            TableOptions::Excel(TableOptionsExcel { .. }) => todo!(),
             TableOptions::Debug(TableOptionsDebug { table_type }) => {
                 let provider = DebugTableType::from_str(table_type)?;
                 Ok(provider.into_table_provider(tunnel.as_ref()))
             }
+            TableOptions::Excel(TableOptionsExcel {
+                location,
+                storage_options,
+                has_header,
+                sheet_name,
+                ..
+            }) => {
+                let source_url = DatasourceUrl::try_new(location)?;
+                let store_access = GenericStoreAccess::new_from_location_and_opts(
+                    location,
+                    storage_options.to_owned(),
+                )?;
+                let sheet_name: Option<&str> = sheet_name.as_deref();
+
+
+                let table =
+                    ExcelTable::open(store_access, source_url, sheet_name, *has_header).await?;
+                let provider = ExcelTableProvider::try_new(table).await?;
+
+                Ok(Arc::new(provider))
+            }
+
             TableOptions::Postgres(TableOptionsPostgres {
                 connection_string,
                 schema,
