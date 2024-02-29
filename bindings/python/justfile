@@ -3,7 +3,7 @@ VENV := env_var_or_default("VENV", ".venv")
 VENV_BIN := VENV / "bin"
 
 @venv:
-  python3 -m venv {{VENV}}
+  if python3 -c "import virtualenv"; then python3 -m virtualenv {{VENV}}; else python3 -m venv {{VENV}}; fi
   {{VENV_BIN}}/python -m pip install --upgrade pip
   {{VENV_BIN}}/pip install -r requirements.txt
 

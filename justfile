@@ -120,7 +120,7 @@ protoc:
 
 # Installs python dependencies for testing
 venv:
-  python3 -m venv {{VENV}}
+  if python3 -c "import virtualenv"; then python3 -m virtualenv {{VENV}}; else python3 -m venv {{VENV}}; fi
   {{VENV_BIN}}/python -m pip install --upgrade pip
   {{VENV_BIN}}/python -m pip install poetry
 
