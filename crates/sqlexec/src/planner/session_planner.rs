@@ -1738,20 +1738,6 @@ impl<'a> SessionPlanner<'a> {
     async fn plan_install(&self, extension: String) -> Result<LogicalPlan> {
         let install_plan = Install { extension };
         Ok(install_plan.into_logical_plan())
-        //     // if it's a path, install the extension from the path
-        //     let path = Path::new(&extension);
-        //     if path.exists() {
-        //         let ext = GlaredbFFIPlugin::try_new(&extension)?;
-        //         for func in ext.functions() {
-        //             self.ctx.register_function(func).await.unwrap();
-        //         }
-
-        //         Ok(LogicalPlan::Noop)
-        //     } else {
-        //         //download the extension from registry
-        //         todo!("install external extension: {}", extension)
-        //     }
-        //     //download the extension from registry
     }
 
     async fn plan_load(&self, extension: String) -> Result<LogicalPlan> {
