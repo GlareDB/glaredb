@@ -13,7 +13,7 @@ use glaredb_ffi::arrow::array::{
 };
 use glaredb_ffi::arrow_schema::{ArrowError, Field, FieldRef};
 use glaredb_ffi::prelude::*;
-use glaredb_ffi::{datafusion, generate_ffi_expr, generate_lib};
+use glaredb_ffi::{generate_ffi_expr, generate_lib};
 
 #[derive(Debug, Clone)]
 pub struct CosineSimilarity {
@@ -57,7 +57,7 @@ impl FFIExpr for CosineSimilarity {
         &self.signature
     }
 
-    fn return_type(&self, _: &[DataType]) -> Result<DataType> {
+    fn return_type(&self, _: &[DataType]) -> FFIResult<DataType> {
         Ok(DataType::Float32)
     }
 
@@ -65,7 +65,7 @@ impl FFIExpr for CosineSimilarity {
         2i32
     }
 
-    fn invoke(&self, args: &[ArrayRef]) -> Result<ArrayRef> {
+    fn invoke(&self, args: &[ArrayRef]) -> FFIResult<ArrayRef> {
         let target_vec = arr_to_target_vec(&args[1])?;
         let v0 = target_vec.value(0);
         let to_type = v0.data_type();
@@ -73,24 +73,21 @@ impl FFIExpr for CosineSimilarity {
 
         let dimension = target_vec.value_length() as usize;
         if query_vec.len() != dimension {
-            return Err(DataFusionError::Execution(
+            return Err(FFIError::Other(
                 "Query vector and target vector must have the same length".to_string(),
             ));
         }
 
         let result: Arc<dyn Array> =
             lance_linalg::distance::cosine_distance_arrow_batch(query_vec.as_ref(), &target_vec)
-                .map_err(|e| DataFusionError::Execution(e.to_string()))?;
+                .map_err(|e| FFIError::Other(e.to_string()))?;
 
         Ok(result)
     }
 }
 
 
-fn arr_to_query_vec(
-    arr: &dyn Array,
-    to_type: &DataType,
-) -> datafusion::error::Result<Arc<dyn Array>> {
+fn arr_to_query_vec(arr: &dyn Array, to_type: &DataType) -> FFIResult<Arc<dyn Array>> {
     Ok(match arr.data_type() {
         dtype @ DataType::List(fld) => match fld.data_type() {
             DataType::Float64 | DataType::Float16 | DataType::Float32 => {
@@ -98,7 +95,7 @@ fn arr_to_query_vec(
                 arrow_cast::cast(&arr, to_type)?
             }
             _ => {
-                return Err(DataFusionError::Execution(format!(
+                return Err(FFIError::Other(format!(
                     "Unsupported data type for cosine_similarity query vector: {:?}",
                     dtype
                 )))
@@ -114,14 +111,14 @@ fn arr_to_query_vec(
                 arrow_cast::cast(&arr, to_type)?
             }
             _ => {
-                return Err(DataFusionError::Execution(format!(
+                return Err(FFIError::Other(format!(
                     "Unsupported data type for cosine_similarity query vector: {:?}",
                     dtype
                 )))
             }
         },
         dtype => {
-            return Err(DataFusionError::Execution(format!(
+            return Err(FFIError::Other(format!(
                 "Unsupported data type for cosine_similarity query vector: {:?}",
                 dtype
             )))
@@ -129,7 +126,7 @@ fn arr_to_query_vec(
     })
 }
 
-fn arr_to_target_vec(arr: &dyn Array) -> datafusion::error::Result<Cow<FixedSizeListArray>> {
+fn arr_to_target_vec(arr: &dyn Array) -> FFIResult<Cow<FixedSizeListArray>> {
     Ok(match arr.data_type() {
         DataType::FixedSizeList(fld, size) => match fld.data_type() {
             DataType::Float64 => {
@@ -140,13 +137,13 @@ fn arr_to_target_vec(arr: &dyn Array) -> datafusion::error::Result<Cow<FixedSize
                 let arr = arr.as_any().downcast_ref::<FixedSizeListArray>().unwrap();
 
                 let target_vec = cast_fsl_inner(arr, &to_type, *size, &Default::default())
-                    .map_err(|e| DataFusionError::Execution(e.to_string()));
+                    .map_err(|e| FFIError::Other(e.to_string()));
 
                 Cow::Owned(target_vec?)
             }
 
             dtype => {
-                return Err(DataFusionError::Execution(format!(
+                return Err(FFIError::Other(format!(
                     "Unsupported data type for cosine_similarity target vector: {:?}",
                     dtype
                 )))
@@ -166,20 +163,20 @@ fn arr_to_target_vec(arr: &dyn Array) -> datafusion::error::Result<Cow<FixedSize
                     fsl_len as i32,
                     &Default::default(),
                 )
-                .map_err(|e| DataFusionError::Execution(e.to_string()));
+                .map_err(|e| FFIError::Other(e.to_string()));
 
                 Cow::Owned(target_vec?)
             }
 
             dtype => {
-                return Err(DataFusionError::Execution(format!(
+                return Err(FFIError::Other(format!(
                     "Unsupported data type for cosine_similarity target vector inner type: {:?}",
                     dtype
                 )))
             }
         },
         dtype => {
-            return Err(DataFusionError::Execution(format!(
+            return Err(FFIError::Other(format!(
                 "Unsupported data type for cosine_similarity: {:?}",
                 dtype
             )))
@@ -293,5 +290,5 @@ fn cast_fsl_inner(
 }
 
 
-generate_ffi_expr!(similarity, CosineSimilarity, COSINE_SIMILARITY);
-generate_lib!(distance, (similarity));
+generate_ffi_expr!(cosine, CosineSimilarity, COSINE_SIMILARITY);
+generate_lib!(distance, (cosine));

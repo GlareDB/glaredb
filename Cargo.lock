@@ -3539,8 +3539,8 @@ dependencies = [
  "arrow",
  "arrow-schema",
  "datafusion",
- "datafusion_ext",
  "paste",
+ "thiserror",
 ]
 
 [[package]]

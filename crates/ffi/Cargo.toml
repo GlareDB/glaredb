@@ -6,12 +6,15 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arrow = { version = "50.0.0", features = ["ffi"] }
+arrow = { version = "50.0.0", features = ["ffi"], default-features = false }
 arrow-schema = { version = "50.0.0", features = ["ffi"] }
+thiserror.workspace = true
 
-datafusion = { workspace = true }
-datafusion_ext = { path = "../datafusion_ext" }
+datafusion = { workspace = true, optional = true }
 paste = "1.0.14"
+
+[features]
+datafusion = ["dep:datafusion"]
 
 [lints]
 workspace = true

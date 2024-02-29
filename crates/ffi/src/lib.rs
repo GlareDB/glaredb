@@ -3,25 +3,46 @@ use std::any::Any;
 use arrow::array::ArrayRef;
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use arrow_schema::DataType;
-use datafusion::error::Result;
+#[cfg(feature = "datafusion")]
+pub use datafusion;
+#[cfg(feature = "datafusion")]
 use datafusion::logical_expr::Signature;
+#[cfg(not(feature = "datafusion"))]
+use signature::Signature;
 // reexports
-pub use datafusion_ext::ffi;
-pub use {arrow, arrow_schema, datafusion};
+pub use {arrow, arrow_schema};
+pub mod ffi;
+#[cfg(not(feature = "datafusion"))]
+pub mod signature;
 
+#[derive(thiserror::Error, Debug)]
+pub enum FFIError {
+    #[cfg(feature = "datafusion")]
+    #[error("DataFusionError: {0}")]
+    DataFusionError(#[from] datafusion::error::DataFusionError),
+    #[error("ArrowError: {0}")]
+    ArrowError(#[from] arrow::error::ArrowError),
+    #[error("Other: {0}")]
+    Other(String),
+}
+
+pub type Result<T> = std::result::Result<T, FFIError>;
 pub mod prelude {
     pub use std::ffi::CString;
 
     pub use arrow::array::{make_array, ArrayRef};
-    pub use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
+    pub use arrow::ffi::{from_ffi, to_ffi, FFI_ArrowArray, FFI_ArrowSchema};
     pub use arrow_schema::DataType;
-    pub use datafusion::arrow::ffi::{from_ffi, to_ffi};
+    #[cfg(feature = "datafusion")]
     pub use datafusion::error::{DataFusionError, Result};
+    #[cfg(feature = "datafusion")]
     pub use datafusion::logical_expr::{Signature, Volatility};
-    pub use datafusion_ext::ffi::*;
     pub use paste::paste;
 
-    pub use crate::{import_array, FFIExpr};
+    pub use crate::ffi::*;
+    #[cfg(not(feature = "datafusion"))]
+    pub use crate::signature::*;
+    pub use crate::{import_array, FFIError, FFIExpr, Result as FFIResult};
 }
 
 pub trait FFIExpr: Send + Sync {
@@ -219,7 +240,7 @@ macro_rules! generate_lib {
             static LAST_ERROR: std::cell::RefCell<CString> = std::cell::RefCell::new(CString::default());
         }
 
-        pub fn _update_last_error(err: DataFusionError) {
+        pub fn _update_last_error(err: glaredb_ffi::FFIError) {
             let msg = format!("{}", err);
             let msg = CString::new(msg).unwrap();
             LAST_ERROR.with(|prev| *prev.borrow_mut() = msg)
@@ -238,11 +259,8 @@ macro_rules! generate_lib {
 
 /// # Safety
 /// `ArrowArray` and `ArrowSchema` must be valid
-pub unsafe fn import_array(
-    array: FFI_ArrowArray,
-    schema: &FFI_ArrowSchema,
-) -> datafusion::error::Result<ArrayRef> {
-    let data = datafusion::arrow::ffi::from_ffi(array, schema).unwrap();
-    let arr = datafusion::arrow::array::make_array(data);
+pub unsafe fn import_array(array: FFI_ArrowArray, schema: &FFI_ArrowSchema) -> Result<ArrayRef> {
+    let data = arrow::ffi::from_ffi(array, schema).unwrap();
+    let arr = arrow::array::make_array(data);
     Ok(arr)
 }
