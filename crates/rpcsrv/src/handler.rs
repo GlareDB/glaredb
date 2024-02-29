@@ -46,7 +46,7 @@ pub struct RpcHandler {
     /// By default only messages from proxy are accepted.
     allow_client_init: bool,
 
-    /// Whether we're running in itegration testing mode.
+    /// Whether we're running in integration testing mode.
     integration_testing: bool,
 }
 
@@ -108,7 +108,7 @@ impl RpcHandler {
                 (db_id, None, SessionStorageConfig::default())
             }
             _ => {
-                return Err(RpcsrvError::SessionInitalizeError(
+                return Err(RpcsrvError::SessionInitializeError(
                     "unexpectedly received client request, expected a request from the proxy"
                         .to_string(),
                 ))
