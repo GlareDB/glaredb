@@ -54,7 +54,6 @@ impl ConstBuiltinFunction for CosineSimilarity {
         Some(self.signature.clone())
     }
 }
-
 fn arr_to_query_vec(
     arr: &dyn Array,
     to_type: &DataType,
