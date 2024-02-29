@@ -38,6 +38,13 @@ impl SessionVars {
             inner: Arc::new(RwLock::new(vars)),
         }
     }
+
+    /// Create a new session vars instance with the default values.
+    /// This sets the `is_server_instance` to `false`.
+    /// indicating that this is a local instance not connected to any remote servers
+    pub fn local() -> Self {
+        Self::default().with_is_server_instance(false, VarType::System)
+    }
 }
 
 impl Default for SessionVars {
@@ -98,6 +105,7 @@ impl SessionVars {
      is_cloud_instance: bool,
      dialect: Dialect,
      enable_experimental_scheduler: bool,
+     is_server_instance: bool,
     }
 }
 
@@ -209,6 +217,9 @@ impl SessionVars {
     }
     pub fn with_is_cloud_instance(self, value: bool, setter: VarType) -> Self {
         with_property!(self, is_cloud_instance, setter, value)
+    }
+    pub fn with_is_server_instance(self, value: bool, setter: VarType) -> Self {
+        with_property!(self, is_server_instance, setter, value)
     }
 }
 

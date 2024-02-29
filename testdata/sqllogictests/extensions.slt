@@ -1,0 +1,9 @@
+# make sure that 'install' does not work
+
+statement error  Unsupported feature
+install 'some package';
+
+# make sure that 'load'  also does not work
+
+statement error  Unsupported feature
+load 'some package';

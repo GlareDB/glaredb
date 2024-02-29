@@ -222,6 +222,17 @@ pub(super) const ENABLE_EXPERIMENTAL_SCHEDULER: ServerVar<bool> = ServerVar {
     description: "If the experimental query scheduler should be enabled",
 };
 
+pub(super) const IS_SERVER_INSTANCE: ServerVar<bool> = ServerVar {
+    name: "is_server_instance",
+    value: &true,
+    group: "glaredb",
+    user_configurable: false,
+    description: r#"
+    If this is connected to, or is a server instance. 
+    This is not the same as `is_cloud_instance`. This should _only_ be false if it's local or embedded execution
+"#,
+};
+
 /// Note that these are not normally shown in the search path.
 pub(super) const IMPLICIT_SCHEMAS: [&str; 2] = [
     POSTGRES_SCHEMA,

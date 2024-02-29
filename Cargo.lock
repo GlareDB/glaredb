@@ -7829,6 +7829,7 @@ dependencies = [
  "decimal",
  "fnv",
  "futures",
+ "glaredb_ffi",
  "ioutil",
  "kdl",
  "lance-linalg",

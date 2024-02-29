@@ -141,7 +141,7 @@ pub fn connect(
             sess
         } else {
             engine
-                .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
+                .new_local_session_context(SessionVars::local(), SessionStorageConfig::default())
                 .await
                 .map_err(PyGlareDbError::from)?
         };

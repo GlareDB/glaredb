@@ -1736,13 +1736,37 @@ impl<'a> SessionPlanner<'a> {
     }
 
     async fn plan_install(&self, extension: String) -> Result<LogicalPlan> {
-        let install_plan = Install { extension };
-        Ok(install_plan.into_logical_plan())
+        let vars = self.ctx.get_session_vars();
+
+        if vars.is_cloud_instance() {
+            Err(PlanError::UnsupportedFeature(
+                "installing extensions on cloud instances",
+            ))
+        } else if vars.is_server_instance() {
+            return Err(PlanError::UnsupportedFeature(
+                "installing extensions on remote instances",
+            ));
+        } else {
+            println!("Installing extension: {extension}");
+            let install_plan = Install { extension };
+            Ok(install_plan.into_logical_plan())
+        }
     }
 
     async fn plan_load(&self, extension: String) -> Result<LogicalPlan> {
-        let load_plan = Load { extension };
-        Ok(load_plan.into_logical_plan())
+        let vars = self.ctx.get_session_vars();
+        if vars.is_cloud_instance() {
+            Err(PlanError::UnsupportedFeature(
+                "loading extensions on cloud instances",
+            ))
+        } else if vars.is_server_instance() {
+            return Err(PlanError::UnsupportedFeature(
+                "loading extensions on remote instances",
+            ));
+        } else {
+            let load_plan = Load { extension };
+            Ok(load_plan.into_logical_plan())
+        }
     }
     async fn plan_copy_to(&self, stmt: CopyToStmt) -> Result<LogicalPlan> {
         let query = match stmt.source {

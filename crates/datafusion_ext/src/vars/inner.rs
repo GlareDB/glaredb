@@ -26,6 +26,7 @@ use super::constants::{
     FORCE_CATALOG_REFRESH,
     GLAREDB_VERSION,
     IS_CLOUD_INSTANCE,
+    IS_SERVER_INSTANCE,
     MAX_CREDENTIALS_COUNT,
     MAX_DATASOURCE_COUNT,
     MAX_TUNNEL_COUNT,
@@ -80,6 +81,7 @@ pub struct SessionVarsInner {
     pub is_cloud_instance: SessionVar<bool>,
     pub dialect: SessionVar<Dialect>,
     pub enable_experimental_scheduler: SessionVar<bool>,
+    pub is_server_instance: SessionVar<bool>,
 }
 
 impl SessionVarsInner {
@@ -209,6 +211,8 @@ impl SessionVarsInner {
             self.dialect.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(ENABLE_EXPERIMENTAL_SCHEDULER.name) {
             self.enable_experimental_scheduler.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(IS_SERVER_INSTANCE.name) {
+            self.is_server_instance.set_from_str(val, setter)
         } else {
             Err(VarError::UnknownVariable(name.to_string()).into())
         }
@@ -239,6 +243,7 @@ impl SessionVarsInner {
             self.max_credentials_count.config_entry(),
             self.is_cloud_instance.config_entry(),
             self.dialect.config_entry(),
+            self.is_server_instance.config_entry(),
         ]
     }
 }
@@ -272,6 +277,7 @@ impl Default for SessionVarsInner {
             is_cloud_instance: SessionVar::new(&IS_CLOUD_INSTANCE),
             dialect: SessionVar::new(&DIALECT),
             enable_experimental_scheduler: SessionVar::new(&ENABLE_EXPERIMENTAL_SCHEDULER),
+            is_server_instance: SessionVar::new(&IS_SERVER_INSTANCE),
         }
     }
 }
