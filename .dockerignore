@@ -1,5 +1,5 @@
 # Keep this up to date with .gitignore
-
+.DS_Store
 .pre-commit-config.yaml
 # nix build results
 /target

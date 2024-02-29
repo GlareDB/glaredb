@@ -15,6 +15,7 @@ datafusion_ext = { path = "../datafusion_ext" }
 catalog = { path = "../catalog" }
 telemetry = { path = "../telemetry" }
 datasources = { path = "../datasources" }
+glaredb_ffi = { path = "../ffi", features = ["datafusion"] }
 decimal = { path = "../decimal" }
 async-trait = { workspace = true }
 datafusion = { workspace = true }
