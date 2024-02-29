@@ -1039,8 +1039,13 @@ impl State {
                     .schema_objects
                     .get(&schema_id)
                     .and_then(|objs| objs.functions.get(&f.name))
-                    .copied()
-                    .unwrap_or_else(|| self.next_oid());
+                    .copied();
+
+                let oid = match oid {
+                    Some(_) => return Err(MetastoreError::DuplicateName(f.name.clone())),
+                    None => self.next_oid(),
+                };
+
 
                 let ent = FunctionEntry {
                     meta: EntryMeta {
@@ -1056,9 +1061,7 @@ impl State {
                     signature: Some(f.signature),
                     user_defined: true,
                 };
-                if let Some(ent) = self.entries.get(&oid)? {
-                    return Err(MetastoreError::DuplicateName(ent.get_meta().name.clone()));
-                }
+
                 self.entries.insert(oid, CatalogEntry::Function(ent))?;
                 self.schema_objects
                     .entry(schema_id)
