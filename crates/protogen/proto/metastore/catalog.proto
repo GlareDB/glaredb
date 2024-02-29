@@ -188,24 +188,26 @@ message TunnelEntry {
 // available are builtins. We can change this however we need and not have to
 // worry about backwards compatability.
 message FunctionEntry {
-  enum FunctionType {
-    // Unknown catalog entry. We should error if this is encountered.
-    UNKNOWN = 0;
-    AGGREGATE = 1;
-    SCALAR = 2;
-    TABLE_RETURNING = 3;
-  }
-
-  enum RuntimePreference {
-    UNSPECIFIED = 0;
-    LOCAL = 1;
-    REMOTE = 2;
-  }
-
   EntryMeta meta = 1;
   FunctionType func_type = 2;
   reserved 3;  // Function runtime preference (static)
   Signature signature = 4;
+  bool user_defined = 5;
+  // next: 6
+}
+
+enum RuntimePreference {
+  UNSPECIFIED = 0;
+  LOCAL = 1;
+  REMOTE = 2;
+}
+
+enum FunctionType {
+  // Unknown catalog entry. We should error if this is encountered.
+  UNKNOWN = 0;
+  AGGREGATE = 1;
+  SCALAR = 2;
+  TABLE_RETURNING = 3;
 }
 
 message CredentialsEntry {

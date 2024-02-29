@@ -70,7 +70,7 @@ use protogen::metastore::types::options::{
     TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use sqlbuiltins::functions::FUNCTION_REGISTRY;
+use sqlbuiltins::functions::FunctionRegistry;
 
 use super::{DispatchError, Result};
 
@@ -79,6 +79,8 @@ pub struct ExternalDispatcher<'a> {
     catalog: &'a SessionCatalog,
     // TODO: Remove need for this.
     df_ctx: &'a SessionContext,
+
+    function_registry: &'a FunctionRegistry,
     /// Whether or not local file system access should be disabled.
     disable_local_fs_access: bool,
 }
@@ -87,11 +89,13 @@ impl<'a> ExternalDispatcher<'a> {
     pub fn new(
         catalog: &'a SessionCatalog,
         df_ctx: &'a SessionContext,
+        function_registry: &'a FunctionRegistry,
         disable_local_fs_access: bool,
     ) -> Self {
         ExternalDispatcher {
             catalog,
             df_ctx,
+            function_registry,
             disable_local_fs_access,
         }
     }
@@ -667,7 +671,7 @@ impl<'a> ExternalDispatcher<'a> {
         let args = args.unwrap_or_default();
         let opts = opts.unwrap_or_default();
         let resolve_func = if func.meta.builtin {
-            FUNCTION_REGISTRY.get_table_func(&func.meta.name)
+            self.function_registry.get_table_func(&func.meta.name)
         } else {
             // We only have builtin functions right now.
             None
