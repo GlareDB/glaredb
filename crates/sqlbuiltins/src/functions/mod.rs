@@ -42,6 +42,7 @@ use table::{BuiltinTableFuncs, TableFunc};
 
 use self::alias_map::AliasMap;
 use crate::functions::scalars::openai::OpenAIEmbed;
+use crate::functions::scalars::similarity::CosineSimilarity;
 
 /// `DEFAULT_BUILTIN_FUNCTIONS` provides all implementations of [`BuiltinFunction`]
 /// These are functions that are globally available to all sessions.
@@ -240,6 +241,8 @@ impl FunctionRegistry {
             Arc::new(PartitionResults),
             // OpenAI
             Arc::new(OpenAIEmbed),
+            // Similarity
+            Arc::new(CosineSimilarity::new()),
         ];
         let udfs = udfs
             .into_iter()

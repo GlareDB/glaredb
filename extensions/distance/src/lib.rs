@@ -293,5 +293,5 @@ fn cast_fsl_inner(
 }
 
 
-generate_ffi_expr!(cosine_similarity, CosineSimilarity, COSINE_SIMILARITY);
-generate_lib!(distance, (cosine_similarity));
+generate_ffi_expr!(similarity, CosineSimilarity, COSINE_SIMILARITY);
+generate_lib!(distance, (similarity));
