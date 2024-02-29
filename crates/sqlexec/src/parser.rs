@@ -430,7 +430,7 @@ pub enum StatementWithExtensions {
     DropCredentials(DropCredentialsStmt),
     /// Copy To extension.
     CopyTo(CopyToStmt),
-    Load(Ident),
+    Load(String),
     Install(String),
 }
 
@@ -574,15 +574,23 @@ impl<'a> CustomParser<'a> {
         }
     }
     fn parse_load(&mut self) -> Result<StatementWithExtensions, ParserError> {
-        let name = self.parser.parse_identifier()?;
-        validate_ident(&name)?;
-        Ok(StatementWithExtensions::Load(name))
+        let extension = self.parser.parse_literal_string().or_else(|_| {
+            self.parser
+                .parse_identifier()
+                .map(|ident| ident.to_string())
+        })?;
+
+        Ok(StatementWithExtensions::Load(extension))
     }
 
     fn parse_install(&mut self) -> Result<StatementWithExtensions, ParserError> {
-        let name = self.parser.parse_literal_string()?;
+        let extension = self.parser.parse_literal_string().or_else(|_| {
+            self.parser
+                .parse_identifier()
+                .map(|ident| ident.to_string())
+        })?;
 
-        Ok(StatementWithExtensions::Install(name))
+        Ok(StatementWithExtensions::Install(extension))
     }
 
     /// Parse a SQL CREATE statement

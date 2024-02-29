@@ -4,30 +4,7 @@ use std::sync::Arc;
 use datafusion::logical_expr::{Extension as LogicalPlanExtension, UserDefinedLogicalNodeCore};
 
 use super::logical_plan::{
-    AlterDatabase,
-    AlterTable,
-    AlterTunnelRotateKeys,
-    CopyTo,
-    CreateCredentials,
-    CreateExternalDatabase,
-    CreateExternalTable,
-    CreateSchema,
-    CreateTable,
-    CreateTempTable,
-    CreateTunnel,
-    CreateView,
-    Delete,
-    DescribeTable,
-    DropCredentials,
-    DropDatabase,
-    DropSchemas,
-    DropTables,
-    DropTunnel,
-    DropViews,
-    Insert,
-    SetVariable,
-    ShowVariable,
-    Update,
+    AlterDatabase, AlterTable, AlterTunnelRotateKeys, CopyTo, CreateCredentials, CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable, CreateTempTable, CreateTunnel, CreateView, Delete, DescribeTable, DropCredentials, DropDatabase, DropSchemas, DropTables, DropTunnel, DropViews, Insert, Install, Load, SetVariable, ShowVariable, Update
 };
 use crate::errors::{internal, ExecError, Result};
 use crate::LogicalPlan;
@@ -61,6 +38,8 @@ pub enum ExtensionType {
     Update,
     Insert,
     Delete,
+    Install,
+    Load,
 }
 
 impl FromStr for ExtensionType {
@@ -91,6 +70,8 @@ impl FromStr for ExtensionType {
             Update::EXTENSION_NAME => Self::Update,
             Insert::EXTENSION_NAME => Self::Insert,
             Delete::EXTENSION_NAME => Self::Delete,
+            Install::EXTENSION_NAME => Self::Install,
+            Load::EXTENSION_NAME => Self::Load,
             _ => return Err(internal!("unknown extension type: {}", s)),
         })
     }

@@ -29,6 +29,8 @@ pub mod set_var;
 pub mod show_var;
 pub mod update;
 pub mod values;
+pub mod load;
+pub mod install;
 
 use std::sync::Arc;
 

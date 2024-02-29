@@ -105,7 +105,6 @@ use protogen::metastore::types::options::{
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
-use sqlbuiltins::functions::scalars::glaredb_ffi::GlaredbFFIPlugin;
 use sqlbuiltins::validation::{
     validate_copyto_dest_creds_support,
     validate_copyto_dest_format_support,
@@ -118,6 +117,7 @@ use tracing::debug;
 
 use super::context_builder::PartialContextProvider;
 use super::extension::ExtensionNode;
+use super::logical_plan::{Install, Load};
 use super::physical_plan::remote_scan::ProviderReference;
 use crate::context::local::LocalSessionContext;
 use crate::parser::options::StmtOptions;
@@ -251,23 +251,8 @@ impl<'a> SessionPlanner<'a> {
             }
             StatementWithExtensions::DropCredentials(stmt) => self.plan_drop_credentials(stmt),
             StatementWithExtensions::CopyTo(stmt) => self.plan_copy_to(stmt).await,
-            StatementWithExtensions::Install(name) => {
-                // if it's a path, install the extension from the path
-                let path = Path::new(&name);
-                if path.exists() {
-                    let ext = GlaredbFFIPlugin::try_new(&name)?;
-                    for func in ext.functions() {
-                        self.ctx.register_function(func).await.unwrap();
-                    }
-
-                    Ok(LogicalPlan::Noop)
-                } else {
-                    //download the extension from github
-                    todo!("install external extension: {}", name)
-                }
-                //download the extension from github
-            }
-            StatementWithExtensions::Load(_) => Ok(LogicalPlan::Noop),
+            StatementWithExtensions::Install(extension) => self.plan_install(extension).await,
+            StatementWithExtensions::Load(extension) => self.plan_load(extension).await,
         }
     }
 
@@ -1750,6 +1735,29 @@ impl<'a> SessionPlanner<'a> {
         .into_logical_plan())
     }
 
+    async fn plan_install(&self, extension: String) -> Result<LogicalPlan> {
+        let install_plan = Install { extension };
+        Ok(install_plan.into_logical_plan())
+        //     // if it's a path, install the extension from the path
+        //     let path = Path::new(&extension);
+        //     if path.exists() {
+        //         let ext = GlaredbFFIPlugin::try_new(&extension)?;
+        //         for func in ext.functions() {
+        //             self.ctx.register_function(func).await.unwrap();
+        //         }
+
+        //         Ok(LogicalPlan::Noop)
+        //     } else {
+        //         //download the extension from registry
+        //         todo!("install external extension: {}", extension)
+        //     }
+        //     //download the extension from registry
+    }
+
+    async fn plan_load(&self, extension: String) -> Result<LogicalPlan> {
+        let load_plan = Load { extension };
+        Ok(load_plan.into_logical_plan())
+    }
     async fn plan_copy_to(&self, stmt: CopyToStmt) -> Result<LogicalPlan> {
         let query = match stmt.source {
             CopyToSource::Table(table) => {

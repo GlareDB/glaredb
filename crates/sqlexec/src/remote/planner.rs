@@ -43,6 +43,8 @@ use crate::planner::logical_plan::{
     DropTunnel,
     DropViews,
     Insert,
+    Install,
+    Load,
     SetVariable,
     ShowVariable,
     Update,
@@ -71,6 +73,8 @@ use crate::planner::physical_plan::drop_temp_tables::DropTempTablesExec;
 use crate::planner::physical_plan::drop_tunnel::DropTunnelExec;
 use crate::planner::physical_plan::drop_views::DropViewsExec;
 use crate::planner::physical_plan::insert::InsertExec;
+use crate::planner::physical_plan::install::InstallExec;
+use crate::planner::physical_plan::load::LoadExec;
 use crate::planner::physical_plan::remote_exec::RemoteExecutionExec;
 use crate::planner::physical_plan::remote_scan::ProviderReference;
 use crate::planner::physical_plan::send_recv::SendRecvJoinExec;
@@ -392,6 +396,22 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     where_expr: lp.where_expr.clone(),
                 };
                 RuntimeGroupExec::new(RuntimePreference::Remote, Arc::new(exec))
+            }
+            ExtensionType::Install => {
+                let lp = require_downcast_lp::<Install>(node);
+                let exec = Arc::new(InstallExec {
+                    extension: lp.extension.clone(),
+                });
+
+                RuntimeGroupExec::new(RuntimePreference::Local, exec)
+            }
+            ExtensionType::Load => {
+                let lp = require_downcast_lp::<Load>(node);
+                let exec = Arc::new(LoadExec {
+                    extension: lp.extension.clone(),
+                });
+
+                RuntimeGroupExec::new(RuntimePreference::Local, exec)
             }
         };
 
