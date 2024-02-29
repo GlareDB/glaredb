@@ -79,15 +79,15 @@ impl BoundTableFunction for GenerateSeriesInteger {
         }
     }
 
-    fn create_operator(
-        &self,
+    fn into_operator(
+        self: Box<Self>,
         projection: Vec<usize>,
         pushdown: Pushdown,
-    ) -> Arc<dyn PhysicalOperator> {
-        Arc::new(GenerateSeriesIntegerOperator {
+    ) -> Result<Arc<dyn PhysicalOperator>> {
+        Ok(Arc::new(GenerateSeriesIntegerOperator {
             s: *self,
             curr: AtomicI32::new(self.start),
-        })
+        }))
     }
 }
 
@@ -121,7 +121,7 @@ impl Source for GenerateSeriesIntegerOperator {
         partition: usize,
     ) -> Poll<Option<Result<DataBatch>>> {
         const BATCH_SIZE: usize = 1000;
-        let mut curr = self.curr.load(Ordering::Relaxed);
+        let curr = self.curr.load(Ordering::Relaxed);
 
         if curr > self.s.stop {
             return Poll::Ready(None);
@@ -145,11 +145,11 @@ impl Source for GenerateSeriesIntegerOperator {
 }
 
 impl Sink for GenerateSeriesIntegerOperator {
-    fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
+    fn push(&self, _input: DataBatch, _child: usize, _partition: usize) -> Result<()> {
         Err(RayexecError::new("Cannot push to generate series"))
     }
 
-    fn finish(&self, child: usize, partition: usize) -> Result<()> {
+    fn finish(&self, _child: usize, _partition: usize) -> Result<()> {
         Err(RayexecError::new("Cannot finish generate series"))
     }
 }

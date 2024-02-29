@@ -122,7 +122,7 @@ impl PipelineBuilder {
     fn plan_scan(&mut self, scan: operator::Scan, output: Destination) -> Result<()> {
         let operator = match scan.source {
             operator::ScanItem::TableFunction(f) => {
-                f.create_operator(Vec::new(), Pushdown::default()) // TODO: Actual projection
+                f.into_operator(Vec::new(), Pushdown::default())? // TODO: Actual projection
             }
         };
         let linked = LinkedOperator {

@@ -93,7 +93,7 @@ pub struct LinkedOperator {
 
 impl fmt::Debug for LinkedOperator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let conf = ExplainConfig { verbose: false };
+        let conf = ExplainConfig { verbose: true };
         let explain = self.operator.explain_entry(conf);
         write!(f, "{explain} {:?}", self.dest)
     }

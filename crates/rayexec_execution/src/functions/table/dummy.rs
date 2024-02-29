@@ -50,12 +50,12 @@ impl BoundTableFunction for BoundDummyTableFunction {
         }
     }
 
-    fn create_operator(
-        &self,
+    fn into_operator(
+        self: Box<Self>,
         projection: Vec<usize>,
         pushdown: Pushdown,
-    ) -> Arc<dyn PhysicalOperator> {
-        Arc::new(DummyTableFunctionOperator::new(projection))
+    ) -> Result<Arc<dyn PhysicalOperator>> {
+        Ok(Arc::new(DummyTableFunctionOperator::new(projection)))
     }
 }
 

@@ -1,6 +1,7 @@
 pub mod dummy;
 pub mod empty;
 pub mod generate_series;
+pub mod read_csv;
 
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
@@ -72,11 +73,15 @@ pub trait BoundTableFunction: Send + Debug + Explainable {
     // fn with_projection(&mut self, columns: Vec<usize>);
 
     /// Convert the bound function into an executable source.
-    fn create_operator(
-        &self,
+    ///
+    /// Note that this accepts a boxed Self to allow dynamically dispatching the
+    /// table functions and ensuring that creating an operator takes complete
+    /// ownership of the bound function.
+    fn into_operator(
+        self: Box<Self>,
         projection: Vec<usize>,
         pushdown: Pushdown,
-    ) -> Arc<dyn PhysicalOperator>;
+    ) -> Result<Arc<dyn PhysicalOperator>>;
 }
 
 pub trait TableFunctionSource: Source + Explainable {}

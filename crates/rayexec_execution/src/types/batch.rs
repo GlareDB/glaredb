@@ -83,6 +83,7 @@ impl DataBatch {
 
 impl From<RecordBatch> for DataBatch {
     fn from(value: RecordBatch) -> Self {
+        // record batch sucks
         let cols = value.columns().to_vec();
         DataBatch {
             cols,
@@ -156,6 +157,18 @@ impl NamedDataBatchSchema {
 
     pub fn into_names_and_types(self) -> (Vec<String>, Vec<DataType>) {
         (self.names, self.types)
+    }
+}
+
+impl From<&Schema> for NamedDataBatchSchema {
+    fn from(schema: &Schema) -> Self {
+        let types = schema
+            .fields
+            .iter()
+            .map(|f| f.data_type().clone())
+            .collect();
+        let names = schema.fields.iter().map(|f| f.name().clone()).collect();
+        Self { names, types }
     }
 }
 

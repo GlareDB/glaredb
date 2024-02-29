@@ -1,0 +1,14 @@
+query ITR rowsort
+select * from read_csv('../../testdata/csv/simple.csv')
+----
+1  mario  2.3
+4  wario  5.6
+7  peach  8.9
+
+query R rowsort
+select c3 from read_csv('../../testdata/csv/simple.csv')
+----
+2.3
+5.6
+8.9
+
