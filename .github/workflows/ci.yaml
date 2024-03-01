@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - uses: actions/cache@v4
@@ -62,7 +62,7 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - uses: actions/cache@v4
@@ -85,7 +85,7 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - uses: actions/cache@v4
@@ -116,7 +116,7 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - uses: actions/cache/restore@v4
@@ -150,7 +150,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - uses: actions/cache/restore@v4
@@ -183,7 +183,7 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - uses: actions/cache/restore@v4
@@ -259,7 +259,7 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - uses: actions/cache/restore@v4
@@ -297,7 +297,7 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - uses: actions/cache/restore@v4
@@ -320,7 +320,7 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - name: install poetry
@@ -349,7 +349,7 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
 
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
 
@@ -431,7 +431,7 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
 
@@ -498,7 +498,7 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - uses: actions/cache/restore@v4
@@ -590,7 +590,7 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - uses: actions/cache/restore@v4
