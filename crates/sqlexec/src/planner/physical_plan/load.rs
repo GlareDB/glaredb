@@ -24,6 +24,7 @@ use sqlbuiltins::functions::scalars::glaredb_ffi::GlaredbFFIPlugin;
 use sqlbuiltins::functions::FunctionRegistry;
 
 use super::install::normalize_extension_name;
+use crate::planner::errors::PlanError;
 
 pub static LOAD_SCHEMA: Lazy<SchemaRef> =
     Lazy::new(|| Schema::new(vec![Field::new("loaded", DataType::Utf8, false)]).into());
@@ -86,15 +87,16 @@ impl ExecutionPlan for LoadExec {
             .expect("context should have SessionVars extension");
 
         // LoadExec is exclusively for local/standalone instances
-        // anything that is connected to a server instance should not be able to use LoadExec
-        // This also covers the `is_cloud_instance` case as `is_server_instance` will return true for
-        // all instances where `is_cloud_instance = true`
         // This is a bit redundant as it's already checked during planning, but this serves as an
         // extra layer of protection in case someone tries to bypass the planner
         if vars.is_server_instance() {
-            return Err(DataFusionError::Execution(
-                "LoadExec is not supported in server instance".to_string(),
-            ));
+            return Err(
+                PlanError::UnsupportedFeature("loading extensions on remote instances").into(),
+            );
+        } else if vars.is_cloud_instance() {
+            return Err(
+                PlanError::UnsupportedFeature("loading extensions on cloud instances").into(),
+            );
         }
 
         let extension_dir = vars.extension_dir();

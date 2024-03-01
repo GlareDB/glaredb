@@ -1747,7 +1747,6 @@ impl<'a> SessionPlanner<'a> {
                 "installing extensions on remote instances",
             ));
         } else {
-            println!("Installing extension: {extension}");
             let install_plan = Install { extension };
             Ok(install_plan.into_logical_plan())
         }

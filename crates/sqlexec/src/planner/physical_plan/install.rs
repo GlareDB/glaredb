@@ -21,6 +21,8 @@ use datafusion::physical_plan::{
 };
 use datafusion_ext::vars::SessionVars;
 use futures::stream;
+
+use crate::planner::errors::PlanError;
 #[derive(Debug, Clone)]
 pub struct InstallExec {
     pub extension: String,
@@ -83,15 +85,16 @@ impl ExecutionPlan for InstallExec {
             .expect("context should have SessionVars extension");
 
         // InstallExec is exclusively for local/standalone instances
-        // anything that is connected to a server instance should not be able to use InstallExec
-        // This also covers the `is_cloud_instance` case as `is_server_instance` will return true for
-        // all instances where `is_cloud_instance = true`
         // This is a bit redundant as it's already checked during planning, but this serves as an
         // extra layer of protection in case someone tries to bypass the planner
         if vars.is_server_instance() {
-            return Err(DataFusionError::Execution(
-                "LoadExec is not supported in server instance".to_string(),
-            ));
+            return Err(
+                PlanError::UnsupportedFeature("installing extensions on remote instances").into(),
+            );
+        } else if vars.is_cloud_instance() {
+            return Err(
+                PlanError::UnsupportedFeature("installing extensions on cloud instances").into(),
+            );
         }
 
         let extension_dir = vars.extension_dir();
