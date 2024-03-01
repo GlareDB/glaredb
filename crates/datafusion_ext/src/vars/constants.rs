@@ -237,8 +237,8 @@ pub(super) const IS_SERVER_INSTANCE: ServerVar<bool> = ServerVar {
 "#,
 };
 
-pub(super) const EXTENSION_DIR: ServerVar<str> = ServerVar {
-    name: "extension_dir",
+pub(super) const EXTENSION_DIRECTORY: ServerVar<str> = ServerVar {
+    name: "extension_directory",
     value: get_extension_path(),
     group: "glaredb",
     user_configurable: true,

@@ -1,6 +1,6 @@
 use std::any::Any;
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use datafusion::arrow::array::{GenericStringArray, RecordBatch};
@@ -19,6 +19,7 @@ use datafusion::physical_plan::{
 };
 use datafusion_ext::vars::SessionVars;
 use futures::stream;
+use ioutil::resolve_path;
 use once_cell::sync::Lazy;
 use sqlbuiltins::functions::scalars::glaredb_ffi::GlaredbFFIPlugin;
 use sqlbuiltins::functions::FunctionRegistry;
@@ -99,7 +100,11 @@ impl ExecutionPlan for LoadExec {
             );
         }
 
-        let extension_dir = vars.extension_dir();
+        let extension_dir = vars.extension_directory();
+        let extension_dir = Path::new(&extension_dir);
+        let extension_dir = resolve_path(extension_dir).map_err(|e| {
+            DataFusionError::Execution(format!("Failed to resolve extension directory: {:?}", e))
+        })?;
         let stream = stream::once(load_extension(self.clone(), context, extension_dir));
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
@@ -121,7 +126,7 @@ impl DisplayAs for LoadExec {
 async fn load_extension(
     plan: LoadExec,
     context: Arc<TaskContext>,
-    extension_dir: String,
+    extension_dir: PathBuf,
 ) -> DataFusionResult<RecordBatch> {
     let function_registry = context
         .session_config()
@@ -154,8 +159,7 @@ async fn load_extension(
     Ok(batch)
 }
 
-fn get_installed_extension(ext: &str, extension_dir: &str) -> Option<String> {
-    let extension_dir = PathBuf::from(extension_dir);
+fn get_installed_extension(ext: &str, extension_dir: &Path) -> Option<String> {
     let ext_path = extension_dir.join(ext);
     if ext_path.exists() {
         Some(ext_path.to_str()?.to_string())

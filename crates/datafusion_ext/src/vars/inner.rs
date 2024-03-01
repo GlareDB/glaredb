@@ -22,7 +22,7 @@ use super::constants::{
     DIALECT,
     ENABLE_DEBUG_DATASOURCES,
     ENABLE_EXPERIMENTAL_SCHEDULER,
-    EXTENSION_DIR,
+    EXTENSION_DIRECTORY,
     EXTRA_FLOAT_DIGITS,
     FORCE_CATALOG_REFRESH,
     GLAREDB_VERSION,
@@ -83,7 +83,7 @@ pub struct SessionVarsInner {
     pub dialect: SessionVar<Dialect>,
     pub enable_experimental_scheduler: SessionVar<bool>,
     pub is_server_instance: SessionVar<bool>,
-    pub extension_dir: SessionVar<str>,
+    pub extension_directory: SessionVar<str>,
 }
 
 impl SessionVarsInner {
@@ -156,8 +156,8 @@ impl SessionVarsInner {
             Ok(&self.enable_experimental_scheduler)
         } else if name.eq_ignore_ascii_case(IS_SERVER_INSTANCE.name) {
             Ok(&self.is_server_instance)
-        } else if name.eq_ignore_ascii_case(EXTENSION_DIR.name) {
-            Ok(&self.extension_dir)
+        } else if name.eq_ignore_ascii_case(EXTENSION_DIRECTORY.name) {
+            Ok(&self.extension_directory)
         } else {
             Err(VarError::UnknownVariable(name.to_string()).into())
         }
@@ -217,8 +217,8 @@ impl SessionVarsInner {
             self.dialect.set_from_str(val, setter)
         } else if name.eq_ignore_ascii_case(ENABLE_EXPERIMENTAL_SCHEDULER.name) {
             self.enable_experimental_scheduler.set_from_str(val, setter)
-        } else if name.eq_ignore_ascii_case(EXTENSION_DIR.name) {
-            self.extension_dir.set_from_str(val, setter)
+        } else if name.eq_ignore_ascii_case(EXTENSION_DIRECTORY.name) {
+            self.extension_directory.set_from_str(val, setter)
         } else {
             Err(VarError::UnknownVariable(name.to_string()).into())
         }
@@ -250,7 +250,7 @@ impl SessionVarsInner {
             self.is_cloud_instance.config_entry(),
             self.dialect.config_entry(),
             self.is_server_instance.config_entry(),
-            self.extension_dir.config_entry(),
+            self.extension_directory.config_entry(),
         ]
     }
 }
@@ -285,7 +285,7 @@ impl Default for SessionVarsInner {
             dialect: SessionVar::new(&DIALECT),
             enable_experimental_scheduler: SessionVar::new(&ENABLE_EXPERIMENTAL_SCHEDULER),
             is_server_instance: SessionVar::new(&IS_SERVER_INSTANCE),
-            extension_dir: SessionVar::new(&EXTENSION_DIR),
+            extension_directory: SessionVar::new(&EXTENSION_DIRECTORY),
         }
     }
 }

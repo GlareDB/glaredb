@@ -106,7 +106,7 @@ impl SessionVars {
      dialect: Dialect,
      enable_experimental_scheduler: bool,
      is_server_instance: bool,
-     extension_dir: String
+     extension_directory: String
     }
 }
 
@@ -148,6 +148,7 @@ impl SessionVars {
     }
 
     pub fn set(&mut self, name: &str, val: &str, setter: VarType) -> datafusion::error::Result<()> {
+        println!("Setting {} to {}", name, val);
         self.inner.write().set(name, val, setter)
     }
     pub fn with_server_version(self, value: String, setter: VarType) -> Self {

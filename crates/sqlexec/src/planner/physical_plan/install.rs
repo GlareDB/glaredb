@@ -21,6 +21,7 @@ use datafusion::physical_plan::{
 };
 use datafusion_ext::vars::SessionVars;
 use futures::stream;
+use ioutil::ensure_dir;
 
 use crate::planner::errors::PlanError;
 #[derive(Debug, Clone)]
@@ -97,7 +98,7 @@ impl ExecutionPlan for InstallExec {
             );
         }
 
-        let extension_dir = vars.extension_dir();
+        let extension_dir = vars.extension_directory();
         let this = self.clone();
         let stream = stream::once(this.install_extension(extension_dir));
 
@@ -121,7 +122,15 @@ impl DisplayAs for InstallExec {
 impl InstallExec {
     async fn install_extension(self, extension_dir: String) -> DataFusionResult<RecordBatch> {
         let output_schema = self.schema();
-        let extension_dir = PathBuf::from(extension_dir);
+        let extension_dir = Path::new(&extension_dir);
+        ensure_dir(extension_dir).map_err(|e| {
+            DataFusionError::Execution(format!("Failed to ensure extension directory: {:?}", e))
+        })?;
+
+        let extension_dir = extension_dir.canonicalize().map_err(|e| {
+            DataFusionError::Execution(format!("Failed to get extension directory: {:?}", e))
+        })?;
+
         let extension = self.extension;
 
         if let Some(path) = normalize_extension_name(&extension) {
