@@ -178,10 +178,12 @@ impl LocalSessionContext {
         Ok(())
     }
 
+    /// Get the function registry for the session.
     pub fn function_registry(&self) -> &FunctionRegistry {
         &self.functions
     }
 
+    /// Register a UDF with the session.
     pub async fn register_function(&self, udf: Arc<dyn BuiltinScalarUDF>) -> Result<()> {
         let catalog_mutator = self.catalog_mutator();
         // This is only empty when running hybrid exec
