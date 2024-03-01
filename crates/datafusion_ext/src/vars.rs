@@ -106,6 +106,7 @@ impl SessionVars {
      dialect: Dialect,
      enable_experimental_scheduler: bool,
      is_server_instance: bool,
+     extension_dir: String
     }
 }
 

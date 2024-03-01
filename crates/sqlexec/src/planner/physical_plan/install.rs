@@ -1,8 +1,8 @@
 use std::any::Any;
-use std::env::consts::{ARCH, DLL_EXTENSION, DLL_PREFIX, DLL_SUFFIX, FAMILY};
+use std::env::consts::{DLL_EXTENSION, DLL_PREFIX, DLL_SUFFIX};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::{env, fmt, fs};
+use std::{fmt, fs};
 
 use datafusion::arrow::array::GenericStringArray;
 use datafusion::arrow::datatypes::{Field, Schema};
@@ -19,6 +19,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream,
     Statistics,
 };
+use datafusion_ext::vars::SessionVars;
 use futures::stream;
 #[derive(Debug, Clone)]
 pub struct InstallExec {
@@ -66,15 +67,36 @@ impl ExecutionPlan for InstallExec {
     fn execute(
         &self,
         partition: usize,
-        _: Arc<TaskContext>,
+        context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
         if partition != 0 {
             return Err(DataFusionError::Execution(
                 "InstallExec only supports 1 partition".to_string(),
             ));
         }
+
+        let vars = context
+            .session_config()
+            .options()
+            .extensions
+            .get::<SessionVars>()
+            .expect("context should have SessionVars extension");
+
+        // InstallExec is exclusively for local/standalone instances
+        // anything that is connected to a server instance should not be able to use InstallExec
+        // This also covers the `is_cloud_instance` case as `is_server_instance` will return true for
+        // all instances where `is_cloud_instance = true`
+        // This is a bit redundant as it's already checked during planning, but this serves as an
+        // extra layer of protection in case someone tries to bypass the planner
+        if vars.is_server_instance() {
+            return Err(DataFusionError::Execution(
+                "LoadExec is not supported in server instance".to_string(),
+            ));
+        }
+
+        let extension_dir = vars.extension_dir();
         let this = self.clone();
-        let stream = stream::once(this.install_extension());
+        let stream = stream::once(this.install_extension(extension_dir));
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
@@ -94,9 +116,9 @@ impl DisplayAs for InstallExec {
 }
 
 impl InstallExec {
-    async fn install_extension(self) -> DataFusionResult<RecordBatch> {
+    async fn install_extension(self, extension_dir: String) -> DataFusionResult<RecordBatch> {
         let output_schema = self.schema();
-        let extension_dir = get_extension_path();
+        let extension_dir = PathBuf::from(extension_dir);
         let extension = self.extension;
 
         if let Some(path) = normalize_extension_name(&extension) {
@@ -142,25 +164,4 @@ pub(super) fn normalize_extension_name(name: &str) -> Option<PathBuf> {
         maybe_path.set_extension(DLL_EXTENSION);
     };
     std::fs::canonicalize(maybe_path).ok()
-}
-
-
-pub(super) fn get_home_dir() -> PathBuf {
-    match env::var("HOME") {
-        Ok(path) => PathBuf::from(path),
-        Err(_) => match env::var("USERPROFILE") {
-            Ok(path) => PathBuf::from(path),
-            Err(_) => panic!("Failed to get home directory"),
-        },
-    }
-}
-
-// ~/.glaredb/extensions/0.1.0/macos_x86_64
-pub(super) fn get_extension_path() -> PathBuf {
-    let mut home_dir = get_home_dir();
-    home_dir.push(".glaredb");
-    home_dir.push("extensions");
-    home_dir.push(env!("CARGO_PKG_VERSION"));
-    home_dir.push(format!("{}_{}", FAMILY, ARCH));
-    home_dir
 }

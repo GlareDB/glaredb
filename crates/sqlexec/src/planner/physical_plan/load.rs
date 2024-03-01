@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::fmt;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{GenericStringArray, RecordBatch};
@@ -16,12 +17,13 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream,
     Statistics,
 };
+use datafusion_ext::vars::SessionVars;
 use futures::stream;
 use once_cell::sync::Lazy;
 use sqlbuiltins::functions::scalars::glaredb_ffi::GlaredbFFIPlugin;
 use sqlbuiltins::functions::FunctionRegistry;
 
-use super::install::{get_extension_path, normalize_extension_name};
+use super::install::normalize_extension_name;
 
 pub static LOAD_SCHEMA: Lazy<SchemaRef> =
     Lazy::new(|| Schema::new(vec![Field::new("loaded", DataType::Utf8, false)]).into());
@@ -76,7 +78,27 @@ impl ExecutionPlan for LoadExec {
                 "LoadExec only supports 1 partition".to_string(),
             ));
         }
-        let stream = stream::once(load_extension(self.clone(), context));
+        let vars = context
+            .session_config()
+            .options()
+            .extensions
+            .get::<SessionVars>()
+            .expect("context should have SessionVars extension");
+
+        // LoadExec is exclusively for local/standalone instances
+        // anything that is connected to a server instance should not be able to use LoadExec
+        // This also covers the `is_cloud_instance` case as `is_server_instance` will return true for
+        // all instances where `is_cloud_instance = true`
+        // This is a bit redundant as it's already checked during planning, but this serves as an
+        // extra layer of protection in case someone tries to bypass the planner
+        if vars.is_server_instance() {
+            return Err(DataFusionError::Execution(
+                "LoadExec is not supported in server instance".to_string(),
+            ));
+        }
+
+        let extension_dir = vars.extension_dir();
+        let stream = stream::once(load_extension(self.clone(), context, extension_dir));
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
             stream,
@@ -97,6 +119,7 @@ impl DisplayAs for LoadExec {
 async fn load_extension(
     plan: LoadExec,
     context: Arc<TaskContext>,
+    extension_dir: String,
 ) -> DataFusionResult<RecordBatch> {
     let function_registry = context
         .session_config()
@@ -104,7 +127,7 @@ async fn load_extension(
         .unwrap();
 
     // it's already installed
-    if let Some(ext) = get_installed_extension(&plan.extension) {
+    if let Some(ext) = get_installed_extension(&plan.extension, &extension_dir) {
         let ext = GlaredbFFIPlugin::try_new(&ext).unwrap();
         for func in ext.functions() {
             function_registry.register_udf(func);
@@ -129,8 +152,8 @@ async fn load_extension(
     Ok(batch)
 }
 
-fn get_installed_extension(ext: &str) -> Option<String> {
-    let extension_dir = get_extension_path();
+fn get_installed_extension(ext: &str, extension_dir: &str) -> Option<String> {
+    let extension_dir = PathBuf::from(extension_dir);
     let ext_path = extension_dir.join(ext);
     if ext_path.exists() {
         Some(ext_path.to_str()?.to_string())

@@ -1,3 +1,6 @@
+use std::env::consts::{ARCH, FAMILY};
+
+use const_format::concatcp;
 use pgrepr::compatible::server_version;
 use pgrepr::notice::NoticeSeverity;
 
@@ -94,6 +97,7 @@ pub(super) const STANDARD_CONFORMING_STRINGS: ServerVar<bool> = ServerVar {
 
 pub(super) static GLAREDB_VERSION_OWNED: Lazy<String> =
     Lazy::new(|| format!("v{}", env!("CARGO_PKG_VERSION")));
+
 pub(super) static GLAREDB_VERSION: Lazy<ServerVar<str>> = Lazy::new(|| ServerVar {
     name: "glaredb_version",
     value: &GLAREDB_VERSION_OWNED,
@@ -233,6 +237,36 @@ pub(super) const IS_SERVER_INSTANCE: ServerVar<bool> = ServerVar {
 "#,
 };
 
+pub(super) const EXTENSION_DIR: ServerVar<str> = ServerVar {
+    name: "extension_dir",
+    value: get_extension_path(),
+    group: "glaredb",
+    user_configurable: true,
+    description: "Directory to load extensions from",
+};
+
+#[cfg(not(target_os = "windows"))]
+const fn get_home_dir() -> &'static str {
+    env!("HOME")
+}
+
+#[cfg(target_os = "windows")]
+const fn get_home_dir() -> &'static str {
+    env!("USERPROFILE")
+}
+
+// ~/.glaredb/extensions/0.1.0/macos_x86_64
+const fn get_extension_path() -> &'static str {
+    concatcp!(
+        get_home_dir(),
+        "/.glaredb/extensions/",
+        env!("CARGO_PKG_VERSION"),
+        "/",
+        FAMILY,
+        "_",
+        ARCH
+    )
+}
 /// Note that these are not normally shown in the search path.
 pub(super) const IMPLICIT_SCHEMAS: [&str; 2] = [
     POSTGRES_SCHEMA,
