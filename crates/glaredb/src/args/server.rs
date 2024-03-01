@@ -105,9 +105,4 @@ pub struct ServerArgs {
     /// Bucket to use for database catalogs.
     #[clap(long, value_parser)]
     pub metastore_bucket: Option<String>,
-
-    /// Local file path to store database catalog (for a local persistent
-    /// store).
-    #[clap(long, value_parser)]
-    pub metastore_local_file_path: Option<PathBuf>,
 }
