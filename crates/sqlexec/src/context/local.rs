@@ -184,6 +184,7 @@ impl LocalSessionContext {
     }
 
     /// Register a UDF with the session.
+    /// This will error if the function already exists in the catalog.
     pub async fn register_function(&self, udf: Arc<dyn BuiltinScalarUDF>) -> Result<()> {
         let catalog_mutator = self.catalog_mutator();
         // This is only empty when running hybrid exec
