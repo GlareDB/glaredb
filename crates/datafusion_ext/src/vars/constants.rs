@@ -237,7 +237,7 @@ pub(super) const IS_SERVER_INSTANCE: ServerVar<bool> = ServerVar {
 "#,
 };
 
-static GLAREDB_EXTENSION_PATH: Lazy<String> = Lazy::new(|| get_extension_path());
+static GLAREDB_EXTENSION_PATH: Lazy<String> = Lazy::new(get_extension_path);
 pub(super) static EXTENSION_DIRECTORY: Lazy<ServerVar<str>> = Lazy::new(|| ServerVar {
     name: "extension_directory",
     value: &GLAREDB_EXTENSION_PATH,
@@ -266,7 +266,7 @@ fn get_extension_path() -> String {
     let mut path = get_home_dir();
     path.push_str("/.glaredb/extensions/");
     path.push_str(env!("CARGO_PKG_VERSION"));
-    path.push_str("/");
+    path.push('/');
     path.push_str(concatcp!(FAMILY, "_", ARCH));
     path
 }
