@@ -12,7 +12,7 @@ workspace = true
 [dependencies]
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
 ioutil = { path = "../../crates/ioutil" }
-napi = { version = "2.15.4", default-features = false, features = ["full"] }
+napi = { version = "2.16.0", default-features = false, features = ["full"] }
 napi-derive = "2.15.3"
 sqlexec = { path = "../../crates/sqlexec" }
 metastore = { path = "../../crates/metastore" }
