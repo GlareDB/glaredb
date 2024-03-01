@@ -21,7 +21,7 @@ jobs:
           # Required to generate TPC-H data
           submodules: 'recursive'
 
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         name: Setup just
         with:
           just-version: "1.23.0"
