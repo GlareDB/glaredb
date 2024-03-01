@@ -237,36 +237,40 @@ pub(super) const IS_SERVER_INSTANCE: ServerVar<bool> = ServerVar {
 "#,
 };
 
-pub(super) const EXTENSION_DIRECTORY: ServerVar<str> = ServerVar {
+static GLAREDB_EXTENSION_PATH: Lazy<String> = Lazy::new(|| get_extension_path());
+pub(super) static EXTENSION_DIRECTORY: Lazy<ServerVar<str>> = Lazy::new(|| ServerVar {
     name: "extension_directory",
-    value: get_extension_path(),
+    value: &GLAREDB_EXTENSION_PATH,
     group: "glaredb",
     user_configurable: true,
     description: "Directory to load extensions from",
-};
+});
+
 
 #[cfg(not(target_os = "windows"))]
-const fn get_home_dir() -> &'static str {
-    env!("HOME")
+fn get_home_dir() -> String {
+    std::env::var("HOME")
+        .expect("home directory not found")
+        .to_string()
 }
 
 #[cfg(target_os = "windows")]
-const fn get_home_dir() -> &'static str {
-    env!("USERPROFILE")
+fn get_home_dir() -> String {
+    std::env::var("USERPROFILE")
+        .expect("home directory not found")
+        .to_string()
 }
 
 // ~/.glaredb/extensions/0.1.0/macos_x86_64
-const fn get_extension_path() -> &'static str {
-    concatcp!(
-        get_home_dir(),
-        "/.glaredb/extensions/",
-        env!("CARGO_PKG_VERSION"),
-        "/",
-        FAMILY,
-        "_",
-        ARCH
-    )
+fn get_extension_path() -> String {
+    let mut path = get_home_dir();
+    path.push_str("/.glaredb/extensions/");
+    path.push_str(env!("CARGO_PKG_VERSION"));
+    path.push_str("/");
+    path.push_str(concatcp!(FAMILY, "_", ARCH));
+    path
 }
+
 /// Note that these are not normally shown in the search path.
 pub(super) const IMPLICIT_SCHEMAS: [&str; 2] = [
     POSTGRES_SCHEMA,
