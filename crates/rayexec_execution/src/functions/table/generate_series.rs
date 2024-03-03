@@ -1,7 +1,6 @@
 use super::{BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs};
 use crate::expr::scalar::ScalarValue;
-use crate::physical::plans::{Sink2, Source2};
-use crate::physical::PhysicalOperator2;
+use crate::physical::plans::Source;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, NamedDataBatchSchema};
 use arrow_array::Int32Array;
@@ -79,12 +78,12 @@ impl BoundTableFunction for GenerateSeriesInteger {
         }
     }
 
-    fn into_operator(
+    fn into_source(
         self: Box<Self>,
         projection: Vec<usize>,
         pushdown: Pushdown,
-    ) -> Result<Arc<dyn PhysicalOperator2>> {
-        Ok(Arc::new(GenerateSeriesIntegerOperator {
+    ) -> Result<Box<dyn Source>> {
+        Ok(Box::new(GenerateSeriesIntegerOperator {
             s: *self,
             curr: AtomicI32::new(self.start),
         }))
@@ -110,16 +109,12 @@ struct GenerateSeriesIntegerOperator {
     curr: AtomicI32,
 }
 
-impl Source2 for GenerateSeriesIntegerOperator {
+impl Source for GenerateSeriesIntegerOperator {
     fn output_partitions(&self) -> usize {
         1
     }
 
-    fn poll_partition(
-        &self,
-        cx: &mut Context<'_>,
-        partition: usize,
-    ) -> Poll<Option<Result<DataBatch>>> {
+    fn poll_next(&self, cx: &mut Context<'_>, partition: usize) -> Poll<Option<Result<DataBatch>>> {
         const BATCH_SIZE: usize = 1000;
         let curr = self.curr.load(Ordering::Relaxed);
 
@@ -144,20 +139,8 @@ impl Source2 for GenerateSeriesIntegerOperator {
     }
 }
 
-impl Sink2 for GenerateSeriesIntegerOperator {
-    fn push(&self, _input: DataBatch, _child: usize, _partition: usize) -> Result<()> {
-        Err(RayexecError::new("Cannot push to generate series"))
-    }
-
-    fn finish(&self, _child: usize, _partition: usize) -> Result<()> {
-        Err(RayexecError::new("Cannot finish generate series"))
-    }
-}
-
 impl Explainable for GenerateSeriesIntegerOperator {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         self.s.explain_entry(conf)
     }
 }
-
-impl PhysicalOperator2 for GenerateSeriesIntegerOperator {}

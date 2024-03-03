@@ -9,8 +9,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use crate::expr::scalar::ScalarValue;
-use crate::physical::plans::Source2;
-use crate::physical::PhysicalOperator2;
+use crate::physical::plans::Source;
 use crate::planner::explainable::Explainable;
 use crate::types::batch::NamedDataBatchSchema;
 
@@ -77,11 +76,9 @@ pub trait BoundTableFunction: Send + Debug + Explainable {
     /// Note that this accepts a boxed Self to allow dynamically dispatching the
     /// table functions and ensuring that creating an operator takes complete
     /// ownership of the bound function.
-    fn into_operator(
+    fn into_source(
         self: Box<Self>,
         projection: Vec<usize>,
         pushdown: Pushdown,
-    ) -> Result<Arc<dyn PhysicalOperator2>>;
+    ) -> Result<Box<dyn Source>>;
 }
-
-pub trait TableFunctionSource: Source2 + Explainable {}

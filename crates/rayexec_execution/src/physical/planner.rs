@@ -1,15 +1,13 @@
 use super::{
-    plans::{empty_source::EmptySource, projection::PhysicalProjection, Sink2},
-    Destination, LinkedOperator, PhysicalOperator2, Pipeline2,
+    chain::OperatorChain,
+    plans::{empty_source::EmptySource, projection::PhysicalProjection, PhysicalOperator},
+    Pipeline, Sink, Source,
 };
 use crate::{
     expr::PhysicalScalarExpression,
     functions::table::Pushdown,
     physical::plans::{filter::PhysicalFilter, values::PhysicalValues},
-    planner::{
-        operator::{self, LogicalOperator},
-        BindContext,
-    },
+    planner::operator::{self, LogicalOperator},
     types::batch::{DataBatch, DataBatchSchema},
 };
 use arrow_array::{Array, ArrayRef};
@@ -26,54 +24,69 @@ impl PhysicalPlanner {
     }
 
     /// Create a physical plan from a logical plan.
-    pub fn create_plan(&self, plan: LogicalOperator, dest: Box<dyn Sink2>) -> Result<Pipeline2> {
-        let mut builder = PipelineBuilder::new(dest);
-        builder.walk_plan(plan, Destination::PipelineOutput)?;
+    pub fn create_plan(&self, plan: LogicalOperator, dest: Box<dyn Sink>) -> Result<Pipeline> {
+        unimplemented!()
+        // let mut builder = PipelineBuilder::new(dest);
+        // builder.walk_plan(plan, Destination::PipelineOutput)?;
 
-        Ok(builder.pipeline)
+        // Ok(builder.pipeline)
     }
 }
 
-/// Iteratively builds up a pipeline from a logical plan.
+/// Build up operator chains for a pipeline depth-first.
 #[derive(Debug)]
 struct PipelineBuilder {
-    pipeline: Pipeline2,
+    /// Intermediate sink we're working with.
+    sink: Box<dyn Sink>,
+
+    /// Intermediate operators.
+    operators: Vec<Box<dyn PhysicalOperator>>,
+
+    /// Intermediate source we're working with.
+    source: Option<Box<dyn Source>>,
+
+    /// Built operator chains.
+    completed_chains: Vec<OperatorChain>,
 }
 
 impl PipelineBuilder {
     /// Create a new builder for a pipeline that outputs the final result to
     /// `dest`.
-    fn new(dest: Box<dyn Sink2>) -> Self {
-        let pipeline = Pipeline2::new_empty(dest);
-        PipelineBuilder { pipeline }
+    fn new(dest: Box<dyn Sink>) -> Self {
+        unimplemented!()
+        // PipelineBuilder {
+        //     pipeline_dest: dest,
+        //     chains: Vec::new(),
+        //     source: None,
+        // }
     }
 
     /// Recursively walks the provided plan, creating physical operators along
     /// the the way and adding them to the pipeline.
-    fn walk_plan(&mut self, plan: LogicalOperator, output: Destination) -> Result<()> {
-        match plan {
-            LogicalOperator::Projection(proj) => self.plan_projection(proj, output),
-            LogicalOperator::Filter(filter) => self.plan_filter(filter, output),
-            LogicalOperator::Scan(scan) => self.plan_scan(scan, output),
-            LogicalOperator::ExpressionList(values) => self.plan_values(values, output),
-            LogicalOperator::Empty => self.plan_empty(output),
-            other => unimplemented!("other: {other:?}"),
-        }
+    fn walk_plan(&mut self, plan: LogicalOperator) -> Result<()> {
+        unimplemented!()
+        // match plan {
+        //     LogicalOperator::Projection(proj) => self.plan_projection(proj, output),
+        //     LogicalOperator::Filter(filter) => self.plan_filter(filter, output),
+        //     LogicalOperator::Scan(scan) => self.plan_scan(scan, output),
+        //     LogicalOperator::ExpressionList(values) => self.plan_values(values, output),
+        //     LogicalOperator::Empty => self.plan_empty(output),
+        //     other => unimplemented!("other: {other:?}"),
+        // }
     }
 
-    fn plan_empty(&mut self, output: Destination) -> Result<()> {
-        let operator = EmptySource::new();
-        let linked = LinkedOperator {
-            operator: Arc::new(operator),
-            dest: output,
-        };
+    fn plan_empty(&mut self) -> Result<()> {
+        if self.source.is_some() {
+            return Err(RayexecError::new("Expected source to be None"));
+        }
 
-        self.pipeline.push(linked);
+        let source = EmptySource::new();
+        self.source = Some(Box::new(source));
 
         Ok(())
     }
 
-    fn plan_projection(&mut self, proj: operator::Projection, output: Destination) -> Result<()> {
+    fn plan_projection(&mut self, proj: operator::Projection) -> Result<()> {
         // Plan projection.
         let projections = proj
             .exprs
@@ -81,61 +94,50 @@ impl PipelineBuilder {
             .map(|p| PhysicalScalarExpression::try_from_uncorrelated_expr(p))
             .collect::<Result<Vec<_>>>()?;
         let operator = PhysicalProjection::try_new(projections)?;
-        let linked = LinkedOperator {
-            operator: Arc::new(operator),
-            dest: output,
-        };
-
-        let idx = self.pipeline.push(linked);
-        let dest = Destination::Operator {
-            operator: idx,
-            child: 0,
-        };
 
         // Plan child, who's output will be pushed into the projection.
-        self.walk_plan(*proj.input, dest)?;
+        self.walk_plan(*proj.input)?;
+
+        self.operators.push(Box::new(operator));
 
         Ok(())
     }
 
-    fn plan_filter(&mut self, filter: operator::Filter, output: Destination) -> Result<()> {
+    fn plan_filter(&mut self, filter: operator::Filter) -> Result<()> {
         // Plan filter.
         let predicate = PhysicalScalarExpression::try_from_uncorrelated_expr(filter.predicate)?;
         let operator = PhysicalFilter::try_new(predicate)?;
-        let linked = LinkedOperator {
-            operator: Arc::new(operator),
-            dest: output,
-        };
-
-        let idx = self.pipeline.push(linked);
-        let dest = Destination::Operator {
-            operator: idx,
-            child: 0,
-        };
 
         // Plan child, who's output will be pushed into the filter.
-        self.walk_plan(*filter.input, dest)?;
+        self.walk_plan(*filter.input)?;
+
+        self.operators.push(Box::new(operator));
 
         Ok(())
     }
 
-    fn plan_scan(&mut self, scan: operator::Scan, output: Destination) -> Result<()> {
-        let operator = match scan.source {
-            operator::ScanItem::TableFunction(f) => {
-                f.into_operator(Vec::new(), Pushdown::default())? // TODO: Actual projection
-            }
-        };
-        let linked = LinkedOperator {
-            operator,
-            dest: output,
-        };
+    fn plan_scan(&mut self, scan: operator::Scan) -> Result<()> {
+        unimplemented!()
+        // let operator = match scan.source {
+        //     operator::ScanItem::TableFunction(f) => {
+        //         f.into_operator(Vec::new(), Pushdown::default())? // TODO: Actual projection
+        //     }
+        // };
+        // let linked = LinkedOperator {
+        //     operator,
+        //     dest: output,
+        // };
 
-        self.pipeline.push(linked);
+        // self.pipeline.push(linked);
 
-        Ok(())
+        // Ok(())
     }
 
-    fn plan_values(&mut self, values: operator::ExpressionList, output: Destination) -> Result<()> {
+    fn plan_values(&mut self, values: operator::ExpressionList) -> Result<()> {
+        if self.source.is_some() {
+            return Err(RayexecError::new("Expected source to be None"));
+        }
+
         let mut row_arrs: Vec<Vec<ArrayRef>> = Vec::new(); // Row oriented.
 
         let dummy_batch = DataBatch::empty_with_num_rows(1);
@@ -175,13 +177,9 @@ impl PipelineBuilder {
         }
 
         let batch = DataBatch::try_new(cols)?;
-        let operator = PhysicalValues::new(batch);
-        let linked = LinkedOperator {
-            operator: Arc::new(operator),
-            dest: output,
-        };
+        let source = PhysicalValues::new(batch);
 
-        self.pipeline.operators.push(linked);
+        self.source = Some(Box::new(source));
 
         Ok(())
     }

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
-use crate::{physical::plans::Sink2, types::batch::DataBatch};
+use crate::{physical::plans::Sink, types::batch::DataBatch};
 
 /// Stream for materialized batches for a query.
 #[derive(Debug)]
@@ -18,7 +18,7 @@ pub struct MaterializedBatchStream {
 
 impl MaterializedBatchStream {
     /// Take the configured sink for the stream. Cannot be taken more than once.
-    pub(crate) fn take_sink(&mut self) -> Result<Box<dyn Sink2>> {
+    pub(crate) fn take_sink(&mut self) -> Result<Box<dyn Sink>> {
         match self.sink.take() {
             Some(sink) => Ok(Box::new(sink)),
             None => Err(RayexecError::new("Attempted to take sink more than once")),
@@ -60,11 +60,16 @@ struct MaterializedBatchSink {
     state: Arc<Mutex<MaterializedBatchesState>>,
 }
 
-impl Sink2 for MaterializedBatchSink {
-    fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
-        if child != 0 {
-            return Err(RayexecError::new(format!("non-zero child")));
-        }
+impl Sink for MaterializedBatchSink {
+    fn input_partitions(&self) -> usize {
+        1
+    }
+
+    fn poll_ready(&self, cx: &mut Context, partition: usize) -> Poll<()> {
+        Poll::Ready(())
+    }
+
+    fn push(&self, input: DataBatch, partition: usize) -> Result<()> {
         if partition != 0 {
             return Err(RayexecError::new(format!("non-zero partition")));
         }
@@ -77,10 +82,7 @@ impl Sink2 for MaterializedBatchSink {
         Ok(())
     }
 
-    fn finish(&self, child: usize, partition: usize) -> Result<()> {
-        if child != 0 {
-            return Err(RayexecError::new(format!("non-zero child")));
-        }
+    fn finish(&self, partition: usize) -> Result<()> {
         if partition != 0 {
             return Err(RayexecError::new(format!("non-zero partition")));
         }

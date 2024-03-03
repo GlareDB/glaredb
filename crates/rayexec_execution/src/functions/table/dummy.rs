@@ -1,17 +1,11 @@
-use super::{
-    BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs, TableFunctionSource,
-};
+use super::{BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs};
 use crate::{
-    physical::{
-        plans::{Sink2, Source2},
-        PhysicalOperator2,
-    },
+    physical::plans::Source,
     planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
     types::batch::{DataBatch, NamedDataBatchSchema},
 };
 use arrow_array::{RecordBatch, StringArray};
 use arrow_schema::{DataType, Field, Schema};
-use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
@@ -50,12 +44,12 @@ impl BoundTableFunction for BoundDummyTableFunction {
         }
     }
 
-    fn into_operator(
+    fn into_source(
         self: Box<Self>,
         projection: Vec<usize>,
         pushdown: Pushdown,
-    ) -> Result<Arc<dyn PhysicalOperator2>> {
-        Ok(Arc::new(DummyTableFunctionOperator::new(projection)))
+    ) -> Result<Box<dyn Source>> {
+        Ok(Box::new(DummyTableFunctionSource::new(projection)))
     }
 }
 
@@ -66,27 +60,27 @@ impl Explainable for BoundDummyTableFunction {
 }
 
 #[derive(Debug)]
-pub struct DummyTableFunctionOperator {
+pub struct DummyTableFunctionSource {
     projection: Vec<usize>,
     batch: Mutex<Option<DataBatch>>,
 }
 
-impl DummyTableFunctionOperator {
+impl DummyTableFunctionSource {
     fn new(projection: Vec<usize>) -> Self {
         let batch = DataBatch::try_new(vec![Arc::new(StringArray::from(vec!["dummy"]))]).unwrap();
-        DummyTableFunctionOperator {
+        DummyTableFunctionSource {
             projection,
             batch: Mutex::new(Some(batch)),
         }
     }
 }
 
-impl Source2 for DummyTableFunctionOperator {
+impl Source for DummyTableFunctionSource {
     fn output_partitions(&self) -> usize {
         1
     }
 
-    fn poll_partition(
+    fn poll_next(
         &self,
         _cx: &mut Context<'_>,
         _partition: usize,
@@ -98,22 +92,8 @@ impl Source2 for DummyTableFunctionOperator {
     }
 }
 
-impl Sink2 for DummyTableFunctionOperator {
-    fn push(&self, _input: DataBatch, _child: usize, _partition: usize) -> Result<()> {
-        Err(RayexecError::new("Cannot push to dummy table function"))
-    }
-
-    fn finish(&self, _child: usize, _partition: usize) -> Result<()> {
-        Err(RayexecError::new("Cannot finish dummy table function"))
-    }
-}
-
-impl PhysicalOperator2 for DummyTableFunctionOperator {}
-
-impl Explainable for DummyTableFunctionOperator {
+impl Explainable for DummyTableFunctionSource {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Dummy").with_values("projection", self.projection.clone())
     }
 }
-
-impl TableFunctionSource for DummyTableFunctionOperator {}

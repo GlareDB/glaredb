@@ -1,5 +1,4 @@
 use crate::expr::PhysicalScalarExpression;
-use crate::physical::PhysicalOperator2;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::planner::operator::JoinType;
 use crate::types::batch::DataBatch;
@@ -9,8 +8,6 @@ use arrow_array::RecordBatch;
 use arrow_schema::{DataType, Schema};
 use rayexec_error::{RayexecError, Result};
 use std::task::{Context, Poll, Waker};
-
-use super::{buffer::BatchBuffer, Sink2, Source2};
 
 /// Join implementation for executing a join between two tables with an
 /// arbitrary expression.
@@ -24,31 +21,31 @@ pub struct PhysicalNestedLoopJoin {
 
 impl PhysicalNestedLoopJoin {}
 
-impl Source2 for PhysicalNestedLoopJoin {
-    fn output_partitions(&self) -> usize {
-        unimplemented!()
-    }
+// impl Source2 for PhysicalNestedLoopJoin {
+//     fn output_partitions(&self) -> usize {
+//         unimplemented!()
+//     }
 
-    fn poll_partition(
-        &self,
-        cx: &mut Context<'_>,
-        partition: usize,
-    ) -> Poll<Option<Result<DataBatch>>> {
-        unimplemented!()
-    }
-}
+//     fn poll_partition(
+//         &self,
+//         cx: &mut Context<'_>,
+//         partition: usize,
+//     ) -> Poll<Option<Result<DataBatch>>> {
+//         unimplemented!()
+//     }
+// }
 
-impl Sink2 for PhysicalNestedLoopJoin {
-    fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
-        unimplemented!()
-    }
+// impl Sink2 for PhysicalNestedLoopJoin {
+//     fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
+//         unimplemented!()
+//     }
 
-    fn finish(&self, child: usize, partition: usize) -> Result<()> {
-        unimplemented!()
-    }
-}
+//     fn finish(&self, child: usize, partition: usize) -> Result<()> {
+//         unimplemented!()
+//     }
+// }
 
-impl PhysicalOperator2 for PhysicalNestedLoopJoin {}
+// impl PhysicalOperator2 for PhysicalNestedLoopJoin {}
 
 impl Explainable for PhysicalNestedLoopJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {

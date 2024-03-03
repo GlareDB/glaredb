@@ -3,7 +3,6 @@ use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 use std::{
     fmt::Debug,
-    ops::DerefMut,
     task::{Context, Poll},
 };
 
@@ -44,6 +43,10 @@ enum PartitionState {
 }
 
 impl OperatorChain {
+    /// Create a new operator chain.
+    ///
+    /// Errors if the the number of output partitions from the source differs
+    /// from the number of input partitions for the sink.
     pub fn new(
         source: Box<dyn Source>,
         sink: Box<dyn Sink>,
@@ -68,6 +71,11 @@ impl OperatorChain {
             source,
             states,
         })
+    }
+
+    /// Return the number of partitions that this pipeline should be executing.
+    pub fn partitions(&self) -> usize {
+        self.sink.input_partitions()
     }
 
     /// Execute the operator chain for a partition.

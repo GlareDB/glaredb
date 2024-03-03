@@ -1,6 +1,5 @@
 use crate::expr::scalar::ScalarValue;
-use crate::physical::plans::{Sink2, Source2};
-use crate::physical::PhysicalOperator2;
+use crate::physical::plans::Source;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, NamedDataBatchSchema};
 use parking_lot::Mutex;
@@ -102,12 +101,12 @@ impl BoundTableFunction for ReadCsvLocal {
         }
     }
 
-    fn into_operator(
+    fn into_source(
         self: Box<Self>,
         projection: Vec<usize>,
         pushdown: super::Pushdown,
-    ) -> Result<Arc<dyn PhysicalOperator2>> {
-        Ok(Arc::new(ReadCsvLocalOperator {
+    ) -> Result<Box<dyn Source>> {
+        Ok(Box::new(ReadCsvLocalOperator {
             path: self.path,
             reader: Mutex::new(self.reader),
         }))
@@ -126,12 +125,12 @@ struct ReadCsvLocalOperator {
     reader: Mutex<arrow::csv::reader::BufReader<BufReader<fs::File>>>,
 }
 
-impl Source2 for ReadCsvLocalOperator {
+impl Source for ReadCsvLocalOperator {
     fn output_partitions(&self) -> usize {
         1
     }
 
-    fn poll_partition(
+    fn poll_next(
         &self,
         _cx: &mut Context<'_>,
         partition: usize,
@@ -145,18 +144,6 @@ impl Source2 for ReadCsvLocalOperator {
         }
     }
 }
-
-impl Sink2 for ReadCsvLocalOperator {
-    fn push(&self, _input: DataBatch, _child: usize, _partition: usize) -> Result<()> {
-        Err(RayexecError::new("Cannot push to read csv"))
-    }
-
-    fn finish(&self, _child: usize, _partition: usize) -> Result<()> {
-        Err(RayexecError::new("Cannot finish read csv"))
-    }
-}
-
-impl PhysicalOperator2 for ReadCsvLocalOperator {}
 
 impl Explainable for ReadCsvLocalOperator {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {

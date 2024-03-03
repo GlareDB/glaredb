@@ -1,5 +1,4 @@
-use super::{Sink2, Source2};
-use crate::physical::PhysicalOperator2;
+use super::Source;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::DataBatch;
 use rayexec_error::{RayexecError, Result};
@@ -23,12 +22,12 @@ impl EmptySource {
     }
 }
 
-impl Source2 for EmptySource {
+impl Source for EmptySource {
     fn output_partitions(&self) -> usize {
         1
     }
 
-    fn poll_partition(
+    fn poll_next(
         &self,
         _cx: &mut Context<'_>,
         partition: usize,
@@ -43,18 +42,6 @@ impl Source2 for EmptySource {
         }
     }
 }
-
-impl Sink2 for EmptySource {
-    fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
-        Err(RayexecError::new("Cannot push to empty source"))
-    }
-
-    fn finish(&self, child: usize, partition: usize) -> Result<()> {
-        Err(RayexecError::new("Cannot finish empty source"))
-    }
-}
-
-impl PhysicalOperator2 for EmptySource {}
 
 impl Explainable for EmptySource {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {

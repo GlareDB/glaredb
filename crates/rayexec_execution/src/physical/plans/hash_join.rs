@@ -13,40 +13,37 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use super::{buffer::BatchBuffer, Sink2, Source2};
-
 #[derive(Debug)]
 pub struct PhysicalHashJoin {
     schema: DataBatchSchema,
     join_type: JoinType,
     // (left, right) indices pairs.
     join_on: Vec<(usize, usize)>,
-    buffer: BatchBuffer,
 }
 
-impl Source2 for PhysicalHashJoin {
-    fn output_partitions(&self) -> usize {
-        self.buffer.output_partitions()
-    }
+// impl Source2 for PhysicalHashJoin {
+//     fn output_partitions(&self) -> usize {
+//         self.buffer.output_partitions()
+//     }
 
-    fn poll_partition(
-        &self,
-        cx: &mut Context<'_>,
-        partition: usize,
-    ) -> Poll<Option<Result<DataBatch>>> {
-        self.buffer.poll_partition(cx, partition)
-    }
-}
+//     fn poll_partition(
+//         &self,
+//         cx: &mut Context<'_>,
+//         partition: usize,
+//     ) -> Poll<Option<Result<DataBatch>>> {
+//         self.buffer.poll_partition(cx, partition)
+//     }
+// }
 
-impl Sink2 for PhysicalHashJoin {
-    fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
-        unimplemented!()
-    }
+// impl Sink2 for PhysicalHashJoin {
+//     fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
+//         unimplemented!()
+//     }
 
-    fn finish(&self, child: usize, partition: usize) -> Result<()> {
-        unimplemented!()
-    }
-}
+//     fn finish(&self, child: usize, partition: usize) -> Result<()> {
+//         unimplemented!()
+//     }
+// }
 
 impl Explainable for PhysicalHashJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {

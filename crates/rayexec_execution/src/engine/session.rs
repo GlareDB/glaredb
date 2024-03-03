@@ -6,7 +6,7 @@ use tracing::trace;
 
 use crate::{
     functions::table::{self, TableFunction},
-    physical::{planner::PhysicalPlanner, scheduler::Scheduler, Pipeline2},
+    physical::{planner::PhysicalPlanner, scheduler::Scheduler},
     planner::{plan::PlanContext, Resolver},
     types::batch::DataBatchSchema,
 };
