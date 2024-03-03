@@ -1,5 +1,5 @@
 use crate::{
-    functions::{table::TableFunctionArgs},
+    functions::table::TableFunctionArgs,
     planner::{
         operator::{ExpressionList, Filter, JoinType, Scan, ScanItem},
         scope::TableReference,
@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
-    operator::{CrossJoin, Join, LogicalExpression, LogicalOperator, Projection},
+    operator::{AnyJoin, CrossJoin, LogicalExpression, LogicalOperator, Projection},
     scope::{ColumnRef, Scope},
     Resolver,
 };
@@ -260,7 +260,7 @@ impl<'a> PlanContext<'a> {
                         };
 
                         LogicalQuery {
-                            root: LogicalOperator::Join(Join {
+                            root: LogicalOperator::AnyJoin(AnyJoin {
                                 left: Box::new(left_plan.root),
                                 right: Box::new(right_plan.root),
                                 join_type,

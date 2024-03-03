@@ -1,4 +1,3 @@
-pub mod cross_join;
 pub mod empty_source;
 pub mod filter;
 pub mod hash_aggregate;

@@ -3,16 +3,11 @@ pub mod literal;
 pub mod scalar;
 
 use self::scalar::{BinaryOperator, ScalarValue, UnaryOperator, VariadicOperator};
-use crate::{
-    planner::{
-        operator::{LogicalExpression},
-    },
-    types::batch::{DataBatch},
-};
+use crate::{planner::operator::LogicalExpression, types::batch::DataBatch};
 use arrow_array::{ArrayRef, BooleanArray};
 
 use rayexec_error::{RayexecError, Result};
-use std::fmt::{Debug};
+use std::fmt::Debug;
 
 #[derive(Debug)]
 pub enum Expression {
@@ -100,7 +95,11 @@ impl PhysicalScalarExpression {
     }
 
     /// Evaluate this expression on a batch where selection is true.
-    pub fn eval_selection(&self, _batch: &DataBatch, _selection: &BooleanArray) -> Result<ArrayRef> {
+    pub fn eval_selection(
+        &self,
+        _batch: &DataBatch,
+        _selection: &BooleanArray,
+    ) -> Result<ArrayRef> {
         unimplemented!()
     }
 }

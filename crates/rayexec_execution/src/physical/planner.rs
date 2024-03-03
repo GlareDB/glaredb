@@ -7,7 +7,7 @@ use crate::{
     expr::PhysicalScalarExpression,
     functions::table::Pushdown,
     physical::plans::{
-        cross_join::PhysicalCrossJoin, filter::PhysicalFilter, values::PhysicalValues,
+        filter::PhysicalFilter, nested_loop_join::PhysicalNestedLoopJoin, values::PhysicalValues,
     },
     planner::operator::{self, LogicalOperator},
     types::batch::DataBatch,
@@ -109,25 +109,57 @@ impl PipelineBuilder {
             LogicalOperator::Scan(scan) => self.plan_scan(scan),
             LogicalOperator::ExpressionList(values) => self.plan_values(values),
             LogicalOperator::CrossJoin(join) => self.plan_cross_join(join),
+            LogicalOperator::AnyJoin(join) => self.plan_any_join(join),
             LogicalOperator::Empty => self.plan_empty(),
             other => unimplemented!("other: {other:?}"),
         }
     }
 
+    /// Plan a join that can handle arbitrary expressions.
+    fn plan_any_join(&mut self, join: operator::AnyJoin) -> Result<()> {
+        let filter = PhysicalScalarExpression::try_from_uncorrelated_expr(join.on)?;
+
+        // Modify the filter as to match the join type.
+        let filter = match join.join_type {
+            operator::JoinType::Inner => filter,
+            other => {
+                // TODO: Other join types.
+                return Err(RayexecError::new(format!(
+                    "Unhandled join type for any join: {other:?}"
+                )));
+            }
+        };
+
+        self.plan_nested_loop_join(*join.left, *join.right, Some(filter))
+    }
+
     fn plan_cross_join(&mut self, join: operator::CrossJoin) -> Result<()> {
+        self.plan_nested_loop_join(*join.left, *join.right, None)
+    }
+
+    /// Plan a nested loop join between left and right with the given filter.
+    ///
+    /// Providing a None for the filter is equivalent to make this a cross join.
+    /// Every row will match every other row.
+    fn plan_nested_loop_join(
+        &mut self,
+        left: LogicalOperator,
+        right: LogicalOperator,
+        filter: Option<PhysicalScalarExpression>,
+    ) -> Result<()> {
         if self.source.is_some() {
             return Err(RayexecError::new("Expected source to be None"));
         }
 
         // TODO: Partitions.
-        let mut cross_join = PhysicalCrossJoin::new(1);
+        let mut cross_join = PhysicalNestedLoopJoin::new(1, filter);
         let build_sink = cross_join.take_build_sink().expect("build sink to exist");
         let probe_sink = cross_join.take_probe_sink().expect("probe sink to exist");
 
         // Build left side of join with the build sink as the destination.
         let mut left_completed = {
             let mut builder = PipelineBuilder::new(Box::new(build_sink));
-            builder.walk_plan(*join.left)?;
+            builder.walk_plan(left)?;
             builder.create_complete_chain()?;
             builder.completed_chains
         };
@@ -135,7 +167,7 @@ impl PipelineBuilder {
         // Build right side of join with the probe sink as the destination.
         let mut right_completed = {
             let mut builder = PipelineBuilder::new(Box::new(probe_sink));
-            builder.walk_plan(*join.right)?;
+            builder.walk_plan(right)?;
             builder.create_complete_chain()?;
             builder.completed_chains
         };

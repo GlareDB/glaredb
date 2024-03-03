@@ -10,7 +10,6 @@ use crate::{
 use arrow_schema::DataType;
 use rayexec_error::{RayexecError, Result};
 
-
 use super::scope::ColumnRef;
 
 #[derive(Debug)]
@@ -19,7 +18,7 @@ pub enum LogicalOperator {
     Filter(Filter),
     Aggregate(Aggregate),
     Order(Order),
-    Join(Join),
+    AnyJoin(AnyJoin),
     CrossJoin(CrossJoin),
     Limit(Limit),
     Scan(Scan),
@@ -46,13 +45,14 @@ impl LogicalOperator {
             Self::Filter(filter) => filter.input.schema(outer)?,
             Self::Aggregate(_agg) => unimplemented!(),
             Self::Order(order) => order.input.schema(outer)?,
-            Self::Join(_join) => unimplemented!(),
+            Self::AnyJoin(_join) => unimplemented!(),
             Self::CrossJoin(_cross) => unimplemented!(),
             Self::Limit(limit) => limit.input.schema(outer)?,
             Self::Scan(scan) => scan.schema.clone(),
             Self::ExpressionList(list) => {
                 let first = list
-                    .rows.first()
+                    .rows
+                    .first()
                     .ok_or_else(|| RayexecError::new("Expression list contains no rows"))?;
                 // No inputs to expression list. Attempting to reference a
                 // column should error.
@@ -127,7 +127,7 @@ pub enum JoinType {
 
 /// A join on an arbitrary expression.
 #[derive(Debug)]
-pub struct Join {
+pub struct AnyJoin {
     pub left: Box<LogicalOperator>,
     pub right: Box<LogicalOperator>,
     pub join_type: JoinType,

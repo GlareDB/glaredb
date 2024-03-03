@@ -1,12 +1,11 @@
 use super::PhysicalOperator;
-use crate::expr::{PhysicalScalarExpression};
+use crate::expr::PhysicalScalarExpression;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::{DataBatch};
-use arrow::compute::{filter};
+use crate::types::batch::DataBatch;
+use arrow::compute::filter;
 use arrow_array::cast::AsArray;
 
-
-use rayexec_error::{Result};
+use rayexec_error::Result;
 
 use tracing::trace;
 
