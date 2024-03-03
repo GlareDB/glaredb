@@ -47,7 +47,7 @@ impl OperatorChain {
     ///
     /// Errors if the the number of output partitions from the source differs
     /// from the number of input partitions for the sink.
-    pub fn new(
+    pub fn try_new(
         source: Box<dyn Source>,
         sink: Box<dyn Sink>,
         operators: Vec<Box<dyn PhysicalOperator>>,

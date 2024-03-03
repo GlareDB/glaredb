@@ -25,11 +25,10 @@ impl PhysicalPlanner {
 
     /// Create a physical plan from a logical plan.
     pub fn create_plan(&self, plan: LogicalOperator, dest: Box<dyn Sink>) -> Result<Pipeline> {
-        unimplemented!()
-        // let mut builder = PipelineBuilder::new(dest);
-        // builder.walk_plan(plan, Destination::PipelineOutput)?;
+        let builder = PipelineBuilder::new(dest);
+        let pipeline = builder.build_pipeline(plan)?;
 
-        // Ok(builder.pipeline)
+        Ok(pipeline)
     }
 }
 
@@ -37,7 +36,7 @@ impl PhysicalPlanner {
 #[derive(Debug)]
 struct PipelineBuilder {
     /// Intermediate sink we're working with.
-    sink: Box<dyn Sink>,
+    sink: Option<Box<dyn Sink>>,
 
     /// Intermediate operators.
     operators: Vec<Box<dyn PhysicalOperator>>,
@@ -53,26 +52,61 @@ impl PipelineBuilder {
     /// Create a new builder for a pipeline that outputs the final result to
     /// `dest`.
     fn new(dest: Box<dyn Sink>) -> Self {
-        unimplemented!()
-        // PipelineBuilder {
-        //     pipeline_dest: dest,
-        //     chains: Vec::new(),
-        //     source: None,
-        // }
+        PipelineBuilder {
+            sink: Some(dest),
+            operators: Vec::new(),
+            source: None,
+            completed_chains: Vec::new(),
+        }
+    }
+
+    /// Builds a plan from a logical operator.
+    fn build_pipeline(mut self, plan: LogicalOperator) -> Result<Pipeline> {
+        self.walk_plan(plan)?;
+        self.create_complete_chain()?;
+
+        let chains = self
+            .completed_chains
+            .into_iter()
+            .map(|chain| Arc::new(chain))
+            .collect();
+
+        Ok(Pipeline { chains })
+    }
+
+    /// Creates a completed chain from the current build state.
+    ///
+    /// Errors if source or sink are None.
+    fn create_complete_chain(&mut self) -> Result<()> {
+        let source = match self.source.take() {
+            Some(source) => source,
+            None => return Err(RayexecError::new("Expected source to be Some")),
+        };
+        let sink = match self.sink.take() {
+            Some(source) => source,
+            None => return Err(RayexecError::new("Expected sink to be Some")),
+        };
+
+        // TODO: Handle case where source and sink have different number of
+        // partitions.
+        let chain = OperatorChain::try_new(source, sink, std::mem::take(&mut self.operators))?;
+
+        self.completed_chains.push(chain);
+
+        Ok(())
     }
 
     /// Recursively walks the provided plan, creating physical operators along
     /// the the way and adding them to the pipeline.
     fn walk_plan(&mut self, plan: LogicalOperator) -> Result<()> {
-        unimplemented!()
-        // match plan {
-        //     LogicalOperator::Projection(proj) => self.plan_projection(proj, output),
-        //     LogicalOperator::Filter(filter) => self.plan_filter(filter, output),
-        //     LogicalOperator::Scan(scan) => self.plan_scan(scan, output),
-        //     LogicalOperator::ExpressionList(values) => self.plan_values(values, output),
-        //     LogicalOperator::Empty => self.plan_empty(output),
-        //     other => unimplemented!("other: {other:?}"),
-        // }
+        match plan {
+            LogicalOperator::Projection(proj) => self.plan_projection(proj),
+            LogicalOperator::Filter(filter) => self.plan_filter(filter),
+            LogicalOperator::Scan(scan) => self.plan_scan(scan),
+            LogicalOperator::ExpressionList(values) => self.plan_values(values),
+            LogicalOperator::Empty => self.plan_empty(),
+            other => unimplemented!("other: {other:?}"),
+        }
     }
 
     fn plan_empty(&mut self) -> Result<()> {
@@ -117,20 +151,18 @@ impl PipelineBuilder {
     }
 
     fn plan_scan(&mut self, scan: operator::Scan) -> Result<()> {
-        unimplemented!()
-        // let operator = match scan.source {
-        //     operator::ScanItem::TableFunction(f) => {
-        //         f.into_operator(Vec::new(), Pushdown::default())? // TODO: Actual projection
-        //     }
-        // };
-        // let linked = LinkedOperator {
-        //     operator,
-        //     dest: output,
-        // };
+        if self.source.is_some() {
+            return Err(RayexecError::new("Expected source to be None"));
+        }
 
-        // self.pipeline.push(linked);
+        let source = match scan.source {
+            operator::ScanItem::TableFunction(f) => {
+                f.into_source(Vec::new(), Pushdown::default())? // TODO: Actual projection
+            }
+        };
+        self.source = Some(source);
 
-        // Ok(())
+        Ok(())
     }
 
     fn plan_values(&mut self, values: operator::ExpressionList) -> Result<()> {
