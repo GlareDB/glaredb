@@ -59,6 +59,10 @@ select b from (select 1 as a, 2) as t(b);
 ----
 1
 
+# query II rowsort
+# select * from generate_series(1, 3) t1, generate_series(1, 3) t2;
+# ----
+
 # # TODO: Optional parens for ON
 # query II
 # select * from (select 1) as t1 inner join (select 2) as t2 on (true);

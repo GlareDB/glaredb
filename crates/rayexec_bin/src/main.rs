@@ -1,5 +1,5 @@
-use futures::{Stream, StreamExt};
-use rayexec_execution::engine::{session::Session, Engine};
+use futures::{StreamExt};
+use rayexec_execution::engine::{Engine};
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::FmtSubscriber;
 

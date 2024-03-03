@@ -9,7 +9,7 @@ use crate::{
 };
 use arrow_schema::DataType;
 use rayexec_error::{RayexecError, Result};
-use std::hash::Hash;
+
 
 use super::scope::ColumnRef;
 
@@ -44,16 +44,15 @@ impl LogicalOperator {
                 DataBatchSchema::new(types)
             }
             Self::Filter(filter) => filter.input.schema(outer)?,
-            Self::Aggregate(agg) => unimplemented!(),
+            Self::Aggregate(_agg) => unimplemented!(),
             Self::Order(order) => order.input.schema(outer)?,
-            Self::Join(join) => unimplemented!(),
-            Self::CrossJoin(cross) => unimplemented!(),
+            Self::Join(_join) => unimplemented!(),
+            Self::CrossJoin(_cross) => unimplemented!(),
             Self::Limit(limit) => limit.input.schema(outer)?,
             Self::Scan(scan) => scan.schema.clone(),
             Self::ExpressionList(list) => {
                 let first = list
-                    .rows
-                    .get(0)
+                    .rows.first()
                     .ok_or_else(|| RayexecError::new("Expression list contains no rows"))?;
                 // No inputs to expression list. Attempting to reference a
                 // column should error.
@@ -269,7 +268,7 @@ impl LogicalExpression {
                 }
             }
             LogicalExpression::Literal(lit) => lit.data_type(),
-            LogicalExpression::Unary { op, expr } => unimplemented!(),
+            LogicalExpression::Unary { op: _, expr: _ } => unimplemented!(),
             LogicalExpression::Binary { op, left, right } => {
                 let left = left.data_type(current, outer)?;
                 let right = right.data_type(current, outer)?;

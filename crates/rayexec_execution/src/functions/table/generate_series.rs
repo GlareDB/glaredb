@@ -32,19 +32,17 @@ impl TableFunction for GenerateSeries {
         }
 
         if !args.named.is_empty() {
-            return Err(RayexecError::new(format!(
-                "This function doesn't accept named arguments"
-            )));
+            return Err(RayexecError::new("This function doesn't accept named arguments".to_string()));
         }
 
         let (start, stop, step) = match args.unnamed.len() {
             2 => (
-                get_i32(args.unnamed.get(0).unwrap())?,
+                get_i32(args.unnamed.first().unwrap())?,
                 get_i32(args.unnamed.get(1).unwrap())?,
                 1,
             ),
             3 => (
-                get_i32(args.unnamed.get(0).unwrap())?,
+                get_i32(args.unnamed.first().unwrap())?,
                 get_i32(args.unnamed.get(1).unwrap())?,
                 get_i32(args.unnamed.get(2).unwrap())?,
             ),
@@ -80,8 +78,8 @@ impl BoundTableFunction for GenerateSeriesInteger {
 
     fn into_source(
         self: Box<Self>,
-        projection: Vec<usize>,
-        pushdown: Pushdown,
+        _projection: Vec<usize>,
+        _pushdown: Pushdown,
     ) -> Result<Box<dyn Source>> {
         Ok(Box::new(GenerateSeriesIntegerOperator {
             s: *self,
@@ -114,7 +112,7 @@ impl Source for GenerateSeriesIntegerOperator {
         1
     }
 
-    fn poll_next(&self, cx: &mut Context<'_>, partition: usize) -> Poll<Option<Result<DataBatch>>> {
+    fn poll_next(&self, _cx: &mut Context<'_>, _partition: usize) -> Poll<Option<Result<DataBatch>>> {
         const BATCH_SIZE: usize = 1000;
         let curr = self.curr.load(Ordering::Relaxed);
 

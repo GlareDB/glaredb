@@ -27,11 +27,12 @@ async fn run_test(path: PathBuf) -> Result<()> {
     runner
         .run_file_async(path)
         .await
-        .map_err(|e| RayexecError::with_source(format!("Failed to run SLT"), Box::new(e)))?;
+        .map_err(|e| RayexecError::with_source("Failed to run SLT".to_string(), Box::new(e)))?;
     Ok(())
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct TestSession {
     engine: Engine,
     session: Session,
@@ -72,10 +73,10 @@ impl sqllogictest::AsyncDB for TestSession {
 }
 
 /// String representing null values in the ouput.
-const NULL_STR: &'static str = "NULL";
+const NULL_STR: &str = "NULL";
 
 /// String representing empty string values in the output.
-const EMPTY_STR: &'static str = "(empty)";
+const EMPTY_STR: &str = "(empty)";
 
 const ARROW_FORMAT_OPTIONS: FormatOptions = FormatOptions::new().with_null(NULL_STR);
 

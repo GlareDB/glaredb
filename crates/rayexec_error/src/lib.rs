@@ -70,11 +70,11 @@ impl Error for RayexecError {
 
 /// An extension trait for adding context to the Error variant of a result.
 pub trait ResultExt<T, E> {
-    fn context(self: Self, msg: &'static str) -> Result<T>;
+    fn context(self, msg: &'static str) -> Result<T>;
 }
 
 impl<T, E: Error + Send + Sync + 'static> ResultExt<T, E> for std::result::Result<T, E> {
-    fn context(self: Self, msg: &'static str) -> Result<T> {
+    fn context(self, msg: &'static str) -> Result<T> {
         match self {
             Ok(v) => Ok(v),
             Err(e) => Err(RayexecError::with_source(msg, Box::new(e))),

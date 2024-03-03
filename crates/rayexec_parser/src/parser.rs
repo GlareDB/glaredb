@@ -1,8 +1,8 @@
 use crate::{
-    ast::{AstParseable, Expr, Ident, Literal, ObjectReference, QueryNode},
-    keywords::{self, Keyword, RESERVED_FOR_COLUMN_ALIAS, RESERVED_FOR_TABLE_ALIAS},
+    ast::{AstParseable, Expr, Ident, ObjectReference, QueryNode},
+    keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
     statement::Statement,
-    tokens::{Token, TokenWithLocation, Tokenizer, Word},
+    tokens::{Token, TokenWithLocation, Tokenizer},
 };
 use rayexec_error::{RayexecError, Result};
 use tracing::trace;
@@ -83,12 +83,12 @@ impl Parser {
                         Ok(Statement::Query(QueryNode::parse(self)?))
                     }
                     other => {
-                        return Err(RayexecError::new(format!("Unexpected keyword: {other:?}",)))
+                        Err(RayexecError::new(format!("Unexpected keyword: {other:?}",)))
                     }
                 }
             }
             other => {
-                return Err(RayexecError::new(format!(
+                Err(RayexecError::new(format!(
                     "Expected a SQL statement, got {other:?}"
                 )))
             }
@@ -171,8 +171,7 @@ impl Parser {
                 Some(kw)
                     if reserved
                         .iter()
-                        .position(|reserved| reserved == kw)
-                        .is_some() =>
+                        .any(|reserved| reserved == kw) =>
                 {
                     None
                 }
@@ -322,10 +321,10 @@ impl Parser {
                 return Ok(());
             }
         }
-        return Err(RayexecError::new(format!(
+        Err(RayexecError::new(format!(
             "Expected one of {expected:?}, got {:?}",
             self.peek()
-        )));
+        )))
     }
 
     /// Consume the current keyword if it matches expected, otherwise return an

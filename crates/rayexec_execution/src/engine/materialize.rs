@@ -3,10 +3,11 @@ use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
+
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{physical::plans::Sink, types::batch::DataBatch};
 
 /// Stream for materialized batches for a query.
@@ -34,6 +35,12 @@ struct MaterializedBatchesState {
     waker: Option<Waker>,
     /// Whether or not the sink is finished.
     finished: bool,
+}
+
+impl Default for MaterializedBatchStream {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MaterializedBatchStream {
@@ -65,13 +72,13 @@ impl Sink for MaterializedBatchSink {
         1
     }
 
-    fn poll_ready(&self, cx: &mut Context, partition: usize) -> Poll<()> {
+    fn poll_ready(&self, _cx: &mut Context, _partition: usize) -> Poll<()> {
         Poll::Ready(())
     }
 
     fn push(&self, input: DataBatch, partition: usize) -> Result<()> {
         if partition != 0 {
-            return Err(RayexecError::new(format!("non-zero partition")));
+            return Err(RayexecError::new("non-zero partition".to_string()));
         }
 
         let mut inner = self.state.lock();
@@ -84,7 +91,7 @@ impl Sink for MaterializedBatchSink {
 
     fn finish(&self, partition: usize) -> Result<()> {
         if partition != 0 {
-            return Err(RayexecError::new(format!("non-zero partition")));
+            return Err(RayexecError::new("non-zero partition".to_string()));
         }
 
         let mut inner = self.state.lock();
@@ -93,6 +100,12 @@ impl Sink for MaterializedBatchSink {
             waker.wake();
         }
         Ok(())
+    }
+}
+
+impl Explainable for MaterializedBatchSink {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("MaterializedBatchSink")
     }
 }
 

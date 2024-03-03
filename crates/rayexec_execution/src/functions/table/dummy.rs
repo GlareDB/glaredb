@@ -4,8 +4,8 @@ use crate::{
     planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
     types::batch::{DataBatch, NamedDataBatchSchema},
 };
-use arrow_array::{RecordBatch, StringArray};
-use arrow_schema::{DataType, Field, Schema};
+use arrow_array::{StringArray};
+use arrow_schema::{DataType};
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
@@ -47,7 +47,7 @@ impl BoundTableFunction for BoundDummyTableFunction {
     fn into_source(
         self: Box<Self>,
         projection: Vec<usize>,
-        pushdown: Pushdown,
+        _pushdown: Pushdown,
     ) -> Result<Box<dyn Source>> {
         Ok(Box::new(DummyTableFunctionSource::new(projection)))
     }

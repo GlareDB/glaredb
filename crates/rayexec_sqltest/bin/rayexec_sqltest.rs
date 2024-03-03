@@ -1,6 +1,6 @@
 //! Bin for running the SLTs.
 
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{Result, ResultExt};
 use rayexec_sqltest::run_tests;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,12 +8,12 @@ use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::FmtSubscriber;
 
 /// Path to slts directory relative to this crate's root.
-const SLTS_PATH: &'static str = "slts/";
+const SLTS_PATH: &str = "slts/";
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() {
     let env_filter = EnvFilter::builder()
-        .with_default_directive(tracing::Level::TRACE.into())
+        .with_default_directive(tracing::Level::INFO.into())
         .from_env_lossy()
         .add_directive("h2=info".parse().unwrap())
         .add_directive("hyper=info".parse().unwrap())

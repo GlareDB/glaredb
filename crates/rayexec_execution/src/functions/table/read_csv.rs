@@ -29,7 +29,7 @@ impl TableFunction for ReadCsv {
             return Err(RayexecError::new("Invalid number of arguments"));
         }
 
-        let path = match args.unnamed.get(0).unwrap() {
+        let path = match args.unnamed.first().unwrap() {
             ScalarValue::Utf8(path) => path,
             other => {
                 return Err(RayexecError::new(format!(
@@ -103,8 +103,8 @@ impl BoundTableFunction for ReadCsvLocal {
 
     fn into_source(
         self: Box<Self>,
-        projection: Vec<usize>,
-        pushdown: super::Pushdown,
+        _projection: Vec<usize>,
+        _pushdown: super::Pushdown,
     ) -> Result<Box<dyn Source>> {
         Ok(Box::new(ReadCsvLocalOperator {
             path: self.path,

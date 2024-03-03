@@ -2,12 +2,12 @@ use crate::expr::PhysicalScalarExpression;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::planner::operator::JoinType;
 use crate::types::batch::DataBatch;
-use arrow::compute::filter_record_batch;
-use arrow_array::cast::AsArray;
-use arrow_array::RecordBatch;
-use arrow_schema::{DataType, Schema};
-use rayexec_error::{RayexecError, Result};
-use std::task::{Context, Poll, Waker};
+
+
+
+
+
+use std::task::{Waker};
 
 /// Join implementation for executing a join between two tables with an
 /// arbitrary expression.

@@ -1,5 +1,5 @@
 use arrow_array::{
-    new_null_array, Array, ArrayRef, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array,
+    Array, ArrayRef, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array,
     StringArray,
 };
 use arrow_schema::DataType;

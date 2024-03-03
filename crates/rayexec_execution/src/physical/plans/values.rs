@@ -1,12 +1,12 @@
-use crate::expr::Expression;
+
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::{DataBatch, DataBatchSchema};
-use arrow_array::cast::AsArray;
-use arrow_array::{ArrayRef, BooleanArray, RecordBatch, UInt32Array, UInt64Array};
-use arrow_schema::{Field, Schema};
-use hashbrown::raw::RawTable;
+use crate::types::batch::{DataBatch};
+
+
+
+
 use parking_lot::Mutex;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{Result};
 use std::task::{Context, Poll};
 
 use super::Source;

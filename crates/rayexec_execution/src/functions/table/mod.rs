@@ -3,10 +3,10 @@ pub mod empty;
 pub mod generate_series;
 pub mod read_csv;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{Result};
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::Arc;
+
 
 use crate::expr::scalar::ScalarValue;
 use crate::physical::plans::Source;

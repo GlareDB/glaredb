@@ -1,7 +1,7 @@
 use crate::{keywords::Keyword, parser::Parser, tokens::Token};
 use rayexec_error::{RayexecError, Result};
 
-use super::{AstParseable, Expr, FromAlias, Ident, LimitModifier, OrderByNode, SelectNode};
+use super::{AstParseable, Expr, Ident, LimitModifier, OrderByNode, SelectNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueryNode {

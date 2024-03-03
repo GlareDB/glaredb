@@ -1,13 +1,13 @@
 use super::PhysicalOperator;
-use crate::expr::{Expression, PhysicalScalarExpression};
+use crate::expr::{PhysicalScalarExpression};
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::{DataBatch, DataBatchSchema};
-use arrow::compute::{filter, FilterBuilder};
+use crate::types::batch::{DataBatch};
+use arrow::compute::{filter};
 use arrow_array::cast::AsArray;
-use arrow_array::RecordBatch;
-use arrow_schema::{DataType, Schema};
-use rayexec_error::{RayexecError, Result, ResultExt};
-use std::task::{Context, Poll};
+
+
+use rayexec_error::{Result};
+
 use tracing::trace;
 
 #[derive(Debug)]
@@ -31,7 +31,7 @@ impl PhysicalOperator for PhysicalFilter {
         let filtered_arrays = input
             .columns()
             .iter()
-            .map(|a| filter(a, &selection))
+            .map(|a| filter(a, selection))
             .collect::<Result<Vec<_>, _>>()?;
 
         let batch = if filtered_arrays.is_empty() {

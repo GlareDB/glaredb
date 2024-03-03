@@ -1,7 +1,7 @@
 use super::Source;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::DataBatch;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{Result};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
 
@@ -12,6 +12,12 @@ use std::task::{Context, Poll};
 #[derive(Debug)]
 pub struct EmptySource {
     finished: AtomicBool,
+}
+
+impl Default for EmptySource {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl EmptySource {
@@ -44,7 +50,7 @@ impl Source for EmptySource {
 }
 
 impl Explainable for EmptySource {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("EmptySource")
     }
 }

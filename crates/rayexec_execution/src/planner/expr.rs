@@ -2,14 +2,14 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use crate::{
-    expr::{scalar::ScalarValue, Expression},
+    expr::{scalar::ScalarValue},
     types::batch::DataBatchSchema,
 };
 
 use super::{
     operator::LogicalExpression,
     plan::PlanContext,
-    scope::{ColumnRef, Scope, TableReference},
+    scope::{Scope, TableReference},
 };
 
 /// An expanded select expression.
@@ -80,7 +80,7 @@ impl<'a> ExpressionContext<'a> {
                 expr,
                 name: alias.value,
             }],
-            ast::SelectExpr::Wildcard(wildcard) => {
+            ast::SelectExpr::Wildcard(_wildcard) => {
                 // TODO: Exclude, replace
                 // TODO: Need to omit "hidden" columns that may have been added to the scope.
                 self.scope
@@ -93,7 +93,7 @@ impl<'a> ExpressionContext<'a> {
                     })
                     .collect()
             }
-            ast::SelectExpr::QualifiedWildcard(reference, wildcard) => {
+            ast::SelectExpr::QualifiedWildcard(reference, _wildcard) => {
                 // TODO: Exclude, replace
                 // TODO: Need to omit "hidden" columns that may have been added to the scope.
                 self.scope
@@ -191,7 +191,7 @@ impl<'a> ExpressionContext<'a> {
                 let ident = idents.pop().unwrap();
                 self.plan_ident(ident)
             }
-            2 | 3 | 4 => {
+            2..=4 => {
                 // Qualified column.
                 // 2 => 'table.column'
                 // 3 => 'schema.table.column'

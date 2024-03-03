@@ -1,4 +1,4 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{Result};
 use rayon::ThreadPool;
 use std::{
     fmt,

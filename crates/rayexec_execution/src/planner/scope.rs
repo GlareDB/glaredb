@@ -1,5 +1,5 @@
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::ast;
+
 use std::collections::HashSet;
 use std::fmt;
 use std::hash::Hash;
@@ -112,7 +112,7 @@ impl Scope {
     pub fn resolve_column(
         &self,
         outer: &[Scope],
-        table: Option<&TableReference>,
+        _table: Option<&TableReference>,
         column: &str,
     ) -> Result<Option<ColumnRef>> {
         if let Some(idx) = self.column_index(None, column)? {
@@ -159,7 +159,7 @@ impl Scope {
 
         // Check to make sure there's no other columns with this name in the
         // scope.
-        if iter.position(pred).is_some() {
+        if iter.any(pred) {
             return Err(RayexecError::new(format!("Ambiguous column name {column}")));
         }
 

@@ -6,9 +6,11 @@ use super::{
 use crate::{
     expr::PhysicalScalarExpression,
     functions::table::Pushdown,
-    physical::plans::{filter::PhysicalFilter, values::PhysicalValues},
+    physical::plans::{
+        cross_join::PhysicalCrossJoin, filter::PhysicalFilter, values::PhysicalValues,
+    },
     planner::operator::{self, LogicalOperator},
-    types::batch::{DataBatch, DataBatchSchema},
+    types::batch::DataBatch,
 };
 use arrow_array::{Array, ArrayRef};
 use rayexec_error::{RayexecError, Result};
@@ -17,6 +19,12 @@ use std::sync::Arc;
 /// Produce phyisical plans from logical plans.
 #[derive(Debug)]
 pub struct PhysicalPlanner {}
+
+impl Default for PhysicalPlanner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl PhysicalPlanner {
     pub fn new() -> Self {
@@ -65,11 +73,7 @@ impl PipelineBuilder {
         self.walk_plan(plan)?;
         self.create_complete_chain()?;
 
-        let chains = self
-            .completed_chains
-            .into_iter()
-            .map(|chain| Arc::new(chain))
-            .collect();
+        let chains = self.completed_chains.into_iter().map(Arc::new).collect();
 
         Ok(Pipeline { chains })
     }
@@ -104,9 +108,47 @@ impl PipelineBuilder {
             LogicalOperator::Filter(filter) => self.plan_filter(filter),
             LogicalOperator::Scan(scan) => self.plan_scan(scan),
             LogicalOperator::ExpressionList(values) => self.plan_values(values),
+            LogicalOperator::CrossJoin(join) => self.plan_cross_join(join),
             LogicalOperator::Empty => self.plan_empty(),
             other => unimplemented!("other: {other:?}"),
         }
+    }
+
+    fn plan_cross_join(&mut self, join: operator::CrossJoin) -> Result<()> {
+        if self.source.is_some() {
+            return Err(RayexecError::new("Expected source to be None"));
+        }
+
+        // TODO: Partitions.
+        let mut cross_join = PhysicalCrossJoin::new(1);
+        let build_sink = cross_join.take_build_sink().expect("build sink to exist");
+        let probe_sink = cross_join.take_probe_sink().expect("probe sink to exist");
+
+        // Build left side of join with the build sink as the destination.
+        let mut left_completed = {
+            let mut builder = PipelineBuilder::new(Box::new(build_sink));
+            builder.walk_plan(*join.left)?;
+            builder.create_complete_chain()?;
+            builder.completed_chains
+        };
+
+        // Build right side of join with the probe sink as the destination.
+        let mut right_completed = {
+            let mut builder = PipelineBuilder::new(Box::new(probe_sink));
+            builder.walk_plan(*join.right)?;
+            builder.create_complete_chain()?;
+            builder.completed_chains
+        };
+
+        // Source if this pipeline is now the cross join results.
+        self.source = Some(Box::new(cross_join));
+
+        // Append operator chains from the left and right children. Note that
+        // order doesn't matter with the chains.
+        self.completed_chains.append(&mut left_completed);
+        self.completed_chains.append(&mut right_completed);
+
+        Ok(())
     }
 
     fn plan_empty(&mut self) -> Result<()> {
@@ -125,7 +167,7 @@ impl PipelineBuilder {
         let projections = proj
             .exprs
             .into_iter()
-            .map(|p| PhysicalScalarExpression::try_from_uncorrelated_expr(p))
+            .map(PhysicalScalarExpression::try_from_uncorrelated_expr)
             .collect::<Result<Vec<_>>>()?;
         let operator = PhysicalProjection::try_new(projections)?;
 
@@ -178,7 +220,7 @@ impl PipelineBuilder {
         for row_exprs in values.rows {
             let exprs = row_exprs
                 .into_iter()
-                .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr))
+                .map(PhysicalScalarExpression::try_from_uncorrelated_expr)
                 .collect::<Result<Vec<_>>>()?;
             let arrs = exprs
                 .into_iter()

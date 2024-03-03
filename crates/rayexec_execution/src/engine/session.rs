@@ -1,7 +1,7 @@
-use arrow_array::RecordBatch;
+
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{ast, parser};
-use std::sync::Arc;
+
 use tracing::trace;
 
 use crate::{

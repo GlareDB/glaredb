@@ -11,16 +11,14 @@ pub mod values;
 
 mod util;
 
-#[cfg(test)]
-mod test_util;
-
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::{Context, Poll};
 
+use crate::planner::explainable::Explainable;
 use crate::types::batch::DataBatch;
 
-pub trait Sink: Sync + Send + Debug {
+pub trait Sink: Sync + Send + Explainable + Debug {
     /// Number of input partitions this sink can handle.
     fn input_partitions(&self) -> usize;
 
@@ -31,14 +29,14 @@ pub trait Sink: Sync + Send + Debug {
     fn finish(&self, partition: usize) -> Result<()>;
 }
 
-pub trait Source: Sync + Send + Debug {
+pub trait Source: Sync + Send + Explainable + Debug {
     /// Number of output partitions this source can produce.
     fn output_partitions(&self) -> usize;
 
     fn poll_next(&self, cx: &mut Context, partition: usize) -> Poll<Option<Result<DataBatch>>>;
 }
 
-pub trait PhysicalOperator: Sync + Send + Debug {
+pub trait PhysicalOperator: Sync + Send + Explainable + Debug {
     /// Execute this operator on an input batch.
     fn execute(&self, input: DataBatch) -> Result<DataBatch>;
 }

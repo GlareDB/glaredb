@@ -1,9 +1,9 @@
-use crate::expr::{Expression, PhysicalScalarExpression};
+use crate::expr::{PhysicalScalarExpression};
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::{DataBatch, DataBatchSchema};
-use arrow_array::RecordBatch;
-use arrow_schema::{Field, Schema};
-use rayexec_error::{RayexecError, Result};
+use crate::types::batch::{DataBatch};
+
+
+use rayexec_error::{Result};
 
 use super::PhysicalOperator;
 

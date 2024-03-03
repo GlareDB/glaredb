@@ -149,7 +149,7 @@ impl AstParseable for FromNode {
 
             let right = FromNode::parse(parser)?;
 
-            let kw: Option<Keyword> = parser.peek().map(|t| t.keyword()).flatten();
+            let kw: Option<Keyword> = parser.peek().and_then(|t| t.keyword());
 
             let join_condition = match kw {
                 Some(Keyword::ON) => {

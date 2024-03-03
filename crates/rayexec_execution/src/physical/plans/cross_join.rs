@@ -1,7 +1,6 @@
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::DataBatch;
-use arrow::compute::filter_record_batch;
-use arrow_array::{RecordBatch, UInt32Array};
+use arrow_array::UInt32Array;
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
@@ -87,6 +86,12 @@ impl Source for PhysicalCrossJoin {
 
         state.pending_pull = Some(cx.waker().clone());
         Poll::Pending
+    }
+}
+
+impl Explainable for PhysicalCrossJoin {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("PhysicalCrossJoin")
     }
 }
 
@@ -185,9 +190,11 @@ impl Sink for PhysicalCrossJoinBuildSink {
 
     fn finish(&self, partition: usize) -> Result<()> {
         {
-            let mut state = self.states[partition].lock();
+            // Technically just for debugging. We want to make sure we're not
+            // accidentally marking the same partition as finished multiple
+            // times.
+            let state = self.states[partition].lock();
             assert!(!state.build_finished);
-            state.build_finished = true;
         }
 
         let prev = self.remaining.fetch_sub(1, Ordering::SeqCst);
@@ -222,6 +229,12 @@ impl Sink for PhysicalCrossJoinBuildSink {
     }
 }
 
+impl Explainable for PhysicalCrossJoinBuildSink {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("PhysicalCrossJoinBuildSink")
+    }
+}
+
 #[derive(Debug)]
 pub struct PhysicalCrossJoinProbeSink {
     /// Partition-local states.
@@ -238,6 +251,7 @@ impl Sink for PhysicalCrossJoinProbeSink {
         if !state.build_finished {
             // We're still building, register for a wakeup.
             state.pending_push = Some(cx.waker().clone());
+            return Poll::Pending;
         }
         assert!(!state.probe_finished);
         Poll::Ready(())
@@ -282,6 +296,12 @@ impl Sink for PhysicalCrossJoinProbeSink {
     }
 }
 
+impl Explainable for PhysicalCrossJoinProbeSink {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("PhysicalCrossJoinProbeSink")
+    }
+}
+
 fn cross_join(left: &DataBatch, right: &DataBatch) -> Result<Vec<DataBatch>> {
     let mut batches = Vec::with_capacity(left.num_rows() * right.num_rows());
 
@@ -298,20 +318,6 @@ fn cross_join(left: &DataBatch, right: &DataBatch) -> Result<Vec<DataBatch>> {
 
         // Join all of right.
         cols.extend_from_slice(right.columns());
-
-        batches.push(DataBatch::try_new(cols)?);
-    }
-
-    // Do same thing for all rows in the right batch.
-    for right_idx in 0..left.num_rows() {
-        let right_indices =
-            UInt32Array::from_iter(std::iter::repeat(right_idx as u32).take(left.num_rows()));
-
-        let mut cols = left.columns().to_vec();
-        for col in right.columns() {
-            let right_repeated = arrow::compute::take(&col, &right_indices, None)?;
-            cols.push(right_repeated);
-        }
 
         batches.push(DataBatch::try_new(cols)?);
     }

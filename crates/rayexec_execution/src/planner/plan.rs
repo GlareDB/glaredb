@@ -1,5 +1,5 @@
 use crate::{
-    functions::{self, table::TableFunctionArgs},
+    functions::{table::TableFunctionArgs},
     planner::{
         operator::{ExpressionList, Filter, JoinType, Scan, ScanItem},
         scope::TableReference,
@@ -10,15 +10,15 @@ use crate::{
 use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
     operator::{CrossJoin, Join, LogicalExpression, LogicalOperator, Projection},
-    scope::{ColumnRef, Scope, ScopeColumn},
+    scope::{ColumnRef, Scope},
     Resolver,
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{ast, statement::Statement};
 use tracing::trace;
 
-const EMPTY_SCOPE: &'static Scope = &Scope::empty();
-const EMPTY_SCHEMA: &'static DataBatchSchema = &DataBatchSchema::empty();
+const EMPTY_SCOPE: &Scope = &Scope::empty();
+const EMPTY_SCHEMA: &DataBatchSchema = &DataBatchSchema::empty();
 
 #[derive(Debug)]
 pub struct LogicalQuery {
@@ -57,7 +57,7 @@ impl<'a> PlanContext<'a> {
     /// Create a new nested plan context for planning subqueries.
     fn nested(&self, outer: Scope) -> Self {
         PlanContext {
-            resolver: self.resolver.clone(),
+            resolver: self.resolver,
             outer_scopes: std::iter::once(outer)
                 .chain(self.outer_scopes.clone())
                 .collect(),
@@ -70,9 +70,9 @@ impl<'a> PlanContext<'a> {
         let planned = match query.body {
             ast::QueryNodeBody::Select(select) => self.plan_select(*select)?,
             ast::QueryNodeBody::Set {
-                left,
-                right,
-                operation,
+                left: _,
+                right: _,
+                operation: _,
             } => unimplemented!(),
             ast::QueryNodeBody::Values(values) => self.plan_values(values)?,
         };

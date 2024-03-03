@@ -1,7 +1,7 @@
-use crate::{keywords::Keyword, parser::Parser, statement::Statement};
-use rayexec_error::{RayexecError, Result};
+use crate::{statement::Statement};
 
-use super::{AstParseable, Expr, QueryNode};
+
+use super::{QueryNode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExplainOutput {

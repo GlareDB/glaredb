@@ -1,17 +1,17 @@
 use crate::hash::build_hashes;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::planner::operator::JoinType;
-use crate::types::batch::{DataBatch, DataBatchSchema};
-use arrow_array::cast::AsArray;
-use arrow_array::{ArrayRef, BooleanArray, RecordBatch, UInt32Array, UInt64Array};
-use arrow_schema::{Field, Schema};
+use crate::types::batch::{DataBatchSchema};
+
+use arrow_array::{BooleanArray, RecordBatch, UInt32Array};
+use arrow_schema::{Schema};
 use hashbrown::raw::RawTable;
 use parking_lot::Mutex;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{Result};
 use smallvec::{smallvec, SmallVec};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize};
 use std::sync::Arc;
-use std::task::{Context, Poll};
+
 
 #[derive(Debug)]
 pub struct PhysicalHashJoin {

@@ -14,7 +14,7 @@ pub use explain::*;
 use crate::parser::Parser;
 use crate::tokens::Token;
 use rayexec_error::{RayexecError, Result};
-use std::borrow::Cow;
+
 use std::fmt;
 use std::hash::Hash;
 
@@ -108,11 +108,7 @@ impl ObjectReference {
 impl AstParseable for ObjectReference {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let mut idents = Vec::new();
-        loop {
-            let tok = match parser.next() {
-                Some(tok) => tok,
-                None => break,
-            };
+        while let Some(tok) = parser.next() {
             let ident = match &tok.token {
                 Token::Word(w) => Ident {
                     value: w.value.clone(),

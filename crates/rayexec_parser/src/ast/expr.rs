@@ -199,7 +199,7 @@ impl Expr {
         };
 
         if let Some(op) = bin_op {
-            if let Some(kw) = parser.parse_one_of_keywords(&[Keyword::ALL, Keyword::ANY]) {
+            if let Some(_kw) = parser.parse_one_of_keywords(&[Keyword::ALL, Keyword::ANY]) {
                 unimplemented!()
             } else {
                 Ok(Expr::BinaryExpr {
@@ -272,7 +272,7 @@ impl Expr {
                     Keyword::RLIKE => Ok(PREC_CONTAINMENT),
                     Keyword::REGEXP => Ok(PREC_CONTAINMENT),
                     Keyword::SIMILAR => Ok(PREC_CONTAINMENT),
-                    _ => return Ok(0),
+                    _ => Ok(0),
                 }
             }
 
