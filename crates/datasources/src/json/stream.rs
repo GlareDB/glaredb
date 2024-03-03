@@ -136,7 +136,7 @@ impl Stream for JsonStreamHandler {
             Poll::Pending => Poll::Pending,
             Poll::Ready(None) => {
                 if self.worker.is_finished() {
-                    return Poll::Pending;
+                    Poll::Pending
                 } else {
                     Poll::Ready(None)
                 }
