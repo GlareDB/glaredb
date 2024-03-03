@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 
 use crate::common::url::DatasourceUrl;
 use crate::json::errors::JsonError;
-use crate::json::stream::{JsonPartitionStream, LazyJsonPartitionStream};
+use crate::json::stream::{ObjectStorePartition, WrappedPartition};
 use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::ObjStoreAccess;
 
@@ -74,10 +74,10 @@ pub async fn json_streaming_table(
 
     let mut streams = Vec::<Arc<dyn PartitionStream>>::with_capacity(list.len());
 
-    streams.push(Arc::new(JsonPartitionStream::new(schema.clone(), data)));
+    streams.push(Arc::new(WrappedPartition::new(schema.clone(), data)));
 
     for obj in list {
-        streams.push(Arc::new(LazyJsonPartitionStream::new(
+        streams.push(Arc::new(ObjectStorePartition::new(
             schema.clone(),
             store.clone(),
             obj,

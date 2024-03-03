@@ -50,3 +50,5 @@ impl From<JsonError> for DataFusionError {
         DataFusionError::External(Box::new(e))
     }
 }
+
+pub type Result<T, E = JsonError> = std::result::Result<T, E>;
