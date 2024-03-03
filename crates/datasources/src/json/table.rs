@@ -73,7 +73,9 @@ pub async fn json_streaming_table(
     ));
 
     let mut streams = Vec::<Arc<dyn PartitionStream>>::with_capacity(list.len());
+
     streams.push(Arc::new(JsonPartitionStream::new(schema.clone(), data)));
+
     for obj in list {
         streams.push(Arc::new(LazyJsonPartitionStream::new(
             schema.clone(),
@@ -84,6 +86,7 @@ pub async fn json_streaming_table(
 
     Ok(Arc::new(StreamingTable::try_new(schema.clone(), streams)?))
 }
+
 
 pub(crate) fn push_unwind_json_values(
     data: &mut Vec<Map<String, Value>>,
