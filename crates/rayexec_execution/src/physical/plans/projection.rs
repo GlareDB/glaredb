@@ -1,5 +1,5 @@
 use crate::expr::{Expression, PhysicalScalarExpression};
-use crate::physical::PhysicalOperator;
+use crate::physical::PhysicalOperator2;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, DataBatchSchema};
 use arrow_array::RecordBatch;
@@ -8,7 +8,7 @@ use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use super::{buffer::BatchBuffer, Sink, Source};
+use super::{buffer::BatchBuffer, Sink2, Source2};
 
 #[derive(Debug)]
 pub struct PhysicalProjection {
@@ -25,7 +25,7 @@ impl PhysicalProjection {
     }
 }
 
-impl Source for PhysicalProjection {
+impl Source2 for PhysicalProjection {
     fn output_partitions(&self) -> usize {
         self.buffer.output_partitions()
     }
@@ -39,7 +39,7 @@ impl Source for PhysicalProjection {
     }
 }
 
-impl Sink for PhysicalProjection {
+impl Sink2 for PhysicalProjection {
     fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
         if child != 0 {
             return Err(RayexecError::new(format!(
@@ -64,7 +64,7 @@ impl Sink for PhysicalProjection {
     }
 }
 
-impl PhysicalOperator for PhysicalProjection {}
+impl PhysicalOperator2 for PhysicalProjection {}
 
 impl Explainable for PhysicalProjection {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {

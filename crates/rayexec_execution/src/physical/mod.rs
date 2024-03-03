@@ -1,21 +1,22 @@
 //! Planning and execution of physical plans.
 
+pub mod chain;
 pub mod datasource;
 pub mod planner;
 pub mod plans;
 pub mod scheduler;
 
-use plans::{Sink, Source};
+use plans::{Sink2, Source2};
 use std::fmt;
 use std::sync::Arc;
 
 use crate::planner::explainable::{ExplainConfig, Explainable};
 
-pub trait PhysicalOperator: Source + Sink + Explainable {}
+pub trait PhysicalOperator2: Source2 + Sink2 + Explainable {}
 
-pub struct Pipeline {
+pub struct Pipeline2 {
     /// Destination for all resulting record batches.
-    pub destination: Box<dyn Sink>,
+    pub destination: Box<dyn Sink2>,
 
     /// Linked operators for the pipeline.
     // TODO: This also includes data sources (stuff we're not pushing to).
@@ -23,10 +24,10 @@ pub struct Pipeline {
     pub operators: Vec<LinkedOperator>,
 }
 
-impl Pipeline {
+impl Pipeline2 {
     /// Create a new pipeline with no operators.
-    pub fn new_empty(destination: Box<dyn Sink>) -> Self {
-        Pipeline {
+    pub fn new_empty(destination: Box<dyn Sink2>) -> Self {
+        Pipeline2 {
             destination,
             operators: Vec::new(),
         }
@@ -41,7 +42,7 @@ impl Pipeline {
     }
 }
 
-impl fmt::Debug for Pipeline {
+impl fmt::Debug for Pipeline2 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (idx, operator) in self.operators.iter().enumerate() {
             if idx != 0 {
@@ -87,7 +88,7 @@ impl fmt::Debug for Destination {
 
 /// An operator in the pipeline that will send its output to some destination.
 pub struct LinkedOperator {
-    pub operator: Arc<dyn PhysicalOperator>,
+    pub operator: Arc<dyn PhysicalOperator2>,
     pub dest: Destination,
 }
 

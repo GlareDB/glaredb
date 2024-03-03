@@ -35,6 +35,10 @@ impl RayexecError {
             backtrace: Backtrace::capture(),
         }
     }
+
+    pub fn get_backtrace(&self) -> &Backtrace {
+        &self.backtrace
+    }
 }
 
 impl From<ArrowError> for RayexecError {
@@ -47,11 +51,11 @@ impl fmt::Display for RayexecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.msg)?;
         if let Some(source) = &self.source {
-            write!(f, "Error source: {}", source)?;
+            write!(f, "\nError source: {}", source)?;
         }
 
-        if matches!(self.backtrace.status(), BacktraceStatus::Captured) {
-            write!(f, "Backtrace:\n{}", self.backtrace)?;
+        if self.backtrace.status() == BacktraceStatus::Captured {
+            write!(f, "\nBacktrace: {}", self.backtrace)?
         }
 
         Ok(())

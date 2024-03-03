@@ -1,6 +1,6 @@
 use crate::expr::Expression;
 use crate::hash::build_hashes;
-use crate::physical::PhysicalOperator;
+use crate::physical::PhysicalOperator2;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, DataBatchSchema};
 use arrow_array::cast::AsArray;
@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use super::{buffer::BatchBuffer, Sink, Source};
+use super::{buffer::BatchBuffer, Sink2, Source2};
 
 #[derive(Debug)]
 pub struct PhysicalValues {
@@ -29,7 +29,7 @@ impl PhysicalValues {
     }
 }
 
-impl Source for PhysicalValues {
+impl Source2 for PhysicalValues {
     fn output_partitions(&self) -> usize {
         1
     }
@@ -46,7 +46,7 @@ impl Source for PhysicalValues {
     }
 }
 
-impl Sink for PhysicalValues {
+impl Sink2 for PhysicalValues {
     fn push(&self, _input: DataBatch, _child: usize, _partition: usize) -> Result<()> {
         Err(RayexecError::new("Cannot push to values"))
     }
@@ -56,7 +56,7 @@ impl Sink for PhysicalValues {
     }
 }
 
-impl PhysicalOperator for PhysicalValues {}
+impl PhysicalOperator2 for PhysicalValues {}
 
 impl Explainable for PhysicalValues {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {

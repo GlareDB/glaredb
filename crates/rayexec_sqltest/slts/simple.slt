@@ -54,3 +54,13 @@ select b from (select 1 as a) as t(b);
 ----
 1
 
+query I
+select b from (select 1 as a, 2) as t(b);
+----
+1
+
+# TODO: Optional parens for ON
+query II
+select * from (select 1) as t1 inner join (select 2) as t2 on (true);
+----
+1  2

@@ -3,8 +3,8 @@ use super::{
 };
 use crate::{
     physical::{
-        plans::{Sink, Source},
-        PhysicalOperator,
+        plans::{Sink2, Source2},
+        PhysicalOperator2,
     },
     planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
     types::batch::{DataBatch, NamedDataBatchSchema},
@@ -54,7 +54,7 @@ impl BoundTableFunction for BoundDummyTableFunction {
         self: Box<Self>,
         projection: Vec<usize>,
         pushdown: Pushdown,
-    ) -> Result<Arc<dyn PhysicalOperator>> {
+    ) -> Result<Arc<dyn PhysicalOperator2>> {
         Ok(Arc::new(DummyTableFunctionOperator::new(projection)))
     }
 }
@@ -81,7 +81,7 @@ impl DummyTableFunctionOperator {
     }
 }
 
-impl Source for DummyTableFunctionOperator {
+impl Source2 for DummyTableFunctionOperator {
     fn output_partitions(&self) -> usize {
         1
     }
@@ -98,7 +98,7 @@ impl Source for DummyTableFunctionOperator {
     }
 }
 
-impl Sink for DummyTableFunctionOperator {
+impl Sink2 for DummyTableFunctionOperator {
     fn push(&self, _input: DataBatch, _child: usize, _partition: usize) -> Result<()> {
         Err(RayexecError::new("Cannot push to dummy table function"))
     }
@@ -108,7 +108,7 @@ impl Sink for DummyTableFunctionOperator {
     }
 }
 
-impl PhysicalOperator for DummyTableFunctionOperator {}
+impl PhysicalOperator2 for DummyTableFunctionOperator {}
 
 impl Explainable for DummyTableFunctionOperator {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {

@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use super::{buffer::BatchBuffer, Sink, Source};
+use super::{buffer::BatchBuffer, Sink2, Source2};
 
 /// Aggregates with no grouping.
 pub struct PhysicalUngroupedAggregate {}

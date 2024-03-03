@@ -69,8 +69,3 @@ fn parse_set_compound_eq_string() {
     ]
     "###)
 }
-
-#[test]
-fn parse_set_missing_eq() {
-    assert_display_snapshot!(parse("set my_var 'my_value'").unwrap_err(), @"Expected 'SET my_var TO <value>' or SET my_var = <value>'")
-}

@@ -1,5 +1,5 @@
 use crate::expr::{Expression, PhysicalScalarExpression};
-use crate::physical::PhysicalOperator;
+use crate::physical::PhysicalOperator2;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, DataBatchSchema};
 use arrow::compute::{filter, FilterBuilder};
@@ -10,7 +10,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use std::task::{Context, Poll};
 use tracing::trace;
 
-use super::{buffer::BatchBuffer, Sink, Source};
+use super::{buffer::BatchBuffer, Sink2, Source2};
 
 #[derive(Debug)]
 pub struct PhysicalFilter {
@@ -28,7 +28,7 @@ impl PhysicalFilter {
     }
 }
 
-impl Source for PhysicalFilter {
+impl Source2 for PhysicalFilter {
     fn output_partitions(&self) -> usize {
         self.buffer.output_partitions()
     }
@@ -42,7 +42,7 @@ impl Source for PhysicalFilter {
     }
 }
 
-impl Sink for PhysicalFilter {
+impl Sink2 for PhysicalFilter {
     fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
         if child != 0 {
             return Err(RayexecError::new(format!(
@@ -78,7 +78,7 @@ impl Sink for PhysicalFilter {
     }
 }
 
-impl PhysicalOperator for PhysicalFilter {}
+impl PhysicalOperator2 for PhysicalFilter {}
 
 impl Explainable for PhysicalFilter {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {

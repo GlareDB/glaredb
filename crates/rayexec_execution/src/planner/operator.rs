@@ -54,7 +54,7 @@ impl LogicalOperator {
                 let first = list
                     .rows
                     .get(0)
-                    .ok_or_else(|| RayexecError::new("Expression list contians no rows"))?;
+                    .ok_or_else(|| RayexecError::new("Expression list contains no rows"))?;
                 // No inputs to expression list. Attempting to reference a
                 // column should error.
                 let current = DataBatchSchema::empty();
@@ -126,12 +126,25 @@ pub enum JoinType {
     Full,
 }
 
+/// A join on an arbitrary expression.
 #[derive(Debug)]
 pub struct Join {
     pub left: Box<LogicalOperator>,
     pub right: Box<LogicalOperator>,
     pub join_type: JoinType,
-    pub on: Vec<(Expression, Expression)>,
+    pub on: LogicalExpression,
+}
+
+/// A join on left/right column equality.
+#[derive(Debug)]
+pub struct EqualityJoin {
+    pub left: Box<LogicalOperator>,
+    pub right: Box<LogicalOperator>,
+    pub join_type: JoinType,
+    /// (left, right) column index pairs.
+    ///
+    /// Each index should be relative to its input batch.
+    pub on: Vec<(usize, usize)>,
 }
 
 #[derive(Debug)]

@@ -7,7 +7,7 @@ use std::{
 };
 use tracing::trace;
 
-use super::{Destination, LinkedOperator, Pipeline};
+use super::{Destination, LinkedOperator, Pipeline2};
 
 /// Scheduler for executing query pipelines on a rayon thread pool.
 pub struct Scheduler {
@@ -35,7 +35,7 @@ impl Scheduler {
     /// partition) pair which will all immediately start executing. However,
     /// only some will make progress while the others will be woken up once
     /// there's batches to begin executing on.
-    pub fn execute(&self, pipeline: Pipeline) -> Result<()> {
+    pub fn execute(&self, pipeline: Pipeline2) -> Result<()> {
         trace!(?pipeline, "executing pipeline");
 
         let pipeline = Arc::new(pipeline);
@@ -142,7 +142,7 @@ impl OperatorPartitionTask {
 /// There should only exist a single waker per partition per pipeline.
 struct OperatorPartitionWaker {
     /// The pipeline we're working on.
-    pipeline: Arc<Pipeline>,
+    pipeline: Arc<Pipeline2>,
 
     /// Index of the operator this worker is executing for.
     operator: usize,

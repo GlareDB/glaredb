@@ -11,7 +11,7 @@ use tracing_subscriber::FmtSubscriber;
 const SLTS_PATH: &'static str = "slts/";
 
 #[tokio::main(flavor = "current_thread")]
-pub async fn main() -> Result<()> {
+pub async fn main() {
     let env_filter = EnvFilter::builder()
         .with_default_directive(tracing::Level::TRACE.into())
         .from_env_lossy()
@@ -30,14 +30,18 @@ pub async fn main() -> Result<()> {
 
     std::panic::set_hook(Box::new(|info| {
         let backtrace = std::backtrace::Backtrace::force_capture();
-        println!("Info: {}\n\nBacktrace:{}", info, backtrace);
+        println!("---- PANIC ----\nInfo: {}\n\nBacktrace:{}", info, backtrace);
         std::process::abort();
     }));
 
     let mut paths = Vec::new();
-    find_files(Path::new(SLTS_PATH), &mut paths)?;
+    find_files(Path::new(SLTS_PATH), &mut paths).unwrap();
 
-    run_tests(paths).await
+    if let Err(e) = run_tests(paths).await {
+        println!("---- FAIL ----");
+        println!("{e}");
+        std::process::exit(1);
+    }
 }
 
 fn find_files(dir: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {

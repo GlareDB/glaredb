@@ -56,8 +56,8 @@ impl AstParseable for FromNode {
                 body: FromNodeBody::Join(FromJoin {
                     left: Box::new(node),
                     right: Box::new(right),
-                    join_type: JoinType::Inner,
-                    join_condition: JoinCondition::Cross,
+                    join_type: JoinType::Cross,
+                    join_condition: JoinCondition::None,
                 }),
             }
         } else if parser.consume_token(&Token::Comma) {
@@ -69,8 +69,8 @@ impl AstParseable for FromNode {
                 body: FromNodeBody::Join(FromJoin {
                     left: Box::new(node),
                     right: Box::new(right),
-                    join_type: JoinType::Inner,
-                    join_condition: JoinCondition::Cross,
+                    join_type: JoinType::Cross,
+                    join_condition: JoinCondition::None,
                 }),
             }
         } else {
@@ -154,9 +154,11 @@ impl AstParseable for FromNode {
             let join_condition = match kw {
                 Some(Keyword::ON) => {
                     parser.parse_keyword(Keyword::ON);
-                    parser.expect_token(&Token::LeftParen)?;
+                    let has_paren = parser.consume_token(&Token::LeftParen);
                     let condition = JoinCondition::On(Expr::parse(parser)?);
-                    parser.expect_token(&Token::RightParen)?;
+                    if has_paren {
+                        parser.expect_token(&Token::RightParen)?;
+                    }
                     condition
                 }
                 Some(Keyword::USING) => {
@@ -272,6 +274,7 @@ impl AstParseable for FunctionArg {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
+    Cross,
     Inner,
     Left,
     Right,
@@ -287,7 +290,6 @@ pub enum JoinCondition {
     On(Expr),
     Using(Vec<Ident>),
     Natural,
-    Cross,
     None,
 }
 
@@ -408,6 +410,35 @@ mod tests {
     #[test]
     fn inner_join_on() {
         let node: FromNode = parse_ast("table1 INNER JOIN table2 ON (c1 = c2)").unwrap();
+        let expected = FromNode {
+            alias: None,
+            body: FromNodeBody::Join(FromJoin {
+                left: Box::new(FromNode {
+                    alias: None,
+                    body: FromNodeBody::BaseTable(FromBaseTable {
+                        reference: ObjectReference::from_strings(["table1"]),
+                    }),
+                }),
+                right: Box::new(FromNode {
+                    alias: None,
+                    body: FromNodeBody::BaseTable(FromBaseTable {
+                        reference: ObjectReference::from_strings(["table2"]),
+                    }),
+                }),
+                join_type: JoinType::Inner,
+                join_condition: JoinCondition::On(Expr::BinaryExpr {
+                    left: Box::new(Expr::Ident(Ident::from_string("c1"))),
+                    op: BinaryOperator::Eq,
+                    right: Box::new(Expr::Ident(Ident::from_string("c2"))),
+                }),
+            }),
+        };
+        assert_eq!(expected, node);
+    }
+
+    #[test]
+    fn inner_join_on_no_parens() {
+        let node: FromNode = parse_ast("table1 INNER JOIN table2 ON c1 = c2").unwrap();
         let expected = FromNode {
             alias: None,
             body: FromNodeBody::Join(FromJoin {

@@ -114,6 +114,11 @@ impl DataBatchSchema {
     pub fn get_types(&self) -> &[DataType] {
         &self.types
     }
+
+    pub fn merge(mut self, mut other: DataBatchSchema) -> Self {
+        self.types.append(&mut other.types);
+        self
+    }
 }
 
 impl<S: AsRef<Schema>> From<S> for DataBatchSchema {

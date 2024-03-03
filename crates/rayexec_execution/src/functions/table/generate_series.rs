@@ -1,7 +1,7 @@
 use super::{BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs};
 use crate::expr::scalar::ScalarValue;
-use crate::physical::plans::{Sink, Source};
-use crate::physical::PhysicalOperator;
+use crate::physical::plans::{Sink2, Source2};
+use crate::physical::PhysicalOperator2;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, NamedDataBatchSchema};
 use arrow_array::Int32Array;
@@ -83,7 +83,7 @@ impl BoundTableFunction for GenerateSeriesInteger {
         self: Box<Self>,
         projection: Vec<usize>,
         pushdown: Pushdown,
-    ) -> Result<Arc<dyn PhysicalOperator>> {
+    ) -> Result<Arc<dyn PhysicalOperator2>> {
         Ok(Arc::new(GenerateSeriesIntegerOperator {
             s: *self,
             curr: AtomicI32::new(self.start),
@@ -110,7 +110,7 @@ struct GenerateSeriesIntegerOperator {
     curr: AtomicI32,
 }
 
-impl Source for GenerateSeriesIntegerOperator {
+impl Source2 for GenerateSeriesIntegerOperator {
     fn output_partitions(&self) -> usize {
         1
     }
@@ -144,7 +144,7 @@ impl Source for GenerateSeriesIntegerOperator {
     }
 }
 
-impl Sink for GenerateSeriesIntegerOperator {
+impl Sink2 for GenerateSeriesIntegerOperator {
     fn push(&self, _input: DataBatch, _child: usize, _partition: usize) -> Result<()> {
         Err(RayexecError::new("Cannot push to generate series"))
     }
@@ -160,4 +160,4 @@ impl Explainable for GenerateSeriesIntegerOperator {
     }
 }
 
-impl PhysicalOperator for GenerateSeriesIntegerOperator {}
+impl PhysicalOperator2 for GenerateSeriesIntegerOperator {}

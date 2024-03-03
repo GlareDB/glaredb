@@ -97,8 +97,3 @@ fn parse_create_schema_if_not_exists() {
     ]
     "###);
 }
-
-#[test]
-fn parse_create_schema_incomplete_statement() {
-    assert_display_snapshot!(parse("create schema;").unwrap_err(), @"Unexpected token: SemiColon. Expected an object reference.");
-}

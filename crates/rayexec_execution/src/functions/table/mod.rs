@@ -9,8 +9,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use crate::expr::scalar::ScalarValue;
-use crate::physical::plans::Source;
-use crate::physical::PhysicalOperator;
+use crate::physical::plans::Source2;
+use crate::physical::PhysicalOperator2;
 use crate::planner::explainable::Explainable;
 use crate::types::batch::NamedDataBatchSchema;
 
@@ -81,7 +81,7 @@ pub trait BoundTableFunction: Send + Debug + Explainable {
         self: Box<Self>,
         projection: Vec<usize>,
         pushdown: Pushdown,
-    ) -> Result<Arc<dyn PhysicalOperator>>;
+    ) -> Result<Arc<dyn PhysicalOperator2>>;
 }
 
-pub trait TableFunctionSource: Source + Explainable {}
+pub trait TableFunctionSource: Source2 + Explainable {}

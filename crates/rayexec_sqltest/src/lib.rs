@@ -27,7 +27,7 @@ async fn run_test(path: PathBuf) -> Result<()> {
     runner
         .run_file_async(path)
         .await
-        .map_err(|e| RayexecError::with_source("run file", Box::new(e)))?;
+        .map_err(|e| RayexecError::with_source(format!("Failed to run SLT"), Box::new(e)))?;
     Ok(())
 }
 

@@ -1,6 +1,6 @@
 use super::{
-    plans::{empty_source::EmptySource, projection::PhysicalProjection, Sink},
-    Destination, LinkedOperator, PhysicalOperator, Pipeline,
+    plans::{empty_source::EmptySource, projection::PhysicalProjection, Sink2},
+    Destination, LinkedOperator, PhysicalOperator2, Pipeline2,
 };
 use crate::{
     expr::PhysicalScalarExpression,
@@ -26,7 +26,7 @@ impl PhysicalPlanner {
     }
 
     /// Create a physical plan from a logical plan.
-    pub fn create_plan(&self, plan: LogicalOperator, dest: Box<dyn Sink>) -> Result<Pipeline> {
+    pub fn create_plan(&self, plan: LogicalOperator, dest: Box<dyn Sink2>) -> Result<Pipeline2> {
         let mut builder = PipelineBuilder::new(dest);
         builder.walk_plan(plan, Destination::PipelineOutput)?;
 
@@ -37,14 +37,14 @@ impl PhysicalPlanner {
 /// Iteratively builds up a pipeline from a logical plan.
 #[derive(Debug)]
 struct PipelineBuilder {
-    pipeline: Pipeline,
+    pipeline: Pipeline2,
 }
 
 impl PipelineBuilder {
     /// Create a new builder for a pipeline that outputs the final result to
     /// `dest`.
-    fn new(dest: Box<dyn Sink>) -> Self {
-        let pipeline = Pipeline::new_empty(dest);
+    fn new(dest: Box<dyn Sink2>) -> Self {
+        let pipeline = Pipeline2::new_empty(dest);
         PipelineBuilder { pipeline }
     }
 

@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use super::{buffer::BatchBuffer, Sink, Source};
+use super::{buffer::BatchBuffer, Sink2, Source2};
 
 #[derive(Debug)]
 pub struct PhysicalHashJoin {
@@ -24,7 +24,7 @@ pub struct PhysicalHashJoin {
     buffer: BatchBuffer,
 }
 
-impl Source for PhysicalHashJoin {
+impl Source2 for PhysicalHashJoin {
     fn output_partitions(&self) -> usize {
         self.buffer.output_partitions()
     }
@@ -38,7 +38,7 @@ impl Source for PhysicalHashJoin {
     }
 }
 
-impl Sink for PhysicalHashJoin {
+impl Sink2 for PhysicalHashJoin {
     fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
         unimplemented!()
     }

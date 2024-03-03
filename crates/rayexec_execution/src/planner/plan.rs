@@ -1,7 +1,7 @@
 use crate::{
     functions::{self, table::TableFunctionArgs},
     planner::{
-        operator::{ExpressionList, Filter, Scan, ScanItem},
+        operator::{ExpressionList, Filter, JoinType, Scan, ScanItem},
         scope::TableReference,
     },
     types::batch::DataBatchSchema,
@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
-    operator::{LogicalExpression, LogicalOperator, Projection},
+    operator::{CrossJoin, Join, LogicalExpression, LogicalOperator, Projection},
     scope::{ColumnRef, Scope, ScopeColumn},
     Resolver,
 };
@@ -221,7 +221,70 @@ impl<'a> PlanContext<'a> {
                     scope,
                 }
             }
-            ast::FromNodeBody::Join(_) => unimplemented!(),
+            ast::FromNodeBody::Join(ast::FromJoin {
+                left,
+                right,
+                join_type,
+                join_condition,
+            }) => {
+                // Plan left side of join.
+                let left_nested = self.nested(current_scope.clone());
+                let left_plan = left_nested.plan_from_node(*left, Scope::empty())?; // TODO: Determine if should be empty.
+
+                // Plan right side of join.
+                //
+                // Note this uses a plan context that has the "left" scope as
+                // its outer scope.
+                let right_nested = left_nested.nested(left_plan.scope.clone());
+                let right_plan = right_nested.plan_from_node(*right, Scope::empty())?; // TODO: Determine if this should be empty.
+
+                match join_condition {
+                    ast::JoinCondition::On(on) => {
+                        let merged = left_plan.scope.merge(right_plan.scope)?;
+                        let left_schema = left_plan.root.schema(&[])?; // TODO: Outers
+                        let right_schema = right_plan.root.schema(&[])?; // TODO: Outers
+                        let merged_schema = left_schema.merge(right_schema);
+                        let expr_ctx =
+                            ExpressionContext::new(&left_nested, &merged, &merged_schema);
+
+                        let on_expr = expr_ctx.plan_expression(on)?;
+
+                        let join_type = match join_type {
+                            ast::JoinType::Inner => JoinType::Inner,
+                            ast::JoinType::Left => JoinType::Left,
+                            ast::JoinType::Right => JoinType::Right,
+                            ast::JoinType::Cross => {
+                                unreachable!("Cross join should not have a join condition")
+                            }
+                            _ => unimplemented!(),
+                        };
+
+                        LogicalQuery {
+                            root: LogicalOperator::Join(Join {
+                                left: Box::new(left_plan.root),
+                                right: Box::new(right_plan.root),
+                                join_type,
+                                on: on_expr,
+                            }),
+                            scope: merged,
+                        }
+                    }
+                    ast::JoinCondition::None => match join_type {
+                        ast::JoinType::Cross => {
+                            let merged = left_plan.scope.merge(right_plan.scope)?;
+                            LogicalQuery {
+                                root: LogicalOperator::CrossJoin(CrossJoin {
+                                    left: Box::new(left_plan.root),
+                                    right: Box::new(right_plan.root),
+                                }),
+                                scope: merged,
+                            }
+                        }
+                        _other => return Err(RayexecError::new("Missing join condition for join")),
+                    },
+                    _ => unimplemented!(),
+                }
+            }
         };
 
         // Apply aliases if provided.

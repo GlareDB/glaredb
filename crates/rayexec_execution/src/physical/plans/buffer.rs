@@ -7,7 +7,7 @@ use std::task::{Context, Poll, Waker};
 
 use crate::types::batch::DataBatch;
 
-use super::{Sink, Source};
+use super::{Sink2, Source2};
 
 #[derive(Debug)]
 pub struct BatchBuffer {
@@ -27,7 +27,7 @@ impl BatchBuffer {
     }
 }
 
-impl Source for BatchBuffer {
+impl Source2 for BatchBuffer {
     fn output_partitions(&self) -> usize {
         self.buffers.len()
     }
@@ -55,7 +55,7 @@ impl Source for BatchBuffer {
     }
 }
 
-impl Sink for BatchBuffer {
+impl Sink2 for BatchBuffer {
     fn push(&self, input: DataBatch, child: usize, partition: usize) -> Result<()> {
         if child != 0 {
             return Err(RayexecError::new(format!(
