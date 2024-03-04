@@ -179,7 +179,7 @@ impl LocalSessionContext {
     pub fn function_registry(&self) -> &FunctionRegistry {
         &self.functions
     }
-    
+
     /// Register a UDF with the session.
     /// This will error if the function already exists in the catalog.
     pub async fn register_function(&self, udf: Arc<dyn BuiltinScalarUDF>) -> Result<()> {
