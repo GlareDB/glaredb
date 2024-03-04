@@ -1,6 +1,7 @@
-use arrow_array::{ArrayRef, RecordBatch};
+use arrow_array::{ArrayRef, RecordBatch, UInt64Array};
 use arrow_schema::{DataType, Schema};
 use rayexec_error::{RayexecError, Result};
+use smallvec::SmallVec;
 
 /// A batch of same-length arrays.
 ///
@@ -8,8 +9,15 @@ use rayexec_error::{RayexecError, Result};
 /// associated schema since it's not needed in many cases.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DataBatch {
+    /// Columns that make up this batch.
     cols: Vec<ArrayRef>,
+
+    /// Number of rows in this batch. Needed to allow for a batch that has no
+    /// columns but a non-zero number of rows.
     num_rows: usize,
+
+    /// An optional column hash.
+    column_hash: Option<ColumnHash>,
 }
 
 impl DataBatch {
@@ -17,6 +25,7 @@ impl DataBatch {
         DataBatch {
             cols: Vec::new(),
             num_rows: 0,
+            column_hash: None,
         }
     }
 
@@ -24,6 +33,7 @@ impl DataBatch {
         DataBatch {
             cols: Vec::new(),
             num_rows,
+            column_hash: None,
         }
     }
 
@@ -45,7 +55,29 @@ impl DataBatch {
         Ok(DataBatch {
             cols,
             num_rows: len,
+            column_hash: None,
         })
+    }
+
+    pub fn try_new_with_column_hash(cols: Vec<ArrayRef>, hashes: ColumnHash) -> Result<Self> {
+        let mut batch = Self::try_new(cols)?;
+        for idx in &hashes.columns {
+            if batch.column(*idx).is_none() {
+                return Err(RayexecError::new(format!(
+                    "Column hash includes hash for column at index {idx}, but column is missing"
+                )));
+            }
+        }
+
+        if batch.num_rows() != hashes.hashes.len() {
+            return Err(RayexecError::new(
+                "Column hashes length does not match number of rows",
+            ));
+        }
+
+        batch.column_hash = Some(hashes);
+
+        Ok(batch)
     }
 
     pub fn schema(&self) -> DataBatchSchema {
@@ -70,10 +102,19 @@ impl DataBatch {
             .iter()
             .map(|idx| self.cols.get(*idx).unwrap().clone())
             .collect();
+        // Don't carry over hashes.
+        //
+        // TODO: Might make sense to clone them if the indexes match, but idk
+        // the benefit yet.
         DataBatch {
             cols,
             num_rows: self.num_rows,
+            column_hash: None,
         }
+    }
+
+    pub fn get_column_hash(&self) -> Option<&ColumnHash> {
+        self.column_hash.as_ref()
     }
 
     pub fn num_rows(&self) -> usize {
@@ -88,7 +129,31 @@ impl From<RecordBatch> for DataBatch {
         DataBatch {
             cols,
             num_rows: value.num_rows(),
+            column_hash: None,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ColumnHash {
+    /// Column indexes this hash was calculated for.
+    pub columns: SmallVec<[usize; 2]>,
+
+    /// The hash values computed from hashing the above columns.
+    pub hashes: Vec<u64>,
+}
+
+impl ColumnHash {
+    pub fn new(columns: &[usize], hashes: Vec<u64>) -> Self {
+        ColumnHash {
+            columns: columns.into(),
+            hashes,
+        }
+    }
+
+    /// Check if these hash values are for the specified columns.
+    pub fn is_for_columns(&self, colums: &[usize]) -> bool {
+        self.columns.as_slice() == colums
     }
 }
 

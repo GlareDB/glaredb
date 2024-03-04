@@ -12,6 +12,7 @@ use std::task::{Context, Poll, Waker};
 
 use super::{Sink, Source};
 
+/// Nested loop join for joining tables on arbitrary expressions.
 #[derive(Debug)]
 pub struct PhysicalNestedLoopJoin {
     /// Shared states across the sinks and source for all partitions.
@@ -265,6 +266,8 @@ impl Sink for PhysicalNestedLoopJoinProbeSink {
 
     fn push(&self, input: DataBatch, partition: usize) -> Result<()> {
         let left_batches = {
+            // TODO: Maybe split input/output states to allow holding this lock
+            // for the entire function call.
             let state = self.states[partition].lock();
             assert!(state.build_finished);
             assert!(!state.probe_finished);

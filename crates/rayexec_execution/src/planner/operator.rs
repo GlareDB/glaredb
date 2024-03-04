@@ -24,6 +24,8 @@ pub enum LogicalOperator {
     Scan(Scan),
     ExpressionList(ExpressionList),
     Empty,
+
+    CreateTableAs(CreateTableAs),
 }
 
 impl LogicalOperator {
@@ -64,6 +66,7 @@ impl LogicalOperator {
                 DataBatchSchema::new(types)
             }
             Self::Empty => DataBatchSchema::empty(),
+            Self::CreateTableAs(_) => unimplemented!(),
         })
     }
 }
@@ -193,6 +196,13 @@ pub enum GroupingExpr {
     Rollup(Vec<Expression>),
     Cube(Vec<Expression>),
     GroupingSets(Vec<Vec<Expression>>),
+}
+
+/// Dummy create table for testing.
+#[derive(Debug)]
+pub struct CreateTableAs {
+    pub name: String,
+    pub input: Box<LogicalOperator>,
 }
 
 /// An expression that can exist in a logical plan.

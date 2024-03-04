@@ -1,18 +1,26 @@
-use crate::hash::build_hashes;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::planner::operator::JoinType;
-use crate::types::batch::{DataBatchSchema};
+use crate::types::batch::{DataBatch, DataBatchSchema};
 
 use arrow_array::{BooleanArray, RecordBatch, UInt32Array};
-use arrow_schema::{Schema};
+use arrow_schema::Schema;
 use hashbrown::raw::RawTable;
 use parking_lot::Mutex;
-use rayexec_error::{Result};
+use rayexec_error::{RayexecError, Result};
 use smallvec::{smallvec, SmallVec};
-use std::sync::atomic::{AtomicUsize};
+use std::collections::VecDeque;
+use std::fmt;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
 
+use super::util::hash::build_hashes;
+use super::Sink;
 
+/// Hash join for for joining two tables on column equalities.
+///
+/// An optional filter provides outputing batches based on an arbitrary
+/// expression.
 #[derive(Debug)]
 pub struct PhysicalHashJoin {
     schema: DataBatchSchema,
@@ -47,50 +55,223 @@ pub struct PhysicalHashJoin {
 
 impl Explainable for PhysicalHashJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("HashJoin")
+        ExplainEntry::new("PhysicalHashJoin")
     }
 }
 
-struct BuildStage {
-    tables: Vec<Mutex<PartitionHashTable>>,
-    num_building: AtomicUsize,
-}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RowKey {
+    /// Index of the batch containing this row.
+    batch_idx: usize,
 
-impl BuildStage {
-    fn new(num_partitions: usize) -> Self {
-        BuildStage {
-            tables: (0..num_partitions)
-                .map(|_i| Mutex::new(PartitionHashTable::default()))
-                .collect(),
-            num_building: num_partitions.into(),
-        }
-    }
-
-    fn insert_for_partition(
-        &self,
-        partition: usize,
-        batch: RecordBatch,
-        hash_cols: &[usize],
-    ) -> Result<()> {
-        let mut table = self.tables[partition].lock();
-        table.insert_batch(batch, hash_cols)?;
-        Ok(())
-    }
+    /// Index of the row inside the batch.
+    row_idx: usize,
 }
 
 #[derive(Default)]
-struct PartitionHashTable {
-    batches: Vec<HashedBatch>,
-    hashes_buf: Vec<u64>,
+struct LocalHashState {
+    /// Partition local table.
+    ///
+    /// A hash (u64) points to a vector containing the row keys for rows
+    /// that match that hash.
+    table: RawTable<(u64, SmallVec<[RowKey; 2]>)>,
+
+    /// Collected batches for this partition.
+    batches: Vec<DataBatch>,
 }
 
-impl PartitionHashTable {
-    /// Inserts a batch into the hash table, using the specified column indices
-    /// for building the hash.
-    fn insert_batch(&mut self, batch: RecordBatch, key_cols: &[usize]) -> Result<()> {
-        let batch = HashedBatch::from_record_batch(batch, key_cols, &mut self.hashes_buf)?;
-        self.batches.push(batch);
+impl fmt::Debug for LocalHashState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LocalHashState")
+            .field("batches", &self.batches)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug)]
+enum HashState {
+    /// During the build phase, the partition only has access to its local hash
+    /// state.
+    Local {
+        /// State local to this partition.
+        state: LocalHashState,
+    },
+    /// During probe, the partition should have access to all hash states across
+    /// all partitions.
+    Global {
+        /// All partition states.
+        ///
+        /// Partition states are indexed by the partition index.
+        states: Arc<Vec<LocalHashState>>,
+    },
+}
+
+impl HashState {
+    /// Pushes a batch for the partition local table.
+    ///
+    /// It's expected that the batches have already been hashed on provided hash
+    /// columns.
+    fn push_for_build(&mut self, batch: DataBatch, hash_columns: &[usize]) -> Result<()> {
+        match self {
+            Self::Local { state } => {
+                // TODO: These assume that this hash join has a hash repartition
+                // operator immediately prior to it.
+                let col_hash = batch.get_column_hash().ok_or_else(|| {
+                    RayexecError::new("Expected columns to already have been hashed")
+                })?;
+
+                if !col_hash.is_for_columns(hash_columns) {
+                    return Err(RayexecError::new(
+                        "Expected columns to already have been hashed",
+                    ));
+                }
+
+                let batch_idx = state.batches.len();
+
+                for (row_idx, row_hash) in col_hash.hashes.iter().enumerate() {
+                    let row_key = RowKey { batch_idx, row_idx };
+                    if let Some((_, indexes)) =
+                        state.table.get_mut(*row_hash, |(hash, _)| row_hash == hash)
+                    {
+                        indexes.push(row_key);
+                    } else {
+                        state.table.insert(
+                            *row_hash,
+                            (*row_hash, smallvec![row_key]),
+                            |(hash, _)| *hash,
+                        );
+                    }
+                }
+                Ok(())
+            }
+            _ => Err(RayexecError::new("Expected batch state to be local")),
+        }
+    }
+
+    fn swap_to_global(&mut self, states: Arc<Vec<LocalHashState>>) -> Result<()> {
+        match self {
+            Self::Local { .. } => {
+                *self = HashState::Global { states };
+                Ok(())
+            }
+            _ => Err(RayexecError::new("Expected batch state to be local")),
+        }
+    }
+
+    fn take_local_state(&mut self) -> Result<LocalHashState> {
+        match self {
+            Self::Local { state } => Ok(std::mem::take(state)),
+            _ => Err(RayexecError::new("Expected batch state to be local")),
+        }
+    }
+
+    fn get_global_states(&self) -> Result<&Arc<Vec<LocalHashState>>> {
+        match self {
+            Self::Global { states } => Ok(states),
+            _ => Err(RayexecError::new("Expected batch state to be global")),
+        }
+    }
+}
+
+/// State local to a partition.
+// TODO: Probably split this up into input/output states.
+#[derive(Debug)]
+struct LocalState {
+    /// If this partition is finished for the build phase.
+    build_finished: bool,
+
+    /// If this partition is finished for the probe phase.
+    probe_finished: bool,
+
+    /// State of the left side of hash join.
+    left_state: HashState,
+
+    /// Waker is for a pending push on the probe side.
+    pending_push: Option<Waker>,
+
+    /// Waker is for a pending pull.
+    pending_pull: Option<Waker>,
+
+    /// Computed batches.
+    computed: VecDeque<DataBatch>,
+}
+
+/// Batch sink for the left side of the join.
+#[derive(Debug)]
+pub struct PhysicalHashJoinBuildSink {
+    /// Partition-local states.
+    states: Arc<Vec<Mutex<LocalState>>>,
+
+    /// Number of partitions we're still waiting on to complete.
+    remaining: AtomicUsize,
+
+    /// Columns we're hashing on.
+    hash_cols: Vec<usize>,
+}
+
+impl Sink for PhysicalHashJoinBuildSink {
+    fn input_partitions(&self) -> usize {
+        self.states.len()
+    }
+
+    fn poll_ready(&self, cx: &mut Context, partition: usize) -> Poll<()> {
+        // Always need to collect build side.
+        Poll::Ready(())
+    }
+
+    fn push(&self, input: DataBatch, partition: usize) -> Result<()> {
+        // TODO: Probably want to assert that this partition is correct for the
+        // input batch.
+        let mut state = self.states[partition].lock();
+        assert!(!state.build_finished);
+        state.left_state.push_for_build(input, &self.hash_cols)?;
         Ok(())
+    }
+
+    fn finish(&self, partition: usize) -> Result<()> {
+        {
+            // Technically just for debugging. We want to make sure we're not
+            // accidentally marking the same partition as finished multiple
+            // times.
+            let state = self.states[partition].lock();
+            assert!(!state.build_finished);
+        }
+
+        let prev = self.remaining.fetch_sub(1, Ordering::SeqCst);
+        if prev == 1 {
+            // We're finished, acquire all the locks and build global state.
+            let mut states: Vec<_> = self.states.iter().map(|s| s.lock()).collect();
+
+            // Get all the local states.
+            let local_states = states
+                .iter_mut()
+                .map(|s| s.left_state.take_local_state())
+                .collect::<Result<Vec<_>>>()?;
+
+            // Update local states to global.
+            let local_states = Arc::new(local_states);
+            for state in states.iter_mut() {
+                state.left_state.swap_to_global(local_states.clone())?;
+            }
+
+            // Wake up pending pushes.
+            for mut state in states {
+                state.build_finished = true;
+                if let Some(waker) = state.pending_push.take() {
+                    waker.wake();
+                }
+            }
+
+            // Build is complete.
+        }
+
+        Ok(())
+    }
+}
+
+impl Explainable for PhysicalHashJoinBuildSink {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("PhsysicalHashJoinBuildSink")
     }
 }
 
@@ -206,36 +387,4 @@ impl ProbeStage {
 struct HashedBatch {
     table: RawTable<(u64, SmallVec<[usize; 2]>)>,
     batch: RecordBatch,
-}
-
-impl HashedBatch {
-    /// Create a hashes batch from a record batch, using the provided indexes to
-    /// build the hashes.
-    fn from_record_batch(
-        batch: RecordBatch,
-        key_cols: &[usize],
-        hash_buf: &mut Vec<u64>,
-    ) -> Result<Self> {
-        let arrs: Vec<_> = key_cols
-            .iter()
-            .map(|idx| batch.columns().get(*idx).expect("valid column indexes"))
-            .collect();
-
-        hash_buf.resize(batch.num_rows(), 0);
-        build_hashes(&arrs, hash_buf)?;
-
-        let mut table: RawTable<(u64, SmallVec<_>)> = RawTable::with_capacity(hash_buf.len());
-
-        for (row_index, row_hash) in hash_buf.iter().enumerate() {
-            if let Some((_, indexes)) = table.get_mut(*row_hash, |(hash, _)| row_hash == hash) {
-                indexes.push(row_index);
-            } else {
-                table.insert(*row_hash, (*row_hash, smallvec![row_index]), |(hash, _)| {
-                    *hash
-                });
-            }
-        }
-
-        Ok(HashedBatch { table, batch })
-    }
 }
