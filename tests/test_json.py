@@ -92,7 +92,7 @@ def test_read_json_data(
 
         logger.info(f"running format {test_case} query")
         with glaredb_connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as curr:
-            curr.execute(f"select * from read_json('{data_path}') limit 100;")
+            curr.execute(f"select * from read_json('{data_path}');")
             rows = curr.fetchall()
             assert len(rows) == 100
             for row in rows:

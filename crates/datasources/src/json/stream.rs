@@ -1,5 +1,5 @@
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
@@ -42,7 +42,7 @@ impl RecordBatchStream for JsonRecordBatchStream {
 /// Partition as one of DataFusion's streaming table. Well all of
 pub struct WrappedPartition {
     schema: Arc<Schema>,
-    stream: Vec<Map<String, Value>>,
+    stream: Mutex<Option<Vec<Result<Map<String, Value>>>>>,
 }
 
 impl PartitionStream for WrappedPartition {
@@ -51,18 +51,25 @@ impl PartitionStream for WrappedPartition {
     }
 
     fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
+        let stream = self
+            .stream
+            .lock()
+            .unwrap()
+            .take()
+            .expect("stream to only be called once");
+
         Box::pin(JsonStreamHandler::new(
             self.schema.clone(),
-            futures::stream::iter(self.stream.clone().into_iter().map(Ok)).boxed(),
+            futures::stream::iter(stream.into_iter()).boxed(),
         ))
     }
 }
 
 impl WrappedPartition {
-    pub fn new(schema: Arc<Schema>, chunk: Vec<Map<String, Value>>) -> Self {
+    pub fn new(schema: Arc<Schema>, chunk: Vec<Result<Map<String, Value>>>) -> Self {
         Self {
             schema: schema.clone(),
-            stream: chunk,
+            stream: Mutex::new(Some(chunk)),
         }
     }
 }
@@ -169,6 +176,7 @@ impl JsonStreamHandler {
                 while let Some(row) = stream.next().await {
                     sink.send(row?).await.map_err(JsonError::from)?;
                 }
+                sink.close_channel();
                 Ok(())
             }),
         }
