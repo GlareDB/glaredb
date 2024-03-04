@@ -260,7 +260,7 @@ macro_rules! generate_lib {
 /// # Safety
 /// `ArrowArray` and `ArrowSchema` must be valid
 pub unsafe fn import_array(array: FFI_ArrowArray, schema: &FFI_ArrowSchema) -> Result<ArrayRef> {
-    let data = arrow::ffi::from_ffi(array, schema).unwrap();
+    let data = arrow::ffi::from_ffi(array, schema)?;
     let arr = arrow::array::make_array(data);
     Ok(arr)
 }

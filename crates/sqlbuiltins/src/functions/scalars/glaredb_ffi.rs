@@ -442,7 +442,7 @@ unsafe fn retrieve_error_msg(lib: &Library) -> &CStr {
 /// # Safety
 /// `ArrowArray` and `ArrowSchema` must be valid
 unsafe fn import_array(array: FFI_ArrowArray, schema: &FFI_ArrowSchema) -> Result<ArrayRef> {
-    let data = datafusion::arrow::ffi::from_ffi(array, schema).unwrap();
+    let data = datafusion::arrow::ffi::from_ffi(array, schema)?;
     let arr = datafusion::arrow::array::make_array(data);
     Ok(arr)
 }
