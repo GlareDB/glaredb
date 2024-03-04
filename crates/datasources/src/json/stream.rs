@@ -11,9 +11,9 @@ use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use futures::channel::mpsc;
 use futures::{SinkExt, Stream, StreamExt, TryStreamExt};
-// use json_stream::JsonStream;
+use json_stream::JsonStream;
 use object_store::{ObjectMeta, ObjectStore};
-use serde_json::{Deserializer, Map, Value};
+use serde_json::{Map, Value};
 
 use crate::json::errors::{JsonError, Result};
 
@@ -186,25 +186,16 @@ impl JsonStreamHandler {
         store: Arc<dyn ObjectStore>,
         obj: ObjectMeta,
     ) -> Result<JsonObjectStream> {
-        // Ok(JsonStream::<Value, _>::new(
-        //     store
-        //         .get(&obj.location)
-        //         .await?
-        //         .into_stream()
-        //         .map_err(JsonError::ObjectStore),
-        // )
-        // .flat_map(Self::unwind_json_value)
-        // .boxed())
-        Ok(Box::pin(
-            futures::stream::iter(
-                Deserializer::from_reader(std::io::BufReader::new(std::io::Cursor::new(
-                    store.get(&obj.location).await?.bytes().await?.to_vec(),
-                )))
-                .into_iter(),
-            )
-            .map_err(JsonError::SerdeJson)
-            .flat_map(Self::unwind_json_value),
-        ))
+        let inner = store
+            .get(&obj.location)
+            .await?
+            .into_stream()
+            .map(|v| v.map(|b| b.to_vec()))
+            .map_err(JsonError::from);
+
+        Ok(JsonStream::<Value, _>::new(Box::pin(inner))
+            .flat_map(Self::unwind_json_value)
+            .boxed())
     }
 
     fn unwind_json_value(input: Result<Value>) -> JsonObjectStream {

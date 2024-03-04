@@ -81,10 +81,9 @@ def test_read_json_data(
             json.dump(doc, f, indent="  ")
             f.write("\n")
 
-
     for test_case, data_path in paths.items():
         if False:
-            # skip because doesn't end
+            # skip because unbounded queries are still broken...
             logger.info(f"running format {test_case} count")
             with glaredb_connection.cursor() as curr:
                 curr.execute(f"select count(*) from read_json('{data_path}');")

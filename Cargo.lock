@@ -4023,8 +4023,7 @@ dependencies = [
 [[package]]
 name = "json-stream"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c69d5648412af8d63e2c8d3410a317ad2fc708e2c54beefc3a25066ad7ec2fc9"
+source = "git+https://github.com/tychoish/json-stream?rev=bd4990fab95f789740a75a8eea98d5dac1f0160a#bd4990fab95f789740a75a8eea98d5dac1f0160a"
 dependencies = [
  "futures",
  "pin-project",

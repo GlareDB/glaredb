@@ -34,11 +34,16 @@ pub async fn json_streaming_table(
     // sort by location
     list.sort_by(|a, b| a.location.cmp(&b.location));
 
+    // TODO: we should be able to avoid schema inference entirely
+    // (currently we read the entire first stream into memory), get
+    // the total schema of those documents and then add any subsequent
+    // objects as lazily streamed values.
     let mut data = Vec::new();
     {
         let first_obj = list
             .pop()
             .ok_or_else(|| JsonError::NotFound(path.into_owned()))?;
+
         let blob = store
             .get(&first_obj.location)
             .await?
@@ -48,7 +53,7 @@ pub async fn json_streaming_table(
 
         push_unwind_json_values(
             &mut data,
-            serde_json::from_slice::<serde_json::Value>(&blob),
+            serde_json::Deserializer::from_slice(&blob).into_iter(),
         )?;
     }
 
@@ -88,32 +93,34 @@ pub async fn json_streaming_table(
 }
 
 
-pub(crate) fn push_unwind_json_values(
+fn push_unwind_json_values(
     data: &mut Vec<Map<String, Value>>,
-    val: Result<Value, serde_json::Error>,
+    vals: impl Iterator<Item = Result<Value, serde_json::Error>>,
 ) -> Result<(), JsonError> {
-    match val? {
-        Value::Array(vals) => {
-            for v in vals {
-                match v {
-                    Value::Object(doc) => data.push(doc),
-                    Value::Null => data.push(Map::new()),
-                    _ => {
-                        return Err(JsonError::UnspportedType(
-                            "only objects and arrays of objects are supported",
-                        ))
+    for val in vals {
+        match val? {
+            Value::Array(vals) => {
+                for v in vals {
+                    match v {
+                        Value::Object(doc) => data.push(doc),
+                        Value::Null => data.push(Map::new()),
+                        _ => {
+                            return Err(JsonError::UnspportedType(
+                                "only objects and arrays of objects are supported",
+                            ))
+                        }
                     }
                 }
             }
-        }
-        Value::Object(doc) => data.push(doc),
-        Value::Null => data.push(Map::new()),
-        _ => {
-            return Err(JsonError::UnspportedType(
-                "only objects and arrays of objects are supported",
-            ))
-        }
-    };
+            Value::Object(doc) => data.push(doc),
+            Value::Null => data.push(Map::new()),
+            _ => {
+                return Err(JsonError::UnspportedType(
+                    "only objects and arrays of objects are supported",
+                ))
+            }
+        };
+    }
     Ok(())
 }
 
