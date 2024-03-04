@@ -79,10 +79,7 @@ pub async fn json_streaming_table(
 
     let mut streams = Vec::<Arc<dyn PartitionStream>>::with_capacity(list.len());
 
-    streams.push(Arc::new(WrappedPartition::new(
-        schema.clone(),
-        data.into_iter().map(Ok).collect(),
-    )));
+    streams.push(Arc::new(WrappedPartition::new(schema.clone(), data)));
 
     for obj in list {
         streams.push(Arc::new(ObjectStorePartition::new(
