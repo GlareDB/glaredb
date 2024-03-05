@@ -82,13 +82,11 @@ def test_read_json_data(
             f.write("\n")
 
     for test_case, data_path in paths.items():
-        if False:
-            # skip because unbounded queries are still broken...
-            logger.info(f"running format {test_case} count")
-            with glaredb_connection.cursor() as curr:
-                curr.execute(f"select count(*) from read_json('{data_path}');")
-                r = curr.fetchone()
-                assert r[0] == 100
+        logger.info(f"running format {test_case} count")
+        with glaredb_connection.cursor() as curr:
+            curr.execute(f"select count(*) from read_json('{data_path}');")
+            r = curr.fetchone()
+            assert r[0] == 100
 
         logger.info(f"running format {test_case} query")
         with glaredb_connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as curr:
