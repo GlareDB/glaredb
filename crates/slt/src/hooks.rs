@@ -284,3 +284,19 @@ impl Hook for SqliteTestsHook {
         Ok(true)
     }
 }
+
+pub struct IcebergFormatVersionHook(pub usize);
+
+#[async_trait]
+impl Hook for IcebergFormatVersionHook {
+    async fn pre(
+        &self,
+        _config: &Config,
+        _client: TestClient,
+        vars: &mut HashMap<String, String>,
+    ) -> Result<bool> {
+        let Self(v) = self;
+        vars.insert("ICEBERG_FORMAT_VERSION".to_string(), v.to_string());
+        Ok(true)
+    }
+}

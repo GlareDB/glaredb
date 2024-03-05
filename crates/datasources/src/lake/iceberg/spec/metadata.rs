@@ -40,6 +40,7 @@ pub struct TableMetadata {
 pub struct Snapshot {
     pub snapshot_id: i64,
     pub timestamp_ms: i64,
+    #[serde(default)]
     pub summary: HashMap<String, String>,
     pub manifest_list: String,
     pub schema_id: i32,
