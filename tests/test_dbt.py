@@ -121,7 +121,10 @@ def test_dbt_join_csv_with_table(
         curr.execute("SELECT * FROM public.dbt_test")
         a = curr.fetchall()
 
-    with tests.tools.env("DBT_USER", glaredb_connection.info.user):
+    with (
+        tests.tools.env("GLAREDB_PORT", str(glaredb_connection.info.port)),
+        tests.tools.env("DBT_USER", glaredb_connection.info.user),
+    ):
         res: dbtRunnerResult = dbtRunner().invoke(
             [
                 "run",
