@@ -7,7 +7,9 @@ use crate::{
     expr::PhysicalScalarExpression,
     functions::table::Pushdown,
     physical::plans::{
-        filter::PhysicalFilter, nested_loop_join::PhysicalNestedLoopJoin, values::PhysicalValues,
+        filter::PhysicalFilter, hash_join::PhysicalPartitionedHashJoin,
+        hash_repartition::PhysicalHashRepartition, nested_loop_join::PhysicalNestedLoopJoin,
+        values::PhysicalValues,
     },
     planner::operator::{self, LogicalOperator},
     types::batch::DataBatch,
@@ -110,6 +112,7 @@ impl PipelineBuilder {
             LogicalOperator::ExpressionList(values) => self.plan_values(values),
             LogicalOperator::CrossJoin(join) => self.plan_cross_join(join),
             LogicalOperator::AnyJoin(join) => self.plan_any_join(join),
+            LogicalOperator::EqualityJoin(join) => self.plan_equality_join(join),
             LogicalOperator::Empty => self.plan_empty(),
             other => unimplemented!("other: {other:?}"),
         }
@@ -131,6 +134,74 @@ impl PipelineBuilder {
         };
 
         self.plan_nested_loop_join(*join.left, *join.right, Some(filter))
+    }
+
+    fn plan_equality_join(&mut self, join: operator::EqualityJoin) -> Result<()> {
+        if self.source.is_some() {
+            return Err(RayexecError::new("Expected source to be None"));
+        }
+
+        // TODO: Partitions.
+        let mut hash_join = PhysicalPartitionedHashJoin::try_new(
+            join.left_on.clone(),
+            join.right_on.clone(),
+            1,
+            join.join_type,
+        )?;
+        let build_sink = hash_join.take_build_sink().expect("build sink to exist");
+        let probe_sink = hash_join.take_probe_sink().expect("probe sink to exist");
+
+        // Build left side of join with the build sink as the destination.
+        let mut left_completed = {
+            // Left side goes into hash repartition.
+            let mut repartition = PhysicalHashRepartition::new(1, 1, join.left_on);
+            let repartition_sink = repartition.take_sink().expect("repartition sink to exist");
+
+            let mut builder = PipelineBuilder::new(Box::new(repartition_sink));
+            builder.walk_plan(*join.left)?;
+            builder.create_complete_chain()?;
+            let mut chains = builder.completed_chains;
+
+            // Add an additional operator chain for repartition -> build input.
+            chains.push(OperatorChain::try_new(
+                Box::new(repartition),
+                Box::new(build_sink),
+                Vec::new(),
+            )?);
+
+            chains
+        };
+
+        // Build right side of join with the probe sink as the destination.
+        let mut right_completed = {
+            // Right side goes into hash repartition.
+            //
+            // TODO: Measure performance of this. We might not want to
+            // repartition based on hash (but will still need to hash).
+            let mut repartition = PhysicalHashRepartition::new(1, 1, join.right_on);
+            let repartition_sink = repartition.take_sink().expect("repartition sink to exist");
+
+            let mut builder = PipelineBuilder::new(Box::new(repartition_sink));
+            builder.walk_plan(*join.right)?;
+            builder.create_complete_chain()?;
+            let mut chains = builder.completed_chains;
+
+            // Add an additional operator chain for repartition -> build input.
+            chains.push(OperatorChain::try_new(
+                Box::new(repartition),
+                Box::new(probe_sink),
+                Vec::new(),
+            )?);
+
+            chains
+        };
+
+        // Append operator chains from the left and right children. Note that
+        // order doesn't matter with the chains.
+        self.completed_chains.append(&mut left_completed);
+        self.completed_chains.append(&mut right_completed);
+
+        Ok(())
     }
 
     fn plan_cross_join(&mut self, join: operator::CrossJoin) -> Result<()> {

@@ -8,23 +8,17 @@ use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
 #[derive(Debug)]
 pub struct PhysicalHashRepartition {
     /// States for the output partitions.
     // TODO: Probably just replace these with channels.
-    output_states: Vec<Mutex<OutputPartitionState>>,
+    output_states: Arc<Vec<Mutex<OutputPartitionState>>>,
 
-    /// Number of input partition.
-    input_partitions: usize,
-
-    /// Number of input partitions that are still sending input.
-    remaining_inputs: AtomicUsize,
-
-    /// Column indexes to hash.
-    columns: Vec<usize>,
-    // TODO: Approx buffered atomic for back pressure. Maybe
+    /// Sink that's expected to be taken during pipeline build.
+    sink: Option<PhysicalHashRepartitionSink>,
 }
 
 #[derive(Debug)]
@@ -41,7 +35,7 @@ struct OutputPartitionState {
 
 impl PhysicalHashRepartition {
     pub fn new(input_partitions: usize, output_partitions: usize, columns: Vec<usize>) -> Self {
-        let output_states = (0..output_partitions)
+        let output_states: Vec<_> = (0..output_partitions)
             .map(|_| {
                 Mutex::new(OutputPartitionState {
                     finished: false,
@@ -50,13 +44,23 @@ impl PhysicalHashRepartition {
                 })
             })
             .collect();
+        let output_states = Arc::new(output_states);
+
+        let sink = PhysicalHashRepartitionSink {
+            output_states: output_states.clone(),
+            input_partitions,
+            remaining_inputs: input_partitions.into(),
+            columns,
+        };
 
         PhysicalHashRepartition {
             output_states,
-            input_partitions,
-            remaining_inputs: AtomicUsize::new(input_partitions),
-            columns,
+            sink: Some(sink),
         }
+    }
+
+    pub fn take_sink(&mut self) -> Option<PhysicalHashRepartitionSink> {
+        self.sink.take()
     }
 }
 
@@ -81,7 +85,29 @@ impl Source for PhysicalHashRepartition {
     }
 }
 
-impl Sink for PhysicalHashRepartition {
+impl Explainable for PhysicalHashRepartition {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("PhysicalHashRepartition")
+    }
+}
+
+// TODO: Approx buffered atomic for back pressure. Maybe
+#[derive(Debug)]
+pub struct PhysicalHashRepartitionSink {
+    /// States for the output partitions.
+    output_states: Arc<Vec<Mutex<OutputPartitionState>>>,
+
+    /// Number of input partition.
+    input_partitions: usize,
+
+    /// Number of input partitions that are still sending input.
+    remaining_inputs: AtomicUsize,
+
+    /// Column indexes to hash.
+    columns: Vec<usize>,
+}
+
+impl Sink for PhysicalHashRepartitionSink {
     fn input_partitions(&self) -> usize {
         self.input_partitions
     }
@@ -101,7 +127,7 @@ impl Sink for PhysicalHashRepartition {
             .collect();
         build_hashes(&arrs, &mut hashes)?;
 
-        let partitions = self.output_partitions();
+        let partitions = self.output_states.len();
 
         // Per-partition row indexes.
         let mut row_indexes: Vec<Vec<usize>> = (0..partitions)
@@ -160,8 +186,8 @@ impl Sink for PhysicalHashRepartition {
     }
 }
 
-impl Explainable for PhysicalHashRepartition {
+impl Explainable for PhysicalHashRepartitionSink {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("PhysicalHashRepartition")
+        ExplainEntry::new("PhysicalHashRepartitionSink")
     }
 }

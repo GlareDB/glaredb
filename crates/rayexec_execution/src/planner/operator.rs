@@ -19,6 +19,7 @@ pub enum LogicalOperator {
     Aggregate(Aggregate),
     Order(Order),
     AnyJoin(AnyJoin),
+    EqualityJoin(EqualityJoin),
     CrossJoin(CrossJoin),
     Limit(Limit),
     Scan(Scan),
@@ -48,6 +49,7 @@ impl LogicalOperator {
             Self::Aggregate(_agg) => unimplemented!(),
             Self::Order(order) => order.input.schema(outer)?,
             Self::AnyJoin(_join) => unimplemented!(),
+            Self::EqualityJoin(_join) => unimplemented!(),
             Self::CrossJoin(_cross) => unimplemented!(),
             Self::Limit(limit) => limit.input.schema(outer)?,
             Self::Scan(scan) => scan.schema.clone(),
@@ -143,10 +145,9 @@ pub struct EqualityJoin {
     pub left: Box<LogicalOperator>,
     pub right: Box<LogicalOperator>,
     pub join_type: JoinType,
-    /// (left, right) column index pairs.
-    ///
-    /// Each index should be relative to its input batch.
-    pub on: Vec<(usize, usize)>,
+    pub left_on: Vec<usize>,
+    pub right_on: Vec<usize>,
+    // TODO: Filter
 }
 
 #[derive(Debug)]
