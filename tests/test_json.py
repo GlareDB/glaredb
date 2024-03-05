@@ -6,7 +6,7 @@ import psycopg2
 import psycopg2.extras
 import pytest
 
-from tests.fixtures.glaredb import glaredb_connection, debug_path
+from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
 
 
 @pytest.fixture

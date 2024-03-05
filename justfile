@@ -128,7 +128,7 @@ venv:
 pytest *args:
   {{VENV_BIN}}/poetry -C tests install --no-root
   {{VENV_BIN}}/poetry -C tests lock --no-update
-  {{VENV_BIN}}/poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
+  {{VENV_BIN}}/poetry -C tests run pytest -n auto -v --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
 
 # private helpers below
 # ---------------------
