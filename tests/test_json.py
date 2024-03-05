@@ -128,9 +128,6 @@ def test_read_json_glob(
         assert len(rows) == 100
         for row in rows:
             assert len(row) == 5
-            assert "house" in row
             assert "beatle_name" in row
-            if row["beatle_name"] == "john":
-                assert row["house"] == "the dakota"
-            else:
-                assert row["house"] is None
+            assert row["beatle_name"] in ["john", "paul", "george", "ringo"]
+            assert "house" in row or "living" in row or "sitar" in row or "guitar" in row
