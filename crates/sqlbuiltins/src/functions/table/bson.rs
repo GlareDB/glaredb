@@ -6,9 +6,8 @@ use datafusion::datasource::TableProvider;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::bson::table::bson_streaming_table;
-use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
-use datasources::object_store::generic::GenericStoreAccess;
-use ioutil::resolve_path;
+use datasources::common::url::DatasourceUrlType;
+use datasources::lake::storage_options_into_store_access;
 use protogen::metastore::types::catalog::RuntimePreference;
 
 use crate::functions::table::object_store::urls_from_args;
@@ -65,16 +64,9 @@ impl TableFunc for BsonScan {
 
         let (source_url, storage_options) = table_location_and_opts(ctx, args, &mut opts)?;
 
-        let url = match source_url {
-            DatasourceUrl::File(path) => DatasourceUrl::File(resolve_path(&path)?),
-            DatasourceUrl::Url(_) => source_url,
-        };
+        let store_access = storage_options_into_store_access(&source_url, &storage_options)
+            .map_err(ExtensionError::access)?;
 
-        let store_access = GenericStoreAccess::new_from_location_and_opts(
-            url.to_string().as_str(),
-            storage_options,
-        )?;
-
-        Ok(bson_streaming_table(Arc::new(store_access), Some(sample_size), url).await?)
+        Ok(bson_streaming_table(store_access, Some(sample_size), source_url).await?)
     }
 }

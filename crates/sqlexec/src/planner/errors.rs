@@ -82,6 +82,9 @@ pub enum PlanError {
     DatasourceCommon(#[from] datasources::common::errors::DatasourceCommonError),
 
     #[error(transparent)]
+    LakeStorageOptions(#[from] datasources::lake::LakeStorageOptionsError),
+
+    #[error(transparent)]
     SshKey(#[from] datasources::common::ssh::key::SshKeyError),
 
     #[error(transparent)]
