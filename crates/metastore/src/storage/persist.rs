@@ -316,8 +316,14 @@ mod tests {
         let db_id = Uuid::new_v4();
         storage.initialize(db_id).await.unwrap();
 
-        // Sneakily get lease for catalog.
-        let lease = storage.leaser.acquire(db_id).await.unwrap();
+        // Sneakily get lease for catalog from a different process.
+        let process_id = Uuid::new_v4();
+        let different = Storage {
+            process_id,
+            store: storage.store.clone(), // Use the same store (in memory).
+            leaser: RemoteLeaser::new(process_id, storage.store.clone()),
+        };
+        let lease = different.leaser.acquire(db_id).await.unwrap();
 
         // Reads should work.
         let mut catalog = storage.read_catalog(db_id).await.unwrap();
