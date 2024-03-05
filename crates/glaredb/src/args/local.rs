@@ -96,6 +96,23 @@ pub struct LocalClientOpts {
     /// Note: Keep in sync with py-glaredb connect
     #[arg(long, default_value = "https://console.glaredb.com", hide = true)]
     pub cloud_addr: String,
+
+    /// Path to a certificate that identifies this client.
+    ///
+    /// (Internal) - volatile, might be removed or drastically modified.
+    ///
+    /// This option is meaningless if either `--disable_tls`or
+    /// `--ignore_rpc_auth` is set.
+    ///
+    /// TODO/REVIEW: We're probably going to want to store certs in data-dir,
+    ///              or some well-known path on disk (like AppData). We want a
+    ///              place to store them (if available) even if `--cloud-url`
+    ///              is passed (unlike --data-dir). It probably makes sense to
+    ///              keep an env var or arg around to enable workarounds and
+    ///              debugging, but otherwise the ideal flow is having this be
+    ///              managed by glaredb at a known persistence (non-temp). Must
+    ///              be mindful/aware of where we persist these for rotation.
+    pub identity_path: String,
 }
 
 impl LocalClientOpts {
