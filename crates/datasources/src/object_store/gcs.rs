@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
 use datafusion::execution::object_store::ObjectStoreUrl;
-use object_store::gcp::GoogleCloudStorageBuilder;
+use object_store::gcp::{GoogleCloudStorageBuilder, GoogleConfigKey};
 use object_store::path::Path as ObjectStorePath;
 use object_store::ObjectStore;
 
@@ -15,6 +16,8 @@ pub struct GcsStoreAccess {
     pub bucket: String,
     /// Service account key (JSON) for credentials.
     pub service_account_key: Option<String>,
+    /// Other options for GCS.
+    pub opts: HashMap<GoogleConfigKey, String>,
 }
 
 impl Display for GcsStoreAccess {
@@ -31,15 +34,17 @@ impl ObjStoreAccess for GcsStoreAccess {
     }
 
     fn create_store(&self) -> Result<Arc<dyn ObjectStore>> {
-        let builder = GoogleCloudStorageBuilder::new().with_bucket_name(&self.bucket);
-        let builder = match &self.service_account_key {
-            Some(key) => builder.with_service_account_key(key),
-            None => {
-                // TODO: Null Credentials
-                builder
-            }
-        };
-        let build = builder.build()?;
+        let mut builder = GoogleCloudStorageBuilder::new();
+
+        for (key, val) in self.opts.iter() {
+            builder = builder.with_config(*key, val);
+        }
+
+        if let Some(service_account_key) = &self.service_account_key {
+            builder = builder.with_service_account_key(service_account_key);
+        }
+
+        let build = builder.with_bucket_name(&self.bucket).build()?;
         Ok(Arc::new(build))
     }
 

@@ -20,11 +20,12 @@ use datasources::excel::table::ExcelTableProvider;
 use datasources::excel::ExcelTable;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
+use datasources::lake::{storage_options_into_object_store, storage_options_into_store_access};
 use datasources::lance::LanceTable;
 use datasources::mongodb::{MongoDbAccessor, MongoDbTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
+use datasources::object_store::azure::AzureStoreAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
-use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
@@ -304,12 +305,8 @@ impl<'a> ExternalDispatcher<'a> {
                 ..
             }) => {
                 let source_url = DatasourceUrl::try_new(location)?;
-                let store_access = GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.to_owned(),
-                )?;
+                let store_access = storage_options_into_store_access(&source_url, storage_options)?;
                 let sheet_name: Option<&str> = sheet_name.as_deref();
-
 
                 let table =
                     ExcelTable::open(store_access, source_url, sheet_name, *has_header).await?;
@@ -440,6 +437,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let access = Arc::new(GcsStoreAccess {
                     service_account_key: service_account_key.clone(),
                     bucket: bucket.clone(),
+                    opts: HashMap::new(),
                 });
                 self.create_obj_store_table_provider(
                     access,
@@ -459,10 +457,11 @@ impl<'a> ExternalDispatcher<'a> {
                 compression,
             }) => {
                 let access = Arc::new(S3StoreAccess {
-                    region: region.clone(),
                     bucket: bucket.clone(),
+                    region: Some(region.clone()),
                     access_key_id: access_key_id.clone(),
                     secret_access_key: secret_access_key.clone(),
+                    opts: HashMap::new(),
                 });
                 self.create_obj_store_table_provider(
                     access,
@@ -491,10 +490,9 @@ impl<'a> ExternalDispatcher<'a> {
                     }
                 };
 
-                let access = Arc::new(GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.clone(),
-                )?);
+                let uri = DatasourceUrl::try_new(location)?;
+                let access = Arc::new(AzureStoreAccess::try_from_uri(&uri, storage_options)?);
+
                 self.create_obj_store_table_provider(
                     access,
                     DatasourceUrl::try_new(location)?.path(), // TODO: Workaround again
@@ -518,11 +516,7 @@ impl<'a> ExternalDispatcher<'a> {
                 ..
             }) => {
                 let url = DatasourceUrl::try_new(location)?;
-                let store = GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.clone(),
-                )?
-                .create_store()?;
+                let store = storage_options_into_object_store(&url, storage_options)?;
                 let table = IcebergTable::open(url, store).await?;
                 let reader = table.table_reader().await?;
                 Ok(reader)
@@ -565,17 +559,12 @@ impl<'a> ExternalDispatcher<'a> {
                 schema_sample_size,
                 ..
             }) => {
-                let store_access = GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.to_owned(),
-                )?;
                 let source_url = DatasourceUrl::try_new(location)?;
-                Ok(bson_streaming_table(
-                    Arc::new(store_access),
-                    schema_sample_size.to_owned(),
-                    source_url,
+                let store_access = storage_options_into_store_access(&source_url, storage_options)?;
+                Ok(
+                    bson_streaming_table(store_access, schema_sample_size.to_owned(), source_url)
+                        .await?,
                 )
-                .await?)
             }
             TableOptions::Cassandra(TableOptionsCassandra {
                 host,
