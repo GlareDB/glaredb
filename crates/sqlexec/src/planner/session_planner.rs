@@ -1758,7 +1758,7 @@ impl<'a> SessionPlanner<'a> {
 
         let mut m = stmt.options;
 
-        let dest = normalize_ident(stmt.dest);
+        let destination = normalize_ident(stmt.dest);
 
         // We currently support two versions of COPY TO:
         //
@@ -1770,56 +1770,43 @@ impl<'a> SessionPlanner<'a> {
         // is what lets us differentiate between those, and if `url` is `None`,
         // we'll resolve the actual object destination from the OPTIONS down
         // below.
-        let (dest, uri, location) = if matches!(
-            dest.as_str(),
+        let (destination, uri, location) = if matches!(
+            destination.as_str(),
             CopyToDestinationOptions::LOCAL
                 | CopyToDestinationOptions::GCS
                 | CopyToDestinationOptions::S3_STORAGE
                 | CopyToDestinationOptions::AZURE
         ) {
-            let loc: String = m.remove_required("location")?;
-            let (uri, location) = match DatasourceUrl::try_new(&loc) {
-                Ok(uri) => {
-                    let loc = uri.path().into_owned();
-                    let uri = match (uri.datasource_url_type(), dest.as_str()) {
-                        // Ensure the URI we got as "location" and expected destination matches.
-                        (DatasourceUrlType::File, CopyToDestinationOptions::LOCAL)
-                        | (DatasourceUrlType::Gcs, CopyToDestinationOptions::GCS)
-                        | (DatasourceUrlType::S3, CopyToDestinationOptions::S3_STORAGE)
-                        | (DatasourceUrlType::Azure, CopyToDestinationOptions::AZURE) => Some(uri),
-                        _ => {
-                            // Don't throw error here. This location might still
-                            // be useful later on. Simply discard it as a valid
-                            // URL for now.
-                            None
-                        }
-                    };
-                    (uri, loc)
+            let location: String = m.remove_required("location")?;
+            let (uri, location) = match DatasourceUrl::try_new(&location) {
+                Ok(uri @ DatasourceUrl::Url(_)) => {
+                    let location = uri.path().into_owned();
+                    (Some(uri), location)
                 }
-                Err(_) => (None, loc),
+                _ => (None, location),
             };
-            (dest.as_str(), uri, location)
+            (destination.as_str(), uri, location)
         } else {
-            let u = DatasourceUrl::try_new(&dest)?;
-            let d = match u.datasource_url_type() {
+            let uri = DatasourceUrl::try_new(&destination)?;
+            let destination = match uri.datasource_url_type() {
                 DatasourceUrlType::File => CopyToDestinationOptions::LOCAL,
                 DatasourceUrlType::Gcs => CopyToDestinationOptions::GCS,
                 DatasourceUrlType::S3 => CopyToDestinationOptions::S3_STORAGE,
                 DatasourceUrlType::Azure => CopyToDestinationOptions::AZURE,
                 DatasourceUrlType::Http => return Err(internal!("invalid URL scheme")),
             };
-            let l = u.path().into_owned();
-            (d, Some(u), l)
+            let location = uri.path().into_owned();
+            (destination, Some(uri), location)
         };
 
         let creds = stmt.credentials.map(normalize_ident);
         let creds_options = self.get_credentials_opts(&creds)?;
         if let Some(creds_options) = &creds_options {
-            validate_copyto_dest_creds_support(dest, creds_options.as_str()).map_err(|e| {
-                PlanError::InvalidCopyToStatement {
+            validate_copyto_dest_creds_support(destination, creds_options.as_str()).map_err(
+                |e| PlanError::InvalidCopyToStatement {
                     source: Box::new(e),
-                }
-            })?;
+                },
+            )?;
         }
 
         fn get_bucket(
@@ -1837,7 +1824,7 @@ impl<'a> SessionPlanner<'a> {
             Ok(bucket)
         }
 
-        let dest = match dest {
+        let dest = match destination {
             CopyToDestinationOptions::LOCAL => {
                 CopyToDestinationOptions::Local(CopyToDestinationOptionsLocal { location })
             }
@@ -2056,7 +2043,7 @@ fn get_obj_store_bucket_and_location(
 ) -> Result<(String, String)> {
     let location: String = m.remove_required("location")?;
     Ok(match DatasourceUrl::try_new(&location) {
-        Ok(u) => {
+        Ok(u @ DatasourceUrl::Url(_)) => {
             if u.datasource_url_type() != ty {
                 return Err(PlanError::String(format!(
                     "expected {} URL, found {}",
@@ -2070,7 +2057,7 @@ fn get_obj_store_bucket_and_location(
             let path = u.path();
             (bucket.to_owned(), path.into_owned())
         }
-        Err(_) => {
+        _ => {
             let bucket = m.remove_required(bucket_key)?;
             (bucket, location)
         }
