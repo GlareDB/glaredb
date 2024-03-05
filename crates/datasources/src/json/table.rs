@@ -11,11 +11,10 @@ use serde_json::{Map, Value};
 use crate::common::url::DatasourceUrl;
 use crate::json::errors::JsonError;
 use crate::json::stream::{ObjectStorePartition, WrappedPartition};
-use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::ObjStoreAccess;
 
 pub async fn json_streaming_table(
-    store_access: GenericStoreAccess,
+    store_access: Arc<dyn ObjStoreAccess>,
     source_url: DatasourceUrl,
 ) -> Result<Arc<dyn TableProvider>, JsonError> {
     let path = source_url.path();
