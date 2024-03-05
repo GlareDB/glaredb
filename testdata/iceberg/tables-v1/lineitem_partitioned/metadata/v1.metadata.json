@@ -1,0 +1,238 @@
+{
+  "format-version" : 1,
+  "table-uuid" : "2bf24deb-27f5-4462-8d98-24b9c9ba2612",
+  "location" : "./iceberg/tables-v1/lineitem_partitioned",
+  "last-updated-ms" : 1709292381626,
+  "last-column-id" : 16,
+  "schema" : {
+    "type" : "struct",
+    "schema-id" : 0,
+    "fields" : [ {
+      "id" : 1,
+      "name" : "l_orderkey",
+      "required" : false,
+      "type" : "long"
+    }, {
+      "id" : 2,
+      "name" : "l_partkey",
+      "required" : false,
+      "type" : "long"
+    }, {
+      "id" : 3,
+      "name" : "l_suppkey",
+      "required" : false,
+      "type" : "long"
+    }, {
+      "id" : 4,
+      "name" : "l_linenumber",
+      "required" : false,
+      "type" : "int"
+    }, {
+      "id" : 5,
+      "name" : "l_quantity",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 6,
+      "name" : "l_extendedprice",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 7,
+      "name" : "l_discount",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 8,
+      "name" : "l_tax",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 9,
+      "name" : "l_returnflag",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 10,
+      "name" : "l_linestatus",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 11,
+      "name" : "l_shipdate",
+      "required" : false,
+      "type" : "date"
+    }, {
+      "id" : 12,
+      "name" : "l_commitdate",
+      "required" : false,
+      "type" : "date"
+    }, {
+      "id" : 13,
+      "name" : "l_receiptdate",
+      "required" : false,
+      "type" : "date"
+    }, {
+      "id" : 14,
+      "name" : "l_shipinstruct",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 15,
+      "name" : "l_shipmode",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 16,
+      "name" : "l_comment",
+      "required" : false,
+      "type" : "string"
+    } ]
+  },
+  "current-schema-id" : 0,
+  "schemas" : [ {
+    "type" : "struct",
+    "schema-id" : 0,
+    "fields" : [ {
+      "id" : 1,
+      "name" : "l_orderkey",
+      "required" : false,
+      "type" : "long"
+    }, {
+      "id" : 2,
+      "name" : "l_partkey",
+      "required" : false,
+      "type" : "long"
+    }, {
+      "id" : 3,
+      "name" : "l_suppkey",
+      "required" : false,
+      "type" : "long"
+    }, {
+      "id" : 4,
+      "name" : "l_linenumber",
+      "required" : false,
+      "type" : "int"
+    }, {
+      "id" : 5,
+      "name" : "l_quantity",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 6,
+      "name" : "l_extendedprice",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 7,
+      "name" : "l_discount",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 8,
+      "name" : "l_tax",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 9,
+      "name" : "l_returnflag",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 10,
+      "name" : "l_linestatus",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 11,
+      "name" : "l_shipdate",
+      "required" : false,
+      "type" : "date"
+    }, {
+      "id" : 12,
+      "name" : "l_commitdate",
+      "required" : false,
+      "type" : "date"
+    }, {
+      "id" : 13,
+      "name" : "l_receiptdate",
+      "required" : false,
+      "type" : "date"
+    }, {
+      "id" : 14,
+      "name" : "l_shipinstruct",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 15,
+      "name" : "l_shipmode",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 16,
+      "name" : "l_comment",
+      "required" : false,
+      "type" : "string"
+    } ]
+  } ],
+  "partition-spec" : [ {
+    "name" : "l_shipmode",
+    "transform" : "identity",
+    "source-id" : 15,
+    "field-id" : 1000
+  } ],
+  "default-spec-id" : 0,
+  "partition-specs" : [ {
+    "spec-id" : 0,
+    "fields" : [ {
+      "name" : "l_shipmode",
+      "transform" : "identity",
+      "source-id" : 15,
+      "field-id" : 1000
+    } ]
+  } ],
+  "last-partition-id" : 1000,
+  "default-sort-order-id" : 0,
+  "sort-orders" : [ {
+    "order-id" : 0,
+    "fields" : [ ]
+  } ],
+  "properties" : {
+    "owner" : "vrongmeal",
+    "write.update.mode" : "merge-on-read",
+    "write.parquet.compression-codec" : "zstd"
+  },
+  "current-snapshot-id" : 7556422720324607284,
+  "refs" : {
+    "main" : {
+      "snapshot-id" : 7556422720324607284,
+      "type" : "branch"
+    }
+  },
+  "snapshots" : [ {
+    "snapshot-id" : 7556422720324607284,
+    "timestamp-ms" : 1709292381626,
+    "summary" : {
+      "operation" : "append",
+      "spark.app.id" : "local-1709292376740",
+      "added-data-files" : "7",
+      "added-records" : "1000",
+      "added-files-size" : "70657",
+      "changed-partition-count" : "7",
+      "total-records" : "1000",
+      "total-files-size" : "70657",
+      "total-data-files" : "7",
+      "total-delete-files" : "0",
+      "total-position-deletes" : "0",
+      "total-equality-deletes" : "0"
+    },
+    "manifest-list" : "iceberg/tables-v1/lineitem_partitioned/metadata/snap-7556422720324607284-1-157b2954-35a0-4a5d-946e-76723d3f153c.avro",
+    "schema-id" : 0
+  } ],
+  "statistics" : [ ],
+  "snapshot-log" : [ {
+    "timestamp-ms" : 1709292381626,
+    "snapshot-id" : 7556422720324607284
+  } ],
+  "metadata-log" : [ ]
+}
