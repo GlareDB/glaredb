@@ -1781,7 +1781,20 @@ impl<'a> SessionPlanner<'a> {
             let (uri, location) = match DatasourceUrl::try_new(&loc) {
                 Ok(uri) => {
                     let loc = uri.path().into_owned();
-                    (Some(uri), loc)
+                    let uri = match (uri.datasource_url_type(), dest.as_str()) {
+                        // Ensure the URI we got as "location" and expected destination matches.
+                        (DatasourceUrlType::File, CopyToDestinationOptions::LOCAL)
+                        | (DatasourceUrlType::Gcs, CopyToDestinationOptions::GCS)
+                        | (DatasourceUrlType::S3, CopyToDestinationOptions::S3_STORAGE)
+                        | (DatasourceUrlType::Azure, CopyToDestinationOptions::AZURE) => Some(uri),
+                        _ => {
+                            // Don't throw error here. This location might still
+                            // be useful later on. Simply discard it as a valid
+                            // URL for now.
+                            None
+                        }
+                    };
+                    (uri, loc)
                 }
                 Err(_) => (None, loc),
             };
@@ -1817,7 +1830,7 @@ impl<'a> SessionPlanner<'a> {
             let bucket = match uri.as_ref() {
                 Some(u) => u
                     .host()
-                    .ok_or(internal!("missing bucket name in URL"))?
+                    .ok_or(internal!("missing {bucket_key} name in URL"))?
                     .to_string(),
                 None => m.remove_required(bucket_key)?,
             };
