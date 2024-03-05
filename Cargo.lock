@@ -3494,6 +3494,7 @@ dependencies = [
  "datafusion_ext",
  "futures",
  "glob",
+ "home",
  "ioutil",
  "logutil",
  "lzma-sys",

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::env;
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -12,13 +11,14 @@ use datafusion::arrow::csv::writer::WriterBuilder as CsvWriterBuilder;
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::json::writer::{
     JsonFormat,
-    LineDelimited as JsonLineDelimted,
+    LineDelimited as JsonLineDelimited,
     Writer as JsonWriter,
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_ext::vars::SessionVars;
 use futures::StreamExt;
+use ioutil;
 use pgrepr::format::Format;
 use pgrepr::notice::NoticeSeverity;
 use reedline::{FileBackedHistory, Reedline, Signal};
@@ -135,16 +135,18 @@ impl LocalSession {
 
         println!("Type {} for help.", "\\help".bold().italic());
 
-        let history = Box::new(
-            FileBackedHistory::with_file(10000, get_history_path())
-                .expect("Error configuring history with file"),
-        );
-
         let mut line_editor = Reedline::create()
-            .with_history(history)
             .with_hinter(Box::new(SQLHinter::new()))
             .with_highlighter(Box::new(SQLHighlighter))
             .with_validator(Box::new(SQLValidator));
+
+        if let Some(history) = get_history_path() {
+            let history = Box::new(
+                FileBackedHistory::with_file(10000, history)
+                    .expect("Error configuring history with file"),
+            );
+            line_editor = line_editor.with_history(history);
+        }
 
         let prompt = SQLPrompt {};
 
@@ -339,8 +341,8 @@ async fn print_stream(
 
     match mode {
         OutputMode::Table => {
-            // If width not explicitly set by the user, try to get the width of ther
-            // terminal.
+            // If width not explicitly set by the user, try to get the width of
+            // the terminal.
             let width = max_width.unwrap_or(terminal_util::term_width());
             let disp = pretty::pretty_format_batches(&schema, &batches, Some(width), max_rows)?;
             println!("{disp}");
@@ -354,7 +356,7 @@ async fn print_stream(
             }
         }
         OutputMode::Json => write_json::<JsonArrayNewLines>(&batches)?,
-        OutputMode::Ndjson => write_json::<JsonLineDelimted>(&batches)?,
+        OutputMode::Ndjson => write_json::<JsonLineDelimited>(&batches)?,
     }
     print_time_elapsed(maybe_now);
 
@@ -399,19 +401,11 @@ impl JsonFormat for JsonArrayNewLines {
     }
 }
 
-fn get_home_dir() -> PathBuf {
-    match env::var("HOME") {
-        Ok(path) => PathBuf::from(path),
-        Err(_) => match env::var("USERPROFILE") {
-            Ok(path) => PathBuf::from(path),
-            Err(_) => panic!("Failed to get home directory"),
-        },
-    }
-}
 
-fn get_history_path() -> PathBuf {
-    let mut home_dir = get_home_dir();
-    home_dir.push(".glaredb");
-    home_dir.push("history.txt");
-    home_dir
+fn get_history_path() -> Option<PathBuf> {
+    if let Some(mut dir) = ioutil::app_data_dir() {
+        dir.push("history.txt");
+        return Some(dir);
+    }
+    None
 }
