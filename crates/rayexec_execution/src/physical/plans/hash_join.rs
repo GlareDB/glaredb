@@ -15,12 +15,42 @@ use std::task::{Context, Poll, Waker};
 
 use super::{Sink, Source};
 
-/// Hash join for for joining two tables on column equalities.
+/// Hash join for for joining two tables on column equalities with pre-hashed
+/// batches partitioned on the hash.
+///
+/// This requires that the incomding batches for both the build and probe sinks
+/// are partitioned by `partition_for_hash`. This allows partitions-local hash
+/// tables to be built without needing to consult the hash table for other
+/// partitions for a batch.
+///
+/// When the left side hash table has been built for each partition, each
+/// partition-local state transitions into a "global" state containing a
+/// reference to _all_ hash tables across all batches. This simply takes the
+/// hash table from each partition and appends it to a vector. We do not have to
+/// rebuild the hash or make alterations to any of the left batches when this is
+/// done, making the operation (hypothetically) very fast.
+///
+/// During the probe phase, we take advantage of the hash-based partitioning to
+/// quickly index to the correct hash table for that partition, and build the
+/// joined batches by just referencing a single hash table during the probe.
+//
 // TODO: Probably need to add a filter since we'll need to be able to handle
 // arbitrary join conditions and left/right/anti joins will need to know which
 // rows have been visited based on the join condition.
+//
+// TODO: Check assumptions around performance of hash-repartitioning on the
+// probe side. It may make sense to just doe round robin, and handle the batch
+// containing matches from multiple partitions in this operator. Each partition
+// already has a reference to all hash tables, so the change would be minimally
+// invasive (but non-trivial since the logic in probe will get more complex).
+//
+// TODO: Understand potential benefits of guaranteeing output partitioning. For
+// example if we're joining on a column, then follow up with an aggregate
+// grouped by that column, we could just reuse the hashes and existing knowledge
+// of what batch is in a partition.
+//
 #[derive(Debug)]
-pub struct PhysicalHashJoin {
+pub struct PhysicalPartitionedHashJoin {
     /// Columns on the left side to join on.
     left_on: Vec<usize>,
 
@@ -34,14 +64,14 @@ pub struct PhysicalHashJoin {
 
     /// The configured build sink. Expected to be taken during pipeline
     /// building.
-    build_sink: Option<PhysicalHashJoinBuildSink>,
+    build_sink: Option<PhysicalPartitionedHashJoinBuildSink>,
 
     /// The configured probe sink. Expected to be taken during pipeline
     /// building.
-    probe_sink: Option<PhysicalHashJoinProbeSink>,
+    probe_sink: Option<PhysicalPartitionedHashJoinProbeSink>,
 }
 
-impl PhysicalHashJoin {
+impl PhysicalPartitionedHashJoin {
     pub fn try_new(
         left_on: Vec<usize>,
         right_on: Vec<usize>,
@@ -54,7 +84,7 @@ impl PhysicalHashJoin {
             ));
         }
 
-        let states: Vec<_> = (0..)
+        let states: Vec<_> = (0..partitions)
             .map(|_| {
                 Mutex::new(LocalState {
                     build_finished: false,
@@ -73,18 +103,18 @@ impl PhysicalHashJoin {
             .collect();
 
         let states = Arc::new(states);
-        let build_sink = PhysicalHashJoinBuildSink {
+        let build_sink = PhysicalPartitionedHashJoinBuildSink {
             states: states.clone(),
             remaining: partitions.into(),
             hash_cols: left_on.clone(),
         };
-        let probe_sink = PhysicalHashJoinProbeSink {
+        let probe_sink = PhysicalPartitionedHashJoinProbeSink {
             states: states.clone(),
             hash_cols: right_on.clone(),
             join_type,
         };
 
-        Ok(PhysicalHashJoin {
+        Ok(PhysicalPartitionedHashJoin {
             left_on,
             right_on,
             join_type,
@@ -94,16 +124,16 @@ impl PhysicalHashJoin {
         })
     }
 
-    pub fn take_build_sink(&mut self) -> Option<PhysicalHashJoinBuildSink> {
+    pub fn take_build_sink(&mut self) -> Option<PhysicalPartitionedHashJoinBuildSink> {
         self.build_sink.take()
     }
 
-    pub fn take_probe_sink(&mut self) -> Option<PhysicalHashJoinProbeSink> {
+    pub fn take_probe_sink(&mut self) -> Option<PhysicalPartitionedHashJoinProbeSink> {
         self.probe_sink.take()
     }
 }
 
-impl Source for PhysicalHashJoin {
+impl Source for PhysicalPartitionedHashJoin {
     fn output_partitions(&self) -> usize {
         self.states.len()
     }
@@ -128,9 +158,9 @@ impl Source for PhysicalHashJoin {
     }
 }
 
-impl Explainable for PhysicalHashJoin {
+impl Explainable for PhysicalPartitionedHashJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("PhysicalHashJoin")
+        ExplainEntry::new("PhysicalPartitionedHashJoin")
     }
 }
 
@@ -273,7 +303,7 @@ struct LocalState {
 
 /// Batch sink for the left side of the join.
 #[derive(Debug)]
-pub struct PhysicalHashJoinBuildSink {
+pub struct PhysicalPartitionedHashJoinBuildSink {
     /// Partition-local states.
     states: Arc<Vec<Mutex<LocalState>>>,
 
@@ -284,7 +314,7 @@ pub struct PhysicalHashJoinBuildSink {
     hash_cols: Vec<usize>,
 }
 
-impl Sink for PhysicalHashJoinBuildSink {
+impl Sink for PhysicalPartitionedHashJoinBuildSink {
     fn input_partitions(&self) -> usize {
         self.states.len()
     }
@@ -344,14 +374,14 @@ impl Sink for PhysicalHashJoinBuildSink {
     }
 }
 
-impl Explainable for PhysicalHashJoinBuildSink {
+impl Explainable for PhysicalPartitionedHashJoinBuildSink {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("PhsysicalHashJoinBuildSink")
+        ExplainEntry::new("PhysicalPartitionedHashJoinBuildSink")
     }
 }
 
 #[derive(Debug)]
-pub struct PhysicalHashJoinProbeSink {
+pub struct PhysicalPartitionedHashJoinProbeSink {
     /// Partition-local states.
     states: Arc<Vec<Mutex<LocalState>>>,
 
@@ -361,7 +391,7 @@ pub struct PhysicalHashJoinProbeSink {
     join_type: JoinType,
 }
 
-impl Sink for PhysicalHashJoinProbeSink {
+impl Sink for PhysicalPartitionedHashJoinProbeSink {
     fn input_partitions(&self) -> usize {
         self.states.len()
     }
@@ -416,9 +446,9 @@ impl Sink for PhysicalHashJoinProbeSink {
     }
 }
 
-impl Explainable for PhysicalHashJoinProbeSink {
+impl Explainable for PhysicalPartitionedHashJoinProbeSink {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("PhsysicalHashJoinProbeSink")
+        ExplainEntry::new("PhysicalPartitionedHashJoinProbeSink")
     }
 }
 

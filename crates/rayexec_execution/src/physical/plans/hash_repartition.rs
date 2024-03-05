@@ -1,5 +1,5 @@
 use super::{Sink, Source};
-use crate::physical::plans::util::hash::build_hashes;
+use crate::physical::plans::util::hash::{build_hashes, partition_for_hash};
 use crate::physical::plans::util::take::take_indexes;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{ColumnHash, DataBatch};
@@ -86,7 +86,7 @@ impl Sink for PhysicalHashRepartition {
         self.input_partitions
     }
 
-    fn poll_ready(&self, cx: &mut Context, _partition: usize) -> Poll<()> {
+    fn poll_ready(&self, _cx: &mut Context, _partition: usize) -> Poll<()> {
         // TODO: Idk
         Poll::Ready(())
     }
@@ -109,7 +109,7 @@ impl Sink for PhysicalHashRepartition {
             .collect();
 
         for (row_idx, hash) in hashes.iter().enumerate() {
-            row_indexes[*hash as usize % partitions].push(row_idx);
+            row_indexes[partition_for_hash(*hash, partitions)].push(row_idx);
         }
 
         for (partition_idx, partition_rows) in row_indexes.into_iter().enumerate() {
