@@ -7,7 +7,7 @@ from dbt.cli.main import dbtRunner, dbtRunnerResult
 import pytest
 
 import tests.tools
-from tests.fixtures.glaredb import glaredb_connection, debug_path
+from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
 
 
 @pytest.fixture
@@ -37,20 +37,21 @@ def test_dbt_glaredb(
         curr.execute("SELECT * FROM public.dbt_test")
         a = curr.fetchall()
 
-    with tests.tools.env("DBT_USER", glaredb_connection.info.user):
-        res: dbtRunnerResult = dbtRunner().invoke(
-            [
-                "run",
-                "--project-dir",
-                dbt_project_path,
-                "--profiles-dir",
-                dbt_project_path,
-                "-m",
-                model_name,
-            ]
-        )
+    with tests.tools.env("GLAREDB_PORT", str(glaredb_connection.info.port)):
+        with tests.tools.env("DBT_USER", glaredb_connection.info.user):
+            res: dbtRunnerResult = dbtRunner().invoke(
+                [
+                    "run",
+                    "--project-dir",
+                    dbt_project_path,
+                    "--profiles-dir",
+                    dbt_project_path,
+                    "-m",
+                    model_name,
+                ]
+            )
 
-        assert res.success is run_success
+            assert res.success is run_success
 
     with glaredb_connection.cursor() as curr:
         curr.execute(f"select count(*) from {model_name}")
@@ -80,20 +81,21 @@ def test_dbt_glaredb_external_postgres(
             """
         )
 
-    with tests.tools.env("DBT_USER", glaredb_connection.info.user):
-        res: dbtRunnerResult = dbtRunner().invoke(
-            [
-                "run",
-                "--project-dir",
-                dbt_project_path,
-                "--profiles-dir",
-                dbt_project_path,
-                "-m",
-                model_name,
-            ]
-        )
+    with tests.tools.env("GLAREDB_PORT", str(glaredb_connection.info.port)):
+        with tests.tools.env("DBT_USER", glaredb_connection.info.user):
+            res: dbtRunnerResult = dbtRunner().invoke(
+                [
+                    "run",
+                    "--project-dir",
+                    dbt_project_path,
+                    "--profiles-dir",
+                    dbt_project_path,
+                    "-m",
+                    model_name,
+                ]
+            )
 
-        assert res.success is True
+            assert res.success is True
 
     with glaredb_connection.cursor() as curr:
         curr.execute(f"select count(*) from {model_name}")
