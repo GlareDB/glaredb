@@ -58,6 +58,7 @@ use protogen::metastore::types::options::{
     CopyToDestinationOptionsLocal,
     CopyToDestinationOptionsS3,
     CopyToFormatOptions,
+    CopyToFormatOptionsBson,
     CopyToFormatOptionsCsv,
     CopyToFormatOptionsJson,
     CopyToFormatOptionsLance,
@@ -905,18 +906,25 @@ impl<'a> SessionPlanner<'a> {
                 if let Some(creds) = creds_options {
                     storage_options_with_credentials(&mut storage_options, creds);
                 }
-                let sheet_name = Some(
-                    storage_options
-                        .inner
-                        .get("sheet_name")
-                        .map(|val| val.to_owned())
-                        .unwrap_or(String::from("Sheet1")),
-                );
+                let sheet_name = storage_options
+                    .inner
+                    .get("sheet_name")
+                    .map(|val| val.to_owned());
+
                 let has_header = storage_options
                     .inner
                     .get("has_header")
                     .map(|val| val.parse::<bool>().unwrap_or(true))
-                    .unwrap();
+                    .unwrap_or_default();
+
+                if let DatasourceUrl::File(p) = DatasourceUrl::try_new(&location)? {
+                    if !p.exists() {
+                        return Err(PlanError::String(
+                            "invalid local file path specified".to_string(),
+                        ));
+                    }
+                };
+
                 TableOptions::Excel(TableOptionsExcel {
                     location,
                     storage_options,
@@ -1940,7 +1948,9 @@ impl<'a> SessionPlanner<'a> {
                 let array = m.remove_optional::<bool>("array")?.unwrap_or(false);
                 CopyToFormatOptions::Json(CopyToFormatOptionsJson { array })
             }
-            Some(CopyToFormatOptions::BSON) => CopyToFormatOptions::Bson {},
+            Some(CopyToFormatOptions::BSON) => {
+                CopyToFormatOptions::Bson(CopyToFormatOptionsBson {})
+            }
             Some(CopyToFormatOptions::LANCE) => {
                 CopyToFormatOptions::Lance(CopyToFormatOptionsLance {
                     max_rows_per_file: m.remove_optional("max_rows_per_file")?,

@@ -1,0 +1,4 @@
+query T
+show is_cloud_instance;
+----
+false

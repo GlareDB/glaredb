@@ -148,16 +148,7 @@ impl TableState {
     }
 
     fn table_arrow_schema(&self) -> Result<ArrowSchema> {
-        // v1: Read `schema`
-        //
-        // v2: Read `current-schema-id`, then find that correct schema in
-        // `schemas`.
-
-        if self.metadata.format_version != 2 {
-            return Err(IcebergError::UnsupportedFormatVersion(
-                self.metadata.format_version,
-            ));
-        }
+        // TODO: v1: Read `schema` (deprecated format).
 
         let schema = self
             .metadata

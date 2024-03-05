@@ -38,8 +38,9 @@ message Mutation {
     CreateCredentials create_credentials = 15;
     DropCredentials drop_credentials = 16;
     UpdateDeploymentStorage update_deployment_storage = 17;
+    CreateFunction create_function = 18;
   }
-  // next: 17
+  // next: 19
 }
 
 message DropDatabase {
@@ -78,6 +79,13 @@ message CreateTable {
   options.TableOptionsInternal options = 3;
   bool if_not_exists = 4;
   bool or_replace = 5;
+}
+
+message CreateFunction {
+  string name = 1;
+  repeated string aliases = 2;
+  catalog.Signature signature = 3;
+  catalog.FunctionType type = 4;
 }
 
 message CreateExternalTable {

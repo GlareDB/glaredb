@@ -6,12 +6,31 @@ build-backend = "maturin"
 name = "glaredb"
 description = "GlareDB is a fast SQL database for querying and analyzing distributed data."
 readme = "README.md"
+version = "0.0.0"
 requires-python = ">=3.7"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
+
+
+[project.optional-dependencies]
+great-expectations = [
+  "great_expectations",
+  "great_expectations[postgresql]",
+]
+pandas = [
+  "pandas",
+  "pandasai",
+]
+polars = [
+  "polars",
+]
+pyarrow = [
+  "pyarrow",
+]
+
 
 [project.urls]
 Homepage = "https://glaredb.com"

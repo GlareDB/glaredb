@@ -15,8 +15,15 @@ Then just call the script with python:
 $ python generate_iceberg.py
 ```
 
-This will generate various iceberg tables in `./iceberg/tables` using source
+This will generate various iceberg tables in `./iceberg/tables-v2` using source
 data from parquet files in `./iceberg/source_data`.
+
+The script accepts an argument `--format-version` which defaults to `2`. You can
+generate data for format version `1` using:
+
+```
+$ python generate_iceberg.py --format-version 1
+```
 
 Test data has also been uploaded to GCS and S3 with the following commands:
 

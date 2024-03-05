@@ -1,7 +1,13 @@
 version: 2
 
 sources:
-  - name: public
+  - name: basic
+    schema: public
     database: default
     tables: 
       - name: dbt_test
+  - name: my_pg
+    schema: public
+    database: my_pg
+    tables:
+      - name: borough_lookup

@@ -221,7 +221,7 @@ fn get_sink_for_obj(
                 array: json_opts.array,
             },
         )),
-        CopyToFormatOptions::Bson => Box::new(BsonSink::from_obj_store(store, path)),
+        CopyToFormatOptions::Bson(_) => Box::new(BsonSink::from_obj_store(store, path)),
     };
     Ok(sink)
 }

@@ -77,6 +77,7 @@ slt-bin-debug *args:
 # Run SQL Logic Tests over RPC
 rpc-tests:
   just slt --protocol=rpc "sqllogictests/*" \
+    --exclude "sqllogictests/cloud_instance" \
     --exclude "sqllogictests/functions/cache_external_database_tables" \
     --exclude "sqllogictests/functions/kdl" \
     --exclude "sqllogictests/functions/postgres"
@@ -117,16 +118,15 @@ protoc:
     rm protoc.zip
   fi
 
-
 # Installs python dependencies for testing
 venv:
-  python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
-  python3 -m virtualenv .venv --quiet
+  if python3 -c "import virtualenv"; then python3 -m virtualenv {{VENV}}; else python3 -m venv {{VENV}}; fi
+  {{VENV_BIN}}/python -m pip install --upgrade pip
   {{VENV_BIN}}/python -m pip install poetry
-  {{VENV_BIN}}/poetry -C tests install
 
 # Runs pytest in the tests directory.
 pytest *args:
+  {{VENV_BIN}}/poetry -C tests install --no-root
   {{VENV_BIN}}/poetry -C tests lock --no-update
   {{VENV_BIN}}/poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
 

@@ -628,6 +628,7 @@ impl TableFunc for CloudUpload {
             return Err(ExtensionError::InvalidNumArgs);
         }
 
+        // The function should only run in remote contexts, through PG or RPC.
         if !ctx.get_session_vars().is_cloud_instance() {
             return Err(ExtensionError::String(
                 format!(

@@ -70,7 +70,7 @@ jobs:
         uses: dtolnay/rust-toolchain@1.75.0
         with:
           targets: ${{ matrix.target }}
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - name: Build
@@ -164,7 +164,7 @@ jobs:
         target: [x86_64]
     steps:
       - uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - name: install protoc
@@ -205,7 +205,7 @@ jobs:
         target: [x64]
     steps:
       - uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - name: install protoc
@@ -250,7 +250,7 @@ jobs:
             runner: macos-13-xlarge
     steps:
       - uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - run: just protoc
@@ -364,7 +364,7 @@ jobs:
       PROTOC: "${{ github.workspace }}/deps/protoc/bin/protoc"
     steps:
       - uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
       - run: just protoc
@@ -455,7 +455,7 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
       - run: just protoc
       - name: Setup node
         uses: actions/setup-node@v4
