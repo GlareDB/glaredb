@@ -1,4 +1,4 @@
-# Tests `read_json` (compatibility with ndjson)
+# Tests `read_json` (mostly compatibility with ndjson; otherwise pytested)
 
 # Absolute path
 query I
@@ -11,3 +11,9 @@ query I
 select count(*) from read_json('./testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson')
 ----
 102
+
+# multi-line/pretty-printed json
+query I
+select count(*) from read_json('./testdata/sqllogictests_datasources_common/data/bikeshare_stations_lite.json')
+----
+9
