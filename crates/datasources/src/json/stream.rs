@@ -187,16 +187,15 @@ impl JsonStreamHandler {
         store: Arc<dyn ObjectStore>,
         obj: ObjectMeta,
     ) -> Result<JsonObjectStream> {
-        let inner = store
-            .get(&obj.location)
-            .await?
-            .into_stream()
-            .map(|v| v.map(|b| b.to_vec()))
-            .map_err(JsonError::from);
-
-        Ok(JsonStream::<Value, _>::new(Box::pin(inner))
-            .flat_map(Self::unwind_json_value)
-            .boxed())
+        Ok(JsonStream::<Value, _>::new(Box::pin(
+            store
+                .get(&obj.location)
+                .await?
+                .into_stream()
+                .map_err(JsonError::from),
+        ))
+        .flat_map(Self::unwind_json_value)
+        .boxed())
     }
 
     fn unwind_json_value(input: Result<Value>) -> JsonObjectStream {
@@ -212,6 +211,7 @@ impl JsonStreamHandler {
                                 "only objects and arrays of objects are supported",
                             ))),
                         }
+                        break;
                     }
                     out
                 }
