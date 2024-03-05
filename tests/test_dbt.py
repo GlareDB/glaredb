@@ -7,7 +7,7 @@ from dbt.cli.main import dbtRunner, dbtRunnerResult
 import pytest
 
 import tests.tools
-from tests.fixtures.glaredb import glaredb_connection, debug_path
+from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
 
 
 @pytest.fixture
@@ -37,7 +37,10 @@ def test_dbt_glaredb(
         curr.execute("SELECT * FROM public.dbt_test")
         a = curr.fetchall()
 
-    with tests.tools.env("DBT_USER", glaredb_connection.info.user):
+    with (
+        tests.tools.env("GLAREDB_PORT", str(glaredb_connection.info.port)),
+        tests.tools.env("DBT_USER", glaredb_connection.info.user),
+    ):
         res: dbtRunnerResult = dbtRunner().invoke(
             [
                 "run",
@@ -80,7 +83,10 @@ def test_dbt_glaredb_external_postgres(
             """
         )
 
-    with tests.tools.env("DBT_USER", glaredb_connection.info.user):
+    with (
+        tests.tools.env("GLAREDB_PORT", str(glaredb_connection.info.port)),
+        tests.tools.env("DBT_USER", glaredb_connection.info.user),
+    ):
         res: dbtRunnerResult = dbtRunner().invoke(
             [
                 "run",
