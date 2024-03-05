@@ -12,7 +12,6 @@ use datafusion::datasource::MemTable;
 use object_store::ObjectStore;
 
 use crate::common::url::DatasourceUrl;
-use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::ObjStoreAccess;
 
 pub mod errors;
@@ -28,7 +27,7 @@ pub struct ExcelTable {
 
 impl ExcelTable {
     pub async fn open(
-        store_access: GenericStoreAccess,
+        store_access: Arc<dyn ObjStoreAccess>,
         source_url: DatasourceUrl,
         sheet_name: Option<&str>,
         has_header: bool,

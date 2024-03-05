@@ -149,6 +149,24 @@ SELECT * FROM parquet_scan([
 3
 4
 
+# Check glob for non-df file formats (bson or json).
+
+statement ok
+COPY ( VALUES (1), (3) )
+	TO '${TMP}/non-df-glob-1.bson';
+
+statement ok
+COPY ( VALUES (2), (4) )
+	TO '${TMP}/non-df-glob-2.bson';
+
+query I rowsort
+SELECT * FROM '${TMP}/non-df-glob-*.bson';
+----
+1
+2
+3
+4
+
 # We don't work well with different schemas (column names).
 
 statement ok

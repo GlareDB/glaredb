@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::sync::Arc;
 
@@ -26,16 +27,17 @@ use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::options::{TableOptions, TableOptionsObjectStore};
 
+use self::azure::AzureStoreAccess;
 use crate::common::exprs_to_phys_exprs;
 use crate::common::url::DatasourceUrl;
+use crate::lake::storage_options_into_store_access;
 use crate::object_store::gcs::GcsStoreAccess;
-use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::local::LocalStoreAccess;
 use crate::object_store::s3::S3StoreAccess;
 
+pub mod azure;
 pub mod errors;
 pub mod gcs;
-pub mod generic;
 pub mod http;
 pub mod local;
 pub mod s3;
@@ -401,24 +403,29 @@ pub fn init_session_registry<'a>(
             TableOptions::Gcs(opts) => Arc::new(GcsStoreAccess {
                 bucket: opts.bucket.clone(),
                 service_account_key: opts.service_account_key.clone(),
+                opts: HashMap::new(),
             }),
             TableOptions::S3(opts) => Arc::new(S3StoreAccess {
-                region: opts.region.clone(),
                 bucket: opts.bucket.clone(),
+                region: Some(opts.region.clone()),
                 access_key_id: opts.access_key_id.clone(),
                 secret_access_key: opts.secret_access_key.clone(),
+                opts: HashMap::new(),
             }),
+            TableOptions::Azure(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            }) => {
+                let uri = DatasourceUrl::try_new(location)?;
+                Arc::new(AzureStoreAccess::try_from_uri(&uri, storage_options)?)
+            }
             TableOptions::Delta(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
             })
             | TableOptions::Iceberg(TableOptionsObjectStore {
-                location,
-                storage_options,
-                ..
-            })
-            | TableOptions::Azure(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
@@ -432,10 +439,11 @@ pub fn init_session_registry<'a>(
                 location,
                 storage_options,
                 ..
-            }) => Arc::new(GenericStoreAccess::new_from_location_and_opts(
-                location,
-                storage_options.clone(),
-            )?),
+            }) => {
+                let url = DatasourceUrl::try_new(location)?;
+                storage_options_into_store_access(&url, storage_options)
+                    .map_err(|e| ObjectStoreSourceError::String(format!("{e}")))?
+            }
             // Continue on all others. Explicitly mentioning all the left
             // over options so we don't forget adding object stores that are
             // supported in the future (like azure).

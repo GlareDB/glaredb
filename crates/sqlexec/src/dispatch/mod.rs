@@ -90,6 +90,8 @@ pub enum DispatchError {
     SqliteDatasource(#[from] datasources::sqlite::errors::SqliteError),
     #[error(transparent)]
     ExcelDatasource(#[from] datasources::excel::errors::ExcelError),
+    #[error(transparent)]
+    LakeStorageOptions(#[from] datasources::lake::LakeStorageOptionsError),
 
     #[error("{0}")]
     String(String),
