@@ -15,6 +15,7 @@ pylance = "^0.9.6"
 ruff = "0.1.14"
 dbt-core = "^1.7.7"
 dbt-postgres = "^1.7.7"
+pytest-xdist = "^3.5.0"
 
 [build-system]
 requires = ["poetry-core"]
