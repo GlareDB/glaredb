@@ -23,14 +23,13 @@ use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
 use errors::{ObjectStoreSourceError, Result};
 use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
-use object_store::azure::AzureConfigKey;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::options::{TableOptions, TableOptionsObjectStore};
 
 use self::azure::AzureStoreAccess;
 use crate::common::exprs_to_phys_exprs;
-use crate::common::url::{DatasourceUrl, DatasourceUrlType};
+use crate::common::url::DatasourceUrl;
 use crate::lake::storage_options_into_store_access;
 use crate::object_store::gcs::GcsStoreAccess;
 use crate::object_store::local::LocalStoreAccess;
@@ -419,37 +418,7 @@ pub fn init_session_registry<'a>(
                 ..
             }) => {
                 let uri = DatasourceUrl::try_new(location)?;
-                if uri.datasource_url_type() != DatasourceUrlType::Azure {
-                    return Err(ObjectStoreSourceError::String(format!(
-                        "internal: invalid URL stored for azure table: {}",
-                        uri
-                    )));
-                }
-
-                let opts = storage_options
-                    .inner
-                    .iter()
-                    .map(|(k, v)| {
-                        let k: AzureConfigKey = k.parse().map_err(|e| {
-                            ObjectStoreSourceError::String(format!("internal: {e}"))
-                        })?;
-                        Ok((k, v.to_string()))
-                    })
-                    .collect::<Result<HashMap<_, _>>>()?;
-
-                let container = uri.host().ok_or_else(|| {
-                    ObjectStoreSourceError::String(format!(
-                        "internal: invalid URL (without container name): {}",
-                        uri
-                    ))
-                })?;
-
-                Arc::new(AzureStoreAccess {
-                    container: container.to_string(),
-                    opts,
-                    account_name: None,
-                    access_key: None,
-                })
+                Arc::new(AzureStoreAccess::try_from_uri(&uri, storage_options)?)
             }
             TableOptions::Delta(TableOptionsObjectStore {
                 location,

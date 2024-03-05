@@ -6,9 +6,11 @@ use datafusion::execution::object_store::ObjectStoreUrl;
 use object_store::azure::{AzureConfigKey, MicrosoftAzureBuilder};
 use object_store::path::Path as ObjectStorePath;
 use object_store::ObjectStore;
+use protogen::metastore::types::options::StorageOptions;
 
-use super::errors::Result;
+use super::errors::{ObjectStoreSourceError, Result};
 use super::ObjStoreAccess;
+use crate::common::url::{DatasourceUrl, DatasourceUrlType};
 
 #[derive(Debug, Clone)]
 pub struct AzureStoreAccess {
@@ -20,6 +22,36 @@ pub struct AzureStoreAccess {
     pub access_key: Option<String>,
     /// Other options for Azure store.
     pub opts: HashMap<AzureConfigKey, String>,
+}
+
+impl AzureStoreAccess {
+    pub fn try_from_uri(uri: &DatasourceUrl, opts: &StorageOptions) -> Result<Self> {
+        if uri.datasource_url_type() != DatasourceUrlType::Azure {
+            return Err(ObjectStoreSourceError::String(format!(
+                "invalid URL scheme for azure table: {uri}",
+            )));
+        }
+
+        let container = uri.host().ok_or_else(|| {
+            ObjectStoreSourceError::String(format!("missing container name in URI: {uri}"))
+        })?;
+
+        let opts = opts
+            .inner
+            .iter()
+            .map(|(k, v)| {
+                let k: AzureConfigKey = k.parse()?;
+                Ok((k, v.to_string()))
+            })
+            .collect::<Result<HashMap<_, _>>>()?;
+
+        Ok(Self {
+            container: container.to_string(),
+            account_name: None,
+            access_key: None,
+            opts,
+        })
+    }
 }
 
 impl Display for AzureStoreAccess {

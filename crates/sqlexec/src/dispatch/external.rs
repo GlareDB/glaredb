@@ -14,7 +14,7 @@ use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::bson::table::bson_streaming_table;
 use datasources::cassandra::CassandraTableProvider;
 use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider, OwnedClickhouseTableRef};
-use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
+use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
@@ -35,7 +35,6 @@ use datasources::sqlserver::{
     SqlServerTableProvider,
     SqlServerTableProviderConfig,
 };
-use object_store::azure::AzureConfigKey;
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionEntry, TableEntry};
 use protogen::metastore::types::options::{
     DatabaseOptions,
@@ -469,37 +468,7 @@ impl<'a> ExternalDispatcher<'a> {
                 };
 
                 let uri = DatasourceUrl::try_new(location)?;
-                if uri.datasource_url_type() != DatasourceUrlType::Azure {
-                    return Err(DispatchError::String(format!(
-                        "internal: invalid URL stored for azure table: {}",
-                        uri
-                    )));
-                }
-
-                let opts = storage_options
-                    .inner
-                    .iter()
-                    .map(|(k, v)| {
-                        let k: AzureConfigKey = k
-                            .parse()
-                            .map_err(|e| DispatchError::String(format!("internal: {e}")))?;
-                        Ok((k, v.to_string()))
-                    })
-                    .collect::<Result<HashMap<_, _>>>()?;
-
-                let container = uri.host().ok_or_else(|| {
-                    DispatchError::String(format!(
-                        "internal: invalid URL (without container name): {}",
-                        uri
-                    ))
-                })?;
-
-                let access = Arc::new(AzureStoreAccess {
-                    container: container.to_string(),
-                    opts,
-                    account_name: None,
-                    access_key: None,
-                });
+                let access = Arc::new(AzureStoreAccess::try_from_uri(&uri, storage_options)?);
 
                 self.create_obj_store_table_provider(
                     access,
