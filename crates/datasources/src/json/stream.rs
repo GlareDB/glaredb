@@ -207,11 +207,13 @@ impl JsonStreamHandler {
                         match v {
                             Value::Object(doc) => out.push(Ok(doc)),
                             Value::Null => out.push(Ok(Map::new())),
-                            _ => out.push(Err(JsonError::UnspportedType(
-                                "only objects and arrays of objects are supported",
-                            ))),
+                            _ => {
+                                out.push(Err(JsonError::UnspportedType(
+                                    "only objects and arrays of objects are supported",
+                                )));
+                                break;
+                            }
                         }
-                        break;
                     }
                     out
                 }
