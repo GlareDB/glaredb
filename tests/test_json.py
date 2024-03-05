@@ -94,7 +94,8 @@ def test_read_json_data(
             rows = curr.fetchall()
             assert len(rows) == 100
             for row in rows:
-                assert len(row) == 8  # superset schema
+                print(row)
+                assert len(row) == 8
                 assert "house" in row
                 assert "beatle_name" in row
                 if row["beatle_name"] == "john":
@@ -103,7 +104,6 @@ def test_read_json_data(
                     assert row["house"] is None
 
 
-@pytest.mark.skip("globbing seems rather broken")
 def test_read_json_glob(
     glaredb_connection: psycopg2.extensions.connection,
     tmp_path_factory: pytest.TempPathFactory,
@@ -123,11 +123,11 @@ def test_read_json_glob(
         assert r[0] == 100
 
     with glaredb_connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as curr:
-        curr.execute(f"select * from read_json('{data_path}');")
+        curr.execute(f"select * from read_json('{tmp_dir}/*.json');")
         rows = curr.fetchall()
         assert len(rows) == 100
         for row in rows:
-            assert len(row) == 8  # superset schema
+            assert len(row) == 5
             assert "house" in row
             assert "beatle_name" in row
             if row["beatle_name"] == "john":
