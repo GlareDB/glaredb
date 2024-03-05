@@ -111,7 +111,7 @@ def test_dbt_join_csv_with_table(
     glaredb_connection: psycopg2.extensions.connection,
     dbt_project_path: pathlib.Path,
 ):
-    model_name = "read_excel_and_csv"
+    model_name = "join_csv_with_table"
 
     with glaredb_connection.cursor() as curr:
         curr.execute("create table dbt_test (amount int)")
