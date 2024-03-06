@@ -22,9 +22,13 @@ pub struct ManifestListEntry {
     ///
     /// `0`: data
     /// `1`: deletes
+    #[serde(default)]
     pub content: i32,
+    #[serde(default)]
     pub sequence_number: i64,
+    #[serde(default)]
     pub min_sequence_number: i64,
+    #[serde(default)]
     pub added_snapshot_id: i64,
     /// > Number of entries in the manifest that have status ADDED (1), when
     /// > null this is assumed to be non-zero
@@ -179,7 +183,10 @@ impl Manifest {
         })?)?;
         let partition_spec_id = get_metadata_as_i32(m, "partition-spec-id")?;
         let format_version = get_metadata_as_i32(m, "format-version")?;
-        let content = String::from_utf8_lossy(get_metadata_field(m, "content")?).parse()?;
+        let content = match get_metadata_field(m, "content") {
+            Ok(c) => String::from_utf8_lossy(c).parse()?,
+            Err(_) => ManifestContent::Data,
+        };
 
         let metadata = ManifestMetadata {
             schema,
@@ -222,6 +229,7 @@ pub struct ManifestEntry {
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataFile {
+    #[serde(default)]
     pub content: i32,
     pub file_path: String,
     pub file_format: String,

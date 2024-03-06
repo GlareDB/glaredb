@@ -18,18 +18,17 @@ use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
 use datasources::native::access::NativeTableStorage;
+use datasources::object_store::azure::AzureStoreAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
-use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess, ObjStoreTableProvider};
 use futures::TryStreamExt;
-use object_store::azure::AzureConfigKey;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
-use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
+use protogen::metastore::types::options::CredentialsOptions;
 
 use crate::functions::{BuiltinFunction, ConstBuiltinFunction, TableFunc};
 
@@ -535,6 +534,7 @@ fn create_gcs_table_provider(
     Ok(Arc::new(GcsStoreAccess {
         bucket,
         service_account_key,
+        opts: HashMap::new(),
     }))
 }
 
@@ -553,16 +553,14 @@ fn create_s3_store_access(
 
     // S3 requires a region parameter.
     const REGION_KEY: &str = "region";
-    let region = opts
-        .remove(REGION_KEY)
-        .ok_or(ExtensionError::MissingNamedArgument(REGION_KEY))?
-        .try_into()?;
+    let region: Option<String> = opts.remove(REGION_KEY).map(TryInto::try_into).transpose()?;
 
     Ok(Arc::new(S3StoreAccess {
-        region,
         bucket,
+        region,
         access_key_id,
         secret_access_key,
+        opts: HashMap::new(),
     }))
 }
 
@@ -574,15 +572,15 @@ fn create_azure_store_access(
     let account = account.ok_or(ExtensionError::MissingNamedArgument("account_name"))?;
     let access_key = access_key.ok_or(ExtensionError::MissingNamedArgument("access_key"))?;
 
-    let mut opts = StorageOptions::default();
-    opts.inner
-        .insert(AzureConfigKey::AccountName.as_ref().to_owned(), account);
-    opts.inner
-        .insert(AzureConfigKey::AccessKey.as_ref().to_owned(), access_key);
+    let container = source_url.host().ok_or_else(|| {
+        ExtensionError::String("missing container name in source URL".to_string())
+    })?;
 
-    Ok(Arc::new(GenericStoreAccess {
-        base_url: ObjectStoreUrl::try_from(source_url)?,
-        storage_options: opts,
+    Ok(Arc::new(AzureStoreAccess {
+        container: container.to_string(),
+        account_name: Some(account),
+        access_key: Some(access_key),
+        opts: HashMap::new(),
     }))
 }
 

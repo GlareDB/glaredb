@@ -23,7 +23,7 @@ decimal = { path = "../decimal" }
 deltalake = { workspace = true }
 futures = { workspace = true }
 gcp-bigquery-client = "0.18.0"
-klickhouse = { version = "0.11.0", features = ["tls"] }
+klickhouse = { version = "0.11.2", features = ["tls"] }
 protogen = { path = "../protogen" }
 datafusion_ext = { path = "../datafusion_ext" }
 mongodb = "2.8.1"
@@ -69,11 +69,11 @@ tiberius = { version = "0.12.2", default-features = false, features = [
   "rustls",
   "chrono",
 ] }
-lance = { git = "https://github.com/lancedb/lance", rev = "310d79eccf93f3c6a48c162c575918cdba13faec" }
+lance = { git = "https://github.com/GlareDB/lance", rev = "de6df70d9c5d95a4818b8799c23e3d1ad649bc1d" }
 bson = "2.9.0"
 scylla = { version = "0.12.0" }
 glob = "0.3.1"
-indexmap = "2.2.3"
+indexmap = "2.2.5"
 async-sqlite = "0.2.2"
 
 # SSH tunnels

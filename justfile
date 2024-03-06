@@ -118,18 +118,17 @@ protoc:
     rm protoc.zip
   fi
 
-
 # Installs python dependencies for testing
 venv:
-  python3 -c "import virtualenv" || python3 -m pip --quiet install virtualenv
-  python3 -m virtualenv .venv --quiet
+  if python3 -c "import virtualenv"; then python3 -m virtualenv {{VENV}}; else python3 -m venv {{VENV}}; fi
+  {{VENV_BIN}}/python -m pip install --upgrade pip
   {{VENV_BIN}}/python -m pip install poetry
-  {{VENV_BIN}}/poetry -C tests install
 
 # Runs pytest in the tests directory.
 pytest *args:
+  {{VENV_BIN}}/poetry -C tests install --no-root
   {{VENV_BIN}}/poetry -C tests lock --no-update
-  {{VENV_BIN}}/poetry -C tests run pytest --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
+  {{VENV_BIN}}/poetry -C tests run pytest -n auto -v --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
 
 # private helpers below
 # ---------------------

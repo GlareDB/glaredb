@@ -57,6 +57,8 @@ pub struct CopyToDestinationOptionsAzure {
     #[prost(string, tag = "2")]
     pub access_key: String,
     #[prost(string, tag = "3")]
+    pub container: String,
+    #[prost(string, tag = "4")]
     pub location: String,
 }
 
@@ -263,6 +265,7 @@ impl TryFrom<crate::metastore::types::options::CopyToDestinationOptions>
                         CopyToDestinationOptionsAzure {
                             account: azure.account,
                             access_key: azure.access_key,
+                            container: azure.container,
                             location: azure.location,
                         },
                     )),
@@ -316,6 +319,7 @@ impl TryFrom<CopyToDestinationOptions>
                     crate::metastore::types::options::CopyToDestinationOptionsAzure {
                         access_key: azure.access_key,
                         account: azure.account,
+                        container: azure.container,
                         location: azure.location,
                     },
                 ),

@@ -242,7 +242,7 @@ impl LeaseRenewer {
             })?;
 
             // Some other process has the lease.
-            if expires_at > now {
+            if expires_at > now && held_by != self.process_id {
                 return Err(StorageError::LeaseHeldByOtherProcess {
                     db_id: self.db_id,
                     other_process_id: held_by,
@@ -381,6 +381,8 @@ mod tests {
         proto.try_into().unwrap()
     }
 
+    // Note that the implementation for default uses non-zero uuids.
+    #[derive(Debug, Clone)]
     struct LeaseRenewerTestParams {
         now: SystemTime,
         process_id: Uuid,
@@ -510,6 +512,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn lease_renewer_reacquire_own_lease() {
+        // See second error message in https://github.com/GlareDB/cloud/issues/2746
+        //
+        // If this process has already acquired the lease, attempting to acquire
+        // it again from the same process should work. This may happen if the
+        // metastore hits an error writing to object store (rate limit), and so
+        // fails the full request without actually being able to unlock the
+        // lease. Attempting to reacquire the lease in a second request should
+        // work though, since we still have the lease.
+        let params = LeaseRenewerTestParams::default();
+
+        let start = LeaseInformation {
+            state: LeaseState::Locked,
+            generation: 1,
+            expires_at: Some(params.now + LEASE_DURATION),
+            held_by: Some(params.process_id),
+        };
+        insert_lease(params.store.as_ref(), &params.visible_path, start).await;
+
+        let renewer = params.renewer();
+
+        // Make sure we can acquire it even though it's already been "acquired"
+        // (active lease inserted).
+        renewer.acquire_lease().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn remote_lease_idempotent_initialize() {
         let store = Arc::new(object_store::memory::InMemory::new());
         let process_id = Uuid::new_v4();
@@ -540,24 +569,26 @@ mod tests {
     async fn remote_leaser_fail_acquire() {
         let store = Arc::new(object_store::memory::InMemory::new());
         let process_id = Uuid::new_v4();
-        let leaser = RemoteLeaser::new(process_id, store);
+        let leaser = RemoteLeaser::new(process_id, store.clone());
 
         let db_id = Uuid::new_v4();
         leaser.initialize(&db_id).await.unwrap();
 
         let active = leaser.acquire(db_id).await.unwrap();
 
-        // Try to acquire a second lease.
-        let result = leaser.acquire(db_id).await;
+        // Try to acquire the lease using a different leaser.
+        let different = RemoteLeaser::new(Uuid::new_v4(), store);
+        let result = different.acquire(db_id).await;
         assert!(
             matches!(result, Err(StorageError::LeaseHeldByOtherProcess { .. })),
             "result: {:?}",
             result,
         );
 
-        // Dropping previous lease should allow us to acquire a new one.
+        // Dropping previous lease should allow us to acquire a new one in the
+        // other process.
         active.drop_lease().await.unwrap();
 
-        let _ = leaser.acquire(db_id).await.unwrap();
+        let _ = different.acquire(db_id).await.unwrap();
     }
 }
