@@ -8,6 +8,7 @@ import psycopg2.extras
 
 from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
 
+
 def test_inserts(
     glaredb_connection: psycopg2.extensions.connection,
     tmp_path_factory: pytest.TempPathFactory,
@@ -27,8 +28,10 @@ def test_inserts(
     conn.close()
 
     with glaredb_connection.cursor() as curr:
-        curr.execute("create external table einsertable from sqlite "
-                     f"options (location = '{db_path}', table = 'insertable')")
+        curr.execute(
+            "create external table einsertable from sqlite "
+            f"options (location = '{db_path}', table = 'insertable')"
+        )
         curr.execute("alter table einsertable set access_mode to read_write")
         curr.execute("insert into einsertable values (1, 2, 3), (4, 5, 6);")
 
