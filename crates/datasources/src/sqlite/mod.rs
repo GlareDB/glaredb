@@ -18,7 +18,9 @@ use datafusion::execution::TaskContext;
 use datafusion::logical_expr::{BinaryExpr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
+    execute_stream,
     DisplayAs,
     DisplayFormatType,
     ExecutionPlan,
@@ -27,13 +29,15 @@ use datafusion::physical_plan::{
     Statistics,
 };
 use datafusion::prelude::Expr;
+use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
+use futures::{StreamExt, TryStreamExt};
 
 use self::errors::Result;
 use self::wrapper::SqliteAsyncClient;
-use crate::common::util;
+use crate::common::util::{self, COUNT_SCHEMA};
 
 type DataFusionResult<T> = Result<T, DataFusionError>;
 
@@ -286,6 +290,26 @@ impl TableProvider for SqliteTableProvider {
             metrics: ExecutionPlanMetricsSet::new(),
         }))
     }
+
+
+    async fn insert_into(
+        &self,
+        _state: &SessionState,
+        input: Arc<dyn ExecutionPlan>,
+        overwrite: bool,
+    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        if overwrite {
+            return Err(DataFusionError::Execution("cannot overwrite".to_string()));
+        }
+
+        Ok(Arc::new(SqliteInsertExec {
+            table: self.table.to_string(),
+            input: input,
+            state: self.state.clone(),
+            schema: self.schema.clone(),
+            metrics: ExecutionPlanMetricsSet::new(),
+        }))
+    }
 }
 
 #[derive(Debug)]
@@ -421,7 +445,6 @@ fn write_expr(expr: &Expr, schema: &Schema, buf: &mut String) -> Result<bool> {
             if should_skip_binary_expr(binary, schema)? {
                 return Ok(false);
             }
-
             if !write_expr(binary.left.as_ref(), schema, buf)? {
                 return Ok(false);
             }
@@ -458,4 +481,153 @@ fn should_skip_binary_expr(expr: &BinaryExpr, schema: &Schema) -> Result<bool> {
 
     // Skip if we're trying to do any kind of binary op with text column
     Ok(is_not_supported_dt(&expr.left, schema)? || is_not_supported_dt(&expr.right, schema)?)
+}
+
+#[derive(Debug)]
+pub struct SqliteInsertExec {
+    table: String,
+    input: Arc<dyn ExecutionPlan>,
+    state: SqliteAccessState,
+    schema: SchemaRef,
+    metrics: ExecutionPlanMetricsSet,
+}
+
+impl ExecutionPlan for SqliteInsertExec {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+
+    fn output_partitioning(&self) -> Partitioning {
+        Partitioning::UnknownPartitioning(1)
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        None
+    }
+
+    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
+        Vec::new()
+    }
+
+    fn with_new_children(
+        self: Arc<Self>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Execution(
+                "cannot replace children for SqliteInsertExec".to_string(),
+            ))
+        }
+    }
+
+    fn execute(
+        &self,
+        partition: usize,
+        ctx: Arc<TaskContext>,
+    ) -> DataFusionResult<SendableRecordBatchStream> {
+        if partition != 0 {
+            return Err(DataFusionError::Execution(format!(
+                "invalid partition: {partition}"
+            )));
+        }
+        let input = self.input.clone();
+        let table = self.table.clone();
+        let schema = self.schema.clone();
+        let client = self.state.client.clone();
+
+        let stream = futures::stream::once(async move {
+            let column_names = Arc::new(
+                schema
+                    .fields
+                    .into_iter()
+                    .map(|field| field.name().to_owned())
+                    .collect::<Vec<String>>()
+                    .join(","),
+            );
+            // TODO: this entire operation in the scope of a
+            // transaction.
+
+            // this takes each incoming record batch, creates a single
+            // insert statement and runs the insert. This means that
+            // the returned count, depending on the number of input
+            // record batches, may have multiple rows.
+            //
+            // this seems generally unlikely to occur in general use,
+            // and is potentially correct anyway. (certainly,
+            // preferable to the handling in the early-2024
+            // implementation which builds one very large message and
+            // sends it to the database in a single statement.)
+            Ok::<_, DataFusionError>(
+                execute_stream(input, ctx)?
+                    .map(move |input_batch| {
+                        let batch = input_batch?;
+
+                        if batch.num_rows() == 0 {
+                            return Err(DataFusionError::Execution(
+                                "cannot insert empty value".to_string(),
+                            ));
+                        }
+
+                        let mut stmt = String::default();
+                        write!(
+                            &mut stmt,
+                            "INSERT INTO {} ({}) VALUES ",
+                            table, column_names,
+                        )?;
+
+                        for row_idx in 0..batch.num_rows() {
+                            let mut row_values = Vec::with_capacity(batch.num_columns());
+                            for column in batch.columns() {
+                                let mut buf = String::default();
+                                util::encode_literal_to_text(
+                                    util::Datasource::Sqlite,
+                                    &mut buf,
+                                    &ScalarValue::try_from_array(column.as_ref(), row_idx)
+                                        .map_err(|e| DataFusionError::Execution(e.to_string()))?,
+                                )
+                                .map_err(|e| DataFusionError::Execution(e.to_string()))?;
+                                row_values.push(buf);
+                            }
+
+                            write!(
+                                &mut stmt,
+                                "{}({})",
+                                if row_idx == 0 { "" } else { ", " },
+                                row_values.join(",")
+                            )?;
+                        }
+                        write!(&mut stmt, ";")?;
+                        Ok(client.query(COUNT_SCHEMA.clone(), stmt))
+                    })
+                    .try_flatten(),
+            )
+        })
+        .try_flatten();
+
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            RecordBatchStreamAdapter::new(COUNT_SCHEMA.clone(), Box::pin(stream)),
+            partition,
+            &self.metrics,
+        )))
+    }
+
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
+    }
+}
+
+impl DisplayAs for SqliteInsertExec {
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "SqliteInsertExec")
+    }
 }
