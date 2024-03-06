@@ -41,3 +41,6 @@ def test_inserts(
     db.execute("select count(*) insertable;")
     rows = db.fetchall()
     assert rows[0] == 0
+
+    db.close()
+    conn.close()
