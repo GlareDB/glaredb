@@ -11,6 +11,7 @@ use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 
 use super::errors::Result;
+use super::glob_util::ResolvedPattern;
 use super::ObjStoreAccess;
 
 #[derive(Debug, Clone)]
@@ -54,10 +55,10 @@ impl ObjStoreAccess for LocalStoreAccess {
     async fn list_globbed(
         &self,
         _store: &Arc<dyn ObjectStore>,
-        pattern: &str,
+        pattern: ResolvedPattern,
     ) -> Result<Vec<ObjectMeta>> {
         let paths = glob_with(
-            pattern,
+            pattern.as_ref(),
             MatchOptions {
                 case_sensitive: true,
                 require_literal_separator: true,
@@ -75,8 +76,8 @@ impl ObjStoreAccess for LocalStoreAccess {
         }
 
         if objects.is_empty() {
-            let path = PathBuf::from(pattern);
-            let meta = self.meta_from_path(path)?;
+            let path = String::from(pattern);
+            let meta = self.meta_from_path(path.into())?;
             objects.push(meta);
         }
         Ok(objects)

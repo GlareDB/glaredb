@@ -8,31 +8,29 @@ use datafusion::physical_plan::streaming::PartitionStream;
 use object_store::ObjectStore;
 use serde_json::{Map, Value};
 
-use super::stream::ObjectStorePartition;
 use crate::common::url::DatasourceUrl;
 use crate::json::errors::JsonError;
-use crate::json::stream::VectorPartition;
-use crate::object_store::ObjStoreAccess;
+use crate::json::stream::{ObjectStorePartition, VectorPartition};
+use crate::object_store::{ObjStoreAccess, ObjStoreAccessor};
 
 pub async fn json_streaming_table(
     store_access: Arc<dyn ObjStoreAccess>,
     source_url: DatasourceUrl,
 ) -> Result<Arc<dyn TableProvider>, JsonError> {
-    let path = source_url.path();
+    let path = source_url.path().into_owned();
 
-    let store = store_access.create_store()?;
+    let accessor = ObjStoreAccessor::new(store_access)?;
 
-    // assume that the file type is a glob and see if there are
-    // more files...
-    let mut list = store_access.list_globbed(&store, path.as_ref()).await?;
-
+    let mut list = accessor.list_globbed(source_url.path()).await?;
     if list.is_empty() {
-        return Err(JsonError::NotFound(path.into_owned()));
+        return Err(JsonError::NotFound(path));
     }
 
     // for consistent results, particularly for the sample, always
     // sort by location
     list.sort_by(|a, b| a.location.cmp(&b.location));
+
+    let store = accessor.into_object_store();
 
     // TODO: we should be able to avoid schema inference entirely
     // (currently we read the entire first stream into memory), get
@@ -40,10 +38,7 @@ pub async fn json_streaming_table(
     // objects as lazily streamed values.
     let mut data = Vec::new();
     {
-        let first_obj = list
-            .pop()
-            .ok_or_else(|| JsonError::NotFound(path.into_owned()))?;
-
+        let first_obj = list.pop().ok_or_else(|| JsonError::NotFound(path))?;
         let blob = store
             .get(&first_obj.location)
             .await?
