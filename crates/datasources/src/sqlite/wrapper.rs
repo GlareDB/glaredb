@@ -30,7 +30,6 @@ impl fmt::Debug for SqliteAsyncClient {
 impl SqliteAsyncClient {
     pub async fn new(path: PathBuf) -> Result<Self> {
         let inner = async_sqlite::ClientBuilder::new()
-            .flags(OpenFlags::SQLITE_OPEN_READ_ONLY)
             .path(&path)
             .open()
             .await?;
