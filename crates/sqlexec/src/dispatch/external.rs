@@ -583,8 +583,9 @@ impl<'a> ExternalDispatcher<'a> {
                     store_access,
                     source_url,
                     columns,
-                    schema_sample_size.to_owned().await?,
-                ))
+                    schema_sample_size.to_owned(),
+                )
+                .await?)
             }
             TableOptions::Cassandra(TableOptionsCassandra {
                 host,
