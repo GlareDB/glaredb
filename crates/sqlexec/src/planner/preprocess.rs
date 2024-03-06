@@ -1,7 +1,8 @@
 //! AST visitors for preprocessing queries before planning.
 use std::ops::ControlFlow;
 
-use datafusion::sql::sqlparser::ast::{self, VisitMut, VisitorMut};
+use datafusion::sql::sqlparser::ast;
+use datafusion::sql::sqlparser::ast::{VisitMut, VisitorMut};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 
 use crate::context::local::LocalSessionContext;
@@ -11,8 +12,8 @@ pub enum PreprocessError {
     #[error("Relation '{0}' does not exist")]
     MissingRelation(String),
 
-    #[error("Casting expressions to regclass unsupported")]
-    ExprUnsupportedRegclassCast,
+    #[error("Casting expression '{0}' to regclass unsupported")]
+    ExprUnsupportedRegclassCast(Box<ast::Expr>),
 }
 
 pub fn preprocess<V>(statement: &mut ast::Statement, visitor: &mut V) -> Result<(), PreprocessError>
@@ -52,8 +53,8 @@ impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
                 expr: inner_expr,
                 data_type: ast::DataType::Regclass,
                 format: _,
-            } => {
-                if let ast::Expr::Value(ast::Value::SingleQuotedString(relation)) = &**inner_expr {
+            } => match &**inner_expr {
+                ast::Expr::Value(ast::Value::SingleQuotedString(relation)) => {
                     match find_oid(self.ctx, relation) {
                         Some(oid) => ast::Expr::Value(ast::Value::Number(oid.to_string(), false)),
                         None => {
@@ -62,11 +63,13 @@ impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
                             ))
                         }
                     }
-                } else {
-                    // We don't currently support any other casts to regclass.
-                    return ControlFlow::Break(PreprocessError::ExprUnsupportedRegclassCast);
                 }
-            }
+                _ => {
+                    return ControlFlow::Break(PreprocessError::ExprUnsupportedRegclassCast(
+                        inner_expr.to_owned(),
+                    ))
+                }
+            },
             _ => return ControlFlow::Continue(()), // Nothing to do.
         };
 
