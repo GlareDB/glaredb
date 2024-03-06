@@ -26,7 +26,6 @@ def glaredb_path() -> list[pathlib.Path]:
 def binary_path(glaredb_path: list[pathlib.Path]) -> pathlib.Path:
     return glaredb_path[0] if glaredb_path[0].exists() else glaredb_path[1]
 
-
 @pytest.fixture
 def glaredb_connection(
     binary_path: list[pathlib.Path],
