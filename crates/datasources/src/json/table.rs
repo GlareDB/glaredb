@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 
 use crate::common::url::DatasourceUrl;
 use crate::json::errors::JsonError;
-use crate::json::stream::{JsonPartitionStream, LazyJsonPartitionStream};
+use crate::json::stream::{ObjectStorePartition, VectorPartition};
 use crate::object_store::{ObjStoreAccess, ObjStoreAccessor};
 
 pub async fn json_streaming_table(
@@ -32,6 +32,10 @@ pub async fn json_streaming_table(
 
     let store = accessor.into_object_store();
 
+    // TODO: we should be able to avoid schema inference entirely
+    // (currently we read the entire first stream into memory), get
+    // the total schema of those documents and then add any subsequent
+    // objects as lazily streamed values.
     let mut data = Vec::new();
     {
         let first_obj = list.pop().ok_or_else(|| JsonError::NotFound(path))?;
@@ -44,7 +48,7 @@ pub async fn json_streaming_table(
 
         push_unwind_json_values(
             &mut data,
-            serde_json::from_slice::<serde_json::Value>(&blob),
+            serde_json::Deserializer::from_slice(&blob).into_iter(),
         )?;
     }
 
@@ -69,9 +73,11 @@ pub async fn json_streaming_table(
     ));
 
     let mut streams = Vec::<Arc<dyn PartitionStream>>::with_capacity(list.len());
-    streams.push(Arc::new(JsonPartitionStream::new(schema.clone(), data)));
+
+    streams.push(Arc::new(VectorPartition::new(schema.clone(), data)));
+
     for obj in list {
-        streams.push(Arc::new(LazyJsonPartitionStream::new(
+        streams.push(Arc::new(ObjectStorePartition::new(
             schema.clone(),
             store.clone(),
             obj,
@@ -81,32 +87,35 @@ pub async fn json_streaming_table(
     Ok(Arc::new(StreamingTable::try_new(schema.clone(), streams)?))
 }
 
-pub(crate) fn push_unwind_json_values(
+
+fn push_unwind_json_values(
     data: &mut Vec<Map<String, Value>>,
-    val: Result<Value, serde_json::Error>,
+    vals: impl Iterator<Item = Result<Value, serde_json::Error>>,
 ) -> Result<(), JsonError> {
-    match val? {
-        Value::Array(vals) => {
-            for v in vals {
-                match v {
-                    Value::Object(doc) => data.push(doc),
-                    Value::Null => data.push(Map::new()),
-                    _ => {
-                        return Err(JsonError::UnspportedType(
-                            "only objects and arrays of objects are supported",
-                        ))
+    for val in vals {
+        match val? {
+            Value::Array(vals) => {
+                for v in vals {
+                    match v {
+                        Value::Object(doc) => data.push(doc),
+                        Value::Null => data.push(Map::new()),
+                        _ => {
+                            return Err(JsonError::UnspportedType(
+                                "only objects and arrays of objects are supported",
+                            ))
+                        }
                     }
                 }
             }
-        }
-        Value::Object(doc) => data.push(doc),
-        Value::Null => data.push(Map::new()),
-        _ => {
-            return Err(JsonError::UnspportedType(
-                "only objects and arrays of objects are supported",
-            ))
-        }
-    };
+            Value::Object(doc) => data.push(doc),
+            Value::Null => data.push(Map::new()),
+            _ => {
+                return Err(JsonError::UnspportedType(
+                    "only objects and arrays of objects are supported",
+                ))
+            }
+        };
+    }
     Ok(())
 }
 

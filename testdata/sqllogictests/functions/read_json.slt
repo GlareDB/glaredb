@@ -1,52 +1,19 @@
-# Tests `read_ndjson`
+# Tests `read_json` (mostly compatibility with ndjson; otherwise pytested)
 
 # Absolute path
 query I
-select count(*) from read_ndjson('file://${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson')
-----
-102
-
-# Absolute path (compressed)
-query I
-select count(*) from read_ndjson('file://${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson.gz')
+select count(*) from read_json('file://${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson')
 ----
 102
 
 # # Relative path
 query I
-select count(*) from read_ndjson('./testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson')
+select count(*) from read_json('./testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson')
 ----
 102
 
-# Remote path
+# multi-line/pretty-printed json
 query I
-select count(*) from read_ndjson('https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson');
+select count(*) from read_json('./testdata/sqllogictests_datasources_common/data/bikeshare_stations_lite.json')
 ----
-102
-
-
-# Multiple URLs
-
-query I
-select count(*) from read_ndjson([
-  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson',
-  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/bikeshare_stations.ndjson'
-]);
-----
-204
-
-statement error Expected at least one url.
-select * from read_ndjson([]);
-
-# Glob patterns not supported on HTTP
-
-statement error Unexpected status code '404 Not Found'
-select * from read_ndjson(
-  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/*.ndjson'
-);
-
-statement error Note that globbing is not supported for HTTP.
-select * from read_ndjson(
-  'https://raw.githubusercontent.com/GlareDB/glaredb/main/testdata/sqllogictests_datasources_common/data/*.ndjson'
-);
-
+9
