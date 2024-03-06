@@ -107,6 +107,7 @@ def test_dbt_glaredb_external_postgres(
 
     assert result == 5
 
+
 def test_dbt_join_csv_with_table(
     glaredb_connection: psycopg2.extensions.connection,
     dbt_project_path: pathlib.Path,
