@@ -12,13 +12,13 @@ use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::{Column, Expr, SessionContext as DfSessionContext};
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::native::access::NativeTableStorage;
+use parser::CustomParser;
 use protogen::metastore::types::catalog::{DatabaseEntry, FunctionEntry, TableEntry, ViewEntry};
 use sqlbuiltins::functions::FunctionRegistry;
 
 use self::external::ExternalDispatcher;
 use crate::context::local::LocalSessionContext;
 use crate::dispatch::system::SystemTableDispatcher;
-use crate::parser::CustomParser;
 use crate::planner::errors::PlanError;
 use crate::planner::session_planner::SessionPlanner;
 

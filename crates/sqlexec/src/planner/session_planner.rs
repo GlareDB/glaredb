@@ -44,6 +44,27 @@ use datasources::sqlserver::SqlServerAccess;
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::azure::AzureConfigKey;
 use object_store::gcp::GoogleConfigKey;
+use parser::options::StatementOptions;
+use parser::{
+    self,
+    validate_ident,
+    validate_object_name,
+    AlterDatabaseStmt,
+    AlterTableStmtExtension,
+    AlterTunnelAction,
+    AlterTunnelStmt,
+    CopyToSource,
+    CopyToStmt,
+    CreateCredentialStmt,
+    CreateCredentialsStmt,
+    CreateExternalDatabaseStmt,
+    CreateExternalTableStmt,
+    CreateTunnelStmt,
+    DropCredentialsStmt,
+    DropDatabaseStmt,
+    DropTunnelStmt,
+    StatementWithExtensions,
+};
 use protogen::metastore::types::catalog::{
     CatalogEntry,
     DatabaseEntry,
@@ -121,27 +142,6 @@ use super::context_builder::PartialContextProvider;
 use super::extension::ExtensionNode;
 use super::physical_plan::remote_scan::ProviderReference;
 use crate::context::local::LocalSessionContext;
-use crate::parser::options::StmtOptions;
-use crate::parser::{
-    self,
-    validate_ident,
-    validate_object_name,
-    AlterDatabaseStmt,
-    AlterTableStmtExtension,
-    AlterTunnelAction,
-    AlterTunnelStmt,
-    CopyToSource,
-    CopyToStmt,
-    CreateCredentialStmt,
-    CreateCredentialsStmt,
-    CreateExternalDatabaseStmt,
-    CreateExternalTableStmt,
-    CreateTunnelStmt,
-    DropCredentialsStmt,
-    DropDatabaseStmt,
-    DropTunnelStmt,
-    StatementWithExtensions,
-};
 use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::{
     AlterDatabase,
@@ -187,7 +187,7 @@ struct PlanCredentialArgs {
     /// The credentials provider.
     provider: Ident,
     /// Credentials specific options.
-    options: StmtOptions,
+    options: StatementOptions,
     /// Optional comment (what the credentials are for).
     comment: String,
     or_replace: bool,
@@ -1810,7 +1810,7 @@ impl<'a> SessionPlanner<'a> {
         }
 
         fn get_bucket(
-            m: &mut StmtOptions,
+            m: &mut StatementOptions,
             uri: &Option<DatasourceUrl>,
             bucket_key: &str,
         ) -> Result<String> {
@@ -2037,7 +2037,7 @@ impl<'a> SessionPlanner<'a> {
 
 /// Get the object store bucket and location.
 fn get_obj_store_bucket_and_location(
-    m: &mut StmtOptions,
+    m: &mut StatementOptions,
     ty: DatasourceUrlType,
     bucket_key: &str,
 ) -> Result<(String, String)> {
@@ -2070,7 +2070,7 @@ fn get_obj_store_bucket_and_location(
 async fn validate_and_get_file_type_and_compression(
     access: Arc<dyn ObjStoreAccess>,
     path: impl AsRef<str>,
-    m: &mut StmtOptions,
+    m: &mut StatementOptions,
 ) -> Result<(String, Option<CompressionTypeVariant>)> {
     let path = path.as_ref();
     let accessor =
@@ -2291,7 +2291,7 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
         }
 }
 
-fn get_pg_conn_str(m: &mut StmtOptions) -> Result<String> {
+fn get_pg_conn_str(m: &mut StatementOptions) -> Result<String> {
     let conn = match m.remove_optional("connection_string")? {
         Some(conn_str) => PostgresDbConnection::ConnectionString(conn_str),
         None => {
@@ -2313,7 +2313,7 @@ fn get_pg_conn_str(m: &mut StmtOptions) -> Result<String> {
     Ok(conn.connection_string())
 }
 
-fn get_mysql_conn_str(m: &mut StmtOptions) -> Result<String> {
+fn get_mysql_conn_str(m: &mut StatementOptions) -> Result<String> {
     let conn = match m.remove_optional("connection_string")? {
         Some(conn_str) => MysqlDbConnection::ConnectionString(conn_str),
         None => {
@@ -2335,7 +2335,7 @@ fn get_mysql_conn_str(m: &mut StmtOptions) -> Result<String> {
     Ok(conn.connection_string())
 }
 
-fn get_mongodb_conn_str(m: &mut StmtOptions) -> Result<String> {
+fn get_mongodb_conn_str(m: &mut StatementOptions) -> Result<String> {
     let conn = match m.remove_optional("connection_string")? {
         Some(conn_str) => MongoDbConnection::ConnectionString(conn_str),
         None => {
@@ -2357,7 +2357,7 @@ fn get_mongodb_conn_str(m: &mut StmtOptions) -> Result<String> {
     Ok(conn.connection_string())
 }
 
-fn get_ssh_conn_str(m: &mut StmtOptions) -> Result<String> {
+fn get_ssh_conn_str(m: &mut StatementOptions) -> Result<String> {
     let conn = match m.remove_optional("connection_string")? {
         Some(conn_str) => SshConnection::ConnectionString(conn_str),
         None => {

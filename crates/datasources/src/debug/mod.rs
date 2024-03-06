@@ -37,6 +37,8 @@ use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use errors::DebugError;
 use futures::Stream;
+use parser::errors::ParserError;
+use parser::options::{OptionValue, ParseOptionValue};
 use protogen::metastore::types::options::TunnelOptions;
 use serde::{Deserialize, Serialize};
 
@@ -48,6 +50,22 @@ pub enum DebugTableType {
     NeverEnding,
 }
 
+impl ParseOptionValue<DebugTableType> for OptionValue {
+    fn parse_opt(self) -> Result<DebugTableType, ParserError> {
+        let opt = match self {
+            Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => s
+                .parse()
+                .map_err(|e: DebugError| ParserError::ParserError(e.to_string()))?,
+            o => {
+                return Err(ParserError::ParserError(format!(
+                    "Expected a string, got: {}",
+                    o
+                )))
+            }
+        };
+        Ok(opt)
+    }
+}
 impl fmt::Display for DebugTableType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())

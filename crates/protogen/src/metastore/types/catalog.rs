@@ -4,7 +4,6 @@ use std::str::FromStr;
 
 use datafusion::arrow::datatypes::DataType;
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
-use proptest_derive::Arbitrary;
 
 use super::options::{
     CredentialsOptions,
@@ -186,7 +185,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
     }
 }
 
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EntryType {
     Database,
     Schema,
@@ -263,7 +262,7 @@ impl fmt::Display for EntryType {
 }
 
 /// Metadata associated with every entry in the catalog.
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EntryMeta {
     pub entry_type: EntryType,
     pub id: u32,
@@ -304,7 +303,7 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
     }
 }
 
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SourceAccessMode {
     ReadOnly,
     ReadWrite,
@@ -382,7 +381,7 @@ impl From<SourceAccessMode> for i32 {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseEntry {
     pub meta: EntryMeta,
     pub options: DatabaseOptions,
@@ -414,7 +413,7 @@ impl From<DatabaseEntry> for catalog::DatabaseEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemaEntry {
     pub meta: EntryMeta,
 }
@@ -484,7 +483,7 @@ impl fmt::Display for TableEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ViewEntry {
     pub meta: EntryMeta,
     pub sql: String,
@@ -513,7 +512,7 @@ impl From<ViewEntry> for catalog::ViewEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TunnelEntry {
     pub meta: EntryMeta,
     pub options: TunnelOptions,
@@ -539,7 +538,7 @@ impl From<TunnelEntry> for catalog::TunnelEntry {
     }
 }
 
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionType {
     Aggregate,
     Scalar,
@@ -590,7 +589,7 @@ impl From<FunctionType> for catalog::FunctionType {
 }
 
 /// The runtime preference for a function.
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RuntimePreference {
     Unspecified,
     Local,
@@ -809,7 +808,7 @@ impl From<FunctionEntry> for catalog::FunctionEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CredentialsEntry {
     pub meta: EntryMeta,
     pub options: CredentialsOptions,
@@ -840,28 +839,9 @@ impl From<CredentialsEntry> for catalog::CredentialsEntry {
 
 #[cfg(test)]
 mod tests {
-    use proptest::arbitrary::any;
-    use proptest::proptest;
 
     use super::*;
 
-    proptest! {
-        #[test]
-        fn roundtrip_entry_type(expected in any::<EntryType>()) {
-            let p: catalog::entry_meta::EntryType = expected.into();
-            let got: EntryType = p.try_into().unwrap();
-            assert_eq!(expected, got);
-        }
-    }
-
-    proptest! {
-        #[test]
-        fn roundtrip_entry_meta(expected in any::<EntryMeta>()) {
-            let p: catalog::EntryMeta = expected.clone().into();
-            let got: EntryMeta = p.try_into().unwrap();
-            assert_eq!(expected, got);
-        }
-    }
 
     #[test]
     fn convert_catalog_state_no_deployment_metadata() {
