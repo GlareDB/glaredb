@@ -62,6 +62,7 @@ impl TableFunc for ReadMongoDb {
                     .into_table_accessor(MongoDbTableAccessInfo {
                         database,
                         collection,
+                        fields: None, // TODO inject projection with these fields, mostly an arg parsing problem
                     })
                     .into_table_provider()
                     .await

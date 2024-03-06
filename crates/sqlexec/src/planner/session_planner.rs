@@ -104,6 +104,7 @@ use protogen::metastore::types::options::{
     DatabaseOptionsSqlite,
     DeltaLakeCatalog,
     DeltaLakeUnityCatalog,
+    InternalColumnDefinition,
     StorageOptions,
     TableOptions,
     TableOptionsBigQuery,
@@ -336,7 +337,10 @@ impl<'a> SessionPlanner<'a> {
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
                     })?;
-                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string })
+                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb {
+                    connection_string,
+                    columns: Vec::new(),
+                })
             }
             DatabaseOptions::SNOWFLAKE => {
                 let account_name: String = m.remove_required("account")?;
@@ -483,6 +487,23 @@ impl<'a> SessionPlanner<'a> {
 
         let m = &mut stmt.options;
 
+        let columns = if let Some(columns) = stmt.columns.map(|coll_def| {
+            coll_def
+                .into_iter()
+                .map(|coll| -> Result<Arc<Field>, PlanError> {
+                    Ok(Arc::new(Field::new(
+                        coll.name.to_string(),
+                        convert_data_type(&coll.data_type)?,
+                        false,
+                    )))
+                })
+                .collect::<Result<Vec<_>, PlanError>>()
+        }) {
+            Some(columns?)
+        } else {
+            None
+        };
+
         let external_table_options = match datasource.as_str() {
             TableOptions::POSTGRES => {
                 let connection_string = get_pg_conn_str(m)?;
@@ -563,11 +584,15 @@ impl<'a> SessionPlanner<'a> {
                 let collection = m.remove_required("collection")?;
 
                 // TODO: Validate
+                let cols = columns
+                    .clone()
+                    .map(InternalColumnDefinition::from_arrow_fields);
 
                 TableOptions::MongoDb(TableOptionsMongoDb {
                     connection_string,
                     database,
                     collection,
+                    columns: cols,
                 })
             }
             TableOptions::SNOWFLAKE => {
@@ -815,6 +840,7 @@ impl<'a> SessionPlanner<'a> {
                     file_type: Some(file_type.to_string()),
                     compression: compression.map(|c| c.to_string()),
                     schema_sample_size: None,
+                    columns: Vec::new(),
                 })
             }
             TableOptions::DELTA | TableOptions::ICEBERG => {
@@ -833,6 +859,7 @@ impl<'a> SessionPlanner<'a> {
                         storage_options,
                         file_type: None,
                         compression: None,
+                        columns: Vec::new(),
                         schema_sample_size: None,
                     })
                 } else {
@@ -846,6 +873,7 @@ impl<'a> SessionPlanner<'a> {
                         file_type: None,
                         compression: None,
                         schema_sample_size: None,
+                        columns: Vec::new(),
                     })
                 }
             }
@@ -877,6 +905,7 @@ impl<'a> SessionPlanner<'a> {
                     file_type: None,
                     compression: None,
                     schema_sample_size: None,
+                    columns: Vec::new(),
                 })
             }
             TableOptions::BSON => {
@@ -892,12 +921,17 @@ impl<'a> SessionPlanner<'a> {
                         .map(|strint| strint.parse())
                         .unwrap_or(Ok(100))?,
                 );
+
                 TableOptions::Bson(TableOptionsObjectStore {
                     location,
                     storage_options,
                     file_type: None,
                     compression: None,
                     schema_sample_size,
+                    columns: columns
+                        .clone()
+                        .map(InternalColumnDefinition::from_arrow_fields)
+                        .unwrap_or(Vec::new()),
                 })
             }
             TableOptions::EXCEL => {
@@ -945,6 +979,7 @@ impl<'a> SessionPlanner<'a> {
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
             tunnel,
+            columns: columns.clone(),
         };
 
         Ok(plan.into_logical_plan())

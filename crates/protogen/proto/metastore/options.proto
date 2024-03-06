@@ -72,6 +72,7 @@ message DatabaseOptionsMysql {
 
 message DatabaseOptionsMongoDb {
   string connection_string = 1;
+  repeated InternalColumnDefinition columns = 2;
 }
 
 message DatabaseOptionsSqlServer {
@@ -203,6 +204,7 @@ message TableOptionsMongo {
   string connection_string = 1;
   string database = 2;
   string collection = 3;
+  repeated InternalColumnDefinition columns = 4;
 }
 
 message TableOptionsExcel{
@@ -240,6 +242,9 @@ message TableOptionsObjectStore {
 
   // Optional: number of records to sample for formats with inferred schema.
   optional int64 schema_sample_size = 5;
+
+  // (optional) explit schema
+  repeated InternalColumnDefinition columns = 6;
 }
 
 message TableOptionsSqlServer {

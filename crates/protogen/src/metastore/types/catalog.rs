@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::fmt::{self, Display};
 use std::str::FromStr;
+use std::sync::Arc;
 
-use datafusion::arrow::datatypes::DataType;
+use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 
 use super::options::{
@@ -440,15 +441,35 @@ pub struct TableEntry {
     pub options: TableOptions,
     pub tunnel_id: Option<u32>,
     pub access_mode: SourceAccessMode,
+    pub columns: Option<Vec<InternalColumnDefinition>>,
 }
 
 impl TableEntry {
     /// Try to get the columns for this table if available.
-    pub fn get_internal_columns(&self) -> Option<&[InternalColumnDefinition]> {
+    pub fn get_internal_columns(&self) -> Option<Vec<InternalColumnDefinition>> {
         match &self.options {
-            TableOptions::Internal(TableOptionsInternal { columns, .. }) => Some(columns),
-            _ => None,
+            TableOptions::Internal(TableOptionsInternal { columns, .. }) => {
+                Some(columns.to_owned())
+            }
+            _ => {
+                if let Some(columns) = self.columns.as_ref() {
+                    let mut out = Vec::with_capacity(columns.len());
+                    out.extend_from_slice(columns.as_slice());
+                    Some(out)
+                } else {
+                    None
+                }
+            }
         }
+    }
+    pub fn get_columns(&self) -> Option<Vec<FieldRef>> {
+        self.get_internal_columns().map(|val| {
+            val.iter()
+                .map(InternalColumnDefinition::to_owned)
+                .map(|icd| Field::new(icd.name, icd.arrow_type, icd.nullable))
+                .map(Arc::new)
+                .collect()
+        })
     }
 }
 
@@ -456,11 +477,22 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
     type Error = ProtoConvError;
     fn try_from(value: catalog::TableEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
+        let mut columns = Vec::with_capacity(value.columns.len());
+        for col in value.columns {
+            columns.push(col.try_into()?);
+        }
+        let columns = if columns.is_empty() {
+            None
+        } else {
+            Some(columns)
+        };
+
         Ok(TableEntry {
             meta,
             options: value.options.required("options".to_string())?,
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.try_into()?,
+            columns,
         })
     }
 }
@@ -468,11 +500,21 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
 impl TryFrom<TableEntry> for catalog::TableEntry {
     type Error = ProtoConvError;
     fn try_from(value: TableEntry) -> Result<Self, Self::Error> {
+        let columns = if let Some(columns) = value.columns {
+            let mut out = Vec::with_capacity(columns.len());
+            for col in columns {
+                out.push(col.try_into()?);
+            }
+            out
+        } else {
+            Vec::new()
+        };
         Ok(catalog::TableEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.try_into()?),
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.into(),
+            columns,
         })
     }
 }
