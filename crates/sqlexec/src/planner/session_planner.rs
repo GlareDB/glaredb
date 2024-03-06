@@ -44,6 +44,27 @@ use datasources::sqlserver::SqlServerAccess;
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::azure::AzureConfigKey;
 use object_store::gcp::GoogleConfigKey;
+use parser::options::StatementOptions;
+use parser::{
+    self,
+    validate_ident,
+    validate_object_name,
+    AlterDatabaseStmt,
+    AlterTableStmtExtension,
+    AlterTunnelAction,
+    AlterTunnelStmt,
+    CopyToSource,
+    CopyToStmt,
+    CreateCredentialStmt,
+    CreateCredentialsStmt,
+    CreateExternalDatabaseStmt,
+    CreateExternalTableStmt,
+    CreateTunnelStmt,
+    DropCredentialsStmt,
+    DropDatabaseStmt,
+    DropTunnelStmt,
+    StatementWithExtensions,
+};
 use protogen::metastore::types::catalog::{
     CatalogEntry,
     DatabaseEntry,
@@ -121,27 +142,6 @@ use super::context_builder::PartialContextProvider;
 use super::extension::ExtensionNode;
 use super::physical_plan::remote_scan::ProviderReference;
 use crate::context::local::LocalSessionContext;
-use crate::parser::options::StatementOptions;
-use crate::parser::{
-    self,
-    validate_ident,
-    validate_object_name,
-    AlterDatabaseStmt,
-    AlterTableStmtExtension,
-    AlterTunnelAction,
-    AlterTunnelStmt,
-    CopyToSource,
-    CopyToStmt,
-    CreateCredentialStmt,
-    CreateCredentialsStmt,
-    CreateExternalDatabaseStmt,
-    CreateExternalTableStmt,
-    CreateTunnelStmt,
-    DropCredentialsStmt,
-    DropDatabaseStmt,
-    DropTunnelStmt,
-    StatementWithExtensions,
-};
 use crate::planner::errors::{internal, PlanError, Result};
 use crate::planner::logical_plan::{
     AlterDatabase,

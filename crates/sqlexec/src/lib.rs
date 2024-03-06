@@ -5,7 +5,6 @@ pub mod environment;
 pub mod errors;
 pub mod extension_codec;
 mod optimizer;
-pub use parser;
 pub mod remote;
 pub mod session;
 
