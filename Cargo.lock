@@ -2496,6 +2496,7 @@ dependencies = [
  "once_cell",
  "openssh",
  "parking_lot",
+ "parser",
  "protogen",
  "rand",
  "regex",
@@ -5556,6 +5557,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "parser"
+version = "0.9.1"
+dependencies = [
+ "datafusion",
+ "datafusion_ext",
+ "protogen",
+ "prql-compiler",
+ "thiserror",
+]
+
+[[package]]
 name = "password-hash"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7864,6 +7876,7 @@ dependencies = [
  "object_store_util",
  "once_cell",
  "parking_lot",
+ "parser",
  "pgrepr",
  "prost",
  "protogen",
