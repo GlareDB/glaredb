@@ -19,28 +19,26 @@ def test_inserts(
     db = conn.cursor()
 
     db.execute("create table insertable (a, b, c)")
-    db.execute("select count(*) insertable")
-    assert db.fetchone()[0] == 1 # definitely does this
+    db.execute("select * from insertable")
+    assert len(db.fetchall()) == 0
 
     db.close()
     conn.commit()
     conn.close()
 
-    with glaredb_connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as curr:
+    with glaredb_connection.cursor() as curr:
         curr.execute("create external table einsertable from sqlite "
                      f"options (location = '{db_path}', table = 'insertable')")
         curr.execute("alter table einsertable set access_mode to read_write")
         curr.execute("insert into einsertable values (1, 2, 3), (4, 5, 6);")
 
-        curr.execute("select count(*) einsertable;")
-        rows = curr.fetchall()
-        assert rows[0] == 0
+        curr.execute("select * from einsertable;")
+        assert len(curr.fetchall()) == 2
 
     conn = sqlite3.connect(db_path)
     db = conn.cursor()
-    db.execute("select count(*) insertable;")
-    rows = db.fetchall()
-    assert rows[0] == 0
+    db.execute("select * from insertable;")
+    assert len(db.fetchall()) == 2
 
     db.close()
     conn.close()
