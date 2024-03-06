@@ -12,8 +12,7 @@ use datafusion::datasource::MemTable;
 use object_store::ObjectStore;
 
 use crate::common::url::DatasourceUrl;
-use crate::object_store::glob_util::get_resolved_patterns;
-use crate::object_store::ObjStoreAccess;
+use crate::object_store::{ObjStoreAccess, ObjStoreAccessor};
 
 pub mod errors;
 pub mod stream;
@@ -51,17 +50,9 @@ impl ExcelTable {
             }
 
             DatasourceUrl::Url(_) => {
-                let store = store_access.create_store()?;
+                let accessor = ObjStoreAccessor::new(store_access)?;
 
-                let path = source_url.path().into_owned();
-                let paths = get_resolved_patterns(path);
-
-                let mut list = Vec::new();
-                for path in paths {
-                    let sub_list = store_access.list_globbed(&store, path).await?;
-                    list.extend(sub_list);
-                }
-
+                let list = accessor.list_globbed(source_url.path()).await?;
                 if list.is_empty() {
                     return Err(ExcelError::Load(
                         "could not find .xlsx file at remote".to_string(),
@@ -73,7 +64,12 @@ impl ExcelTable {
                 };
 
                 let meta = list.first().expect("remote file has a sheet");
-                let bs = store.get(&meta.location).await?.bytes().await?;
+                let bs = accessor
+                    .into_object_store()
+                    .get(&meta.location)
+                    .await?
+                    .bytes()
+                    .await?;
 
                 let buffer = Cursor::new(bs);
                 let mut sheets: Sheets<_> = calamine::open_workbook_auto_from_rs(buffer).unwrap();

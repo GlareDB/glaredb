@@ -14,8 +14,7 @@ use crate::bson::errors::BsonError;
 use crate::bson::schema::{merge_schemas, schema_from_document};
 use crate::bson::stream::BsonPartitionStream;
 use crate::common::url::DatasourceUrl;
-use crate::object_store::glob_util::get_resolved_patterns;
-use crate::object_store::ObjStoreAccess;
+use crate::object_store::{ObjStoreAccess, ObjStoreAccessor};
 
 pub async fn bson_streaming_table(
     store_access: Arc<dyn ObjStoreAccess>,
@@ -26,27 +25,18 @@ pub async fn bson_streaming_table(
     // (at least n but stop after n the same) or skip documents
     let sample_size = schema_inference_sample_size.unwrap_or(100);
 
-    let path = source_url.path().into_owned();
+    let accessor = ObjStoreAccessor::new(store_access)?;
 
-    let store = store_access.create_store()?;
-
-    let paths = get_resolved_patterns(path.clone());
-
-    // assume that the file type is a glob and see if there are
-    // more files...
-    let mut list = Vec::new();
-    for path in paths {
-        let sub_list = store_access.list_globbed(&store, path).await?;
-        list.extend(sub_list);
-    }
-
+    let mut list = accessor.list_globbed(source_url.path()).await?;
     if list.is_empty() {
-        return Err(BsonError::NotFound(path));
+        return Err(BsonError::NotFound(source_url.path().into()));
     }
 
     // for consistent results, particularly for the sample, always
     // sort by location
     list.sort_by(|a, b| a.location.cmp(&b.location));
+
+    let store = accessor.into_object_store();
 
     // build a vector of streams, one for each file, that handle BSON's framing.
     let mut readers = VecDeque::with_capacity(list.len());

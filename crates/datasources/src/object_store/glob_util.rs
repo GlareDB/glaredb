@@ -36,15 +36,9 @@ fn get_range_iter(start: &str, end: &str) -> Result<Vec<String>, ReplacerFindErr
 
     fn is_char(s: &str) -> Option<char> {
         let mut chars = s.chars();
-        if let Some(c) = chars.next() {
-            if chars.next().is_none() && c.is_ascii_alphabetic() {
-                Some(c)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+        chars
+            .next()
+            .filter(|c| chars.next().is_none() && c.is_ascii_alphabetic())
     }
 
     fn parse_int(s: &str) -> Result<i64, ReplacerFindError> {

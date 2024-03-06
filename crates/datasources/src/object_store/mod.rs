@@ -194,44 +194,14 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
         Ok(store.head(location).await?)
     }
 
-    async fn create_table_provider(
+    async fn infer_schema(
         &self,
+        store: &Arc<dyn ObjectStore>,
         state: &SessionState,
-        file_format: Arc<dyn FileFormat>,
-        locations: Vec<DatasourceUrl>,
-    ) -> Result<Arc<dyn TableProvider>> {
-        let store = self.create_store()?;
-        let mut objects = Vec::new();
-        for loc in locations {
-            let mut list = Vec::new();
-            for path in get_resolved_patterns(loc.path().into_owned()) {
-                let sub_list = self
-                    .list_globbed(&store, path)
-                    .await
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
-                list.extend(sub_list);
-            }
-            if list.is_empty() {
-                let e = object_store::path::Error::InvalidPath {
-                    path: loc.to_string().into(),
-                };
-                return Err(ObjectStoreSourceError::ObjectStorePath(e));
-            }
-
-            objects.push(list);
-        }
-        let objects = objects.into_iter().flatten().collect::<Vec<_>>();
-
-        let arrow_schema = file_format.infer_schema(state, &store, &objects).await?;
-        let base_url = self.base_url()?;
-
-        Ok(Arc::new(ObjStoreTableProvider {
-            store,
-            arrow_schema,
-            base_url,
-            objects,
-            file_format,
-        }))
+        file_format: &dyn FileFormat,
+        objects: &[ObjectMeta],
+    ) -> Result<SchemaRef> {
+        Ok(file_format.infer_schema(state, store, objects).await?)
     }
 }
 
@@ -274,9 +244,11 @@ impl ObjStoreAccessor {
         objects: Vec<ObjectMeta>,
     ) -> Result<Arc<dyn TableProvider>> {
         let store = self.store;
-        let arrow_schema = file_format.infer_schema(state, &store, &objects).await?;
+        let arrow_schema = self
+            .access
+            .infer_schema(&store, state, file_format.as_ref(), &objects)
+            .await?;
         let base_url = self.access.base_url()?;
-
         Ok(Arc::new(ObjStoreTableProvider {
             store,
             arrow_schema,
@@ -284,6 +256,11 @@ impl ObjStoreAccessor {
             objects,
             file_format,
         }))
+    }
+
+    /// Take the accessor and return the underlying object store.
+    pub fn into_object_store(self) -> Arc<dyn ObjectStore> {
+        self.store
     }
 }
 
