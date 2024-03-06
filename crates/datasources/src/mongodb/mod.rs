@@ -25,6 +25,9 @@ use mongodb::bson::spec::BinarySubtype;
 use mongodb::bson::{bson, Binary, Bson, Document, RawDocumentBuf};
 use mongodb::options::{ClientOptions, FindOptions};
 use mongodb::{Client, Collection};
+use parser::errors::ParserError;
+use parser::options::{OptionValue, ParseOptionValue};
+use parser::{parser_err, unexpected_type_err};
 use tracing::debug;
 
 use crate::bson::array_to_bson;
@@ -65,6 +68,19 @@ impl FromStr for MongoDbProtocol {
         Ok(proto)
     }
 }
+
+impl ParseOptionValue<MongoDbProtocol> for OptionValue {
+    fn parse_opt(self) -> Result<MongoDbProtocol, ParserError> {
+        let opt = match self {
+            Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => {
+                s.parse().map_err(|e| parser_err!("{e}"))?
+            }
+            o => return Err(unexpected_type_err!("mongodb protocol", o)),
+        };
+        Ok(opt)
+    }
+}
+
 
 impl Display for MongoDbProtocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
