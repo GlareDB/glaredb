@@ -17,6 +17,8 @@ pub enum PlanError {
 
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
+    #[error(transparent)]
+    Parser(#[from] parser::errors::ParseError),
 
     #[error(transparent)]
     Preprocess(#[from] crate::planner::preprocess::PreprocessError),

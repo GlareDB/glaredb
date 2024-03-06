@@ -784,10 +784,10 @@ impl Session {
     }
 
     pub fn parse_query(&self, query: &str) -> Result<VecDeque<StatementWithExtensions>> {
-        match self.get_session_vars().dialect() {
-            datafusion_ext::vars::Dialect::Sql => crate::parser::parse_sql(query),
-            datafusion_ext::vars::Dialect::Prql => crate::parser::parse_prql(query),
-        }
+        Ok(match self.get_session_vars().dialect() {
+            datafusion_ext::vars::Dialect::Sql => parser::parse_sql(query)?,
+            datafusion_ext::vars::Dialect::Prql => parser::parse_prql(query)?,
+        })
     }
 
     /// Execute a SQL query.
