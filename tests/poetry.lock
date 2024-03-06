@@ -386,6 +386,20 @@ trio = ["trio (>=0.23)"]
 wmi = ["wmi (>=1.5.1)"]
 
 [[package]]
+name = "execnet"
+version = "2.0.2"
+description = "execnet: rapid multi-Python deployment"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "execnet-2.0.2-py3-none-any.whl", hash = "sha256:88256416ae766bc9e8895c76a87928c0012183da3cc4fc18016e6f050e025f41"},
+    {file = "execnet-2.0.2.tar.gz", hash = "sha256:cc59bc4423742fd71ad227122eb0dd44db51efb3dc4095b45ac9a08c770096af"},
+]
+
+[package.extras]
+testing = ["hatch", "pre-commit", "pytest", "tox"]
+
+[[package]]
 name = "idna"
 version = "3.6"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -1246,6 +1260,22 @@ test = ["pytest (>=7)"]
 zstd = ["zstandard"]
 
 [[package]]
+name = "pysqlite3-binary"
+version = "0.5.2.post3"
+description = "DB-API 2.0 interface for Sqlite 3.x"
+optional = false
+python-versions = "*"
+files = [
+    {file = "pysqlite3_binary-0.5.2.post3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9e3535276d490b60d4f1cb1bace7613afc90333f2b37ce76bffb21d09032eccb"},
+    {file = "pysqlite3_binary-0.5.2.post3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:82a2a0972ebb29736ef1536cc025f0a2795a6a74140d070630a24083422cd376"},
+    {file = "pysqlite3_binary-0.5.2.post3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4950fe4fbf6f21ce6bed5cf9bb44f04d56f9442cea9f513e67d5f627651d2737"},
+    {file = "pysqlite3_binary-0.5.2.post3-cp36-cp36m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6048cdf4473f9186e93cf58b84c6e4f191d64050e3d6a00737a7df2310eb2f5f"},
+    {file = "pysqlite3_binary-0.5.2.post3-cp37-cp37m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b5e42f0c706e69bce24bb7a2de78985ec7589a4b6e1c719668c9d42350f49ed1"},
+    {file = "pysqlite3_binary-0.5.2.post3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2fe1d8c9b1c992cff3cf54ea33f00face82343de9c6a03f8a914679550d2d379"},
+    {file = "pysqlite3_binary-0.5.2.post3-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:674bb5fe16beb289eb2560f12055548cf0e496eee93f7f4cdd84276d03b7d541"},
+]
+
+[[package]]
 name = "pytest"
 version = "7.4.4"
 description = "pytest: simple powerful testing with Python"
@@ -1264,6 +1294,26 @@ pluggy = ">=0.12,<2.0"
 
 [package.extras]
 testing = ["argcomplete", "attrs (>=19.2.0)", "hypothesis (>=3.56)", "mock", "nose", "pygments (>=2.7.2)", "requests", "setuptools", "xmlschema"]
+
+[[package]]
+name = "pytest-xdist"
+version = "3.5.0"
+description = "pytest xdist plugin for distributed testing, most importantly across multiple CPUs"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "pytest-xdist-3.5.0.tar.gz", hash = "sha256:cbb36f3d67e0c478baa57fa4edc8843887e0f6cfc42d677530a36d7472b32d8a"},
+    {file = "pytest_xdist-3.5.0-py3-none-any.whl", hash = "sha256:d075629c7e00b611df89f490a5063944bee7a4362a5ff11c7cc7824a03dfce24"},
+]
+
+[package.dependencies]
+execnet = ">=1.1"
+pytest = ">=6.2.0"
+
+[package.extras]
+psutil = ["psutil (>=3.0)"]
+setproctitle = ["setproctitle"]
+testing = ["filelock"]
 
 [[package]]
 name = "python-dateutil"
@@ -1631,4 +1681,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "5e6e8cea599dfb77f6f84ab86fd54b669b91ed8493477e6543c3f73fc8205870"
+content-hash = "71ca9eff8d0525c89ea500f3a26d4be60df8a44b7ad9e781ec9527d97d041877"

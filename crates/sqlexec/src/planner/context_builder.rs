@@ -19,7 +19,6 @@ use datafusion_ext::vars::CredentialsVarProvider;
 use protogen::metastore::types::catalog::{CatalogEntry, RuntimePreference};
 use protogen::metastore::types::options::TableOptions;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
-use sqlbuiltins::functions::FUNCTION_REGISTRY;
 
 use crate::context::local::LocalSessionContext;
 use crate::dispatch::{DispatchError, Dispatcher};
@@ -65,6 +64,7 @@ impl<'a> PartialContextProvider<'a> {
             self.ctx,
             self.ctx.df_ctx(),
             self.ctx.get_session_vars().is_cloud_instance(), // TODO: This locks, remove the locks
+            self.ctx.function_registry(),
         )
     }
 
@@ -137,8 +137,8 @@ impl<'a> PartialContextProvider<'a> {
             ResolvedEntry::Entry(CatalogEntry::Function(func)) => {
                 let args = args.unwrap_or_default();
                 let opts = opts.unwrap_or_default();
-
-                let table_func = match FUNCTION_REGISTRY.get_table_func(&func.meta.name) {
+                let function_registry = self.ctx.function_registry();
+                let table_func = match function_registry.get_table_func(&func.meta.name) {
                     Some(func) => func,
                     None => {
                         return Err(PlanError::String(format!(
@@ -299,7 +299,8 @@ impl<'a> AsyncContextProvider for PartialContextProvider<'a> {
         name: &str,
         args: &[Expr],
     ) -> DataFusionResult<Option<Expr>> {
-        FUNCTION_REGISTRY
+        self.ctx
+            .function_registry()
             .get_scalar_udf(name)
             .map(|f| f.try_as_expr(self.ctx.get_session_catalog(), args.to_vec()))
             .transpose()

@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
-use proptest_derive::Arbitrary;
 
 use super::options::{
     CredentialsOptions,
@@ -187,7 +186,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
     }
 }
 
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EntryType {
     Database,
     Schema,
@@ -264,7 +263,7 @@ impl fmt::Display for EntryType {
 }
 
 /// Metadata associated with every entry in the catalog.
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EntryMeta {
     pub entry_type: EntryType,
     pub id: u32,
@@ -305,7 +304,7 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
     }
 }
 
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SourceAccessMode {
     ReadOnly,
     ReadWrite,
@@ -383,7 +382,7 @@ impl From<SourceAccessMode> for i32 {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseEntry {
     pub meta: EntryMeta,
     pub options: DatabaseOptions,
@@ -415,7 +414,7 @@ impl From<DatabaseEntry> for catalog::DatabaseEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemaEntry {
     pub meta: EntryMeta,
 }
@@ -526,7 +525,7 @@ impl fmt::Display for TableEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ViewEntry {
     pub meta: EntryMeta,
     pub sql: String,
@@ -555,7 +554,7 @@ impl From<ViewEntry> for catalog::ViewEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TunnelEntry {
     pub meta: EntryMeta,
     pub options: TunnelOptions,
@@ -581,7 +580,7 @@ impl From<TunnelEntry> for catalog::TunnelEntry {
     }
 }
 
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionType {
     Aggregate,
     Scalar,
@@ -601,38 +600,38 @@ impl FunctionType {
 impl TryFrom<i32> for FunctionType {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        catalog::function_entry::FunctionType::try_from(value)
+        catalog::FunctionType::try_from(value)
             .map_err(|_| ProtoConvError::UnknownEnumVariant("FunctionType", value))
             .and_then(|t| t.try_into())
     }
 }
 
-impl TryFrom<catalog::function_entry::FunctionType> for FunctionType {
+impl TryFrom<catalog::FunctionType> for FunctionType {
     type Error = ProtoConvError;
-    fn try_from(value: catalog::function_entry::FunctionType) -> Result<Self, Self::Error> {
+    fn try_from(value: catalog::FunctionType) -> Result<Self, Self::Error> {
         Ok(match value {
-            catalog::function_entry::FunctionType::Unknown => {
+            catalog::FunctionType::Unknown => {
                 return Err(ProtoConvError::ZeroValueEnumVariant("FunctionType"))
             }
-            catalog::function_entry::FunctionType::Aggregate => FunctionType::Aggregate,
-            catalog::function_entry::FunctionType::Scalar => FunctionType::Scalar,
-            catalog::function_entry::FunctionType::TableReturning => FunctionType::TableReturning,
+            catalog::FunctionType::Aggregate => FunctionType::Aggregate,
+            catalog::FunctionType::Scalar => FunctionType::Scalar,
+            catalog::FunctionType::TableReturning => FunctionType::TableReturning,
         })
     }
 }
 
-impl From<FunctionType> for catalog::function_entry::FunctionType {
+impl From<FunctionType> for catalog::FunctionType {
     fn from(value: FunctionType) -> Self {
         match value {
-            FunctionType::Aggregate => catalog::function_entry::FunctionType::Aggregate,
-            FunctionType::Scalar => catalog::function_entry::FunctionType::Scalar,
-            FunctionType::TableReturning => catalog::function_entry::FunctionType::TableReturning,
+            FunctionType::Aggregate => catalog::FunctionType::Aggregate,
+            FunctionType::Scalar => catalog::FunctionType::Scalar,
+            FunctionType::TableReturning => catalog::FunctionType::TableReturning,
         }
     }
 }
 
 /// The runtime preference for a function.
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RuntimePreference {
     Unspecified,
     Local,
@@ -652,32 +651,28 @@ impl RuntimePreference {
 impl TryFrom<i32> for RuntimePreference {
     type Error = ProtoConvError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        let pref = catalog::function_entry::RuntimePreference::try_from(value)
+        let pref = catalog::RuntimePreference::try_from(value)
             .map_err(|_| ProtoConvError::UnknownEnumVariant("RuntimePreference", value))?;
         Ok(pref.into())
     }
 }
 
-impl From<catalog::function_entry::RuntimePreference> for RuntimePreference {
-    fn from(value: catalog::function_entry::RuntimePreference) -> Self {
+impl From<catalog::RuntimePreference> for RuntimePreference {
+    fn from(value: catalog::RuntimePreference) -> Self {
         match value {
-            catalog::function_entry::RuntimePreference::Unspecified => {
-                RuntimePreference::Unspecified
-            }
-            catalog::function_entry::RuntimePreference::Local => RuntimePreference::Local,
-            catalog::function_entry::RuntimePreference::Remote => RuntimePreference::Remote,
+            catalog::RuntimePreference::Unspecified => RuntimePreference::Unspecified,
+            catalog::RuntimePreference::Local => RuntimePreference::Local,
+            catalog::RuntimePreference::Remote => RuntimePreference::Remote,
         }
     }
 }
 
-impl From<RuntimePreference> for catalog::function_entry::RuntimePreference {
+impl From<RuntimePreference> for catalog::RuntimePreference {
     fn from(value: RuntimePreference) -> Self {
         match value {
-            RuntimePreference::Unspecified => {
-                catalog::function_entry::RuntimePreference::Unspecified
-            }
-            RuntimePreference::Local => catalog::function_entry::RuntimePreference::Local,
-            RuntimePreference::Remote => catalog::function_entry::RuntimePreference::Remote,
+            RuntimePreference::Unspecified => catalog::RuntimePreference::Unspecified,
+            RuntimePreference::Local => catalog::RuntimePreference::Local,
+            RuntimePreference::Remote => catalog::RuntimePreference::Remote,
         }
     }
 }
@@ -687,6 +682,7 @@ pub struct FunctionEntry {
     pub meta: EntryMeta,
     pub func_type: FunctionType,
     pub signature: Option<Signature>,
+    pub user_defined: bool,
 }
 
 impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
@@ -697,6 +693,7 @@ impl TryFrom<catalog::FunctionEntry> for FunctionEntry {
             meta,
             func_type: value.func_type.try_into()?,
             signature: value.signature.map(|s| s.try_into()).transpose()?,
+            user_defined: value.user_defined,
         })
     }
 }
@@ -843,16 +840,17 @@ impl TryFrom<catalog::Signature> for Signature {
 
 impl From<FunctionEntry> for catalog::FunctionEntry {
     fn from(value: FunctionEntry) -> Self {
-        let func_type: catalog::function_entry::FunctionType = value.func_type.into();
+        let func_type: catalog::FunctionType = value.func_type.into();
         catalog::FunctionEntry {
             meta: Some(value.meta.into()),
             func_type: func_type as i32,
             signature: value.signature.map(|s| s.into()),
+            user_defined: value.user_defined,
         }
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CredentialsEntry {
     pub meta: EntryMeta,
     pub options: CredentialsOptions,
@@ -883,28 +881,9 @@ impl From<CredentialsEntry> for catalog::CredentialsEntry {
 
 #[cfg(test)]
 mod tests {
-    use proptest::arbitrary::any;
-    use proptest::proptest;
 
     use super::*;
 
-    proptest! {
-        #[test]
-        fn roundtrip_entry_type(expected in any::<EntryType>()) {
-            let p: catalog::entry_meta::EntryType = expected.into();
-            let got: EntryType = p.try_into().unwrap();
-            assert_eq!(expected, got);
-        }
-    }
-
-    proptest! {
-        #[test]
-        fn roundtrip_entry_meta(expected in any::<EntryMeta>()) {
-            let p: catalog::EntryMeta = expected.clone().into();
-            let got: EntryMeta = p.try_into().unwrap();
-            assert_eq!(expected, got);
-        }
-    }
 
     #[test]
     fn convert_catalog_state_no_deployment_metadata() {

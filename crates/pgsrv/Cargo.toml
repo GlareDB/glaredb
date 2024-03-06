@@ -18,6 +18,7 @@ serde = { workspace = true }
 sqlexec = {path = "../sqlexec"}
 proxyutil = {path = "../proxyutil"}
 bytesutil = {path = "../bytesutil"}
+parser = { path = "../parser" }
 pgrepr = {path = "../pgrepr"}
 datafusion_ext = {path = "../datafusion_ext"}
 bytes = "1.4.0"

@@ -11,6 +11,7 @@ use datafusion::arrow::array::{
     StringBuilder,
     Time64MicrosecondBuilder,
     TimestampMicrosecondBuilder,
+    UInt64Builder,
 };
 use datafusion::arrow::datatypes::{DataType, SchemaRef, TimeUnit};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -40,6 +41,12 @@ impl Converter {
                 let builder: Box<dyn ArrayBuilder> = match field.data_type() {
                     DataType::Boolean => {
                         Box::new(BooleanBuilder::with_capacity(RECORD_BATCH_CAPACITY))
+                    }
+                    DataType::UInt64 => {
+                        // sqlite can't produce this type, but for
+                        // consistency with other glaredb count
+                        // interfaces, we might
+                        Box::new(UInt64Builder::with_capacity(RECORD_BATCH_CAPACITY))
                     }
                     DataType::Int64 => Box::new(Int64Builder::with_capacity(RECORD_BATCH_CAPACITY)),
                     DataType::Float64 => {

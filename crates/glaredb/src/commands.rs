@@ -10,7 +10,7 @@ use ioutil::ensure_dir;
 use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use slt::discovery::SltDiscovery;
-use slt::hooks::{AllTestsHook, SqliteTestsHook, SshTunnelHook};
+use slt::hooks::{AllTestsHook, IcebergFormatVersionHook, SqliteTestsHook, SshTunnelHook};
 use slt::tests::{PgBinaryEncoding, SshKeysTest};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
@@ -298,6 +298,15 @@ impl RunCommand for SltArgs {
             .hook("*", Arc::new(AllTestsHook))?
             // Sqlite tests
             .hook("sqllogictests_sqlite/*", Arc::new(SqliteTestsHook))?
+            // Iceberg format version tests
+            .hook(
+                "sqllogictests_iceberg/local_v1",
+                Arc::new(IcebergFormatVersionHook(1)),
+            )?
+            .hook(
+                "sqllogictests_iceberg/local_v2",
+                Arc::new(IcebergFormatVersionHook(2)),
+            )?
             // SSH Tunnels hook
             .hook("*/tunnels/ssh", Arc::new(SshTunnelHook))?;
 

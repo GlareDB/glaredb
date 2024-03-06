@@ -1,3 +1,4 @@
+pub mod errors;
 pub mod options;
 
 use std::collections::{BTreeMap, VecDeque};
@@ -12,8 +13,8 @@ use datafusion_ext::vars::Dialect;
 use prql_compiler::sql::Dialect as PrqlDialect;
 use prql_compiler::{compile, Options, Target};
 
-use self::options::{OptionValue, StmtOptions};
-use crate::errors::Result;
+use self::options::{OptionValue, StatementOptions};
+use crate::errors::{ParseError, Result};
 
 /// Wrapper around our custom parse for parsing a sql statement.
 pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
@@ -42,8 +43,7 @@ pub struct CreateExternalTableStmt {
     /// Credentials to use for configuration.
     pub credentials: Option<Ident>,
     /// Datasource specific options.
-    pub options: StmtOptions,
-
+    pub options: StatementOptions,
     pub columns: Option<Vec<ast::ColumnDef>>,
 }
 
@@ -84,7 +84,7 @@ pub struct CreateExternalDatabaseStmt {
     /// Credentials to use for configuration.
     pub credentials: Option<Ident>,
     /// Datasource specific options.
-    pub options: StmtOptions,
+    pub options: StatementOptions,
 }
 
 impl fmt::Display for CreateExternalDatabaseStmt {
@@ -196,7 +196,7 @@ pub struct CreateTunnelStmt {
     /// The tunnel type the connection is for.
     pub tunnel: Ident,
     /// Tunnel specific options.
-    pub options: StmtOptions,
+    pub options: StatementOptions,
 }
 
 impl fmt::Display for CreateTunnelStmt {
@@ -272,7 +272,7 @@ pub struct CreateCredentialsStmt {
     /// The credentials provider.
     pub provider: Ident,
     /// Credentials specific options.
-    pub options: StmtOptions,
+    pub options: StatementOptions,
     /// Optional comment (what the credentials are for).
     pub comment: String,
     /// replace if it exists
@@ -314,7 +314,7 @@ pub struct CreateCredentialStmt {
     /// The credentials provider.
     pub provider: Ident,
     /// Credentials specific options.
-    pub options: StmtOptions,
+    pub options: StatementOptions,
     /// Optional comment (what the credentials are for).
     pub comment: String,
     /// replace if it exists
@@ -387,7 +387,7 @@ pub struct CopyToStmt {
     /// Optional credentials (for cloud storage).
     pub credentials: Option<Ident>,
     /// COPY TO specific options.
-    pub options: StmtOptions,
+    pub options: StatementOptions,
 }
 
 impl fmt::Display for CopyToStmt {
@@ -852,7 +852,7 @@ impl<'a> CustomParser<'a> {
     }
 
     /// Parse options block.
-    fn parse_options(&mut self) -> Result<StmtOptions, ParserError> {
+    fn parse_options(&mut self) -> Result<StatementOptions, ParserError> {
         let has_options_keyword = self.consume_token(&Token::make_keyword("OPTIONS"));
         let has_block_opening = self.parser.consume_token(&Token::LParen);
 
@@ -861,7 +861,7 @@ impl<'a> CustomParser<'a> {
         };
 
         if !has_options_keyword && !has_block_opening {
-            return Ok(StmtOptions::new(BTreeMap::new()));
+            return Ok(StatementOptions::new(BTreeMap::new()));
         };
 
         if has_options_keyword && !has_block_opening {
@@ -907,7 +907,7 @@ impl<'a> CustomParser<'a> {
             }
         }
 
-        Ok(StmtOptions::new(options))
+        Ok(StatementOptions::new(options))
     }
 
     fn parse_options_value(&mut self) -> Result<OptionValue, ParserError> {
@@ -1112,13 +1112,26 @@ impl<'a> CustomParser<'a> {
     }
 }
 
-pub fn validate_ident(ident: &ast::Ident) -> Result<(), ParserError> {
-    sqlbuiltins::validation::validate_object_name(&ident.value)
-        .map_err(|e| ParserError::ParserError(e.to_string()))
+pub fn validate_ident(ident: &ast::Ident) -> Result<()> {
+    pg_validate_object_name(&ident.value)
+}
+
+/// Validate identifiers as per [postgres identifier
+/// syntax](https://www.postgresql.org/docs/11/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS)
+pub fn pg_validate_object_name(name: &str) -> Result<()> {
+    const POSTGRES_IDENT_MAX_LENGTH: usize = 63;
+    if name.len() > POSTGRES_IDENT_MAX_LENGTH {
+        return Err(ParseError::InvalidNameLength {
+            length: name.len(),
+            max: POSTGRES_IDENT_MAX_LENGTH,
+        });
+    }
+
+    Ok(())
 }
 
 /// Validate object names a `Vec<ast::Idents>`
-pub fn validate_object_name(name: &ast::ObjectName) -> Result<(), ParserError> {
+pub fn validate_object_name(name: &ast::ObjectName) -> Result<()> {
     for ident in name.0.iter() {
         validate_ident(ident)?;
     }
@@ -1151,7 +1164,7 @@ mod tests {
             datasource: Ident::new("postgres"),
             tunnel: None,
             credentials: None,
-            options: StmtOptions::new(options),
+            options: StatementOptions::new(options),
             columns: None,
         };
         println!("{:?}", stmt);
@@ -1191,7 +1204,7 @@ mod tests {
             datasource: Ident::new("postgres"),
             tunnel: None,
             credentials: None,
-            options: StmtOptions::new(options),
+            options: StatementOptions::new(options),
             columns: None,
         };
 
@@ -1515,7 +1528,7 @@ mod tests {
                 parser: Parser::new(&d).with_tokens(t),
             };
             let opts = p.parse_options().unwrap();
-            let expected_opts = StmtOptions::new(map);
+            let expected_opts = StatementOptions::new(map);
             assert_eq!(opts, expected_opts);
         }
     }

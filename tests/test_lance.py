@@ -7,9 +7,8 @@ import psycopg2.extensions
 import psycopg2.extras
 import pytest
 
-
 import tests.tools
-from tests.fixtures.glaredb import glaredb_connection, debug_path
+from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
 
 
 def test_sanity_check(

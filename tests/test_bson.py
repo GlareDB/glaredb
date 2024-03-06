@@ -9,13 +9,13 @@ import psycopg2.extensions
 import psycopg2.extras
 import pytest
 
-from tests.fixtures.glaredb import glaredb_connection, debug_path
+from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
 import tests.tools
 
 
 def test_bson_copy_to(
     glaredb_connection: psycopg2.extensions.connection,
-    debug_path: pathlib.Path,
+    binary_path: pathlib.Path,
     tmp_path_factory: pytest.TempPathFactory,
 ):
     curr = glaredb_connection.cursor()
@@ -48,7 +48,7 @@ def test_bson_copy_to(
     with tests.tools.cd(output_dir):
         out = subprocess.run(
             [
-                f"{debug_path}",
+                f"{binary_path}",
                 "--query",
                 f"select count(*) as count from '{output_fn}'",
                 "--mode",

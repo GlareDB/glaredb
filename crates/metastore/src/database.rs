@@ -38,7 +38,7 @@ use sqlbuiltins::builtins::{
     FIRST_NON_STATIC_OID,
     SCHEMA_DEFAULT,
 };
-use sqlbuiltins::functions::{BuiltinFunction, FUNCTION_REGISTRY};
+use sqlbuiltins::functions::{BuiltinFunction, DEFAULT_BUILTIN_FUNCTIONS};
 use sqlbuiltins::validation::{
     validate_database_tunnel_support,
     validate_object_name,
@@ -1035,6 +1035,42 @@ impl State {
                 // Update the new storage size
                 self.deployment.storage_size = update_deployment_storage.new_storage_size;
             }
+            Mutation::CreateFunction(f) => {
+                let schema_id = self.get_schema_id(DEFAULT_SCHEMA)?;
+                let oid = self
+                    .schema_objects
+                    .get(&schema_id)
+                    .and_then(|objs| objs.functions.get(&f.name))
+                    .copied();
+
+                let oid = match oid {
+                    Some(_) => return Err(MetastoreError::DuplicateName(f.name.clone())),
+                    None => self.next_oid(),
+                };
+
+
+                let ent = FunctionEntry {
+                    meta: EntryMeta {
+                        entry_type: EntryType::Function,
+                        id: oid,
+                        parent: schema_id,
+                        name: f.name.clone(),
+                        builtin: false,
+                        external: true,
+                        is_temp: false,
+                    },
+                    func_type: f.function_type,
+                    signature: Some(f.signature),
+                    user_defined: true,
+                };
+
+                self.entries.insert(oid, CatalogEntry::Function(ent))?;
+                self.schema_objects
+                    .entry(schema_id)
+                    .or_default()
+                    .functions
+                    .insert(f.name, oid);
+            }
         };
 
         Ok(())
@@ -1290,17 +1326,17 @@ impl BuiltinCatalog {
         let table_func_ents = Self::builtin_function_to_entries(
             &mut oid_gen,
             schema_id,
-            FUNCTION_REGISTRY.table_funcs_iter(),
+            DEFAULT_BUILTIN_FUNCTIONS.table_funcs_iter(),
         );
         let scalar_func_ents = Self::builtin_function_to_entries(
             &mut oid_gen,
             schema_id,
-            FUNCTION_REGISTRY.scalar_funcs_iter(),
+            DEFAULT_BUILTIN_FUNCTIONS.scalar_funcs_iter(),
         );
         let scalar_udf_ents = Self::builtin_function_to_entries(
             &mut oid_gen,
             schema_id,
-            FUNCTION_REGISTRY.scalar_udfs_iter(),
+            DEFAULT_BUILTIN_FUNCTIONS.scalar_udfs_iter(),
         );
 
         for func_ent in table_func_ents
@@ -1367,6 +1403,7 @@ impl BuiltinCatalog {
                     meta,
                     func_type: func.function_type(),
                     signature: func.signature(),
+                    user_defined: false,
                 })
             }
         }

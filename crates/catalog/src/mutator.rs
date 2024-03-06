@@ -19,6 +19,9 @@ impl CatalogMutator {
         CatalogMutator { client: None }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.client.is_none()
+    }
     pub fn new(client: Option<MetastoreClientHandle>) -> Self {
         CatalogMutator { client }
     }

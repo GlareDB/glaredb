@@ -12,8 +12,7 @@ use datafusion::datasource::MemTable;
 use object_store::ObjectStore;
 
 use crate::common::url::DatasourceUrl;
-use crate::object_store::generic::GenericStoreAccess;
-use crate::object_store::ObjStoreAccess;
+use crate::object_store::{ObjStoreAccess, ObjStoreAccessor};
 
 pub mod errors;
 pub mod stream;
@@ -28,7 +27,7 @@ pub struct ExcelTable {
 
 impl ExcelTable {
     pub async fn open(
-        store_access: GenericStoreAccess,
+        store_access: Arc<dyn ObjStoreAccess>,
         source_url: DatasourceUrl,
         sheet_name: Option<&str>,
         has_header: bool,
@@ -51,11 +50,9 @@ impl ExcelTable {
             }
 
             DatasourceUrl::Url(_) => {
-                let store = store_access.create_store()?;
-                let list = store_access
-                    .list_globbed(&store, source_url.path().as_ref())
-                    .await?;
+                let accessor = ObjStoreAccessor::new(store_access)?;
 
+                let list = accessor.list_globbed(source_url.path()).await?;
                 if list.is_empty() {
                     return Err(ExcelError::Load(
                         "could not find .xlsx file at remote".to_string(),
@@ -67,7 +64,12 @@ impl ExcelTable {
                 };
 
                 let meta = list.first().expect("remote file has a sheet");
-                let bs = store.get(&meta.location).await?.bytes().await?;
+                let bs = accessor
+                    .into_object_store()
+                    .get(&meta.location)
+                    .await?
+                    .bytes()
+                    .await?;
 
                 let buffer = Cursor::new(bs);
                 let mut sheets: Sheets<_> = calamine::open_workbook_auto_from_rs(buffer).unwrap();

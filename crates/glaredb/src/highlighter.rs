@@ -5,7 +5,7 @@ use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
 use nu_ansi_term::{Color, Style};
 use reedline::{Highlighter, Hinter, SearchQuery, StyledText, ValidationResult, Validator};
-use sqlbuiltins::functions::FUNCTION_REGISTRY;
+use sqlbuiltins::functions::DEFAULT_BUILTIN_FUNCTIONS;
 
 use crate::local::is_client_cmd;
 
@@ -192,7 +192,8 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                         st.push((new_style().fg(Color::LightGreen), format!("{w}")))
                     }
                     // Functions
-                    other if FUNCTION_REGISTRY.contains(other) => {
+                    // todo: replace this with the session functions
+                    other if DEFAULT_BUILTIN_FUNCTIONS.contains(other) => {
                         st.push((colorize_function(), format!("{w}")));
                     }
                     _ => {
@@ -201,7 +202,7 @@ fn colorize_sql(query: &str, st: &mut StyledText, is_hint: bool) {
                 },
                 // TODO: add more keywords
                 _ => {
-                    if FUNCTION_REGISTRY.contains(&w.value) {
+                    if DEFAULT_BUILTIN_FUNCTIONS.contains(&w.value) {
                         st.push((colorize_function(), format!("{w}")));
                     } else {
                         st.push((new_style(), format!("{w}")))

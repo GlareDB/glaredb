@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::sync::Arc;
 
@@ -26,16 +27,19 @@ use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::options::{TableOptions, TableOptionsObjectStore};
 
+use self::azure::AzureStoreAccess;
+use self::glob_util::{get_resolved_patterns, ResolvedPattern};
 use crate::common::exprs_to_phys_exprs;
 use crate::common::url::DatasourceUrl;
+use crate::lake::storage_options_into_store_access;
 use crate::object_store::gcs::GcsStoreAccess;
-use crate::object_store::generic::GenericStoreAccess;
 use crate::object_store::local::LocalStoreAccess;
 use crate::object_store::s3::S3StoreAccess;
 
+pub mod azure;
 pub mod errors;
 pub mod gcs;
-pub mod generic;
+pub mod glob_util;
 pub mod http;
 pub mod local;
 pub mod s3;
@@ -138,8 +142,9 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
     async fn list_globbed(
         &self,
         store: &Arc<dyn ObjectStore>,
-        pattern: &str,
+        pattern: ResolvedPattern,
     ) -> Result<Vec<ObjectMeta>> {
+        let pattern = pattern.as_ref();
         if let Some((prefix, _)) = pattern.split_once(['*', '?', '!', '[', ']']) {
             // This pattern might actually be a "glob" pattern.
             //
@@ -189,40 +194,14 @@ pub trait ObjStoreAccess: Debug + Display + Send + Sync {
         Ok(store.head(location).await?)
     }
 
-    async fn create_table_provider(
+    async fn infer_schema(
         &self,
+        store: &Arc<dyn ObjectStore>,
         state: &SessionState,
-        file_format: Arc<dyn FileFormat>,
-        locations: Vec<DatasourceUrl>,
-    ) -> Result<Arc<dyn TableProvider>> {
-        let store = self.create_store()?;
-        let mut objects = Vec::new();
-        for loc in locations {
-            let list = self
-                .list_globbed(&store, &loc.path())
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-            if list.is_empty() {
-                let e = object_store::path::Error::InvalidPath {
-                    path: loc.to_string().into(),
-                };
-                return Err(ObjectStoreSourceError::ObjectStorePath(e));
-            }
-
-            objects.push(list);
-        }
-        let objects = objects.into_iter().flatten().collect::<Vec<_>>();
-
-        let arrow_schema = file_format.infer_schema(state, &store, &objects).await?;
-        let base_url = self.base_url()?;
-
-        Ok(Arc::new(ObjStoreTableProvider {
-            store,
-            arrow_schema,
-            base_url,
-            objects,
-            file_format,
-        }))
+        file_format: &dyn FileFormat,
+        objects: &[ObjectMeta],
+    ) -> Result<SchemaRef> {
+        Ok(file_format.infer_schema(state, store, objects).await?)
     }
 }
 
@@ -248,10 +227,13 @@ impl ObjStoreAccessor {
     }
 
     /// Returns a list of objects matching the globbed pattern.
-    pub async fn list_globbed(&self, pattern: impl AsRef<str>) -> Result<Vec<ObjectMeta>> {
-        self.access
-            .list_globbed(&self.store, pattern.as_ref())
-            .await
+    pub async fn list_globbed(&self, pattern: impl Into<String>) -> Result<Vec<ObjectMeta>> {
+        let mut objects = Vec::new();
+        for path in get_resolved_patterns(pattern.into()) {
+            let sub_objects = self.access.list_globbed(&self.store, path).await?;
+            objects.extend(sub_objects);
+        }
+        Ok(objects)
     }
 
     /// Takes all the objects and creates the table provider from the accesor.
@@ -262,9 +244,11 @@ impl ObjStoreAccessor {
         objects: Vec<ObjectMeta>,
     ) -> Result<Arc<dyn TableProvider>> {
         let store = self.store;
-        let arrow_schema = file_format.infer_schema(state, &store, &objects).await?;
+        let arrow_schema = self
+            .access
+            .infer_schema(&store, state, file_format.as_ref(), &objects)
+            .await?;
         let base_url = self.access.base_url()?;
-
         Ok(Arc::new(ObjStoreTableProvider {
             store,
             arrow_schema,
@@ -272,6 +256,11 @@ impl ObjStoreAccessor {
             objects,
             file_format,
         }))
+    }
+
+    /// Take the accessor and return the underlying object store.
+    pub fn into_object_store(self) -> Arc<dyn ObjectStore> {
+        self.store
     }
 }
 
@@ -401,24 +390,29 @@ pub fn init_session_registry<'a>(
             TableOptions::Gcs(opts) => Arc::new(GcsStoreAccess {
                 bucket: opts.bucket.clone(),
                 service_account_key: opts.service_account_key.clone(),
+                opts: HashMap::new(),
             }),
             TableOptions::S3(opts) => Arc::new(S3StoreAccess {
-                region: opts.region.clone(),
                 bucket: opts.bucket.clone(),
+                region: Some(opts.region.clone()),
                 access_key_id: opts.access_key_id.clone(),
                 secret_access_key: opts.secret_access_key.clone(),
+                opts: HashMap::new(),
             }),
+            TableOptions::Azure(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            }) => {
+                let uri = DatasourceUrl::try_new(location)?;
+                Arc::new(AzureStoreAccess::try_from_uri(&uri, storage_options)?)
+            }
             TableOptions::Delta(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
             })
             | TableOptions::Iceberg(TableOptionsObjectStore {
-                location,
-                storage_options,
-                ..
-            })
-            | TableOptions::Azure(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
@@ -432,10 +426,11 @@ pub fn init_session_registry<'a>(
                 location,
                 storage_options,
                 ..
-            }) => Arc::new(GenericStoreAccess::new_from_location_and_opts(
-                location,
-                storage_options.clone(),
-            )?),
+            }) => {
+                let url = DatasourceUrl::try_new(location)?;
+                storage_options_into_store_access(&url, storage_options)
+                    .map_err(|e| ObjectStoreSourceError::String(format!("{e}")))?
+            }
             // Continue on all others. Explicitly mentioning all the left
             // over options so we don't forget adding object stores that are
             // supported in the future (like azure).
