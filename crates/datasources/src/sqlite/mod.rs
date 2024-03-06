@@ -291,7 +291,6 @@ impl TableProvider for SqliteTableProvider {
         }))
     }
 
-
     async fn insert_into(
         &self,
         _state: &SessionState,
