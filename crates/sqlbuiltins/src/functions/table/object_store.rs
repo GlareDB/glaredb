@@ -23,7 +23,12 @@ use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess, ObjStoreTableProvider};
+use datasources::object_store::{
+    MultiSourceTableProvider,
+    ObjStoreAccess,
+    ObjStoreAccessor,
+    ObjStoreTableProvider,
+};
 use futures::TryStreamExt;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
@@ -293,11 +298,7 @@ impl<Opts: OptionReader> TableFunc for ObjScanTableFunc<Opts> {
         let format: Arc<dyn FileFormat> = Arc::new(format);
         let table = fn_registry
             .into_values()
-            .map(|(access, locations)| {
-                let provider =
-                    get_table_provider(ctx, format.clone(), access, locations.into_iter());
-                provider
-            })
+            .map(|(access, locations)| get_table_provider(ctx, format.clone(), access, locations))
             .collect::<futures::stream::FuturesUnordered<_>>()
             .try_collect::<Vec<_>>()
             .await
@@ -368,11 +369,19 @@ async fn get_table_provider(
     ctx: &dyn TableFuncContextProvider,
     ft: Arc<dyn FileFormat>,
     access: Arc<dyn ObjStoreAccess>,
-    locations: impl Iterator<Item = DatasourceUrl>,
+    locations: Vec<DatasourceUrl>,
 ) -> Result<Arc<dyn TableProvider>> {
     let state = ctx.get_session_state();
-    let prov = access
-        .create_table_provider(&state, ft, locations.collect())
+    let accessor = ObjStoreAccessor::new(access)?;
+
+    let mut objects = Vec::new();
+    for loc in locations {
+        let objs = accessor.list_globbed(loc.path()).await?;
+        objects.extend(objs.into_iter());
+    }
+
+    let prov = accessor
+        .into_table_provider(&state, ft, objects)
         .await
         .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
@@ -708,12 +717,12 @@ impl TableFunc for CloudUpload {
             .infer_schema(&session_state, &store.inner, &objects)
             .await?;
 
-        return Ok(Arc::new(ObjStoreTableProvider::new(
+        Ok(Arc::new(ObjStoreTableProvider::new(
             store.inner.clone(),
             arrow_schema,
             base_url,
             objects,
             file_format,
-        )));
+        )))
     }
 }
