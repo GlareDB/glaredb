@@ -16,53 +16,31 @@ use serde_json::{Map, Value};
 
 use crate::json::errors::{JsonError, Result};
 
-pub struct JsonRecordBatchStream {
-    schema: Arc<Schema>,
-    // this is the same as a sendable recordbatch stream, but declared
-    // separtley so we can have isomorphic values using adapters.
-    stream: Pin<Box<dyn Stream<Item = DFResult<RecordBatch>> + Send>>,
-}
+pub type CheckedRecordBatchStream = Pin<Box<dyn Stream<Item = DFResult<RecordBatch>> + Send>>;
 
-impl Stream for JsonRecordBatchStream {
-    type Item = DFResult<RecordBatch>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.stream.poll_next_unpin(cx)
-    }
-}
-
-impl RecordBatchStream for JsonRecordBatchStream {
-    fn schema(&self) -> SchemaRef {
-        self.schema.clone()
-    }
-}
-
-/// WrappedPartition wraps a vector of serde_json documents as a
+/// VectorPartition wraps a vector of serde_json documents as a
 /// Partition as one of DataFusion's streaming table. Well all of
-pub struct WrappedPartition {
+pub struct VectorPartition {
     schema: Arc<Schema>,
-    stream: Vec<Map<String, Value>>,
+    objs: Vec<Map<String, Value>>,
 }
 
-impl PartitionStream for WrappedPartition {
+impl PartitionStream for VectorPartition {
     fn schema(&self) -> &SchemaRef {
         &self.schema
     }
 
     fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
-        Box::pin(JsonStreamHandler::new(
+        Box::pin(JsonHandler::new(
             self.schema.clone(),
-            futures::stream::iter(self.stream.clone().into_iter().map(Ok)).boxed(),
+            futures::stream::iter(self.objs.clone().into_iter().map(Ok)).boxed(),
         ))
     }
 }
 
-impl WrappedPartition {
-    pub fn new(schema: Arc<Schema>, chunk: Vec<Map<String, Value>>) -> Self {
-        Self {
-            schema: schema.clone(),
-            stream: chunk,
-        }
+impl VectorPartition {
+    pub fn new(schema: Arc<Schema>, objs: Vec<Map<String, Value>>) -> Self {
+        Self { schema, objs }
     }
 }
 
@@ -87,21 +65,11 @@ impl PartitionStream for ObjectStorePartition {
     }
 
     fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
-        let stream_schema = self.schema.to_owned();
-        let store = self.store.clone();
-        let obj = self.obj.clone();
-
-        Box::pin(JsonRecordBatchStream {
-            schema: self.schema.clone(),
-            stream: futures::stream::once(async move {
-                match JsonStreamHandler::setup_read_stream(store, obj).await {
-                    Ok(st) => JsonStreamHandler::new(stream_schema, st),
-                    Err(e) => JsonStreamHandler::wrap_error(e),
-                }
-            })
-            .flatten()
-            .boxed(),
-        })
+        Box::pin(JsonHandler::new_from_object_store(
+            self.schema.to_owned(),
+            self.store.clone(),
+            self.obj.clone(),
+        ))
     }
 }
 
@@ -109,74 +77,75 @@ impl PartitionStream for ObjectStorePartition {
 /// intermediate format produced by serde_json.
 type JsonObjectStream = Pin<Box<dyn Stream<Item = Result<Map<String, Value>>> + Send>>;
 
-/// JsonStreamHandler is the basis of all stream handling, converting
+/// JsonHandler is the basis of all stream handling, converting
 /// streams of serde_json objects to RecordBatches, including from
 /// object store and from iterators of values.
 ///
 /// These are used by the PartitionStream implementations (above)
 /// which interface into the table function and providers.
-struct JsonStreamHandler {
+struct JsonHandler {
     schema: Arc<Schema>,
-    buf: Pin<Box<dyn Stream<Item = DFResult<RecordBatch>> + Send>>,
+    stream: Pin<Box<dyn Stream<Item = DFResult<RecordBatch>> + Send>>,
 }
 
-impl RecordBatchStream for JsonStreamHandler {
+impl RecordBatchStream for JsonHandler {
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
 }
 
-impl Stream for JsonStreamHandler {
+impl Stream for JsonHandler {
     type Item = DFResult<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.buf.poll_next_unpin(cx)
+        self.stream.poll_next_unpin(cx)
     }
 }
 
-impl JsonStreamHandler {
+impl JsonHandler {
     fn new(schema: Arc<Schema>, stream: JsonObjectStream) -> Self {
-        let stream_schema = schema.clone();
-
-        Self {
-            schema,
-            buf: stream
-                .map(|rb| rb.map_err(JsonError::from))
-                .chunks(1024)
-                .map(move |chunk| {
-                    let chunk = chunk.into_iter().collect::<Result<Vec<_>>>()?;
-                    let mut decoder =
-                        ReaderBuilder::new(stream_schema.to_owned()).build_decoder()?;
-                    decoder
-                        .serialize(&chunk)
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?;
-                    Ok(decoder.flush()?.unwrap())
-                })
-                .boxed(),
-        }
+        let stream = Self::convert_stream(schema.clone(), stream);
+        Self { schema, stream }
     }
 
-    fn wrap_error(err: JsonError) -> Self {
-        Self {
-            schema: Arc::new(Schema::empty()),
-            buf: futures::stream::once(async move { Err(err.into()) }).boxed(),
-        }
-    }
-
-    async fn setup_read_stream(
+    fn new_from_object_store(
+        schema: Arc<Schema>,
         store: Arc<dyn ObjectStore>,
         obj: ObjectMeta,
-    ) -> Result<JsonObjectStream> {
-        Ok(JsonStream::<Value, _>::new(Box::pin(
-            store
-                .get(&obj.location)
-                .await?
-                .into_stream()
-                .map_err(JsonError::from),
-        ))
-        .flat_map(Self::unwind_json_value)
-        .boxed())
+    ) -> Self {
+        let stream_schema = schema.clone();
+        let stream = futures::stream::once(async move {
+            Self::convert_stream(
+                stream_schema,
+                JsonStream::<Value, _>::new(match store.get(&obj.location).await {
+                    Ok(stream) => stream.into_stream().map_err(JsonError::from),
+                    Err(e) => return futures::stream::once(async move { Err(e.into()) }).boxed(),
+                })
+                .flat_map(Self::unwind_json_value)
+                .boxed(),
+            )
+        })
+        .flatten()
+        .boxed();
+
+        Self { schema, stream }
     }
+
+    fn convert_stream(schema: Arc<Schema>, input: JsonObjectStream) -> CheckedRecordBatchStream {
+        input
+            .map(|rb| rb.map_err(JsonError::from))
+            .chunks(1024)
+            .map(move |chunk| {
+                let chunk = chunk.into_iter().collect::<Result<Vec<_>>>()?;
+                let mut decoder = ReaderBuilder::new(schema.to_owned()).build_decoder()?;
+                decoder
+                    .serialize(&chunk)
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?;
+                Ok(decoder.flush()?.unwrap())
+            })
+            .boxed()
+    }
+
 
     fn unwind_json_value(input: Result<Value>) -> JsonObjectStream {
         futures::stream::iter(match input {

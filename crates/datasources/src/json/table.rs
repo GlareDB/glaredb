@@ -8,9 +8,10 @@ use datafusion::physical_plan::streaming::PartitionStream;
 use object_store::ObjectStore;
 use serde_json::{Map, Value};
 
+use super::stream::ObjectStorePartition;
 use crate::common::url::DatasourceUrl;
 use crate::json::errors::JsonError;
-use crate::json::stream::{ObjectStorePartition, WrappedPartition};
+use crate::json::stream::VectorPartition;
 use crate::object_store::ObjStoreAccess;
 
 pub async fn json_streaming_table(
@@ -78,7 +79,7 @@ pub async fn json_streaming_table(
 
     let mut streams = Vec::<Arc<dyn PartitionStream>>::with_capacity(list.len());
 
-    streams.push(Arc::new(WrappedPartition::new(schema.clone(), data)));
+    streams.push(Arc::new(VectorPartition::new(schema.clone(), data)));
 
     for obj in list {
         streams.push(Arc::new(ObjectStorePartition::new(
