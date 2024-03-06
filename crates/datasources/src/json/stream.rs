@@ -9,8 +9,7 @@ use datafusion::error::{DataFusionError, Result as DFResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
-use futures::channel::mpsc;
-use futures::{SinkExt, Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
 use json_stream::JsonStream;
 use object_store::{ObjectMeta, ObjectStore};
 use serde_json::{Map, Value};
@@ -119,7 +118,6 @@ type JsonObjectStream = Pin<Box<dyn Stream<Item = Result<Map<String, Value>>> + 
 struct JsonStreamHandler {
     schema: Arc<Schema>,
     buf: Pin<Box<dyn Stream<Item = DFResult<RecordBatch>> + Send>>,
-    worker: tokio::task::JoinHandle<DFResult<()>>,
 }
 
 impl RecordBatchStream for JsonStreamHandler {
@@ -132,30 +130,21 @@ impl Stream for JsonStreamHandler {
     type Item = DFResult<RecordBatch>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.buf.poll_next_unpin(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(None) => {
-                if self.worker.is_finished() {
-                    Poll::Ready(None)
-                } else {
-                    Poll::Pending
-                }
-            }
-            Poll::Ready(Some(val)) => Poll::Ready(Some(val)),
-        }
+        self.buf.poll_next_unpin(cx)
     }
 }
 
 impl JsonStreamHandler {
     fn new(schema: Arc<Schema>, stream: JsonObjectStream) -> Self {
         let stream_schema = schema.clone();
-        let (mut sink, buf) = mpsc::channel(2048);
 
         Self {
             schema,
-            buf: buf
+            buf: stream
+                .map(|rb| rb.map_err(JsonError::from))
                 .chunks(1024)
                 .map(move |chunk| {
+                    let chunk = chunk.into_iter().collect::<Result<Vec<_>>>()?;
                     let mut decoder =
                         ReaderBuilder::new(stream_schema.to_owned()).build_decoder()?;
                     decoder
@@ -164,22 +153,13 @@ impl JsonStreamHandler {
                     Ok(decoder.flush()?.unwrap())
                 })
                 .boxed(),
-            worker: tokio::spawn(async move {
-                let mut stream = stream;
-                while let Some(row) = stream.next().await {
-                    sink.send(row?).await.map_err(JsonError::from)?;
-                }
-                sink.close_channel();
-                Ok(())
-            }),
         }
     }
 
     fn wrap_error(err: JsonError) -> Self {
         Self {
             schema: Arc::new(Schema::empty()),
-            buf: futures::stream::empty().boxed(),
-            worker: tokio::task::spawn_local(async move { Err(err.into()) }),
+            buf: futures::stream::once(async move { Err(err.into()) }).boxed(),
         }
     }
 
