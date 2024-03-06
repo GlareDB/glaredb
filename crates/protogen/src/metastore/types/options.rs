@@ -1057,7 +1057,12 @@ impl TryFrom<options::TableOptionsMongo> for TableOptionsMongoDb {
                 value
                     .columns
                     .iter()
-                    .map(|i| self::InternalColumnDefinition::try_from(i.to_owned()))
+                    .map(|i| {
+                        self::InternalColumnDefinition::try_from(i.to_owned()).map(|mut v| {
+                            v.nullable = true;
+                            v
+                        })
+                    })
                     .collect::<Result<_, _>>()?,
             )
         };
@@ -1311,7 +1316,12 @@ impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
             columns: value
                 .columns
                 .iter()
-                .map(|i| self::InternalColumnDefinition::try_from(i.to_owned()))
+                .map(|i| {
+                    self::InternalColumnDefinition::try_from(i.to_owned()).map(|mut v| {
+                        v.nullable = true;
+                        v
+                    })
+                })
                 .collect::<Result<_, _>>()?,
         })
     }
