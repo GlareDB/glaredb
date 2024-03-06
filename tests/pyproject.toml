@@ -16,7 +16,9 @@ ruff = "0.1.14"
 dbt-core = "^1.7.7"
 dbt-postgres = "^1.7.7"
 pytest-xdist = "^3.5.0"
-great-expectations = "great_expectations[postgresql]"
+great-expectations = {version = "^0.18.10", extras = ["postresql"]}
+sqlalchemy = "^2.0.28"
+
 
 [build-system]
 requires = ["poetry-core"]

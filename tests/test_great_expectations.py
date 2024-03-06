@@ -3,9 +3,9 @@ import psycopg2.extensions
 import psycopg2.extras
 import pytest
 
-from tests.fixtures.glaredb import glaredb_connection
+from tests.fixtures.glaredb import glaredb_connection, binary_path, glaredb_path
 
-@pytest.mark.xfail
+
 def test_great_expectations(
     glaredb_connection: psycopg2.extensions.connection,
     tmp_path_factory: pytest.TempPathFactory,
@@ -19,11 +19,14 @@ def test_great_expectations(
     curr.execute("select count(*) from my_data;")
     res = curr.fetchone()
 
-
+    port = glaredb_connection.info.port
+    user = glaredb_connection.info.user
+    host = glaredb_connection.info.host
+    password = glaredb_connection.info.password
     context = gx.get_context()  # gets a great expectations project context
     gx_data_source = context.sources.add_postgres(
         name="glaredb",
-        connection_string="postgresql://test:test@localhost:5433/db",
+        connection_string=f"postgresql://{user}:{password}@{host}:{port}/db",
     )
 
     gx_data_asset = gx_data_source.add_table_asset("my_data")
@@ -35,7 +38,3 @@ def test_great_expectations(
     validator = context.get_validator(batch_list=batch_list)
 
     assert validator.expect_column_values_to_not_be_null("amount")
-
-
-
-

@@ -54,7 +54,8 @@ impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
                 data_type: ast::DataType::Regclass,
                 format: _,
             } => match &**inner_expr {
-                ast::Expr::Value(ast::Value::SingleQuotedString(relation)) => {
+                ast::Expr::Value(ast::Value::SingleQuotedString(relation))
+                | ast::Expr::Value(ast::Value::Number(relation, _)) => {
                     match find_oid(self.ctx, relation) {
                         Some(oid) => ast::Expr::Value(ast::Value::Number(oid.to_string(), false)),
                         None => {

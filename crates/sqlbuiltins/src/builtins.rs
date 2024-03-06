@@ -516,7 +516,7 @@ SELECT
     false          as attnotnull,
     0::smallint    as attnum,
     null           as attoptions,
-    0              as attrelid,
+    ' '            as attrelid,
     0              as attstattarget,
     ' '            as attstorage,
     0              as atttypid,
@@ -648,7 +648,7 @@ pub static PG_TYPE: Lazy<BuiltinView> = Lazy::new(|| BuiltinView {
     schema: POSTGRES_SCHEMA,
     name: "pg_type",
     sql: "
-SELECT 
+SELECT
 
 null as typacl,
 0 as typndims,
@@ -682,10 +682,10 @@ false as typnotnull,
 'r' as typname,
 null as typdefault,
 null as typdefaultbin
-FROM (VALUES (NULL, NULL, NULL, NULL, 
-    NULL, NULL, NULL, NULL, NULL, NULL, 
-    NULL, NULL, NULL, NULL, NULL, NULL, 
-    NULL, NULL, NULL, NULL, NULL, NULL, 
+FROM (VALUES (NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL,
     NULL, NULL, NULL, NULL, NULL, NULL,
     NULL, NULL, NULL, NULL, NULL)) WHERE false",
 });
