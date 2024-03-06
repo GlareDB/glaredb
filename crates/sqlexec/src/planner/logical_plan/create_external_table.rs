@@ -1,3 +1,5 @@
+use datafusion::arrow::datatypes::FieldRef;
+
 use super::{
     DfLogicalPlan,
     ExtensionNode,
@@ -14,6 +16,7 @@ pub struct CreateExternalTable {
     pub if_not_exists: bool,
     pub table_options: TableOptions,
     pub tunnel: Option<String>,
+    pub columns: Option<Vec<FieldRef>>,
 }
 
 impl UserDefinedLogicalNodeCore for CreateExternalTable {

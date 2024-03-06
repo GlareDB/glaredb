@@ -67,6 +67,6 @@ impl TableFunc for BsonScan {
         let store_access = storage_options_into_store_access(&source_url, &storage_options)
             .map_err(ExtensionError::access)?;
 
-        Ok(bson_streaming_table(store_access, Some(sample_size), source_url).await?)
+        Ok(bson_streaming_table(store_access, source_url, None, Some(sample_size)).await?)
     }
 }
