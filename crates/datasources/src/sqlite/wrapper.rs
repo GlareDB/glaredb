@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use async_sqlite::rusqlite;
 use async_sqlite::rusqlite::types::Value;
-use async_sqlite::rusqlite::{self, OpenFlags};
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::DataFusionError;

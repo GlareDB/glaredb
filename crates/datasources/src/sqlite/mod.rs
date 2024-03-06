@@ -303,8 +303,8 @@ impl TableProvider for SqliteTableProvider {
         }
 
         Ok(Arc::new(SqliteInsertExec {
+            input,
             table: self.table.to_string(),
-            input: input,
             state: self.state.clone(),
             schema: self.schema.clone(),
             metrics: ExecutionPlanMetricsSet::new(),
