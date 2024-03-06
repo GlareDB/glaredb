@@ -23,6 +23,116 @@ impl ReplacerFindError {
     }
 }
 
+fn get_range_iter(start: &str, end: &str) -> Result<Vec<String>, ReplacerFindError> {
+    // Valid cases:
+    // N..M -> N and M are both integers
+    // N..M -> N and M are both lowercase chars
+    // N..M -> N and M are both uppercase chars
+    // ..M -> M is a positive integer
+    // ..M -> M is a lowercase char
+    // ..M -> M is an uppercase char
+    // N.. -> N is a lowercase char
+    // N.. -> N is an uppercase char
+
+    fn is_char(s: &str) -> Option<char> {
+        let mut chars = s.chars();
+        if let Some(c) = chars.next() {
+            if chars.next().is_none() && c.is_ascii_alphabetic() {
+                Some(c)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    fn parse_int(s: &str) -> Result<i64, ReplacerFindError> {
+        s.parse::<i64>()
+            .map_err(|e| ReplacerFindError::new(format!("{s} not a valid i64: {e}")))
+    }
+
+    match (start, end) {
+        (s, e) if s.is_empty() && e.is_empty() => Err(ReplacerFindError::new(
+            "both start and end in range are empty strings",
+        )),
+        (s, e) if s.is_empty() => {
+            if let Some(e_char) = is_char(e) {
+                let s_char = if e_char.is_ascii_uppercase() {
+                    'A'
+                } else if e_char.is_ascii_lowercase() {
+                    'a'
+                } else {
+                    unreachable!("e_char should always be an ascii alphabet")
+                };
+                let v: Vec<_> = (s_char..=e_char).map(|c| c.to_string()).collect();
+                Ok(v)
+            } else {
+                let i = parse_int(e)?;
+                if i < 0 {
+                    Err(ReplacerFindError::new(format!(
+                        "end {i} not a valid positive integer in ..M pattern"
+                    )))
+                } else {
+                    let v: Vec<_> = (0..=i).map(|i| i.to_string()).collect();
+                    Ok(v)
+                }
+            }
+        }
+        (s, e) if e.is_empty() => {
+            let s_char = is_char(s).ok_or_else(|| {
+                ReplacerFindError::new(format!("{s} not a valid char in N.. pattern"))
+            })?;
+            let e_char = if s_char.is_ascii_uppercase() {
+                'Z'
+            } else if s_char.is_ascii_lowercase() {
+                'z'
+            } else {
+                unreachable!("s_char should always be an ascii alphabet")
+            };
+            let v: Vec<_> = (s_char..=e_char).map(|c| c.to_string()).collect();
+            Ok(v)
+        }
+        (s, e) => {
+            match (is_char(s), is_char(e)) {
+                (Some(s_char), Some(e_char)) => {
+                    let (s_char, e_char) = if (s_char.is_ascii_uppercase()
+                        && e_char.is_ascii_uppercase())
+                        || (s_char.is_ascii_lowercase() && e_char.is_ascii_lowercase())
+                    {
+                        if s_char < e_char {
+                            (s_char, e_char)
+                        } else {
+                            (e_char, s_char)
+                        }
+                    } else {
+                        return Err(ReplacerFindError::new(format!(
+                            "{s} and {e} are invalid chars for range in N..M pattern"
+                        )));
+                    };
+                    let v: Vec<_> = (s_char..=e_char).map(|c| c.to_string()).collect();
+                    Ok(v)
+                }
+                (Some(_), None) | (None, Some(_)) => Err(ReplacerFindError::new(format!(
+                    "{s} and {e} are not valid for range in N..M pattern"
+                ))),
+                (None, None) => {
+                    // Both might be integers.
+                    let s_int = parse_int(s)?;
+                    let e_int = parse_int(e)?;
+                    let (s_int, e_int) = if s_int < e_int {
+                        (s_int, e_int)
+                    } else {
+                        (e_int, s_int)
+                    };
+                    let v: Vec<_> = (s_int..=e_int).map(|i| i.to_string()).collect();
+                    Ok(v)
+                }
+            }
+        }
+    }
+}
+
 fn get_replacer(pattern: &str) -> Result<Replacer, ReplacerFindError> {
     fn validate_string(s: &str) -> Result<String, ReplacerFindError> {
         if VALID_STRING_REGEX.is_match(s) {
@@ -58,14 +168,7 @@ fn get_replacer(pattern: &str) -> Result<Replacer, ReplacerFindError> {
             .split_once("..")
             .ok_or_else(|| ReplacerFindError::new(format!("expected range N..M: {pattern}")))?;
 
-        let start: i64 = start.parse().map_err(|e| {
-            ReplacerFindError::new(format!("start in range not a valid number: {e}"))
-        })?;
-        let end: i64 = end
-            .parse()
-            .map_err(|e| ReplacerFindError::new(format!("end in range not a valid number: {e}")))?;
-
-        (start..=end).map(|i| i.to_string()).collect::<Vec<_>>()
+        get_range_iter(start, end)?
     } else {
         vec![validate_string(pattern)?]
     };
@@ -119,6 +222,14 @@ mod tests {
     fn test_resolve_glob_patterns() {
         let test_cases: &[(&str, &[&str])] = &[
             ("file_{3..6}", &["file_3", "file_4", "file_5", "file_6"]),
+            ("file_{6..3}", &["file_3", "file_4", "file_5", "file_6"]),
+            ("file_{p..r}", &["file_p", "file_q", "file_r"]),
+            ("file_{r..p}", &["file_p", "file_q", "file_r"]),
+            ("file_{..2}", &["file_0", "file_1", "file_2"]),
+            ("file_{..C}", &["file_A", "file_B", "file_C"]),
+            ("file_{..c}", &["file_a", "file_b", "file_c"]),
+            ("file_{X..}", &["file_X", "file_Y", "file_Z"]),
+            ("file_{x..}", &["file_x", "file_y", "file_z"]),
             ("file_{x,y,z}", &["file_x", "file_y", "file_z"]),
             (
                 "file_0{1..3}.csv",
@@ -147,7 +258,7 @@ mod tests {
         for (pattern, expected) in test_cases {
             let patterns = get_resolved_patterns(pattern.to_string());
             let actual = patterns.iter().map(AsRef::as_ref).collect::<Vec<_>>();
-            assert_eq!(&actual, expected);
+            assert_eq!(&actual, expected, "pattern = {pattern}");
         }
 
         // TODO: Add test cases for failed patterns...
