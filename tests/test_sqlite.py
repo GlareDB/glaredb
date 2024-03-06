@@ -33,7 +33,7 @@ def test_inserts(
         curr.execute("insert into einsertable values (1, 2, 3), (4, 5, 6);")
 
         curr.execute("select count(*) einsertable;")
-        rows = cur.fetchall()
+        rows = curr.fetchall()
         assert rows[0] == 0
 
     conn = sqlite3.connect(db_path)
