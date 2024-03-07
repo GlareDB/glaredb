@@ -27,6 +27,7 @@ impl ConstBuiltinFunction for LanceScan {
     const DESCRIPTION: &'static str = "Scans a Lance table";
     const EXAMPLE: &'static str = "SELECT * FROM lance_scan('file:///path/to/table.lance')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const ALIASES: &'static [&'static str] = &["read_lance"];
 }
 
 #[async_trait]
