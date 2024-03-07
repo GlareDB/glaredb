@@ -232,8 +232,8 @@ impl FunctionRegistry {
             Arc::new(ConnectionId),
             Arc::new(Version),
             // KDL functions
-            Arc::new(KDLMatches),
-            Arc::new(KDLSelect),
+            Arc::new(KDLMatches::new()),
+            Arc::new(KDLSelect::new()),
             // Hashing/Partitioning
             Arc::new(SipHash),
             Arc::new(FnvHash),

@@ -79,7 +79,6 @@ rpc-tests:
   just slt --protocol=rpc "sqllogictests/*" \
     --exclude "sqllogictests/cloud_instance" \
     --exclude "sqllogictests/functions/cache_external_database_tables" \
-    --exclude "sqllogictests/functions/kdl" \
     --exclude "sqllogictests/functions/postgres"
 
 #  Check formatting.
