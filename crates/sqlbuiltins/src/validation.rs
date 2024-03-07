@@ -2,7 +2,7 @@ use protogen::metastore::types::options::{
     CopyToDestinationOptions,
     CredentialsOptions,
     DatabaseOptions,
-    TableOptions,
+    TableOptionsOld,
     TunnelOptions,
 };
 
@@ -65,11 +65,11 @@ pub fn validate_table_tunnel_support(table: &str, tunnel: &str) -> Result<()> {
     if matches!(
         (table, tunnel),
         // Debug
-        (TableOptions::DEBUG, TunnelOptions::DEBUG)
+        (TableOptionsOld::DEBUG, TunnelOptions::DEBUG)
         // Postgres
-        | (TableOptions::POSTGRES, TunnelOptions::SSH)
+        | (TableOptionsOld::POSTGRES, TunnelOptions::SSH)
         // MySQL
-        | (TableOptions::MYSQL, TunnelOptions::SSH)
+        | (TableOptionsOld::MYSQL, TunnelOptions::SSH)
     ) {
         Ok(())
     } else {
@@ -103,16 +103,16 @@ pub fn validate_table_creds_support(table: &str, creds: &str) -> Result<()> {
     if matches!(
         (table, creds),
         // Debug
-        (TableOptions::DEBUG, CredentialsOptions::DEBUG) |
+        (TableOptionsOld::DEBUG, CredentialsOptions::DEBUG) |
         // Google cloud
-        (TableOptions::GCS, CredentialsOptions::GCP) |
-        (TableOptions::BIGQUERY, CredentialsOptions::GCP) |
+        (TableOptionsOld::GCS, CredentialsOptions::GCP) |
+        (TableOptionsOld::BIGQUERY, CredentialsOptions::GCP) |
         // AWS
-        (TableOptions::S3_STORAGE, CredentialsOptions::AWS) |
+        (TableOptionsOld::S3_STORAGE, CredentialsOptions::AWS) |
         // Azure
-        (TableOptions::AZURE, CredentialsOptions::AZURE) |
+        (TableOptionsOld::AZURE, CredentialsOptions::AZURE) |
         // Delta & Iceberg & Lance
-        (TableOptions::DELTA | TableOptions::ICEBERG | TableOptions::LANCE, CredentialsOptions::GCP | CredentialsOptions::AWS | CredentialsOptions::AZURE )
+        (TableOptionsOld::DELTA | TableOptionsOld::ICEBERG | TableOptionsOld::LANCE, CredentialsOptions::GCP | CredentialsOptions::AWS | CredentialsOptions::AZURE )
     ) {
         Ok(())
     } else {

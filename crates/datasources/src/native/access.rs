@@ -30,7 +30,7 @@ use object_store::prefix::PrefixStore;
 use object_store::ObjectStore;
 use object_store_util::shared::SharedObjectStore;
 use protogen::metastore::types::catalog::TableEntry;
-use protogen::metastore::types::options::{TableOptions, TableOptionsInternal};
+use protogen::metastore::types::options::TableOptionsInternal;
 use serde_json::{json, Value};
 use url::Url;
 use uuid::Uuid;
@@ -262,9 +262,9 @@ impl NativeTableStorage {
         Ok(x.next().await.is_some())
     }
 
-    fn opts_from_ent(table: &TableEntry) -> Result<&TableOptionsInternal> {
-        let opts = match &table.options {
-            TableOptions::Internal(opts) => opts,
+    fn opts_from_ent(table: &TableEntry) -> Result<TableOptionsInternal> {
+        let opts = match table.options.name.as_ref() {
+            "internal" => TableOptionsInternal::try_from(&table.options).unwrap(),
             _ => return Err(NativeError::NotNative(table.clone())),
         };
         Ok(opts)
@@ -498,11 +498,7 @@ mod tests {
     use deltalake::protocol::SaveMode;
     use object_store_util::conf::StorageConfig;
     use protogen::metastore::types::catalog::{EntryMeta, EntryType, SourceAccessMode, TableEntry};
-    use protogen::metastore::types::options::{
-        InternalColumnDefinition,
-        TableOptions,
-        TableOptionsInternal,
-    };
+    use protogen::metastore::types::options::{InternalColumnDefinition, TableOptionsInternal};
     use tempfile::tempdir;
     use url::Url;
     use uuid::Uuid;
@@ -533,13 +529,14 @@ mod tests {
                 external: false,
                 is_temp: false,
             },
-            options: TableOptions::Internal(TableOptionsInternal {
+            options: TableOptionsInternal {
                 columns: vec![InternalColumnDefinition {
                     name: "id".to_string(),
                     nullable: true,
                     arrow_type: DataType::Int32,
                 }],
-            }),
+            }
+            .into(),
             tunnel_id: None,
             access_mode: SourceAccessMode::ReadOnly,
         };

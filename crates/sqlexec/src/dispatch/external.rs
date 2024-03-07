@@ -51,7 +51,7 @@ use protogen::metastore::types::options::{
     DatabaseOptionsSnowflake,
     DatabaseOptionsSqlServer,
     DatabaseOptionsSqlite,
-    TableOptions,
+    TableOptionsOld,
     TableOptionsBigQuery,
     TableOptionsCassandra,
     TableOptionsClickhouse,
@@ -292,12 +292,13 @@ impl<'a> ExternalDispatcher<'a> {
         let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
 
         match &table.options {
-            TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
-            TableOptions::Debug(TableOptionsDebug { table_type }) => {
+            TableOptionsOld::Other(_) => todo!(),
+            TableOptionsOld::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
+            TableOptionsOld::Debug(TableOptionsDebug { table_type }) => {
                 let provider = DebugTableType::from_str(table_type)?;
                 Ok(provider.into_table_provider(tunnel.as_ref()))
             }
-            TableOptions::Excel(TableOptionsExcel {
+            TableOptionsOld::Excel(TableOptionsExcel {
                 location,
                 storage_options,
                 has_header,
@@ -315,7 +316,7 @@ impl<'a> ExternalDispatcher<'a> {
                 Ok(Arc::new(provider))
             }
 
-            TableOptions::Postgres(TableOptionsPostgres {
+            TableOptionsOld::Postgres(TableOptionsPostgres {
                 connection_string,
                 schema,
                 table,
@@ -329,7 +330,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let prov = PostgresTableProvider::try_new(prov_conf).await?;
                 Ok(Arc::new(prov))
             }
-            TableOptions::BigQuery(TableOptionsBigQuery {
+            TableOptionsOld::BigQuery(TableOptionsBigQuery {
                 service_account_key,
                 project_id,
                 dataset_id,
@@ -346,7 +347,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
-            TableOptions::Mysql(TableOptionsMysql {
+            TableOptionsOld::Mysql(TableOptionsMysql {
                 connection_string,
                 schema,
                 table,
@@ -360,7 +361,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
-            TableOptions::MongoDb(TableOptionsMongoDb {
+            TableOptionsOld::MongoDb(TableOptionsMongoDb {
                 connection_string,
                 database,
                 collection,
@@ -374,7 +375,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let provider = table_accessor.into_table_provider().await?;
                 Ok(Arc::new(provider))
             }
-            TableOptions::Snowflake(TableOptionsSnowflake {
+            TableOptionsOld::Snowflake(TableOptionsSnowflake {
                 account_name,
                 login_name,
                 password,
@@ -408,7 +409,7 @@ impl<'a> ExternalDispatcher<'a> {
                     .await?;
                 Ok(Arc::new(provider))
             }
-            TableOptions::Local(TableOptionsLocal {
+            TableOptionsOld::Local(TableOptionsLocal {
                 location,
                 file_type,
                 compression,
@@ -427,7 +428,7 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await
             }
-            TableOptions::Gcs(TableOptionsGcs {
+            TableOptionsOld::Gcs(TableOptionsGcs {
                 service_account_key,
                 bucket,
                 location,
@@ -447,7 +448,7 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await
             }
-            TableOptions::S3(TableOptionsS3 {
+            TableOptionsOld::S3(TableOptionsS3 {
                 access_key_id,
                 secret_access_key,
                 region,
@@ -471,7 +472,7 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await
             }
-            TableOptions::Azure(TableOptionsObjectStore {
+            TableOptionsOld::Azure(TableOptionsObjectStore {
                 location,
                 storage_options,
                 file_type,
@@ -501,7 +502,7 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await
             }
-            TableOptions::Delta(TableOptionsObjectStore {
+            TableOptionsOld::Delta(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
@@ -510,7 +511,7 @@ impl<'a> ExternalDispatcher<'a> {
                     Arc::new(load_table_direct(location, storage_options.clone()).await?);
                 Ok(provider)
             }
-            TableOptions::Iceberg(TableOptionsObjectStore {
+            TableOptionsOld::Iceberg(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
@@ -521,7 +522,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let reader = table.table_reader().await?;
                 Ok(reader)
             }
-            TableOptions::SqlServer(TableOptionsSqlServer {
+            TableOptionsOld::SqlServer(TableOptionsSqlServer {
                 connection_string,
                 schema,
                 table,
@@ -535,7 +536,7 @@ impl<'a> ExternalDispatcher<'a> {
                 .await?;
                 Ok(Arc::new(table))
             }
-            TableOptions::Clickhouse(TableOptionsClickhouse {
+            TableOptionsOld::Clickhouse(TableOptionsClickhouse {
                 connection_string,
                 database,
                 table,
@@ -546,14 +547,14 @@ impl<'a> ExternalDispatcher<'a> {
                 let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
                 Ok(Arc::new(table))
             }
-            TableOptions::Lance(TableOptionsObjectStore {
+            TableOptionsOld::Lance(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
             }) => Ok(Arc::new(
                 LanceTable::new(location, storage_options.clone()).await?,
             )),
-            TableOptions::Bson(TableOptionsObjectStore {
+            TableOptionsOld::Bson(TableOptionsObjectStore {
                 location,
                 storage_options,
                 schema_sample_size,
@@ -566,7 +567,7 @@ impl<'a> ExternalDispatcher<'a> {
                         .await?,
                 )
             }
-            TableOptions::Cassandra(TableOptionsCassandra {
+            TableOptionsOld::Cassandra(TableOptionsCassandra {
                 host,
                 keyspace,
                 table,
@@ -584,7 +585,7 @@ impl<'a> ExternalDispatcher<'a> {
 
                 Ok(Arc::new(table))
             }
-            TableOptions::Sqlite(TableOptionsSqlite { location, table }) => {
+            TableOptionsOld::Sqlite(TableOptionsSqlite { location, table }) => {
                 let access = SqliteAccess {
                     db: location.into(),
                 };

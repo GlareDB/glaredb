@@ -3,15 +3,21 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use object_store::ObjectStore;
+use protogen::gen::metastore::options::TableOptions as ProtoTableOptions;
 use protogen::gen::metastore::service::metastore_service_server::MetastoreService;
+use protogen::gen::metastore::service::mutation::Mutation as ProtoMutationType;
 use protogen::gen::metastore::service::{
     self,
     FetchCatalogRequest,
     FetchCatalogResponse,
     MutateRequest,
     MutateResponse,
+    Mutation as ProtoMutation,
 };
-use protogen::metastore::types::service::Mutation;
+use protogen::metastore::types::options::TableOptionsOld;
+use protogen::metastore::types::service::{CreateExternalTable, Mutation};
+use protogen::ProtoConvError;
+use sqlbuiltins::functions::table::debug::DebugDatasource;
 use tonic::{Request, Response, Status};
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -19,7 +25,6 @@ use uuid::Uuid;
 use crate::database::DatabaseCatalog;
 use crate::errors::MetastoreError;
 use crate::storage::persist::Storage;
-
 /// Metastore GRPC service.
 pub struct Service {
     /// Reference to underlying object storage.
@@ -38,6 +43,7 @@ pub struct Service {
 
 impl Service {
     pub fn new(store: Arc<dyn ObjectStore>) -> Service {
+        println!("Creating new Metastore service");
         let process_id = Uuid::new_v4();
         info!(%process_id, "Creating new Metastore service");
 
@@ -96,17 +102,17 @@ impl MetastoreService for Service {
         request: Request<MutateRequest>,
     ) -> Result<Response<MutateResponse>, Status> {
         let req = request.into_inner();
-        debug!(?req, "mutate catalog");
+
         let id = Uuid::from_slice(&req.db_id)
             .map_err(|_| MetastoreError::InvalidDatabaseId(req.db_id))?;
 
         let catalog = self.get_or_load_catalog(id).await?;
+
         let mutations = req
             .mutations
             .into_iter()
             .map(|m| Mutation::try_from(m).map_err(MetastoreError::from))
             .collect::<Result<_, _>>()?;
-
         // TODO: Catch error and return status.
 
         let updated = catalog.try_mutate(req.catalog_version, mutations).await?;
@@ -117,6 +123,7 @@ impl MetastoreService for Service {
         }))
     }
 }
+
 
 #[cfg(test)]
 mod tests {

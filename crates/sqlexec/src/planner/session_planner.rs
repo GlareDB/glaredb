@@ -41,6 +41,7 @@ use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use datasources::sqlite::SqliteAccess;
 use datasources::sqlserver::SqlServerAccess;
+use datasources::Datasource;
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::azure::AzureConfigKey;
 use object_store::gcp::GoogleConfigKey;
@@ -104,8 +105,9 @@ use protogen::metastore::types::options::{
     DatabaseOptionsSqlite,
     DeltaLakeCatalog,
     DeltaLakeUnityCatalog,
+    DynTableOptions,
     StorageOptions,
-    TableOptions,
+    TableOptionsOld,
     TableOptionsBigQuery,
     TableOptionsCassandra,
     TableOptionsClickhouse,
@@ -128,6 +130,7 @@ use protogen::metastore::types::options::{
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation};
 use sqlbuiltins::builtins::{CURRENT_SESSION_SCHEMA, DEFAULT_CATALOG};
+use sqlbuiltins::functions::table::debug::DebugDatasource;
 use sqlbuiltins::validation::{
     validate_copyto_dest_creds_support,
     validate_copyto_dest_format_support,
@@ -480,11 +483,14 @@ impl<'a> SessionPlanner<'a> {
                 }
             })?;
         }
-
         let m = &mut stmt.options;
-
         let external_table_options = match datasource.as_str() {
-            TableOptions::POSTGRES => {
+            DebugDatasource::NAME => {
+                let tbl_opts =
+                    DebugDatasource::table_options_from_stmt(m, creds_options, tunnel_options)?;
+                TableOptionsOld::Other(DynTableOptions::new(tbl_opts))
+            }
+            TableOptionsOld::POSTGRES => {
                 let connection_string = get_pg_conn_str(m)?;
                 let schema: String = m.remove_required("schema")?;
                 let table: String = m.remove_required("table")?;
@@ -498,13 +504,13 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                TableOptions::Postgres(TableOptionsPostgres {
+                TableOptionsOld::Postgres(TableOptionsPostgres {
                     connection_string,
                     schema,
                     table,
                 })
             }
-            TableOptions::BIGQUERY => {
+            TableOptionsOld::BIGQUERY => {
                 let service_account_key = creds_options.as_ref().map(|c| match c {
                     CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
                     other => unreachable!("invalid credentials {other} for bigquery"),
@@ -528,14 +534,14 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                TableOptions::BigQuery(TableOptionsBigQuery {
+                TableOptionsOld::BigQuery(TableOptionsBigQuery {
                     service_account_key,
                     project_id,
                     dataset_id: access.dataset_id,
                     table_id: access.table_id,
                 })
             }
-            TableOptions::MYSQL => {
+            TableOptionsOld::MYSQL => {
                 let connection_string = get_mysql_conn_str(m)?;
                 let schema = m.remove_required("schema")?;
                 let table = m.remove_required("table")?;
@@ -551,26 +557,26 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                TableOptions::Mysql(TableOptionsMysql {
+                TableOptionsOld::Mysql(TableOptionsMysql {
                     connection_string,
                     schema: access.schema,
                     table: access.name,
                 })
             }
-            TableOptions::MONGODB => {
+            TableOptionsOld::MONGODB => {
                 let connection_string = get_mongodb_conn_str(m)?;
                 let database = m.remove_required("database")?;
                 let collection = m.remove_required("collection")?;
 
                 // TODO: Validate
 
-                TableOptions::MongoDb(TableOptionsMongoDb {
+                TableOptionsOld::MongoDb(TableOptionsMongoDb {
                     connection_string,
                     database,
                     collection,
                 })
             }
-            TableOptions::SNOWFLAKE => {
+            TableOptionsOld::SNOWFLAKE => {
                 let account_name: String = m.remove_required("account")?;
                 let login_name: String = m.remove_required("username")?;
                 let password: String = m.remove_required("password")?;
@@ -600,7 +606,7 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                TableOptions::Snowflake(TableOptionsSnowflake {
+                TableOptionsOld::Snowflake(TableOptionsSnowflake {
                     account_name,
                     login_name,
                     password,
@@ -611,7 +617,7 @@ impl<'a> SessionPlanner<'a> {
                     table_name: access_info.table_name,
                 })
             }
-            TableOptions::SQL_SERVER => {
+            TableOptionsOld::SQL_SERVER => {
                 let connection_string: String = m.remove_required("connection_string")?;
                 let schema_name: String = m.remove_required("schema")?;
                 let table_name: String = m.remove_required("table")?;
@@ -622,13 +628,13 @@ impl<'a> SessionPlanner<'a> {
                     .validate_table_access(&schema_name, &table_name)
                     .await?;
 
-                TableOptions::SqlServer(TableOptionsSqlServer {
+                TableOptionsOld::SqlServer(TableOptionsSqlServer {
                     connection_string,
                     schema: schema_name,
                     table: table_name,
                 })
             }
-            TableOptions::CLICKHOUSE => {
+            TableOptionsOld::CLICKHOUSE => {
                 let connection_string: String = m.remove_required("connection_string")?;
                 let table_name: String = m.remove_required("table")?;
 
@@ -645,13 +651,13 @@ impl<'a> SessionPlanner<'a> {
 
                 access.validate_table_access(table_ref.as_ref()).await?;
 
-                TableOptions::Clickhouse(TableOptionsClickhouse {
+                TableOptionsOld::Clickhouse(TableOptionsClickhouse {
                     connection_string,
                     table: table_name,
                     database: database_name,
                 })
             }
-            TableOptions::CASSANDRA => {
+            TableOptionsOld::CASSANDRA => {
                 let host: String = m.remove_required("host")?;
                 let keyspace: String = m.remove_required("keyspace")?;
                 let table: String = m.remove_required("table")?;
@@ -662,7 +668,7 @@ impl<'a> SessionPlanner<'a> {
                         .await?;
                 access.validate_table_access(&keyspace, &table).await?;
 
-                TableOptions::Cassandra(TableOptionsCassandra {
+                TableOptionsOld::Cassandra(TableOptionsCassandra {
                     host,
                     keyspace,
                     table,
@@ -670,7 +676,7 @@ impl<'a> SessionPlanner<'a> {
                     password,
                 })
             }
-            TableOptions::SQLITE => {
+            TableOptionsOld::SQLITE => {
                 let location: String = m.remove_required("location")?;
                 let table: String = m.remove_required("table")?;
 
@@ -679,22 +685,22 @@ impl<'a> SessionPlanner<'a> {
                 };
                 access.validate_table_access(&table).await?;
 
-                TableOptions::Sqlite(TableOptionsSqlite { location, table })
+                TableOptionsOld::Sqlite(TableOptionsSqlite { location, table })
             }
-            TableOptions::LOCAL => {
+            TableOptionsOld::LOCAL => {
                 let location: String = m.remove_required("location")?;
 
                 let access = Arc::new(LocalStoreAccess);
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
 
-                TableOptions::Local(TableOptionsLocal {
+                TableOptionsOld::Local(TableOptionsLocal {
                     location,
                     file_type: file_type.to_string().to_lowercase(),
                     compression: compression.map(|c| c.to_string()),
                 })
             }
-            TableOptions::GCS => {
+            TableOptionsOld::GCS => {
                 let service_account_key = creds_options.as_ref().map(|c| match c {
                     CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
                     other => unreachable!("invalid credentials {other} for google cloud storage"),
@@ -714,7 +720,7 @@ impl<'a> SessionPlanner<'a> {
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
 
-                TableOptions::Gcs(TableOptionsGcs {
+                TableOptionsOld::Gcs(TableOptionsGcs {
                     bucket,
                     service_account_key,
                     location,
@@ -722,7 +728,7 @@ impl<'a> SessionPlanner<'a> {
                     compression: compression.map(|c| c.to_string()),
                 })
             }
-            TableOptions::S3_STORAGE => {
+            TableOptionsOld::S3_STORAGE => {
                 let creds = creds_options.as_ref().map(|c| match c {
                     CredentialsOptions::Aws(c) => c,
                     other => unreachable!("invalid credentials {other} for aws s3"),
@@ -755,7 +761,7 @@ impl<'a> SessionPlanner<'a> {
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
 
-                TableOptions::S3(TableOptionsS3 {
+                TableOptionsOld::S3(TableOptionsS3 {
                     region,
                     bucket,
                     access_key_id,
@@ -765,7 +771,7 @@ impl<'a> SessionPlanner<'a> {
                     compression: compression.map(|c| c.to_string()),
                 })
             }
-            TableOptions::AZURE => {
+            TableOptionsOld::AZURE => {
                 let (account, access_key) = match creds_options {
                     Some(CredentialsOptions::Azure(c)) => {
                         (Some(c.account_name.clone()), Some(c.access_key.clone()))
@@ -809,7 +815,7 @@ impl<'a> SessionPlanner<'a> {
                 opts.inner
                     .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
 
-                TableOptions::Azure(TableOptionsObjectStore {
+                TableOptionsOld::Azure(TableOptionsObjectStore {
                     location: source_url,
                     storage_options: opts,
                     file_type: Some(file_type.to_string()),
@@ -817,7 +823,7 @@ impl<'a> SessionPlanner<'a> {
                     schema_sample_size: None,
                 })
             }
-            TableOptions::DELTA | TableOptions::ICEBERG => {
+            TableOptionsOld::DELTA | TableOptionsOld::ICEBERG => {
                 let location: String = m.remove_required("location")?;
 
                 let mut storage_options = StorageOptions::try_from(m)?;
@@ -825,10 +831,10 @@ impl<'a> SessionPlanner<'a> {
                     storage_options_with_credentials(&mut storage_options, creds);
                 }
 
-                if datasource.as_str() == TableOptions::DELTA {
+                if datasource.as_str() == TableOptionsOld::DELTA {
                     let _table = load_table_direct(&location, storage_options.clone()).await?;
 
-                    TableOptions::Delta(TableOptionsObjectStore {
+                    TableOptionsOld::Delta(TableOptionsObjectStore {
                         location,
                         storage_options,
                         file_type: None,
@@ -840,7 +846,7 @@ impl<'a> SessionPlanner<'a> {
                     let store = storage_options_into_object_store(&url, &storage_options)?;
                     let _table = IcebergTable::open(url, store).await?;
 
-                    TableOptions::Iceberg(TableOptionsObjectStore {
+                    TableOptionsOld::Iceberg(TableOptionsObjectStore {
                         location,
                         storage_options,
                         file_type: None,
@@ -849,21 +855,7 @@ impl<'a> SessionPlanner<'a> {
                     })
                 }
             }
-            TableOptions::DEBUG => {
-                datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
-
-                let typ: Option<DebugTableType> = match creds_options {
-                    Some(CredentialsOptions::Debug(c)) => Some(c.table_type.parse()?),
-                    Some(other) => unreachable!("invalid credentials {other} for debug datasource"),
-                    None => None,
-                };
-                let typ: DebugTableType = m.remove_required_or("table_type", typ)?;
-
-                TableOptions::Debug(TableOptionsDebug {
-                    table_type: typ.to_string(),
-                })
-            }
-            TableOptions::LANCE => {
+            TableOptionsOld::LANCE => {
                 let location: String = m.remove_required("location")?;
                 let mut storage_options = StorageOptions::try_from(m)?;
                 if let Some(creds) = creds_options {
@@ -871,7 +863,7 @@ impl<'a> SessionPlanner<'a> {
                 }
                 // Validate that the table exists.
                 let _table = LanceTable::new(&location, storage_options.clone()).await?;
-                TableOptions::Lance(TableOptionsObjectStore {
+                TableOptionsOld::Lance(TableOptionsObjectStore {
                     location,
                     storage_options,
                     file_type: None,
@@ -879,7 +871,7 @@ impl<'a> SessionPlanner<'a> {
                     schema_sample_size: None,
                 })
             }
-            TableOptions::BSON => {
+            TableOptionsOld::BSON => {
                 let location: String = m.remove_required("location")?;
                 let mut storage_options = StorageOptions::try_from(m)?;
                 if let Some(creds) = creds_options {
@@ -892,7 +884,7 @@ impl<'a> SessionPlanner<'a> {
                         .map(|strint| strint.parse())
                         .unwrap_or(Ok(100))?,
                 );
-                TableOptions::Bson(TableOptionsObjectStore {
+                TableOptionsOld::Bson(TableOptionsObjectStore {
                     location,
                     storage_options,
                     file_type: None,
@@ -900,7 +892,7 @@ impl<'a> SessionPlanner<'a> {
                     schema_sample_size,
                 })
             }
-            TableOptions::EXCEL => {
+            TableOptionsOld::EXCEL => {
                 let location: String = m.remove_required("location")?;
                 let mut storage_options = StorageOptions::try_from(m)?;
                 if let Some(creds) = creds_options {
@@ -925,7 +917,7 @@ impl<'a> SessionPlanner<'a> {
                     }
                 };
 
-                TableOptions::Excel(TableOptionsExcel {
+                TableOptionsOld::Excel(TableOptionsExcel {
                     location,
                     storage_options,
                     file_type: None,

@@ -25,7 +25,7 @@ use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
-use protogen::metastore::types::options::{TableOptions, TableOptionsObjectStore};
+use protogen::metastore::types::options::{TableOptionsOld, TableOptionsObjectStore};
 
 use self::azure::AzureStoreAccess;
 use crate::common::exprs_to_phys_exprs;
@@ -393,26 +393,26 @@ pub fn file_type_from_path(path: &ObjectStorePath) -> Result<FileType> {
 
 pub fn init_session_registry<'a>(
     runtime: &RuntimeEnv,
-    entries: impl Iterator<Item = &'a TableOptions>,
+    entries: impl Iterator<Item = &'a TableOptionsOld>,
 ) -> Result<()> {
     for opts in entries {
         let access: Arc<dyn ObjStoreAccess> = match opts {
-            TableOptions::Local(_) => Arc::new(LocalStoreAccess),
+            TableOptionsOld::Local(_) => Arc::new(LocalStoreAccess),
             // TODO: Consider consolidating Gcs, S3 and Delta and Iceberg `TableOptions` and
             // `ObjStoreAccess` since they largely overlap
-            TableOptions::Gcs(opts) => Arc::new(GcsStoreAccess {
+            TableOptionsOld::Gcs(opts) => Arc::new(GcsStoreAccess {
                 bucket: opts.bucket.clone(),
                 service_account_key: opts.service_account_key.clone(),
                 opts: HashMap::new(),
             }),
-            TableOptions::S3(opts) => Arc::new(S3StoreAccess {
+            TableOptionsOld::S3(opts) => Arc::new(S3StoreAccess {
                 bucket: opts.bucket.clone(),
                 region: Some(opts.region.clone()),
                 access_key_id: opts.access_key_id.clone(),
                 secret_access_key: opts.secret_access_key.clone(),
                 opts: HashMap::new(),
             }),
-            TableOptions::Azure(TableOptionsObjectStore {
+            TableOptionsOld::Azure(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
@@ -420,22 +420,22 @@ pub fn init_session_registry<'a>(
                 let uri = DatasourceUrl::try_new(location)?;
                 Arc::new(AzureStoreAccess::try_from_uri(&uri, storage_options)?)
             }
-            TableOptions::Delta(TableOptionsObjectStore {
+            TableOptionsOld::Delta(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
             })
-            | TableOptions::Iceberg(TableOptionsObjectStore {
+            | TableOptionsOld::Iceberg(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
             })
-            | TableOptions::Lance(TableOptionsObjectStore {
+            | TableOptionsOld::Lance(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
             })
-            | TableOptions::Bson(TableOptionsObjectStore {
+            | TableOptionsOld::Bson(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
@@ -447,18 +447,18 @@ pub fn init_session_registry<'a>(
             // Continue on all others. Explicitly mentioning all the left
             // over options so we don't forget adding object stores that are
             // supported in the future (like azure).
-            TableOptions::Internal(_)
-            | TableOptions::Debug(_)
-            | TableOptions::Postgres(_)
-            | TableOptions::BigQuery(_)
-            | TableOptions::Mysql(_)
-            | TableOptions::MongoDb(_)
-            | TableOptions::Snowflake(_)
-            | TableOptions::SqlServer(_)
-            | TableOptions::Clickhouse(_)
-            | TableOptions::Cassandra(_)
-            | TableOptions::Excel(_)
-            | TableOptions::Sqlite(_) => continue,
+            TableOptionsOld::Internal(_)
+            | TableOptionsOld::Debug(_)
+            | TableOptionsOld::Postgres(_)
+            | TableOptionsOld::BigQuery(_)
+            | TableOptionsOld::Mysql(_)
+            | TableOptionsOld::MongoDb(_)
+            | TableOptionsOld::Snowflake(_)
+            | TableOptionsOld::SqlServer(_)
+            | TableOptionsOld::Clickhouse(_)
+            | TableOptionsOld::Cassandra(_)
+            | TableOptionsOld::Excel(_)
+            | TableOptionsOld::Sqlite(_) => continue,
         };
 
         let base_url = access.base_url()?;

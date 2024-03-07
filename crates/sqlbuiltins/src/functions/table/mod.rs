@@ -3,6 +3,7 @@ mod bigquery;
 mod bson;
 mod cassandra;
 mod clickhouse;
+pub mod debug;
 mod delta;
 mod excel;
 mod generate_series;
@@ -15,6 +16,7 @@ mod object_store;
 mod parquet_metadata;
 mod postgres;
 mod snowflake;
+
 mod sqlite;
 mod sqlserver;
 pub mod system;
@@ -38,6 +40,7 @@ use self::bigquery::ReadBigQuery;
 use self::bson::BsonScan;
 use self::cassandra::ReadCassandra;
 use self::clickhouse::ReadClickhouse;
+use self::debug::Dummy;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
@@ -95,6 +98,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadMongoDb),
             Arc::new(ReadMysql),
             Arc::new(ReadSnowflake),
+            Arc::new(Dummy),
             Arc::new(ReadClickhouse),
             Arc::new(ReadSqlite),
             Arc::new(ReadSqlServer),

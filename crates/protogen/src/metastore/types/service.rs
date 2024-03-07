@@ -78,7 +78,6 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
         })
     }
 }
-
 impl TryFrom<Mutation> for service::mutation::Mutation {
     type Error = ProtoConvError;
     fn try_from(value: Mutation) -> Result<Self, Self::Error> {
@@ -350,6 +349,7 @@ pub struct CreateExternalTable {
     pub if_not_exists: bool,
     pub tunnel: Option<String>,
 }
+
 
 impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
     type Error = ProtoConvError;

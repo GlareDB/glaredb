@@ -18,7 +18,7 @@ use datafusion::physical_plan::{
     Statistics,
 };
 use futures::stream;
-use protogen::metastore::types::options::TableOptions;
+use protogen::metastore::types::options::TableOptionsOld;
 use protogen::metastore::types::service::{self, Mutation};
 
 use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
@@ -30,7 +30,7 @@ pub struct CreateExternalTableExec {
     pub tbl_reference: OwnedFullObjectReference,
     pub or_replace: bool,
     pub if_not_exists: bool,
-    pub table_options: TableOptions,
+    pub table_options: TableOptionsOld,
     pub tunnel: Option<String>,
 }
 

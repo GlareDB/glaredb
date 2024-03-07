@@ -2,7 +2,7 @@ use super::{
     DfLogicalPlan,
     ExtensionNode,
     OwnedFullObjectReference,
-    TableOptions,
+    TableOptionsOld,
     UserDefinedLogicalNodeCore,
     GENERIC_OPERATION_LOGICAL_SCHEMA,
 };
@@ -12,7 +12,7 @@ pub struct CreateExternalTable {
     pub tbl_reference: OwnedFullObjectReference,
     pub or_replace: bool,
     pub if_not_exists: bool,
-    pub table_options: TableOptions,
+    pub table_options: TableOptionsOld,
     pub tunnel: Option<String>,
 }
 

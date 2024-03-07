@@ -1,5 +1,6 @@
 //! A collection of debug datasources.
 pub mod errors;
+pub mod options;
 
 use std::any::Any;
 use std::fmt;
@@ -41,6 +42,8 @@ use parser::errors::ParserError;
 use parser::options::{OptionValue, ParseOptionValue};
 use protogen::metastore::types::options::TunnelOptions;
 use serde::{Deserialize, Serialize};
+
+// use crate::Datasource;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DebugTableType {
@@ -202,8 +205,8 @@ impl VirtualLister for DebugVirtualLister {
 }
 
 pub struct DebugTableProvider {
-    typ: DebugTableType,
-    tunnel: bool,
+    pub typ: DebugTableType,
+    pub tunnel: bool,
 }
 
 #[async_trait]

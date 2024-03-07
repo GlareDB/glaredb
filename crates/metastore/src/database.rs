@@ -23,7 +23,8 @@ use protogen::metastore::types::catalog::{
 use protogen::metastore::types::options::{
     DatabaseOptions,
     DatabaseOptionsInternal,
-    TableOptions,
+    TableOptionsInternal,
+    TableOptionsOld,
     TunnelOptions,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
@@ -71,6 +72,7 @@ static BUILTIN_CATALOG: Lazy<BuiltinCatalog> = Lazy::new(|| BuiltinCatalog::new(
 /// 2. Persistence is managed via leases in object storage.
 ///
 /// The source of truth for a database catalog is always what's in object store.
+#[derive(Debug)]
 pub struct DatabaseCatalog {
     db_id: Uuid,
 
@@ -853,7 +855,7 @@ impl State {
                         external: false,
                         is_temp: false,
                     },
-                    options: TableOptions::Internal(create_table.options),
+                    options: create_table.options.into(),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadWrite,
                 };
@@ -1264,7 +1266,10 @@ impl BuiltinCatalog {
                         external: false,
                         is_temp: false,
                     },
-                    options: TableOptions::new_internal(table.columns.clone()),
+                    options: TableOptionsInternal {
+                        columns: table.columns.clone(),
+                    }
+                    .into(),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadOnly,
                 }),
@@ -1838,9 +1843,10 @@ mod tests {
         let mutation = Mutation::CreateExternalTable(CreateExternalTable {
             schema: "mushroom".to_string(),
             name: "bowser".to_string(),
-            options: TableOptions::Debug(TableOptionsDebug {
+            options: TableOptionsDebug {
                 table_type: String::new(),
-            }),
+            }
+            .into(),
             if_not_exists: true,
             or_replace: false,
             tunnel: None,
@@ -1995,7 +2001,7 @@ mod tests {
                 vec![Mutation::CreateExternalTable(CreateExternalTable {
                     schema: "public".to_string(),
                     name: "read_postgres".to_string(),
-                    options: TableOptions::Debug(TableOptionsDebug {
+                    options: TableOptionsOld::Debug(TableOptionsDebug {
                         table_type: String::new(),
                     }),
                     if_not_exists: true,

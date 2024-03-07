@@ -66,7 +66,7 @@ use protogen::metastore::types::options::{
     CopyToFormatOptions,
     CredentialsOptions,
     DatabaseOptions,
-    TableOptions,
+    TableOptionsOld,
     TunnelOptions,
 };
 pub use set_variable::*;

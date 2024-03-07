@@ -10,7 +10,6 @@ use super::options::{
     DatabaseOptions,
     InternalColumnDefinition,
     TableOptions,
-    TableOptionsInternal,
     TunnelOptions,
 };
 use crate::gen::common::arrow::ArrowType;
@@ -445,35 +444,34 @@ pub struct TableEntry {
 impl TableEntry {
     /// Try to get the columns for this table if available.
     pub fn get_internal_columns(&self) -> Option<&[InternalColumnDefinition]> {
-        match &self.options {
-            TableOptions::Internal(TableOptionsInternal { columns, .. }) => Some(columns),
-            _ => None,
-        }
+        todo!()
+        // match &self.options {
+        //     TableOptionsOld::Internal(TableOptionsInternal { columns, .. }) => Some(columns),
+        //     _ => None,
+        // }
     }
 }
-
 impl TryFrom<catalog::TableEntry> for TableEntry {
     type Error = ProtoConvError;
     fn try_from(value: catalog::TableEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
         Ok(TableEntry {
             meta,
-            options: value.options.required("options".to_string())?,
+            options: value.options.required("options")?,
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.try_into()?,
         })
     }
 }
 
-impl TryFrom<TableEntry> for catalog::TableEntry {
-    type Error = ProtoConvError;
-    fn try_from(value: TableEntry) -> Result<Self, Self::Error> {
-        Ok(catalog::TableEntry {
+impl From<TableEntry> for catalog::TableEntry {
+    fn from(value: TableEntry) -> Self {
+        catalog::TableEntry {
             meta: Some(value.meta.into()),
-            options: Some(value.options.try_into()?),
+            options: Some(value.options.into()),
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.into(),
-        })
+        }
     }
 }
 
