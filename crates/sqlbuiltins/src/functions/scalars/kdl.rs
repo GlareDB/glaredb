@@ -29,6 +29,7 @@ pub struct KDLSelect {
     signature: Signature,
 }
 
+
 impl ConstBuiltinFunction for KDLSelect {
     const NAME: &'static str = "kdl_select";
     const DESCRIPTION: &'static str = "Select nodes from a KDL document";
@@ -37,6 +38,12 @@ impl ConstBuiltinFunction for KDLSelect {
 
     fn signature(&self) -> Option<Signature> {
         Some(self.signature.clone())
+    }
+}
+
+impl Default for KDLSelect {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -133,6 +140,12 @@ impl BuiltinScalarUDF for KDLSelect {
 #[derive(Debug)]
 pub struct KDLMatches {
     signature: Signature,
+}
+
+impl Default for KDLMatches {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl KDLMatches {
