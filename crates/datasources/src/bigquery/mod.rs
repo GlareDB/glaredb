@@ -273,7 +273,7 @@ impl TableProvider for BigQueryTableProvider {
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
-        _limit: Option<usize>,
+        limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // TODO: Fix duplicated key deserialization.
         let storage = {
@@ -329,8 +329,15 @@ impl TableProvider for BigQueryTableProvider {
         }
 
         let (send, recv) = async_channel::bounded(num_partitions);
+
         tokio::spawn(async move {
+            let mut count: usize = 0;
             loop {
+                if let Some(max) = limit {
+                    if count >= max {
+                        break;
+                    }
+                };
                 let stream_opt = {
                     match sess.next_stream().await {
                         Ok(s) => s,
@@ -342,7 +349,7 @@ impl TableProvider for BigQueryTableProvider {
                 };
                 if let Some(stream) = stream_opt {
                     match send.send(stream).await {
-                        Ok(_) => {}
+                        Ok(_) => count += 1,
                         Err(error /* : closed or full channel error */) => {
                             tracing::error!(
                                 %error, "cannot send stream over the buffered channel [programming error]"
@@ -417,6 +424,7 @@ impl ExecutionPlan for BigQueryExec {
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         let stream = BufferedIpcStream::new(self.schema(), self.receiver.clone(), partition);
+
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
             stream,
             partition,
