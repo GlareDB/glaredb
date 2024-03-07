@@ -20,8 +20,8 @@ def test_default_connection_execute():
     assert out.equals(expected)
 
 
-# def test_default_conn_uses_same_db():
-#     # Create table
-#     glaredb.execute("create table hello (a int)")
-#     # Try to query it. This would error if we weren't using the same db.
-#     glaredb.execute("select * from hello")
+def test_default_conn_uses_same_db():
+    # Create table
+    glaredb.execute("create table hello (a int)")
+    # Try to query it. This would error if we weren't using the same db.
+    glaredb.execute("select * from hello")
