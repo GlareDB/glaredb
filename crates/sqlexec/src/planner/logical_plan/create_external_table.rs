@@ -1,8 +1,9 @@
+use protogen::metastore::types::options::TableOptions;
+
 use super::{
     DfLogicalPlan,
     ExtensionNode,
     OwnedFullObjectReference,
-    TableOptionsOld,
     UserDefinedLogicalNodeCore,
     GENERIC_OPERATION_LOGICAL_SCHEMA,
 };
@@ -12,7 +13,7 @@ pub struct CreateExternalTable {
     pub tbl_reference: OwnedFullObjectReference,
     pub or_replace: bool,
     pub if_not_exists: bool,
-    pub table_options: TableOptionsOld,
+    pub table_options: TableOptions,
     pub tunnel: Option<String>,
 }
 

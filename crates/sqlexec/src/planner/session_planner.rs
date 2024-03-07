@@ -105,19 +105,17 @@ use protogen::metastore::types::options::{
     DatabaseOptionsSqlite,
     DeltaLakeCatalog,
     DeltaLakeUnityCatalog,
-    DynTableOptions,
     StorageOptions,
-    TableOptionsOld,
     TableOptionsBigQuery,
     TableOptionsCassandra,
     TableOptionsClickhouse,
-    TableOptionsDebug,
     TableOptionsExcel,
     TableOptionsGcs,
     TableOptionsLocal,
     TableOptionsMongoDb,
     TableOptionsMysql,
     TableOptionsObjectStore,
+    TableOptionsOld,
     TableOptionsPostgres,
     TableOptionsS3,
     TableOptionsSnowflake,
@@ -488,7 +486,7 @@ impl<'a> SessionPlanner<'a> {
             DebugDatasource::NAME => {
                 let tbl_opts =
                     DebugDatasource::table_options_from_stmt(m, creds_options, tunnel_options)?;
-                TableOptionsOld::Other(DynTableOptions::new(tbl_opts))
+                tbl_opts.into()
             }
             TableOptionsOld::POSTGRES => {
                 let connection_string = get_pg_conn_str(m)?;
@@ -504,11 +502,12 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                TableOptionsOld::Postgres(TableOptionsPostgres {
+                TableOptionsPostgres {
                     connection_string,
                     schema,
                     table,
-                })
+                }
+                .into()
             }
             TableOptionsOld::BIGQUERY => {
                 let service_account_key = creds_options.as_ref().map(|c| match c {
@@ -534,12 +533,13 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                TableOptionsOld::BigQuery(TableOptionsBigQuery {
+                TableOptionsBigQuery {
                     service_account_key,
                     project_id,
                     dataset_id: access.dataset_id,
                     table_id: access.table_id,
-                })
+                }
+                .into()
             }
             TableOptionsOld::MYSQL => {
                 let connection_string = get_mysql_conn_str(m)?;
@@ -557,11 +557,12 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                TableOptionsOld::Mysql(TableOptionsMysql {
+                TableOptionsMysql {
                     connection_string,
                     schema: access.schema,
                     table: access.name,
-                })
+                }
+                .into()
             }
             TableOptionsOld::MONGODB => {
                 let connection_string = get_mongodb_conn_str(m)?;
@@ -570,11 +571,12 @@ impl<'a> SessionPlanner<'a> {
 
                 // TODO: Validate
 
-                TableOptionsOld::MongoDb(TableOptionsMongoDb {
+                TableOptionsMongoDb {
                     connection_string,
                     database,
                     collection,
-                })
+                }
+                .into()
             }
             TableOptionsOld::SNOWFLAKE => {
                 let account_name: String = m.remove_required("account")?;
@@ -606,7 +608,7 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                TableOptionsOld::Snowflake(TableOptionsSnowflake {
+                TableOptionsSnowflake {
                     account_name,
                     login_name,
                     password,
@@ -615,7 +617,8 @@ impl<'a> SessionPlanner<'a> {
                     role_name: role_name.unwrap_or_default(),
                     schema_name: access_info.schema_name,
                     table_name: access_info.table_name,
-                })
+                }
+                .into()
             }
             TableOptionsOld::SQL_SERVER => {
                 let connection_string: String = m.remove_required("connection_string")?;
@@ -628,11 +631,12 @@ impl<'a> SessionPlanner<'a> {
                     .validate_table_access(&schema_name, &table_name)
                     .await?;
 
-                TableOptionsOld::SqlServer(TableOptionsSqlServer {
+                TableOptionsSqlServer {
                     connection_string,
                     schema: schema_name,
                     table: table_name,
-                })
+                }
+                .into()
             }
             TableOptionsOld::CLICKHOUSE => {
                 let connection_string: String = m.remove_required("connection_string")?;
@@ -651,11 +655,12 @@ impl<'a> SessionPlanner<'a> {
 
                 access.validate_table_access(table_ref.as_ref()).await?;
 
-                TableOptionsOld::Clickhouse(TableOptionsClickhouse {
+                TableOptionsClickhouse {
                     connection_string,
                     table: table_name,
                     database: database_name,
-                })
+                }
+                .into()
             }
             TableOptionsOld::CASSANDRA => {
                 let host: String = m.remove_required("host")?;
@@ -668,13 +673,14 @@ impl<'a> SessionPlanner<'a> {
                         .await?;
                 access.validate_table_access(&keyspace, &table).await?;
 
-                TableOptionsOld::Cassandra(TableOptionsCassandra {
+                TableOptionsCassandra {
                     host,
                     keyspace,
                     table,
                     username,
                     password,
-                })
+                }
+                .into()
             }
             TableOptionsOld::SQLITE => {
                 let location: String = m.remove_required("location")?;
@@ -685,7 +691,7 @@ impl<'a> SessionPlanner<'a> {
                 };
                 access.validate_table_access(&table).await?;
 
-                TableOptionsOld::Sqlite(TableOptionsSqlite { location, table })
+                TableOptionsSqlite { location, table }.into()
             }
             TableOptionsOld::LOCAL => {
                 let location: String = m.remove_required("location")?;
@@ -694,11 +700,12 @@ impl<'a> SessionPlanner<'a> {
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
 
-                TableOptionsOld::Local(TableOptionsLocal {
+                TableOptionsLocal {
                     location,
                     file_type: file_type.to_string().to_lowercase(),
                     compression: compression.map(|c| c.to_string()),
-                })
+                }
+                .into()
             }
             TableOptionsOld::GCS => {
                 let service_account_key = creds_options.as_ref().map(|c| match c {
@@ -720,13 +727,14 @@ impl<'a> SessionPlanner<'a> {
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
 
-                TableOptionsOld::Gcs(TableOptionsGcs {
+                TableOptionsGcs {
                     bucket,
                     service_account_key,
                     location,
                     file_type,
                     compression: compression.map(|c| c.to_string()),
-                })
+                }
+                .into()
             }
             TableOptionsOld::S3_STORAGE => {
                 let creds = creds_options.as_ref().map(|c| match c {
@@ -761,7 +769,7 @@ impl<'a> SessionPlanner<'a> {
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
 
-                TableOptionsOld::S3(TableOptionsS3 {
+                TableOptionsS3 {
                     region,
                     bucket,
                     access_key_id,
@@ -769,7 +777,8 @@ impl<'a> SessionPlanner<'a> {
                     location,
                     file_type: file_type.to_string(),
                     compression: compression.map(|c| c.to_string()),
-                })
+                }
+                .into()
             }
             TableOptionsOld::AZURE => {
                 let (account, access_key) = match creds_options {
@@ -815,13 +824,14 @@ impl<'a> SessionPlanner<'a> {
                 opts.inner
                     .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
 
-                TableOptionsOld::Azure(TableOptionsObjectStore {
+                TableOptionsObjectStore {
                     location: source_url,
                     storage_options: opts,
                     file_type: Some(file_type.to_string()),
                     compression: compression.map(|c| c.to_string()),
                     schema_sample_size: None,
-                })
+                }
+                .into()
             }
             TableOptionsOld::DELTA | TableOptionsOld::ICEBERG => {
                 let location: String = m.remove_required("location")?;
@@ -834,25 +844,27 @@ impl<'a> SessionPlanner<'a> {
                 if datasource.as_str() == TableOptionsOld::DELTA {
                     let _table = load_table_direct(&location, storage_options.clone()).await?;
 
-                    TableOptionsOld::Delta(TableOptionsObjectStore {
+                    TableOptionsObjectStore {
                         location,
                         storage_options,
-                        file_type: None,
+                        file_type: Some("delta".to_string()),
                         compression: None,
                         schema_sample_size: None,
-                    })
+                    }
+                    .into()
                 } else {
                     let url = DatasourceUrl::try_new(&location)?;
                     let store = storage_options_into_object_store(&url, &storage_options)?;
                     let _table = IcebergTable::open(url, store).await?;
 
-                    TableOptionsOld::Iceberg(TableOptionsObjectStore {
+                    TableOptionsObjectStore {
                         location,
                         storage_options,
-                        file_type: None,
+                        file_type: Some("iceberg".to_string()),
                         compression: None,
                         schema_sample_size: None,
-                    })
+                    }
+                    .into()
                 }
             }
             TableOptionsOld::LANCE => {
@@ -863,13 +875,14 @@ impl<'a> SessionPlanner<'a> {
                 }
                 // Validate that the table exists.
                 let _table = LanceTable::new(&location, storage_options.clone()).await?;
-                TableOptionsOld::Lance(TableOptionsObjectStore {
+                TableOptionsObjectStore {
                     location,
                     storage_options,
-                    file_type: None,
+                    file_type: Some("lance".to_string()),
                     compression: None,
                     schema_sample_size: None,
-                })
+                }
+                .into()
             }
             TableOptionsOld::BSON => {
                 let location: String = m.remove_required("location")?;
@@ -884,13 +897,14 @@ impl<'a> SessionPlanner<'a> {
                         .map(|strint| strint.parse())
                         .unwrap_or(Ok(100))?,
                 );
-                TableOptionsOld::Bson(TableOptionsObjectStore {
+                TableOptionsObjectStore {
                     location,
                     storage_options,
-                    file_type: None,
+                    file_type: Some("bson".to_string()),
                     compression: None,
                     schema_sample_size,
-                })
+                }
+                .into()
             }
             TableOptionsOld::EXCEL => {
                 let location: String = m.remove_required("location")?;
@@ -917,14 +931,15 @@ impl<'a> SessionPlanner<'a> {
                     }
                 };
 
-                TableOptionsOld::Excel(TableOptionsExcel {
+                TableOptionsExcel {
                     location,
                     storage_options,
                     file_type: None,
                     compression: None,
                     sheet_name,
                     has_header,
-                })
+                }
+                .into()
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
         };

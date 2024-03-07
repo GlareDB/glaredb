@@ -2001,9 +2001,10 @@ mod tests {
                 vec![Mutation::CreateExternalTable(CreateExternalTable {
                     schema: "public".to_string(),
                     name: "read_postgres".to_string(),
-                    options: TableOptionsOld::Debug(TableOptionsDebug {
+                    options: TableOptionsDebug {
                         table_type: String::new(),
-                    }),
+                    }
+                    .into(),
                     if_not_exists: true,
                     or_replace: false,
                     tunnel: None,

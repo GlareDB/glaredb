@@ -618,6 +618,33 @@ impl StorageOptions {
     }
 }
 
+impl From<StorageOptions> for OptionValue {
+    fn from(value: StorageOptions) -> Self {
+        OptionValue::Object(
+            value
+                .inner
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
+        )
+    }
+}
+impl TryFrom<OptionValue> for StorageOptions {
+    type Error = ProtoConvError;
+    fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
+        if let OptionValue::Object(inner) = value {
+            Ok(StorageOptions {
+                inner: inner
+                    .into_iter()
+                    .map(|(k, v)| Ok::<_, ProtoConvError>((k, v.try_into()?)))
+                    .collect::<Result<_, _>>()?,
+            })
+        } else {
+            Err(ProtoConvError::ParseError("Expected object".to_string()))
+        }
+    }
+}
+
 impl TryFrom<options::StorageOptions> for StorageOptions {
     type Error = ProtoConvError;
     fn try_from(value: options::StorageOptions) -> Result<Self, Self::Error> {
@@ -675,6 +702,7 @@ impl TryFrom<OptionValue> for String {
         }
     }
 }
+
 
 impl TryFrom<OptionValue> for DataType {
     type Error = ProtoConvError;
@@ -1101,6 +1129,7 @@ impl TryFrom<TableOptionsInternal> for options::TableOptionsInternal {
 pub struct TableOptionsDebug {
     pub table_type: String,
 }
+
 impl From<TableOptionsDebug> for TableOptions {
     fn from(value: TableOptionsDebug) -> Self {
         let mut options = BTreeMap::new();
@@ -1112,6 +1141,24 @@ impl From<TableOptionsDebug> for TableOptions {
         TableOptions {
             name: "debug".to_string(),
             options,
+        }
+    }
+}
+
+impl TryFrom<&TableOptions> for TableOptionsDebug {
+    type Error = ProtoConvError;
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if matches!(value.name.as_ref(), "debug") {
+            let table_type: String = value
+                .options
+                .get("table_type")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("table_type".to_string()))?
+                .try_into()?;
+
+            Ok(TableOptionsDebug { table_type })
+        } else {
+            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
         }
     }
 }
@@ -1138,6 +1185,21 @@ pub struct TableOptionsPostgres {
     pub connection_string: String,
     pub schema: String,
     pub table: String,
+}
+
+impl From<TableOptionsPostgres> for TableOptions {
+    fn from(value: TableOptionsPostgres) -> Self {
+        let name = "postgres".to_string();
+        let mut options = BTreeMap::new();
+        options.insert(
+            "connection_string".to_string(),
+            value.connection_string.into(),
+        );
+        options.insert("schema".to_string(), value.schema.into());
+        options.insert("table".to_string(), value.table.into());
+
+        TableOptions { name, options }
+    }
 }
 
 impl TryFrom<options::TableOptionsPostgres> for TableOptionsPostgres {
@@ -1167,6 +1229,22 @@ pub struct TableOptionsBigQuery {
     pub project_id: String,
     pub dataset_id: String,
     pub table_id: String,
+}
+
+impl From<TableOptionsBigQuery> for TableOptions {
+    fn from(value: TableOptionsBigQuery) -> Self {
+        let name = "bigquery".to_string();
+        let mut options = BTreeMap::new();
+        options.insert(
+            "service_account_key".to_string(),
+            value.service_account_key.into(),
+        );
+        options.insert("project_id".to_string(), value.project_id.into());
+        options.insert("dataset_id".to_string(), value.dataset_id.into());
+        options.insert("table_id".to_string(), value.table_id.into());
+
+        TableOptions { name, options }
+    }
 }
 
 impl TryFrom<options::TableOptionsBigQuery> for TableOptionsBigQuery {
@@ -1199,6 +1277,21 @@ pub struct TableOptionsMysql {
     pub table: String,
 }
 
+impl From<TableOptionsMysql> for TableOptions {
+    fn from(value: TableOptionsMysql) -> Self {
+        let name = "mysql".to_string();
+        let mut options = BTreeMap::new();
+        options.insert(
+            "connection_string".to_string(),
+            value.connection_string.into(),
+        );
+        options.insert("schema".to_string(), value.schema.into());
+        options.insert("table".to_string(), value.table.into());
+
+        TableOptions { name, options }
+    }
+}
+
 impl TryFrom<options::TableOptionsMysql> for TableOptionsMysql {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsMysql) -> Result<Self, Self::Error> {
@@ -1225,6 +1318,20 @@ pub struct TableOptionsLocal {
     pub location: String,
     pub file_type: String,
     pub compression: Option<String>,
+}
+
+impl From<TableOptionsLocal> for TableOptions {
+    fn from(value: TableOptionsLocal) -> Self {
+        let name = "local".to_string();
+        let mut options = BTreeMap::new();
+        options.insert("location".to_string(), value.location.into());
+        options.insert("file_type".to_string(), value.file_type.into());
+        if let Some(compression) = value.compression {
+            options.insert("compression".to_string(), compression.into());
+        }
+
+        TableOptions { name, options }
+    }
 }
 
 impl TryFrom<options::TableOptionsLocal> for TableOptionsLocal {
@@ -1255,6 +1362,74 @@ pub struct TableOptionsGcs {
     pub location: String,
     pub file_type: String,
     pub compression: Option<String>,
+}
+
+impl From<TableOptionsGcs> for TableOptions {
+    fn from(value: TableOptionsGcs) -> Self {
+        let name = "gcs".to_string();
+        let mut options = BTreeMap::new();
+        if let Some(service_account_key) = value.service_account_key {
+            options.insert(
+                "service_account_key".to_string(),
+                service_account_key.into(),
+            );
+        }
+        options.insert("bucket".to_string(), value.bucket.into());
+        options.insert("location".to_string(), value.location.into());
+        options.insert("file_type".to_string(), value.file_type.into());
+        if let Some(compression) = value.compression {
+            options.insert("compression".to_string(), compression.into());
+        }
+
+        TableOptions { name, options }
+    }
+}
+impl TryFrom<&TableOptions> for TableOptionsGcs {
+    type Error = ProtoConvError;
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        let service_account_key = value
+            .options
+            .get("service_account_key")
+            .cloned()
+            .map(|v| v.try_into())
+            .transpose()?;
+
+        let bucket = value
+            .options
+            .get("bucket")
+            .cloned()
+            .ok_or_else(|| ProtoConvError::RequiredField("bucket".to_string()))?
+            .try_into()?;
+
+        let location = value
+            .options
+            .get("location")
+            .cloned()
+            .ok_or_else(|| ProtoConvError::RequiredField("location".to_string()))?
+            .try_into()?;
+
+        let file_type = value
+            .options
+            .get("file_type")
+            .cloned()
+            .ok_or_else(|| ProtoConvError::RequiredField("file_type".to_string()))?
+            .try_into()?;
+
+        let compression = value
+            .options
+            .get("compression")
+            .cloned()
+            .map(|v| v.try_into())
+            .transpose()?;
+
+        Ok(TableOptionsGcs {
+            service_account_key,
+            bucket,
+            location,
+            file_type,
+            compression,
+        })
+    }
 }
 
 impl TryFrom<options::TableOptionsGcs> for TableOptionsGcs {
@@ -1293,6 +1468,95 @@ pub struct TableOptionsS3 {
     pub compression: Option<String>,
 }
 
+impl From<TableOptionsS3> for TableOptions {
+    fn from(value: TableOptionsS3) -> Self {
+        let name = "s3".to_string();
+        let mut options = BTreeMap::new();
+        if let Some(access_key_id) = value.access_key_id {
+            options.insert("access_key_id".to_string(), access_key_id.into());
+        }
+        if let Some(secret_access_key) = value.secret_access_key {
+            options.insert("secret_access_key".to_string(), secret_access_key.into());
+        }
+        options.insert("region".to_string(), value.region.into());
+        options.insert("bucket".to_string(), value.bucket.into());
+        options.insert("location".to_string(), value.location.into());
+        options.insert("file_type".to_string(), value.file_type.into());
+        if let Some(compression) = value.compression {
+            options.insert("compression".to_string(), compression.into());
+        }
+
+        TableOptions { name, options }
+    }
+}
+impl TryFrom<&TableOptions> for TableOptionsS3 {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if value.name != "s3" {
+            return Err(ProtoConvError::UnknownVariant(value.name.to_string()));
+        }
+        let access_key_id = value
+            .options
+            .get("access_key_id")
+            .cloned()
+            .map(|v| v.try_into())
+            .transpose()?;
+
+        let secret_access_key = value
+            .options
+            .get("secret_access_key")
+            .cloned()
+            .map(|v| v.try_into())
+            .transpose()?;
+
+        let region = value
+            .options
+            .get("region")
+            .cloned()
+            .ok_or_else(|| ProtoConvError::RequiredField("region".to_string()))?
+            .try_into()?;
+
+        let bucket = value
+            .options
+            .get("bucket")
+            .cloned()
+            .ok_or_else(|| ProtoConvError::RequiredField("bucket".to_string()))?
+            .try_into()?;
+
+        let location = value
+            .options
+            .get("location")
+            .cloned()
+            .ok_or_else(|| ProtoConvError::RequiredField("location".to_string()))?
+            .try_into()?;
+
+        let file_type = value
+            .options
+            .get("file_type")
+            .cloned()
+            .ok_or_else(|| ProtoConvError::RequiredField("file_type".to_string()))?
+            .try_into()?;
+
+        let compression = value
+            .options
+            .get("compression")
+            .cloned()
+            .map(|v| v.try_into())
+            .transpose()?;
+
+        Ok(TableOptionsS3 {
+            access_key_id,
+            secret_access_key,
+            region,
+            bucket,
+            location,
+            file_type,
+            compression,
+        })
+    }
+}
+
 impl TryFrom<options::TableOptionsS3> for TableOptionsS3 {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsS3) -> Result<Self, Self::Error> {
@@ -1328,6 +1592,21 @@ pub struct TableOptionsMongoDb {
     pub collection: String,
 }
 
+impl From<TableOptionsMongoDb> for TableOptions {
+    fn from(value: TableOptionsMongoDb) -> Self {
+        let name = "mongo".to_string();
+        let mut options = BTreeMap::new();
+        options.insert(
+            "connection_string".to_string(),
+            value.connection_string.into(),
+        );
+        options.insert("database".to_string(), value.database.into());
+        options.insert("collection".to_string(), value.collection.into());
+
+        TableOptions { name, options }
+    }
+}
+
 impl TryFrom<options::TableOptionsMongo> for TableOptionsMongoDb {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsMongo) -> Result<Self, Self::Error> {
@@ -1357,6 +1636,28 @@ pub struct TableOptionsExcel {
     pub compression: Option<String>,
     pub sheet_name: Option<String>,
     pub has_header: bool,
+}
+
+impl From<TableOptionsExcel> for TableOptions {
+    fn from(value: TableOptionsExcel) -> Self {
+        let name = "excel".to_string();
+        let mut options = BTreeMap::new();
+        options.insert("location".to_string(), value.location.into());
+
+        options.insert("storage_options".to_string(), value.storage_options.into());
+        if let Some(file_type) = value.file_type {
+            options.insert("file_type".to_string(), file_type.into());
+        }
+        if let Some(compression) = value.compression {
+            options.insert("compression".to_string(), compression.into());
+        }
+        if let Some(sheet_name) = value.sheet_name {
+            options.insert("sheet_name".to_string(), sheet_name.into());
+        }
+        options.insert("has_header".to_string(), value.has_header.into());
+
+        TableOptions { name, options }
+    }
 }
 
 impl TryFrom<options::TableOptionsExcel> for TableOptionsExcel {
@@ -1393,6 +1694,21 @@ pub struct TableOptionsSqlServer {
     pub table: String,
 }
 
+impl From<TableOptionsSqlServer> for TableOptions {
+    fn from(value: TableOptionsSqlServer) -> Self {
+        let name = "sql_server".to_string();
+        let mut options = BTreeMap::new();
+        options.insert(
+            "connection_string".to_string(),
+            value.connection_string.into(),
+        );
+        options.insert("schema".to_string(), value.schema.into());
+        options.insert("table".to_string(), value.table.into());
+
+        TableOptions { name, options }
+    }
+}
+
 impl TryFrom<options::TableOptionsSqlServer> for TableOptionsSqlServer {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsSqlServer) -> Result<Self, Self::Error> {
@@ -1419,6 +1735,23 @@ pub struct TableOptionsClickhouse {
     pub connection_string: String,
     pub table: String,
     pub database: Option<String>,
+}
+
+impl From<TableOptionsClickhouse> for TableOptions {
+    fn from(value: TableOptionsClickhouse) -> Self {
+        let name = "clickhouse".to_string();
+        let mut options = BTreeMap::new();
+        options.insert(
+            "connection_string".to_string(),
+            value.connection_string.into(),
+        );
+        options.insert("table".to_string(), value.table.into());
+        if let Some(database) = value.database {
+            options.insert("database".to_string(), database.into());
+        }
+
+        TableOptions { name, options }
+    }
 }
 
 impl TryFrom<options::TableOptionsClickhouse> for TableOptionsClickhouse {
@@ -1449,6 +1782,24 @@ pub struct TableOptionsCassandra {
     pub table: String,
     pub username: Option<String>,
     pub password: Option<String>,
+}
+
+impl From<TableOptionsCassandra> for TableOptions {
+    fn from(value: TableOptionsCassandra) -> Self {
+        let name = "cassandra".to_string();
+        let mut options = BTreeMap::new();
+        options.insert("host".to_string(), value.host.into());
+        options.insert("keyspace".to_string(), value.keyspace.into());
+        options.insert("table".to_string(), value.table.into());
+        if let Some(username) = value.username {
+            options.insert("username".to_string(), username.into());
+        }
+        if let Some(password) = value.password {
+            options.insert("password".to_string(), password.into());
+        }
+
+        TableOptions { name, options }
+    }
 }
 
 impl TryFrom<options::TableOptionsCassandra> for TableOptionsCassandra {
@@ -1482,6 +1833,17 @@ pub struct TableOptionsSqlite {
     pub table: String,
 }
 
+impl From<TableOptionsSqlite> for TableOptions {
+    fn from(value: TableOptionsSqlite) -> Self {
+        let name = "sqlite".to_string();
+        let mut options = BTreeMap::new();
+        options.insert("location".to_string(), value.location.into());
+        options.insert("table".to_string(), value.table.into());
+
+        TableOptions { name, options }
+    }
+}
+
 impl TryFrom<options::TableOptionsSqlite> for TableOptionsSqlite {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsSqlite) -> Result<Self, Self::Error> {
@@ -1511,6 +1873,23 @@ pub struct TableOptionsSnowflake {
     pub role_name: String,
     pub schema_name: String,
     pub table_name: String,
+}
+
+impl From<TableOptionsSnowflake> for TableOptions {
+    fn from(value: TableOptionsSnowflake) -> Self {
+        let name = "snowflake".to_string();
+        let mut options = BTreeMap::new();
+        options.insert("account_name".to_string(), value.account_name.into());
+        options.insert("login_name".to_string(), value.login_name.into());
+        options.insert("password".to_string(), value.password.into());
+        options.insert("database_name".to_string(), value.database_name.into());
+        options.insert("warehouse".to_string(), value.warehouse.into());
+        options.insert("role_name".to_string(), value.role_name.into());
+        options.insert("schema_name".to_string(), value.schema_name.into());
+        options.insert("table_name".to_string(), value.table_name.into());
+
+        TableOptions { name, options }
+    }
 }
 
 impl TryFrom<options::TableOptionsSnowflake> for TableOptionsSnowflake {
@@ -1553,6 +1932,72 @@ pub struct TableOptionsObjectStore {
     pub schema_sample_size: Option<i64>,
 }
 
+impl From<TableOptionsObjectStore> for TableOptions {
+    fn from(value: TableOptionsObjectStore) -> Self {
+        let name = "object_store".to_string();
+        let mut options = BTreeMap::new();
+        options.insert("location".to_string(), value.location.into());
+        options.insert("storage_options".to_string(), value.storage_options.into());
+        if let Some(file_type) = value.file_type {
+            options.insert("file_type".to_string(), file_type.into());
+        }
+        if let Some(compression) = value.compression {
+            options.insert("compression".to_string(), compression.into());
+        }
+        if let Some(schema_sample_size) = value.schema_sample_size {
+            options.insert("schema_sample_size".to_string(), schema_sample_size.into());
+        }
+
+        TableOptions { name, options }
+    }
+}
+impl TryFrom<&TableOptions> for TableOptionsObjectStore {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if value.name != "object_store" {
+            return Err(ProtoConvError::UnknownVariant(value.name.to_string()));
+        }
+        let location = value
+            .options
+            .get("location")
+            .cloned()
+            .ok_or_else(|| ProtoConvError::RequiredField("location".to_string()))?
+            .try_into()?;
+        let storage_options = value
+            .options
+            .get("storage_options")
+            .cloned()
+            .ok_or_else(|| ProtoConvError::RequiredField("storage_options".to_string()))?
+            .try_into()?;
+
+        let file_type = value
+            .options
+            .get("file_type")
+            .cloned()
+            .map(|v| v.try_into())
+            .transpose()?;
+        let compression = value
+            .options
+            .get("compression")
+            .cloned()
+            .map(|v| v.try_into())
+            .transpose()?;
+        let schema_sample_size = value
+            .options
+            .get("schema_sample_size")
+            .cloned()
+            .map(|v| v.try_into())
+            .transpose()?;
+        Ok(TableOptionsObjectStore {
+            location,
+            storage_options,
+            file_type,
+            compression,
+            schema_sample_size,
+        })
+    }
+}
 impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsObjectStore) -> Result<Self, Self::Error> {

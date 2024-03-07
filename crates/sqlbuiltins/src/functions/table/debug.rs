@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -10,8 +10,13 @@ use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::debug::{validate_tunnel_connections, DebugTableProvider, DebugTableType};
 pub use datasources::Datasource;
 use parser::errors::ParserError;
-use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
-use protogen::metastore::types::options::{CredentialsOptions, TableOptionsImpl, TunnelOptions};
+use protogen::metastore::types::catalog::{FunctionType, RuntimePreference, TableEntry};
+use protogen::metastore::types::options::{
+    CredentialsOptions,
+    TableOptions,
+    TableOptionsDebug,
+    TunnelOptions,
+};
 
 use super::TableFunc;
 use crate::functions::ConstBuiltinFunction;
@@ -69,23 +74,30 @@ pub struct TableOptionsDebug2 {
     pub table_type: String,
 }
 
-impl TableOptionsImpl for TableOptionsDebug2 {
-    fn name(&self) -> &'static str {
-        "debug"
+impl From<TableOptionsDebug2> for TableOptions {
+    fn from(value: TableOptionsDebug2) -> Self {
+        let mut options = BTreeMap::new();
+        options.insert("table_type".to_string(), value.table_type.into());
+
+        TableOptions {
+            name: "debug".to_string(),
+            options,
+        }
     }
 }
 
 pub struct DebugDatasource {}
+
+#[async_trait]
 impl Datasource for DebugDatasource {
     const NAME: &'static str = "debug";
 
-    type TableOptions = TableOptionsDebug2;
 
     fn table_options_from_stmt(
         opts: &mut parser::options::StatementOptions,
         creds: Option<protogen::metastore::types::options::CredentialsOptions>,
         tunnel_opts: Option<TunnelOptions>,
-    ) -> Result<Self::TableOptions, ParserError>
+    ) -> Result<impl Into<TableOptions>, ParserError>
     where
         Self: Sized,
     {
@@ -101,5 +113,18 @@ impl Datasource for DebugDatasource {
         Ok(TableOptionsDebug2 {
             table_type: typ.to_string(),
         })
+    }
+
+    async fn dispatch_table_entry_with_tunnel<BuiltinError>(
+        entry: &TableEntry,
+        tunnel_opts: Option<&TunnelOptions>,
+    ) -> Result<Arc<dyn TableProvider>, BuiltinError> {
+        let options = TableOptionsDebug::try_from(&entry.options).unwrap();
+
+
+        let typ: DebugTableType = options.table_type.parse().unwrap();
+        let tunnel = validate_tunnel_connections(tunnel_opts)
+            .expect("datasources should be validated with tunnels before dispatch");
+        Ok(Arc::new(DebugTableProvider { typ, tunnel }))
     }
 }

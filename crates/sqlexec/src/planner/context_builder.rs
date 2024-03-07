@@ -195,10 +195,7 @@ impl<'a> PartialContextProvider<'a> {
                     // that actually write out to storage.
                     let run_local = table.meta.is_temp
                         || table.meta.builtin
-                        || matches!(
-                            &table.options,
-                            TableOptionsOld::Debug(_) | TableOptionsOld::Local(_)
-                        );
+                        || matches!(table.options.name.as_ref(), "debug" | "local");
 
                     if run_local {
                         RuntimeAwareTableProvider::new(
