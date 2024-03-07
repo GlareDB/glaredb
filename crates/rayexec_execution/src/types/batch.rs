@@ -176,6 +176,10 @@ impl DataBatchSchema {
         DataBatchSchema { types }
     }
 
+    pub fn num_columns(&self) -> usize {
+        self.types.len()
+    }
+
     pub fn get_types(&self) -> &[DataType] {
         &self.types
     }

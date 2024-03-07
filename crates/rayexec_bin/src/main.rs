@@ -1,11 +1,12 @@
-use futures::{StreamExt};
-use rayexec_execution::engine::{Engine};
+use futures::StreamExt;
+use rayexec_error::Result;
+use rayexec_execution::engine::Engine;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::FmtSubscriber;
 
 /// Simple binary for quickly running arbitrary queries.
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() {
     let env_filter = EnvFilter::builder()
         .with_default_directive(tracing::Level::TRACE.into())
         .from_env_lossy()
@@ -22,10 +23,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .finish();
     let _g = tracing::subscriber::set_default(subscriber);
 
+    if let Err(e) = inner().await {
+        println!("----");
+        println!("ERROR");
+        println!("{e}");
+        std::process::exit(1);
+    }
+}
+
+async fn inner() -> Result<()> {
     let args: Vec<_> = std::env::args().collect();
 
     let engine = Engine::try_new()?;
-    let session = engine.new_session()?;
+    let mut session = engine.new_session()?;
 
     let query = args[1].clone();
 

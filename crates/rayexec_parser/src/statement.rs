@@ -15,4 +15,9 @@ pub enum Statement {
         reference: ObjectReference,
         value: Expr,
     },
+
+    /// SHOW <variable>
+    ShowVariable {
+        reference: ObjectReference,
+    },
 }

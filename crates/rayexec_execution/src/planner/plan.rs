@@ -1,7 +1,7 @@
 use crate::{
     functions::table::TableFunctionArgs,
     planner::{
-        operator::{ExpressionList, Filter, JoinType, Scan, ScanItem},
+        operator::{ExpressionList, Filter, JoinType, Scan, ScanItem, SetVar, ShowVar},
         scope::TableReference,
     },
     types::batch::DataBatchSchema,
@@ -50,6 +50,26 @@ impl<'a> PlanContext<'a> {
         trace!(?stmt, "planning statement");
         match stmt {
             Statement::Query(query) => self.plan_query(query),
+            Statement::SetVariable { reference, value } => {
+                let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_SCHEMA);
+                let expr = expr_ctx.plan_expression(value)?;
+                Ok(LogicalQuery {
+                    root: LogicalOperator::SetVar(SetVar {
+                        name: reference.0[0].value.clone(), // TODO: Normalize, allow compound references?
+                        value: expr.try_into_scalar()?,
+                    }),
+                    scope: Scope::empty(),
+                })
+            }
+            Statement::ShowVariable { reference } => {
+                let name = reference.0[0].value.clone(); // TODO: Normalize, allow compound references?
+                let var = self.resolver.get_session_variable(&name)?;
+                let scope = Scope::with_columns(None, [name.clone()]);
+                Ok(LogicalQuery {
+                    root: LogicalOperator::ShowVar(ShowVar { var }),
+                    scope,
+                })
+            }
             _ => unimplemented!(),
         }
     }

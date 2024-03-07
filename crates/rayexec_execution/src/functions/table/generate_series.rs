@@ -1,6 +1,7 @@
 use super::{BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs};
 use crate::expr::scalar::ScalarValue;
 use crate::physical::plans::Source;
+use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, NamedDataBatchSchema};
 use arrow_array::Int32Array;
@@ -32,7 +33,9 @@ impl TableFunction for GenerateSeries {
         }
 
         if !args.named.is_empty() {
-            return Err(RayexecError::new("This function doesn't accept named arguments".to_string()));
+            return Err(RayexecError::new(
+                "This function doesn't accept named arguments".to_string(),
+            ));
         }
 
         let (start, stop, step) = match args.unnamed.len() {
@@ -112,7 +115,12 @@ impl Source for GenerateSeriesIntegerOperator {
         1
     }
 
-    fn poll_next(&self, _cx: &mut Context<'_>, _partition: usize) -> Poll<Option<Result<DataBatch>>> {
+    fn poll_next(
+        &self,
+        _task_cx: &TaskContext,
+        _cx: &mut Context<'_>,
+        _partition: usize,
+    ) -> Poll<Option<Result<DataBatch>>> {
         const BATCH_SIZE: usize = 1000;
         let curr = self.curr.load(Ordering::Relaxed);
 

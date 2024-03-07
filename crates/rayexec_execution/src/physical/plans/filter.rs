@@ -1,5 +1,6 @@
 use super::PhysicalOperator;
 use crate::expr::PhysicalScalarExpression;
+use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::DataBatch;
 use arrow::compute::filter;
@@ -22,7 +23,7 @@ impl PhysicalFilter {
 }
 
 impl PhysicalOperator for PhysicalFilter {
-    fn execute(&self, input: DataBatch) -> Result<DataBatch> {
+    fn execute(&self, _task_cx: &TaskContext, input: DataBatch) -> Result<DataBatch> {
         let selection = self.predicate.eval(&input)?;
         // TODO: Need to check that this is actually a boolean somewhere.
         let selection = selection.as_boolean();

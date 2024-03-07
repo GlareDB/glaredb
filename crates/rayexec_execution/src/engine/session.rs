@@ -1,4 +1,4 @@
-
+use crossbeam::channel::TryRecvError;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{ast, parser};
 
@@ -6,24 +6,25 @@ use tracing::trace;
 
 use crate::{
     functions::table::{self, TableFunction},
-    physical::{planner::PhysicalPlanner, scheduler::Scheduler},
+    optimizer::Optimizer,
+    physical::{planner::PhysicalPlanner, scheduler::Scheduler, TaskContext},
     planner::{plan::PlanContext, Resolver},
     types::batch::DataBatchSchema,
 };
 
-use super::materialize::MaterializedBatchStream;
+use super::{
+    materialize::MaterializedBatchStream,
+    modify::{Modification, SessionModifier},
+    vars::SessionVar,
+    vars::SessionVars,
+};
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct DebugResolver;
+#[derive(Debug, Clone, Copy)]
+pub struct DebugResolver<'a> {
+    vars: &'a SessionVars,
+}
 
-impl Resolver for DebugResolver {
-    // fn resolve_for_table_scan(
-    //     &self,
-    //     reference: &ast::ObjectReference,
-    // ) -> Result<Box<dyn TableFunction>> {
-    //     unimplemented!()
-    // }
-
+impl<'a> Resolver for DebugResolver<'a> {
     fn resolve_table_function(
         &self,
         reference: &ast::ObjectReference,
@@ -39,6 +40,10 @@ impl Resolver for DebugResolver {
             other => return Err(RayexecError::new(format!("unknown function: {other}"))),
         })
     }
+
+    fn get_session_variable(&self, name: &str) -> Result<SessionVar> {
+        self.vars.get_var(name).cloned()
+    }
 }
 
 #[derive(Debug)]
@@ -49,39 +54,76 @@ pub struct ExecutionResult {
 
 #[derive(Debug)]
 pub struct Session {
-    scheduler: Scheduler,
+    pub(crate) modifications: SessionModifier,
+    pub(crate) vars: SessionVars,
+    pub(crate) scheduler: Scheduler,
 }
 
 impl Session {
     pub fn new(scheduler: Scheduler) -> Self {
-        Session { scheduler }
+        Session {
+            modifications: SessionModifier::new(),
+            scheduler,
+            vars: SessionVars::new_local(),
+        }
     }
 
-    pub fn execute(&self, sql: &str) -> Result<ExecutionResult> {
+    pub fn execute(&mut self, sql: &str) -> Result<ExecutionResult> {
+        // Only thing that requires mut.
+        self.apply_pending_modifications()
+            .expect("modications to be infallible");
+
         let stmts = parser::parse(sql)?;
         if stmts.len() != 1 {
             return Err(RayexecError::new("Expected one statement")); // TODO, allow any number
         }
         let mut stmts = stmts.into_iter();
 
-        let plan_context = PlanContext::new(&DebugResolver);
-        let logical = plan_context.plan_statement(stmts.next().unwrap())?;
+        let resolver = DebugResolver { vars: &self.vars };
+        let plan_context = PlanContext::new(&resolver);
+        let mut logical = plan_context.plan_statement(stmts.next().unwrap())?;
         trace!(?logical, "logical plan created");
 
-        // let optimizer = Optimizer::new();
-        // let logical = optimizer.optimize(&context, logical)?;
+        println!("BEFORE: \n{}", logical.root.as_explain_string()?);
+        let optimizer = Optimizer::new();
+        logical.root = optimizer.optimize(logical.root)?;
+        println!("AFTER: \n{}", logical.root.as_explain_string()?);
 
         let mut output_stream = MaterializedBatchStream::new();
 
-        let physical_planner = PhysicalPlanner::new();
+        let physical_planner = PhysicalPlanner::try_new_from_vars(&self.vars)?;
         let pipeline = physical_planner.create_plan(logical.root, output_stream.take_sink()?)?;
-        trace!(?pipeline, "physical plan created");
+        trace!("physical plan created");
 
-        self.scheduler.execute(pipeline)?;
+        let context = TaskContext {
+            modifications: Some(self.modifications.clone_sender()),
+        };
+
+        self.scheduler.execute(pipeline, context)?;
 
         Ok(ExecutionResult {
             output_schema: DataBatchSchema::new(Vec::new()), // TODO
             stream: output_stream,
         })
+    }
+
+    fn apply_pending_modifications(&mut self) -> Result<()> {
+        let recv = self.modifications.get_recv();
+        loop {
+            match recv.try_recv() {
+                Ok(modification) => match modification {
+                    Modification::UpdateVariable { name, value } => {
+                        self.vars.set_var(&name, value)?
+                    }
+                    _ => unimplemented!(),
+                },
+                Err(TryRecvError::Empty) => return Ok(()),
+                Err(TryRecvError::Disconnected) => {
+                    return Err(RayexecError::new(
+                        "session modification channel disconnected",
+                    ))
+                }
+            }
+        }
     }
 }

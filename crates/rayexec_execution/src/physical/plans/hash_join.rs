@@ -1,3 +1,4 @@
+use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::planner::operator::JoinType;
 use crate::types::batch::DataBatch;
@@ -48,6 +49,12 @@ use super::{Sink, Source};
 // example if we're joining on a column, then follow up with an aggregate
 // grouped by that column, we could just reuse the hashes and existing knowledge
 // of what batch is in a partition.
+//
+// TODO: If we keep the existing behavior of requiring both sides to be hash
+// partitioned, we can be a bit more efficient by not requiring that we collect
+// all the partition-local states into a global state. Instead we just need to
+// wait for the build for that partition to complete, then we can start the
+// probe on that partition without waiting for the other partitions to complete.
 //
 #[derive(Debug)]
 pub struct PhysicalPartitionedHashJoin {
@@ -138,7 +145,12 @@ impl Source for PhysicalPartitionedHashJoin {
         self.states.len()
     }
 
-    fn poll_next(&self, cx: &mut Context, partition: usize) -> Poll<Option<Result<DataBatch>>> {
+    fn poll_next(
+        &self,
+        _task_cx: &TaskContext,
+        cx: &mut Context,
+        partition: usize,
+    ) -> Poll<Option<Result<DataBatch>>> {
         let mut state = self.states[partition].lock();
         if !state.build_finished {
             state.pending_pull = Some(cx.waker().clone());
@@ -231,6 +243,8 @@ impl HashState {
                     ));
                 }
 
+                // Index of the newly arrived batch. The batch gets pushed at
+                // the end of the block after we compute the row keys.
                 let batch_idx = state.batches.len();
 
                 for (row_idx, row_hash) in col_hash.hashes.iter().enumerate() {
@@ -247,6 +261,9 @@ impl HashState {
                         );
                     }
                 }
+
+                state.batches.push(batch);
+
                 Ok(())
             }
             _ => Err(RayexecError::new("Expected batch state to be local")),
@@ -319,12 +336,12 @@ impl Sink for PhysicalPartitionedHashJoinBuildSink {
         self.states.len()
     }
 
-    fn poll_ready(&self, _cx: &mut Context, _partition: usize) -> Poll<()> {
+    fn poll_ready(&self, _task_cx: &TaskContext, _cx: &mut Context, _partition: usize) -> Poll<()> {
         // Always need to collect build side.
         Poll::Ready(())
     }
 
-    fn push(&self, input: DataBatch, partition: usize) -> Result<()> {
+    fn push(&self, _task_cx: &TaskContext, input: DataBatch, partition: usize) -> Result<()> {
         // TODO: Probably want to assert that this partition is correct for the
         // input batch.
         let mut state = self.states[partition].lock();
@@ -333,7 +350,7 @@ impl Sink for PhysicalPartitionedHashJoinBuildSink {
         Ok(())
     }
 
-    fn finish(&self, partition: usize) -> Result<()> {
+    fn finish(&self, _task_cx: &TaskContext, partition: usize) -> Result<()> {
         {
             // Technically just for debugging. We want to make sure we're not
             // accidentally marking the same partition as finished multiple
@@ -396,7 +413,7 @@ impl Sink for PhysicalPartitionedHashJoinProbeSink {
         self.states.len()
     }
 
-    fn poll_ready(&self, cx: &mut Context, partition: usize) -> Poll<()> {
+    fn poll_ready(&self, _task_cx: &TaskContext, cx: &mut Context, partition: usize) -> Poll<()> {
         let mut state = self.states[partition].lock();
         if !state.build_finished {
             // We're still building, register for a wakeup.
@@ -407,7 +424,7 @@ impl Sink for PhysicalPartitionedHashJoinProbeSink {
         Poll::Ready(())
     }
 
-    fn push(&self, input: DataBatch, partition: usize) -> Result<()> {
+    fn push(&self, _task_cx: &TaskContext, input: DataBatch, partition: usize) -> Result<()> {
         let local_states = {
             let state = self.states[partition].lock();
             assert!(state.build_finished);
@@ -432,7 +449,7 @@ impl Sink for PhysicalPartitionedHashJoinProbeSink {
         Ok(())
     }
 
-    fn finish(&self, partition: usize) -> Result<()> {
+    fn finish(&self, _task_cx: &TaskContext, partition: usize) -> Result<()> {
         let mut state = self.states[partition].lock();
         assert!(state.build_finished);
         assert!(!state.probe_finished);

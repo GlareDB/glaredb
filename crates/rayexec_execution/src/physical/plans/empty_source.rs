@@ -1,7 +1,8 @@
 use super::Source;
+use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::DataBatch;
-use rayexec_error::{Result};
+use rayexec_error::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
 
@@ -35,6 +36,7 @@ impl Source for EmptySource {
 
     fn poll_next(
         &self,
+        _task_cx: &TaskContext,
         _cx: &mut Context<'_>,
         partition: usize,
     ) -> Poll<Option<Result<DataBatch>>> {

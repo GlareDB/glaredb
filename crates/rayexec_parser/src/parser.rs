@@ -79,19 +79,16 @@ impl Parser {
                 match keyword {
                     Keyword::CREATE => self.parse_create(),
                     Keyword::SET => self.parse_set(),
+                    Keyword::SHOW => self.parse_show(),
                     Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
                         Ok(Statement::Query(QueryNode::parse(self)?))
                     }
-                    other => {
-                        Err(RayexecError::new(format!("Unexpected keyword: {other:?}",)))
-                    }
+                    other => Err(RayexecError::new(format!("Unexpected keyword: {other:?}",))),
                 }
             }
-            other => {
-                Err(RayexecError::new(format!(
-                    "Expected a SQL statement, got {other:?}"
-                )))
-            }
+            other => Err(RayexecError::new(format!(
+                "Expected a SQL statement, got {other:?}"
+            ))),
         }
     }
 
@@ -150,6 +147,12 @@ impl Parser {
         )))
     }
 
+    pub fn parse_show(&mut self) -> Result<Statement> {
+        self.expect_keyword(Keyword::SHOW)?;
+        let name = ObjectReference::parse(self)?;
+        Ok(Statement::ShowVariable { reference: name })
+    }
+
     /// Parse an optional alias.
     pub(crate) fn parse_alias(&mut self, reserved: &[Keyword]) -> Result<Option<Ident>> {
         let has_as = self.parse_keyword(Keyword::AS);
@@ -168,13 +171,7 @@ impl Parser {
             // alias if it's not a reserved word. Otherwise assume it's not an
             // alias.
             Token::Word(w) => match &w.keyword {
-                Some(kw)
-                    if reserved
-                        .iter()
-                        .any(|reserved| reserved == kw) =>
-                {
-                    None
-                }
+                Some(kw) if reserved.iter().any(|reserved| reserved == kw) => None,
                 _ => Some(Ident {
                     value: w.value.clone(),
                 }),

@@ -7,6 +7,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
+use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{physical::plans::Sink, types::batch::DataBatch};
 
@@ -72,11 +73,11 @@ impl Sink for MaterializedBatchSink {
         1
     }
 
-    fn poll_ready(&self, _cx: &mut Context, _partition: usize) -> Poll<()> {
+    fn poll_ready(&self, _task_cx: &TaskContext, _cx: &mut Context, _partition: usize) -> Poll<()> {
         Poll::Ready(())
     }
 
-    fn push(&self, input: DataBatch, partition: usize) -> Result<()> {
+    fn push(&self, _task_cx: &TaskContext, input: DataBatch, partition: usize) -> Result<()> {
         if partition != 0 {
             return Err(RayexecError::new("non-zero partition".to_string()));
         }
@@ -89,7 +90,7 @@ impl Sink for MaterializedBatchSink {
         Ok(())
     }
 
-    fn finish(&self, partition: usize) -> Result<()> {
+    fn finish(&self, _task_cx: &TaskContext, partition: usize) -> Result<()> {
         if partition != 0 {
             return Err(RayexecError::new("non-zero partition".to_string()));
         }

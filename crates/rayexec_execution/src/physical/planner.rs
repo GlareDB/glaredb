@@ -1,9 +1,13 @@
 use super::{
     chain::OperatorChain,
-    plans::{empty_source::EmptySource, projection::PhysicalProjection, PhysicalOperator},
+    plans::{
+        empty_source::EmptySource, projection::PhysicalProjection, set_var::PhysicalSetVar,
+        show_var::PhysicalShowVar, PhysicalOperator,
+    },
     Pipeline, Sink, Source,
 };
 use crate::{
+    engine::vars::SessionVars,
     expr::PhysicalScalarExpression,
     functions::table::Pushdown,
     physical::plans::{
@@ -20,22 +24,33 @@ use std::sync::Arc;
 
 /// Produce phyisical plans from logical plans.
 #[derive(Debug)]
-pub struct PhysicalPlanner {}
+pub struct PhysicalPlanner {
+    debug: DebugConfig,
+}
 
-impl Default for PhysicalPlanner {
-    fn default() -> Self {
-        Self::new()
-    }
+/// Configuration used for trigger debug condititions during planning.
+#[derive(Debug, Clone, Copy)]
+struct DebugConfig {
+    /// Trigger an error if we attempt to plan a nested loop join.
+    error_on_nested_loop_join: bool,
 }
 
 impl PhysicalPlanner {
-    pub fn new() -> Self {
-        PhysicalPlanner {}
+    /// Create a new physical planner using the configured session vars.
+    pub fn try_new_from_vars(vars: &SessionVars) -> Result<Self> {
+        Ok(PhysicalPlanner {
+            debug: DebugConfig {
+                error_on_nested_loop_join: vars
+                    .get_var("debug_error_on_nested_loop_join")?
+                    .value
+                    .try_as_bool()?,
+            },
+        })
     }
 
     /// Create a physical plan from a logical plan.
     pub fn create_plan(&self, plan: LogicalOperator, dest: Box<dyn Sink>) -> Result<Pipeline> {
-        let builder = PipelineBuilder::new(dest);
+        let builder = PipelineBuilder::new(dest, self.debug);
         let pipeline = builder.build_pipeline(plan)?;
 
         Ok(pipeline)
@@ -56,17 +71,20 @@ struct PipelineBuilder {
 
     /// Built operator chains.
     completed_chains: Vec<OperatorChain>,
+
+    debug: DebugConfig,
 }
 
 impl PipelineBuilder {
     /// Create a new builder for a pipeline that outputs the final result to
     /// `dest`.
-    fn new(dest: Box<dyn Sink>) -> Self {
+    fn new(dest: Box<dyn Sink>, debug: DebugConfig) -> Self {
         PipelineBuilder {
             sink: Some(dest),
             operators: Vec::new(),
             source: None,
             completed_chains: Vec::new(),
+            debug,
         }
     }
 
@@ -114,8 +132,26 @@ impl PipelineBuilder {
             LogicalOperator::AnyJoin(join) => self.plan_any_join(join),
             LogicalOperator::EqualityJoin(join) => self.plan_equality_join(join),
             LogicalOperator::Empty => self.plan_empty(),
+            LogicalOperator::SetVar(set_var) => self.plan_set_var(set_var),
+            LogicalOperator::ShowVar(show_var) => self.plan_show_var(show_var),
             other => unimplemented!("other: {other:?}"),
         }
+    }
+
+    fn plan_show_var(&mut self, show_var: operator::ShowVar) -> Result<()> {
+        if self.source.is_some() {
+            return Err(RayexecError::new("Expected source to be None"));
+        }
+        self.source = Some(Box::new(PhysicalShowVar::new(show_var.var)));
+        Ok(())
+    }
+
+    fn plan_set_var(&mut self, set_var: operator::SetVar) -> Result<()> {
+        if self.source.is_some() {
+            return Err(RayexecError::new("Expected source to be None"));
+        }
+        self.source = Some(Box::new(PhysicalSetVar::new(set_var.name, set_var.value)));
+        Ok(())
     }
 
     /// Plan a join that can handle arbitrary expressions.
@@ -157,12 +193,12 @@ impl PipelineBuilder {
             let mut repartition = PhysicalHashRepartition::new(1, 1, join.left_on);
             let repartition_sink = repartition.take_sink().expect("repartition sink to exist");
 
-            let mut builder = PipelineBuilder::new(Box::new(repartition_sink));
+            let mut builder = PipelineBuilder::new(Box::new(repartition_sink), self.debug);
             builder.walk_plan(*join.left)?;
             builder.create_complete_chain()?;
             let mut chains = builder.completed_chains;
 
-            // Add an additional operator chain for repartition -> build input.
+            // Add an additional operator chain for repartition -> build sink.
             chains.push(OperatorChain::try_new(
                 Box::new(repartition),
                 Box::new(build_sink),
@@ -181,12 +217,12 @@ impl PipelineBuilder {
             let mut repartition = PhysicalHashRepartition::new(1, 1, join.right_on);
             let repartition_sink = repartition.take_sink().expect("repartition sink to exist");
 
-            let mut builder = PipelineBuilder::new(Box::new(repartition_sink));
+            let mut builder = PipelineBuilder::new(Box::new(repartition_sink), self.debug);
             builder.walk_plan(*join.right)?;
             builder.create_complete_chain()?;
             let mut chains = builder.completed_chains;
 
-            // Add an additional operator chain for repartition -> build input.
+            // Add an additional operator chain for repartition -> probe sink.
             chains.push(OperatorChain::try_new(
                 Box::new(repartition),
                 Box::new(probe_sink),
@@ -195,6 +231,9 @@ impl PipelineBuilder {
 
             chains
         };
+
+        // Source if this pipeline is now the hash join results.
+        self.source = Some(Box::new(hash_join));
 
         // Append operator chains from the left and right children. Note that
         // order doesn't matter with the chains.
@@ -218,6 +257,11 @@ impl PipelineBuilder {
         right: LogicalOperator,
         filter: Option<PhysicalScalarExpression>,
     ) -> Result<()> {
+        if self.debug.error_on_nested_loop_join {
+            return Err(RayexecError::new(
+                "Triggered debug error on nested loop join",
+            ));
+        }
         if self.source.is_some() {
             return Err(RayexecError::new("Expected source to be None"));
         }
@@ -229,7 +273,7 @@ impl PipelineBuilder {
 
         // Build left side of join with the build sink as the destination.
         let mut left_completed = {
-            let mut builder = PipelineBuilder::new(Box::new(build_sink));
+            let mut builder = PipelineBuilder::new(Box::new(build_sink), self.debug);
             builder.walk_plan(left)?;
             builder.create_complete_chain()?;
             builder.completed_chains
@@ -237,7 +281,7 @@ impl PipelineBuilder {
 
         // Build right side of join with the probe sink as the destination.
         let mut right_completed = {
-            let mut builder = PipelineBuilder::new(Box::new(probe_sink));
+            let mut builder = PipelineBuilder::new(Box::new(probe_sink), self.debug);
             builder.walk_plan(right)?;
             builder.create_complete_chain()?;
             builder.completed_chains

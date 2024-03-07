@@ -1,6 +1,7 @@
 use super::{Sink, Source};
 use crate::physical::plans::util::hash::{build_hashes, partition_for_hash};
 use crate::physical::plans::util::take::take_indexes;
+use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{ColumnHash, DataBatch};
 use arrow_array::UInt64Array;
@@ -69,7 +70,12 @@ impl Source for PhysicalHashRepartition {
         self.output_states.len()
     }
 
-    fn poll_next(&self, cx: &mut Context, partition: usize) -> Poll<Option<Result<DataBatch>>> {
+    fn poll_next(
+        &self,
+        _task_cx: &TaskContext,
+        cx: &mut Context,
+        partition: usize,
+    ) -> Poll<Option<Result<DataBatch>>> {
         let mut state = self.output_states[partition].lock();
         match state.batches.pop_front() {
             Some(batch) => Poll::Ready(Some(Ok(batch))),
@@ -112,14 +118,16 @@ impl Sink for PhysicalHashRepartitionSink {
         self.input_partitions
     }
 
-    fn poll_ready(&self, _cx: &mut Context, _partition: usize) -> Poll<()> {
+    fn poll_ready(&self, _task_cx: &TaskContext, _cx: &mut Context, _partition: usize) -> Poll<()> {
         // TODO: Idk
         Poll::Ready(())
     }
 
-    fn push(&self, input: DataBatch, _partition: usize) -> Result<()> {
+    fn push(&self, _task_cx: &TaskContext, input: DataBatch, _partition: usize) -> Result<()> {
         // TODO: Maybe don't allocate this for every input partition.
         let mut hashes = Vec::with_capacity(input.num_rows());
+        hashes.resize(input.num_rows(), 0);
+
         let arrs: Vec<_> = self
             .columns
             .iter()
@@ -168,7 +176,7 @@ impl Sink for PhysicalHashRepartitionSink {
         Ok(())
     }
 
-    fn finish(&self, _partition: usize) -> Result<()> {
+    fn finish(&self, _task_cx: &TaskContext, _partition: usize) -> Result<()> {
         let prev = self.remaining_inputs.fetch_add(1, Ordering::SeqCst);
         if prev == 1 {
             // If we're the last partition to finish, go ahead and mark all the

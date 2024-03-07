@@ -1,5 +1,5 @@
 use crate::{keywords::Keyword, parser::Parser};
-use rayexec_error::{Result};
+use rayexec_error::Result;
 
 use super::{AstParseable, Expr};
 

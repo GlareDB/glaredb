@@ -88,6 +88,22 @@ pub trait Explainable {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry;
 }
 
+/// Wrapper around column indexes to provide consistent formatting.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ColumnIndexes<'a>(pub &'a [usize]);
+
+impl<'a> fmt::Display for ColumnIndexes<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (idx, col) in self.0.iter().enumerate() {
+            if idx > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "#{col}")?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

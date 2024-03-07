@@ -1,9 +1,9 @@
-use crate::expr::{PhysicalScalarExpression};
+use crate::expr::PhysicalScalarExpression;
+use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::{DataBatch};
+use crate::types::batch::DataBatch;
 
-
-use rayexec_error::{Result};
+use rayexec_error::Result;
 
 use super::PhysicalOperator;
 
@@ -19,7 +19,7 @@ impl PhysicalProjection {
 }
 
 impl PhysicalOperator for PhysicalProjection {
-    fn execute(&self, input: DataBatch) -> Result<DataBatch> {
+    fn execute(&self, _task_cx: &TaskContext, input: DataBatch) -> Result<DataBatch> {
         let arrs = self
             .exprs
             .iter()

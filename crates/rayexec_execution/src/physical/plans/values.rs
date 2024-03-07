@@ -1,12 +1,9 @@
-
+use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::{DataBatch};
-
-
-
+use crate::types::batch::DataBatch;
 
 use parking_lot::Mutex;
-use rayexec_error::{Result};
+use rayexec_error::Result;
 use std::task::{Context, Poll};
 
 use super::Source;
@@ -29,7 +26,12 @@ impl Source for PhysicalValues {
         1
     }
 
-    fn poll_next(&self, _cx: &mut Context, _partition: usize) -> Poll<Option<Result<DataBatch>>> {
+    fn poll_next(
+        &self,
+        _task_cx: &TaskContext,
+        _cx: &mut Context,
+        _partition: usize,
+    ) -> Poll<Option<Result<DataBatch>>> {
         match self.batch.lock().take() {
             Some(batch) => Poll::Ready(Some(Ok(batch))),
             None => Poll::Ready(None),

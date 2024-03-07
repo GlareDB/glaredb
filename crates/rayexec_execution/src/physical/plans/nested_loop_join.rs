@@ -1,4 +1,5 @@
 use crate::expr::PhysicalScalarExpression;
+use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::DataBatch;
 use arrow_array::cast::AsArray;
@@ -73,7 +74,12 @@ impl Source for PhysicalNestedLoopJoin {
         self.states.len()
     }
 
-    fn poll_next(&self, cx: &mut Context, partition: usize) -> Poll<Option<Result<DataBatch>>> {
+    fn poll_next(
+        &self,
+        _task_cx: &TaskContext,
+        cx: &mut Context,
+        partition: usize,
+    ) -> Poll<Option<Result<DataBatch>>> {
         let mut state = self.states[partition].lock();
         if !state.build_finished {
             state.pending_pull = Some(cx.waker().clone());
@@ -180,19 +186,19 @@ impl Sink for PhysicalNestedLoopJoinBuildSink {
         self.states.len()
     }
 
-    fn poll_ready(&self, _cx: &mut Context, _partition: usize) -> Poll<()> {
+    fn poll_ready(&self, _task_cx: &TaskContext, _cx: &mut Context, _partition: usize) -> Poll<()> {
         // Always need to collect build side.
         Poll::Ready(())
     }
 
-    fn push(&self, input: DataBatch, partition: usize) -> Result<()> {
+    fn push(&self, _task_cx: &TaskContext, input: DataBatch, partition: usize) -> Result<()> {
         let mut state = self.states[partition].lock();
         assert!(!state.build_finished);
         state.left_batches.push_for_build(input)?;
         Ok(())
     }
 
-    fn finish(&self, partition: usize) -> Result<()> {
+    fn finish(&self, _task_cx: &TaskContext, partition: usize) -> Result<()> {
         {
             // Technically just for debugging. We want to make sure we're not
             // accidentally marking the same partition as finished multiple
@@ -253,7 +259,7 @@ impl Sink for PhysicalNestedLoopJoinProbeSink {
         self.states.len()
     }
 
-    fn poll_ready(&self, cx: &mut Context, partition: usize) -> Poll<()> {
+    fn poll_ready(&self, _task_cx: &TaskContext, cx: &mut Context, partition: usize) -> Poll<()> {
         let mut state = self.states[partition].lock();
         if !state.build_finished {
             // We're still building, register for a wakeup.
@@ -264,7 +270,7 @@ impl Sink for PhysicalNestedLoopJoinProbeSink {
         Poll::Ready(())
     }
 
-    fn push(&self, input: DataBatch, partition: usize) -> Result<()> {
+    fn push(&self, _task_cx: &TaskContext, input: DataBatch, partition: usize) -> Result<()> {
         let left_batches = {
             // TODO: Maybe split input/output states to allow holding this lock
             // for the entire function call.
@@ -291,7 +297,7 @@ impl Sink for PhysicalNestedLoopJoinProbeSink {
         Ok(())
     }
 
-    fn finish(&self, partition: usize) -> Result<()> {
+    fn finish(&self, _task_cx: &TaskContext, partition: usize) -> Result<()> {
         let mut state = self.states[partition].lock();
         assert!(state.build_finished);
         assert!(!state.probe_finished);

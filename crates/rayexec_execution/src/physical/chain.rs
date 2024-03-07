@@ -6,7 +6,10 @@ use std::{
     task::{Context, Poll},
 };
 
-use super::plans::{PhysicalOperator, Sink, Source};
+use super::{
+    plans::{PhysicalOperator, Sink, Source},
+    TaskContext,
+};
 
 /// An operator chain represents a subset of computation in the execution
 /// pipeline.
@@ -79,14 +82,19 @@ impl OperatorChain {
     }
 
     /// Execute the operator chain for a partition.
-    pub fn poll_execute(&self, cx: &mut Context, partition: usize) -> Poll<Option<Result<()>>> {
+    pub fn poll_execute(
+        &self,
+        task_cx: &TaskContext,
+        cx: &mut Context,
+        partition: usize,
+    ) -> Poll<Option<Result<()>>> {
         let mut state = self.states[partition].lock();
         loop {
             match &mut *state {
-                PartitionState::Pull => match self.source.poll_next(cx, partition) {
+                PartitionState::Pull => match self.source.poll_next(task_cx, cx, partition) {
                     Poll::Ready(Some(Ok(batch))) => {
                         // We got a batch, run it through the executors.
-                        match self.execute_operators(batch) {
+                        match self.execute_operators(task_cx, batch) {
                             Ok(batch) => {
                                 // Now try to push to sink.
                                 *state = PartitionState::PushPending { batch: Some(batch) };
@@ -111,13 +119,14 @@ impl OperatorChain {
                 },
                 PartitionState::PushPending { batch } => {
                     // Try to push again.
-                    match self.sink.poll_ready(cx, partition) {
+                    match self.sink.poll_ready(task_cx, cx, partition) {
                         Poll::Ready(_) => {
                             // We're good to push.
-                            match self
-                                .sink
-                                .push(batch.take().expect("batch to exist"), partition)
-                            {
+                            match self.sink.push(
+                                task_cx,
+                                batch.take().expect("batch to exist"),
+                                partition,
+                            ) {
                                 Ok(_) => {
                                     // Successfully pushed, reset state back to Pull
                                     // to get the next batch.
@@ -136,7 +145,7 @@ impl OperatorChain {
                         }
                     }
                 }
-                PartitionState::Finished => match self.sink.finish(partition) {
+                PartitionState::Finished => match self.sink.finish(task_cx, partition) {
                     Ok(_) => return Poll::Ready(None),
                     Err(e) => return Poll::Ready(Some(Err(e))),
                 },
@@ -144,9 +153,9 @@ impl OperatorChain {
         }
     }
 
-    fn execute_operators(&self, mut batch: DataBatch) -> Result<DataBatch> {
+    fn execute_operators(&self, task_cx: &TaskContext, mut batch: DataBatch) -> Result<DataBatch> {
         for operator in &self.operators {
-            batch = operator.execute(batch)?;
+            batch = operator.execute(task_cx, batch)?;
         }
         Ok(batch)
     }

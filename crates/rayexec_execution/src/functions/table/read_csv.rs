@@ -1,5 +1,6 @@
 use crate::expr::scalar::ScalarValue;
 use crate::physical::plans::Source;
+use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, NamedDataBatchSchema};
 use parking_lot::Mutex;
@@ -132,6 +133,7 @@ impl Source for ReadCsvLocalOperator {
 
     fn poll_next(
         &self,
+        _task_cx: &TaskContext,
         _cx: &mut Context<'_>,
         partition: usize,
     ) -> Poll<Option<Result<DataBatch>>> {

@@ -1,11 +1,11 @@
 use super::{BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs};
 use crate::{
-    physical::plans::Source,
+    physical::{plans::Source, TaskContext},
     planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
     types::batch::{DataBatch, NamedDataBatchSchema},
 };
-use arrow_array::{StringArray};
-use arrow_schema::{DataType};
+use arrow_array::StringArray;
+use arrow_schema::DataType;
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
@@ -82,6 +82,7 @@ impl Source for DummyTableFunctionSource {
 
     fn poll_next(
         &self,
+        _task_cx: &TaskContext,
         _cx: &mut Context<'_>,
         _partition: usize,
     ) -> Poll<Option<Result<DataBatch>>> {

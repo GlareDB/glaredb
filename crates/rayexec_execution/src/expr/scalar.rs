@@ -1,6 +1,5 @@
 use arrow_array::{
-    Array, ArrayRef, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array,
-    StringArray,
+    Array, ArrayRef, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array, StringArray,
 };
 use arrow_schema::DataType;
 use rayexec_error::{RayexecError, Result};
@@ -89,6 +88,13 @@ impl ScalarValue {
             _ => unimplemented!(),
         })
     }
+
+    pub fn try_as_bool(&self) -> Result<bool> {
+        match self {
+            Self::Boolean(b) => Ok(*b),
+            other => Err(RayexecError::new(format!("Not a bool: {other:?}"))),
+        }
+    }
 }
 
 impl fmt::Display for ScalarValue {
@@ -108,6 +114,19 @@ pub enum UnaryOperator {
     Cast { to: DataType },
 }
 
+impl fmt::Display for UnaryOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::IsTrue => write!(f, "IS TRUE"),
+            Self::IsFalse => write!(f, "IS FALSE"),
+            Self::IsNull => write!(f, "IS NULL"),
+            Self::IsNotNull => write!(f, "IS NOT NULL"),
+            Self::Negate => write!(f, "-"),
+            Self::Cast { to } => write!(f, "CAST TO {to}"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BinaryOperator {
     Eq,
@@ -123,6 +142,26 @@ pub enum BinaryOperator {
     Modulo,
     And,
     Or,
+}
+
+impl fmt::Display for BinaryOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Eq => write!(f, "="),
+            Self::NotEq => write!(f, "!="),
+            Self::Lt => write!(f, "<"),
+            Self::LtEq => write!(f, "<="),
+            Self::Gt => write!(f, ">"),
+            Self::GtEq => write!(f, ">="),
+            Self::Plus => write!(f, "+"),
+            Self::Minus => write!(f, "-"),
+            Self::Multiply => write!(f, "*"),
+            Self::Divide => write!(f, "/"),
+            Self::Modulo => write!(f, "%"),
+            Self::And => write!(f, "AND"),
+            Self::Or => write!(f, "OR"),
+        }
+    }
 }
 
 impl BinaryOperator {
@@ -185,4 +224,13 @@ impl TryFrom<ast::BinaryOperator> for BinaryOperator {
 pub enum VariadicOperator {
     And,
     Or,
+}
+
+impl fmt::Display for VariadicOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::And => write!(f, "AND"),
+            Self::Or => write!(f, "OR"),
+        }
+    }
 }

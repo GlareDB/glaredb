@@ -1,5 +1,7 @@
 pub mod materialize;
+pub mod modify;
 pub mod session;
+pub mod vars;
 
 use rayexec_error::{RayexecError, Result};
 use rayon::{ThreadPool, ThreadPoolBuilder};
