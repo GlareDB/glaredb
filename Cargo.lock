@@ -2450,6 +2450,7 @@ name = "datasources"
 version = "0.9.1"
 dependencies = [
  "apache-avro",
+ "arrow-flight",
  "async-channel",
  "async-sqlite",
  "async-stream",
@@ -2504,6 +2505,7 @@ dependencies = [
  "tokio-postgres",
  "tokio-rustls 0.24.1",
  "tokio-util",
+ "tonic",
  "tracing",
  "url",
  "uuid",

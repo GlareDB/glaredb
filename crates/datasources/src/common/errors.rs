@@ -1,3 +1,5 @@
+use datafusion::error::DataFusionError;
+
 #[derive(Debug, thiserror::Error)]
 pub enum DatasourceCommonError {
     #[error("Invalid SSH connection string: {0}")]
@@ -35,3 +37,10 @@ pub enum DatasourceCommonError {
 }
 
 pub type Result<T, E = DatasourceCommonError> = std::result::Result<T, E>;
+
+
+impl From<DatasourceCommonError> for DataFusionError {
+    fn from(value: DatasourceCommonError) -> DataFusionError {
+        DataFusionError::External(Box::new(value))
+    }
+}

@@ -12,6 +12,7 @@ use datafusion::physical_plan::PhysicalExpr;
 use datafusion::prelude::Expr;
 
 pub mod errors;
+pub mod query;
 pub mod sink;
 pub mod ssh;
 pub mod url;
