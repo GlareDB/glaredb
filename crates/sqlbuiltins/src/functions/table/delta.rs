@@ -27,6 +27,7 @@ impl ConstBuiltinFunction for DeltaScan {
     const DESCRIPTION: &'static str = "Scans a delta table";
     const EXAMPLE: &'static str = "SELECT * FROM delta_scan('file:///path/to/table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const ALIASES: &'static [&'static str] = &["read_delta"];
 }
 
 #[async_trait]

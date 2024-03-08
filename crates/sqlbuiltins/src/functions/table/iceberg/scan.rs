@@ -21,6 +21,7 @@ impl ConstBuiltinFunction for IcebergScan {
     const DESCRIPTION: &'static str = "Scans an iceberg table";
     const EXAMPLE: &'static str = "SELECT * FROM iceberg_scan('file:///path/to/table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
+    const ALIASES: &'static [&'static str] = &["read_iceberg"];
 }
 
 #[async_trait]
