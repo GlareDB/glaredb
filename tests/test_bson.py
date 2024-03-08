@@ -65,7 +65,7 @@ def test_read_bson(
 ):
     beatles = ["john", "paul", "george", "ringo"]
 
-    tmp_dir = tmp_path_factory.mktemp(basename="read-bson-beatles-", numbered=True)
+    tmp_dir = tmp_path_factory.mktemp(basename="read-bson-beatles")
     data_path = tmp_dir.joinpath("beatles.100.bson")
 
     with open(data_path, "wb") as f:
@@ -88,7 +88,8 @@ def test_read_bson(
             f"create external table bson_beatles from bson options ( location='{data_path}', file_type='bson')"
         )
 
-    for from_clause in ["bson_beatles", f"read_bson('{data_path}')", f"'{data_path}'"]:
+    for from_clause in ["bson_beatles", f"read_bson('{data_path}')", f"'{data_path}'", f"'{tmp_dir}/../read-bson-beatles0/beatles.100.bson'"]:
+        print(from_clause)
         with glaredb_connection.cursor() as curr:
             curr.execute(f"select count(*) from {from_clause}")
             r = curr.fetchone()

@@ -10,3 +10,9 @@ select count(*) = 1000
   from iceberg_scan('./testdata/iceberg/tables/lineitem_simple_longversion');
 ----
 t
+
+query T
+select count(*) = 1000
+  from read_iceberg('./testdata/iceberg/tables/lineitem_simple_longversion');
+----
+t

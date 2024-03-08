@@ -21,3 +21,11 @@ select * from delta_scan('./testdata/delta/table1/') order by a;
 1   hello
 2   world
 
+
+
+# aliases
+query IT
+select * from read_delta('file://${PWD}/testdata/delta/table1/') order by a;
+----
+1   hello
+2   world

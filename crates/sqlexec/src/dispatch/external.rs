@@ -194,10 +194,16 @@ impl<'a> ExternalDispatcher<'a> {
                     let provider = accessor.into_table_provider(table_access, true).await?;
                     Ok(Arc::new(provider))
                 }
-                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string }) => {
+                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb {
+                    connection_string,
+                    columns,
+                }) => {
                     let table_info = MongoDbTableAccessInfo {
                         database: schema.to_string(), // A mongodb database is pretty much a schema.
                         collection: name.to_string(),
+                        fields: columns
+                            .to_owned()
+                            .map(|cs| InternalColumnDefinition::to_arrow_fields(cs.into_iter())),
                     };
                     let accessor = MongoDbAccessor::connect(connection_string).await?;
                     let table_accessor = accessor.into_table_accessor(table_info);
@@ -356,14 +362,15 @@ impl<'a> ExternalDispatcher<'a> {
                     accessor.clone().list_globbed(path).await?,
                 )
                 .await?),
-            "bson" => {
-                Ok(
-                    bson_streaming_table(access.clone(), Some(128), DatasourceUrl::try_new(path)?)
-                        .await?,
-                )
-            }
+            "bson" => Ok(bson_streaming_table(
+                access.clone(),
+                DatasourceUrl::try_new(path)?,
+                None,
+                Some(128),
+            )
+            .await?),
             _ => Err(DispatchError::String(
-                format!("Unsupported file type: {}, for '{}'", file_type, path,).to_string(),
+                format!("Unsupported file type: '{}', for '{}'", file_type, path,).to_string(),
             )),
         }
     }
@@ -417,7 +424,10 @@ impl<'a> ExternalDispatcher<'a> {
     ) -> Result<Arc<dyn TableProvider>> {
         match &opts {
             TableOptionsOld::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
-
+            TableOptionsOld::Debug(TableOptionsDebug { table_type }) => {
+                let provider = DebugTableType::from_str(table_type)?;
+                Ok(provider.into_table_provider(tunnel.as_ref()))
+            }
             TableOptionsOld::Excel(TableOptionsExcel {
                 location,
                 storage_options,
@@ -485,10 +495,14 @@ impl<'a> ExternalDispatcher<'a> {
                 connection_string,
                 database,
                 collection,
+                columns,
             }) => {
                 let table_info = MongoDbTableAccessInfo {
                     database: database.to_string(),
                     collection: collection.to_string(),
+                    fields: columns
+                        .to_owned()
+                        .map(|cs| InternalColumnDefinition::to_arrow_fields(cs.into_iter())),
                 };
                 let accessor = MongoDbAccessor::connect(connection_string).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
@@ -678,15 +692,27 @@ impl<'a> ExternalDispatcher<'a> {
                 location,
                 storage_options,
                 schema_sample_size,
+                columns,
                 ..
             }) => {
+                let columns = if columns.is_empty() {
+                    None
+                } else {
+                    Some(InternalColumnDefinition::to_arrow_fields(
+                        columns.to_owned(),
+                    ))
+                };
+
                 let source_url = DatasourceUrl::try_new(location)?;
                 let store_access = storage_options_into_store_access(&source_url, storage_options)?;
 
-                Ok(
-                    bson_streaming_table(store_access, schema_sample_size.clone(), source_url)
-                        .await?,
+                Ok(bson_streaming_table(
+                    store_access,
+                    source_url,
+                    columns,
+                    schema_sample_size.to_owned(),
                 )
+                .await?)
             }
             TableOptionsOld::Cassandra(TableOptionsCassandra {
                 host,

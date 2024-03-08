@@ -123,6 +123,7 @@ impl Datasource for LanceDatasource {
             file_type: Some("lance".to_string()),
             compression: None,
             schema_sample_size: None,
+            columns: Vec::new(),
         }
         .into())
     }

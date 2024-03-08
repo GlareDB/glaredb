@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display};
 use std::hash::Hash;
+use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{DataType, Field, Fields, SchemaRef};
 use datafusion::common::DFSchemaRef;
@@ -80,7 +81,7 @@ impl InternalColumnDefinition {
     /// Create a vec of column definitions from arrow fields.
     pub fn from_arrow_fields<C>(cols: C) -> Vec<InternalColumnDefinition>
     where
-        C: IntoIterator<Item = Field>,
+        C: IntoIterator<Item = Arc<Field>>,
     {
         cols.into_iter()
             .map(|field| InternalColumnDefinition {
@@ -88,6 +89,16 @@ impl InternalColumnDefinition {
                 nullable: field.is_nullable(),
                 arrow_type: field.data_type().clone(),
             })
+            .collect()
+    }
+
+    /// Create a vec of column definitions from arrow fields.
+    pub fn to_arrow_fields<C>(cols: C) -> Vec<Arc<Field>>
+    where
+        C: IntoIterator<Item = InternalColumnDefinition>,
+    {
+        cols.into_iter()
+            .map(|col| Arc::new(Field::new(col.name, col.arrow_type, col.nullable)))
             .collect()
     }
 }
@@ -106,8 +117,6 @@ impl TryFrom<options::InternalColumnDefinition> for InternalColumnDefinition {
     }
 }
 
-// TODO: Try to make this just `From`. Would require some additional conversions
-// for the arrow types.
 impl TryFrom<InternalColumnDefinition> for options::InternalColumnDefinition {
     type Error = ProtoConvError;
     fn try_from(value: InternalColumnDefinition) -> Result<Self, Self::Error> {
@@ -378,6 +387,7 @@ impl From<DatabaseOptionsMysql> for options::DatabaseOptionsMysql {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsMongoDb {
     pub connection_string: String,
+    pub columns: Vec<InternalColumnDefinition>,
 }
 
 impl TryFrom<options::DatabaseOptionsMongoDb> for DatabaseOptionsMongoDb {
@@ -385,6 +395,11 @@ impl TryFrom<options::DatabaseOptionsMongoDb> for DatabaseOptionsMongoDb {
     fn try_from(value: options::DatabaseOptionsMongoDb) -> Result<Self, Self::Error> {
         Ok(DatabaseOptionsMongoDb {
             connection_string: value.connection_string,
+            columns: value
+                .columns
+                .iter()
+                .map(|i| self::InternalColumnDefinition::try_from(i.to_owned()))
+                .collect::<Result<_, _>>()?,
         })
     }
 }
@@ -393,6 +408,12 @@ impl From<DatabaseOptionsMongoDb> for options::DatabaseOptionsMongoDb {
     fn from(value: DatabaseOptionsMongoDb) -> Self {
         options::DatabaseOptionsMongoDb {
             connection_string: value.connection_string,
+            columns: value
+                .columns
+                .into_iter()
+                .map(|v| v.try_into())
+                .collect::<Result<_, _>>()
+                .unwrap_or_else(|_| Vec::new()),
         }
     }
 }
@@ -796,6 +817,20 @@ where
 {
     fn from(value: Vec<T>) -> Self {
         OptionValue::Array(value.into_iter().map(|v| v.into()).collect())
+    }
+}
+
+impl<T> TryFrom<OptionValue> for Vec<T>
+where
+    T: TryFrom<OptionValue, Error = ProtoConvError>,
+{
+    type Error = ProtoConvError;
+
+    fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
+        match value {
+            OptionValue::Array(v) => v.into_iter().map(|v| v.try_into()).collect(),
+            _ => Err(ProtoConvError::ParseError("Expected array".to_string())),
+        }
     }
 }
 
@@ -1229,7 +1264,6 @@ impl TryFrom<TableOptionsInternal> for options::TableOptionsInternal {
         })
     }
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsPostgres {
@@ -1788,6 +1822,7 @@ pub struct TableOptionsMongoDb {
     pub connection_string: String,
     pub database: String,
     pub collection: String,
+    pub columns: Option<Vec<InternalColumnDefinition>>,
 }
 
 impl From<TableOptionsMongoDb> for TableOptions {
@@ -1800,7 +1835,9 @@ impl From<TableOptionsMongoDb> for TableOptions {
         );
         options.insert("database".to_string(), value.database.into());
         options.insert("collection".to_string(), value.collection.into());
-
+        if let Some(columns) = value.columns {
+            options.insert("columns".to_string(), columns.into());
+        }
         TableOptions { name, options }
     }
 }
@@ -1828,11 +1865,22 @@ impl TryFrom<&TableOptions> for TableOptionsMongoDb {
                 .cloned()
                 .ok_or_else(|| ProtoConvError::RequiredField("collection".to_string()))?
                 .try_into()?;
+            let columns = value.options.get("columns").cloned();
+
+            let columns: Option<Vec<_>> = match columns {
+                Some(col) => {
+                    let cols: Vec<InternalColumnDefinition> = col.try_into()?;
+                    Some(cols)
+                }
+                None => None,
+            };
+
 
             Ok(TableOptionsMongoDb {
                 connection_string,
                 database,
                 collection,
+                columns,
             })
         } else {
             Err(ProtoConvError::UnknownVariant(value.name.to_string()))
@@ -1843,20 +1891,51 @@ impl TryFrom<&TableOptions> for TableOptionsMongoDb {
 impl TryFrom<options::TableOptionsMongo> for TableOptionsMongoDb {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsMongo) -> Result<Self, Self::Error> {
+        let columns = if value.columns.is_empty() {
+            None
+        } else {
+            Some(
+                value
+                    .columns
+                    .iter()
+                    .map(|i| {
+                        self::InternalColumnDefinition::try_from(i.to_owned()).map(|mut v| {
+                            v.nullable = true;
+                            v
+                        })
+                    })
+                    .collect::<Result<_, _>>()?,
+            )
+        };
+
         Ok(TableOptionsMongoDb {
             connection_string: value.connection_string,
             database: value.database,
             collection: value.collection,
+            columns,
         })
     }
 }
 
 impl From<TableOptionsMongoDb> for options::TableOptionsMongo {
     fn from(value: TableOptionsMongoDb) -> Self {
+        let columns = if value.columns.is_none() {
+            Vec::new()
+        } else {
+            value
+                .columns
+                .unwrap()
+                .into_iter()
+                .map(|v| v.try_into())
+                .collect::<Result<_, _>>()
+                .unwrap_or_else(|_| Vec::new())
+        };
+
         options::TableOptionsMongo {
             connection_string: value.connection_string,
             database: value.database,
             collection: value.collection,
+            columns,
         }
     }
 }
@@ -2434,6 +2513,7 @@ pub struct TableOptionsObjectStore {
     pub file_type: Option<String>,
     pub compression: Option<String>,
     pub schema_sample_size: Option<i64>,
+    pub columns: Vec<InternalColumnDefinition>,
 }
 
 impl From<TableOptionsObjectStore> for TableOptions {
@@ -2496,12 +2576,22 @@ impl TryFrom<&TableOptions> for TableOptionsObjectStore {
             .cloned()
             .map(|v| v.try_into())
             .transpose()?;
+
+        let columns = value
+            .options
+            .get("columns")
+            .cloned()
+            .ok_or_else(|| ProtoConvError::RequiredField("columns".to_string()))?
+            .try_into()?;
+
+
         Ok(TableOptionsObjectStore {
             location,
             storage_options,
             file_type,
             compression,
             schema_sample_size,
+            columns,
         })
     }
 }
@@ -2514,6 +2604,16 @@ impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
             file_type: value.file_type,
             compression: value.compression,
             schema_sample_size: value.schema_sample_size,
+            columns: value
+                .columns
+                .iter()
+                .map(|i| {
+                    self::InternalColumnDefinition::try_from(i.to_owned()).map(|mut v| {
+                        v.nullable = true;
+                        v
+                    })
+                })
+                .collect::<Result<_, _>>()?,
         })
     }
 }
@@ -2526,6 +2626,12 @@ impl From<TableOptionsObjectStore> for options::TableOptionsObjectStore {
             file_type: value.file_type,
             compression: value.compression,
             schema_sample_size: value.schema_sample_size,
+            columns: value
+                .columns
+                .into_iter()
+                .map(|v| v.try_into())
+                .collect::<Result<_, _>>()
+                .unwrap_or_else(|_| Vec::new()),
         }
     }
 }

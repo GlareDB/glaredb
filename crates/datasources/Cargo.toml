@@ -76,6 +76,7 @@ scylla = { version = "0.12.0" }
 glob = "0.3.1"
 indexmap = "2.2.5"
 async-sqlite = "0.2.2"
+json-stream = { git = "https://github.com/tychoish/json-stream", rev = "bd4990fab95f789740a75a8eea98d5dac1f0160a" }
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]

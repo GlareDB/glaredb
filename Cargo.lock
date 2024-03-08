@@ -2470,6 +2470,7 @@ dependencies = [
  "glob",
  "indexmap 2.2.5",
  "ioutil",
+ "json-stream",
  "klickhouse",
  "lance",
  "logutil",
@@ -4003,6 +4004,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5f195fe497f702db0f318b07fdd68edb16955aed830df8363d837542f8f935a"
 dependencies = [
  "wasm-bindgen",
+]
+
+[[package]]
+name = "json-stream"
+version = "0.1.1"
+source = "git+https://github.com/tychoish/json-stream?rev=bd4990fab95f789740a75a8eea98d5dac1f0160a#bd4990fab95f789740a75a8eea98d5dac1f0160a"
+dependencies = [
+ "futures",
+ "pin-project",
+ "serde",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]

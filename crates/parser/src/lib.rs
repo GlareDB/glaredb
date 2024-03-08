@@ -4,7 +4,7 @@ pub mod options;
 use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 
-use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName};
+use datafusion::sql::sqlparser::ast::{self, ColumnDef, Ident, ObjectName};
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::keywords::Keyword;
 use datafusion::sql::sqlparser::parser::{Parser, ParserError, ParserOptions};
@@ -44,6 +44,7 @@ pub struct CreateExternalTableStmt {
     pub credentials: Option<Ident>,
     /// Datasource specific options.
     pub options: StatementOptions,
+    pub columns: Option<Vec<ast::ColumnDef>>,
 }
 
 impl fmt::Display for CreateExternalTableStmt {
@@ -685,6 +686,9 @@ impl<'a> CustomParser<'a> {
         // OPTIONS (..)
         let options = self.parse_options()?;
 
+        // COLUMNS (..)
+        let columns = self.parse_columns_clause()?;
+
         Ok(StatementWithExtensions::CreateExternalTable(
             CreateExternalTableStmt {
                 name,
@@ -694,8 +698,31 @@ impl<'a> CustomParser<'a> {
                 tunnel,
                 credentials,
                 options,
+                columns,
             },
         ))
+    }
+
+    fn parse_columns_clause(&mut self) -> Result<Option<Vec<ColumnDef>>, ParserError> {
+        if self.consume_token(&Token::make_keyword("COLUMNS")) {
+            self.parse_columns_definition()
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn parse_columns_definition(&mut self) -> Result<Option<Vec<ColumnDef>>, ParserError> {
+        let (columns, constraint) = self.parser.parse_columns()?;
+
+        Ok(if !constraint.is_empty() {
+            return Err(ParserError::ParserError(
+                "external tables cannot have constraints".to_string(),
+            ));
+        } else if columns.is_empty() {
+            None
+        } else {
+            Some(columns)
+        })
     }
 
     fn parse_create_external_database(
@@ -1138,6 +1165,7 @@ mod tests {
             tunnel: None,
             credentials: None,
             options: StatementOptions::new(options),
+            columns: None,
         };
         println!("{:?}", stmt);
 
@@ -1177,6 +1205,7 @@ mod tests {
             tunnel: None,
             credentials: None,
             options: StatementOptions::new(options),
+            columns: None,
         };
 
         assert_eq!(

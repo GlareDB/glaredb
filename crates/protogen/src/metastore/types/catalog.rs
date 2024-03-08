@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::fmt::{self, Display};
 use std::str::FromStr;
+use std::sync::Arc;
 
-use datafusion::arrow::datatypes::DataType;
+use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 
 use super::options::{
@@ -440,6 +441,7 @@ pub struct TableEntry {
     pub options: TableOptions,
     pub tunnel_id: Option<u32>,
     pub access_mode: SourceAccessMode,
+    pub columns: Option<Vec<InternalColumnDefinition>>,
 }
 
 impl TableEntry {
@@ -449,27 +451,57 @@ impl TableEntry {
             .ok()
             .map(|o| o.columns)
     }
+    pub fn get_columns(&self) -> Option<Vec<FieldRef>> {
+        self.get_internal_columns().map(|val| {
+            val.iter()
+                .map(InternalColumnDefinition::to_owned)
+                .map(|icd| Field::new(icd.name, icd.arrow_type, icd.nullable))
+                .map(Arc::new)
+                .collect()
+        })
+    }
 }
 impl TryFrom<catalog::TableEntry> for TableEntry {
     type Error = ProtoConvError;
     fn try_from(value: catalog::TableEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
+
+        let columns = value
+            .columns
+            .into_iter()
+            .map(|c| c.try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+
+
+        let columns = if columns.is_empty() {
+            None
+        } else {
+            Some(columns)
+        };
+
         Ok(TableEntry {
             meta,
             options: value.options.required("options")?,
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.try_into()?,
+            columns,
         })
     }
 }
 
 impl From<TableEntry> for catalog::TableEntry {
     fn from(value: TableEntry) -> Self {
+        let columns = value
+            .columns
+            .map(|columns| columns.into_iter().map(|c| c.try_into().unwrap()).collect())
+            .unwrap_or_default();
+
         catalog::TableEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.into()),
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.into(),
+            columns,
         }
     }
 }

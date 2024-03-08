@@ -163,7 +163,8 @@ message TableEntry {
   options.TableOptions options = 3;
   optional uint32 tunnel_id = 4;
   SourceAccessMode access_mode = 5;
-  // next: 6
+  repeated options.InternalColumnDefinition columns = 6;
+  // next: 7
 }
 
 message ViewEntry {
