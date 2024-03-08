@@ -457,13 +457,10 @@ impl TempCatalog {
                     external: false,
                     is_temp: true,
                 },
-                options: TableOptionsInternal {
-                    columns: columns.clone(),
-                }
-                .into(),
+                options: TableOptionsInternal { columns }.into(),
                 tunnel_id: None,
                 access_mode: SourceAccessMode::ReadWrite,
-                columns: Some(columns.to_owned()),
+                schema: Some(schema.as_ref().clone()),
             }
         })
     }
@@ -508,7 +505,7 @@ impl TempCatalog {
                 .into(),
                 tunnel_id: None,
                 access_mode: SourceAccessMode::ReadWrite,
-                columns: Some(Vec::new()),
+                schema: None,
             });
         }
 

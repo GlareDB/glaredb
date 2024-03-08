@@ -1,3 +1,4 @@
+use datafusion::arrow::datatypes::FieldRef;
 use protogen::metastore::types::options::TableOptions;
 
 use super::{

@@ -104,7 +104,6 @@ use protogen::metastore::types::options::{
     DatabaseOptionsSqlite,
     DeltaLakeCatalog,
     DeltaLakeUnityCatalog,
-    InternalColumnDefinition,
     StorageOptions,
     TableOptions,
     TableOptionsBigQuery,
@@ -338,10 +337,7 @@ impl<'a> SessionPlanner<'a> {
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
                     })?;
-                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb {
-                    connection_string,
-                    columns: Vec::new(),
-                })
+                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string })
             }
             DatabaseOptions::SNOWFLAKE => {
                 let account_name: String = m.remove_required("account")?;
@@ -548,11 +544,6 @@ impl<'a> SessionPlanner<'a> {
                 let connection_string = get_mongodb_conn_str(m)?;
                 let database = m.remove_required("database")?;
                 let collection = m.remove_required("collection")?;
-
-                // TODO: Validate
-                let cols = columns
-                    .clone()
-                    .map(InternalColumnDefinition::from_arrow_fields);
 
                 TableOptionsMongoDb {
                     connection_string,
@@ -832,7 +823,6 @@ impl<'a> SessionPlanner<'a> {
                         storage_options,
                         file_type: Some("delta".to_string()),
                         compression: None,
-                        columns: Vec::new(),
                         schema_sample_size: None,
                     }
                     .into()
@@ -975,7 +965,7 @@ impl<'a> SessionPlanner<'a> {
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
             tunnel,
-            columns: columns.clone(),
+            columns: None,
         };
 
         Ok(plan.into_logical_plan())

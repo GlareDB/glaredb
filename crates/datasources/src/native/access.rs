@@ -539,7 +539,7 @@ mod tests {
             .into(),
             tunnel_id: None,
             access_mode: SourceAccessMode::ReadOnly,
-            columns: None,
+            schema: None,
         };
 
         // Create a table, load it, delete it and load it again!

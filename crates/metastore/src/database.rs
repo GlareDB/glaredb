@@ -857,7 +857,7 @@ impl State {
                     options: create_table.options.into(),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadWrite,
-                    columns: None,
+                    schema: None,
                 };
 
                 let policy =
@@ -898,7 +898,7 @@ impl State {
                     options: create_ext.options,
                     tunnel_id,
                     access_mode: SourceAccessMode::ReadOnly,
-                    columns: None,
+                    schema: None,
                 };
 
                 let policy = CreatePolicy::new(create_ext.if_not_exists, create_ext.or_replace)?;
@@ -1273,7 +1273,7 @@ impl BuiltinCatalog {
                     .into(),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadOnly,
-                    columns: None,
+                    schema: None,
                 }),
             )?;
             schema_objects
