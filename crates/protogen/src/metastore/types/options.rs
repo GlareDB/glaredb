@@ -96,12 +96,14 @@ impl InternalColumnDefinition {
 impl TryFrom<options::InternalColumnDefinition> for InternalColumnDefinition {
     type Error = ProtoConvError;
     fn try_from(value: options::InternalColumnDefinition) -> Result<Self, Self::Error> {
-        let arrow_type: DataType = value.arrow_type.as_ref().required("arrow_type")?;
-        Ok(InternalColumnDefinition {
-            name: value.name,
-            nullable: value.nullable,
-            arrow_type,
-        })
+        // let arrow_type = DataType::from(value.arrow_type.unwrap());
+
+        todo!()
+        // Ok(InternalColumnDefinition {
+        //     name: value.name,
+        //     nullable: value.nullable,
+        //     arrow_type,
+        // })
     }
 }
 
@@ -119,6 +121,27 @@ impl TryFrom<InternalColumnDefinition> for options::InternalColumnDefinition {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use datafusion::arrow::datatypes::DataType;
+
+    use super::*;
+
+    #[test]
+    fn test_roundtrip() {
+        let def = super::InternalColumnDefinition {
+            name: "foo".to_string(),
+            nullable: true,
+            arrow_type: DataType::Int64,
+        };
+
+        let proto: OptionValue = def.clone().into();
+        println!("{:?}", proto);
+        let back: super::InternalColumnDefinition = proto.try_into().unwrap();
+
+        assert_eq!(def, back);
+    }
+}
 // Database options
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -977,6 +1000,92 @@ impl From<TableOptionsOld> for TableOptions {
     }
 }
 
+impl TryFrom<&TableOptions> for TableOptionsOld {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        match value.name.as_ref() {
+            Self::INTERNAL => {
+                let internal: TableOptionsInternal = value.try_into()?;
+                Ok(TableOptionsOld::Internal(internal))
+            }
+            Self::POSTGRES => {
+                let postgres: TableOptionsPostgres = value.try_into()?;
+                Ok(TableOptionsOld::Postgres(postgres))
+            }
+            Self::BIGQUERY => {
+                let bigquery: TableOptionsBigQuery = value.try_into()?;
+                Ok(TableOptionsOld::BigQuery(bigquery))
+            }
+            Self::MYSQL => {
+                let mysql: TableOptionsMysql = value.try_into()?;
+                Ok(TableOptionsOld::Mysql(mysql))
+            }
+            Self::LOCAL => {
+                let local: TableOptionsLocal = value.try_into()?;
+                Ok(TableOptionsOld::Local(local))
+            }
+            Self::GCS => {
+                let gcs: TableOptionsGcs = value.try_into()?;
+                Ok(TableOptionsOld::Gcs(gcs))
+            }
+            Self::S3_STORAGE => {
+                let s3: TableOptionsS3 = value.try_into()?;
+                Ok(TableOptionsOld::S3(s3))
+            }
+            Self::MONGODB => {
+                let mongo: TableOptionsMongoDb = value.try_into()?;
+                Ok(TableOptionsOld::MongoDb(mongo))
+            }
+            Self::SNOWFLAKE => {
+                let snowflake: TableOptionsSnowflake = value.try_into()?;
+                Ok(TableOptionsOld::Snowflake(snowflake))
+            }
+            Self::DELTA => {
+                let delta: TableOptionsObjectStore = value.try_into()?;
+                Ok(TableOptionsOld::Delta(delta))
+            }
+            Self::ICEBERG => {
+                let iceberg: TableOptionsObjectStore = value.try_into()?;
+                Ok(TableOptionsOld::Iceberg(iceberg))
+            }
+            Self::AZURE => {
+                let azure: TableOptionsObjectStore = value.try_into()?;
+                Ok(TableOptionsOld::Azure(azure))
+            }
+            Self::SQL_SERVER => {
+                let sql_server: TableOptionsSqlServer = value.try_into()?;
+                Ok(TableOptionsOld::SqlServer(sql_server))
+            }
+            Self::LANCE => {
+                let lance: TableOptionsObjectStore = value.try_into()?;
+                Ok(TableOptionsOld::Lance(lance))
+            }
+            Self::BSON => {
+                let bson: TableOptionsObjectStore = value.try_into()?;
+                Ok(TableOptionsOld::Bson(bson))
+            }
+            Self::CLICKHOUSE => {
+                let clickhouse: TableOptionsClickhouse = value.try_into()?;
+                Ok(TableOptionsOld::Clickhouse(clickhouse))
+            }
+            Self::CASSANDRA => {
+                let cassandra: TableOptionsCassandra = value.try_into()?;
+                Ok(TableOptionsOld::Cassandra(cassandra))
+            }
+            Self::EXCEL => {
+                let excel: TableOptionsExcel = value.try_into()?;
+                Ok(TableOptionsOld::Excel(excel))
+            }
+            Self::SQLITE => {
+                let sqlite: TableOptionsSqlite = value.try_into()?;
+                Ok(TableOptionsOld::Sqlite(sqlite))
+            }
+            _ => Err(ProtoConvError::UnknownVariant(value.name.to_string())),
+        }
+    }
+}
+
 impl fmt::Display for TableOptionsOld {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
@@ -1158,6 +1267,41 @@ impl From<TableOptionsPostgres> for TableOptions {
     }
 }
 
+impl TryFrom<&TableOptions> for TableOptionsPostgres {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if matches!(value.name.as_ref(), "postgres") {
+            let connection_string: String = value
+                .options
+                .get("connection_string")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("connection_string".to_string()))?
+                .try_into()?;
+            let schema: String = value
+                .options
+                .get("schema")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("schema".to_string()))?
+                .try_into()?;
+            let table: String = value
+                .options
+                .get("table")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("table".to_string()))?
+                .try_into()?;
+
+            Ok(TableOptionsPostgres {
+                connection_string,
+                schema,
+                table,
+            })
+        } else {
+            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
+        }
+    }
+}
+
 impl TryFrom<options::TableOptionsPostgres> for TableOptionsPostgres {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsPostgres) -> Result<Self, Self::Error> {
@@ -1226,6 +1370,48 @@ impl From<TableOptionsBigQuery> for options::TableOptionsBigQuery {
     }
 }
 
+impl TryFrom<&TableOptions> for TableOptionsBigQuery {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if matches!(value.name.as_ref(), "bigquery") {
+            let service_account_key: String = value
+                .options
+                .get("service_account_key")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("service_account_key".to_string()))?
+                .try_into()?;
+            let project_id: String = value
+                .options
+                .get("project_id")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("project_id".to_string()))?
+                .try_into()?;
+            let dataset_id: String = value
+                .options
+                .get("dataset_id")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("dataset_id".to_string()))?
+                .try_into()?;
+            let table_id: String = value
+                .options
+                .get("table_id")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("table_id".to_string()))?
+                .try_into()?;
+
+            Ok(TableOptionsBigQuery {
+                service_account_key,
+                project_id,
+                dataset_id,
+                table_id,
+            })
+        } else {
+            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsMysql {
     pub connection_string: String,
@@ -1245,6 +1431,41 @@ impl From<TableOptionsMysql> for TableOptions {
         options.insert("table".to_string(), value.table.into());
 
         TableOptions { name, options }
+    }
+}
+
+impl TryFrom<&TableOptions> for TableOptionsMysql {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if matches!(value.name.as_ref(), "mysql") {
+            let connection_string: String = value
+                .options
+                .get("connection_string")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("connection_string".to_string()))?
+                .try_into()?;
+            let schema: String = value
+                .options
+                .get("schema")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("schema".to_string()))?
+                .try_into()?;
+            let table: String = value
+                .options
+                .get("table")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("table".to_string()))?
+                .try_into()?;
+
+            Ok(TableOptionsMysql {
+                connection_string,
+                schema,
+                table,
+            })
+        } else {
+            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
+        }
     }
 }
 
@@ -1287,6 +1508,41 @@ impl From<TableOptionsLocal> for TableOptions {
         }
 
         TableOptions { name, options }
+    }
+}
+
+impl TryFrom<&TableOptions> for TableOptionsLocal {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if matches!(value.name.as_ref(), "local") {
+            let location: String = value
+                .options
+                .get("location")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("location".to_string()))?
+                .try_into()?;
+            let file_type: String = value
+                .options
+                .get("file_type")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("file_type".to_string()))?
+                .try_into()?;
+            let compression = value
+                .options
+                .get("compression")
+                .cloned()
+                .map(|v| v.try_into())
+                .transpose()?;
+
+            Ok(TableOptionsLocal {
+                location,
+                file_type,
+                compression,
+            })
+        } else {
+            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
+        }
     }
 }
 
@@ -1550,7 +1806,7 @@ pub struct TableOptionsMongoDb {
 
 impl From<TableOptionsMongoDb> for TableOptions {
     fn from(value: TableOptionsMongoDb) -> Self {
-        let name = "mongo".to_string();
+        let name = "mongodb".to_string();
         let mut options = BTreeMap::new();
         options.insert(
             "connection_string".to_string(),
@@ -1560,6 +1816,41 @@ impl From<TableOptionsMongoDb> for TableOptions {
         options.insert("collection".to_string(), value.collection.into());
 
         TableOptions { name, options }
+    }
+}
+
+impl TryFrom<&TableOptions> for TableOptionsMongoDb {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if matches!(value.name.as_ref(), "mongodb") {
+            let connection_string: String = value
+                .options
+                .get("connection_string")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("connection_string".to_string()))?
+                .try_into()?;
+            let database: String = value
+                .options
+                .get("database")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("database".to_string()))?
+                .try_into()?;
+            let collection: String = value
+                .options
+                .get("collection")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("collection".to_string()))?
+                .try_into()?;
+
+            Ok(TableOptionsMongoDb {
+                connection_string,
+                database,
+                collection,
+            })
+        } else {
+            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
+        }
     }
 }
 
@@ -1616,6 +1907,63 @@ impl From<TableOptionsExcel> for TableOptions {
     }
 }
 
+impl TryFrom<&TableOptions> for TableOptionsExcel {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if matches!(value.name.as_ref(), "excel") {
+            let location: String = value
+                .options
+                .get("location")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("location".to_string()))?
+                .try_into()?;
+            let storage_options: StorageOptions = value
+                .options
+                .get("storage_options")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("storage_options".to_string()))?
+                .try_into()?;
+            let file_type = value
+                .options
+                .get("file_type")
+                .cloned()
+                .map(|v| v.try_into())
+                .transpose()?;
+            let compression = value
+                .options
+                .get("compression")
+                .cloned()
+                .map(|v| v.try_into())
+                .transpose()?;
+            let sheet_name = value
+                .options
+                .get("sheet_name")
+                .cloned()
+                .map(|v| v.try_into())
+                .transpose()?;
+            let has_header: bool = value
+                .options
+                .get("has_header")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("has_header".to_string()))?
+                .try_into()?;
+
+            Ok(TableOptionsExcel {
+                location,
+                storage_options,
+                file_type,
+                compression,
+                sheet_name,
+                has_header,
+            })
+        } else {
+            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
+        }
+    }
+}
+
+
 impl TryFrom<options::TableOptionsExcel> for TableOptionsExcel {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsExcel) -> Result<Self, Self::Error> {
@@ -1665,6 +2013,41 @@ impl From<TableOptionsSqlServer> for TableOptions {
     }
 }
 
+impl TryFrom<&TableOptions> for TableOptionsSqlServer {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if matches!(value.name.as_ref(), "sql_server") {
+            let connection_string: String = value
+                .options
+                .get("connection_string")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("connection_string".to_string()))?
+                .try_into()?;
+            let schema: String = value
+                .options
+                .get("schema")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("schema".to_string()))?
+                .try_into()?;
+            let table: String = value
+                .options
+                .get("table")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("table".to_string()))?
+                .try_into()?;
+
+            Ok(TableOptionsSqlServer {
+                connection_string,
+                schema,
+                table,
+            })
+        } else {
+            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
+        }
+    }
+}
+
 impl TryFrom<options::TableOptionsSqlServer> for TableOptionsSqlServer {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsSqlServer) -> Result<Self, Self::Error> {
@@ -1707,6 +2090,41 @@ impl From<TableOptionsClickhouse> for TableOptions {
         }
 
         TableOptions { name, options }
+    }
+}
+
+impl TryFrom<&TableOptions> for TableOptionsClickhouse {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if matches!(value.name.as_ref(), "clickhouse") {
+            let connection_string: String = value
+                .options
+                .get("connection_string")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("connection_string".to_string()))?
+                .try_into()?;
+            let table: String = value
+                .options
+                .get("table")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("table".to_string()))?
+                .try_into()?;
+            let database = value
+                .options
+                .get("database")
+                .cloned()
+                .map(|v| v.try_into())
+                .transpose()?;
+
+            Ok(TableOptionsClickhouse {
+                connection_string,
+                table,
+                database,
+            })
+        } else {
+            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
+        }
     }
 }
 
@@ -1758,6 +2176,55 @@ impl From<TableOptionsCassandra> for TableOptions {
     }
 }
 
+impl TryFrom<&TableOptions> for TableOptionsCassandra {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if matches!(value.name.as_ref(), "cassandra") {
+            let host: String = value
+                .options
+                .get("host")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("host".to_string()))?
+                .try_into()?;
+            let keyspace: String = value
+                .options
+                .get("keyspace")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("keyspace".to_string()))?
+                .try_into()?;
+            let table: String = value
+                .options
+                .get("table")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("table".to_string()))?
+                .try_into()?;
+            let username = value
+                .options
+                .get("username")
+                .cloned()
+                .map(|v| v.try_into())
+                .transpose()?;
+            let password = value
+                .options
+                .get("password")
+                .cloned()
+                .map(|v| v.try_into())
+                .transpose()?;
+
+            Ok(TableOptionsCassandra {
+                host,
+                keyspace,
+                table,
+                username,
+                password,
+            })
+        } else {
+            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
+        }
+    }
+}
+
 impl TryFrom<options::TableOptionsCassandra> for TableOptionsCassandra {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsCassandra) -> Result<Self, Self::Error> {
@@ -1797,6 +2264,31 @@ impl From<TableOptionsSqlite> for TableOptions {
         options.insert("table".to_string(), value.table.into());
 
         TableOptions { name, options }
+    }
+}
+
+impl TryFrom<&TableOptions> for TableOptionsSqlite {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if matches!(value.name.as_ref(), "sqlite") {
+            let location: String = value
+                .options
+                .get("location")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("location".to_string()))?
+                .try_into()?;
+            let table: String = value
+                .options
+                .get("table")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("table".to_string()))?
+                .try_into()?;
+
+            Ok(TableOptionsSqlite { location, table })
+        } else {
+            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
+        }
     }
 }
 
@@ -1845,6 +2337,76 @@ impl From<TableOptionsSnowflake> for TableOptions {
         options.insert("table_name".to_string(), value.table_name.into());
 
         TableOptions { name, options }
+    }
+}
+
+impl TryFrom<&TableOptions> for TableOptionsSnowflake {
+    type Error = ProtoConvError;
+
+    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+        if matches!(value.name.as_ref(), "snowflake") {
+            let account_name: String = value
+                .options
+                .get("account_name")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("account_name".to_string()))?
+                .try_into()?;
+            let login_name: String = value
+                .options
+                .get("login_name")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("login_name".to_string()))?
+                .try_into()?;
+            let password: String = value
+                .options
+                .get("password")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("password".to_string()))?
+                .try_into()?;
+            let database_name: String = value
+                .options
+                .get("database_name")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("database_name".to_string()))?
+                .try_into()?;
+            let warehouse: String = value
+                .options
+                .get("warehouse")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("warehouse".to_string()))?
+                .try_into()?;
+            let role_name: String = value
+                .options
+                .get("role_name")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("role_name".to_string()))?
+                .try_into()?;
+            let schema_name: String = value
+                .options
+                .get("schema_name")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("schema_name".to_string()))?
+                .try_into()?;
+            let table_name: String = value
+                .options
+                .get("table_name")
+                .cloned()
+                .ok_or_else(|| ProtoConvError::RequiredField("table_name".to_string()))?
+                .try_into()?;
+
+            Ok(TableOptionsSnowflake {
+                account_name,
+                login_name,
+                password,
+                database_name,
+                warehouse,
+                role_name,
+                schema_name,
+                table_name,
+            })
+        } else {
+            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
+        }
     }
 }
 

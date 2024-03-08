@@ -30,7 +30,6 @@ use datafusion_ext::functions::VirtualLister;
 use errors::DebugError;
 use futures::Stream;
 use parser::options::StatementOptions;
-use protogen::metastore::types::catalog::{DatabaseEntry, TableEntry};
 use protogen::metastore::types::options::{
     CredentialsOptions,
     DatabaseOptions,

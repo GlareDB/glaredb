@@ -10,6 +10,7 @@ use super::options::{
     DatabaseOptions,
     InternalColumnDefinition,
     TableOptions,
+    TableOptionsInternal,
     TunnelOptions,
 };
 use crate::gen::common::arrow::ArrowType;
@@ -443,12 +444,10 @@ pub struct TableEntry {
 
 impl TableEntry {
     /// Try to get the columns for this table if available.
-    pub fn get_internal_columns(&self) -> Option<&[InternalColumnDefinition]> {
-        todo!()
-        // match &self.options {
-        //     TableOptionsOld::Internal(TableOptionsInternal { columns, .. }) => Some(columns),
-        //     _ => None,
-        // }
+    pub fn get_internal_columns(&self) -> Option<Vec<InternalColumnDefinition>> {
+        TableOptionsInternal::try_from(&self.options)
+            .ok()
+            .map(|o| o.columns)
     }
 }
 impl TryFrom<catalog::TableEntry> for TableEntry {

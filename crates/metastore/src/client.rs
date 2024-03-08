@@ -326,7 +326,6 @@ impl StatefulWorker {
     /// If a mutate results in a newer catalog being returned from Metastore,
     /// the local cache will be updated with that new catalog.
     async fn handle_request(&mut self, req: ClientRequest) {
-        println!("handle_request");
         match req {
             ClientRequest::Ping { response, .. } => {
                 if response.send(()).is_err() {

@@ -6,7 +6,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use parser::options::StatementOptions;
-use protogen::metastore::types::catalog::{DatabaseEntry, TableEntry};
 use protogen::metastore::types::options::{
     CredentialsOptions,
     DatabaseOptions,

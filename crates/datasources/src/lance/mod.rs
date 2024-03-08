@@ -11,7 +11,6 @@ use datafusion::physical_plan::ExecutionPlan;
 use lance::dataset::builder::DatasetBuilder;
 use lance::Dataset;
 use parser::options::StatementOptions;
-use protogen::metastore::types::catalog::{DatabaseEntry, TableEntry};
 use protogen::metastore::types::options::{
     CredentialsOptions,
     DatabaseOptions,
@@ -157,9 +156,9 @@ impl Datasource for LanceDatasource {
     /// If the datasource does not support databases, return `Ok(None)`.
     async fn table_provider_from_db_options(
         &self,
-        schema: &str,
-        name: &str,
-        options: &DatabaseOptions,
+        _schema: &str,
+        _name: &str,
+        _options: &DatabaseOptions,
         _tunnel_opts: Option<&TunnelOptions>,
     ) -> Result<Option<Arc<dyn TableProvider>>, DatasourceError> {
         // lance is not an external database

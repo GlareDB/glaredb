@@ -3,20 +3,15 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use object_store::ObjectStore;
-use protogen::gen::metastore::options::TableOptions as ProtoTableOptions;
 use protogen::gen::metastore::service::metastore_service_server::MetastoreService;
-use protogen::gen::metastore::service::mutation::Mutation as ProtoMutationType;
 use protogen::gen::metastore::service::{
     self,
     FetchCatalogRequest,
     FetchCatalogResponse,
     MutateRequest,
     MutateResponse,
-    Mutation as ProtoMutation,
 };
-use protogen::metastore::types::options::TableOptionsOld;
-use protogen::metastore::types::service::{CreateExternalTable, Mutation};
-use protogen::ProtoConvError;
+use protogen::metastore::types::service::Mutation;
 use tonic::{Request, Response, Status};
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -42,7 +37,6 @@ pub struct Service {
 
 impl Service {
     pub fn new(store: Arc<dyn ObjectStore>) -> Service {
-        println!("Creating new Metastore service");
         let process_id = Uuid::new_v4();
         info!(%process_id, "Creating new Metastore service");
 

@@ -15,7 +15,6 @@ use crate::srv::Service;
 /// Starts an in-process, in-memory metastore.
 pub async fn start_inprocess_inmemory() -> Result<MetastoreServiceClient<Channel>> {
     info!("Starting in-memory metastore");
-    println!("Starting in-memory metastore");
     start_inprocess(Arc::new(InMemory::new())).await
 }
 
@@ -25,7 +24,6 @@ pub async fn start_inprocess_local(
 ) -> Result<MetastoreServiceClient<Channel>> {
     let path = path.as_ref();
     info!(?path, "starting local metastore");
-    println!("Starting local metastore");
     let local = LocalFileSystem::new_with_prefix(path)?;
     start_inprocess(Arc::new(local)).await
 }

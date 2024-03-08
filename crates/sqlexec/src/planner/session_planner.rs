@@ -41,7 +41,6 @@ use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
 use datasources::sqlite::SqliteAccess;
 use datasources::sqlserver::SqlServerAccess;
-use datasources::Datasource;
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::azure::AzureConfigKey;
 use object_store::gcp::GoogleConfigKey;
@@ -106,6 +105,7 @@ use protogen::metastore::types::options::{
     DeltaLakeCatalog,
     DeltaLakeUnityCatalog,
     StorageOptions,
+    TableOptions,
     TableOptionsBigQuery,
     TableOptionsCassandra,
     TableOptionsClickhouse,
@@ -455,6 +455,472 @@ impl<'a> SessionPlanner<'a> {
         Ok(plan.into_logical_plan())
     }
 
+    async fn opts_from_old_tblopts(
+        &self,
+        datasource: &str,
+        m: &mut StatementOptions,
+        creds_options: Option<CredentialsOptions>,
+        tunnel_options: Option<TunnelOptions>,
+    ) -> Result<TableOptions> {
+        Ok(match datasource {
+            "debug" => unreachable!("debug should be handled via the registry"),
+            TableOptionsOld::POSTGRES => {
+                let connection_string = get_pg_conn_str(m)?;
+                let schema: String = m.remove_required("schema")?;
+                let table: String = m.remove_required("table")?;
+
+                let access =
+                    PostgresAccess::new_from_conn_str(connection_string.clone(), tunnel_options);
+                access
+                    .validate_table_access(&schema, &table)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalDatabase {
+                        source: Box::new(e),
+                    })?;
+
+                TableOptionsPostgres {
+                    connection_string,
+                    schema,
+                    table,
+                }
+                .into()
+            }
+            TableOptionsOld::BIGQUERY => {
+                let service_account_key = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
+                    other => unreachable!("invalid credentials {other} for bigquery"),
+                });
+
+                let service_account_key =
+                    m.remove_required_or("service_account_key", service_account_key)?;
+
+                let project_id: String = m.remove_required("project_id")?;
+                let dataset_id = m.remove_required("dataset_id")?;
+                let table_id = m.remove_required("table_id")?;
+
+                let access = BigQueryTableAccess {
+                    dataset_id,
+                    table_id,
+                };
+
+                BigQueryAccessor::validate_table_access(&service_account_key, &project_id, &access)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
+
+                TableOptionsBigQuery {
+                    service_account_key,
+                    project_id,
+                    dataset_id: access.dataset_id,
+                    table_id: access.table_id,
+                }
+                .into()
+            }
+            TableOptionsOld::MYSQL => {
+                let connection_string = get_mysql_conn_str(m)?;
+                let schema = m.remove_required("schema")?;
+                let table = m.remove_required("table")?;
+
+                let access = MysqlTableAccess {
+                    schema,
+                    name: table,
+                };
+
+                MysqlAccessor::validate_table_access(&connection_string, &access, tunnel_options)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
+
+                TableOptionsMysql {
+                    connection_string,
+                    schema: access.schema,
+                    table: access.name,
+                }
+                .into()
+            }
+            TableOptionsOld::MONGODB => {
+                let connection_string = get_mongodb_conn_str(m)?;
+                let database = m.remove_required("database")?;
+                let collection = m.remove_required("collection")?;
+
+                // TODO: Validate
+
+                TableOptionsMongoDb {
+                    connection_string,
+                    database,
+                    collection,
+                }
+                .into()
+            }
+            TableOptionsOld::SNOWFLAKE => {
+                let account_name: String = m.remove_required("account")?;
+                let login_name: String = m.remove_required("username")?;
+                let password: String = m.remove_required("password")?;
+                let database_name: String = m.remove_required("database")?;
+                let warehouse: String = m.remove_required("warehouse")?;
+                let role_name: Option<String> = m.remove_optional("role")?;
+                let schema_name: String = m.remove_required("schema")?;
+                let table_name: String = m.remove_required("table")?;
+
+                let conn_params = SnowflakeDbConnection {
+                    account_name: account_name.clone(),
+                    login_name: login_name.clone(),
+                    password: password.clone(),
+                    database_name: database_name.clone(),
+                    warehouse: warehouse.clone(),
+                    role_name: role_name.clone(),
+                };
+
+                let access_info = SnowflakeTableAccess {
+                    schema_name,
+                    table_name,
+                };
+
+                let _ = SnowflakeAccessor::validate_table_access(conn_params, &access_info)
+                    .await
+                    .map_err(|e| PlanError::InvalidExternalTable {
+                        source: Box::new(e),
+                    })?;
+
+                TableOptionsSnowflake {
+                    account_name,
+                    login_name,
+                    password,
+                    database_name,
+                    warehouse,
+                    role_name: role_name.unwrap_or_default(),
+                    schema_name: access_info.schema_name,
+                    table_name: access_info.table_name,
+                }
+                .into()
+            }
+            TableOptionsOld::SQL_SERVER => {
+                let connection_string: String = m.remove_required("connection_string")?;
+                let schema_name: String = m.remove_required("schema")?;
+                let table_name: String = m.remove_required("table")?;
+
+                // Validate
+                let access = SqlServerAccess::try_new_from_ado_string(&connection_string)?;
+                access
+                    .validate_table_access(&schema_name, &table_name)
+                    .await?;
+
+                TableOptionsSqlServer {
+                    connection_string,
+                    schema: schema_name,
+                    table: table_name,
+                }
+                .into()
+            }
+            TableOptionsOld::CLICKHOUSE => {
+                let connection_string: String = m.remove_required("connection_string")?;
+                let table_name: String = m.remove_required("table")?;
+
+                // You can optionally provide a database name in clickhouse.
+                // This is similar to schema in other databases such as PG.
+                let database_name: Option<String> = m.remove_optional("database")?;
+
+                // Validate
+                let access =
+                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
+
+                let table_ref =
+                    ClickhouseTableRef::new(database_name.as_ref(), table_name.as_str());
+
+                access.validate_table_access(table_ref.as_ref()).await?;
+
+                TableOptionsClickhouse {
+                    connection_string,
+                    table: table_name,
+                    database: database_name,
+                }
+                .into()
+            }
+            TableOptionsOld::CASSANDRA => {
+                let host: String = m.remove_required("host")?;
+                let keyspace: String = m.remove_required("keyspace")?;
+                let table: String = m.remove_required("table")?;
+                let username: Option<String> = m.remove_optional("username")?;
+                let password: Option<String> = m.remove_optional("password")?;
+                let access =
+                    CassandraAccessState::try_new(host.clone(), username.clone(), password.clone())
+                        .await?;
+                access.validate_table_access(&keyspace, &table).await?;
+
+                TableOptionsCassandra {
+                    host,
+                    keyspace,
+                    table,
+                    username,
+                    password,
+                }
+                .into()
+            }
+            TableOptionsOld::SQLITE => {
+                let location: String = m.remove_required("location")?;
+                let table: String = m.remove_required("table")?;
+
+                let access = SqliteAccess {
+                    db: PathBuf::from(&location),
+                };
+                access.validate_table_access(&table).await?;
+
+                TableOptionsSqlite { location, table }.into()
+            }
+            TableOptionsOld::LOCAL => {
+                let location: String = m.remove_required("location")?;
+
+                let access = Arc::new(LocalStoreAccess);
+                let (file_type, compression) =
+                    validate_and_get_file_type_and_compression(access, &location, m).await?;
+
+                TableOptionsLocal {
+                    location,
+                    file_type: file_type.to_string().to_lowercase(),
+                    compression: compression.map(|c| c.to_string()),
+                }
+                .into()
+            }
+            TableOptionsOld::GCS => {
+                let service_account_key = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
+                    other => unreachable!("invalid credentials {other} for google cloud storage"),
+                });
+
+                let service_account_key =
+                    m.remove_optional_or("service_account_key", service_account_key)?;
+
+                let (bucket, location) =
+                    get_obj_store_bucket_and_location(m, DatasourceUrlType::Gcs, "bucket")?;
+
+                let access = Arc::new(GcsStoreAccess {
+                    bucket: bucket.clone(),
+                    service_account_key: service_account_key.clone(),
+                    opts: HashMap::new(),
+                });
+                let (file_type, compression) =
+                    validate_and_get_file_type_and_compression(access, &location, m).await?;
+
+                TableOptionsGcs {
+                    bucket,
+                    service_account_key,
+                    location,
+                    file_type,
+                    compression: compression.map(|c| c.to_string()),
+                }
+                .into()
+            }
+            TableOptionsOld::S3_STORAGE => {
+                let creds = creds_options.as_ref().map(|c| match c {
+                    CredentialsOptions::Aws(c) => c,
+                    other => unreachable!("invalid credentials {other} for aws s3"),
+                });
+
+                let (access_key_id, secret_access_key) = match creds {
+                    Some(c) => (
+                        Some(c.access_key_id.clone()),
+                        Some(c.secret_access_key.clone()),
+                    ),
+                    None => (None, None),
+                };
+
+                let access_key_id = m.remove_optional_or("access_key_id", access_key_id)?;
+                let secret_access_key =
+                    m.remove_optional_or("secret_access_key", secret_access_key)?;
+
+                let region: String = m.remove_required("region")?;
+
+                let (bucket, location) =
+                    get_obj_store_bucket_and_location(m, DatasourceUrlType::S3, "bucket")?;
+
+                let access = Arc::new(S3StoreAccess {
+                    bucket: bucket.clone(),
+                    region: Some(region.clone()),
+                    access_key_id: access_key_id.clone(),
+                    secret_access_key: secret_access_key.clone(),
+                    opts: HashMap::new(),
+                });
+                let (file_type, compression) =
+                    validate_and_get_file_type_and_compression(access, &location, m).await?;
+
+                TableOptionsS3 {
+                    region,
+                    bucket,
+                    access_key_id,
+                    secret_access_key,
+                    location,
+                    file_type: file_type.to_string(),
+                    compression: compression.map(|c| c.to_string()),
+                }
+                .into()
+            }
+            TableOptionsOld::AZURE => {
+                let (account, access_key) = match creds_options {
+                    Some(CredentialsOptions::Azure(c)) => {
+                        (Some(c.account_name.clone()), Some(c.access_key.clone()))
+                    }
+                    Some(other) => {
+                        return Err(PlanError::String(format!(
+                            "invalid credentials {other} for azure"
+                        )))
+                    }
+                    None => (None, None),
+                };
+
+                let account_name = m.remove_required_or("account_name", account)?;
+                let access_key = m.remove_required_or("access_key", access_key)?;
+
+                let (container, location) =
+                    get_obj_store_bucket_and_location(m, DatasourceUrlType::Azure, "container")?;
+
+                let access = Arc::new(AzureStoreAccess {
+                    container,
+                    account_name: Some(account_name.clone()),
+                    access_key: Some(access_key.clone()),
+                    opts: HashMap::new(),
+                });
+
+                // TODO: Creating a data source url here is a workaround for
+                // getting the path to the file. Since we're using the generic
+                // object store access, it requires that "location" is the
+                // full url of the object, but that goes against our other
+                // assumptions that "location" is just the path.
+                let (file_type, compression) =
+                    validate_and_get_file_type_and_compression(access.clone(), &location, m)
+                        .await?;
+
+                let source_url = format!("{}{}", access.base_url()?, access.path(&location)?);
+                let mut opts = StorageOptions::default();
+                opts.inner.insert(
+                    AzureConfigKey::AccountName.as_ref().to_string(),
+                    account_name,
+                );
+                opts.inner
+                    .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
+
+                TableOptionsObjectStore {
+                    location: source_url,
+                    storage_options: opts,
+                    file_type: Some(file_type.to_string()),
+                    compression: compression.map(|c| c.to_string()),
+                    schema_sample_size: None,
+                }
+                .into()
+            }
+            TableOptionsOld::DELTA | TableOptionsOld::ICEBERG => {
+                let location: String = m.remove_required("location")?;
+
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+
+                if datasource == TableOptionsOld::DELTA {
+                    let _table = load_table_direct(&location, storage_options.clone()).await?;
+
+                    TableOptionsObjectStore {
+                        location,
+                        storage_options,
+                        file_type: Some("delta".to_string()),
+                        compression: None,
+                        schema_sample_size: None,
+                    }
+                    .into()
+                } else {
+                    let url = DatasourceUrl::try_new(&location)?;
+                    let store = storage_options_into_object_store(&url, &storage_options)?;
+                    let _table = IcebergTable::open(url, store).await?;
+
+                    TableOptionsObjectStore {
+                        location,
+                        storage_options,
+                        file_type: Some("iceberg".to_string()),
+                        compression: None,
+                        schema_sample_size: None,
+                    }
+                    .into()
+                }
+            }
+            TableOptionsOld::LANCE => {
+                let location: String = m.remove_required("location")?;
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+                // Validate that the table exists.
+                let _table = LanceTable::new(&location, storage_options.clone()).await?;
+                TableOptionsObjectStore {
+                    location,
+                    storage_options,
+                    file_type: Some("lance".to_string()),
+                    compression: None,
+                    schema_sample_size: None,
+                }
+                .into()
+            }
+            TableOptionsOld::BSON => {
+                let location: String = m.remove_required("location")?;
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+                let schema_sample_size = Some(
+                    storage_options
+                        .inner
+                        .get("schema_sample_size")
+                        .map(|strint| strint.parse())
+                        .unwrap_or(Ok(100))?,
+                );
+                TableOptionsObjectStore {
+                    location,
+                    storage_options,
+                    file_type: Some("bson".to_string()),
+                    compression: None,
+                    schema_sample_size,
+                }
+                .into()
+            }
+            TableOptionsOld::EXCEL => {
+                let location: String = m.remove_required("location")?;
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+                let sheet_name = storage_options
+                    .inner
+                    .get("sheet_name")
+                    .map(|val| val.to_owned());
+
+                let has_header = storage_options
+                    .inner
+                    .get("has_header")
+                    .map(|val| val.parse::<bool>().unwrap_or(true))
+                    .unwrap_or_default();
+
+                if let DatasourceUrl::File(p) = DatasourceUrl::try_new(&location)? {
+                    if !p.exists() {
+                        return Err(PlanError::String(
+                            "invalid local file path specified".to_string(),
+                        ));
+                    }
+                };
+
+                TableOptionsExcel {
+                    location,
+                    storage_options,
+                    file_type: None,
+                    compression: None,
+                    sheet_name,
+                    has_header,
+                }
+                .into()
+            }
+            other => return Err(internal!("unsupported datasource: {}", other)),
+        })
+    }
+
     async fn plan_create_external_table(
         &self,
         mut stmt: CreateExternalTableStmt,
@@ -488,474 +954,10 @@ impl<'a> SessionPlanner<'a> {
                     .table_options_from_stmt(m, creds_options, tunnel_options)
                     .map_err(|e| PlanError::InvalidExternalTable { source: e })?
             } else {
-                return Err(PlanError::String(format!(
-                    "unknown datasource: {}",
-                    datasource
-                )));
+                self.opts_from_old_tblopts(datasource.as_str(), m, creds_options, tunnel_options)
+                    .await?
             };
 
-        // let external_table_options = match datasource.as_str() {
-        //     "debug" => {
-        //         todo!()
-        //         // let tbl_opts =
-        //         //     DebugDatasource::table_options_from_stmt(m, creds_options, tunnel_options)?;
-        //         // tbl_opts.into()
-        //     }
-        //     TableOptionsOld::POSTGRES => {
-        //         let connection_string = get_pg_conn_str(m)?;
-        //         let schema: String = m.remove_required("schema")?;
-        //         let table: String = m.remove_required("table")?;
-
-        //         let access =
-        //             PostgresAccess::new_from_conn_str(connection_string.clone(), tunnel_options);
-        //         access
-        //             .validate_table_access(&schema, &table)
-        //             .await
-        //             .map_err(|e| PlanError::InvalidExternalDatabase {
-        //                 source: Box::new(e),
-        //             })?;
-
-        //         TableOptionsPostgres {
-        //             connection_string,
-        //             schema,
-        //             table,
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::BIGQUERY => {
-        //         let service_account_key = creds_options.as_ref().map(|c| match c {
-        //             CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
-        //             other => unreachable!("invalid credentials {other} for bigquery"),
-        //         });
-
-        //         let service_account_key =
-        //             m.remove_required_or("service_account_key", service_account_key)?;
-
-        //         let project_id: String = m.remove_required("project_id")?;
-        //         let dataset_id = m.remove_required("dataset_id")?;
-        //         let table_id = m.remove_required("table_id")?;
-
-        //         let access = BigQueryTableAccess {
-        //             dataset_id,
-        //             table_id,
-        //         };
-
-        //         BigQueryAccessor::validate_table_access(&service_account_key, &project_id, &access)
-        //             .await
-        //             .map_err(|e| PlanError::InvalidExternalTable {
-        //                 source: Box::new(e),
-        //             })?;
-
-        //         TableOptionsBigQuery {
-        //             service_account_key,
-        //             project_id,
-        //             dataset_id: access.dataset_id,
-        //             table_id: access.table_id,
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::MYSQL => {
-        //         let connection_string = get_mysql_conn_str(m)?;
-        //         let schema = m.remove_required("schema")?;
-        //         let table = m.remove_required("table")?;
-
-        //         let access = MysqlTableAccess {
-        //             schema,
-        //             name: table,
-        //         };
-
-        //         MysqlAccessor::validate_table_access(&connection_string, &access, tunnel_options)
-        //             .await
-        //             .map_err(|e| PlanError::InvalidExternalTable {
-        //                 source: Box::new(e),
-        //             })?;
-
-        //         TableOptionsMysql {
-        //             connection_string,
-        //             schema: access.schema,
-        //             table: access.name,
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::MONGODB => {
-        //         let connection_string = get_mongodb_conn_str(m)?;
-        //         let database = m.remove_required("database")?;
-        //         let collection = m.remove_required("collection")?;
-
-        //         // TODO: Validate
-
-        //         TableOptionsMongoDb {
-        //             connection_string,
-        //             database,
-        //             collection,
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::SNOWFLAKE => {
-        //         let account_name: String = m.remove_required("account")?;
-        //         let login_name: String = m.remove_required("username")?;
-        //         let password: String = m.remove_required("password")?;
-        //         let database_name: String = m.remove_required("database")?;
-        //         let warehouse: String = m.remove_required("warehouse")?;
-        //         let role_name: Option<String> = m.remove_optional("role")?;
-        //         let schema_name: String = m.remove_required("schema")?;
-        //         let table_name: String = m.remove_required("table")?;
-
-        //         let conn_params = SnowflakeDbConnection {
-        //             account_name: account_name.clone(),
-        //             login_name: login_name.clone(),
-        //             password: password.clone(),
-        //             database_name: database_name.clone(),
-        //             warehouse: warehouse.clone(),
-        //             role_name: role_name.clone(),
-        //         };
-
-        //         let access_info = SnowflakeTableAccess {
-        //             schema_name,
-        //             table_name,
-        //         };
-
-        //         let _ = SnowflakeAccessor::validate_table_access(conn_params, &access_info)
-        //             .await
-        //             .map_err(|e| PlanError::InvalidExternalTable {
-        //                 source: Box::new(e),
-        //             })?;
-
-        //         TableOptionsSnowflake {
-        //             account_name,
-        //             login_name,
-        //             password,
-        //             database_name,
-        //             warehouse,
-        //             role_name: role_name.unwrap_or_default(),
-        //             schema_name: access_info.schema_name,
-        //             table_name: access_info.table_name,
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::SQL_SERVER => {
-        //         let connection_string: String = m.remove_required("connection_string")?;
-        //         let schema_name: String = m.remove_required("schema")?;
-        //         let table_name: String = m.remove_required("table")?;
-
-        //         // Validate
-        //         let access = SqlServerAccess::try_new_from_ado_string(&connection_string)?;
-        //         access
-        //             .validate_table_access(&schema_name, &table_name)
-        //             .await?;
-
-        //         TableOptionsSqlServer {
-        //             connection_string,
-        //             schema: schema_name,
-        //             table: table_name,
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::CLICKHOUSE => {
-        //         let connection_string: String = m.remove_required("connection_string")?;
-        //         let table_name: String = m.remove_required("table")?;
-
-        //         // You can optionally provide a database name in clickhouse.
-        //         // This is similar to schema in other databases such as PG.
-        //         let database_name: Option<String> = m.remove_optional("database")?;
-
-        //         // Validate
-        //         let access =
-        //             ClickhouseAccess::new_from_connection_string(connection_string.clone());
-
-        //         let table_ref =
-        //             ClickhouseTableRef::new(database_name.as_ref(), table_name.as_str());
-
-        //         access.validate_table_access(table_ref.as_ref()).await?;
-
-        //         TableOptionsClickhouse {
-        //             connection_string,
-        //             table: table_name,
-        //             database: database_name,
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::CASSANDRA => {
-        //         let host: String = m.remove_required("host")?;
-        //         let keyspace: String = m.remove_required("keyspace")?;
-        //         let table: String = m.remove_required("table")?;
-        //         let username: Option<String> = m.remove_optional("username")?;
-        //         let password: Option<String> = m.remove_optional("password")?;
-        //         let access =
-        //             CassandraAccessState::try_new(host.clone(), username.clone(), password.clone())
-        //                 .await?;
-        //         access.validate_table_access(&keyspace, &table).await?;
-
-        //         TableOptionsCassandra {
-        //             host,
-        //             keyspace,
-        //             table,
-        //             username,
-        //             password,
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::SQLITE => {
-        //         let location: String = m.remove_required("location")?;
-        //         let table: String = m.remove_required("table")?;
-
-        //         let access = SqliteAccess {
-        //             db: PathBuf::from(&location),
-        //         };
-        //         access.validate_table_access(&table).await?;
-
-        //         TableOptionsSqlite { location, table }.into()
-        //     }
-        //     TableOptionsOld::LOCAL => {
-        //         let location: String = m.remove_required("location")?;
-
-        //         let access = Arc::new(LocalStoreAccess);
-        //         let (file_type, compression) =
-        //             validate_and_get_file_type_and_compression(access, &location, m).await?;
-
-        //         TableOptionsLocal {
-        //             location,
-        //             file_type: file_type.to_string().to_lowercase(),
-        //             compression: compression.map(|c| c.to_string()),
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::GCS => {
-        //         let service_account_key = creds_options.as_ref().map(|c| match c {
-        //             CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
-        //             other => unreachable!("invalid credentials {other} for google cloud storage"),
-        //         });
-
-        //         let service_account_key =
-        //             m.remove_optional_or("service_account_key", service_account_key)?;
-
-        //         let (bucket, location) =
-        //             get_obj_store_bucket_and_location(m, DatasourceUrlType::Gcs, "bucket")?;
-
-        //         let access = Arc::new(GcsStoreAccess {
-        //             bucket: bucket.clone(),
-        //             service_account_key: service_account_key.clone(),
-        //             opts: HashMap::new(),
-        //         });
-        //         let (file_type, compression) =
-        //             validate_and_get_file_type_and_compression(access, &location, m).await?;
-
-        //         TableOptionsGcs {
-        //             bucket,
-        //             service_account_key,
-        //             location,
-        //             file_type,
-        //             compression: compression.map(|c| c.to_string()),
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::S3_STORAGE => {
-        //         let creds = creds_options.as_ref().map(|c| match c {
-        //             CredentialsOptions::Aws(c) => c,
-        //             other => unreachable!("invalid credentials {other} for aws s3"),
-        //         });
-
-        //         let (access_key_id, secret_access_key) = match creds {
-        //             Some(c) => (
-        //                 Some(c.access_key_id.clone()),
-        //                 Some(c.secret_access_key.clone()),
-        //             ),
-        //             None => (None, None),
-        //         };
-
-        //         let access_key_id = m.remove_optional_or("access_key_id", access_key_id)?;
-        //         let secret_access_key =
-        //             m.remove_optional_or("secret_access_key", secret_access_key)?;
-
-        //         let region: String = m.remove_required("region")?;
-
-        //         let (bucket, location) =
-        //             get_obj_store_bucket_and_location(m, DatasourceUrlType::S3, "bucket")?;
-
-        //         let access = Arc::new(S3StoreAccess {
-        //             bucket: bucket.clone(),
-        //             region: Some(region.clone()),
-        //             access_key_id: access_key_id.clone(),
-        //             secret_access_key: secret_access_key.clone(),
-        //             opts: HashMap::new(),
-        //         });
-        //         let (file_type, compression) =
-        //             validate_and_get_file_type_and_compression(access, &location, m).await?;
-
-        //         TableOptionsS3 {
-        //             region,
-        //             bucket,
-        //             access_key_id,
-        //             secret_access_key,
-        //             location,
-        //             file_type: file_type.to_string(),
-        //             compression: compression.map(|c| c.to_string()),
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::AZURE => {
-        //         let (account, access_key) = match creds_options {
-        //             Some(CredentialsOptions::Azure(c)) => {
-        //                 (Some(c.account_name.clone()), Some(c.access_key.clone()))
-        //             }
-        //             Some(other) => {
-        //                 return Err(PlanError::String(format!(
-        //                     "invalid credentials {other} for azure"
-        //                 )))
-        //             }
-        //             None => (None, None),
-        //         };
-
-        //         let account_name = m.remove_required_or("account_name", account)?;
-        //         let access_key = m.remove_required_or("access_key", access_key)?;
-
-        //         let (container, location) =
-        //             get_obj_store_bucket_and_location(m, DatasourceUrlType::Azure, "container")?;
-
-        //         let access = Arc::new(AzureStoreAccess {
-        //             container,
-        //             account_name: Some(account_name.clone()),
-        //             access_key: Some(access_key.clone()),
-        //             opts: HashMap::new(),
-        //         });
-
-        //         // TODO: Creating a data source url here is a workaround for
-        //         // getting the path to the file. Since we're using the generic
-        //         // object store access, it requires that "location" is the
-        //         // full url of the object, but that goes against our other
-        //         // assumptions that "location" is just the path.
-        //         let (file_type, compression) =
-        //             validate_and_get_file_type_and_compression(access.clone(), &location, m)
-        //                 .await?;
-
-        //         let source_url = format!("{}{}", access.base_url()?, access.path(&location)?);
-        //         let mut opts = StorageOptions::default();
-        //         opts.inner.insert(
-        //             AzureConfigKey::AccountName.as_ref().to_string(),
-        //             account_name,
-        //         );
-        //         opts.inner
-        //             .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
-
-        //         TableOptionsObjectStore {
-        //             location: source_url,
-        //             storage_options: opts,
-        //             file_type: Some(file_type.to_string()),
-        //             compression: compression.map(|c| c.to_string()),
-        //             schema_sample_size: None,
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::DELTA | TableOptionsOld::ICEBERG => {
-        //         let location: String = m.remove_required("location")?;
-
-        //         let mut storage_options = StorageOptions::try_from(m)?;
-        //         if let Some(creds) = creds_options {
-        //             storage_options_with_credentials(&mut storage_options, creds);
-        //         }
-
-        //         if datasource.as_str() == TableOptionsOld::DELTA {
-        //             let _table = load_table_direct(&location, storage_options.clone()).await?;
-
-        //             TableOptionsObjectStore {
-        //                 location,
-        //                 storage_options,
-        //                 file_type: Some("delta".to_string()),
-        //                 compression: None,
-        //                 schema_sample_size: None,
-        //             }
-        //             .into()
-        //         } else {
-        //             let url = DatasourceUrl::try_new(&location)?;
-        //             let store = storage_options_into_object_store(&url, &storage_options)?;
-        //             let _table = IcebergTable::open(url, store).await?;
-
-        //             TableOptionsObjectStore {
-        //                 location,
-        //                 storage_options,
-        //                 file_type: Some("iceberg".to_string()),
-        //                 compression: None,
-        //                 schema_sample_size: None,
-        //             }
-        //             .into()
-        //         }
-        //     }
-        //     TableOptionsOld::LANCE => {
-        //         let location: String = m.remove_required("location")?;
-        //         let mut storage_options = StorageOptions::try_from(m)?;
-        //         if let Some(creds) = creds_options {
-        //             storage_options_with_credentials(&mut storage_options, creds);
-        //         }
-        //         // Validate that the table exists.
-        //         let _table = LanceTable::new(&location, storage_options.clone()).await?;
-        //         TableOptionsObjectStore {
-        //             location,
-        //             storage_options,
-        //             file_type: Some("lance".to_string()),
-        //             compression: None,
-        //             schema_sample_size: None,
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::BSON => {
-        //         let location: String = m.remove_required("location")?;
-        //         let mut storage_options = StorageOptions::try_from(m)?;
-        //         if let Some(creds) = creds_options {
-        //             storage_options_with_credentials(&mut storage_options, creds);
-        //         }
-        //         let schema_sample_size = Some(
-        //             storage_options
-        //                 .inner
-        //                 .get("schema_sample_size")
-        //                 .map(|strint| strint.parse())
-        //                 .unwrap_or(Ok(100))?,
-        //         );
-        //         TableOptionsObjectStore {
-        //             location,
-        //             storage_options,
-        //             file_type: Some("bson".to_string()),
-        //             compression: None,
-        //             schema_sample_size,
-        //         }
-        //         .into()
-        //     }
-        //     TableOptionsOld::EXCEL => {
-        //         let location: String = m.remove_required("location")?;
-        //         let mut storage_options = StorageOptions::try_from(m)?;
-        //         if let Some(creds) = creds_options {
-        //             storage_options_with_credentials(&mut storage_options, creds);
-        //         }
-        //         let sheet_name = storage_options
-        //             .inner
-        //             .get("sheet_name")
-        //             .map(|val| val.to_owned());
-
-        //         let has_header = storage_options
-        //             .inner
-        //             .get("has_header")
-        //             .map(|val| val.parse::<bool>().unwrap_or(true))
-        //             .unwrap_or_default();
-
-        //         if let DatasourceUrl::File(p) = DatasourceUrl::try_new(&location)? {
-        //             if !p.exists() {
-        //                 return Err(PlanError::String(
-        //                     "invalid local file path specified".to_string(),
-        //                 ));
-        //             }
-        //         };
-
-        //         TableOptionsExcel {
-        //             location,
-        //             storage_options,
-        //             file_type: None,
-        //             compression: None,
-        //             sheet_name,
-        //             has_header,
-        //         }
-        //         .into()
-        //     }
-        //     other => return Err(internal!("unsupported datasource: {}", other)),
-        // };
 
         let table_name = object_name_to_table_ref(stmt.name)?;
 
