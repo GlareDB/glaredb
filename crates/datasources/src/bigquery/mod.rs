@@ -5,6 +5,7 @@ use std::any::Any;
 use std::fmt::{self, Write};
 use std::io::Cursor;
 use std::pin::Pin;
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
@@ -43,6 +44,7 @@ use datafusion::physical_plan::{
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
+use datafusion_ext::stream_helper::LimitingStreamAdapter;
 use errors::{BigQueryError, Result};
 use futures::{Stream, StreamExt};
 use gcp_bigquery_client::model::field_type::FieldType;
@@ -372,6 +374,8 @@ impl TableProvider for BigQueryTableProvider {
             receiver: recv,
             num_partitions,
             metrics: ExecutionPlanMetricsSet::new(),
+            counter: Arc::new(AtomicUsize::new(0)),
+            limit,
         }))
     }
 }
@@ -382,6 +386,8 @@ struct BigQueryExec {
     receiver: Receiver<BufferedArrowIpcReader>,
     num_partitions: usize,
     metrics: ExecutionPlanMetricsSet,
+    limit: Option<usize>,
+    counter: Arc<AtomicUsize>,
 }
 
 impl ExecutionPlan for BigQueryExec {
@@ -424,11 +430,14 @@ impl ExecutionPlan for BigQueryExec {
         _context: Arc<TaskContext>,
     ) -> DatafusionResult<SendableRecordBatchStream> {
         let stream = BufferedIpcStream::new(self.schema(), self.receiver.clone(), partition);
-
-        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
-            stream,
-            partition,
-            &self.metrics,
+        Ok(Box::pin(LimitingStreamAdapter::new(
+            Box::pin(DataSourceMetricsStreamAdapter::new(
+                stream,
+                partition,
+                &self.metrics,
+            )),
+            self.counter.clone(),
+            self.limit,
         )))
     }
 

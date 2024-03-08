@@ -3,6 +3,7 @@ pub mod metrics;
 pub mod planner;
 pub mod runtime;
 pub mod session_metrics;
+pub mod stream_helper;
 pub mod vars;
 pub use planner::*;
 pub mod functions;
