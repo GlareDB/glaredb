@@ -333,13 +333,7 @@ impl TableProvider for BigQueryTableProvider {
         let (send, recv) = async_channel::bounded(num_partitions);
 
         tokio::spawn(async move {
-            let mut count: usize = 0;
             loop {
-                if let Some(max) = limit {
-                    if count >= max {
-                        break;
-                    }
-                };
                 let stream_opt = {
                     match sess.next_stream().await {
                         Ok(s) => s,
@@ -351,7 +345,7 @@ impl TableProvider for BigQueryTableProvider {
                 };
                 if let Some(stream) = stream_opt {
                     match send.send(stream).await {
-                        Ok(_) => count += 1,
+                        Ok(_) => {}
                         Err(error /* : closed or full channel error */) => {
                             tracing::error!(
                                 %error, "cannot send stream over the buffered channel [programming error]"
