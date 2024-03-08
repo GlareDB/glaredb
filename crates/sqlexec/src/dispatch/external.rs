@@ -15,7 +15,7 @@ use datasources::bson::table::bson_streaming_table;
 use datasources::cassandra::CassandraTableProvider;
 use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider, OwnedClickhouseTableRef};
 use datasources::common::url::DatasourceUrl;
-use datasources::debug::DebugTableType;
+use datasources::debug::{DebugDatasource, DebugTableType};
 use datasources::excel::table::ExcelTableProvider;
 use datasources::excel::ExcelTable;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
@@ -24,10 +24,6 @@ use datasources::lake::{storage_options_into_object_store, storage_options_into_
 use datasources::lance::LanceTable;
 use datasources::mongodb::{MongoDbAccessor, MongoDbTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
-use datasources::object_store::azure::AzureStoreAccess;
-use datasources::object_store::gcs::GcsStoreAccess;
-use datasources::object_store::local::LocalStoreAccess;
-use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresTableProvider, PostgresTableProviderConfig};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
@@ -52,28 +48,11 @@ use protogen::metastore::types::options::{
     DatabaseOptionsSnowflake,
     DatabaseOptionsSqlServer,
     DatabaseOptionsSqlite,
-    TableOptionsBigQuery,
-    TableOptionsCassandra,
-    TableOptionsClickhouse,
-    TableOptionsDebug,
-    TableOptionsExcel,
-    TableOptionsGcs,
-    TableOptionsInternal,
-    TableOptionsLocal,
-    TableOptionsMongoDb,
-    TableOptionsMysql,
-    TableOptionsObjectStore,
-    TableOptionsOld,
-    TableOptionsPostgres,
-    TableOptionsS3,
-    TableOptionsSnowflake,
-    TableOptionsSqlServer,
-    TableOptionsSqlite,
     TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use sqlbuiltins::functions::table::debug::DebugDatasource;
 use sqlbuiltins::functions::FunctionRegistry;
+use sqlbuiltins::DATASOURCE_REGISTRY;
 
 use super::{DispatchError, Result};
 
@@ -149,140 +128,149 @@ impl<'a> ExternalDispatcher<'a> {
     ) -> Result<Arc<dyn TableProvider>> {
         let tunnel = self.get_tunnel_opts(db.tunnel_id)?;
 
-        match &db.options {
-            DatabaseOptions::Internal(_) => unimplemented!(),
-            DatabaseOptions::Debug(DatabaseOptionsDebug {}) => {
-                // Use name of the table as table type here.
-                let provider = DebugTableType::from_str(name)?;
-                Ok(provider.into_table_provider(tunnel.as_ref()))
-            }
-            DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
-                let access = PostgresAccess::new_from_conn_str(connection_string, tunnel);
-                let prov_conf = PostgresTableProviderConfig {
-                    access,
-                    schema: schema.to_owned(),
-                    table: name.to_owned(),
-                };
-                let prov = PostgresTableProvider::try_new(prov_conf).await?;
-                Ok(Arc::new(prov))
-            }
-            DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
-                service_account_key,
-                project_id,
-            }) => {
-                let table_access = BigQueryTableAccess {
-                    dataset_id: schema.to_string(),
-                    table_id: name.to_string(),
-                };
+        // TODO, use the DATASOURCE_REGISTRY to dispatch the database.
 
-                let accessor =
-                    BigQueryAccessor::connect(service_account_key.clone(), project_id.clone())
-                        .await?;
-                let provider = accessor.into_table_provider(table_access, true).await?;
-                Ok(Arc::new(provider))
-            }
-            DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string }) => {
-                let table_access = MysqlTableAccess {
-                    schema: schema.to_string(),
-                    name: name.to_string(),
-                };
+        if let Some(ds) = DATASOURCE_REGISTRY.get(&db.options.as_str()) {
+            ds.table_provider_from_db_options(schema, name, &db.options, tunnel.as_ref())
+                .await
+                .transpose()
+                .ok_or_else(|| DispatchError::InvalidDispatch("Unknown datasource"))?
+                .map_err(|e| DispatchError::Datasource(e))
+        } else {
+            match &db.options {
+                DatabaseOptions::Debug(DatabaseOptionsDebug {}) => {
+                    unreachable!("Debug datasource should be reachable through the registry")
+                }
+                DatabaseOptions::Internal(_) => unimplemented!(),
+                DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
+                    let access = PostgresAccess::new_from_conn_str(connection_string, tunnel);
+                    let prov_conf = PostgresTableProviderConfig {
+                        access,
+                        schema: schema.to_owned(),
+                        table: name.to_owned(),
+                    };
+                    let prov = PostgresTableProvider::try_new(prov_conf).await?;
+                    Ok(Arc::new(prov))
+                }
+                DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
+                    service_account_key,
+                    project_id,
+                }) => {
+                    let table_access = BigQueryTableAccess {
+                        dataset_id: schema.to_string(),
+                        table_id: name.to_string(),
+                    };
 
-                let accessor = MysqlAccessor::connect(connection_string, tunnel).await?;
-                let provider = accessor.into_table_provider(table_access, true).await?;
-                Ok(Arc::new(provider))
-            }
-            DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string }) => {
-                let table_info = MongoDbTableAccessInfo {
-                    database: schema.to_string(), // A mongodb database is pretty much a schema.
-                    collection: name.to_string(),
-                };
-                let accessor = MongoDbAccessor::connect(connection_string).await?;
-                let table_accessor = accessor.into_table_accessor(table_info);
-                let provider = table_accessor.into_table_provider().await?;
-                Ok(Arc::new(provider))
-            }
-            DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
-                account_name,
-                login_name,
-                password,
-                database_name,
-                warehouse,
-                role_name,
-            }) => {
-                let schema_name = schema.to_string();
-                let table_name = name.to_string();
-                let role_name = if role_name.is_empty() {
-                    None
-                } else {
-                    Some(role_name.clone())
-                };
+                    let accessor =
+                        BigQueryAccessor::connect(service_account_key.clone(), project_id.clone())
+                            .await?;
+                    let provider = accessor.into_table_provider(table_access, true).await?;
+                    Ok(Arc::new(provider))
+                }
+                DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string }) => {
+                    let table_access = MysqlTableAccess {
+                        schema: schema.to_string(),
+                        name: name.to_string(),
+                    };
 
-                let conn_params = SnowflakeDbConnection {
-                    account_name: account_name.clone(),
-                    login_name: login_name.clone(),
-                    password: password.clone(),
-                    database_name: database_name.clone(),
-                    warehouse: warehouse.clone(),
+                    let accessor = MysqlAccessor::connect(connection_string, tunnel).await?;
+                    let provider = accessor.into_table_provider(table_access, true).await?;
+                    Ok(Arc::new(provider))
+                }
+                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string }) => {
+                    let table_info = MongoDbTableAccessInfo {
+                        database: schema.to_string(), // A mongodb database is pretty much a schema.
+                        collection: name.to_string(),
+                    };
+                    let accessor = MongoDbAccessor::connect(connection_string).await?;
+                    let table_accessor = accessor.into_table_accessor(table_info);
+                    let provider = table_accessor.into_table_provider().await?;
+                    Ok(Arc::new(provider))
+                }
+                DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
+                    account_name,
+                    login_name,
+                    password,
+                    database_name,
+                    warehouse,
                     role_name,
-                };
-                let access_info = SnowflakeTableAccess {
-                    schema_name,
-                    table_name,
-                };
-                let accessor = SnowflakeAccessor::connect(conn_params).await?;
-                let provider = accessor
-                    .into_table_provider(access_info, /* predicate_pushdown = */ true)
+                }) => {
+                    let schema_name = schema.to_string();
+                    let table_name = name.to_string();
+                    let role_name = if role_name.is_empty() {
+                        None
+                    } else {
+                        Some(role_name.clone())
+                    };
+
+                    let conn_params = SnowflakeDbConnection {
+                        account_name: account_name.clone(),
+                        login_name: login_name.clone(),
+                        password: password.clone(),
+                        database_name: database_name.clone(),
+                        warehouse: warehouse.clone(),
+                        role_name,
+                    };
+                    let access_info = SnowflakeTableAccess {
+                        schema_name,
+                        table_name,
+                    };
+                    let accessor = SnowflakeAccessor::connect(conn_params).await?;
+                    let provider = accessor
+                        .into_table_provider(access_info, /* predicate_pushdown = */ true)
+                        .await?;
+                    Ok(Arc::new(provider))
+                }
+                DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
+                    catalog,
+                    storage_options,
+                }) => {
+                    let accessor =
+                        DeltaLakeAccessor::connect(catalog, storage_options.clone()).await?;
+                    let table = accessor.load_table(schema, name).await?;
+                    Ok(Arc::new(table))
+                }
+                DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string }) => {
+                    let access = SqlServerAccess::try_new_from_ado_string(connection_string)?;
+                    let table = SqlServerTableProvider::try_new(SqlServerTableProviderConfig {
+                        access,
+                        schema: schema.to_string(),
+                        table: name.to_string(),
+                    })
                     .await?;
-                Ok(Arc::new(provider))
-            }
-            DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
-                catalog,
-                storage_options,
-            }) => {
-                let accessor = DeltaLakeAccessor::connect(catalog, storage_options.clone()).await?;
-                let table = accessor.load_table(schema, name).await?;
-                Ok(Arc::new(table))
-            }
-            DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string }) => {
-                let access = SqlServerAccess::try_new_from_ado_string(connection_string)?;
-                let table = SqlServerTableProvider::try_new(SqlServerTableProviderConfig {
-                    access,
-                    schema: schema.to_string(),
-                    table: name.to_string(),
-                })
-                .await?;
-                Ok(Arc::new(table))
-            }
-            DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string }) => {
-                let access =
-                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
-                let table_ref =
-                    OwnedClickhouseTableRef::new(Some(schema.to_owned()), name.to_owned());
-                let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
-                Ok(Arc::new(table))
-            }
-            DatabaseOptions::Cassandra(DatabaseOptionsCassandra {
-                host,
-                username,
-                password,
-            }) => {
-                let table = CassandraTableProvider::try_new(
-                    host.clone(),
-                    schema.to_string(),
-                    name.to_string(),
-                    username.to_owned(),
-                    password.to_owned(),
-                )
-                .await?;
-                Ok(Arc::new(table))
-            }
-            DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
-                let access = SqliteAccess {
-                    db: location.into(),
-                };
-                let state = access.connect().await?;
-                let table = SqliteTableProvider::try_new(state, name).await?;
-                Ok(Arc::new(table))
+                    Ok(Arc::new(table))
+                }
+                DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string }) => {
+                    let access =
+                        ClickhouseAccess::new_from_connection_string(connection_string.clone());
+                    let table_ref =
+                        OwnedClickhouseTableRef::new(Some(schema.to_owned()), name.to_owned());
+                    let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
+                    Ok(Arc::new(table))
+                }
+                DatabaseOptions::Cassandra(DatabaseOptionsCassandra {
+                    host,
+                    username,
+                    password,
+                }) => {
+                    let table = CassandraTableProvider::try_new(
+                        host.clone(),
+                        schema.to_string(),
+                        name.to_string(),
+                        username.to_owned(),
+                        password.to_owned(),
+                    )
+                    .await?;
+                    Ok(Arc::new(table))
+                }
+                DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
+                    let access = SqliteAccess {
+                        db: location.into(),
+                    };
+                    let state = access.connect().await?;
+                    let table = SqliteTableProvider::try_new(state, name).await?;
+                    Ok(Arc::new(table))
+                }
             }
         }
     }
@@ -292,244 +280,256 @@ impl<'a> ExternalDispatcher<'a> {
         table: &TableEntry,
     ) -> Result<Arc<dyn TableProvider>> {
         let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
-
-        match table.options.name.as_ref() {
-            "internal" => unimplemented!(), // Purposely unimplemented.
-            DebugDatasource::NAME => {
-                DebugDatasource::dispatch_table_entry_with_tunnel(table, tunnel.as_ref()).await
-            }
-            "excel" => {
-                todo!()
-                // let source_url = DatasourceUrl::try_new(location)?;
-                // let store_access = storage_options_into_store_access(&source_url, storage_options)?;
-                // let sheet_name: Option<&str> = sheet_name.as_deref();
-
-                // let table =
-                //     ExcelTable::open(store_access, source_url, sheet_name, *has_header).await?;
-                // let provider = ExcelTableProvider::try_new(table).await?;
-
-                // Ok(Arc::new(provider))
-            }
-
-            "postgres" => {
-                todo!()
-                // let access = PostgresAccess::new_from_conn_str(connection_string, tunnel);
-                // let prov_conf = PostgresTableProviderConfig {
-                //     access,
-                //     schema: schema.to_owned(),
-                //     table: table.to_owned(),
-                // };
-                // let prov = PostgresTableProvider::try_new(prov_conf).await?;
-                // Ok(Arc::new(prov))
-            }
-            "bigquery" => {
-                todo!()
-                // let table_access = BigQueryTableAccess {
-                //     dataset_id: dataset_id.to_string(),
-                //     table_id: table_id.to_string(),
-                // };
-
-                // let accessor =
-                //     BigQueryAccessor::connect(service_account_key.clone(), project_id.clone())
-                //         .await?;
-                // let provider = accessor.into_table_provider(table_access, true).await?;
-                // Ok(Arc::new(provider))
-            }
-            "mysql" => {
-                todo!()
-                // let table_access = MysqlTableAccess {
-                //     schema: schema.clone(),
-                //     name: table.clone(),
-                // };
-
-                // let accessor = MysqlAccessor::connect(connection_string, tunnel).await?;
-                // let provider = accessor.into_table_provider(table_access, true).await?;
-                // Ok(Arc::new(provider))
-            }
-            "mongodb" => {
-                todo!()
-                // let table_info = MongoDbTableAccessInfo {
-                //     database: database.to_string(),
-                //     collection: collection.to_string(),
-                // };
-                // let accessor = MongoDbAccessor::connect(connection_string).await?;
-                // let table_accessor = accessor.into_table_accessor(table_info);
-                // let provider = table_accessor.into_table_provider().await?;
-                // Ok(Arc::new(provider))
-            }
-            "snowflake" => {
-                todo!()
-                // let role_name = if role_name.is_empty() {
-                //     None
-                // } else {
-                //     Some(role_name.clone())
-                // };
-
-                // let conn_params = SnowflakeDbConnection {
-                //     account_name: account_name.clone(),
-                //     login_name: login_name.clone(),
-                //     password: password.clone(),
-                //     database_name: database_name.clone(),
-                //     warehouse: warehouse.clone(),
-                //     role_name,
-                // };
-                // let access_info = SnowflakeTableAccess {
-                //     schema_name: schema_name.clone(),
-                //     table_name: table_name.clone(),
-                // };
-                // let accessor = SnowflakeAccessor::connect(conn_params).await?;
-                // let provider = accessor
-                //     .into_table_provider(access_info, /* predicate_pushdown = */ true)
-                //     .await?;
-                // Ok(Arc::new(provider))
-            }
-            "local" => {
-                todo!()
-                // if self.disable_local_fs_access {
-                //     return Err(DispatchError::InvalidDispatch(
-                //         "Local file access is not supported in cloud mode",
-                //     ));
-                // }
-                // let access = Arc::new(LocalStoreAccess);
-                // self.create_obj_store_table_provider(
-                //     access,
-                //     location,
-                //     file_type,
-                //     compression.as_ref(),
-                // )
-                // .await
-            }
-            "gcs" => {
-                todo!()
-                // let access = Arc::new(GcsStoreAccess {
-                //     service_account_key: service_account_key.clone(),
-                //     bucket: bucket.clone(),
-                //     opts: HashMap::new(),
-                // });
-                // self.create_obj_store_table_provider(
-                //     access,
-                //     location,
-                //     file_type,
-                //     compression.as_ref(),
-                // )
-                // .await
-            }
-            "s3" => {
-                todo!()
-                // let access = Arc::new(S3StoreAccess {
-                //     bucket: bucket.clone(),
-                //     region: Some(region.clone()),
-                //     access_key_id: access_key_id.clone(),
-                //     secret_access_key: secret_access_key.clone(),
-                //     opts: HashMap::new(),
-                // });
-                // self.create_obj_store_table_provider(
-                //     access,
-                //     location,
-                //     file_type,
-                //     compression.as_ref(),
-                // )
-                // .await
-            }
-            "azure" => {
-                todo!()
-                // // File type should be known at this point since creating the
-                // // table requires that we've either inferred the file type, or
-                // // the user provided it.
-                // let file_type = match file_type {
-                //     Some(ft) => ft,
-                //     None => {
-                //         return Err(DispatchError::InvalidDispatch(
-                //             "File type missing from table options",
-                //         ))
-                //     }
-                // };
-
-                // let uri = DatasourceUrl::try_new(location)?;
-                // let access = Arc::new(AzureStoreAccess::try_from_uri(&uri, storage_options)?);
-
-                // self.create_obj_store_table_provider(
-                //     access,
-                //     DatasourceUrl::try_new(location)?.path(), // TODO: Workaround again
-                //     file_type,
-                //     compression.as_ref(),
-                // )
-                // .await
-            }
-            "delta" => {
-                todo!()
-                // let provider =
-                //     Arc::new(load_table_direct(location, storage_options.clone()).await?);
-                // Ok(provider)
-            }
-            "iceberg" => {
-                todo!()
-                // let url = DatasourceUrl::try_new(location)?;
-                // let store = storage_options_into_object_store(&url, storage_options)?;
-                // let table = IcebergTable::open(url, store).await?;
-                // let reader = table.table_reader().await?;
-                // Ok(reader)
-            }
-            "sqlserver" => {
-                todo!()
-                // let access = SqlServerAccess::try_new_from_ado_string(connection_string)?;
-                // let table = SqlServerTableProvider::try_new(SqlServerTableProviderConfig {
-                //     access,
-                //     schema: schema.to_string(),
-                //     table: table.to_string(),
-                // })
-                // .await?;
-                // Ok(Arc::new(table))
-            }
-            "clickhouse" => {
-                todo!()
-                // let access =
-                //     ClickhouseAccess::new_from_connection_string(connection_string.clone());
-                // let table_ref = OwnedClickhouseTableRef::new(database.clone(), table.to_owned());
-                // let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
-                // Ok(Arc::new(table))
-            }
-            "lance" => {
-                todo!()
-                //     Ok(Arc::new(
-                //     LanceTable::new(location, storage_options.clone()).await?,
-                // ))
-            }
-            "bson" => {
-                todo!()
-                // let source_url = DatasourceUrl::try_new(location)?;
-                // let store_access = storage_options_into_store_access(&source_url, storage_options)?;
-                // Ok(
-                //     bson_streaming_table(store_access, schema_sample_size.to_owned(), source_url)
-                //         .await?,
-                // )
-            }
-            "cassandra" => {
-                todo!()
-                // let table = CassandraTableProvider::try_new(
-                //     host.clone(),
-                //     keyspace.clone(),
-                //     table.clone(),
-                //     username.clone(),
-                //     password.clone(),
-                // )
-                // .await?;
-
-                // Ok(Arc::new(table))
-            }
-            "sqlite" => {
-                todo!()
-                // let access = SqliteAccess {
-                //     db: location.into(),
-                // };
-                // let state = access.connect().await?;
-                // let table = SqliteTableProvider::try_new(state, table).await?;
-                // Ok(Arc::new(table))
-            }
-            _ => Err(DispatchError::String(
-                format!("Unsupported external table type: {}", table.options.name).to_string(),
-            )),
+        if let Some(ds) = DATASOURCE_REGISTRY.get(&table.options.name) {
+            return ds
+                .create_table_provider(&table.options, tunnel.as_ref())
+                .await
+                .map_err(|e| e.into());
+        } else {
+            return Err(DispatchError::InvalidDispatch("Unknown datasource"));
         }
+
+        // match table.options.name.as_ref() {
+        //     "internal" => unimplemented!(), // Purposely unimplemented.
+        //     "debug" => {
+        //         todo!()
+        //         // DebugDatasource::dispatch_table_entry_with_tunnel(table, tunnel.as_ref())
+        //         //     .await
+        //         //     .map_err(|e| e.into())
+        //     }
+        //     "excel" => {
+        //         todo!()
+        //         // let source_url = DatasourceUrl::try_new(location)?;
+        //         // let store_access = storage_options_into_store_access(&source_url, storage_options)?;
+        //         // let sheet_name: Option<&str> = sheet_name.as_deref();
+
+        //         // let table =
+        //         //     ExcelTable::open(store_access, source_url, sheet_name, *has_header).await?;
+        //         // let provider = ExcelTableProvider::try_new(table).await?;
+
+        //         // Ok(Arc::new(provider))
+        //     }
+
+        //     "postgres" => {
+        //         todo!()
+        //         // let access = PostgresAccess::new_from_conn_str(connection_string, tunnel);
+        //         // let prov_conf = PostgresTableProviderConfig {
+        //         //     access,
+        //         //     schema: schema.to_owned(),
+        //         //     table: table.to_owned(),
+        //         // };
+        //         // let prov = PostgresTableProvider::try_new(prov_conf).await?;
+        //         // Ok(Arc::new(prov))
+        //     }
+        //     "bigquery" => {
+        //         todo!()
+        //         // let table_access = BigQueryTableAccess {
+        //         //     dataset_id: dataset_id.to_string(),
+        //         //     table_id: table_id.to_string(),
+        //         // };
+
+        //         // let accessor =
+        //         //     BigQueryAccessor::connect(service_account_key.clone(), project_id.clone())
+        //         //         .await?;
+        //         // let provider = accessor.into_table_provider(table_access, true).await?;
+        //         // Ok(Arc::new(provider))
+        //     }
+        //     "mysql" => {
+        //         todo!()
+        //         // let table_access = MysqlTableAccess {
+        //         //     schema: schema.clone(),
+        //         //     name: table.clone(),
+        //         // };
+
+        //         // let accessor = MysqlAccessor::connect(connection_string, tunnel).await?;
+        //         // let provider = accessor.into_table_provider(table_access, true).await?;
+        //         // Ok(Arc::new(provider))
+        //     }
+        //     "mongodb" => {
+        //         todo!()
+        //         // let table_info = MongoDbTableAccessInfo {
+        //         //     database: database.to_string(),
+        //         //     collection: collection.to_string(),
+        //         // };
+        //         // let accessor = MongoDbAccessor::connect(connection_string).await?;
+        //         // let table_accessor = accessor.into_table_accessor(table_info);
+        //         // let provider = table_accessor.into_table_provider().await?;
+        //         // Ok(Arc::new(provider))
+        //     }
+        //     "snowflake" => {
+        //         todo!()
+        //         // let role_name = if role_name.is_empty() {
+        //         //     None
+        //         // } else {
+        //         //     Some(role_name.clone())
+        //         // };
+
+        //         // let conn_params = SnowflakeDbConnection {
+        //         //     account_name: account_name.clone(),
+        //         //     login_name: login_name.clone(),
+        //         //     password: password.clone(),
+        //         //     database_name: database_name.clone(),
+        //         //     warehouse: warehouse.clone(),
+        //         //     role_name,
+        //         // };
+        //         // let access_info = SnowflakeTableAccess {
+        //         //     schema_name: schema_name.clone(),
+        //         //     table_name: table_name.clone(),
+        //         // };
+        //         // let accessor = SnowflakeAccessor::connect(conn_params).await?;
+        //         // let provider = accessor
+        //         //     .into_table_provider(access_info, /* predicate_pushdown = */ true)
+        //         //     .await?;
+        //         // Ok(Arc::new(provider))
+        //     }
+        //     "local" => {
+        //         if self.disable_local_fs_access {
+        //             return Err(DispatchError::InvalidDispatch(
+        //                 "Local file access is not supported in cloud mode",
+        //             ));
+        //         }
+
+        //         todo!()
+        //         // let access = Arc::new(LocalStoreAccess);
+        //         // self.create_obj_store_table_provider(
+        //         //     access,
+        //         //     location,
+        //         //     file_type,
+        //         //     compression.as_ref(),
+        //         // )
+        //         // .await
+        //     }
+        //     "gcs" => {
+        //         todo!()
+        //         // let access = Arc::new(GcsStoreAccess {
+        //         //     service_account_key: service_account_key.clone(),
+        //         //     bucket: bucket.clone(),
+        //         //     opts: HashMap::new(),
+        //         // });
+        //         // self.create_obj_store_table_provider(
+        //         //     access,
+        //         //     location,
+        //         //     file_type,
+        //         //     compression.as_ref(),
+        //         // )
+        //         // .await
+        //     }
+        //     "s3" => {
+        //         todo!()
+        //         // let access = Arc::new(S3StoreAccess {
+        //         //     bucket: bucket.clone(),
+        //         //     region: Some(region.clone()),
+        //         //     access_key_id: access_key_id.clone(),
+        //         //     secret_access_key: secret_access_key.clone(),
+        //         //     opts: HashMap::new(),
+        //         // });
+        //         // self.create_obj_store_table_provider(
+        //         //     access,
+        //         //     location,
+        //         //     file_type,
+        //         //     compression.as_ref(),
+        //         // )
+        //         // .await
+        //     }
+        //     "azure" => {
+        //         todo!()
+        //         // // File type should be known at this point since creating the
+        //         // // table requires that we've either inferred the file type, or
+        //         // // the user provided it.
+        //         // let file_type = match file_type {
+        //         //     Some(ft) => ft,
+        //         //     None => {
+        //         //         return Err(DispatchError::InvalidDispatch(
+        //         //             "File type missing from table options",
+        //         //         ))
+        //         //     }
+        //         // };
+
+        //         // let uri = DatasourceUrl::try_new(location)?;
+        //         // let access = Arc::new(AzureStoreAccess::try_from_uri(&uri, storage_options)?);
+
+        //         // self.create_obj_store_table_provider(
+        //         //     access,
+        //         //     DatasourceUrl::try_new(location)?.path(), // TODO: Workaround again
+        //         //     file_type,
+        //         //     compression.as_ref(),
+        //         // )
+        //         // .await
+        //     }
+        //     "delta" => {
+        //         todo!()
+        //         // let provider =
+        //         //     Arc::new(load_table_direct(location, storage_options.clone()).await?);
+        //         // Ok(provider)
+        //     }
+        //     "iceberg" => {
+        //         todo!()
+        //         // let url = DatasourceUrl::try_new(location)?;
+        //         // let store = storage_options_into_object_store(&url, storage_options)?;
+        //         // let table = IcebergTable::open(url, store).await?;
+        //         // let reader = table.table_reader().await?;
+        //         // Ok(reader)
+        //     }
+        //     "sqlserver" => {
+        //         todo!()
+        //         // let access = SqlServerAccess::try_new_from_ado_string(connection_string)?;
+        //         // let table = SqlServerTableProvider::try_new(SqlServerTableProviderConfig {
+        //         //     access,
+        //         //     schema: schema.to_string(),
+        //         //     table: table.to_string(),
+        //         // })
+        //         // .await?;
+        //         // Ok(Arc::new(table))
+        //     }
+        //     "clickhouse" => {
+        //         todo!()
+        //         // let access =
+        //         //     ClickhouseAccess::new_from_connection_string(connection_string.clone());
+        //         // let table_ref = OwnedClickhouseTableRef::new(database.clone(), table.to_owned());
+        //         // let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
+        //         // Ok(Arc::new(table))
+        //     }
+        //     "lance" => {
+        //         todo!()
+        //         //     Ok(Arc::new(
+        //         //     LanceTable::new(location, storage_options.clone()).await?,
+        //         // ))
+        //     }
+        //     "bson" => {
+        //         todo!()
+        //         // let source_url = DatasourceUrl::try_new(location)?;
+        //         // let store_access = storage_options_into_store_access(&source_url, storage_options)?;
+        //         // Ok(
+        //         //     bson_streaming_table(store_access, schema_sample_size.to_owned(), source_url)
+        //         //         .await?,
+        //         // )
+        //     }
+        //     "cassandra" => {
+        //         todo!()
+        //         // let table = CassandraTableProvider::try_new(
+        //         //     host.clone(),
+        //         //     keyspace.clone(),
+        //         //     table.clone(),
+        //         //     username.clone(),
+        //         //     password.clone(),
+        //         // )
+        //         // .await?;
+
+        //         // Ok(Arc::new(table))
+        //     }
+        //     "sqlite" => {
+        //         todo!()
+        //         // let access = SqliteAccess {
+        //         //     db: location.into(),
+        //         // };
+        //         // let state = access.connect().await?;
+        //         // let table = SqliteTableProvider::try_new(state, table).await?;
+        //         // Ok(Arc::new(table))
+        //     }
+        //     _ => Err(DispatchError::String(
+        //         format!("Unsupported external table type: {}", table.options.name).to_string(),
+        //     )),
+        // }
     }
 
     async fn create_obj_store_table_provider(

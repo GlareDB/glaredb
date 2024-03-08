@@ -17,7 +17,6 @@ use datafusion_ext::planner::AsyncContextProvider;
 use datafusion_ext::runtime::table_provider::RuntimeAwareTableProvider;
 use datafusion_ext::vars::CredentialsVarProvider;
 use protogen::metastore::types::catalog::{CatalogEntry, RuntimePreference};
-use protogen::metastore::types::options::TableOptionsOld;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
 
 use crate::context::local::LocalSessionContext;

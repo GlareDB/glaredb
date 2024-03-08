@@ -24,7 +24,6 @@ use protogen::metastore::types::options::{
     DatabaseOptions,
     DatabaseOptionsInternal,
     TableOptionsInternal,
-    TableOptionsOld,
     TunnelOptions,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
@@ -1419,11 +1418,11 @@ mod tests {
     use std::collections::HashSet;
 
     use datafusion::arrow::datatypes::DataType;
+    use datasources::debug::options::TableOptionsDebug;
     use object_store::memory::InMemory;
     use protogen::metastore::types::options::{
         DatabaseOptionsDebug,
         InternalColumnDefinition,
-        TableOptionsDebug,
         TableOptionsInternal,
     };
     use protogen::metastore::types::service::{
@@ -1843,10 +1842,7 @@ mod tests {
         let mutation = Mutation::CreateExternalTable(CreateExternalTable {
             schema: "mushroom".to_string(),
             name: "bowser".to_string(),
-            options: TableOptionsDebug {
-                table_type: String::new(),
-            }
-            .into(),
+            options: TableOptionsDebug::default().into(),
             if_not_exists: true,
             or_replace: false,
             tunnel: None,
@@ -2001,10 +1997,7 @@ mod tests {
                 vec![Mutation::CreateExternalTable(CreateExternalTable {
                     schema: "public".to_string(),
                     name: "read_postgres".to_string(),
-                    options: TableOptionsDebug {
-                        table_type: String::new(),
-                    }
-                    .into(),
+                    options: TableOptionsDebug::default().into(),
                     if_not_exists: true,
                     or_replace: false,
                     tunnel: None,

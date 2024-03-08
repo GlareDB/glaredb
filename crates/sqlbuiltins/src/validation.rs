@@ -1,3 +1,4 @@
+
 use protogen::metastore::types::options::{
     CopyToDestinationOptions,
     CredentialsOptions,
@@ -5,6 +6,7 @@ use protogen::metastore::types::options::{
     TableOptionsOld,
     TunnelOptions,
 };
+
 
 #[derive(thiserror::Error, Debug)]
 pub enum ValidationError {
@@ -65,7 +67,7 @@ pub fn validate_table_tunnel_support(table: &str, tunnel: &str) -> Result<()> {
     if matches!(
         (table, tunnel),
         // Debug
-        (TableOptionsOld::DEBUG, TunnelOptions::DEBUG)
+        ("debug", TunnelOptions::DEBUG)
         // Postgres
         | (TableOptionsOld::POSTGRES, TunnelOptions::SSH)
         // MySQL
@@ -103,7 +105,7 @@ pub fn validate_table_creds_support(table: &str, creds: &str) -> Result<()> {
     if matches!(
         (table, creds),
         // Debug
-        (TableOptionsOld::DEBUG, CredentialsOptions::DEBUG) |
+        ("debug", CredentialsOptions::DEBUG) |
         // Google cloud
         (TableOptionsOld::GCS, CredentialsOptions::GCP) |
         (TableOptionsOld::BIGQUERY, CredentialsOptions::GCP) |

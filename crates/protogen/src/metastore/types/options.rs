@@ -658,12 +658,6 @@ impl From<StorageOptions> for options::StorageOptions {
     }
 }
 
-// Table options
-pub trait TableOptionsImpl: std::fmt::Debug + Send + Sync {
-    fn name(&self) -> &'static str;
-}
-
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptions {
     pub name: String,
@@ -702,7 +696,6 @@ impl TryFrom<OptionValue> for String {
         }
     }
 }
-
 
 impl TryFrom<OptionValue> for DataType {
     type Error = ProtoConvError;
@@ -784,7 +777,6 @@ where
     }
 }
 
-
 impl TryFrom<options::TableOptions> for TableOptions {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptions) -> Result<Self, Self::Error> {
@@ -794,7 +786,6 @@ impl TryFrom<options::TableOptions> for TableOptions {
             .into_iter()
             .map(|(k, v)| Ok::<_, ProtoConvError>((k, v.try_into()?)))
             .collect::<Result<_, _>>()?;
-
 
         Ok(TableOptions {
             options: values,
@@ -891,7 +882,6 @@ impl From<OptionValue> for options::OptionValue {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TableOptionsOld {
     Internal(TableOptionsInternal),
-    Debug(TableOptionsDebug),
     Postgres(TableOptionsPostgres),
     BigQuery(TableOptionsBigQuery),
     Mysql(TableOptionsMysql),
@@ -914,7 +904,6 @@ pub enum TableOptionsOld {
 
 impl TableOptionsOld {
     pub const INTERNAL: &'static str = "internal";
-    pub const DEBUG: &'static str = "debug";
     pub const POSTGRES: &'static str = "postgres";
     pub const BIGQUERY: &'static str = "bigquery";
     pub const MYSQL: &'static str = "mysql";
@@ -941,7 +930,6 @@ impl TableOptionsOld {
     pub fn as_str(&self) -> &'static str {
         match self {
             TableOptionsOld::Internal(_) => Self::INTERNAL,
-            TableOptionsOld::Debug(_) => Self::DEBUG,
             TableOptionsOld::Postgres(_) => Self::POSTGRES,
             TableOptionsOld::BigQuery(_) => Self::BIGQUERY,
             TableOptionsOld::Mysql(_) => Self::MYSQL,
@@ -963,6 +951,31 @@ impl TableOptionsOld {
         }
     }
 }
+impl From<TableOptionsOld> for TableOptions {
+    fn from(value: TableOptionsOld) -> Self {
+        match value {
+            TableOptionsOld::Internal(opts) => opts.into(),
+            TableOptionsOld::Postgres(opts) => opts.into(),
+            TableOptionsOld::BigQuery(opts) => opts.into(),
+            TableOptionsOld::Mysql(opts) => opts.into(),
+            TableOptionsOld::Local(opts) => opts.into(),
+            TableOptionsOld::Gcs(opts) => opts.into(),
+            TableOptionsOld::S3(opts) => opts.into(),
+            TableOptionsOld::MongoDb(opts) => opts.into(),
+            TableOptionsOld::Snowflake(opts) => opts.into(),
+            TableOptionsOld::Delta(opts) => opts.into(),
+            TableOptionsOld::Iceberg(opts) => opts.into(),
+            TableOptionsOld::Azure(opts) => opts.into(),
+            TableOptionsOld::SqlServer(opts) => opts.into(),
+            TableOptionsOld::Lance(opts) => opts.into(),
+            TableOptionsOld::Bson(opts) => opts.into(),
+            TableOptionsOld::Clickhouse(opts) => opts.into(),
+            TableOptionsOld::Cassandra(opts) => opts.into(),
+            TableOptionsOld::Excel(opts) => opts.into(),
+            TableOptionsOld::Sqlite(opts) => opts.into(),
+        }
+    }
+}
 
 impl fmt::Display for TableOptionsOld {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -977,7 +990,6 @@ impl TryFrom<TableOptionsOld> for options::table_options_old::Options {
             TableOptionsOld::Internal(v) => {
                 options::table_options_old::Options::Internal(v.try_into()?)
             }
-            TableOptionsOld::Debug(v) => options::table_options_old::Options::Debug(v.into()),
             TableOptionsOld::Postgres(v) => options::table_options_old::Options::Postgres(v.into()),
             TableOptionsOld::BigQuery(v) => options::table_options_old::Options::Bigquery(v.into()),
             TableOptionsOld::Mysql(v) => options::table_options_old::Options::Mysql(v.into()),
@@ -1058,14 +1070,12 @@ impl TryFrom<&TableOptions> for TableOptionsInternal {
                 .map(|col| col.try_into())
                 .collect::<Result<_, _>>()?;
 
-
             Ok(TableOptionsInternal { columns })
         } else {
             Err(ProtoConvError::UnknownVariant(value.name.to_string()))
         }
     }
 }
-
 
 impl From<DFSchemaRef> for TableOptionsInternal {
     fn from(value: DFSchemaRef) -> Self {
@@ -1125,60 +1135,6 @@ impl TryFrom<TableOptionsInternal> for options::TableOptionsInternal {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TableOptionsDebug {
-    pub table_type: String,
-}
-
-impl From<TableOptionsDebug> for TableOptions {
-    fn from(value: TableOptionsDebug) -> Self {
-        let mut options = BTreeMap::new();
-        options.insert(
-            "table_type".to_string(),
-            OptionValue::String(value.table_type),
-        );
-
-        TableOptions {
-            name: "debug".to_string(),
-            options,
-        }
-    }
-}
-
-impl TryFrom<&TableOptions> for TableOptionsDebug {
-    type Error = ProtoConvError;
-    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
-        if matches!(value.name.as_ref(), "debug") {
-            let table_type: String = value
-                .options
-                .get("table_type")
-                .cloned()
-                .ok_or_else(|| ProtoConvError::RequiredField("table_type".to_string()))?
-                .try_into()?;
-
-            Ok(TableOptionsDebug { table_type })
-        } else {
-            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
-        }
-    }
-}
-
-impl TryFrom<options::TableOptionsDebug> for TableOptionsDebug {
-    type Error = ProtoConvError;
-    fn try_from(value: options::TableOptionsDebug) -> Result<Self, Self::Error> {
-        Ok(TableOptionsDebug {
-            table_type: value.table_type,
-        })
-    }
-}
-
-impl From<TableOptionsDebug> for options::TableOptionsDebug {
-    fn from(value: TableOptionsDebug) -> Self {
-        options::TableOptionsDebug {
-            table_type: value.table_type,
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsPostgres {
@@ -1934,20 +1890,21 @@ pub struct TableOptionsObjectStore {
 
 impl From<TableOptionsObjectStore> for TableOptions {
     fn from(value: TableOptionsObjectStore) -> Self {
-        let name = "object_store".to_string();
         let mut options = BTreeMap::new();
         options.insert("location".to_string(), value.location.into());
         options.insert("storage_options".to_string(), value.storage_options.into());
-        if let Some(file_type) = value.file_type {
-            options.insert("file_type".to_string(), file_type.into());
-        }
+        let name = if let Some(file_type) = value.file_type {
+            options.insert("file_type".to_string(), file_type.clone().into());
+            file_type
+        } else {
+            "object_store".to_string()
+        };
         if let Some(compression) = value.compression {
             options.insert("compression".to_string(), compression.into());
         }
         if let Some(schema_sample_size) = value.schema_sample_size {
             options.insert("schema_sample_size".to_string(), schema_sample_size.into());
         }
-
         TableOptions { name, options }
     }
 }
@@ -1955,9 +1912,17 @@ impl TryFrom<&TableOptions> for TableOptionsObjectStore {
     type Error = ProtoConvError;
 
     fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
-        if value.name != "object_store" {
+        let file_type = value
+            .options
+            .get("file_type")
+            .cloned()
+            .map(|v| v.try_into())
+            .transpose()?;
+
+        if value.name != "object_store" && file_type.is_none() {
             return Err(ProtoConvError::UnknownVariant(value.name.to_string()));
         }
+
         let location = value
             .options
             .get("location")
@@ -1971,12 +1936,6 @@ impl TryFrom<&TableOptions> for TableOptionsObjectStore {
             .ok_or_else(|| ProtoConvError::RequiredField("storage_options".to_string()))?
             .try_into()?;
 
-        let file_type = value
-            .options
-            .get("file_type")
-            .cloned()
-            .map(|v| v.try_into())
-            .transpose()?;
         let compression = value
             .options
             .get("compression")

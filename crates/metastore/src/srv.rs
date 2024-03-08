@@ -17,7 +17,6 @@ use protogen::gen::metastore::service::{
 use protogen::metastore::types::options::TableOptionsOld;
 use protogen::metastore::types::service::{CreateExternalTable, Mutation};
 use protogen::ProtoConvError;
-use sqlbuiltins::functions::table::debug::DebugDatasource;
 use tonic::{Request, Response, Status};
 use tracing::{debug, info};
 use uuid::Uuid;
