@@ -9,11 +9,12 @@ use datafusion::error::DataFusionError;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use futures::{Stream, StreamExt};
 
-/// Thin wrapper around a record batch stream that automatically records metrics
-/// about batches that are sent through the stream.
-///
-/// Note this should only be used when "ingesting" data during execution (data
-/// sources or reading from tables) to avoid double counting bytes read.
+// Loosely enforces a limit for the number of records the stream will
+// produce. Uses an atomic counter so that the limit can be enforced
+// across partitions. Once the limit is surpassed no more record
+// batches will be placed over the stream: this means that these
+// streams will almost always produce slightly more records than the
+// limit, essentially as a rounding error.
 pub struct LimitingStreamAdapter {
     stream: SendableRecordBatchStream,
     counter: Arc<AtomicUsize>,
@@ -21,8 +22,6 @@ pub struct LimitingStreamAdapter {
 }
 
 impl LimitingStreamAdapter {
-    /// Create a new stream with a new set of data source metrics for the given
-    /// partition.
     pub fn new(
         stream: SendableRecordBatchStream,
         counter: Arc<AtomicUsize>,
@@ -33,6 +32,13 @@ impl LimitingStreamAdapter {
             counter,
             limit,
         }
+    }
+}
+
+
+impl RecordBatchStream for LimitingStreamAdapter {
+    fn schema(&self) -> SchemaRef {
+        self.stream.schema()
     }
 }
 
@@ -56,11 +62,5 @@ impl Stream for LimitingStreamAdapter {
             Poll::Ready(None) => Poll::Ready(None),
             Poll::Pending => Poll::Pending,
         }
-    }
-}
-
-impl RecordBatchStream for LimitingStreamAdapter {
-    fn schema(&self) -> SchemaRef {
-        self.stream.schema()
     }
 }
