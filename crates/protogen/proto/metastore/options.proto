@@ -120,27 +120,26 @@ message StorageOptions {
 }
 
 message OptionValue {
-    oneof value {
-        string string_value = 1;
-        int64 int_value = 2;
-        bool bool_value = 4;
-        OptionValueArray array_value = 5;
-        OptionValueMap map_value = 6;
-        common.arrow.ArrowType arrow_type = 7;
-    }
+  oneof value {
+    string string_value = 1;
+    int64 int_value = 2;
+    bool bool_value = 4;
+    OptionValueArray array_value = 5;
+    OptionValueMap map_value = 6;
+  }
 }
 
 message OptionValueArray {
-    repeated OptionValue values = 1;
+  repeated OptionValue values = 1;
 }
 
 message OptionValueMap {
-    map<string, OptionValue> values = 1;
+  map<string, OptionValue> values = 1;
 }
 
 message TableOptions {
-    string name = 1;
-    map<string, OptionValue> options = 2;
+  string name = 1;
+  map<string, OptionValue> options = 2;
 }
 
 // Table options
@@ -167,14 +166,8 @@ message TableOptionsOld {
     TableOptionsCassandra cassandra = 18;
     TableOptionsExcel excel = 19;
     TableOptionsSqlite sqlite = 20;
-    DynTableOptions other = 21;
   }
   // next: 21
-}
-
-message DynTableOptions {
-  string name = 1;
-  bytes data = 2;
 }
 
 message TableOptionsInternal {

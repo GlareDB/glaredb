@@ -14,7 +14,6 @@ pub struct Metastore {
 
 impl Metastore {
     pub fn new(store: Arc<dyn ObjectStore>) -> Result<Self> {
-        println!("Creating new Metastore service");
         Ok(Metastore {
             service: Service::new(store),
         })

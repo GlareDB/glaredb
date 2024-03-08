@@ -263,7 +263,6 @@ impl NativeTableStorage {
     }
 
     fn opts_from_ent(table: &TableEntry) -> Result<TableOptionsInternal> {
-        println!("table options: {:?}", table.options);
         let opts = match table.options.name.as_ref() {
             "internal" => TableOptionsInternal::try_from(&table.options).unwrap(),
             _ => return Err(NativeError::NotNative(table.clone())),

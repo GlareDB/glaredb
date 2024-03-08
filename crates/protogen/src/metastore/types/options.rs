@@ -24,7 +24,7 @@ impl From<InternalColumnDefinition> for OptionValue {
                 ("nullable".to_string(), OptionValue::Bool(value.nullable)),
                 (
                     "arrow_type".to_string(),
-                    OptionValue::String(value.arrow_type.to_string()),
+                    OptionValue::String(serde_json::to_string(&value.arrow_type).unwrap()),
                 ),
             ]
             .into_iter()
@@ -47,7 +47,6 @@ impl TryFrom<OptionValue> for InternalColumnDefinition {
                 .remove("arrow_type")
                 .ok_or_else(|| ProtoConvError::RequiredField("arrow_type".to_string()))?;
             let arrow_type: DataType = arrow_type.try_into()?;
-
             Ok(InternalColumnDefinition {
                 name: name.try_into()?,
                 nullable: nullable.try_into()?,
@@ -96,14 +95,14 @@ impl InternalColumnDefinition {
 impl TryFrom<options::InternalColumnDefinition> for InternalColumnDefinition {
     type Error = ProtoConvError;
     fn try_from(value: options::InternalColumnDefinition) -> Result<Self, Self::Error> {
-        // let arrow_type = DataType::from(value.arrow_type.unwrap());
+        let arrow_type: DataType = value.arrow_type.as_ref().required("arrow_type")?;
 
-        todo!()
-        // Ok(InternalColumnDefinition {
-        //     name: value.name,
-        //     nullable: value.nullable,
-        //     arrow_type,
-        // })
+
+        Ok(InternalColumnDefinition {
+            name: value.name,
+            nullable: value.nullable,
+            arrow_type,
+        })
     }
 }
 
@@ -136,7 +135,6 @@ mod tests {
         };
 
         let proto: OptionValue = def.clone().into();
-        println!("{:?}", proto);
         let back: super::InternalColumnDefinition = proto.try_into().unwrap();
 
         assert_eq!(def, back);
@@ -706,7 +704,6 @@ pub enum OptionValue {
     Bool(bool),
     Array(Vec<OptionValue>),
     Object(BTreeMap<String, OptionValue>),
-    DataType(DataType),
 }
 
 impl TryFrom<OptionValue> for String {
@@ -725,7 +722,9 @@ impl TryFrom<OptionValue> for DataType {
 
     fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
         match value {
-            OptionValue::DataType(v) => Ok(v),
+            OptionValue::String(v) => serde_json::from_str(&v).map_err(|e| {
+                ProtoConvError::ParseError(format!("Failed to parse arrow type: {}", e))
+            }),
             _ => Err(ProtoConvError::ParseError("Expected DataType".to_string())),
         }
     }
@@ -852,12 +851,6 @@ impl TryFrom<options::OptionValue> for OptionValue {
                     .map(|(k, v)| Ok::<_, ProtoConvError>((k, v.try_into()?)))
                     .collect::<Result<_, _>>()?,
             ),
-            options::option_value::Value::ArrowType(ref dtype) => {
-                let arrow_type: DataType = dtype.try_into().map_err(|e| {
-                    ProtoConvError::ParseError(format!("Failed to parse arrow type: {}", e))
-                })?;
-                OptionValue::DataType(arrow_type)
-            }
         })
     }
 }
@@ -891,13 +884,6 @@ impl From<OptionValue> for options::OptionValue {
                     },
                 )),
             },
-            OptionValue::DataType(v) => {
-                let arrow_type = arrow::ArrowType::try_from(&v).unwrap();
-
-                options::OptionValue {
-                    value: Some(options::option_value::Value::ArrowType(arrow_type)),
-                }
-            }
         }
     }
 }
