@@ -668,7 +668,7 @@ impl<'a> ExternalDispatcher<'a> {
             )
             .await?),
             _ => Err(DispatchError::String(
-                format!("Unsupported file type: {}, for '{}'", file_type, path,).to_string(),
+                format!("Unsupported file type: '{}', for '{}'", file_type, path,).to_string(),
             )),
         }
     }
