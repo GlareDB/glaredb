@@ -331,7 +331,7 @@ mod tests {
         assert_buf(buf, b"\\x170dff0082");
 
         buf.clear();
-        let nt = DateTime::from_timestamp(938689324, 0).unwrap().naive_utc() ;
+        let nt = DateTime::from_timestamp(938689324, 0).unwrap().naive_utc();
         Writer::write_timestamp(buf, &nt).unwrap();
         assert_buf(
             buf,
@@ -496,7 +496,9 @@ mod tests {
         assert_buf(buf, &[23, 13, 255, 0, 130]);
 
         buf.clear();
-        let nt = DateTime::from_timestamp(938689324, 123567).unwrap().naive_utc();
+        let nt = DateTime::from_timestamp(938689324, 123567)
+            .unwrap()
+            .naive_utc();
         Writer::write_timestamp(buf, &nt).unwrap();
         // Microseconds since Jan 1, 2000
         assert_buf(buf, (-7_995_475_999_876_i64).to_be_bytes().as_ref());
