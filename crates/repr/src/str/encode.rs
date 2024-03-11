@@ -237,7 +237,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
+    use chrono::{DateTime, NaiveDate, NaiveTime, TimeZone, Utc};
     use decimal::Decimal128;
 
     use super::*;
@@ -310,7 +310,7 @@ mod tests {
             &[23, 13, 255, 0, 130],
         );
 
-        let nt = DateTime::from_timestamp_opt(938689324, 0).unwrap();
+        let nt = DateTime::from_timestamp(938689324, 0).unwrap().naive_utc();
         assert_encode!(
             nt.format("%Y-%m-%d %H:%M:%S"),
             encode_utc_timestamp,
@@ -318,7 +318,9 @@ mod tests {
             false,
         );
 
-        let nt = DateTime::from_timestamp_opt(938689324, 123567).unwrap();
+        let nt = DateTime::from_timestamp(938689324, 123567)
+            .unwrap()
+            .naive_utc();
         assert_encode!(
             format!("{}.000124", nt.format("%Y-%m-%d %H:%M:%S")),
             encode_utc_timestamp,
@@ -326,7 +328,9 @@ mod tests {
             false,
         );
 
-        let nt = DateTime::from_timestamp_opt(938689324, 123_400_000).unwrap();
+        let nt = DateTime::from_timestamp(938689324, 123_400_000)
+            .unwrap()
+            .naive_utc();
         assert_encode!(
             format!("{}.1234", nt.format("%Y-%m-%d %H:%M:%S")),
             encode_utc_timestamp,
@@ -334,7 +338,7 @@ mod tests {
             false,
         );
 
-        let nt = DateTime::from_timestamp_opt(-197199051, 0).unwrap();
+        let nt = DateTime::from_timestamp(-197199051, 0).unwrap().naive_utc();
         assert_encode!(
             nt.format("%Y-%m-%d %H:%M:%S"),
             encode_utc_timestamp,
@@ -342,7 +346,9 @@ mod tests {
             false,
         );
 
-        let nt = DateTime::from_timestamp_opt(-62143593684, 0).unwrap();
+        let nt = DateTime::from_timestamp(-62143593684, 0)
+            .unwrap()
+            .naive_utc();
         assert_encode!(
             format!("1-{} BC", nt.format("%m-%d %H:%M:%S")),
             encode_utc_timestamp,
