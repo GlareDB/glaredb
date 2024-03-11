@@ -139,7 +139,7 @@ message OptionValueMap {
 
 message TableOptions {
   string name = 1;
-  map<string, OptionValue> options = 2;
+  bytes options = 2;
 }
 
 // Table options
