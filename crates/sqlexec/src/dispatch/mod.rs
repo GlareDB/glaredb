@@ -44,6 +44,7 @@ pub enum DispatchError {
     #[error("Missing tunnel connection: {0}")]
     MissingTunnel(u32),
 
+
     #[error("failed to plan view: {0}")]
     ViewPlanning(Box<crate::planner::errors::PlanError>),
 

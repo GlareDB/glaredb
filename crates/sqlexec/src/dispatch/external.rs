@@ -415,11 +415,11 @@ impl<'a> ExternalDispatcher<'a> {
             let ent = self
                 .catalog
                 .get_by_oid(creds_id)
-                .ok_or(DispatchError::MissingTunnel(creds_id))?;
+                .ok_or(DispatchError::MissingObjectWithOid(creds_id))?;
 
             let ent = match ent {
                 CatalogEntry::Credentials(ent) => ent,
-                _ => return Err(DispatchError::MissingTunnel(creds_id)),
+                _ => return Err(DispatchError::MissingObjectWithOid(creds_id)),
             };
             Some(ent.options.clone())
         } else {
