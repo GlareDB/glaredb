@@ -160,16 +160,20 @@ impl Scalar {
             DfScalar::Utf8(Some(v)) => Self::Text(v),
             DfScalar::Binary(Some(v)) => Self::Bytea(v),
             DfScalar::TimestampSecond(Some(v), None) => {
-                Self::Timestamp(NaiveDateTime::from_timestamp_opt(v, /* nsecs = */ 0).unwrap())
+                Self::Timestamp(
+                    DateTime::from_timestamp(v, /* nsecs = */ 0)
+                        .unwrap()
+                        .naive_utc(),
+                )
             }
             DfScalar::TimestampMillisecond(Some(v), None) => {
-                Self::Timestamp(NaiveDateTime::from_timestamp_millis(v).unwrap())
+                Self::Timestamp(DateTime::from_timestamp_millis(v).unwrap().naive_utc())
             }
             DfScalar::TimestampMicrosecond(Some(v), None) => {
-                Self::Timestamp(NaiveDateTime::from_timestamp_micros(v).unwrap())
+                Self::Timestamp(DateTime::from_timestamp_micros(v).unwrap().naive_utc())
             }
             DfScalar::TimestampNanosecond(Some(v), None) => {
-                Self::Timestamp(NaiveDateTime::from_timestamp_nanos(v).unwrap())
+                Self::Timestamp(DateTime::from_timestamp_nanos(v).naive_utc())
             }
             DfScalar::TimestampSecond(Some(v), Some(tz)) => {
                 Self::TimestampTz(get_timezone(&tz).timestamp_opt(v, /* nsecs = */ 0).unwrap())
@@ -184,25 +188,23 @@ impl Scalar {
                 Self::TimestampTz(get_timezone(&tz).timestamp_nanos(v))
             }
             DfScalar::Time32Second(Some(v)) => Self::Time(
-                NaiveDateTime::from_timestamp_opt(v as i64, /* nsecs = */ 0)
+                DateTime::from_timestamp(v as i64, /* nsecs = */ 0)
                     .unwrap()
                     .time(),
             ),
-            DfScalar::Time32Millisecond(Some(v)) => Self::Time(
-                NaiveDateTime::from_timestamp_millis(v as i64)
-                    .unwrap()
-                    .time(),
-            ),
+            DfScalar::Time32Millisecond(Some(v)) => {
+                Self::Time(DateTime::from_timestamp_millis(v as i64).unwrap().time())
+            }
             DfScalar::Time64Microsecond(Some(v)) => {
-                Self::Time(NaiveDateTime::from_timestamp_micros(v).unwrap().time())
+                Self::Time(DateTime::from_timestamp_micros(v).unwrap().time())
             }
             DfScalar::Time64Nanosecond(Some(v)) => {
-                Self::Time(NaiveDateTime::from_timestamp_nanos(v).unwrap().time())
+                Self::Time(DateTime::from_timestamp_nanos(v).time())
             }
             DfScalar::Date32(Some(v)) => {
                 let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
                 let naive_date = epoch
-                    .checked_add_signed(Duration::days(v as i64))
+                    .checked_add_signed(Duration::try_days(v as i64).unwrap())
                     .expect("scalar value should be a valid date");
                 Self::Date(naive_date)
             }
@@ -235,17 +237,16 @@ impl Scalar {
             (Self::Text(v), ArrowType::Utf8) => DfScalar::Utf8(Some(v)),
             (Self::Bytea(v), ArrowType::Binary) => DfScalar::Binary(Some(v)),
             (Self::Timestamp(v), ArrowType::Timestamp(TimeUnit::Second, None)) => {
-                DfScalar::TimestampSecond(Some(v.timestamp()), None)
+                DfScalar::TimestampSecond(Some(v.second() as i64), None)
             }
             (Self::Timestamp(v), ArrowType::Timestamp(TimeUnit::Millisecond, None)) => {
-                DfScalar::TimestampMillisecond(Some(v.timestamp_millis()), None)
+                DfScalar::TimestampMillisecond(Some(v.and_utc().timestamp_millis()), None)
             }
             (Self::Timestamp(v), ArrowType::Timestamp(TimeUnit::Microsecond, None)) => {
-                DfScalar::TimestampMicrosecond(Some(v.timestamp_micros()), None)
+                DfScalar::TimestampMicrosecond(Some(v.and_utc().timestamp_micros()), None)
             }
             (Self::Timestamp(v), ArrowType::Timestamp(TimeUnit::Nanosecond, None)) => {
-                let nanos = v.timestamp_nanos_opt().unwrap();
-                DfScalar::TimestampNanosecond(Some(nanos), None)
+                DfScalar::TimestampNanosecond(v.and_utc().timestamp_nanos_opt(), None)
             }
             (
                 Self::TimestampTz(v),
