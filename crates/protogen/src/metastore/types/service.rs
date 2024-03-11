@@ -372,7 +372,7 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
         Ok(service::CreateExternalTable {
             schema: value.schema,
             name: value.name,
-            options: Some(value.options.try_into()?),
+            options: Some(value.options.into()),
             or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,

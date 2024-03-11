@@ -30,12 +30,7 @@ use datafusion_ext::functions::VirtualLister;
 use errors::DebugError;
 use futures::Stream;
 use parser::options::StatementOptions;
-use protogen::metastore::types::options::{
-    CredentialsOptions,
-    DatabaseOptions,
-    TableOptions,
-    TunnelOptions,
-};
+use protogen::metastore::types::options::{CredentialsOptions, TableOptions, TunnelOptions};
 
 pub use self::options::{DebugTableType, TableOptionsDebug};
 use crate::DatasourceError;
@@ -290,19 +285,5 @@ impl crate::Datasource for DebugDatasource {
             typ: options.table_type,
             tunnel: tunnel_opts.is_some(),
         }))
-    }
-
-    async fn table_provider_from_db_options(
-        &self,
-        _schema: &str,
-        name: &str,
-        _options: &DatabaseOptions,
-        tunnel_opts: Option<&TunnelOptions>,
-    ) -> Result<Option<Arc<dyn TableProvider>>, DatasourceError> {
-        let tbl_type = name.parse()?;
-        Ok(Some(Arc::new(DebugTableProvider {
-            typ: tbl_type,
-            tunnel: tunnel_opts.is_some(),
-        })))
     }
 }

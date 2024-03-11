@@ -14,6 +14,7 @@ use datasources::bson::table::bson_streaming_table;
 use datasources::cassandra::CassandraTableProvider;
 use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider, OwnedClickhouseTableRef};
 use datasources::common::url::DatasourceUrl;
+use datasources::debug::DebugTableProvider;
 use datasources::excel::table::ExcelTableProvider;
 use datasources::excel::ExcelTable;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
@@ -69,11 +70,12 @@ use protogen::metastore::types::options::{
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FunctionRegistry;
-use sqlbuiltins::DATASOURCE_REGISTRY;
+use sqlbuiltins::DEFAULT_DATASOURCES;
 
 use super::{DispatchError, Result};
 
 /// Dispatch to external tables and databases.
+// TODO: add a `DatasourceRegistry` to the `ExternalDispatcher` to allow for dynamic datasources.
 pub struct ExternalDispatcher<'a> {
     catalog: &'a SessionCatalog,
     // TODO: Remove need for this.
@@ -144,151 +146,144 @@ impl<'a> ExternalDispatcher<'a> {
         name: &str,
     ) -> Result<Arc<dyn TableProvider>> {
         let tunnel = self.get_tunnel_opts(db.tunnel_id)?;
+        // TODO: use the DatasourceRegistry to dispatch instead
+        match &db.options {
+            DatabaseOptions::Debug(DatabaseOptionsDebug {}) => {
+                let tbl_type = name.parse()?;
+                Ok(Arc::new(DebugTableProvider {
+                    typ: tbl_type,
+                    tunnel: tunnel.is_some(),
+                }))
+            }
+            DatabaseOptions::Internal(_) => unimplemented!(),
+            DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
+                let access = PostgresAccess::new_from_conn_str(connection_string, tunnel);
+                let prov_conf = PostgresTableProviderConfig {
+                    access,
+                    schema: schema.to_owned(),
+                    table: name.to_owned(),
+                };
+                let prov = PostgresTableProvider::try_new(prov_conf).await?;
+                Ok(Arc::new(prov))
+            }
+            DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
+                service_account_key,
+                project_id,
+            }) => {
+                let table_access = BigQueryTableAccess {
+                    dataset_id: schema.to_string(),
+                    table_id: name.to_string(),
+                };
 
-        // TODO, use the DATASOURCE_REGISTRY to dispatch the database.
-
-        if let Some(ds) = DATASOURCE_REGISTRY.get(&db.options.as_str()) {
-            ds.table_provider_from_db_options(schema, name, &db.options, tunnel.as_ref())
-                .await
-                .transpose()
-                .ok_or_else(|| DispatchError::InvalidDispatch("Unknown datasource"))?
-                .map_err(|e| DispatchError::Datasource(e))
-        } else {
-            match &db.options {
-                DatabaseOptions::Debug(DatabaseOptionsDebug {}) => {
-                    unreachable!("Debug datasource should be reachable through the registry")
-                }
-                DatabaseOptions::Internal(_) => unimplemented!(),
-                DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
-                    let access = PostgresAccess::new_from_conn_str(connection_string, tunnel);
-                    let prov_conf = PostgresTableProviderConfig {
-                        access,
-                        schema: schema.to_owned(),
-                        table: name.to_owned(),
-                    };
-                    let prov = PostgresTableProvider::try_new(prov_conf).await?;
-                    Ok(Arc::new(prov))
-                }
-                DatabaseOptions::BigQuery(DatabaseOptionsBigQuery {
-                    service_account_key,
-                    project_id,
-                }) => {
-                    let table_access = BigQueryTableAccess {
-                        dataset_id: schema.to_string(),
-                        table_id: name.to_string(),
-                    };
-
-                    let accessor =
-                        BigQueryAccessor::connect(service_account_key.clone(), project_id.clone())
-                            .await?;
-                    let provider = accessor.into_table_provider(table_access, true).await?;
-                    Ok(Arc::new(provider))
-                }
-                DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string }) => {
-                    let table_access = MysqlTableAccess {
-                        schema: schema.to_string(),
-                        name: name.to_string(),
-                    };
-
-                    let accessor = MysqlAccessor::connect(connection_string, tunnel).await?;
-                    let provider = accessor.into_table_provider(table_access, true).await?;
-                    Ok(Arc::new(provider))
-                }
-                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string }) => {
-                    let table_info = MongoDbTableAccessInfo {
-                        database: schema.to_string(), // A mongodb database is pretty much a schema.
-                        collection: name.to_string(),
-                        fields: None,
-                    };
-                    let accessor = MongoDbAccessor::connect(connection_string).await?;
-                    let table_accessor = accessor.into_table_accessor(table_info);
-                    let provider = table_accessor.into_table_provider().await?;
-                    Ok(Arc::new(provider))
-                }
-                DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
-                    account_name,
-                    login_name,
-                    password,
-                    database_name,
-                    warehouse,
-                    role_name,
-                }) => {
-                    let schema_name = schema.to_string();
-                    let table_name = name.to_string();
-                    let role_name = if role_name.is_empty() {
-                        None
-                    } else {
-                        Some(role_name.clone())
-                    };
-
-                    let conn_params = SnowflakeDbConnection {
-                        account_name: account_name.clone(),
-                        login_name: login_name.clone(),
-                        password: password.clone(),
-                        database_name: database_name.clone(),
-                        warehouse: warehouse.clone(),
-                        role_name,
-                    };
-                    let access_info = SnowflakeTableAccess {
-                        schema_name,
-                        table_name,
-                    };
-                    let accessor = SnowflakeAccessor::connect(conn_params).await?;
-                    let provider = accessor
-                        .into_table_provider(access_info, /* predicate_pushdown = */ true)
+                let accessor =
+                    BigQueryAccessor::connect(service_account_key.clone(), project_id.clone())
                         .await?;
-                    Ok(Arc::new(provider))
-                }
-                DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
-                    catalog,
-                    storage_options,
-                }) => {
-                    let accessor =
-                        DeltaLakeAccessor::connect(catalog, storage_options.clone()).await?;
-                    let table = accessor.load_table(schema, name).await?;
-                    Ok(Arc::new(table))
-                }
-                DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string }) => {
-                    let access = SqlServerAccess::try_new_from_ado_string(connection_string)?;
-                    let table = SqlServerTableProvider::try_new(SqlServerTableProviderConfig {
-                        access,
-                        schema: schema.to_string(),
-                        table: name.to_string(),
-                    })
+                let provider = accessor.into_table_provider(table_access, true).await?;
+                Ok(Arc::new(provider))
+            }
+            DatabaseOptions::Mysql(DatabaseOptionsMysql { connection_string }) => {
+                let table_access = MysqlTableAccess {
+                    schema: schema.to_string(),
+                    name: name.to_string(),
+                };
+
+                let accessor = MysqlAccessor::connect(connection_string, tunnel).await?;
+                let provider = accessor.into_table_provider(table_access, true).await?;
+                Ok(Arc::new(provider))
+            }
+            DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string }) => {
+                let table_info = MongoDbTableAccessInfo {
+                    database: schema.to_string(), // A mongodb database is pretty much a schema.
+                    collection: name.to_string(),
+                    fields: None,
+                };
+                let accessor = MongoDbAccessor::connect(connection_string).await?;
+                let table_accessor = accessor.into_table_accessor(table_info);
+                let provider = table_accessor.into_table_provider().await?;
+                Ok(Arc::new(provider))
+            }
+            DatabaseOptions::Snowflake(DatabaseOptionsSnowflake {
+                account_name,
+                login_name,
+                password,
+                database_name,
+                warehouse,
+                role_name,
+            }) => {
+                let schema_name = schema.to_string();
+                let table_name = name.to_string();
+                let role_name = if role_name.is_empty() {
+                    None
+                } else {
+                    Some(role_name.clone())
+                };
+
+                let conn_params = SnowflakeDbConnection {
+                    account_name: account_name.clone(),
+                    login_name: login_name.clone(),
+                    password: password.clone(),
+                    database_name: database_name.clone(),
+                    warehouse: warehouse.clone(),
+                    role_name,
+                };
+                let access_info = SnowflakeTableAccess {
+                    schema_name,
+                    table_name,
+                };
+                let accessor = SnowflakeAccessor::connect(conn_params).await?;
+                let provider = accessor
+                    .into_table_provider(access_info, /* predicate_pushdown = */ true)
                     .await?;
-                    Ok(Arc::new(table))
-                }
-                DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string }) => {
-                    let access =
-                        ClickhouseAccess::new_from_connection_string(connection_string.clone());
-                    let table_ref =
-                        OwnedClickhouseTableRef::new(Some(schema.to_owned()), name.to_owned());
-                    let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
-                    Ok(Arc::new(table))
-                }
-                DatabaseOptions::Cassandra(DatabaseOptionsCassandra {
-                    host,
-                    username,
-                    password,
-                }) => {
-                    let table = CassandraTableProvider::try_new(
-                        host.clone(),
-                        schema.to_string(),
-                        name.to_string(),
-                        username.to_owned(),
-                        password.to_owned(),
-                    )
-                    .await?;
-                    Ok(Arc::new(table))
-                }
-                DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
-                    let access = SqliteAccess {
-                        db: location.into(),
-                    };
-                    let state = access.connect().await?;
-                    let table = SqliteTableProvider::try_new(state, name).await?;
-                    Ok(Arc::new(table))
-                }
+                Ok(Arc::new(provider))
+            }
+            DatabaseOptions::Delta(DatabaseOptionsDeltaLake {
+                catalog,
+                storage_options,
+            }) => {
+                let accessor = DeltaLakeAccessor::connect(catalog, storage_options.clone()).await?;
+                let table = accessor.load_table(schema, name).await?;
+                Ok(Arc::new(table))
+            }
+            DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string }) => {
+                let access = SqlServerAccess::try_new_from_ado_string(connection_string)?;
+                let table = SqlServerTableProvider::try_new(SqlServerTableProviderConfig {
+                    access,
+                    schema: schema.to_string(),
+                    table: name.to_string(),
+                })
+                .await?;
+                Ok(Arc::new(table))
+            }
+            DatabaseOptions::Clickhouse(DatabaseOptionsClickhouse { connection_string }) => {
+                let access =
+                    ClickhouseAccess::new_from_connection_string(connection_string.clone());
+                let table_ref =
+                    OwnedClickhouseTableRef::new(Some(schema.to_owned()), name.to_owned());
+                let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
+                Ok(Arc::new(table))
+            }
+            DatabaseOptions::Cassandra(DatabaseOptionsCassandra {
+                host,
+                username,
+                password,
+            }) => {
+                let table = CassandraTableProvider::try_new(
+                    host.clone(),
+                    schema.to_string(),
+                    name.to_string(),
+                    username.to_owned(),
+                    password.to_owned(),
+                )
+                .await?;
+                Ok(Arc::new(table))
+            }
+            DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
+                let access = SqliteAccess {
+                    db: location.into(),
+                };
+                let state = access.connect().await?;
+                let table = SqliteTableProvider::try_new(state, name).await?;
+                Ok(Arc::new(table))
             }
         }
     }
@@ -299,7 +294,7 @@ impl<'a> ExternalDispatcher<'a> {
         table: &TableEntry,
     ) -> Result<Arc<dyn TableProvider>> {
         let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
-        if let Some(ds) = DATASOURCE_REGISTRY.get(&table.options.name) {
+        if let Some(ds) = DEFAULT_DATASOURCES.get(&table.options.name) {
             return ds
                 .create_table_provider(&table.options, tunnel.as_ref())
                 .await
@@ -412,6 +407,7 @@ impl<'a> ExternalDispatcher<'a> {
         };
         Ok(tunnel_options)
     }
+    // TODO: Remove this function once everything is using the new table options
     async fn dispatch_table_options_v1(
         &self,
         opts: &TableOptionsOld,
