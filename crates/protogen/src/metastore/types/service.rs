@@ -348,6 +348,7 @@ pub struct CreateExternalTable {
     pub or_replace: bool,
     pub if_not_exists: bool,
     pub tunnel: Option<String>,
+    pub credentials: Option<String>,
 }
 
 
@@ -362,6 +363,7 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
             or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,
+            credentials: value.credentials,
         })
     }
 }
@@ -376,6 +378,7 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
             or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,
+            credentials: value.credentials,
         })
     }
 }

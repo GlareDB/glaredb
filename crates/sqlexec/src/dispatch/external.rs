@@ -38,6 +38,7 @@ use datasources::sqlserver::{
 };
 use protogen::metastore::types::catalog::{CatalogEntry, DatabaseEntry, FunctionEntry, TableEntry};
 use protogen::metastore::types::options::{
+    CredentialsOptions,
     DatabaseOptions,
     DatabaseOptionsBigQuery,
     DatabaseOptionsCassandra,
@@ -294,9 +295,10 @@ impl<'a> ExternalDispatcher<'a> {
         table: &TableEntry,
     ) -> Result<Arc<dyn TableProvider>> {
         let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
+        let creds = self.get_cred_opts(table.credentials_id)?;
         if let Some(ds) = DEFAULT_DATASOURCES.get(&table.options.name) {
             return ds
-                .create_table_provider(&table.options, tunnel.as_ref())
+                .create_table_provider(&table.options, creds, tunnel)
                 .await
                 .map_err(|e| e.into());
         } else {
@@ -407,6 +409,26 @@ impl<'a> ExternalDispatcher<'a> {
         };
         Ok(tunnel_options)
     }
+
+    fn get_cred_opts(&self, creds_id: Option<u32>) -> Result<Option<CredentialsOptions>> {
+        let options = if let Some(creds_id) = creds_id {
+            let ent = self
+                .catalog
+                .get_by_oid(creds_id)
+                .ok_or(DispatchError::MissingTunnel(creds_id))?;
+
+            let ent = match ent {
+                CatalogEntry::Credentials(ent) => ent,
+                _ => return Err(DispatchError::MissingTunnel(creds_id)),
+            };
+            Some(ent.options.clone())
+        } else {
+            None
+        };
+        Ok(options)
+    }
+
+
     // TODO: Remove this function once everything is using the new table options
     async fn dispatch_table_options_v1(
         &self,

@@ -14,11 +14,12 @@ use serde::{Deserialize, Serialize};
 
 use super::errors::DebugError;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub enum DebugTableType {
     /// A table that will always return an error on the record batch stream.
     ErrorDuringExecution,
     /// A table that never stops sending record batches.
+    #[default]
     NeverEnding,
 }
 
@@ -151,7 +152,7 @@ impl DebugTableType {
 
 #[derive(Debug, Clone)]
 pub struct TableOptionsDebug {
-    pub table_type: DebugTableType,
+    pub table_type: Option<DebugTableType>,
 }
 
 impl From<TableOptionsDebug> for TableOptions {
@@ -159,7 +160,7 @@ impl From<TableOptionsDebug> for TableOptions {
         let mut options = BTreeMap::new();
         options.insert(
             "table_type".to_string(),
-            OptionValue::String(value.table_type.to_string()),
+            OptionValue::String(value.table_type.unwrap().to_string()),
         );
 
         TableOptions {
@@ -181,7 +182,9 @@ impl TryFrom<&TableOptions> for TableOptionsDebug {
                 .try_into()
                 .map_err(|e: DebugError| ProtoConvError::ParseError(e.to_string()))?;
 
-            Ok(TableOptionsDebug { table_type })
+            Ok(TableOptionsDebug {
+                table_type: Some(table_type),
+            })
         } else {
             Err(ProtoConvError::UnknownVariant(value.name.to_string()))
         }
@@ -191,7 +194,7 @@ impl TryFrom<&TableOptions> for TableOptionsDebug {
 impl Default for TableOptionsDebug {
     fn default() -> Self {
         TableOptionsDebug {
-            table_type: DebugTableType::NeverEnding,
+            table_type: Some(DebugTableType::NeverEnding),
         }
     }
 }

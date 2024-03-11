@@ -459,6 +459,7 @@ impl TempCatalog {
                 },
                 options: TableOptionsInternal { columns }.into(),
                 tunnel_id: None,
+                credentials_id: None,
                 access_mode: SourceAccessMode::ReadWrite,
                 schema: Some(schema.as_ref().clone()),
             }
@@ -504,6 +505,7 @@ impl TempCatalog {
                 }
                 .into(),
                 tunnel_id: None,
+                credentials_id: None,
                 access_mode: SourceAccessMode::ReadWrite,
                 schema: None,
             });

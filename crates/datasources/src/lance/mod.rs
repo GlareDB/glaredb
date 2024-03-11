@@ -87,18 +87,12 @@ impl Datasource for LanceDatasource {
 
     /// Create a new datasource from the provided table options and credentials.
     /// CREATE EXTERNAL TABLE foo FROM <name> OPTIONS (...) [CREDENTIALS] (...) [TUNNEL] (...)
-    // TODO: the datasource should have control over it's own CredentialsOptions and TunnelOptions
     fn table_options_from_stmt(
         &self,
         opts: &mut StatementOptions,
-        creds: Option<CredentialsOptions>,
-        _tunnel_opts: Option<TunnelOptions>,
     ) -> Result<TableOptions, DatasourceError> {
         let location: String = opts.remove_required("location")?;
-        let mut storage_options = StorageOptions::try_from(opts)?;
-        if let Some(creds) = creds {
-            storage_options_with_credentials(&mut storage_options, creds);
-        }
+        let storage_options = StorageOptions::try_from(opts)?;
 
         Ok(TableOptionsObjectStore {
             location,
@@ -114,12 +108,13 @@ impl Datasource for LanceDatasource {
     async fn create_table_provider(
         &self,
         options: &TableOptions,
-        _tunnel_opts: Option<&TunnelOptions>,
+        creds: Option<CredentialsOptions>,
+        _tunnel_opts: Option<TunnelOptions>,
     ) -> Result<Arc<dyn TableProvider>, DatasourceError> {
         let TableOptionsObjectStore {
             file_type,
             location,
-            storage_options,
+            mut storage_options,
             ..
         } = TableOptionsObjectStore::try_from(options)?;
         if let Some(file_type) = file_type {
@@ -128,7 +123,12 @@ impl Datasource for LanceDatasource {
             }
         }
 
-
+        // TODO: the credentials shouldn't be stored in the table options.
+        // Currently We are storing them in the catalog as both a credential and nested in the table options.
+        // We should only store them in the catalog as a credential and instead pass [`CredentialsOptions`] to `create_table_provider` as a separate argument.
+        if let Some(creds) = creds {
+            storage_options_with_credentials(&mut storage_options, creds);
+        }
         LanceTable::new(&location, storage_options)
             .await
             .map_err(|e| e.into())

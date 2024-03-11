@@ -927,6 +927,7 @@ impl<'a> SessionPlanner<'a> {
         let datasource = normalize_ident(stmt.datasource);
 
         let tunnel = stmt.tunnel.map(normalize_ident);
+
         let tunnel_options = self.get_tunnel_opts(&tunnel)?;
         if let Some(tunnel_options) = &tunnel_options {
             // Validate if the tunnel type is supported by the datasource
@@ -952,7 +953,7 @@ impl<'a> SessionPlanner<'a> {
         // for the datasource instead of the static [`DEFAULT_DATASOURCES`]
             if let Some(datasource) = DEFAULT_DATASOURCES.get(datasource.as_str()) {
                 datasource
-                    .table_options_from_stmt(m, creds_options, tunnel_options)
+                    .table_options_from_stmt(m, creds_options)
                     .map_err(|e| PlanError::InvalidExternalTable { source: e })?
             } else {
                 self.opts_from_old_tblopts(datasource.as_str(), m, creds_options, tunnel_options)
@@ -968,6 +969,7 @@ impl<'a> SessionPlanner<'a> {
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
             tunnel,
+            credentials: creds,
             columns: None,
         };
 

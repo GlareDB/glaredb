@@ -439,8 +439,12 @@ impl From<SchemaEntry> for catalog::SchemaEntry {
 pub struct TableEntry {
     pub meta: EntryMeta,
     pub options: TableOptions,
+    /// Reference to the tunnel used to access the table.
     pub tunnel_id: Option<u32>,
+    /// Reference to the credentials used to access the table.
+    pub credentials_id: Option<u32>,
     pub access_mode: SourceAccessMode,
+    /// The (optional) user defined schema of the table.
     pub schema: Option<Schema>,
 }
 
@@ -471,6 +475,7 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
             meta,
             options: value.options.required("options")?,
             tunnel_id: value.tunnel_id,
+            credentials_id: value.credentials_id,
             access_mode: value.access_mode.try_into()?,
             schema: None,
         })
@@ -483,6 +488,7 @@ impl From<TableEntry> for catalog::TableEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.into()),
             tunnel_id: value.tunnel_id,
+            credentials_id: value.credentials_id,
             access_mode: value.access_mode.into(),
             schema: None,
         }

@@ -257,18 +257,9 @@ impl crate::Datasource for DebugDatasource {
     fn table_options_from_stmt(
         &self,
         opts: &mut StatementOptions,
-        creds: Option<CredentialsOptions>,
-        tunnel_opts: Option<TunnelOptions>,
     ) -> Result<TableOptions, DatasourceError> {
-        validate_tunnel_connections(tunnel_opts.as_ref()).unwrap();
-
-        let typ: Option<DebugTableType> = match creds {
-            Some(CredentialsOptions::Debug(c)) => c.table_type.parse().ok(),
-            Some(other) => unreachable!("invalid credentials {other} for debug datasource"),
-            None => None,
-        };
-        let typ: DebugTableType = opts
-            .remove_required_or("table_type", typ)
+        let typ = opts
+            .remove_optional("table_type")
             .map_err(|e| DebugError::UnknownDebugTableType(e.to_string()))?;
 
         Ok(TableOptionsDebug { table_type: typ }.into())
@@ -277,12 +268,26 @@ impl crate::Datasource for DebugDatasource {
     async fn create_table_provider(
         &self,
         options: &TableOptions,
-        tunnel_opts: Option<&TunnelOptions>,
+        creds: Option<CredentialsOptions>,
+        tunnel_opts: Option<TunnelOptions>,
     ) -> Result<Arc<dyn TableProvider>, DatasourceError> {
-        let options = TableOptionsDebug::try_from(options).unwrap();
+        // The order of operations for the table type is
+        // 1. OPTIONS (table_type = "...")
+        // 2. CREDENTIALS some_debug_credential
+        // 3. default to DebugTableType::NeverEnding
+
+        let tbl_type = TableOptionsDebug::try_from(options)
+            .ok()
+            .map(|t| t.table_type)
+            .unwrap_or_else(|| match creds {
+                Some(CredentialsOptions::Debug(c)) => c.table_type.parse().ok(),
+                Some(other) => unreachable!("invalid credentials {other} for debug datasource"),
+                None => None,
+            })
+            .unwrap_or_default();
 
         Ok(Arc::new(DebugTableProvider {
-            typ: options.table_type,
+            typ: tbl_type,
             tunnel: tunnel_opts.is_some(),
         }))
     }

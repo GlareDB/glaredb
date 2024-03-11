@@ -32,6 +32,7 @@ pub struct CreateExternalTableExec {
     pub if_not_exists: bool,
     pub table_options: TableOptions,
     pub tunnel: Option<String>,
+    pub credentials: Option<String>,
 }
 
 impl ExecutionPlan for CreateExternalTableExec {
@@ -118,6 +119,7 @@ async fn create_external_table(
                     or_replace: plan.or_replace,
                     if_not_exists: plan.if_not_exists,
                     tunnel: plan.tunnel,
+                    credentials: plan.credentials,
                 },
             )],
         )

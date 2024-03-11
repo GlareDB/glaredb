@@ -538,6 +538,7 @@ mod tests {
             }
             .into(),
             tunnel_id: None,
+            credentials_id: None,
             access_mode: SourceAccessMode::ReadOnly,
             schema: None,
         };

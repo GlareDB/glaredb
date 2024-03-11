@@ -203,6 +203,8 @@ pub struct CreateExternalTableExec {
     pub tunnel: Option<String>,
     #[prost(bool, tag = "6")]
     pub or_replace: bool,
+    #[prost(message, optional, tag = "7")]
+    pub credentials: Option<String>,
 }
 
 #[derive(Clone, PartialEq, Message)]

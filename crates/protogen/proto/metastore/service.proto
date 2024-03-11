@@ -95,7 +95,8 @@ message CreateExternalTable {
   bool if_not_exists = 4;
   optional string tunnel = 5;
   bool or_replace = 6;
-  // next: 7
+  optional string credentials = 7;
+  // next: 8
 }
 
 message CreateExternalDatabase {

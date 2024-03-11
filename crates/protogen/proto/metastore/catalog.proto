@@ -164,7 +164,8 @@ message TableEntry {
   optional uint32 tunnel_id = 4;
   SourceAccessMode access_mode = 5;
   optional common.arrow.Schema schema = 6;
-  // next: 7
+  optional uint32 credentials_id = 7;
+  // next: 8
 }
 
 message ViewEntry {

@@ -44,14 +44,13 @@ pub trait Datasource: Send + Sync {
     fn table_options_from_stmt(
         &self,
         opts: &mut StatementOptions,
-        creds: Option<CredentialsOptions>,
-        tunnel_opts: Option<TunnelOptions>,
     ) -> Result<TableOptions, DatasourceError>;
 
 
     async fn create_table_provider(
         &self,
         tbl_options: &TableOptions,
-        _tunnel_opts: Option<&TunnelOptions>,
+        creds: Option<CredentialsOptions>,
+        tunnel_opts: Option<TunnelOptions>,
     ) -> Result<Arc<dyn TableProvider>, DatasourceError>;
 }

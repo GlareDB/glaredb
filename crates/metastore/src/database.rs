@@ -42,6 +42,7 @@ use sqlbuiltins::functions::{BuiltinFunction, DEFAULT_BUILTIN_FUNCTIONS};
 use sqlbuiltins::validation::{
     validate_database_tunnel_support,
     validate_object_name,
+    validate_table_creds_support,
     validate_table_tunnel_support,
 };
 use tokio::sync::{Mutex, MutexGuard};
@@ -856,6 +857,7 @@ impl State {
                     },
                     options: create_table.options.into(),
                     tunnel_id: None,
+                    credentials_id: None,
                     access_mode: SourceAccessMode::ReadWrite,
                     schema: None,
                 };
@@ -881,6 +883,17 @@ impl State {
                 } else {
                     None
                 };
+                let credentials_id = if let Some(credential_entry) =
+                    self.get_credential_entry(create_ext.credentials.as_ref())?
+                {
+                    validate_table_creds_support(
+                        create_ext.options.as_str(),
+                        credential_entry.options.as_str(),
+                    )?;
+                    Some(credential_entry.meta.id)
+                } else {
+                    None
+                };
 
                 // Create new entry.
                 let oid = self.get_or_next_oid(schema_id, &create_ext.name);
@@ -897,6 +910,7 @@ impl State {
                     },
                     options: create_ext.options,
                     tunnel_id,
+                    credentials_id,
                     access_mode: SourceAccessMode::ReadOnly,
                     schema: None,
                 };
@@ -1142,6 +1156,30 @@ impl State {
         };
         Ok(tunnel_entry)
     }
+
+    fn get_credential_entry(
+        &self,
+        credentials_name: Option<&String>,
+    ) -> Result<Option<&CredentialsEntry>> {
+        let credential_entry = if let Some(credential) = credentials_name {
+            let credential_id = *self
+                .credentials_names
+                .get(credential)
+                .ok_or(MetastoreError::MissingTunnel(credential.clone()))?;
+            let credential_entry = match self
+                .entries
+                .get(&credential_id)?
+                .expect("entry should exist")
+            {
+                CatalogEntry::Credentials(credential_entry) => credential_entry,
+                ent => unreachable!("entry should be a credential entry but found: {ent:?}"),
+            };
+            Some(credential_entry)
+        } else {
+            None
+        };
+        Ok(credential_entry)
+    }
 }
 
 /// Holds names to object ids for a single schema.
@@ -1272,6 +1310,7 @@ impl BuiltinCatalog {
                     }
                     .into(),
                     tunnel_id: None,
+                    credentials_id: None,
                     access_mode: SourceAccessMode::ReadOnly,
                     schema: None,
                 }),
@@ -1849,6 +1888,7 @@ mod tests {
             if_not_exists: true,
             or_replace: false,
             tunnel: None,
+            credentials: None,
         });
         let _ = db
             .try_mutate(state.version, vec![mutation.clone(), mutation])
@@ -2004,6 +2044,7 @@ mod tests {
                     if_not_exists: true,
                     or_replace: false,
                     tunnel: None,
+                    credentials: None,
                 })],
             )
             .await
