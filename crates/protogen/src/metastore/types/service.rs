@@ -1,3 +1,4 @@
+use datafusion::arrow::datatypes::Schema;
 use datafusion::logical_expr::Signature;
 
 use super::catalog::{FunctionType, SourceAccessMode};
@@ -9,7 +10,7 @@ use super::options::{
     TunnelOptions,
 };
 use crate::gen::metastore::service;
-use crate::{FromOptionalField, ProtoConvError};
+use crate::{gen, FromOptionalField, ProtoConvError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mutation {
@@ -348,6 +349,7 @@ pub struct CreateExternalTable {
     pub or_replace: bool,
     pub if_not_exists: bool,
     pub tunnel: Option<String>,
+    pub table_schema: Option<Schema>,
 }
 
 
@@ -362,6 +364,13 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
             or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,
+            table_schema: value
+                .table_schema
+                .map(|ref schema| {
+                    let schema: Schema = schema.try_into()?;
+                    Ok::<_, ProtoConvError>(schema)
+                })
+                .transpose()?,
         })
     }
 }
@@ -376,6 +385,13 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
             or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,
+            table_schema: value
+                .table_schema
+                .map(|ref schema| {
+                    let schema: gen::common::arrow::Schema = schema.try_into()?;
+                    Ok::<_, ProtoConvError>(schema)
+                })
+                .transpose()?,
         })
     }
 }

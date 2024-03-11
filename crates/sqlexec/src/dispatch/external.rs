@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use catalog::session_catalog::SessionCatalog;
+use datafusion::arrow::datatypes::Schema;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
@@ -293,7 +294,8 @@ impl<'a> ExternalDispatcher<'a> {
         &self,
         table: &TableEntry,
     ) -> Result<Arc<dyn TableProvider>> {
-        let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
+        let tunnel = self.get_tunnel_opts(table.tunnel_id)?; 
+        let optional_schema = table.schema.clone();
         if let Some(ds) = DEFAULT_DATASOURCES.get(&table.options.name) {
             return ds
                 .create_table_provider(&table.options, tunnel.as_ref())
@@ -303,7 +305,7 @@ impl<'a> ExternalDispatcher<'a> {
             let tbl_options_old = TableOptionsOld::try_from(&table.options).map_err(|e| {
                 DispatchError::String(format!("Invalid table options: {}", e.to_string()))
             })?;
-            self.dispatch_table_options_v1(&tbl_options_old, tunnel)
+            self.dispatch_table_options_v1(&tbl_options_old, tunnel, optional_schema)
                 .await
         }
     }
@@ -412,6 +414,7 @@ impl<'a> ExternalDispatcher<'a> {
         &self,
         opts: &TableOptionsOld,
         tunnel: Option<TunnelOptions>,
+        schema: Option<Schema>,
     ) -> Result<Arc<dyn TableProvider>> {
         match &opts {
             TableOptionsOld::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
@@ -681,11 +684,11 @@ impl<'a> ExternalDispatcher<'a> {
             }) => {
                 let source_url = DatasourceUrl::try_new(location)?;
                 let store_access = storage_options_into_store_access(&source_url, storage_options)?;
-
+                println!("schema = {:?}", schema);
                 Ok(bson_streaming_table(
                     store_access,
                     source_url,
-                    None,
+                    schema,
                     schema_sample_size.to_owned(),
                 )
                 .await?)

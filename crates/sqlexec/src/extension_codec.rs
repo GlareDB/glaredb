@@ -307,6 +307,10 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     if_not_exists: ext.if_not_exists,
                     table_options: table_options.try_into()?,
                     tunnel: ext.tunnel,
+                    table_schema: ext
+                        .table_schema
+                        .map(|ref schema| schema.try_into())
+                        .transpose()?,
                 })
             }
             proto::ExecutionPlanExtensionType::CreateTunnelExec(ext) => {
@@ -633,6 +637,11 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     if_not_exists: exec.if_not_exists,
                     table_options: Some(exec.table_options.clone().into()),
                     tunnel: exec.tunnel.clone(),
+                    table_schema: exec
+                        .table_schema
+                        .as_ref()
+                        .map(|schema| schema.try_into())
+                        .transpose()?,
                 },
             )
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateTunnelExec>() {

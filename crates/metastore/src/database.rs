@@ -898,7 +898,7 @@ impl State {
                     options: create_ext.options,
                     tunnel_id,
                     access_mode: SourceAccessMode::ReadOnly,
-                    schema: None,
+                    schema: create_ext.table_schema,
                 };
 
                 let policy = CreatePolicy::new(create_ext.if_not_exists, create_ext.or_replace)?;
@@ -1849,6 +1849,7 @@ mod tests {
             if_not_exists: true,
             or_replace: false,
             tunnel: None,
+            table_schema: None,
         });
         let _ = db
             .try_mutate(state.version, vec![mutation.clone(), mutation])
@@ -2004,6 +2005,7 @@ mod tests {
                     if_not_exists: true,
                     or_replace: false,
                     tunnel: None,
+                    table_schema: None,
                 })],
             )
             .await

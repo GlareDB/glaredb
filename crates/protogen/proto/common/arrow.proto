@@ -10,6 +10,7 @@ option go_package = "github.com/glaredb/cloud/pkg/protogen/common";
 
 message Schema {
   repeated Field columns = 1;
+  map<string, string> metadata = 2;
 }
 
 message Field {

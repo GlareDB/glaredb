@@ -1,4 +1,4 @@
-use datafusion::arrow::datatypes::FieldRef;
+use datafusion::arrow::datatypes::Schema;
 use protogen::metastore::types::options::TableOptions;
 
 use super::{
@@ -16,7 +16,7 @@ pub struct CreateExternalTable {
     pub if_not_exists: bool,
     pub table_options: TableOptions,
     pub tunnel: Option<String>,
-    pub columns: Option<Vec<FieldRef>>,
+    pub schema: Option<Schema>,
 }
 
 impl UserDefinedLogicalNodeCore for CreateExternalTable {

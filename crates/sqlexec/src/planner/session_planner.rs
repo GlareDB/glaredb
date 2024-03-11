@@ -946,6 +946,23 @@ impl<'a> SessionPlanner<'a> {
                 }
             })?;
         }
+
+        let schema = stmt
+            .columns
+            .map(|columns| {
+                let fields = columns
+                    .into_iter()
+                    .map(|coll| -> Result<Field, PlanError> {
+                        Ok(Field::new(
+                            coll.name.to_string(),
+                            convert_data_type(&coll.data_type)?,
+                            false,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, PlanError>>()?;
+                Ok::<_, PlanError>(Schema::new(fields))
+            })
+            .transpose()?;
         let m = &mut stmt.options;
         let external_table_options =
         // TODO: use a datasource registry available to the planner to get the table options
@@ -968,7 +985,7 @@ impl<'a> SessionPlanner<'a> {
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
             tunnel,
-            columns: None,
+            schema,
         };
 
         Ok(plan.into_logical_plan())

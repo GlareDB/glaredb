@@ -8,6 +8,7 @@ option go_package = "github.com/glaredb/cloud/pkg/protogen/metastore";
 
 import "metastore/catalog.proto";
 import "metastore/options.proto";
+import "common/arrow.proto";
 
 message FetchCatalogRequest {
   // ID of the database catalog to fetch.
@@ -95,7 +96,8 @@ message CreateExternalTable {
   bool if_not_exists = 4;
   optional string tunnel = 5;
   bool or_replace = 6;
-  // next: 7
+  optional common.arrow.Schema table_schema = 7;
+  // next: 8
 }
 
 message CreateExternalDatabase {

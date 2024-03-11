@@ -1,55 +1,55 @@
-# SKIP FOR NOW
-
-# statement ok
-# create table src (x int, y text, z int);
-
-# statement ok
-# insert into src values (1, 'hello', 0), (2, 'other', 10), (3, 'world', 100);
-
-# statement ok
-# copy (select * from src) to '${TMP}/external_schema.bson'
-
-# statement ok
-# create external table dst from bson
-# options (
-# 	location '${TMP}/external_schema.bson',
-# 	file_type 'bson'
-# 	)
-# columns (
-# 	x int,
-# 	z int
-# );
-
-# query ITI
-# select * from src;
-# ----
-# 1 hello 0 
-# 2 other 10
-# 3 world 100
-
-# query II
-# select * from dst;
-# ----
-# 1 0 
-# 2 10
-# 3 100
 
 
-# statement ok
-# create external table dstextra from bson
-# options (
-# 	location '${TMP}/external_schema.bson',
-# 	file_type 'bson'
-# 	)
-# columns (
-# 	alpha int,
-# 	x int,
-# 	z int
-# );
+statement ok
+create table src (x int, y text, z int);
 
-# query II
-# select * from dstextra;
-# ----
-# NULL 1 0 
-# NULL 2 10
-# NULL 3 100
+statement ok
+insert into src values (1, 'hello', 0), (2, 'other', 10), (3, 'world', 100);
+
+statement ok
+copy (select * from src) to '${TMP}/external_schema.bson'
+
+statement ok
+create external table dst from bson
+options (
+	location '${TMP}/external_schema.bson',
+	file_type 'bson'
+	)
+columns (
+	x int,
+	z int
+);
+
+query ITI
+select * from src;
+----
+1 hello 0 
+2 other 10
+3 world 100
+
+query II
+select * from dst;
+----
+1 0 
+2 10
+3 100
+
+
+statement ok
+create external table dstextra from bson
+options (
+	location '${TMP}/external_schema.bson',
+	file_type 'bson'
+	)
+columns (
+	alpha int,
+	x int,
+	z int
+);
+
+query II
+select * from dstextra;
+----
+NULL 1 0 
+NULL 2 10
+NULL 3 100
