@@ -670,7 +670,7 @@ impl TableOptions {
         }
     }
 
-    pub fn try_downcast<T: TableOptionsImpl>(&self) -> Result<T, ProtoConvError> {
+    pub fn extract<T: TableOptionsImpl>(&self) -> Result<T, ProtoConvError> {
         if self.name != T::NAME {
             return Err(ProtoConvError::ParseError(format!(
                 "Expected table options of type {}, got {}",
@@ -679,15 +679,16 @@ impl TableOptions {
             )));
         }
 
-        Ok(self.downcast_unchecked())
+        Ok(self.extract_unchecked())
     }
 
     /// Downcast the table options to a specific type.
     /// This does not check the variant of the table options, so this will panic if the variant is not the expected one.
     /// Use `try_downcast` if you want to handle the error case.
     /// This should only be used if the variant is checked elsewhere.
-    pub fn downcast_unchecked<T: TableOptionsImpl>(&self) -> T {
-        serde_json::from_slice(&self.options).expect("options must deserialize")
+    pub fn extract_unchecked<T: TableOptionsImpl>(&self) -> T {
+        serde_json::from_slice(&self.options)
+            .expect("Options should infallibly deserialize. This indicates a programming error.")
     }
 }
 
@@ -1004,79 +1005,79 @@ impl TryFrom<&TableOptions> for TableOptionsOld {
     fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
         match value.name.as_ref() {
             Self::INTERNAL => {
-                let internal: TableOptionsInternal = value.try_downcast()?;
+                let internal: TableOptionsInternal = value.extract()?;
                 Ok(TableOptionsOld::Internal(internal))
             }
             Self::POSTGRES => {
-                let postgres: TableOptionsPostgres = value.try_downcast()?;
+                let postgres: TableOptionsPostgres = value.extract()?;
                 Ok(TableOptionsOld::Postgres(postgres))
             }
             Self::BIGQUERY => {
-                let bigquery: TableOptionsBigQuery = value.try_downcast()?;
+                let bigquery: TableOptionsBigQuery = value.extract()?;
                 Ok(TableOptionsOld::BigQuery(bigquery))
             }
             Self::MYSQL => {
-                let mysql: TableOptionsMysql = value.try_downcast()?;
+                let mysql: TableOptionsMysql = value.extract()?;
                 Ok(TableOptionsOld::Mysql(mysql))
             }
             Self::LOCAL => {
-                let local: TableOptionsLocal = value.try_downcast()?;
+                let local: TableOptionsLocal = value.extract()?;
                 Ok(TableOptionsOld::Local(local))
             }
             Self::GCS => {
-                let gcs: TableOptionsGcs = value.try_downcast()?;
+                let gcs: TableOptionsGcs = value.extract()?;
                 Ok(TableOptionsOld::Gcs(gcs))
             }
             Self::S3_STORAGE => {
-                let s3: TableOptionsS3 = value.try_downcast()?;
+                let s3: TableOptionsS3 = value.extract()?;
                 Ok(TableOptionsOld::S3(s3))
             }
             Self::MONGODB => {
-                let mongo: TableOptionsMongoDb = value.try_downcast()?;
+                let mongo: TableOptionsMongoDb = value.extract()?;
                 Ok(TableOptionsOld::MongoDb(mongo))
             }
             Self::SNOWFLAKE => {
-                let snowflake: TableOptionsSnowflake = value.try_downcast()?;
+                let snowflake: TableOptionsSnowflake = value.extract()?;
                 Ok(TableOptionsOld::Snowflake(snowflake))
             }
             Self::DELTA => {
-                let delta: TableOptionsObjectStore = value.try_downcast()?;
+                let delta: TableOptionsObjectStore = value.extract()?;
                 Ok(TableOptionsOld::Delta(delta))
             }
             Self::ICEBERG => {
-                let iceberg: TableOptionsObjectStore = value.try_downcast()?;
+                let iceberg: TableOptionsObjectStore = value.extract()?;
                 Ok(TableOptionsOld::Iceberg(iceberg))
             }
             Self::AZURE => {
-                let azure: TableOptionsObjectStore = value.try_downcast()?;
+                let azure: TableOptionsObjectStore = value.extract()?;
                 Ok(TableOptionsOld::Azure(azure))
             }
             Self::SQL_SERVER => {
-                let sql_server: TableOptionsSqlServer = value.try_downcast()?;
+                let sql_server: TableOptionsSqlServer = value.extract()?;
                 Ok(TableOptionsOld::SqlServer(sql_server))
             }
             Self::LANCE => {
-                let lance: TableOptionsObjectStore = value.try_downcast()?;
+                let lance: TableOptionsObjectStore = value.extract()?;
                 Ok(TableOptionsOld::Lance(lance))
             }
             Self::BSON => {
-                let bson: TableOptionsObjectStore = value.try_downcast()?;
+                let bson: TableOptionsObjectStore = value.extract()?;
                 Ok(TableOptionsOld::Bson(bson))
             }
             Self::CLICKHOUSE => {
-                let clickhouse: TableOptionsClickhouse = value.try_downcast()?;
+                let clickhouse: TableOptionsClickhouse = value.extract()?;
                 Ok(TableOptionsOld::Clickhouse(clickhouse))
             }
             Self::CASSANDRA => {
-                let cassandra: TableOptionsCassandra = value.try_downcast()?;
+                let cassandra: TableOptionsCassandra = value.extract()?;
                 Ok(TableOptionsOld::Cassandra(cassandra))
             }
             Self::EXCEL => {
-                let excel: TableOptionsExcel = value.try_downcast()?;
+                let excel: TableOptionsExcel = value.extract()?;
                 Ok(TableOptionsOld::Excel(excel))
             }
             Self::SQLITE => {
-                let sqlite: TableOptionsSqlite = value.try_downcast()?;
+                let sqlite: TableOptionsSqlite = value.extract()?;
                 Ok(TableOptionsOld::Sqlite(sqlite))
             }
             _ => Err(ProtoConvError::UnknownVariant(value.name.to_string())),

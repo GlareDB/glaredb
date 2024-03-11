@@ -398,7 +398,7 @@ pub fn init_session_registry<'a>(
             // TODO: Consider consolidating Gcs, S3 and Delta and Iceberg `TableOptions` and
             // `ObjStoreAccess` since they largely overlap
             "gcs" => {
-                let gcs_opts: TableOptionsGcs = opts.downcast_unchecked();
+                let gcs_opts: TableOptionsGcs = opts.extract_unchecked();
                 Arc::new(GcsStoreAccess {
                     bucket: gcs_opts.bucket,
                     service_account_key: gcs_opts.service_account_key,
@@ -407,7 +407,7 @@ pub fn init_session_registry<'a>(
             }
             "s3" => {
                 // todo!
-                let s3_opts: TableOptionsS3 = opts.downcast_unchecked();
+                let s3_opts: TableOptionsS3 = opts.extract_unchecked();
 
                 Arc::new(S3StoreAccess {
                     bucket: s3_opts.bucket.clone(),
@@ -418,7 +418,7 @@ pub fn init_session_registry<'a>(
                 })
             }
             "azure" => {
-                let azure_opts: TableOptionsObjectStore = opts.downcast_unchecked();
+                let azure_opts: TableOptionsObjectStore = opts.extract_unchecked();
                 let uri = DatasourceUrl::try_new(azure_opts.location)?;
                 Arc::new(AzureStoreAccess::try_from_uri(
                     &uri,
@@ -426,7 +426,7 @@ pub fn init_session_registry<'a>(
                 )?)
             }
             "lance" => {
-                let opts: TableOptionsObjectStore = opts.downcast_unchecked();
+                let opts: TableOptionsObjectStore = opts.extract_unchecked();
 
                 let url = DatasourceUrl::try_new(opts.location)?;
                 storage_options_into_store_access(&url, &opts.storage_options)

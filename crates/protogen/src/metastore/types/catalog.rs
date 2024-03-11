@@ -447,7 +447,7 @@ pub struct TableEntry {
 impl TableEntry {
     /// Try to get the columns for this table if available.
     pub fn get_internal_columns(&self) -> Option<Vec<InternalColumnDefinition>> {
-        let options: TableOptionsInternal = self.options.try_downcast().ok()?;
+        let options: TableOptionsInternal = self.options.extract().ok()?;
         Some(options.columns)
     }
     pub fn get_columns(&self) -> Option<Vec<FieldRef>> {
