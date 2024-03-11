@@ -51,6 +51,14 @@ impl SqliteAccess {
         let client = SqliteAsyncClient::new(self.db.to_path_buf()).await?;
         Ok(SqliteAccessState { client })
     }
+    pub async fn connect_with_temp(
+        &self,
+        temp: Arc<tempfile::TempDir>,
+    ) -> Result<SqliteAccessState> {
+        let client = SqliteAsyncClient::from_cached(self.db.to_path_buf(), temp).await?;
+        Ok(SqliteAccessState { client })
+    }
+
 
     pub async fn validate_access(&self) -> Result<()> {
         let state = self.connect().await?;
