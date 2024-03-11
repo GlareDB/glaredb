@@ -7,7 +7,7 @@ use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
 use parser::errors::ParserError;
 use parser::options::{OptionValue as SqlOptionValue, ParseOptionValue};
-use protogen::metastore::types::options::{OptionValue, TableOptionsImpl};
+use protogen::metastore::types::options::TableOptionsImpl;
 use serde::{Deserialize, Serialize};
 
 use super::errors::DebugError;
@@ -20,30 +20,6 @@ pub enum DebugTableType {
     NeverEnding,
 }
 
-impl From<DebugTableType> for OptionValue {
-    fn from(t: DebugTableType) -> Self {
-        t.to_string().into()
-    }
-}
-
-impl TryFrom<&OptionValue> for DebugTableType {
-    type Error = DebugError;
-
-    fn try_from(value: &OptionValue) -> Result<Self, Self::Error> {
-        match value {
-            OptionValue::String(s) => s.parse(),
-            _ => Err(DebugError::UnknownDebugTableType("".to_string())),
-        }
-    }
-}
-
-impl TryFrom<OptionValue> for DebugTableType {
-    type Error = DebugError;
-
-    fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
-        (&value).try_into()
-    }
-}
 
 impl ParseOptionValue<DebugTableType> for SqlOptionValue {
     fn parse_opt(self) -> Result<DebugTableType, ParserError> {
@@ -61,6 +37,7 @@ impl ParseOptionValue<DebugTableType> for SqlOptionValue {
         Ok(opt)
     }
 }
+
 impl std::fmt::Display for DebugTableType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())

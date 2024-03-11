@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 use std::hash::Hash;
 use std::sync::Arc;
@@ -599,32 +599,6 @@ impl StorageOptions {
     }
 }
 
-impl From<StorageOptions> for OptionValue {
-    fn from(value: StorageOptions) -> Self {
-        OptionValue::Object(
-            value
-                .inner
-                .into_iter()
-                .map(|(k, v)| (k, v.into()))
-                .collect(),
-        )
-    }
-}
-impl TryFrom<OptionValue> for StorageOptions {
-    type Error = ProtoConvError;
-    fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
-        if let OptionValue::Object(inner) = value {
-            Ok(StorageOptions {
-                inner: inner
-                    .into_iter()
-                    .map(|(k, v)| Ok::<_, ProtoConvError>((k, v.try_into()?)))
-                    .collect::<Result<_, _>>()?,
-            })
-        } else {
-            Err(ProtoConvError::ParseError("Expected object".to_string()))
-        }
-    }
-}
 
 impl TryFrom<options::StorageOptions> for StorageOptions {
     type Error = ProtoConvError;
@@ -701,121 +675,6 @@ where
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum OptionValue {
-    String(String),
-    Int(i64),
-    Bool(bool),
-    Array(Vec<OptionValue>),
-    Object(BTreeMap<String, OptionValue>),
-}
-
-impl TryFrom<OptionValue> for String {
-    type Error = ProtoConvError;
-
-    fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
-        match value {
-            OptionValue::String(v) => Ok(v),
-            _ => Err(ProtoConvError::ParseError("Expected string".to_string())),
-        }
-    }
-}
-
-impl TryFrom<OptionValue> for DataType {
-    type Error = ProtoConvError;
-
-    fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
-        match value {
-            OptionValue::String(v) => serde_json::from_str(&v).map_err(|e| {
-                ProtoConvError::ParseError(format!("Failed to parse arrow type: {}", e))
-            }),
-            _ => Err(ProtoConvError::ParseError("Expected DataType".to_string())),
-        }
-    }
-}
-
-impl TryFrom<OptionValue> for i64 {
-    type Error = ProtoConvError;
-
-    fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
-        match value {
-            OptionValue::Int(v) => Ok(v),
-            _ => Err(ProtoConvError::ParseError("Expected int".to_string())),
-        }
-    }
-}
-
-impl TryFrom<OptionValue> for bool {
-    type Error = ProtoConvError;
-
-    fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
-        match value {
-            OptionValue::Bool(v) => Ok(v),
-            _ => Err(ProtoConvError::ParseError("Expected bool".to_string())),
-        }
-    }
-}
-
-impl TryFrom<OptionValue> for Vec<OptionValue> {
-    type Error = ProtoConvError;
-
-    fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
-        match value {
-            OptionValue::Array(v) => Ok(v),
-            _ => Err(ProtoConvError::ParseError("Expected array".to_string())),
-        }
-    }
-}
-
-impl TryFrom<OptionValue> for BTreeMap<String, OptionValue> {
-    type Error = ProtoConvError;
-
-    fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
-        match value {
-            OptionValue::Object(v) => Ok(v),
-            _ => Err(ProtoConvError::ParseError("Expected object".to_string())),
-        }
-    }
-}
-
-impl From<String> for OptionValue {
-    fn from(value: String) -> Self {
-        OptionValue::String(value)
-    }
-}
-impl From<i64> for OptionValue {
-    fn from(value: i64) -> Self {
-        OptionValue::Int(value)
-    }
-}
-impl From<bool> for OptionValue {
-    fn from(value: bool) -> Self {
-        OptionValue::Bool(value)
-    }
-}
-
-impl<T> From<Vec<T>> for OptionValue
-where
-    T: Into<OptionValue>,
-{
-    fn from(value: Vec<T>) -> Self {
-        OptionValue::Array(value.into_iter().map(|v| v.into()).collect())
-    }
-}
-
-impl<T> TryFrom<OptionValue> for Vec<T>
-where
-    T: TryFrom<OptionValue, Error = ProtoConvError>,
-{
-    type Error = ProtoConvError;
-
-    fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
-        match value {
-            OptionValue::Array(v) => v.into_iter().map(|v| v.try_into()).collect(),
-            _ => Err(ProtoConvError::ParseError("Expected array".to_string())),
-        }
-    }
-}
 
 impl TryFrom<options::TableOptions> for TableOptions {
     type Error = ProtoConvError;
@@ -839,67 +698,8 @@ impl From<TableOptions> for options::TableOptions {
     }
 }
 
-impl TryFrom<options::OptionValue> for OptionValue {
-    type Error = ProtoConvError;
-
-    fn try_from(value: options::OptionValue) -> Result<Self, Self::Error> {
-        let value: options::option_value::Value = value.value.required("value")?;
-
-        Ok(match value {
-            options::option_value::Value::StringValue(s) => OptionValue::String(s),
-            options::option_value::Value::IntValue(i) => OptionValue::Int(i),
-            options::option_value::Value::BoolValue(b) => OptionValue::Bool(b),
-            options::option_value::Value::ArrayValue(arr) => OptionValue::Array(
-                arr.values
-                    .into_iter()
-                    .map(|v| v.try_into())
-                    .collect::<Result<_, _>>()?,
-            ),
-            options::option_value::Value::MapValue(map) => OptionValue::Object(
-                map.values
-                    .into_iter()
-                    .map(|(k, v)| Ok::<_, ProtoConvError>((k, v.try_into()?)))
-                    .collect::<Result<_, _>>()?,
-            ),
-        })
-    }
-}
-
-impl From<OptionValue> for options::OptionValue {
-    fn from(value: OptionValue) -> Self {
-        match value {
-            OptionValue::String(v) => options::OptionValue {
-                value: Some(options::option_value::Value::StringValue(v)),
-            },
-            OptionValue::Int(v) => options::OptionValue {
-                value: Some(options::option_value::Value::IntValue(v)),
-            },
-            OptionValue::Bool(v) => options::OptionValue {
-                value: Some(options::option_value::Value::BoolValue(v)),
-            },
-            OptionValue::Array(v) => options::OptionValue {
-                value: Some(options::option_value::Value::ArrayValue(
-                    options::OptionValueArray {
-                        values: v.into_iter().map(|v| v.into()).collect(),
-                    },
-                )),
-            },
-            OptionValue::Object(v) => options::OptionValue {
-                value: Some(options::option_value::Value::MapValue(
-                    options::OptionValueMap {
-                        values: v
-                            .into_iter()
-                            .map(|(k, v)| (k, v.into()))
-                            .collect::<HashMap<_, _>>(),
-                    },
-                )),
-            },
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-
 pub enum TableOptionsOld {
     Internal(TableOptionsInternal),
     Postgres(TableOptionsPostgres),
