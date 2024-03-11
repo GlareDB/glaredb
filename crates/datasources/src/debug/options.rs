@@ -8,7 +8,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use parser::errors::ParserError;
 use parser::options::{OptionValue as SqlOptionValue, ParseOptionValue};
 use protogen::metastore::types::options::{OptionValue, TableOptionsImpl};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use super::errors::DebugError;
 
@@ -147,9 +147,19 @@ impl DebugTableType {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TableOptionsDebug {
     pub table_type: DebugTableType,
+}
+
+impl<'de> Deserialize<'de> for TableOptionsDebug {
+    fn deserialize<D>(deserializer: D) -> Result<TableOptionsDebug, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = DebugTableType::deserialize(deserializer)?;
+        Ok(TableOptionsDebug { table_type: value })
+    }
 }
 
 impl TableOptionsImpl for TableOptionsDebug {

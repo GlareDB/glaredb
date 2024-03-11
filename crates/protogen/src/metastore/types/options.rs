@@ -682,9 +682,9 @@ impl TableOptions {
         Ok(self.extract_unchecked())
     }
 
-    /// Downcast the table options to a specific type.
+    /// Extract the table options to a specific type.
     /// This does not check the variant of the table options, so this will panic if the variant is not the expected one.
-    /// Use `try_downcast` if you want to handle the error case.
+    /// Use `extract` if you want to handle the error case.
     /// This should only be used if the variant is checked elsewhere.
     pub fn extract_unchecked<T: TableOptionsImpl>(&self) -> T {
         serde_json::from_slice(&self.options)
