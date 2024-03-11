@@ -743,7 +743,7 @@ fn rows_to_record_batch(
                 let mut arr = TimestampNanosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> = row.try_get(col_idx)?;
-                    let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
+                    let val = val.and_then(|v| v.and_utc().timestamp_nanos_opt());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
@@ -753,7 +753,7 @@ fn rows_to_record_batch(
                     .with_data_type(dt.clone());
                 for row in rows.iter() {
                     let val: Option<DateTime<Utc>> = row.try_get(col_idx)?;
-                    let val = val.map(|v| v.timestamp_nanos_opt().unwrap());
+                    let val = val.and_then(|v| v.timestamp_nanos_opt());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
