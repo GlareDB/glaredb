@@ -122,10 +122,6 @@ impl Datasource for LanceDatasource {
                 return Err(ObjectStoreSourceError::NotSupportFileType(file_type).into());
             }
         }
-
-        // TODO: the credentials shouldn't be stored in the table options.
-        // Currently We are storing them in the catalog as both a credential and nested in the table options.
-        // We should only store them in the catalog as a credential and instead pass [`CredentialsOptions`] to `create_table_provider` as a separate argument.
         if let Some(creds) = creds {
             storage_options_with_credentials(&mut storage_options, creds);
         }
