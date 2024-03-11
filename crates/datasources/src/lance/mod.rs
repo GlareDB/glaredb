@@ -86,22 +86,6 @@ impl Datasource for LanceDatasource {
         "lance"
     }
 
-    /// Validate the provided tunnel options.
-    fn validate_tunnel_connections(
-        &self,
-        _tunnel_opts: Option<&TunnelOptions>,
-    ) -> Result<(), DatasourceError> {
-        Ok(())
-    }
-
-    /// Validate the provided credentials.
-    fn validate_credentials(
-        &self,
-        _creds: Option<CredentialsOptions>,
-    ) -> Result<(), DatasourceError> {
-        Ok(())
-    }
-
     /// Create a new datasource from the provided table options and credentials.
     /// CREATE EXTERNAL TABLE foo FROM <name> OPTIONS (...) [CREDENTIALS] (...) [TUNNEL] (...)
     // TODO: the datasource should have control over it's own CredentialsOptions and TunnelOptions
