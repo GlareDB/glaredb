@@ -33,25 +33,35 @@ pub mod sqlserver;
 
 
 pub type DatasourceError = Box<dyn std::error::Error + Send + Sync>;
+
 #[async_trait]
+/// The `Datasource` trait is used to create a new `TableProvider` from the provided options.
+///
+/// The current **implementation** is not designed to be an end-all solution, but as a starting point. It is
+/// highly influenced the implementation details. It's highly likely that these methods will change in the future.
+/// The **design** is simply to encapsulate the logic for creating a TableProvider from a common set of options.
+///
+/// The `validate` methods are used to validate the provided options.  _arguably, the credentials and tunnel options should instead validate the datasource_
 pub trait Datasource: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Validate the provided tunnel options.
+    // TODO, the TunnelOptions should instead validate the datasource
     fn validate_tunnel_connections(
         &self,
         tunnel_opts: Option<&TunnelOptions>,
     ) -> Result<(), DatasourceError>;
 
     /// Validate the provided credentials.
+    /// TODO, the CredentialsOptions should instead validate the datasource
     fn validate_credentials(
         &self,
         creds: Option<CredentialsOptions>,
     ) -> Result<(), DatasourceError>;
 
-    /// Create a new datasource from the provided table options and credentials.
+    /// Create a new datasource from the provided options
     /// CREATE EXTERNAL TABLE foo FROM <name> OPTIONS (...) [CREDENTIALS] (...) [TUNNEL] (...)
-    // TODO: the datasource should have control over it's own CredentialsOptions and TunnelOptions
+    // TODO: does this need `&mut StatementOptions`? or should it be `&StatementOptions`?
     fn table_options_from_stmt(
         &self,
         opts: &mut StatementOptions,
@@ -70,9 +80,11 @@ pub trait Datasource: Send + Sync {
     /// If the datasource does not support databases, return `Ok(None)`.
     async fn table_provider_from_db_options(
         &self,
-        schema: &str,
-        name: &str,
-        options: &DatabaseOptions,
+        _namespace: &str,
+        _name: &str,
+        _options: &DatabaseOptions,
         _tunnel_opts: Option<&TunnelOptions>,
-    ) -> Result<Option<Arc<dyn TableProvider>>, DatasourceError>;
+    ) -> Result<Option<Arc<dyn TableProvider>>, DatasourceError> {
+        Ok(None)
+    }
 }
