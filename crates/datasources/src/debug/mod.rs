@@ -259,24 +259,6 @@ impl crate::Datasource for DebugDatasource {
         "debug"
     }
 
-    fn validate_tunnel_connections(
-        &self,
-        tunnel_opts: Option<&TunnelOptions>,
-    ) -> Result<(), DatasourceError> {
-        match tunnel_opts {
-            None => Ok(()),
-            Some(TunnelOptions::Debug(_)) => Ok(()),
-            Some(other) => Err(DebugError::InvalidTunnel(other.to_string()).into()),
-        }
-    }
-
-    fn validate_credentials(
-        &self,
-        _creds: Option<CredentialsOptions>,
-    ) -> Result<(), DatasourceError> {
-        Ok(())
-    }
-
     fn table_options_from_stmt(
         &self,
         opts: &mut StatementOptions,
@@ -318,7 +300,6 @@ impl crate::Datasource for DebugDatasource {
         tunnel_opts: Option<&TunnelOptions>,
     ) -> Result<Option<Arc<dyn TableProvider>>, DatasourceError> {
         let tbl_type = name.parse()?;
-        self.validate_tunnel_connections(tunnel_opts)?;
         Ok(Some(Arc::new(DebugTableProvider {
             typ: tbl_type,
             tunnel: tunnel_opts.is_some(),
