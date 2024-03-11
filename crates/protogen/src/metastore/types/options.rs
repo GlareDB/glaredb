@@ -702,7 +702,6 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-
 pub enum OptionValue {
     String(String),
     Int(i64),
