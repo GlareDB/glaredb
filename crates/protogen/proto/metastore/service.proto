@@ -96,7 +96,7 @@ message CreateExternalTable {
   bool if_not_exists = 4;
   optional string tunnel = 5;
   bool or_replace = 6;
-  optional common.arrow.Schema table_schema = 7;
+  repeated options.InternalColumnDefinition columns = 7;
   // next: 8
 }
 

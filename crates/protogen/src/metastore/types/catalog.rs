@@ -3,7 +3,7 @@ use std::fmt::{self, Display};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use datafusion::arrow::datatypes::{DataType, Field, FieldRef, Schema};
+use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 
 use super::options::{
@@ -17,20 +17,25 @@ use super::options::{
 };
 use crate::gen::common::arrow::ArrowType;
 use crate::gen::metastore::catalog::{self, type_signature};
-use crate::{FromOptionalField, ProtoConvError};
+use crate::{gen, FromOptionalField, ProtoConvError};
 
-/// The current version of the catalog.
-/// this is incremented every time there is a breaking change to the catalog.
+/// The current version of the catalog IMPLEMENTATION
+/// this is incremented every time there is a breaking change physical representation of the catalog.
 pub const CURRENT_CATALOG_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogState {
-    /// the version of the catalog state. This increments on every Mutation
+    /// the version of the catalog STATE.
+    /// This version corresponds the state of the catalog and is incremented every time there is a change to the catalog.
+    /// It is associated with the "data" in the catalog
     pub version: u64,
     pub entries: HashMap<u32, CatalogEntry>,
     pub deployment: DeploymentMetadata,
-    /// This is the version of the catalog implementation.
-    /// This is incremented when the catalog changes in a way that is not backwards compatible.
+    /// This is the version of the catalog IMPLEMENTATION.
+    /// any new code paths should generally use [`CURRENT_CATALOG_VERSION`] unless it is specifically
+    /// for handling older versions of the catalog.
+    /// unlike the `version` field, this is only incremented when the physical representation of the catalog changes.
+    /// it is associated with the "code" that represents the catalog.
     pub catalog_version: u32,
 }
 
@@ -188,7 +193,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
             CatalogEntry::Database(v) => catalog::catalog_entry::Entry::Database(v.into()),
             CatalogEntry::Schema(v) => catalog::catalog_entry::Entry::Schema(v.into()),
             CatalogEntry::View(v) => catalog::catalog_entry::Entry::View(v.into()),
-            CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.try_into()?),
+            CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.into()),
             CatalogEntry::Tunnel(v) => catalog::catalog_entry::Entry::Tunnel(v.into()),
             CatalogEntry::Function(v) => catalog::catalog_entry::Entry::Function(v.into()),
             CatalogEntry::Credentials(v) => catalog::catalog_entry::Entry::Credentials(v.into()),
@@ -452,7 +457,7 @@ pub struct TableEntry {
     pub options: TableOptionsV1,
     pub tunnel_id: Option<u32>,
     pub access_mode: SourceAccessMode,
-    pub schema: Option<Schema>,
+    pub columns: Option<Vec<InternalColumnDefinition>>,
 }
 
 impl TableEntry {
@@ -461,6 +466,7 @@ impl TableEntry {
         let options: TableOptionsInternal = self.options.extract().ok()?;
         Some(options.columns)
     }
+
     pub fn get_columns(&self) -> Option<Vec<FieldRef>> {
         self.get_internal_columns().map(|val| {
             val.iter()
@@ -484,25 +490,44 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
             None => value.options.required("options")?,
         };
 
+        let columns: Vec<crate::metastore::types::options::InternalColumnDefinition> = value
+            .columns
+            .into_iter()
+            .map(|c| c.try_into())
+            .collect::<Result<_, _>>()?;
+
+        let columns = if columns.is_empty() {
+            None
+        } else {
+            Some(columns)
+        };
+
         Ok(TableEntry {
             meta,
             options,
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.try_into()?,
-            schema: None,
+            columns,
         })
     }
 }
 
 impl From<TableEntry> for catalog::TableEntry {
     fn from(value: TableEntry) -> Self {
+        let columns: Vec<gen::metastore::options::InternalColumnDefinition> = value
+            .columns
+            .unwrap_or_default()
+            .into_iter()
+            .map(Into::into)
+            .collect::<Vec<_>>();
+
         catalog::TableEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.into()),
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.into(),
-            schema: None,
             options_v0: None,
+            columns,
         }
     }
 }

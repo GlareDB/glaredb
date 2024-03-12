@@ -49,6 +49,9 @@ pub enum StorageError {
     #[error("Lease renewer exited.")]
     LeaseRenewerExited,
 
+    #[error("Unable to write to lease object after retries: {0}")]
+    LeaseWriteError(String),
+
     #[error(transparent)]
     ProtoConv(#[from] protogen::errors::ProtoConvError),
 

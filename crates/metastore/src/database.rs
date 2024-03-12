@@ -860,7 +860,7 @@ impl State {
                     options: create_table.options.into(),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadWrite,
-                    schema: None,
+                    columns: None,
                 };
 
                 let policy =
@@ -901,7 +901,7 @@ impl State {
                     options: create_ext.options,
                     tunnel_id,
                     access_mode: SourceAccessMode::ReadOnly,
-                    schema: create_ext.table_schema,
+                    columns: create_ext.columns,
                 };
 
                 let policy = CreatePolicy::new(create_ext.if_not_exists, create_ext.or_replace)?;
@@ -1276,7 +1276,7 @@ impl BuiltinCatalog {
                     .into(),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadOnly,
-                    schema: None,
+                    columns: None,
                 }),
             )?;
             schema_objects
@@ -1852,7 +1852,7 @@ mod tests {
             if_not_exists: true,
             or_replace: false,
             tunnel: None,
-            table_schema: None,
+            columns: None,
         });
         let _ = db
             .try_mutate(state.version, vec![mutation.clone(), mutation])
@@ -2008,7 +2008,7 @@ mod tests {
                     if_not_exists: true,
                     or_replace: false,
                     tunnel: None,
-                    table_schema: None,
+                    columns: None,
                 })],
             )
             .await

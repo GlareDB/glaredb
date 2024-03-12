@@ -15,7 +15,7 @@ use datafusion::common::parsers::CompressionTypeVariant;
 use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
 use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
 use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
-use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
+use datafusion::sql::sqlparser::ast::{self, ColumnOption, Ident, ObjectName, ObjectType};
 use datafusion::sql::TableReference;
 use datafusion_ext::planner::SqlQueryPlanner;
 use datafusion_ext::AsyncContextProvider;
@@ -950,16 +950,23 @@ impl<'a> SessionPlanner<'a> {
             })?;
         }
 
+
         let schema = stmt
             .columns
             .map(|columns| {
                 let fields = columns
                     .into_iter()
                     .map(|coll| -> Result<Field, PlanError> {
+                        // check if there is a NOT NULL constraint
+                        let is_nullable = !coll
+                            .options
+                            .into_iter()
+                            .any(|k| matches!(k.option, ColumnOption::NotNull));
+
                         Ok(Field::new(
                             coll.name.to_string(),
                             convert_data_type(&coll.data_type)?,
-                            false,
+                            is_nullable,
                         ))
                     })
                     .collect::<Result<Vec<_>, PlanError>>()?;

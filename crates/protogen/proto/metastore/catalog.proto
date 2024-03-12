@@ -55,7 +55,7 @@ message CatalogState {
   // This is incremented when there are incompatible changes to the physical
   // catalog layout.
   // Purposely set to a high number to avoid accidental collisions
-  optional uint32 catalog_version = 999;
+  optional uint32 catalog_version = 2047;
 }
 
 // Metadata for the deployment.
@@ -170,7 +170,7 @@ message TableEntry {
   options.TableOptionsV0 options_v0 = 3;
   optional uint32 tunnel_id = 4;
   SourceAccessMode access_mode = 5;
-  optional common.arrow.Schema schema = 6;
+  repeated options.InternalColumnDefinition columns = 6;
   // The new table options.
   options.TableOptionsV1 options = 7;
   // next: 8

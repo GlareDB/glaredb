@@ -151,7 +151,7 @@ fn xlsx_sheet_value_to_record_batch(
                     let mut arr = Date64Array::builder(rows.len());
                     for r in rows {
                         if let Some(v) = r.get(i).and_then(|v| v.as_datetime()) {
-                            let v = v.timestamp_millis();
+                            let v = v.and_utc().timestamp_millis();
                             arr.append_value(v);
                         } else {
                             arr.append_null();

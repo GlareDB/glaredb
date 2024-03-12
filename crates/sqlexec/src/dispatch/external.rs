@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use catalog::session_catalog::SessionCatalog;
-use datafusion::arrow::datatypes::Schema;
+use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
@@ -295,7 +295,17 @@ impl<'a> ExternalDispatcher<'a> {
         table: &TableEntry,
     ) -> Result<Arc<dyn TableProvider>> {
         let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
-        let optional_schema = table.schema.clone();
+        let columns_opt = table.columns.clone();
+        let optional_schema = columns_opt.map(|cols| {
+            let fields: Vec<Field> = cols
+                .into_iter()
+                .map(|col| {
+                    let fld: Field = col.into();
+                    fld
+                })
+                .collect();
+            Schema::new(fields)
+        });
         if let Some(ds) = DEFAULT_DATASOURCES.get(&table.options.name) {
             ds.create_table_provider(&table.options, tunnel.as_ref())
                 .await
@@ -421,7 +431,6 @@ impl<'a> ExternalDispatcher<'a> {
                 tunnel: tunnel.is_some(),
             })),
             TableOptionsV0::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
-
             TableOptionsV0::Excel(TableOptionsExcel {
                 location,
                 storage_options,

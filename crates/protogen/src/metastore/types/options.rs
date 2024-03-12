@@ -38,18 +38,15 @@ impl InternalColumnDefinition {
             .collect()
     }
 
-    /// Create a vec of column definitions from arrow fields.
-    pub fn from_arrow_fields<C>(cols: C) -> Vec<InternalColumnDefinition>
-    where
-        C: IntoIterator<Item = Arc<Field>>,
-    {
-        cols.into_iter()
-            .map(|field| InternalColumnDefinition {
-                name: field.name().clone(),
-                nullable: field.is_nullable(),
-                arrow_type: field.data_type().clone(),
-            })
-            .collect()
+    /// Create an iterator of column definitions from arrow fields.
+    pub fn from_arrow_fields(
+        fields: &Fields,
+    ) -> impl Iterator<Item = InternalColumnDefinition> + '_ {
+        fields.into_iter().map(|field| InternalColumnDefinition {
+            name: field.name().clone(),
+            nullable: field.is_nullable(),
+            arrow_type: field.data_type().clone(),
+        })
     }
 
     /// Create a vec of column definitions from arrow fields.
@@ -57,9 +54,13 @@ impl InternalColumnDefinition {
     where
         C: IntoIterator<Item = InternalColumnDefinition>,
     {
-        cols.into_iter()
-            .map(|col| Arc::new(Field::new(col.name, col.arrow_type, col.nullable)))
-            .collect()
+        cols.into_iter().map(|col| Arc::new(col.into())).collect()
+    }
+}
+
+impl From<InternalColumnDefinition> for Field {
+    fn from(value: InternalColumnDefinition) -> Self {
+        Field::new(value.name, value.arrow_type, value.nullable)
     }
 }
 
@@ -77,17 +78,20 @@ impl TryFrom<options::InternalColumnDefinition> for InternalColumnDefinition {
     }
 }
 
-impl TryFrom<InternalColumnDefinition> for options::InternalColumnDefinition {
-    type Error = ProtoConvError;
-    fn try_from(value: InternalColumnDefinition) -> Result<Self, Self::Error> {
-        let arrow_type = arrow::ArrowType::try_from(&value.arrow_type)?;
-        Ok(options::InternalColumnDefinition {
+impl From<InternalColumnDefinition> for options::InternalColumnDefinition {
+    fn from(value: InternalColumnDefinition) -> Self {
+        // We don't support any of the unserializable arrow types
+        // So this should always be infallible
+        let arrow_type =
+            arrow::ArrowType::try_from(&value.arrow_type).expect("Arrow type must be serializable");
+        options::InternalColumnDefinition {
             name: value.name,
             nullable: value.nullable,
             arrow_type: Some(arrow_type),
-        })
+        }
     }
 }
+
 
 // #[cfg(test)]
 // mod tests {
@@ -805,7 +809,22 @@ impl TryFrom<&TableOptionsV1> for TableOptionsV0 {
     type Error = ProtoConvError;
 
     fn try_from(value: &TableOptionsV1) -> Result<Self, Self::Error> {
+        let _v: serde_json::Value = serde_json::from_slice(&value.options).unwrap();
+
+
         match value.name.as_ref() {
+            TableOptionsObjectStore::NAME => {
+                let obj_store: TableOptionsObjectStore = value.extract()?;
+                let file_type = obj_store.file_type.clone().unwrap_or_default();
+                match file_type.as_ref() {
+                    Self::DELTA => Ok(TableOptionsV0::Delta(obj_store)),
+                    Self::ICEBERG => Ok(TableOptionsV0::Iceberg(obj_store)),
+                    Self::AZURE => Ok(TableOptionsV0::Azure(obj_store)),
+                    Self::LANCE => Ok(TableOptionsV0::Lance(obj_store)),
+                    Self::BSON => Ok(TableOptionsV0::Bson(obj_store)),
+                    _ => Err(ProtoConvError::UnknownVariant(value.name.to_string())),
+                }
+            }
             Self::INTERNAL => {
                 let internal: TableOptionsInternal = value.extract()?;
                 Ok(TableOptionsV0::Internal(internal))
@@ -842,29 +861,9 @@ impl TryFrom<&TableOptionsV1> for TableOptionsV0 {
                 let snowflake: TableOptionsSnowflake = value.extract()?;
                 Ok(TableOptionsV0::Snowflake(snowflake))
             }
-            Self::DELTA => {
-                let delta: TableOptionsObjectStore = value.extract()?;
-                Ok(TableOptionsV0::Delta(delta))
-            }
-            Self::ICEBERG => {
-                let iceberg: TableOptionsObjectStore = value.extract()?;
-                Ok(TableOptionsV0::Iceberg(iceberg))
-            }
-            Self::AZURE => {
-                let azure: TableOptionsObjectStore = value.extract()?;
-                Ok(TableOptionsV0::Azure(azure))
-            }
             Self::SQL_SERVER => {
                 let sql_server: TableOptionsSqlServer = value.extract()?;
                 Ok(TableOptionsV0::SqlServer(sql_server))
-            }
-            Self::LANCE => {
-                let lance: TableOptionsObjectStore = value.extract()?;
-                Ok(TableOptionsV0::Lance(lance))
-            }
-            Self::BSON => {
-                let bson: TableOptionsObjectStore = value.extract()?;
-                Ok(TableOptionsV0::Bson(bson))
             }
             Self::CLICKHOUSE => {
                 let clickhouse: TableOptionsClickhouse = value.extract()?;
@@ -882,6 +881,7 @@ impl TryFrom<&TableOptionsV1> for TableOptionsV0 {
                 let sqlite: TableOptionsSqlite = value.extract()?;
                 Ok(TableOptionsV0::Sqlite(sqlite))
             }
+
             _ => Err(ProtoConvError::UnknownVariant(value.name.to_string())),
         }
     }
@@ -1069,11 +1069,7 @@ impl TryFrom<TableOptionsInternal> for options::TableOptionsInternal {
     type Error = ProtoConvError;
     fn try_from(value: TableOptionsInternal) -> Result<Self, Self::Error> {
         Ok(options::TableOptionsInternal {
-            columns: value
-                .columns
-                .into_iter()
-                .map(|col| col.try_into())
-                .collect::<Result<_, _>>()?,
+            columns: value.columns.into_iter().map(Into::into).collect(),
         })
     }
 }

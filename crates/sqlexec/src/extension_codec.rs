@@ -682,9 +682,8 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .tbl_entries
                     .clone()
                     .into_iter()
-                    .map(|r| r.try_into())
-                    .collect::<Result<_, _>>()
-                    .expect("failed to encode table entries"),
+                    .map(|r| r.into())
+                    .collect(),
                 if_exists: exec.if_exists,
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<SetVarExec>() {

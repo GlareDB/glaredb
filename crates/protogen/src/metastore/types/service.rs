@@ -1,10 +1,10 @@
-use datafusion::arrow::datatypes::Schema;
 use datafusion::logical_expr::Signature;
 
 use super::catalog::{FunctionType, SourceAccessMode};
 use super::options::{
     CredentialsOptions,
     DatabaseOptions,
+    InternalColumnDefinition,
     TableOptionsInternal,
     TableOptionsV1,
     TunnelOptions,
@@ -349,13 +349,28 @@ pub struct CreateExternalTable {
     pub or_replace: bool,
     pub if_not_exists: bool,
     pub tunnel: Option<String>,
-    pub table_schema: Option<Schema>,
+    pub columns: Option<Vec<InternalColumnDefinition>>,
 }
 
 
 impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
     type Error = ProtoConvError;
     fn try_from(value: service::CreateExternalTable) -> Result<Self, Self::Error> {
+        let columns: Vec<InternalColumnDefinition> = value
+            .columns
+            .into_iter()
+            .map(|column| {
+                let col: InternalColumnDefinition = column.try_into()?;
+                Ok::<_, ProtoConvError>(col)
+            })
+            .collect::<Result<_, _>>()?;
+
+        let columns = if columns.is_empty() {
+            None
+        } else {
+            Some(columns)
+        };
+
         // TODO: Check if string are zero value.
         Ok(CreateExternalTable {
             schema: value.schema,
@@ -364,13 +379,7 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
             or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,
-            table_schema: value
-                .table_schema
-                .map(|ref schema| {
-                    let schema: Schema = schema.try_into()?;
-                    Ok::<_, ProtoConvError>(schema)
-                })
-                .transpose()?,
+            columns,
         })
     }
 }
@@ -378,6 +387,11 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
 impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
     type Error = ProtoConvError;
     fn try_from(value: CreateExternalTable) -> Result<Self, Self::Error> {
+        let columns: Vec<gen::metastore::options::InternalColumnDefinition> = value
+            .columns
+            .map(|s| s.into_iter().map(Into::into).collect())
+            .unwrap_or_default();
+
         Ok(service::CreateExternalTable {
             schema: value.schema,
             name: value.name,
@@ -385,13 +399,7 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
             or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,
-            table_schema: value
-                .table_schema
-                .map(|ref schema| {
-                    let schema: gen::common::arrow::Schema = schema.try_into()?;
-                    Ok::<_, ProtoConvError>(schema)
-                })
-                .transpose()?,
+            columns,
         })
     }
 }
