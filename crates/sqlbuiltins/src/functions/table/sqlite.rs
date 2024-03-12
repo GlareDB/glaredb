@@ -90,14 +90,14 @@ impl TableFunc for ReadSqlite {
                         let session = ctx.get_session_vars();
                         storage_options.inner.insert(
                             "__tmp_prefix".to_string(),
-                            (&[
+                            [
                                 // TODO this path is too long
                                 session.user_name().as_str(),
                                 &session.database_name(),
                                 &session.connection_id().to_string(),
-                            ])
-                                .join("")
-                                .to_string(),
+                            ]
+                            .join("")
+                            .to_string(),
                         );
 
                         let state = SqliteAccess::new(source_url, Some(storage_options))
