@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -10,7 +10,6 @@ use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
 use datasources::debug::{DebugTableProvider, DebugTableType};
 pub use datasources::Datasource;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
-use protogen::metastore::types::options::TableOptions;
 
 use super::TableFunc;
 use crate::functions::ConstBuiltinFunction;
@@ -60,22 +59,5 @@ impl TableFunc for Dummy {
             _ => todo!(),
         };
         Ok(Arc::new(DebugTableProvider { typ, tunnel: false }))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct TableOptionsDebug2 {
-    pub table_type: String,
-}
-
-impl From<TableOptionsDebug2> for TableOptions {
-    fn from(value: TableOptionsDebug2) -> Self {
-        let mut options = BTreeMap::new();
-        options.insert("table_type".to_string(), value.table_type.into());
-
-        TableOptions {
-            name: "debug".to_string(),
-            options,
-        }
     }
 }

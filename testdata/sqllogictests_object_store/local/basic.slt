@@ -7,11 +7,11 @@ statement ok
 set search_path = local_object_store;
 
 statement ok
-CREATE EXTERNAL TABLE basic
-    FROM local
-    OPTIONS (
-        location = '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'
-    );
+CREATE EXTERNAL TABLE basic 
+FROM local
+OPTIONS (
+    location = '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'
+);
 
 # TODO re-enable when CSV related querying is improved, (timestamp issue)
 halt

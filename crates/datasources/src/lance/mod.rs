@@ -121,7 +121,7 @@ impl Datasource for LanceDatasource {
             location,
             storage_options,
             ..
-        } = TableOptionsObjectStore::try_from(options)?;
+        } = options.extract()?;
         if let Some(file_type) = file_type {
             if file_type.as_str() != "lance" {
                 return Err(ObjectStoreSourceError::NotSupportFileType(file_type).into());

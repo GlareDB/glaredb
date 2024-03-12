@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -8,8 +7,7 @@ use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
 use parser::errors::ParserError;
 use parser::options::{OptionValue as SqlOptionValue, ParseOptionValue};
-use protogen::metastore::types::options::{OptionValue, TableOptions};
-use protogen::ProtoConvError;
+use protogen::metastore::types::options::TableOptionsImpl;
 use serde::{Deserialize, Serialize};
 
 use super::errors::DebugError;
@@ -22,30 +20,6 @@ pub enum DebugTableType {
     NeverEnding,
 }
 
-impl From<DebugTableType> for OptionValue {
-    fn from(t: DebugTableType) -> Self {
-        t.to_string().into()
-    }
-}
-
-impl TryFrom<&OptionValue> for DebugTableType {
-    type Error = DebugError;
-
-    fn try_from(value: &OptionValue) -> Result<Self, Self::Error> {
-        match value {
-            OptionValue::String(s) => s.parse(),
-            _ => Err(DebugError::UnknownDebugTableType("".to_string())),
-        }
-    }
-}
-
-impl TryFrom<OptionValue> for DebugTableType {
-    type Error = DebugError;
-
-    fn try_from(value: OptionValue) -> Result<Self, Self::Error> {
-        (&value).try_into()
-    }
-}
 
 impl ParseOptionValue<DebugTableType> for SqlOptionValue {
     fn parse_opt(self) -> Result<DebugTableType, ParserError> {
@@ -63,6 +37,7 @@ impl ParseOptionValue<DebugTableType> for SqlOptionValue {
         Ok(opt)
     }
 }
+
 impl std::fmt::Display for DebugTableType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
@@ -149,44 +124,14 @@ impl DebugTableType {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableOptionsDebug {
     pub table_type: DebugTableType,
 }
-
-impl From<TableOptionsDebug> for TableOptions {
-    fn from(value: TableOptionsDebug) -> Self {
-        let mut options = BTreeMap::new();
-        options.insert(
-            "table_type".to_string(),
-            OptionValue::String(value.table_type.to_string()),
-        );
-
-        TableOptions {
-            name: "debug".to_string(),
-            options,
-        }
-    }
+impl TableOptionsImpl for TableOptionsDebug {
+    const NAME: &'static str = "debug";
 }
 
-impl TryFrom<&TableOptions> for TableOptionsDebug {
-    type Error = ProtoConvError;
-    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
-        if matches!(value.name.as_ref(), "debug") {
-            let table_type: DebugTableType = value
-                .options
-                .get("table_type")
-                .cloned()
-                .ok_or_else(|| ProtoConvError::RequiredField("table_type".to_string()))?
-                .try_into()
-                .map_err(|e: DebugError| ProtoConvError::ParseError(e.to_string()))?;
-
-            Ok(TableOptionsDebug { table_type })
-        } else {
-            Err(ProtoConvError::UnknownVariant(value.name.to_string()))
-        }
-    }
-}
 
 impl Default for TableOptionsDebug {
     fn default() -> Self {
