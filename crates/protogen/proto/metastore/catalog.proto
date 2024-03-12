@@ -54,6 +54,7 @@ message CatalogState {
   // The version of the actual catalog implementation.
   // This is incremented when there are incompatible changes to the physical
   // catalog layout.
+  // Purposely set to a high number to avoid accidental collisions
   optional uint32 catalog_version = 999;
 }
 
