@@ -61,12 +61,12 @@ use protogen::metastore::types::options::{
     TableOptionsMongoDb,
     TableOptionsMysql,
     TableOptionsObjectStore,
-    TableOptionsV0,
     TableOptionsPostgres,
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
     TableOptionsSqlite,
+    TableOptionsV0,
     TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
@@ -294,17 +294,15 @@ impl<'a> ExternalDispatcher<'a> {
         &self,
         table: &TableEntry,
     ) -> Result<Arc<dyn TableProvider>> {
-        let tunnel = self.get_tunnel_opts(table.tunnel_id)?; 
+        let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
         let optional_schema = table.schema.clone();
         if let Some(ds) = DEFAULT_DATASOURCES.get(&table.options.name) {
-            return ds
-                .create_table_provider(&table.options, tunnel.as_ref())
+            ds.create_table_provider(&table.options, tunnel.as_ref())
                 .await
-                .map_err(|e| e.into());
+                .map_err(|e| e.into())
         } else {
-            let tbl_options_old = TableOptionsV0::try_from(&table.options).map_err(|e| {
-                DispatchError::String(format!("Invalid table options: {}", e.to_string()))
-            })?;
+            let tbl_options_old = TableOptionsV0::try_from(&table.options)
+                .map_err(|e| DispatchError::String(format!("Invalid table options: {}", e)))?;
             self.dispatch_table_options_v1(&tbl_options_old, tunnel, optional_schema)
                 .await
         }
@@ -409,6 +407,7 @@ impl<'a> ExternalDispatcher<'a> {
         };
         Ok(tunnel_options)
     }
+
     // TODO: Remove this function once everything is using the new table options
     async fn dispatch_table_options_v1(
         &self,
@@ -417,6 +416,10 @@ impl<'a> ExternalDispatcher<'a> {
         schema: Option<Schema>,
     ) -> Result<Arc<dyn TableProvider>> {
         match &opts {
+            TableOptionsV0::Debug(dbg) => Ok(Arc::new(DebugTableProvider {
+                typ: dbg.table_type.parse()?,
+                tunnel: tunnel.is_some(),
+            })),
             TableOptionsV0::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
 
             TableOptionsV0::Excel(TableOptionsExcel {
@@ -684,7 +687,6 @@ impl<'a> ExternalDispatcher<'a> {
             }) => {
                 let source_url = DatasourceUrl::try_new(location)?;
                 let store_access = storage_options_into_store_access(&source_url, storage_options)?;
-                println!("schema = {:?}", schema);
                 Ok(bson_streaming_table(
                     store_access,
                     source_url,

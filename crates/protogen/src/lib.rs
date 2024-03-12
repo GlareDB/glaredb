@@ -121,9 +121,6 @@ pub mod gen {
             tonic::include_proto!("metastore.options");
         }
     }
-    pub mod v0 {
-        
-    }
 }
 
 /// An extension trait that adds the methods `optional` and `required` to any

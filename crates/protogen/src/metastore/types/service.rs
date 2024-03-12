@@ -5,8 +5,8 @@ use super::catalog::{FunctionType, SourceAccessMode};
 use super::options::{
     CredentialsOptions,
     DatabaseOptions,
-    TableOptionsV1,
     TableOptionsInternal,
+    TableOptionsV1,
     TunnelOptions,
 };
 use crate::gen::metastore::service;

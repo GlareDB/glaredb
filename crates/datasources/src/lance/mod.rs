@@ -14,8 +14,8 @@ use parser::options::StatementOptions;
 use protogen::metastore::types::options::{
     CredentialsOptions,
     StorageOptions,
-    TableOptionsV1,
     TableOptionsObjectStore,
+    TableOptionsV1,
     TunnelOptions,
 };
 

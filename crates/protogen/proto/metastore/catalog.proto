@@ -164,12 +164,14 @@ message TableEntry {
 
   reserved 2;  // Column fields
 
-  options.TableOptionsV1 options = 3;
+  options.TableOptionsV0 options_v0 = 3;
   optional uint32 tunnel_id = 4;
   SourceAccessMode access_mode = 5;
   optional common.arrow.Schema schema = 6;
+  options.TableOptionsV1 options = 7;
   // next: 8
 }
+
 
 message ViewEntry {
   EntryMeta meta = 1;

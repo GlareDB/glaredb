@@ -25,7 +25,7 @@ use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableRef};
 use datasources::common::ssh::key::SshKey;
 use datasources::common::ssh::{SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
-use datasources::debug::DebugTableType;
+use datasources::debug::{DebugTableType, TableOptionsDebug};
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lake::storage_options_into_object_store;
@@ -105,7 +105,6 @@ use protogen::metastore::types::options::{
     DeltaLakeCatalog,
     DeltaLakeUnityCatalog,
     StorageOptions,
-    TableOptionsV1,
     TableOptionsBigQuery,
     TableOptionsCassandra,
     TableOptionsClickhouse,
@@ -115,12 +114,13 @@ use protogen::metastore::types::options::{
     TableOptionsMongoDb,
     TableOptionsMysql,
     TableOptionsObjectStore,
-    TableOptionsV0,
     TableOptionsPostgres,
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
     TableOptionsSqlite,
+    TableOptionsV0,
+    TableOptionsV1,
     TunnelOptions,
     TunnelOptionsDebug,
     TunnelOptionsInternal,
@@ -456,7 +456,7 @@ impl<'a> SessionPlanner<'a> {
     }
 
     // TODO: This is a temporary implementation. We need to refactor this to use the new table options.
-    async fn opts_from_old_tblopts(
+    async fn get_tbl_opts_from_v0(
         &self,
         datasource: &str,
         m: &mut StatementOptions,
@@ -464,7 +464,10 @@ impl<'a> SessionPlanner<'a> {
         tunnel_options: Option<TunnelOptions>,
     ) -> Result<TableOptionsV1> {
         Ok(match datasource {
-            "debug" => unreachable!("debug should be handled via the registry"),
+            TableOptionsV0::DEBUG => {
+                let table_type: DebugTableType = m.remove_required("table_type")?;
+                TableOptionsDebug { table_type }.into()
+            }
             TableOptionsV0::POSTGRES => {
                 let connection_string = get_pg_conn_str(m)?;
                 let schema: String = m.remove_required("schema")?;
@@ -964,17 +967,21 @@ impl<'a> SessionPlanner<'a> {
             })
             .transpose()?;
         let m = &mut stmt.options;
-        let external_table_options =
         // TODO: use a datasource registry available to the planner to get the table options
         // for the datasource instead of the static [`DEFAULT_DATASOURCES`]
-            if let Some(datasource) = DEFAULT_DATASOURCES.get(datasource.as_str()) {
-                datasource
-                    .table_options_from_stmt(m, creds_options, tunnel_options)
-                    .map_err(|e| PlanError::InvalidExternalTable { source: e })?
-            } else {
-                self.opts_from_old_tblopts(datasource.as_str(), m, creds_options, tunnel_options)
-                    .await?
-            };
+        let external_table_options = if let Some(ds) =
+            // if the datasource registry fails, fallback to the v0 table options
+            DEFAULT_DATASOURCES
+                .get(datasource.as_str())
+                .and_then(|ds| {
+                    ds.table_options_from_stmt(m, creds_options.clone(), tunnel_options.clone())
+                        .ok()
+                }) {
+            ds
+        } else {
+            self.get_tbl_opts_from_v0(datasource.as_str(), m, creds_options, tunnel_options)
+                .await?
+        };
 
 
         let table_name = object_name_to_table_ref(stmt.name)?;

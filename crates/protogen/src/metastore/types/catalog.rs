@@ -11,6 +11,7 @@ use super::options::{
     DatabaseOptions,
     InternalColumnDefinition,
     TableOptionsInternal,
+    TableOptionsV0,
     TableOptionsV1,
     TunnelOptions,
 };
@@ -474,11 +475,18 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
     type Error = ProtoConvError;
     fn try_from(value: catalog::TableEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
-
+        let options_old = value.options_v0;
+        let options: TableOptionsV1 = match options_old {
+            Some(options) => {
+                let options_v0: TableOptionsV0 = options.try_into()?;
+                options_v0.into()
+            }
+            None => value.options.required("options")?,
+        };
 
         Ok(TableEntry {
             meta,
-            options: value.options.required("options")?,
+            options,
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.try_into()?,
             schema: None,
@@ -494,6 +502,7 @@ impl From<TableEntry> for catalog::TableEntry {
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.into(),
             schema: None,
+            options_v0: None,
         }
     }
 }

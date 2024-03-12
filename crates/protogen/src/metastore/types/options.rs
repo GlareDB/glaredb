@@ -652,8 +652,7 @@ impl TableOptionsV1 {
                 self.name
             )));
         }
-
-        Ok(self.extract_unchecked())
+        serde_json::from_slice(&self.options).map_err(|e| ProtoConvError::ParseError(e.to_string()))
     }
 
     /// Extract the table options to a specific type.
@@ -701,6 +700,7 @@ impl From<TableOptionsV1> for options::TableOptionsV1 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TableOptionsV0 {
+    Debug(TableOptionsDebug),
     Internal(TableOptionsInternal),
     Postgres(TableOptionsPostgres),
     BigQuery(TableOptionsBigQuery),
@@ -723,6 +723,7 @@ pub enum TableOptionsV0 {
 }
 
 impl TableOptionsV0 {
+    pub const DEBUG: &'static str = "debug";
     pub const INTERNAL: &'static str = "internal";
     pub const POSTGRES: &'static str = "postgres";
     pub const BIGQUERY: &'static str = "bigquery";
@@ -749,6 +750,7 @@ impl TableOptionsV0 {
 
     pub fn as_str(&self) -> &'static str {
         match self {
+            TableOptionsV0::Debug(_) => Self::DEBUG,
             TableOptionsV0::Internal(_) => Self::INTERNAL,
             TableOptionsV0::Postgres(_) => Self::POSTGRES,
             TableOptionsV0::BigQuery(_) => Self::BIGQUERY,
@@ -775,6 +777,7 @@ impl TableOptionsV0 {
 impl From<TableOptionsV0> for TableOptionsV1 {
     fn from(value: TableOptionsV0) -> Self {
         match value {
+            TableOptionsV0::Debug(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::Internal(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::Postgres(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::BigQuery(opts) => TableOptionsV1::new(&opts),
@@ -894,6 +897,7 @@ impl TryFrom<TableOptionsV0> for options::table_options_v0::Options {
     type Error = ProtoConvError;
     fn try_from(value: TableOptionsV0) -> Result<Self, Self::Error> {
         Ok(match value {
+            TableOptionsV0::Debug(v) => options::table_options_v0::Options::Debug(v.into()),
             TableOptionsV0::Internal(v) => {
                 options::table_options_v0::Options::Internal(v.try_into()?)
             }
@@ -921,12 +925,88 @@ impl TryFrom<TableOptionsV0> for options::table_options_v0::Options {
     }
 }
 
-impl TryFrom<TableOptionsV0> for options::TableOptionsV0{
+impl TryFrom<options::table_options_v0::Options> for TableOptionsV0 {
+    type Error = ProtoConvError;
+    fn try_from(value: options::table_options_v0::Options) -> Result<Self, Self::Error> {
+        Ok(match value {
+            options::table_options_v0::Options::Internal(v) => {
+                TableOptionsV0::Internal(v.try_into()?)
+            }
+            options::table_options_v0::Options::Debug(v) => TableOptionsV0::Debug(v.try_into()?),
+            options::table_options_v0::Options::Postgres(v) => {
+                TableOptionsV0::Postgres(v.try_into()?)
+            }
+            options::table_options_v0::Options::Bigquery(v) => {
+                TableOptionsV0::BigQuery(v.try_into()?)
+            }
+            options::table_options_v0::Options::Mysql(v) => TableOptionsV0::Mysql(v.try_into()?),
+            options::table_options_v0::Options::Local(v) => TableOptionsV0::Local(v.try_into()?),
+            options::table_options_v0::Options::Gcs(v) => TableOptionsV0::Gcs(v.try_into()?),
+            options::table_options_v0::Options::S3(v) => TableOptionsV0::S3(v.try_into()?),
+            options::table_options_v0::Options::Mongo(v) => TableOptionsV0::MongoDb(v.try_into()?),
+            options::table_options_v0::Options::Snowflake(v) => {
+                TableOptionsV0::Snowflake(v.try_into()?)
+            }
+            options::table_options_v0::Options::Delta(v) => TableOptionsV0::Delta(v.try_into()?),
+            options::table_options_v0::Options::Iceberg(v) => {
+                TableOptionsV0::Iceberg(v.try_into()?)
+            }
+            options::table_options_v0::Options::Azure(v) => TableOptionsV0::Azure(v.try_into()?),
+            options::table_options_v0::Options::SqlServer(v) => {
+                TableOptionsV0::SqlServer(v.try_into()?)
+            }
+            options::table_options_v0::Options::Lance(v) => TableOptionsV0::Lance(v.try_into()?),
+            options::table_options_v0::Options::Bson(v) => TableOptionsV0::Bson(v.try_into()?),
+            options::table_options_v0::Options::Clickhouse(v) => {
+                TableOptionsV0::Clickhouse(v.try_into()?)
+            }
+            options::table_options_v0::Options::Cassandra(v) => {
+                TableOptionsV0::Cassandra(v.try_into()?)
+            }
+            options::table_options_v0::Options::Excel(v) => TableOptionsV0::Excel(v.try_into()?),
+            options::table_options_v0::Options::Sqlite(v) => TableOptionsV0::Sqlite(v.try_into()?),
+        })
+    }
+}
+
+impl TryFrom<options::TableOptionsV0> for TableOptionsV0 {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsV0) -> Result<Self, Self::Error> {
+        value.options.required("options")
+    }
+}
+
+impl TryFrom<TableOptionsV0> for options::TableOptionsV0 {
     type Error = ProtoConvError;
     fn try_from(value: TableOptionsV0) -> Result<Self, Self::Error> {
         Ok(options::TableOptionsV0 {
             options: Some(value.try_into()?),
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TableOptionsDebug {
+    pub table_type: String,
+}
+
+impl TableOptionsImpl for TableOptionsDebug {
+    const NAME: &'static str = "debug";
+}
+
+impl TryFrom<options::TableOptionsDebug> for TableOptionsDebug {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsDebug) -> Result<Self, Self::Error> {
+        Ok(TableOptionsDebug {
+            table_type: value.table_type,
+        })
+    }
+}
+impl From<TableOptionsDebug> for options::TableOptionsDebug {
+    fn from(value: TableOptionsDebug) -> Self {
+        options::TableOptionsDebug {
+            table_type: value.table_type,
+        }
     }
 }
 

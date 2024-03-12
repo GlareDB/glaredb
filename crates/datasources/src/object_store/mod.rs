@@ -31,10 +31,10 @@ use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::options::{
     CredentialsOptions,
     StorageOptions,
-    TableOptionsV1,
     TableOptionsGcs,
     TableOptionsObjectStore,
     TableOptionsS3,
+    TableOptionsV1,
 };
 
 use self::azure::AzureStoreAccess;
