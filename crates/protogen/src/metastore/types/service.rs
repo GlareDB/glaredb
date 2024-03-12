@@ -5,8 +5,8 @@ use super::options::{
     CredentialsOptions,
     DatabaseOptions,
     InternalColumnDefinition,
-    TableOptions,
     TableOptionsInternal,
+    TableOptionsV1,
     TunnelOptions,
 };
 use crate::gen::metastore::service;
@@ -345,7 +345,7 @@ impl TryFrom<CreateFunction> for service::CreateFunction {
 pub struct CreateExternalTable {
     pub schema: String,
     pub name: String,
-    pub options: TableOptions,
+    pub options: TableOptionsV1,
     pub or_replace: bool,
     pub if_not_exists: bool,
     pub tunnel: Option<String>,

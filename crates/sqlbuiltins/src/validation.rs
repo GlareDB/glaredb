@@ -2,7 +2,7 @@ use protogen::metastore::types::options::{
     CopyToDestinationOptions,
     CredentialsOptions,
     DatabaseOptions,
-    TableOptionsOld,
+    TableOptionsV0,
     TunnelOptions,
 };
 
@@ -68,9 +68,9 @@ pub fn validate_table_tunnel_support(table: &str, tunnel: &str) -> Result<()> {
         // Debug
         ("debug", TunnelOptions::DEBUG)
         // Postgres
-        | (TableOptionsOld::POSTGRES, TunnelOptions::SSH)
+        | (TableOptionsV0::POSTGRES, TunnelOptions::SSH)
         // MySQL
-        | (TableOptionsOld::MYSQL, TunnelOptions::SSH)
+        | (TableOptionsV0::MYSQL, TunnelOptions::SSH)
     ) {
         Ok(())
     } else {
@@ -106,14 +106,14 @@ pub fn validate_table_creds_support(table: &str, creds: &str) -> Result<()> {
         // Debug
         ("debug", CredentialsOptions::DEBUG) |
         // Google cloud
-        (TableOptionsOld::GCS, CredentialsOptions::GCP) |
-        (TableOptionsOld::BIGQUERY, CredentialsOptions::GCP) |
+        (TableOptionsV0::GCS, CredentialsOptions::GCP) |
+        (TableOptionsV0::BIGQUERY, CredentialsOptions::GCP) |
         // AWS
-        (TableOptionsOld::S3_STORAGE, CredentialsOptions::AWS) |
+        (TableOptionsV0::S3_STORAGE, CredentialsOptions::AWS) |
         // Azure
-        (TableOptionsOld::AZURE, CredentialsOptions::AZURE) |
+        (TableOptionsV0::AZURE, CredentialsOptions::AZURE) |
         // Delta & Iceberg & Lance
-        (TableOptionsOld::DELTA | TableOptionsOld::ICEBERG | TableOptionsOld::LANCE, CredentialsOptions::GCP | CredentialsOptions::AWS | CredentialsOptions::AZURE )
+        (TableOptionsV0::DELTA | TableOptionsV0::ICEBERG | TableOptionsV0::LANCE, CredentialsOptions::GCP | CredentialsOptions::AWS | CredentialsOptions::AZURE )
     ) {
         Ok(())
     } else {

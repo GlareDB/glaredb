@@ -1,5 +1,5 @@
 use datafusion::arrow::datatypes::Schema;
-use protogen::metastore::types::options::TableOptions;
+use protogen::metastore::types::options::TableOptionsV1;
 
 use super::{
     DfLogicalPlan,
@@ -14,7 +14,7 @@ pub struct CreateExternalTable {
     pub tbl_reference: OwnedFullObjectReference,
     pub or_replace: bool,
     pub if_not_exists: bool,
-    pub table_options: TableOptions,
+    pub table_options: TableOptionsV1,
     pub tunnel: Option<String>,
     pub schema: Option<Schema>,
 }

@@ -10,19 +10,33 @@ use super::options::{
     CredentialsOptions,
     DatabaseOptions,
     InternalColumnDefinition,
-    TableOptions,
     TableOptionsInternal,
+    TableOptionsV0,
+    TableOptionsV1,
     TunnelOptions,
 };
 use crate::gen::common::arrow::ArrowType;
 use crate::gen::metastore::catalog::{self, type_signature};
 use crate::{gen, FromOptionalField, ProtoConvError};
 
+/// The current version of the catalog IMPLEMENTATION
+/// this is incremented every time there is a breaking change physical representation of the catalog.
+pub const CURRENT_CATALOG_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogState {
+    /// the version of the catalog STATE.
+    /// This version corresponds the state of the catalog and is incremented every time there is a change to the catalog.
+    /// It is associated with the "data" in the catalog
     pub version: u64,
     pub entries: HashMap<u32, CatalogEntry>,
     pub deployment: DeploymentMetadata,
+    /// This is the version of the catalog IMPLEMENTATION.
+    /// any new code paths should generally use [`CURRENT_CATALOG_VERSION`] unless it is specifically
+    /// for handling older versions of the catalog.
+    /// unlike the `version` field, this is only incremented when the physical representation of the catalog changes.
+    /// it is associated with the "code" that represents the catalog.
+    pub catalog_version: u32,
 }
 
 impl TryFrom<catalog::CatalogState> for CatalogState {
@@ -47,6 +61,7 @@ impl TryFrom<catalog::CatalogState> for CatalogState {
             version: value.version,
             entries,
             deployment,
+            catalog_version: value.catalog_version.unwrap_or(0),
         })
     }
 }
@@ -65,6 +80,7 @@ impl TryFrom<CatalogState> for catalog::CatalogState {
                 })
                 .collect::<Result<_, _>>()?,
             deployment: Some(value.deployment.try_into()?),
+            catalog_version: Some(value.catalog_version),
         })
     }
 }
@@ -438,7 +454,7 @@ impl From<SchemaEntry> for catalog::SchemaEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableEntry {
     pub meta: EntryMeta,
-    pub options: TableOptions,
+    pub options: TableOptionsV1,
     pub tunnel_id: Option<u32>,
     pub access_mode: SourceAccessMode,
     pub columns: Option<Vec<InternalColumnDefinition>>,
@@ -465,6 +481,14 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
     type Error = ProtoConvError;
     fn try_from(value: catalog::TableEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
+        let options_old = value.options_v0;
+        let options: TableOptionsV1 = match options_old {
+            Some(options) => {
+                let options_v0: TableOptionsV0 = options.try_into()?;
+                options_v0.into()
+            }
+            None => value.options.required("options")?,
+        };
 
         let columns: Vec<crate::metastore::types::options::InternalColumnDefinition> = value
             .columns
@@ -480,7 +504,7 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
 
         Ok(TableEntry {
             meta,
-            options: value.options.required("options")?,
+            options,
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.try_into()?,
             columns,
@@ -502,6 +526,7 @@ impl From<TableEntry> for catalog::TableEntry {
             options: Some(value.options.into()),
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.into(),
+            options_v0: None,
             columns,
         }
     }
@@ -882,6 +907,7 @@ mod tests {
             version: 4,
             entries: HashMap::new(),
             deployment: None,
+            catalog_version: None,
         };
 
         let converted: CatalogState = state.try_into().unwrap();
@@ -889,6 +915,7 @@ mod tests {
             version: 4,
             entries: HashMap::new(),
             deployment: DeploymentMetadata { storage_size: 0 },
+            catalog_version: 0,
         };
 
         assert_eq!(expected, converted);
