@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use catalog::session_catalog::SessionCatalog;
-use datafusion::arrow::datatypes::Schema;
+use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
@@ -294,17 +294,25 @@ impl<'a> ExternalDispatcher<'a> {
         &self,
         table: &TableEntry,
     ) -> Result<Arc<dyn TableProvider>> {
-        let tunnel = self.get_tunnel_opts(table.tunnel_id)?; 
-        let optional_schema = table.schema.clone();
+        let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
+        let columns_opt = table.columns.clone();
+        let optional_schema = columns_opt.map(|cols| {
+            let fields: Vec<Field> = cols
+                .into_iter()
+                .map(|col| {
+                    let fld: Field = col.into();
+                    fld
+                })
+                .collect();
+            Schema::new(fields)
+        });
         if let Some(ds) = DEFAULT_DATASOURCES.get(&table.options.name) {
-            return ds
-                .create_table_provider(&table.options, tunnel.as_ref())
+            ds.create_table_provider(&table.options, tunnel.as_ref())
                 .await
-                .map_err(|e| e.into());
+                .map_err(|e| e.into())
         } else {
-            let tbl_options_old = TableOptionsOld::try_from(&table.options).map_err(|e| {
-                DispatchError::String(format!("Invalid table options: {}", e.to_string()))
-            })?;
+            let tbl_options_old = TableOptionsOld::try_from(&table.options)
+                .map_err(|e| DispatchError::String(format!("Invalid table options: {}", e)))?;
             self.dispatch_table_options_v1(&tbl_options_old, tunnel, optional_schema)
                 .await
         }
@@ -684,7 +692,6 @@ impl<'a> ExternalDispatcher<'a> {
             }) => {
                 let source_url = DatasourceUrl::try_new(location)?;
                 let store_access = storage_options_into_store_access(&source_url, storage_options)?;
-                println!("schema = {:?}", schema);
                 Ok(bson_streaming_table(
                     store_access,
                     source_url,

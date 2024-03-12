@@ -264,7 +264,7 @@ impl NativeTableStorage {
 
     fn opts_from_ent(table: &TableEntry) -> Result<TableOptionsInternal> {
         let opts = match table.options.name.as_ref() {
-            "internal" => (&table.options).extract_unchecked(), // variant is already checked
+            "internal" => table.options.extract_unchecked(), // variant is already checked
             _ => return Err(NativeError::NotNative(table.clone())),
         };
         Ok(opts)
@@ -539,7 +539,7 @@ mod tests {
             .into(),
             tunnel_id: None,
             access_mode: SourceAccessMode::ReadOnly,
-            schema: None,
+            columns: None,
         };
 
         // Create a table, load it, delete it and load it again!

@@ -33,6 +33,12 @@ pub struct DatasourceRegistry {
     datasources: HashMap<&'static str, Arc<dyn Datasource>>,
 }
 
+impl Default for DatasourceRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DatasourceRegistry {
     pub fn new() -> Self {
         let datasources: Vec<Arc<dyn Datasource>> =
