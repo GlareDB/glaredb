@@ -165,14 +165,16 @@ message TableEntry {
 
   reserved 2;  // Column fields
 
+  // The old table options. This is deprecated and should not be used.
+  // It is only here for backwards compatibility.
   options.TableOptionsV0 options_v0 = 3;
   optional uint32 tunnel_id = 4;
   SourceAccessMode access_mode = 5;
   optional common.arrow.Schema schema = 6;
+  // The new table options.
   options.TableOptionsV1 options = 7;
   // next: 8
 }
-
 
 message ViewEntry {
   EntryMeta meta = 1;
