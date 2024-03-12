@@ -957,7 +957,8 @@ impl<'a> SessionPlanner<'a> {
                         // check if there is a NOT NULL constraint
                         let is_nullable = !coll
                             .options
-                            .into_iter().any(|k| matches!(k.option, ColumnOption::NotNull));
+                            .into_iter()
+                            .any(|k| matches!(k.option, ColumnOption::NotNull));
 
                         Ok(Field::new(
                             coll.name.to_string(),
