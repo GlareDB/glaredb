@@ -417,6 +417,7 @@ impl<'a> ExternalDispatcher<'a> {
         };
         Ok(tunnel_options)
     }
+
     // TODO: Remove this function once everything is using the new table options
     async fn dispatch_table_options_v1(
         &self,
@@ -426,7 +427,6 @@ impl<'a> ExternalDispatcher<'a> {
     ) -> Result<Arc<dyn TableProvider>> {
         match &opts {
             TableOptionsOld::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
-
             TableOptionsOld::Excel(TableOptionsExcel {
                 location,
                 storage_options,

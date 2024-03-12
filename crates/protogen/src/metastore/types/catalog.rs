@@ -177,7 +177,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
             CatalogEntry::Database(v) => catalog::catalog_entry::Entry::Database(v.into()),
             CatalogEntry::Schema(v) => catalog::catalog_entry::Entry::Schema(v.into()),
             CatalogEntry::View(v) => catalog::catalog_entry::Entry::View(v.into()),
-            CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.try_into()?),
+            CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.into()),
             CatalogEntry::Tunnel(v) => catalog::catalog_entry::Entry::Tunnel(v.into()),
             CatalogEntry::Function(v) => catalog::catalog_entry::Entry::Function(v.into()),
             CatalogEntry::Credentials(v) => catalog::catalog_entry::Entry::Credentials(v.into()),
