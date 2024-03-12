@@ -1170,7 +1170,7 @@ fn binary_rows_to_record_batch<E: Into<PostgresError>>(
                 let mut arr = TimestampMicrosecondBuilder::with_capacity(rows.len());
                 for row in rows.iter() {
                     let val: Option<NaiveDateTime> = row.try_get(col_idx)?;
-                    let val = val.map(|v| v.timestamp_micros());
+                    let val = val.map(|v| v.and_utc().timestamp_micros());
                     arr.append_option(val);
                 }
                 Arc::new(arr.finish())
