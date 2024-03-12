@@ -31,7 +31,7 @@ use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::options::{
     CredentialsOptions,
     StorageOptions,
-    TableOptions,
+    TableOptionsV1,
     TableOptionsGcs,
     TableOptionsObjectStore,
     TableOptionsS3,
@@ -390,7 +390,7 @@ pub fn file_type_from_path(path: &ObjectStorePath) -> Result<FileType> {
 
 pub fn init_session_registry<'a>(
     runtime: &RuntimeEnv,
-    entries: impl Iterator<Item = &'a TableOptions>,
+    entries: impl Iterator<Item = &'a TableOptionsV1>,
 ) -> Result<()> {
     for opts in entries {
         let access: Arc<dyn ObjStoreAccess> = match opts.name.as_ref() {

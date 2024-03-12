@@ -6,7 +6,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use datafusion::datasource::TableProvider;
 use parser::options::StatementOptions;
-use protogen::metastore::types::options::{CredentialsOptions, TableOptions, TunnelOptions};
+use protogen::metastore::types::options::{CredentialsOptions, TableOptionsV1, TunnelOptions};
 pub mod bigquery;
 pub mod bson;
 pub mod cassandra;
@@ -46,12 +46,12 @@ pub trait Datasource: Send + Sync {
         opts: &mut StatementOptions,
         creds: Option<CredentialsOptions>,
         tunnel_opts: Option<TunnelOptions>,
-    ) -> Result<TableOptions, DatasourceError>;
+    ) -> Result<TableOptionsV1, DatasourceError>;
 
 
     async fn create_table_provider(
         &self,
-        tbl_options: &TableOptions,
+        tbl_options: &TableOptionsV1,
         _tunnel_opts: Option<&TunnelOptions>,
     ) -> Result<Arc<dyn TableProvider>, DatasourceError>;
 }

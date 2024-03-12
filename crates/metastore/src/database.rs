@@ -19,6 +19,7 @@ use protogen::metastore::types::catalog::{
     TableEntry,
     TunnelEntry,
     ViewEntry,
+    CURRENT_CATALOG_VERSION,
 };
 use protogen::metastore::types::options::{
     DatabaseOptions,
@@ -183,6 +184,7 @@ impl DatabaseCatalog {
             version: guard.version,
             entries: guard.entries.as_ref().clone(),
             deployment: guard.deployment.clone(),
+            catalog_version: CURRENT_CATALOG_VERSION,
         }
     }
 
@@ -530,6 +532,7 @@ impl State {
                     .into_iter()
                     .filter(|(_, ent)| !ent.get_meta().builtin)
                     .collect(),
+                catalog_version: CURRENT_CATALOG_VERSION,
             },
             extra: ExtraState {
                 oid_counter: self.oid_counter,

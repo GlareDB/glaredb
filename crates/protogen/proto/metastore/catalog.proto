@@ -49,8 +49,12 @@ message CatalogState {
 
   // Metadata for the deployment.
   DeploymentMetadata deployment = 3;
-
   // next: 4
+
+  // The version of the actual catalog implementation.
+  // This is incremented when there are incompatible changes to the physical
+  // catalog layout.
+  optional uint32 catalog_version = 999;
 }
 
 // Metadata for the deployment.
@@ -160,11 +164,11 @@ message TableEntry {
 
   reserved 2;  // Column fields
 
-  options.TableOptions options = 3;
+  options.TableOptionsV1 options = 3;
   optional uint32 tunnel_id = 4;
   SourceAccessMode access_mode = 5;
   optional common.arrow.Schema schema = 6;
-  // next: 7
+  // next: 8
 }
 
 message ViewEntry {

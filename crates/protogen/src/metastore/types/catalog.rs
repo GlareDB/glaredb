@@ -10,19 +10,27 @@ use super::options::{
     CredentialsOptions,
     DatabaseOptions,
     InternalColumnDefinition,
-    TableOptions,
     TableOptionsInternal,
+    TableOptionsV1,
     TunnelOptions,
 };
 use crate::gen::common::arrow::ArrowType;
 use crate::gen::metastore::catalog::{self, type_signature};
 use crate::{FromOptionalField, ProtoConvError};
 
+/// The current version of the catalog.
+/// this is incremented every time there is a breaking change to the catalog.
+pub const CURRENT_CATALOG_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogState {
+    /// the version of the catalog state. This increments on every Mutation
     pub version: u64,
     pub entries: HashMap<u32, CatalogEntry>,
     pub deployment: DeploymentMetadata,
+    /// This is the version of the catalog implementation.
+    /// This is incremented when the catalog changes in a way that is not backwards compatible.
+    pub catalog_version: u32,
 }
 
 impl TryFrom<catalog::CatalogState> for CatalogState {
@@ -47,6 +55,7 @@ impl TryFrom<catalog::CatalogState> for CatalogState {
             version: value.version,
             entries,
             deployment,
+            catalog_version: value.catalog_version.unwrap_or(0),
         })
     }
 }
@@ -65,6 +74,7 @@ impl TryFrom<CatalogState> for catalog::CatalogState {
                 })
                 .collect::<Result<_, _>>()?,
             deployment: Some(value.deployment.try_into()?),
+            catalog_version: Some(value.catalog_version),
         })
     }
 }
@@ -438,7 +448,7 @@ impl From<SchemaEntry> for catalog::SchemaEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableEntry {
     pub meta: EntryMeta,
-    pub options: TableOptions,
+    pub options: TableOptionsV1,
     pub tunnel_id: Option<u32>,
     pub access_mode: SourceAccessMode,
     pub schema: Option<Schema>,
@@ -863,6 +873,7 @@ mod tests {
             version: 4,
             entries: HashMap::new(),
             deployment: None,
+            catalog_version: None,
         };
 
         let converted: CatalogState = state.try_into().unwrap();
@@ -870,6 +881,7 @@ mod tests {
             version: 4,
             entries: HashMap::new(),
             deployment: DeploymentMetadata { storage_size: 0 },
+            catalog_version: 0,
         };
 
         assert_eq!(expected, converted);

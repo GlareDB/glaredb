@@ -30,7 +30,7 @@ use datafusion_ext::functions::VirtualLister;
 use errors::DebugError;
 use futures::Stream;
 use parser::options::StatementOptions;
-use protogen::metastore::types::options::{CredentialsOptions, TableOptions, TunnelOptions};
+use protogen::metastore::types::options::{CredentialsOptions, TableOptionsV1, TunnelOptions};
 
 pub use self::options::{DebugTableType, TableOptionsDebug};
 use crate::DatasourceError;
@@ -259,7 +259,7 @@ impl crate::Datasource for DebugDatasource {
         opts: &mut StatementOptions,
         creds: Option<CredentialsOptions>,
         tunnel_opts: Option<TunnelOptions>,
-    ) -> Result<TableOptions, DatasourceError> {
+    ) -> Result<TableOptionsV1, DatasourceError> {
         validate_tunnel_connections(tunnel_opts.as_ref()).unwrap();
 
         let typ: Option<DebugTableType> = match creds {
@@ -276,7 +276,7 @@ impl crate::Datasource for DebugDatasource {
 
     async fn create_table_provider(
         &self,
-        options: &TableOptions,
+        options: &TableOptionsV1,
         tunnel_opts: Option<&TunnelOptions>,
     ) -> Result<Arc<dyn TableProvider>, DatasourceError> {
         let options: TableOptionsDebug = options.extract()?;
