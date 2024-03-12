@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use super::errors::DebugError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DebugTableType {
     /// A table that will always return an error on the record batch stream.
     ErrorDuringExecution,
@@ -20,6 +21,10 @@ pub enum DebugTableType {
     NeverEnding,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TableOptionsDebug {
+    pub table_type: DebugTableType,
+}
 
 impl ParseOptionValue<DebugTableType> for SqlOptionValue {
     fn parse_opt(self) -> Result<DebugTableType, ParserError> {
@@ -124,10 +129,6 @@ impl DebugTableType {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TableOptionsDebug {
-    pub table_type: DebugTableType,
-}
 impl TableOptionsImpl for TableOptionsDebug {
     const NAME: &'static str = "debug";
 }

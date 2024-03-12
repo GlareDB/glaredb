@@ -14,8 +14,8 @@ use parser::options::StatementOptions;
 use protogen::metastore::types::options::{
     CredentialsOptions,
     StorageOptions,
-    TableOptions,
     TableOptionsObjectStore,
+    TableOptionsV1,
     TunnelOptions,
 };
 
@@ -93,7 +93,7 @@ impl Datasource for LanceDatasource {
         opts: &mut StatementOptions,
         creds: Option<CredentialsOptions>,
         _tunnel_opts: Option<TunnelOptions>,
-    ) -> Result<TableOptions, DatasourceError> {
+    ) -> Result<TableOptionsV1, DatasourceError> {
         let location: String = opts.remove_required("location")?;
         let mut storage_options = StorageOptions::try_from(opts)?;
         if let Some(creds) = creds {
@@ -113,7 +113,7 @@ impl Datasource for LanceDatasource {
 
     async fn create_table_provider(
         &self,
-        options: &TableOptions,
+        options: &TableOptionsV1,
         _tunnel_opts: Option<&TunnelOptions>,
     ) -> Result<Arc<dyn TableProvider>, DatasourceError> {
         let TableOptionsObjectStore {

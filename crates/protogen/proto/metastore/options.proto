@@ -119,14 +119,14 @@ message StorageOptions {
   map<string, string> inner = 1;
 }
 
-message TableOptions {
+message TableOptionsV1 {
   string name = 1;
   bytes options = 2;
 }
 
 // Table options
 
-message TableOptionsOld {
+message TableOptionsV0 {
   oneof options {
     TableOptionsInternal internal = 1;
     TableOptionsDebug debug = 2;

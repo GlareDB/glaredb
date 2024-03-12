@@ -618,7 +618,7 @@ impl From<StorageOptions> for options::StorageOptions {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TableOptions {
+pub struct TableOptionsV1 {
     pub name: String,
     pub options: Vec<u8>,
 }
@@ -628,13 +628,13 @@ pub trait TableOptionsImpl: Serialize + DeserializeOwned {
 }
 
 
-impl Display for TableOptions {
+impl Display for TableOptionsV1 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
 }
 
-impl TableOptions {
+impl TableOptionsV1 {
     pub fn as_str(&self) -> &str {
         &self.name
     }
@@ -642,7 +642,7 @@ impl TableOptions {
     pub fn new<S: TableOptionsImpl>(options: &S) -> Self {
         let options = serde_json::to_vec(options).expect("options must serialize");
 
-        TableOptions {
+        TableOptionsV1 {
             name: S::NAME.to_string(),
             options,
         }
@@ -656,8 +656,7 @@ impl TableOptions {
                 self.name
             )));
         }
-
-        Ok(self.extract_unchecked())
+        serde_json::from_slice(&self.options).map_err(|e| ProtoConvError::ParseError(e.to_string()))
     }
 
     /// Extract the table options to a specific type.
@@ -670,32 +669,32 @@ impl TableOptions {
     }
 }
 
-impl<T> From<T> for TableOptions
+impl<T> From<T> for TableOptionsV1
 where
     T: TableOptionsImpl,
 {
     fn from(value: T) -> Self {
-        TableOptions::new(&value)
+        TableOptionsV1::new(&value)
     }
 }
 
 
-impl TryFrom<options::TableOptions> for TableOptions {
+impl TryFrom<options::TableOptionsV1> for TableOptionsV1 {
     type Error = ProtoConvError;
-    fn try_from(value: options::TableOptions) -> Result<Self, Self::Error> {
+    fn try_from(value: options::TableOptionsV1) -> Result<Self, Self::Error> {
         let name = value.name;
         let values = value.options;
 
-        Ok(TableOptions {
+        Ok(TableOptionsV1 {
             options: values,
             name,
         })
     }
 }
 
-impl From<TableOptions> for options::TableOptions {
-    fn from(value: TableOptions) -> Self {
-        options::TableOptions {
+impl From<TableOptionsV1> for options::TableOptionsV1 {
+    fn from(value: TableOptionsV1) -> Self {
+        options::TableOptionsV1 {
             name: value.name,
             options: value.options,
         }
@@ -704,7 +703,8 @@ impl From<TableOptions> for options::TableOptions {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum TableOptionsOld {
+pub enum TableOptionsV0 {
+    Debug(TableOptionsDebug),
     Internal(TableOptionsInternal),
     Postgres(TableOptionsPostgres),
     BigQuery(TableOptionsBigQuery),
@@ -726,7 +726,8 @@ pub enum TableOptionsOld {
     Sqlite(TableOptionsSqlite),
 }
 
-impl TableOptionsOld {
+impl TableOptionsV0 {
+    pub const DEBUG: &'static str = "debug";
     pub const INTERNAL: &'static str = "internal";
     pub const POSTGRES: &'static str = "postgres";
     pub const BIGQUERY: &'static str = "bigquery";
@@ -747,65 +748,67 @@ impl TableOptionsOld {
     pub const EXCEL: &'static str = "excel";
     pub const SQLITE: &'static str = "sqlite";
 
-    pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptionsOld {
-        TableOptionsOld::Internal(TableOptionsInternal { columns })
+    pub const fn new_internal(columns: Vec<InternalColumnDefinition>) -> TableOptionsV0 {
+        TableOptionsV0::Internal(TableOptionsInternal { columns })
     }
 
     pub fn as_str(&self) -> &'static str {
         match self {
-            TableOptionsOld::Internal(_) => Self::INTERNAL,
-            TableOptionsOld::Postgres(_) => Self::POSTGRES,
-            TableOptionsOld::BigQuery(_) => Self::BIGQUERY,
-            TableOptionsOld::Mysql(_) => Self::MYSQL,
-            TableOptionsOld::Local(_) => Self::LOCAL,
-            TableOptionsOld::Gcs(_) => Self::GCS,
-            TableOptionsOld::S3(_) => Self::S3_STORAGE,
-            TableOptionsOld::MongoDb(_) => Self::MONGODB,
-            TableOptionsOld::Snowflake(_) => Self::SNOWFLAKE,
-            TableOptionsOld::Delta(_) => Self::DELTA,
-            TableOptionsOld::Iceberg(_) => Self::ICEBERG,
-            TableOptionsOld::Azure(_) => Self::AZURE,
-            TableOptionsOld::SqlServer(_) => Self::SQL_SERVER,
-            TableOptionsOld::Lance(_) => Self::LANCE,
-            TableOptionsOld::Bson(_) => Self::BSON,
-            TableOptionsOld::Clickhouse(_) => Self::CLICKHOUSE,
-            TableOptionsOld::Cassandra(_) => Self::CASSANDRA,
-            TableOptionsOld::Excel(_) => Self::EXCEL,
-            TableOptionsOld::Sqlite(_) => Self::SQLITE,
+            TableOptionsV0::Debug(_) => Self::DEBUG,
+            TableOptionsV0::Internal(_) => Self::INTERNAL,
+            TableOptionsV0::Postgres(_) => Self::POSTGRES,
+            TableOptionsV0::BigQuery(_) => Self::BIGQUERY,
+            TableOptionsV0::Mysql(_) => Self::MYSQL,
+            TableOptionsV0::Local(_) => Self::LOCAL,
+            TableOptionsV0::Gcs(_) => Self::GCS,
+            TableOptionsV0::S3(_) => Self::S3_STORAGE,
+            TableOptionsV0::MongoDb(_) => Self::MONGODB,
+            TableOptionsV0::Snowflake(_) => Self::SNOWFLAKE,
+            TableOptionsV0::Delta(_) => Self::DELTA,
+            TableOptionsV0::Iceberg(_) => Self::ICEBERG,
+            TableOptionsV0::Azure(_) => Self::AZURE,
+            TableOptionsV0::SqlServer(_) => Self::SQL_SERVER,
+            TableOptionsV0::Lance(_) => Self::LANCE,
+            TableOptionsV0::Bson(_) => Self::BSON,
+            TableOptionsV0::Clickhouse(_) => Self::CLICKHOUSE,
+            TableOptionsV0::Cassandra(_) => Self::CASSANDRA,
+            TableOptionsV0::Excel(_) => Self::EXCEL,
+            TableOptionsV0::Sqlite(_) => Self::SQLITE,
         }
     }
 }
 
-impl From<TableOptionsOld> for TableOptions {
-    fn from(value: TableOptionsOld) -> Self {
+impl From<TableOptionsV0> for TableOptionsV1 {
+    fn from(value: TableOptionsV0) -> Self {
         match value {
-            TableOptionsOld::Internal(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Postgres(opts) => TableOptions::new(&opts),
-            TableOptionsOld::BigQuery(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Mysql(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Local(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Gcs(opts) => TableOptions::new(&opts),
-            TableOptionsOld::S3(opts) => TableOptions::new(&opts),
-            TableOptionsOld::MongoDb(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Snowflake(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Delta(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Iceberg(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Azure(opts) => TableOptions::new(&opts),
-            TableOptionsOld::SqlServer(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Lance(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Bson(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Clickhouse(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Cassandra(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Excel(opts) => TableOptions::new(&opts),
-            TableOptionsOld::Sqlite(opts) => TableOptions::new(&opts),
+            TableOptionsV0::Debug(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Internal(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Postgres(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::BigQuery(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Mysql(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Local(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Gcs(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::S3(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::MongoDb(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Snowflake(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Delta(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Iceberg(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Azure(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::SqlServer(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Lance(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Bson(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Clickhouse(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Cassandra(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Excel(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Sqlite(opts) => TableOptionsV1::new(&opts),
         }
     }
 }
 
-impl TryFrom<&TableOptions> for TableOptionsOld {
+impl TryFrom<&TableOptionsV1> for TableOptionsV0 {
     type Error = ProtoConvError;
 
-    fn try_from(value: &TableOptions) -> Result<Self, Self::Error> {
+    fn try_from(value: &TableOptionsV1) -> Result<Self, Self::Error> {
         let _v: serde_json::Value = serde_json::from_slice(&value.options).unwrap();
 
 
@@ -814,69 +817,69 @@ impl TryFrom<&TableOptions> for TableOptionsOld {
                 let obj_store: TableOptionsObjectStore = value.extract()?;
                 let file_type = obj_store.file_type.clone().unwrap_or_default();
                 match file_type.as_ref() {
-                    Self::DELTA => Ok(TableOptionsOld::Delta(obj_store)),
-                    Self::ICEBERG => Ok(TableOptionsOld::Iceberg(obj_store)),
-                    Self::AZURE => Ok(TableOptionsOld::Azure(obj_store)),
-                    Self::LANCE => Ok(TableOptionsOld::Lance(obj_store)),
-                    Self::BSON => Ok(TableOptionsOld::Bson(obj_store)),
+                    Self::DELTA => Ok(TableOptionsV0::Delta(obj_store)),
+                    Self::ICEBERG => Ok(TableOptionsV0::Iceberg(obj_store)),
+                    Self::AZURE => Ok(TableOptionsV0::Azure(obj_store)),
+                    Self::LANCE => Ok(TableOptionsV0::Lance(obj_store)),
+                    Self::BSON => Ok(TableOptionsV0::Bson(obj_store)),
                     _ => Err(ProtoConvError::UnknownVariant(value.name.to_string())),
                 }
             }
             Self::INTERNAL => {
                 let internal: TableOptionsInternal = value.extract()?;
-                Ok(TableOptionsOld::Internal(internal))
+                Ok(TableOptionsV0::Internal(internal))
             }
             Self::POSTGRES => {
                 let postgres: TableOptionsPostgres = value.extract()?;
-                Ok(TableOptionsOld::Postgres(postgres))
+                Ok(TableOptionsV0::Postgres(postgres))
             }
             Self::BIGQUERY => {
                 let bigquery: TableOptionsBigQuery = value.extract()?;
-                Ok(TableOptionsOld::BigQuery(bigquery))
+                Ok(TableOptionsV0::BigQuery(bigquery))
             }
             Self::MYSQL => {
                 let mysql: TableOptionsMysql = value.extract()?;
-                Ok(TableOptionsOld::Mysql(mysql))
+                Ok(TableOptionsV0::Mysql(mysql))
             }
             Self::LOCAL => {
                 let local: TableOptionsLocal = value.extract()?;
-                Ok(TableOptionsOld::Local(local))
+                Ok(TableOptionsV0::Local(local))
             }
             Self::GCS => {
                 let gcs: TableOptionsGcs = value.extract()?;
-                Ok(TableOptionsOld::Gcs(gcs))
+                Ok(TableOptionsV0::Gcs(gcs))
             }
             Self::S3_STORAGE => {
                 let s3: TableOptionsS3 = value.extract()?;
-                Ok(TableOptionsOld::S3(s3))
+                Ok(TableOptionsV0::S3(s3))
             }
             Self::MONGODB => {
                 let mongo: TableOptionsMongoDb = value.extract()?;
-                Ok(TableOptionsOld::MongoDb(mongo))
+                Ok(TableOptionsV0::MongoDb(mongo))
             }
             Self::SNOWFLAKE => {
                 let snowflake: TableOptionsSnowflake = value.extract()?;
-                Ok(TableOptionsOld::Snowflake(snowflake))
+                Ok(TableOptionsV0::Snowflake(snowflake))
             }
             Self::SQL_SERVER => {
                 let sql_server: TableOptionsSqlServer = value.extract()?;
-                Ok(TableOptionsOld::SqlServer(sql_server))
+                Ok(TableOptionsV0::SqlServer(sql_server))
             }
             Self::CLICKHOUSE => {
                 let clickhouse: TableOptionsClickhouse = value.extract()?;
-                Ok(TableOptionsOld::Clickhouse(clickhouse))
+                Ok(TableOptionsV0::Clickhouse(clickhouse))
             }
             Self::CASSANDRA => {
                 let cassandra: TableOptionsCassandra = value.extract()?;
-                Ok(TableOptionsOld::Cassandra(cassandra))
+                Ok(TableOptionsV0::Cassandra(cassandra))
             }
             Self::EXCEL => {
                 let excel: TableOptionsExcel = value.extract()?;
-                Ok(TableOptionsOld::Excel(excel))
+                Ok(TableOptionsV0::Excel(excel))
             }
             Self::SQLITE => {
                 let sqlite: TableOptionsSqlite = value.extract()?;
-                Ok(TableOptionsOld::Sqlite(sqlite))
+                Ok(TableOptionsV0::Sqlite(sqlite))
             }
 
             _ => Err(ProtoConvError::UnknownVariant(value.name.to_string())),
@@ -884,55 +887,126 @@ impl TryFrom<&TableOptions> for TableOptionsOld {
     }
 }
 
-impl fmt::Display for TableOptionsOld {
+impl fmt::Display for TableOptionsV0 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
 
-impl TryFrom<TableOptionsOld> for options::table_options_old::Options {
+impl TryFrom<TableOptionsV0> for options::table_options_v0::Options {
     type Error = ProtoConvError;
-    fn try_from(value: TableOptionsOld) -> Result<Self, Self::Error> {
+    fn try_from(value: TableOptionsV0) -> Result<Self, Self::Error> {
         Ok(match value {
-            TableOptionsOld::Internal(v) => {
-                options::table_options_old::Options::Internal(v.try_into()?)
+            TableOptionsV0::Debug(v) => options::table_options_v0::Options::Debug(v.into()),
+            TableOptionsV0::Internal(v) => {
+                options::table_options_v0::Options::Internal(v.try_into()?)
             }
-            TableOptionsOld::Postgres(v) => options::table_options_old::Options::Postgres(v.into()),
-            TableOptionsOld::BigQuery(v) => options::table_options_old::Options::Bigquery(v.into()),
-            TableOptionsOld::Mysql(v) => options::table_options_old::Options::Mysql(v.into()),
-            TableOptionsOld::Local(v) => options::table_options_old::Options::Local(v.into()),
-            TableOptionsOld::Gcs(v) => options::table_options_old::Options::Gcs(v.into()),
-            TableOptionsOld::S3(v) => options::table_options_old::Options::S3(v.into()),
-            TableOptionsOld::MongoDb(v) => options::table_options_old::Options::Mongo(v.into()),
-            TableOptionsOld::Snowflake(v) => {
-                options::table_options_old::Options::Snowflake(v.into())
+            TableOptionsV0::Postgres(v) => options::table_options_v0::Options::Postgres(v.into()),
+            TableOptionsV0::BigQuery(v) => options::table_options_v0::Options::Bigquery(v.into()),
+            TableOptionsV0::Mysql(v) => options::table_options_v0::Options::Mysql(v.into()),
+            TableOptionsV0::Local(v) => options::table_options_v0::Options::Local(v.into()),
+            TableOptionsV0::Gcs(v) => options::table_options_v0::Options::Gcs(v.into()),
+            TableOptionsV0::S3(v) => options::table_options_v0::Options::S3(v.into()),
+            TableOptionsV0::MongoDb(v) => options::table_options_v0::Options::Mongo(v.into()),
+            TableOptionsV0::Snowflake(v) => options::table_options_v0::Options::Snowflake(v.into()),
+            TableOptionsV0::Delta(v) => options::table_options_v0::Options::Delta(v.into()),
+            TableOptionsV0::Iceberg(v) => options::table_options_v0::Options::Iceberg(v.into()),
+            TableOptionsV0::Azure(v) => options::table_options_v0::Options::Azure(v.into()),
+            TableOptionsV0::SqlServer(v) => options::table_options_v0::Options::SqlServer(v.into()),
+            TableOptionsV0::Lance(v) => options::table_options_v0::Options::Lance(v.into()),
+            TableOptionsV0::Bson(v) => options::table_options_v0::Options::Bson(v.into()),
+            TableOptionsV0::Clickhouse(v) => {
+                options::table_options_v0::Options::Clickhouse(v.into())
             }
-            TableOptionsOld::Delta(v) => options::table_options_old::Options::Delta(v.into()),
-            TableOptionsOld::Iceberg(v) => options::table_options_old::Options::Iceberg(v.into()),
-            TableOptionsOld::Azure(v) => options::table_options_old::Options::Azure(v.into()),
-            TableOptionsOld::SqlServer(v) => {
-                options::table_options_old::Options::SqlServer(v.into())
-            }
-            TableOptionsOld::Lance(v) => options::table_options_old::Options::Lance(v.into()),
-            TableOptionsOld::Bson(v) => options::table_options_old::Options::Bson(v.into()),
-            TableOptionsOld::Clickhouse(v) => {
-                options::table_options_old::Options::Clickhouse(v.into())
-            }
-            TableOptionsOld::Cassandra(v) => {
-                options::table_options_old::Options::Cassandra(v.into())
-            }
-            TableOptionsOld::Excel(v) => options::table_options_old::Options::Excel(v.into()),
-            TableOptionsOld::Sqlite(v) => options::table_options_old::Options::Sqlite(v.into()),
+            TableOptionsV0::Cassandra(v) => options::table_options_v0::Options::Cassandra(v.into()),
+            TableOptionsV0::Excel(v) => options::table_options_v0::Options::Excel(v.into()),
+            TableOptionsV0::Sqlite(v) => options::table_options_v0::Options::Sqlite(v.into()),
         })
     }
 }
 
-impl TryFrom<TableOptionsOld> for options::TableOptionsOld {
+impl TryFrom<options::table_options_v0::Options> for TableOptionsV0 {
     type Error = ProtoConvError;
-    fn try_from(value: TableOptionsOld) -> Result<Self, Self::Error> {
-        Ok(options::TableOptionsOld {
+    fn try_from(value: options::table_options_v0::Options) -> Result<Self, Self::Error> {
+        Ok(match value {
+            options::table_options_v0::Options::Internal(v) => {
+                TableOptionsV0::Internal(v.try_into()?)
+            }
+            options::table_options_v0::Options::Debug(v) => TableOptionsV0::Debug(v.try_into()?),
+            options::table_options_v0::Options::Postgres(v) => {
+                TableOptionsV0::Postgres(v.try_into()?)
+            }
+            options::table_options_v0::Options::Bigquery(v) => {
+                TableOptionsV0::BigQuery(v.try_into()?)
+            }
+            options::table_options_v0::Options::Mysql(v) => TableOptionsV0::Mysql(v.try_into()?),
+            options::table_options_v0::Options::Local(v) => TableOptionsV0::Local(v.try_into()?),
+            options::table_options_v0::Options::Gcs(v) => TableOptionsV0::Gcs(v.try_into()?),
+            options::table_options_v0::Options::S3(v) => TableOptionsV0::S3(v.try_into()?),
+            options::table_options_v0::Options::Mongo(v) => TableOptionsV0::MongoDb(v.try_into()?),
+            options::table_options_v0::Options::Snowflake(v) => {
+                TableOptionsV0::Snowflake(v.try_into()?)
+            }
+            options::table_options_v0::Options::Delta(v) => TableOptionsV0::Delta(v.try_into()?),
+            options::table_options_v0::Options::Iceberg(v) => {
+                TableOptionsV0::Iceberg(v.try_into()?)
+            }
+            options::table_options_v0::Options::Azure(v) => TableOptionsV0::Azure(v.try_into()?),
+            options::table_options_v0::Options::SqlServer(v) => {
+                TableOptionsV0::SqlServer(v.try_into()?)
+            }
+            options::table_options_v0::Options::Lance(v) => TableOptionsV0::Lance(v.try_into()?),
+            options::table_options_v0::Options::Bson(v) => TableOptionsV0::Bson(v.try_into()?),
+            options::table_options_v0::Options::Clickhouse(v) => {
+                TableOptionsV0::Clickhouse(v.try_into()?)
+            }
+            options::table_options_v0::Options::Cassandra(v) => {
+                TableOptionsV0::Cassandra(v.try_into()?)
+            }
+            options::table_options_v0::Options::Excel(v) => TableOptionsV0::Excel(v.try_into()?),
+            options::table_options_v0::Options::Sqlite(v) => TableOptionsV0::Sqlite(v.try_into()?),
+        })
+    }
+}
+
+impl TryFrom<options::TableOptionsV0> for TableOptionsV0 {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsV0) -> Result<Self, Self::Error> {
+        value.options.required("options")
+    }
+}
+
+impl TryFrom<TableOptionsV0> for options::TableOptionsV0 {
+    type Error = ProtoConvError;
+    fn try_from(value: TableOptionsV0) -> Result<Self, Self::Error> {
+        Ok(options::TableOptionsV0 {
             options: Some(value.try_into()?),
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TableOptionsDebug {
+    pub table_type: String,
+}
+
+impl TableOptionsImpl for TableOptionsDebug {
+    const NAME: &'static str = "debug";
+}
+
+impl TryFrom<options::TableOptionsDebug> for TableOptionsDebug {
+    type Error = ProtoConvError;
+    fn try_from(value: options::TableOptionsDebug) -> Result<Self, Self::Error> {
+        Ok(TableOptionsDebug {
+            table_type: value.table_type,
+        })
+    }
+}
+impl From<TableOptionsDebug> for options::TableOptionsDebug {
+    fn from(value: TableOptionsDebug) -> Self {
+        options::TableOptionsDebug {
+            table_type: value.table_type,
+        }
     }
 }
 
