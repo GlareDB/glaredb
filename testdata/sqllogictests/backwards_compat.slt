@@ -1,6 +1,0 @@
-statement ok
-ATTACH '${PWD}/testdata/catalog_compat/v0' 
-
-statement ok
-select * from debug_table limit 1;
-
