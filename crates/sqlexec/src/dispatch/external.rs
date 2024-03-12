@@ -279,8 +279,10 @@ impl<'a> ExternalDispatcher<'a> {
                 Ok(Arc::new(table))
             }
             DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
+                // TODO: parse location into cache as needed.
                 let access = SqliteAccess {
                     db: location.into(),
+                    cache: None,
                 };
                 let state = access.connect().await?;
                 let table = SqliteTableProvider::try_new(state, name).await?;
@@ -606,8 +608,10 @@ impl<'a> ExternalDispatcher<'a> {
                 Ok(Arc::new(table))
             }
             TableOptions::Sqlite(TableOptionsSqlite { location, table }) => {
+                // TODO: parse location into cache as needed.
                 let access = SqliteAccess {
                     db: location.into(),
+                    cache: None,
                 };
                 let state = access.connect().await?;
                 let table = SqliteTableProvider::try_new(state, table).await?;

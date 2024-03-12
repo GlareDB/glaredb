@@ -44,21 +44,14 @@ type DataFusionResult<T> = Result<T, DataFusionError>;
 #[derive(Debug, Clone)]
 pub struct SqliteAccess {
     pub db: PathBuf,
+    pub cache: Option<Arc<tempfile::TempDir>>,
 }
 
 impl SqliteAccess {
     pub async fn connect(&self) -> Result<SqliteAccessState> {
-        let client = SqliteAsyncClient::new(self.db.to_path_buf()).await?;
+        let client = SqliteAsyncClient::new(self.db.to_path_buf(), self.cache.clone()).await?;
         Ok(SqliteAccessState { client })
     }
-    pub async fn connect_with_temp(
-        &self,
-        temp: Arc<tempfile::TempDir>,
-    ) -> Result<SqliteAccessState> {
-        let client = SqliteAsyncClient::from_cached(self.db.to_path_buf(), temp).await?;
-        Ok(SqliteAccessState { client })
-    }
-
 
     pub async fn validate_access(&self) -> Result<()> {
         let state = self.connect().await?;

@@ -432,8 +432,10 @@ impl<'a> SessionPlanner<'a> {
             DatabaseOptions::SQLITE => {
                 let location: String = m.remove_required("location")?;
 
+                // TODO: parse location into cache as needed.
                 let access = SqliteAccess {
                     db: PathBuf::from(&location),
+                    cache: None,
                 };
                 access.validate_access().await?;
 
@@ -699,8 +701,10 @@ impl<'a> SessionPlanner<'a> {
                 let location: String = m.remove_required("location")?;
                 let table: String = m.remove_required("table")?;
 
+                // TODO: parse location into cache as needed.
                 let access = SqliteAccess {
                     db: PathBuf::from(&location),
+                    cache: None,
                 };
                 access.validate_table_access(&table).await?;
 

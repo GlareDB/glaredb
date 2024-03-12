@@ -385,8 +385,10 @@ pub(crate) async fn get_virtual_lister_for_external_db(
             Box::new(state)
         }
         DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
+            // TODO: parse location into cache as needed.
             let access = SqliteAccess {
                 db: location.into(),
+                cache: None,
             };
             let state = access.connect().await.map_err(ExtensionError::access)?;
             Box::new(state)
