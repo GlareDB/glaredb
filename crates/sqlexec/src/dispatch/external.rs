@@ -68,7 +68,6 @@ use protogen::metastore::types::options::{
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
-    TableOptionsSqlite,
     TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
@@ -278,13 +277,16 @@ impl<'a> ExternalDispatcher<'a> {
                 .await?;
                 Ok(Arc::new(table))
             }
-            DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
+            DatabaseOptions::Sqlite(DatabaseOptionsSqlite {
+                location,
+                storage_options,
+            }) => {
                 // TODO: parse location into cache as needed. sqlite-cloud-cache
-                let access = SqliteAccess {
-                    db: location.into(),
-                    cache: None,
-                };
-                let state = access.connect().await?;
+                let state =
+                    SqliteAccess::new(location.as_str().try_into()?, storage_options.to_owned())
+                        .await?
+                        .connect()
+                        .await?;
                 let table = SqliteTableProvider::try_new(state, name).await?;
                 Ok(Arc::new(table))
             }
@@ -607,15 +609,20 @@ impl<'a> ExternalDispatcher<'a> {
 
                 Ok(Arc::new(table))
             }
-            TableOptions::Sqlite(TableOptionsSqlite { location, table }) => {
-                // TODO: parse location into cache as needed. sqlite-cloud-cache
-                let access = SqliteAccess {
-                    db: location.into(),
-                    cache: None,
-                };
-                let state = access.connect().await?;
-                let table = SqliteTableProvider::try_new(state, table).await?;
-                Ok(Arc::new(table))
+            TableOptions::Sqlite(TableOptionsObjectStore {
+                location,
+                storage_options,
+                name,
+                ..
+            }) => {
+                let table = name.clone().ok_or(DispatchError::MissingTable)?;
+                let state =
+                    SqliteAccess::new(location.as_str().try_into()?, Some(storage_options.clone()))
+                        .await?
+                        .connect()
+                        .await?;
+
+                Ok(Arc::new(SqliteTableProvider::try_new(state, table).await?))
             }
         }
     }

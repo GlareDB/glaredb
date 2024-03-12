@@ -38,6 +38,9 @@ pub enum DispatchError {
     #[error("Missing temp table: {name}")]
     MissingTempTable { name: String },
 
+    #[error("Missing table")]
+    MissingTable,
+
     #[error("Missing object with oid: {0}")]
     MissingObjectWithOid(u32),
 

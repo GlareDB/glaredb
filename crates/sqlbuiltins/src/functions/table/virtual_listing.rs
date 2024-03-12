@@ -384,13 +384,16 @@ pub(crate) async fn get_virtual_lister_for_external_db(
                     .map_err(ExtensionError::access)?;
             Box::new(state)
         }
-        DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
-            // TODO: parse location into cache as needed. sqlite-cloud-cache
-            let access = SqliteAccess {
-                db: location.into(),
-                cache: None,
-            };
-            let state = access.connect().await.map_err(ExtensionError::access)?;
+        DatabaseOptions::Sqlite(DatabaseOptionsSqlite {
+            location,
+            storage_options,
+        }) => {
+            let state = SqliteAccess::new(location.as_str().try_into()?, storage_options.clone())
+                .await
+                .map_err(|e| ExtensionError::String(e.to_string()))?
+                .connect()
+                .await
+                .map_err(|e| ExtensionError::String(e.to_string()))?;
             Box::new(state)
         }
         DatabaseOptions::Delta(_) => {
