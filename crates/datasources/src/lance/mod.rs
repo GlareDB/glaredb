@@ -13,7 +13,6 @@ use lance::Dataset;
 use parser::options::StatementOptions;
 use protogen::metastore::types::options::{
     CredentialsOptions,
-    DatabaseOptions,
     StorageOptions,
     TableOptions,
     TableOptionsObjectStore,
@@ -134,18 +133,5 @@ impl Datasource for LanceDatasource {
             .await
             .map_err(|e| e.into())
             .map(|t| Arc::new(t) as _)
-    }
-
-    /// Create a new datasource from the provided database options and credentials.
-    /// If the datasource does not support databases, return `Ok(None)`.
-    async fn table_provider_from_db_options(
-        &self,
-        _schema: &str,
-        _name: &str,
-        _options: &DatabaseOptions,
-        _tunnel_opts: Option<&TunnelOptions>,
-    ) -> Result<Option<Arc<dyn TableProvider>>, DatasourceError> {
-        // lance is not an external database
-        Ok(None)
     }
 }

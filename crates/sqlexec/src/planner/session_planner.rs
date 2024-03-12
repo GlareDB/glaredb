@@ -136,7 +136,7 @@ use sqlbuiltins::validation::{
     validate_table_creds_support,
     validate_table_tunnel_support,
 };
-use sqlbuiltins::DATASOURCE_REGISTRY;
+use sqlbuiltins::DEFAULT_DATASOURCES;
 use tracing::debug;
 
 use super::context_builder::PartialContextProvider;
@@ -455,6 +455,7 @@ impl<'a> SessionPlanner<'a> {
         Ok(plan.into_logical_plan())
     }
 
+    // TODO: This is a temporary implementation. We need to refactor this to use the new table options.
     async fn opts_from_old_tblopts(
         &self,
         datasource: &str,
@@ -947,7 +948,9 @@ impl<'a> SessionPlanner<'a> {
         }
         let m = &mut stmt.options;
         let external_table_options =
-            if let Some(datasource) = DATASOURCE_REGISTRY.get(datasource.as_str()) {
+        // TODO: use a datasource registry available to the planner to get the table options
+        // for the datasource instead of the static [`DEFAULT_DATASOURCES`]
+            if let Some(datasource) = DEFAULT_DATASOURCES.get(datasource.as_str()) {
                 datasource
                     .table_options_from_stmt(m, creds_options, tunnel_options)
                     .map_err(|e| PlanError::InvalidExternalTable { source: e })?
