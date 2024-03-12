@@ -279,7 +279,7 @@ impl crate::Datasource for DebugDatasource {
         options: &TableOptions,
         tunnel_opts: Option<&TunnelOptions>,
     ) -> Result<Arc<dyn TableProvider>, DatasourceError> {
-        let options = TableOptionsDebug::try_from(options).unwrap();
+        let options: TableOptionsDebug = options.extract()?;
 
         Ok(Arc::new(DebugTableProvider {
             typ: options.table_type,

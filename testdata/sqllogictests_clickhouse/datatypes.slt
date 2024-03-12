@@ -2,12 +2,12 @@
 
 # Create an external table that connects to the datatypes table.
 statement ok
-CREATE EXTERNAL TABLE datatypes
-	FROM clickhouse
-	OPTIONS (
-		connection_string = '${CLICKHOUSE_CONN_STRING}',
-		table = 'datatypes'
-	);
+CREATE EXTERNAL TABLE datatypes 
+FROM clickhouse
+OPTIONS (
+	connection_string = '${CLICKHOUSE_CONN_STRING}',
+	table = 'datatypes'
+);
 
 # Check if we can fetch contents of the datatype table.
 #
