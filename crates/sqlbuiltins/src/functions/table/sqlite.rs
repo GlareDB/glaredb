@@ -115,7 +115,7 @@ impl TableFunc for ReadSqlite {
                         let tmpdir = Arc::new(
                             tempfile::Builder::new()
                                 .prefix(
-                                    &vec![
+                                    &[
                                         // TODO this path is too long
                                         session.user_name().as_str(),
                                         &session.database_name(),

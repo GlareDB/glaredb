@@ -432,7 +432,7 @@ impl<'a> SessionPlanner<'a> {
             DatabaseOptions::SQLITE => {
                 let location: String = m.remove_required("location")?;
 
-                // TODO: parse location into cache as needed.
+                // TODO: parse location into cache as needed. sqlite-cloud-cache
                 let access = SqliteAccess {
                     db: PathBuf::from(&location),
                     cache: None,
@@ -701,7 +701,7 @@ impl<'a> SessionPlanner<'a> {
                 let location: String = m.remove_required("location")?;
                 let table: String = m.remove_required("table")?;
 
-                // TODO: parse location into cache as needed.
+                // TODO: parse location into cache as needed. sqlite-cloud-cache
                 let access = SqliteAccess {
                     db: PathBuf::from(&location),
                     cache: None,

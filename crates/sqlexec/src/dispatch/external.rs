@@ -279,7 +279,7 @@ impl<'a> ExternalDispatcher<'a> {
                 Ok(Arc::new(table))
             }
             DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
-                // TODO: parse location into cache as needed.
+                // TODO: parse location into cache as needed. sqlite-cloud-cache
                 let access = SqliteAccess {
                     db: location.into(),
                     cache: None,
@@ -608,7 +608,7 @@ impl<'a> ExternalDispatcher<'a> {
                 Ok(Arc::new(table))
             }
             TableOptions::Sqlite(TableOptionsSqlite { location, table }) => {
-                // TODO: parse location into cache as needed.
+                // TODO: parse location into cache as needed. sqlite-cloud-cache
                 let access = SqliteAccess {
                     db: location.into(),
                     cache: None,
