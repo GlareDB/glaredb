@@ -59,16 +59,8 @@ impl TableFunc for ReadSqlite {
                 let table: IdentValue = args.pop().unwrap().try_into()?;
                 let (source_url, mut storage_options) =
                     table_location_and_opts(ctx, args, &mut opts)?;
-                match source_url {
-                    DatasourceUrl::File(location) => {
-                        let state = SqliteAccess::new(location.into(), None)
-                            .await?
-                            .connect()
-                            .await?;
-
-                        let provider = SqliteTableProvider::try_new(state, table).await?;
-                        Ok(Arc::new(provider))
-                    }
+                let opts = match source_url.clone() {
+                    DatasourceUrl::File(_) => None,
                     DatasourceUrl::Url(_) => {
                         let session = ctx.get_session_vars();
                         storage_options.inner.insert(
@@ -83,14 +75,13 @@ impl TableFunc for ReadSqlite {
                             .to_string(),
                         );
 
-                        let state = SqliteAccess::new(source_url, Some(storage_options))
-                            .await?
-                            .connect()
-                            .await?;
-
-                        Ok(Arc::new(SqliteTableProvider::try_new(state, table).await?))
+                        Some(storage_options)
                     }
-                }
+                };
+
+                let state = SqliteAccess::new(source_url, opts).await?.connect().await?;
+
+                Ok(Arc::new(SqliteTableProvider::try_new(state, table).await?))
             }
             _ => Err(ExtensionError::String("invalid number of args".to_string())),
         }

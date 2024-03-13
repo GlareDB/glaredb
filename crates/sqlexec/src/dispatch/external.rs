@@ -72,6 +72,7 @@ use protogen::metastore::types::options::{
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FunctionRegistry;
+use uuid::Uuid;
 
 use super::{DispatchError, Result};
 
@@ -615,6 +616,12 @@ impl<'a> ExternalDispatcher<'a> {
                 name,
                 ..
             }) => {
+                let mut storage_options = storage_options.to_owned();
+
+                storage_options
+                    .inner
+                    .insert("__tmp_prefix".to_string(), Uuid::new_v4().to_string());
+
                 let table = name.clone().ok_or(DispatchError::MissingTable)?;
                 let state =
                     SqliteAccess::new(location.as_str().try_into()?, Some(storage_options.clone()))
