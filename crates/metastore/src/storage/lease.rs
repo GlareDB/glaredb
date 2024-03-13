@@ -246,6 +246,13 @@ impl LeaseRenewer {
                 });
             }
 
+            if expires_at - LEASE_DURATION + (LEASE_RENEW_INTERVAL / 2) > now {
+                // Don't acquire a new lease. Let the process use the existing
+                // lease. This should help in reducing the number of writes to
+                // the lease object.
+                return Ok(lease.generation);
+            }
+
             // Lease was locked, but expired. This should not happen in normal
             // cases. Log an error so we can catch it and investigate.
             error!( prev_held_by = %held_by, acquiring_process = %self.process_id, db_id = %self.db_id,
