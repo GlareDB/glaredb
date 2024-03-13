@@ -389,11 +389,9 @@ pub(crate) async fn get_virtual_lister_for_external_db(
             storage_options,
         }) => {
             let state = SqliteAccess::new(location.as_str().try_into()?, storage_options.clone())
-                .await
-                .map_err(|e| ExtensionError::String(e.to_string()))?
+                .await?
                 .connect()
-                .await
-                .map_err(|e| ExtensionError::String(e.to_string()))?;
+                .await?;
             Box::new(state)
         }
         DatabaseOptions::Delta(_) => {

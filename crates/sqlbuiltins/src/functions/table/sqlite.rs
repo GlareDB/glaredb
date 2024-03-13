@@ -55,24 +55,7 @@ impl TableFunc for ReadSqlite {
         // the original API.
         match args.len() {
             0 | 1 => Err(ExtensionError::InvalidNumArgs),
-            2 => {
-                let mut args = args.into_iter();
-                let location: String = args.next().unwrap().try_into()?;
-                let table: IdentValue = args.next().unwrap().try_into()?;
-
-                let state = SqliteAccess::new(location.as_str().try_into()?, None)
-                    .await?
-                    .connect()
-                    .await?;
-
-                let provider = SqliteTableProvider::try_new(state, table).await?;
-                Ok(Arc::new(provider))
-            }
-            3 => {
-                // TODO: basically all of this needs to be refactored
-                // to it's own function so that all the other entry
-                // points to the table provider can produce a table provider. It
-
+            2 | 3 => {
                 let table: IdentValue = args.pop().unwrap().try_into()?;
                 let (source_url, mut storage_options) =
                     table_location_and_opts(ctx, args, &mut opts)?;

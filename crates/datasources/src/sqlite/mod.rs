@@ -55,10 +55,19 @@ pub struct SqliteAccess {
 impl SqliteAccess {
     pub async fn new(url: DatasourceUrl, opts: Option<StorageOptions>) -> Result<Self> {
         match url {
-            DatasourceUrl::File(location) => Ok(Self {
-                db: location,
-                cache: None,
-            }),
+            DatasourceUrl::File(ref location) => {
+                if !location.try_exists()? {
+                    Err(SqliteError::NoMatchingObjectFound {
+                        url: url.clone(),
+                        num: 0,
+                    })
+                } else {
+                    Ok(Self {
+                        db: location.clone(),
+                        cache: None,
+                    })
+                }
+            }
             DatasourceUrl::Url(_) => {
                 let storage_options = match opts {
                     Some(v) => v,
