@@ -433,17 +433,7 @@ impl<'a> SessionPlanner<'a> {
                 if let Some(creds) = creds_options {
                     storage_options_with_credentials(&mut storage_options, creds);
                 }
-                if let DatasourceUrl::File(path) = location.as_str().try_into()? {
-                    if !path.exists() {
-                        return Err(internal!(
-                            "path '{}' does not exist",
-                            path.to_str().unwrap_or_default()
-                        ));
-                    }
-                }
-                // don't validate that the remote file exists here:
-                // its expensive, might change in the future, but it's
-                // good to do that early for local files (maybe?)
+
                 DatabaseOptions::Sqlite(DatabaseOptionsSqlite {
                     location: location.clone(),
                     storage_options: Some(storage_options),
