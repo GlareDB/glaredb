@@ -99,12 +99,10 @@ impl RemoteLeaser {
     ///
     /// Errors if some other process holds the lease.
     pub async fn acquire(&self, db_id: Uuid) -> Result<RemoteLease> {
-        let tmp_path = LEASE_INFORMATION_OBJECT.tmp_path(&db_id, &self.process_id);
         let visible_path = LEASE_INFORMATION_OBJECT.visible_path(&db_id);
         let renewer = LeaseRenewer {
             db_id,
             process_id: self.process_id,
-            tmp_path,
             visible_path,
             store: self.store.clone(),
         };
@@ -218,8 +216,6 @@ impl RemoteLease {
 struct LeaseRenewer {
     db_id: Uuid,
     process_id: Uuid,
-    /// Where to store the temporary lease object.
-    tmp_path: ObjectPath,
     /// Path to the visible lease object.
     visible_path: ObjectPath,
     store: Arc<dyn ObjectStore>,
@@ -345,11 +341,9 @@ impl LeaseRenewer {
         let mut bs = BytesMut::new();
         proto.encode(&mut bs)?;
 
-        // TODO: Generate a new temp path everytime? This will definitely avoid
-        // the rate limitation over over-writing the same object here and might
-        // just be enough to delay the "renaming" process so we don't exceed
-        // the limit there as well.
-        self.store.put(&self.tmp_path, bs.freeze()).await?;
+        let tmp_path = LEASE_INFORMATION_OBJECT.tmp_path(&self.db_id, &self.process_id);
+
+        self.store.put(&tmp_path, bs.freeze()).await?;
 
         // Rename...
         //
@@ -359,19 +353,17 @@ impl LeaseRenewer {
         // want to look into object versioning for gcs.
         //
         // See <https://cloud.google.com/storage/docs/object-versioning>
-        self.store
-            .rename(&self.tmp_path, &self.visible_path)
-            .await?;
+        self.store.rename(&tmp_path, &self.visible_path).await?;
 
         Ok(())
     }
 
     async fn write_lease(&self, lease: LeaseInformation) -> Result<()> {
-        let mut final_err = None;
+        let mut final_err = String::new();
 
-        for num_try in 0..3 {
+        for num_try in 1..=5 {
             if let Err(err) = self.try_write_lease(lease.clone()).await {
-                final_err = Some(err.to_string());
+                final_err = err.to_string();
 
                 if let StorageError::ObjectStore(err) = &err {
                     if let ObjectStoreError::Generic { store, source } = err {
@@ -380,7 +372,7 @@ impl LeaseRenewer {
                         // configuration. We should maybe upstream to catch this
                         // and retry properly.
                         if store == &"GCS" && source.contains("429") {
-                            debug!(%err, %num_try, "retrying writing the lease");
+                            debug!(%err, %num_try, "hit rate limit for writing lease object");
                             // Sleep for some time (half the time of when the
                             // request wouldn't throttle) before trying to write
                             // the lease.
@@ -399,7 +391,7 @@ impl LeaseRenewer {
         }
 
         // Return the original error if failed after retries.
-        Err(StorageError::LeaseWriteError(final_err.unwrap()))
+        Err(StorageError::LeaseWriteError(final_err))
     }
 }
 
@@ -429,7 +421,6 @@ mod tests {
         process_id: Uuid,
         db_id: Uuid,
         store: Arc<dyn ObjectStore>,
-        tmp_path: ObjectPath,
         visible_path: ObjectPath,
     }
 
@@ -439,7 +430,6 @@ mod tests {
             LeaseRenewer {
                 db_id: self.db_id,
                 process_id: self.process_id,
-                tmp_path: self.tmp_path.clone(),
                 visible_path: self.visible_path.clone(),
                 store: self.store.clone(),
             }
@@ -455,7 +445,6 @@ mod tests {
                 process_id,
                 db_id,
                 store: Arc::new(TempObjectStore::new().unwrap()),
-                tmp_path: LEASE_INFORMATION_OBJECT.tmp_path(&db_id, &process_id),
                 visible_path: LEASE_INFORMATION_OBJECT.visible_path(&db_id),
             }
         }
