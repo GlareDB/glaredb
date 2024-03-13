@@ -143,6 +143,10 @@ pub struct SqliteAccessState {
 }
 
 impl SqliteAccessState {
+    pub fn is_local_file(&self) -> bool {
+        self.client.is_local_file()
+    }
+
     async fn validate_table_access(&self, table: &str) -> Result<()> {
         let query = format!("SELECT * FROM {table} WHERE FALSE");
         let _ = self.client.query_all(query).await?;
@@ -372,6 +376,12 @@ impl TableProvider for SqliteTableProvider {
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         if overwrite {
             return Err(DataFusionError::Execution("cannot overwrite".to_string()));
+        }
+
+        if !self.state.is_local_file() {
+            return Err(DataFusionError::Execution(
+                "cannot write remote file".to_string(),
+            ));
         }
 
         Ok(Arc::new(SqliteInsertExec {
