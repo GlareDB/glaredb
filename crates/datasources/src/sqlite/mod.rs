@@ -79,7 +79,7 @@ impl SqliteAccess {
                 };
                 let store_access = storage_options_into_store_access(&url, &storage_options)?;
 
-                let accessor = ObjStoreAccessor::new(store_access.clone())?;
+                let accessor = ObjStoreAccessor::new(store_access))?;
                 let mut list = accessor.list_globbed(url.path()).await?;
                 if list.len() != 1 {
                     return Err(SqliteError::NoMatchingObjectFound {
@@ -88,7 +88,7 @@ impl SqliteAccess {
                     });
                 }
 
-                let store = store_access.create_store()?;
+                let store = accessor.into_object_store();
 
                 let obj = list.pop().unwrap().location;
                 let payload = store.get(&obj).await?.bytes().await?;
