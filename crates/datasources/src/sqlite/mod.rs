@@ -79,7 +79,7 @@ impl SqliteAccess {
                 };
                 let store_access = storage_options_into_store_access(&url, &storage_options)?;
 
-                let accessor = ObjStoreAccessor::new(store_access))?;
+                let accessor = ObjStoreAccessor::new(store_access)?;
                 let mut list = accessor.list_globbed(url.path()).await?;
                 if list.len() != 1 {
                     return Err(SqliteError::NoMatchingObjectFound {
