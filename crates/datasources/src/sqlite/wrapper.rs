@@ -22,8 +22,7 @@ pub struct SqliteAsyncClient {
     path: PathBuf,
     inner: async_sqlite::Client,
     // we're just tying the lifetime of the tempdir to this connection
-    #[allow(dead_code)]
-    cache: Option<Arc<tempfile::TempDir>>,
+    _cache: Option<Arc<tempfile::TempDir>>,
 }
 
 impl fmt::Debug for SqliteAsyncClient {
@@ -39,7 +38,11 @@ impl SqliteAsyncClient {
             .open()
             .await?;
 
-        Ok(Self { path, inner, cache })
+        Ok(Self {
+            path,
+            inner,
+            _cache: cache,
+        })
     }
 
     /// Query and return a RecordBatchStream for sqlite data.
