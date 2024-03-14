@@ -27,7 +27,7 @@ use protogen::gen::metastore::storage;
 use protogen::metastore::types::storage::{LeaseInformation, LeaseState};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
-use tracing::{debug_span, error, Instrument};
+use tracing::{debug, debug_span, error, Instrument};
 use uuid::Uuid;
 
 use crate::storage::{Result, SingletonStorageObject, StorageError, StorageObject};
@@ -339,11 +339,16 @@ impl LeaseRenewer {
         Ok(lease)
     }
 
-    async fn write_lease(&self, lease: LeaseInformation) -> Result<()> {
+    async fn try_write_lease(&self, lease: LeaseInformation) -> Result<()> {
         // Write to storage.
         let proto: storage::LeaseInformation = lease.into();
         let mut bs = BytesMut::new();
         proto.encode(&mut bs)?;
+
+        // TODO: Generate a new temp path everytime? This will definitely avoid
+        // the rate limitation over over-writing the same object here and might
+        // just be enough to delay the "renaming" process so we don't exceed
+        // the limit there as well.
         self.store.put(&self.tmp_path, bs.freeze()).await?;
 
         // Rename...
@@ -359,6 +364,42 @@ impl LeaseRenewer {
             .await?;
 
         Ok(())
+    }
+
+    async fn write_lease(&self, lease: LeaseInformation) -> Result<()> {
+        let mut final_err = None;
+
+        for num_try in 0..3 {
+            if let Err(err) = self.try_write_lease(lease.clone()).await {
+                final_err = Some(err.to_string());
+
+                if let StorageError::ObjectStore(err) = &err {
+                    if let ObjectStoreError::Generic { store, source } = err {
+                        let source = source.to_string();
+                        // Error code 429 is not handled by object_store's retry
+                        // configuration. We should maybe upstream to catch this
+                        // and retry properly.
+                        if store == &"GCS" && source.contains("429") {
+                            debug!(%err, %num_try, "retrying writing the lease");
+                            // Sleep for some time (half the time of when the
+                            // request wouldn't throttle) before trying to write
+                            // the lease.
+                            //
+                            // See: https://cloud.google.com/storage/docs/objects#immutability
+                            tokio::time::sleep(Duration::from_millis(500)).await;
+                            continue;
+                        }
+                    }
+                }
+
+                return Err(err);
+            } else {
+                return Ok(());
+            }
+        }
+
+        // Return the original error if failed after retries.
+        Err(StorageError::LeaseWriteError(final_err.unwrap()))
     }
 }
 
