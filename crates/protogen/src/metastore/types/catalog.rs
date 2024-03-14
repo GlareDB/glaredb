@@ -10,9 +10,7 @@ use super::options::{
     CredentialsOptions,
     DatabaseOptions,
     InternalColumnDefinition,
-    TableOptionsInternal,
     TableOptionsV0,
-    TableOptionsV1,
     TunnelOptions,
 };
 use crate::gen::common::arrow::ArrowType;
@@ -454,7 +452,7 @@ impl From<SchemaEntry> for catalog::SchemaEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableEntry {
     pub meta: EntryMeta,
-    pub options: TableOptionsV1,
+    pub options: TableOptionsV0,
     pub tunnel_id: Option<u32>,
     pub access_mode: SourceAccessMode,
     pub columns: Option<Vec<InternalColumnDefinition>>,
@@ -463,8 +461,10 @@ pub struct TableEntry {
 impl TableEntry {
     /// Try to get the columns for this table if available.
     pub fn get_internal_columns(&self) -> Option<Vec<InternalColumnDefinition>> {
-        let options: TableOptionsInternal = self.options.extract().ok()?;
-        Some(options.columns)
+        match self.options {
+            TableOptionsV0::Internal(ref options) => Some(options.columns.clone()),
+            _ => None,
+        }
     }
 
     pub fn get_columns(&self) -> Option<Vec<FieldRef>> {
@@ -481,14 +481,11 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
     type Error = ProtoConvError;
     fn try_from(value: catalog::TableEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
-        let options_old = value.options_v0;
-        let options: TableOptionsV1 = match options_old {
-            Some(options) => {
-                let options_v0: TableOptionsV0 = options.try_into()?;
-                options_v0.into()
-            }
-            None => value.options.required("options")?,
-        };
+        if value.options.is_some() {
+            return Err(ProtoConvError::UnsupportedSerialization(
+                "new table options not suppported",
+            ));
+        }
 
         let columns: Vec<crate::metastore::types::options::InternalColumnDefinition> = value
             .columns
@@ -504,7 +501,7 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
 
         Ok(TableEntry {
             meta,
-            options,
+            options: value.options_v0.required("options_v0")?,
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.try_into()?,
             columns,
@@ -523,10 +520,10 @@ impl From<TableEntry> for catalog::TableEntry {
 
         catalog::TableEntry {
             meta: Some(value.meta.into()),
-            options: Some(value.options.into()),
+            options_v0: Some(value.options.try_into().unwrap()),
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.into(),
-            options_v0: None,
+            options: None,
             columns,
         }
     }

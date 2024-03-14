@@ -881,7 +881,10 @@ impl TryFrom<&TableOptionsV1> for TableOptionsV0 {
                 let sqlite: TableOptionsSqlite = value.extract()?;
                 Ok(TableOptionsV0::Sqlite(sqlite))
             }
-
+            Self::DEBUG => {
+                let debug: TableOptionsDebug = value.extract()?;
+                Ok(TableOptionsV0::Debug(debug))
+            }
             _ => Err(ProtoConvError::UnknownVariant(value.name.to_string())),
         }
     }
@@ -1013,6 +1016,12 @@ impl From<TableOptionsDebug> for options::TableOptionsDebug {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TableOptionsInternal {
     pub columns: Vec<InternalColumnDefinition>,
+}
+
+impl From<TableOptionsInternal> for TableOptionsV0 {
+    fn from(value: TableOptionsInternal) -> Self {
+        TableOptionsV0::Internal(value)
+    }
 }
 
 impl TableOptionsImpl for TableOptionsInternal {

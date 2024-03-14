@@ -30,7 +30,7 @@ use object_store::prefix::PrefixStore;
 use object_store::ObjectStore;
 use object_store_util::shared::SharedObjectStore;
 use protogen::metastore::types::catalog::TableEntry;
-use protogen::metastore::types::options::TableOptionsInternal;
+use protogen::metastore::types::options::{TableOptionsInternal, TableOptionsV0};
 use serde_json::{json, Value};
 use url::Url;
 use uuid::Uuid;
@@ -263,11 +263,10 @@ impl NativeTableStorage {
     }
 
     fn opts_from_ent(table: &TableEntry) -> Result<TableOptionsInternal> {
-        let opts = match table.options.name.as_ref() {
-            "internal" => table.options.extract_unchecked(), // variant is already checked
-            _ => return Err(NativeError::NotNative(table.clone())),
-        };
-        Ok(opts)
+        match table.options {
+            TableOptionsV0::Internal(ref opts) => Ok(opts.clone()),
+            _ => Err(NativeError::NotNative(table.clone())),
+        }
     }
 
     fn create_delta_store_for_table(&self, table: &TableEntry) -> Arc<dyn LogStore> {

@@ -71,7 +71,6 @@ use protogen::metastore::types::options::{
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FunctionRegistry;
-use sqlbuiltins::DEFAULT_DATASOURCES;
 
 use super::{DispatchError, Result};
 
@@ -306,16 +305,10 @@ impl<'a> ExternalDispatcher<'a> {
                 .collect();
             Schema::new(fields)
         });
-        if let Some(ds) = DEFAULT_DATASOURCES.get(&table.options.name) {
-            ds.create_table_provider(&table.options, tunnel.as_ref())
-                .await
-                .map_err(|e| e.into())
-        } else {
-            let tbl_options_old = TableOptionsV0::try_from(&table.options)
-                .map_err(|e| DispatchError::String(format!("Invalid table options: {}", e)))?;
-            self.dispatch_table_options_v1(&tbl_options_old, tunnel, optional_schema)
-                .await
-        }
+
+
+        self.dispatch_table_options_v0(&table.options, tunnel, optional_schema)
+            .await
     }
 
     async fn create_obj_store_table_provider(
@@ -419,7 +412,7 @@ impl<'a> ExternalDispatcher<'a> {
     }
 
     // TODO: Remove this function once everything is using the new table options
-    async fn dispatch_table_options_v1(
+    async fn dispatch_table_options_v0(
         &self,
         opts: &TableOptionsV0,
         tunnel: Option<TunnelOptions>,

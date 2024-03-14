@@ -29,11 +29,9 @@ use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use errors::DebugError;
 use futures::Stream;
-use parser::options::StatementOptions;
-use protogen::metastore::types::options::{CredentialsOptions, TableOptionsV1, TunnelOptions};
+use protogen::metastore::types::options::TunnelOptions;
 
 pub use self::options::{DebugTableType, TableOptionsDebug};
-use crate::DatasourceError;
 
 
 /// Validates if the tunnel is supported and returns whether a tunnel is going
@@ -243,47 +241,5 @@ impl Stream for NeverEndingStream {
 impl RecordBatchStream for NeverEndingStream {
     fn schema(&self) -> ArrowSchemaRef {
         self.batch.schema()
-    }
-}
-pub struct DebugDatasource;
-
-
-#[async_trait]
-impl crate::Datasource for DebugDatasource {
-    fn name(&self) -> &'static str {
-        "debug"
-    }
-
-    fn table_options_from_stmt(
-        &self,
-        opts: &mut StatementOptions,
-        creds: Option<CredentialsOptions>,
-        tunnel_opts: Option<TunnelOptions>,
-    ) -> Result<TableOptionsV1, DatasourceError> {
-        validate_tunnel_connections(tunnel_opts.as_ref()).unwrap();
-
-        let typ: Option<DebugTableType> = match creds {
-            Some(CredentialsOptions::Debug(c)) => c.table_type.parse().ok(),
-            Some(other) => unreachable!("invalid credentials {other} for debug datasource"),
-            None => None,
-        };
-        let typ: DebugTableType = opts
-            .remove_required_or("table_type", typ)
-            .map_err(|e| DebugError::UnknownDebugTableType(e.to_string()))?;
-
-        Ok(TableOptionsDebug { table_type: typ }.into())
-    }
-
-    async fn create_table_provider(
-        &self,
-        options: &TableOptionsV1,
-        tunnel_opts: Option<&TunnelOptions>,
-    ) -> Result<Arc<dyn TableProvider>, DatasourceError> {
-        let options: TableOptionsDebug = options.extract()?;
-
-        Ok(Arc::new(DebugTableProvider {
-            typ: options.table_type,
-            tunnel: tunnel_opts.is_some(),
-        }))
     }
 }

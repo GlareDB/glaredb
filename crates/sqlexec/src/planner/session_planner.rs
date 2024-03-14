@@ -136,7 +136,6 @@ use sqlbuiltins::validation::{
     validate_table_creds_support,
     validate_table_tunnel_support,
 };
-use sqlbuiltins::DEFAULT_DATASOURCES;
 use tracing::debug;
 
 use super::context_builder::PartialContextProvider;
@@ -455,7 +454,10 @@ impl<'a> SessionPlanner<'a> {
         Ok(plan.into_logical_plan())
     }
 
-    // TODO: This is a temporary implementation. We need to refactor this to use the new table options.
+    /// TODO: This is a temporary implementation.
+    /// The datasource should resolve it's own table options
+    /// This is mostly for compatibility with the old table options implementation.
+    /// Once the datasources are updated to use the new table options, this should be removed.
     async fn get_tbl_opts_from_v0(
         &self,
         datasource: &str,
@@ -974,21 +976,12 @@ impl<'a> SessionPlanner<'a> {
             })
             .transpose()?;
         let m = &mut stmt.options;
-        // TODO: use a datasource registry available to the planner to get the table options
-        // for the datasource instead of the static [`DEFAULT_DATASOURCES`]
-        let external_table_options = if let Some(ds) =
-            // if the datasource registry fails, fallback to the v0 table options
-            DEFAULT_DATASOURCES
-                .get(datasource.as_str())
-                .and_then(|ds| {
-                    ds.table_options_from_stmt(m, creds_options.clone(), tunnel_options.clone())
-                        .ok()
-                }) {
-            ds
-        } else {
-            self.get_tbl_opts_from_v0(datasource.as_str(), m, creds_options, tunnel_options)
-                .await?
-        };
+
+        // The mutator uses the new table options, but the catalog uses the old ones.
+        // so we need to convert the old options to the new ones.
+        let external_table_options = self
+            .get_tbl_opts_from_v0(datasource.as_str(), m, creds_options, tunnel_options)
+            .await?;
 
 
         let table_name = object_name_to_table_ref(stmt.name)?;

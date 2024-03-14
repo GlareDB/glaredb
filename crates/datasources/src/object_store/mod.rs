@@ -31,10 +31,8 @@ use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::options::{
     CredentialsOptions,
     StorageOptions,
-    TableOptionsGcs,
     TableOptionsObjectStore,
-    TableOptionsS3,
-    TableOptionsV1,
+    TableOptionsV0,
 };
 
 use self::azure::AzureStoreAccess;
@@ -390,52 +388,72 @@ pub fn file_type_from_path(path: &ObjectStorePath) -> Result<FileType> {
 
 pub fn init_session_registry<'a>(
     runtime: &RuntimeEnv,
-    entries: impl Iterator<Item = &'a TableOptionsV1>,
+    entries: impl Iterator<Item = &'a TableOptionsV0>,
 ) -> Result<()> {
     for opts in entries {
-        let access: Arc<dyn ObjStoreAccess> = match opts.name.as_ref() {
-            "local" => Arc::new(LocalStoreAccess),
+        let access: Arc<dyn ObjStoreAccess> = match opts {
+            TableOptionsV0::Local(_) => Arc::new(LocalStoreAccess),
             // TODO: Consider consolidating Gcs, S3 and Delta and Iceberg `TableOptions` and
             // `ObjStoreAccess` since they largely overlap
-            "gcs" => {
-                let gcs_opts: TableOptionsGcs = opts.extract_unchecked();
-                Arc::new(GcsStoreAccess {
-                    bucket: gcs_opts.bucket,
-                    service_account_key: gcs_opts.service_account_key,
-                    opts: HashMap::new(),
-                })
+            TableOptionsV0::Gcs(opts) => Arc::new(GcsStoreAccess {
+                bucket: opts.bucket.clone(),
+                service_account_key: opts.service_account_key.clone(),
+                opts: HashMap::new(),
+            }),
+            TableOptionsV0::S3(opts) => Arc::new(S3StoreAccess {
+                bucket: opts.bucket.clone(),
+                region: Some(opts.region.clone()),
+                access_key_id: opts.access_key_id.clone(),
+                secret_access_key: opts.secret_access_key.clone(),
+                opts: HashMap::new(),
+            }),
+            TableOptionsV0::Azure(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            }) => {
+                let uri = DatasourceUrl::try_new(location)?;
+                Arc::new(AzureStoreAccess::try_from_uri(&uri, storage_options)?)
             }
-            "s3" => {
-                // todo!
-                let s3_opts: TableOptionsS3 = opts.extract_unchecked();
-
-                Arc::new(S3StoreAccess {
-                    bucket: s3_opts.bucket.clone(),
-                    region: Some(s3_opts.region.clone()),
-                    access_key_id: s3_opts.access_key_id.clone(),
-                    secret_access_key: s3_opts.secret_access_key.clone(),
-                    opts: HashMap::new(),
-                })
-            }
-            "azure" => {
-                let azure_opts: TableOptionsObjectStore = opts.extract_unchecked();
-                let uri = DatasourceUrl::try_new(azure_opts.location)?;
-                Arc::new(AzureStoreAccess::try_from_uri(
-                    &uri,
-                    &azure_opts.storage_options,
-                )?)
-            }
-            "lance" => {
-                let opts: TableOptionsObjectStore = opts.extract_unchecked();
-
-                let url = DatasourceUrl::try_new(opts.location)?;
-                storage_options_into_store_access(&url, &opts.storage_options)
+            TableOptionsV0::Delta(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            })
+            | TableOptionsV0::Iceberg(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            })
+            | TableOptionsV0::Lance(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            })
+            | TableOptionsV0::Bson(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            }) => {
+                let url = DatasourceUrl::try_new(location)?;
+                storage_options_into_store_access(&url, storage_options)
                     .map_err(|e| ObjectStoreSourceError::String(format!("{e}")))?
             }
             // Continue on all others. Explicitly mentioning all the left
             // over options so we don't forget adding object stores that are
             // supported in the future (like azure).
-            _ => continue,
+            TableOptionsV0::Internal(_)
+            | TableOptionsV0::Debug(_)
+            | TableOptionsV0::Postgres(_)
+            | TableOptionsV0::BigQuery(_)
+            | TableOptionsV0::Mysql(_)
+            | TableOptionsV0::MongoDb(_)
+            | TableOptionsV0::Snowflake(_)
+            | TableOptionsV0::SqlServer(_)
+            | TableOptionsV0::Clickhouse(_)
+            | TableOptionsV0::Cassandra(_)
+            | TableOptionsV0::Excel(_)
+            | TableOptionsV0::Sqlite(_) => continue,
         };
 
         let base_url = access.base_url()?;
@@ -445,7 +463,6 @@ pub fn init_session_registry<'a>(
 
     Ok(())
 }
-
 
 /// Update storage options with the provided credentials object contents
 pub(crate) fn storage_options_with_credentials(
