@@ -92,7 +92,7 @@ message CreateFunction {
 message CreateExternalTable {
   string schema = 1;
   string name = 2;
-  options.TableOptionsV1 options = 3;
+  options.TableOptionsV0 options = 3;
   bool if_not_exists = 4;
   optional string tunnel = 5;
   bool or_replace = 6;

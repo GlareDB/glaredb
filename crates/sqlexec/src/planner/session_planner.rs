@@ -465,7 +465,7 @@ impl<'a> SessionPlanner<'a> {
         m: &mut StatementOptions,
         creds_options: Option<CredentialsOptions>,
         tunnel_options: Option<TunnelOptions>,
-    ) -> Result<TableOptionsV1> {
+    ) -> Result<TableOptionsV0> {
         Ok(match datasource {
             TableOptionsV0::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;

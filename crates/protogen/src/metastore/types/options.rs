@@ -982,6 +982,12 @@ pub struct TableOptionsDebug {
     pub table_type: String,
 }
 
+impl From<TableOptionsDebug> for TableOptionsV0 {
+    fn from(value: TableOptionsDebug) -> Self {
+        TableOptionsV0::Debug(value)
+    }
+}
+
 impl Default for TableOptionsDebug {
     fn default() -> Self {
         TableOptionsDebug {
@@ -1087,6 +1093,12 @@ pub struct TableOptionsPostgres {
     pub table: String,
 }
 
+impl From<TableOptionsPostgres> for TableOptionsV0 {
+    fn from(value: TableOptionsPostgres) -> Self {
+        TableOptionsV0::Postgres(value)
+    }
+}
+
 impl TableOptionsImpl for TableOptionsPostgres {
     const NAME: &'static str = "postgres";
 }
@@ -1119,6 +1131,12 @@ pub struct TableOptionsBigQuery {
     pub project_id: String,
     pub dataset_id: String,
     pub table_id: String,
+}
+
+impl From<TableOptionsBigQuery> for TableOptionsV0 {
+    fn from(value: TableOptionsBigQuery) -> Self {
+        TableOptionsV0::BigQuery(value)
+    }
 }
 
 impl TableOptionsImpl for TableOptionsBigQuery {
@@ -1156,6 +1174,12 @@ pub struct TableOptionsMysql {
     pub table: String,
 }
 
+impl From<TableOptionsMysql> for TableOptionsV0 {
+    fn from(value: TableOptionsMysql) -> Self {
+        TableOptionsV0::Mysql(value)
+    }
+}
+
 impl TableOptionsImpl for TableOptionsMysql {
     const NAME: &'static str = "mysql";
 }
@@ -1187,6 +1211,12 @@ pub struct TableOptionsLocal {
     pub location: String,
     pub file_type: String,
     pub compression: Option<String>,
+}
+
+impl From<TableOptionsLocal> for TableOptionsV0 {
+    fn from(value: TableOptionsLocal) -> Self {
+        TableOptionsV0::Local(value)
+    }
 }
 
 impl TableOptionsImpl for TableOptionsLocal {
@@ -1303,6 +1333,12 @@ pub struct TableOptionsMongoDb {
     pub collection: String,
 }
 
+impl From<TableOptionsMongoDb> for TableOptionsV0 {
+    fn from(value: TableOptionsMongoDb) -> Self {
+        TableOptionsV0::MongoDb(value)
+    }
+}
+
 impl TableOptionsImpl for TableOptionsMongoDb {
     const NAME: &'static str = "mongo";
 }
@@ -1337,6 +1373,12 @@ pub struct TableOptionsExcel {
     pub compression: Option<String>,
     pub sheet_name: Option<String>,
     pub has_header: bool,
+}
+
+impl From<TableOptionsExcel> for TableOptionsV0 {
+    fn from(value: TableOptionsExcel) -> Self {
+        TableOptionsV0::Excel(value)
+    }
 }
 
 impl TableOptionsImpl for TableOptionsExcel {
@@ -1378,6 +1420,12 @@ pub struct TableOptionsSqlServer {
     pub table: String,
 }
 
+impl From<TableOptionsSqlServer> for TableOptionsV0 {
+    fn from(value: TableOptionsSqlServer) -> Self {
+        TableOptionsV0::SqlServer(value)
+    }
+}
+
 impl TableOptionsImpl for TableOptionsSqlServer {
     const NAME: &'static str = "sql_server";
 }
@@ -1409,6 +1457,12 @@ pub struct TableOptionsClickhouse {
     pub connection_string: String,
     pub table: String,
     pub database: Option<String>,
+}
+
+impl From<TableOptionsClickhouse> for TableOptionsV0 {
+    fn from(value: TableOptionsClickhouse) -> Self {
+        TableOptionsV0::Clickhouse(value)
+    }
 }
 
 impl TableOptionsImpl for TableOptionsClickhouse {
@@ -1443,6 +1497,12 @@ pub struct TableOptionsCassandra {
     pub table: String,
     pub username: Option<String>,
     pub password: Option<String>,
+}
+
+impl From<TableOptionsCassandra> for TableOptionsV0 {
+    fn from(value: TableOptionsCassandra) -> Self {
+        TableOptionsV0::Cassandra(value)
+    }
 }
 
 impl TableOptionsImpl for TableOptionsCassandra {
@@ -1516,6 +1576,12 @@ pub struct TableOptionsSnowflake {
     pub table_name: String,
 }
 
+impl From<TableOptionsSnowflake> for TableOptionsV0 {
+    fn from(value: TableOptionsSnowflake) -> Self {
+        TableOptionsV0::Snowflake(value)
+    }
+}
+
 impl TableOptionsImpl for TableOptionsSnowflake {
     const NAME: &'static str = "snowflake";
 }
@@ -1559,6 +1625,7 @@ pub struct TableOptionsObjectStore {
     pub compression: Option<String>,
     pub schema_sample_size: Option<i64>,
 }
+
 
 impl TableOptionsImpl for TableOptionsObjectStore {
     const NAME: &'static str = "object_store";

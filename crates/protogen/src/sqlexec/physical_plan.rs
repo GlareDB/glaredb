@@ -198,7 +198,7 @@ pub struct CreateExternalTableExec {
     #[prost(bool, tag = "3")]
     pub if_not_exists: bool,
     #[prost(message, tag = "4")]
-    pub table_options: Option<crate::gen::metastore::options::TableOptionsV1>,
+    pub table_options: Option<crate::gen::metastore::options::TableOptionsV0>,
     #[prost(message, optional, tag = "5")]
     pub tunnel: Option<String>,
     #[prost(bool, tag = "6")]

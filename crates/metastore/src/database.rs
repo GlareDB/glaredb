@@ -898,7 +898,7 @@ impl State {
                         external: true,
                         is_temp: false,
                     },
-                    options: (&create_ext.options).try_into()?,
+                    options: create_ext.options.clone(),
                     tunnel_id,
                     access_mode: SourceAccessMode::ReadOnly,
                     columns: create_ext.columns,
