@@ -1,12 +1,5 @@
 //! Data source implementations.
 
-
-use std::sync::Arc;
-
-use async_trait::async_trait;
-use datafusion::datasource::TableProvider;
-use parser::options::StatementOptions;
-use protogen::metastore::types::options::{CredentialsOptions, TableOptionsV1, TunnelOptions};
 pub mod bigquery;
 pub mod bson;
 pub mod cassandra;
@@ -25,33 +18,3 @@ pub mod postgres;
 pub mod snowflake;
 pub mod sqlite;
 pub mod sqlserver;
-
-
-pub type DatasourceError = Box<dyn std::error::Error + Send + Sync>;
-
-#[async_trait]
-/// The `Datasource` trait is used to create a new `TableProvider` from the provided options.
-///
-/// The current **implementation** is not designed to be an end-all solution, but as a starting point. It is
-/// highly influenced the implementation details. It's highly likely that these methods will change in the future.
-/// The **design** is simply to encapsulate the logic for creating a TableProvider from a common set of options.
-pub trait Datasource: Send + Sync {
-    fn name(&self) -> &'static str;
-
-    /// Create a new datasource from the provided options
-    /// CREATE EXTERNAL TABLE foo FROM <name> OPTIONS (...) [CREDENTIALS] (...) [TUNNEL] (...)
-    // TODO: does this need `&mut StatementOptions`? or should it be `&StatementOptions`?
-    fn table_options_from_stmt(
-        &self,
-        opts: &mut StatementOptions,
-        creds: Option<CredentialsOptions>,
-        tunnel_opts: Option<TunnelOptions>,
-    ) -> Result<TableOptionsV1, DatasourceError>;
-
-
-    async fn create_table_provider(
-        &self,
-        tbl_options: &TableOptionsV1,
-        _tunnel_opts: Option<&TunnelOptions>,
-    ) -> Result<Arc<dyn TableProvider>, DatasourceError>;
-}
