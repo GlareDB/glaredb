@@ -6,7 +6,6 @@ use protogen::metastore::types::options::{
     TunnelOptions,
 };
 
-
 #[derive(thiserror::Error, Debug)]
 pub enum ValidationError {
     #[error("Invalid object name length: {length}, max: {max}")]
@@ -66,7 +65,7 @@ pub fn validate_table_tunnel_support(table: &str, tunnel: &str) -> Result<()> {
     if matches!(
         (table, tunnel),
         // Debug
-        ("debug", TunnelOptions::DEBUG)
+        (TableOptionsV0::DEBUG, TunnelOptions::DEBUG)
         // Postgres
         | (TableOptionsV0::POSTGRES, TunnelOptions::SSH)
         // MySQL
@@ -104,7 +103,7 @@ pub fn validate_table_creds_support(table: &str, creds: &str) -> Result<()> {
     if matches!(
         (table, creds),
         // Debug
-        ("debug", CredentialsOptions::DEBUG) |
+        (TableOptionsV0::DEBUG, CredentialsOptions::DEBUG) |
         // Google cloud
         (TableOptionsV0::GCS, CredentialsOptions::GCP) |
         (TableOptionsV0::BIGQUERY, CredentialsOptions::GCP) |
