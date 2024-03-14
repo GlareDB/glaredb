@@ -92,16 +92,6 @@ impl From<InternalColumnDefinition> for options::InternalColumnDefinition {
     }
 }
 
-
-// #[cfg(test)]
-// mod tests {
-//     use datafusion::arrow::datatypes::DataType;
-
-//     use super::*;
-
-//     #[test]
-//     fn test_roundtrip() {}
-// }
 // Database options
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -517,7 +507,6 @@ impl From<DatabaseOptionsDeltaLake> for options::DatabaseOptionsDeltaLake {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-
 pub enum DeltaLakeCatalog {
     Unity(DeltaLakeUnityCatalog),
 }
@@ -1721,7 +1710,6 @@ impl From<TunnelOptionsSsh> for options::TunnelOptionsSsh {
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-
 pub enum CredentialsOptions {
     Debug(CredentialsOptionsDebug),
     Gcp(CredentialsOptionsGcp),
