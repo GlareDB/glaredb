@@ -467,7 +467,14 @@ impl<'a> SessionPlanner<'a> {
     ) -> Result<TableOptionsV1> {
         Ok(match datasource {
             TableOptionsV0::DEBUG => {
-                let table_type: DebugTableType = m.remove_required("table_type")?;
+                datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
+
+                let typ: Option<DebugTableType> = match creds_options {
+                    Some(CredentialsOptions::Debug(c)) => Some(c.table_type.parse()?),
+                    Some(other) => unreachable!("invalid credentials {other} for debug datasource"),
+                    None => None,
+                };
+                let table_type: DebugTableType = m.remove_required_or("table_type", typ)?;
                 TableOptionsDebug { table_type }.into()
             }
             TableOptionsV0::POSTGRES => {
