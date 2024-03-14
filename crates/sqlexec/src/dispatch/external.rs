@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use catalog::session_catalog::SessionCatalog;
@@ -15,7 +16,7 @@ use datasources::bson::table::bson_streaming_table;
 use datasources::cassandra::CassandraTableProvider;
 use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider, OwnedClickhouseTableRef};
 use datasources::common::url::DatasourceUrl;
-use datasources::debug::DebugTableProvider;
+use datasources::debug::DebugTableType;
 use datasources::excel::table::ExcelTableProvider;
 use datasources::excel::ExcelTable;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
@@ -54,6 +55,7 @@ use protogen::metastore::types::options::{
     TableOptionsBigQuery,
     TableOptionsCassandra,
     TableOptionsClickhouse,
+    TableOptionsDebug,
     TableOptionsExcel,
     TableOptionsGcs,
     TableOptionsInternal,
@@ -149,11 +151,9 @@ impl<'a> ExternalDispatcher<'a> {
         // TODO: use the DatasourceRegistry to dispatch instead
         match &db.options {
             DatabaseOptions::Debug(DatabaseOptionsDebug {}) => {
-                let tbl_type = name.parse()?;
-                Ok(Arc::new(DebugTableProvider {
-                    typ: tbl_type,
-                    tunnel: tunnel.is_some(),
-                }))
+                // Use name of the table as table type here.
+                let provider = DebugTableType::from_str(name)?;
+                Ok(provider.into_table_provider(tunnel.as_ref()))
             }
             DatabaseOptions::Internal(_) => unimplemented!(),
             DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
@@ -419,10 +419,10 @@ impl<'a> ExternalDispatcher<'a> {
         schema: Option<Schema>,
     ) -> Result<Arc<dyn TableProvider>> {
         match &opts {
-            TableOptionsV0::Debug(dbg) => Ok(Arc::new(DebugTableProvider {
-                typ: dbg.table_type.parse()?,
-                tunnel: tunnel.is_some(),
-            })),
+            TableOptionsV0::Debug(TableOptionsDebug { table_type }) => {
+                let provider = DebugTableType::from_str(table_type)?;
+                Ok(provider.into_table_provider(tunnel.as_ref()))
+            }
             TableOptionsV0::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
             TableOptionsV0::Excel(TableOptionsExcel {
                 location,
