@@ -1254,6 +1254,12 @@ pub struct TableOptionsGcs {
     pub compression: Option<String>,
 }
 
+impl From<TableOptionsGcs> for TableOptionsV0 {
+    fn from(value: TableOptionsGcs) -> Self {
+        TableOptionsV0::Gcs(value)
+    }
+}
+
 impl TableOptionsImpl for TableOptionsGcs {
     const NAME: &'static str = "gcs";
 }
@@ -1292,6 +1298,12 @@ pub struct TableOptionsS3 {
     pub location: String,
     pub file_type: String,
     pub compression: Option<String>,
+}
+
+impl From<TableOptionsS3> for TableOptionsV0 {
+    fn from(value: TableOptionsS3) -> Self {
+        TableOptionsV0::S3(value)
+    }
 }
 
 impl TableOptionsImpl for TableOptionsS3 {
@@ -1538,6 +1550,12 @@ impl From<TableOptionsCassandra> for options::TableOptionsCassandra {
 pub struct TableOptionsSqlite {
     pub location: String,
     pub table: String,
+}
+
+impl From<TableOptionsSqlite> for TableOptionsV0 {
+    fn from(value: TableOptionsSqlite) -> Self {
+        TableOptionsV0::Sqlite(value)
+    }
 }
 
 impl TableOptionsImpl for TableOptionsSqlite {
