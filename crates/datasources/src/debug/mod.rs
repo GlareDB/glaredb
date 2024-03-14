@@ -1,15 +1,23 @@
 //! A collection of debug datasources.
 pub mod errors;
-pub mod options;
 
 use std::any::Any;
 use std::fmt;
 use std::pin::Pin;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{DataType, Field, Fields, SchemaRef as ArrowSchemaRef};
+use datafusion::arrow::array::Int32Array;
+use datafusion::arrow::datatypes::{
+    DataType,
+    Field,
+    Fields,
+    Schema as ArrowSchema,
+    SchemaRef as ArrowSchemaRef,
+};
+use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
@@ -29,10 +37,52 @@ use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use errors::DebugError;
 use futures::Stream;
+use parser::errors::ParserError;
+use parser::options::{OptionValue, ParseOptionValue};
 use protogen::metastore::types::options::TunnelOptions;
+use serde::{Deserialize, Serialize};
 
-pub use self::options::{DebugTableType, TableOptionsDebug};
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DebugTableType {
+    /// A table that will always return an error on the record batch stream.
+    ErrorDuringExecution,
+    /// A table that never stops sending record batches.
+    NeverEnding,
+}
 
+impl ParseOptionValue<DebugTableType> for OptionValue {
+    fn parse_opt(self) -> Result<DebugTableType, ParserError> {
+        let opt = match self {
+            Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => s
+                .parse()
+                .map_err(|e: DebugError| ParserError::ParserError(e.to_string()))?,
+            o => {
+                return Err(ParserError::ParserError(format!(
+                    "Expected a string, got: {}",
+                    o
+                )))
+            }
+        };
+        Ok(opt)
+    }
+}
+impl fmt::Display for DebugTableType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl FromStr for DebugTableType {
+    type Err = DebugError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "error_during_execution" => DebugTableType::ErrorDuringExecution,
+            "never_ending" => DebugTableType::NeverEnding,
+            other => return Err(DebugError::UnknownDebugTableType(other.to_string())),
+        })
+    }
+}
 
 /// Validates if the tunnel is supported and returns whether a tunnel is going
 /// to be used or not for  the connection.
@@ -43,6 +93,82 @@ pub fn validate_tunnel_connections(
         None => Ok(false),
         Some(TunnelOptions::Debug(_)) => Ok(true),
         Some(other) => Err(DebugError::InvalidTunnel(other.to_string())),
+    }
+}
+
+impl DebugTableType {
+    /// Get the arrow schema for the debug table type.
+    pub fn arrow_schema(&self) -> ArrowSchema {
+        match self {
+            DebugTableType::ErrorDuringExecution => {
+                ArrowSchema::new(vec![Field::new("a", DataType::Int32, false)])
+            }
+            DebugTableType::NeverEnding => ArrowSchema::new(vec![
+                Field::new("a", DataType::Int32, false),
+                Field::new("b", DataType::Int32, false),
+                Field::new("c", DataType::Int32, false),
+            ]),
+        }
+    }
+
+    /// Get the projected arrow schema.
+    pub fn projected_arrow_schema(
+        &self,
+        projection: Option<&Vec<usize>>,
+    ) -> ArrowResult<ArrowSchema> {
+        match projection {
+            Some(proj) => self.arrow_schema().project(proj),
+            None => Ok(self.arrow_schema()),
+        }
+    }
+
+    /// Produces a record batch that matches this debug table's schema.
+    pub fn record_batch(&self, tunnel: bool) -> RecordBatch {
+        let base = if tunnel { 10_i32 } else { 1_i32 };
+        match self {
+            DebugTableType::ErrorDuringExecution => RecordBatch::try_new(
+                Arc::new(self.arrow_schema()),
+                vec![Arc::new(Int32Array::from_value(base, 30))],
+            )
+            .unwrap(),
+            DebugTableType::NeverEnding => RecordBatch::try_new(
+                Arc::new(self.arrow_schema()),
+                vec![
+                    Arc::new(Int32Array::from_value(base, 30)),
+                    Arc::new(Int32Array::from_value(base * 2, 30)),
+                    Arc::new(Int32Array::from_value(base * 3, 30)),
+                ],
+            )
+            .unwrap(),
+        }
+    }
+
+    /// Get a projected record batch for this debug table type.
+    pub fn projected_record_batch(
+        &self,
+        tunnel: bool,
+        projection: Option<&Vec<usize>>,
+    ) -> ArrowResult<RecordBatch> {
+        match projection {
+            Some(proj) => self.record_batch(tunnel).project(proj),
+            None => Ok(self.record_batch(tunnel)),
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            DebugTableType::ErrorDuringExecution => "error_during_execution",
+            DebugTableType::NeverEnding => "never_ending",
+        }
+    }
+
+    pub fn into_table_provider(
+        self,
+        tunnel_opts: Option<&TunnelOptions>,
+    ) -> Arc<dyn TableProvider> {
+        let tunnel = validate_tunnel_connections(tunnel_opts)
+            .expect("datasources should be validated with tunnels before dispatch");
+        Arc::new(DebugTableProvider { typ: self, tunnel })
     }
 }
 
@@ -76,8 +202,8 @@ impl VirtualLister for DebugVirtualLister {
 }
 
 pub struct DebugTableProvider {
-    pub typ: DebugTableType,
-    pub tunnel: bool,
+    typ: DebugTableType,
+    tunnel: bool,
 }
 
 #[async_trait]
