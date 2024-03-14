@@ -25,7 +25,7 @@ use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableRef};
 use datasources::common::ssh::key::SshKey;
 use datasources::common::ssh::{SshConnection, SshConnectionParameters};
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
-use datasources::debug::{DebugTableType, TableOptionsDebug};
+use datasources::debug::DebugTableType;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lake::storage_options_into_object_store;
@@ -108,6 +108,7 @@ use protogen::metastore::types::options::{
     TableOptionsBigQuery,
     TableOptionsCassandra,
     TableOptionsClickhouse,
+    TableOptionsDebug,
     TableOptionsExcel,
     TableOptionsGcs,
     TableOptionsLocal,
@@ -475,7 +476,10 @@ impl<'a> SessionPlanner<'a> {
                     None => None,
                 };
                 let table_type: DebugTableType = m.remove_required_or("table_type", typ)?;
-                TableOptionsDebug { table_type }.into()
+                TableOptionsDebug {
+                    table_type: table_type.as_str().to_string(),
+                }
+                .into()
             }
             TableOptionsV0::POSTGRES => {
                 let connection_string = get_pg_conn_str(m)?;
