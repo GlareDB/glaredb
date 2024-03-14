@@ -2,27 +2,34 @@ use std::any::Any;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use datafusion::arrow::array::RecordBatch;
 use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::error::ArrowError;
+use datafusion::arrow::record_batch::RecordBatchIterator;
 use datafusion::datasource::TableProvider;
-use datafusion::error::Result;
+use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::context::SessionState;
+use datafusion::execution::TaskContext;
 use datafusion::logical_expr::{Expr, TableType};
-use datafusion::physical_plan::ExecutionPlan;
-use lance::dataset::builder::DatasetBuilder;
-use lance::Dataset;
-use parser::options::StatementOptions;
-use protogen::metastore::types::options::{
-    CredentialsOptions,
-    StorageOptions,
-    TableOptionsObjectStore,
-    TableOptionsV1,
-    TunnelOptions,
+use datafusion::physical_plan::expressions::PhysicalSortExpr;
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use datafusion::physical_plan::{
+    execute_stream,
+    DisplayAs,
+    DisplayFormatType,
+    ExecutionPlan,
+    Partitioning,
+    SendableRecordBatchStream,
+    Statistics,
 };
+use futures::StreamExt;
+use lance::dataset::builder::DatasetBuilder;
+use lance::dataset::{WriteMode, WriteParams};
+use lance::Dataset;
+use protogen::metastore::types::options::StorageOptions;
 
-use crate::object_store::errors::ObjectStoreSourceError;
-use crate::object_store::storage_options_with_credentials;
-use crate::{Datasource, DatasourceError};
-pub mod insert;
+use crate::common::util::{create_count_record_batch, COUNT_SCHEMA};
 
 pub struct LanceTable {
     dataset: Dataset,
@@ -69,69 +76,114 @@ impl TableProvider for LanceTable {
         input: Arc<dyn ExecutionPlan>,
         _overwrite: bool,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        Ok(Arc::new(self::insert::LanceInsertExecPlan::new(
+        Ok(Arc::new(LanceInsertExecPlan::new(
             self.dataset.clone(),
             input,
         )))
     }
 }
 
+struct LanceInsertExecPlan {
+    dataset: Dataset,
+    input: Arc<dyn ExecutionPlan>,
+    metrics: ExecutionPlanMetricsSet,
+}
 
-pub struct LanceDatasource;
+impl LanceInsertExecPlan {
+    fn new(dataset: Dataset, input: Arc<dyn ExecutionPlan>) -> Self {
+        Self {
+            dataset,
+            input,
+            metrics: ExecutionPlanMetricsSet::new(),
+        }
+    }
+}
 
-#[async_trait]
-impl Datasource for LanceDatasource {
-    fn name(&self) -> &'static str {
-        "lance"
+impl DisplayAs for LanceInsertExecPlan {
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "LanceInsertExecPlan")
+    }
+}
+
+impl std::fmt::Debug for LanceInsertExecPlan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LanceInsertExecPlan: {:?}", self.schema())
+    }
+}
+
+impl ExecutionPlan for LanceInsertExecPlan {
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
-    /// Create a new datasource from the provided table options and credentials.
-    /// CREATE EXTERNAL TABLE foo FROM <name> OPTIONS (...) [CREDENTIALS] (...) [TUNNEL] (...)
-    // TODO: the datasource should have control over it's own CredentialsOptions and TunnelOptions
-    fn table_options_from_stmt(
-        &self,
-        opts: &mut StatementOptions,
-        creds: Option<CredentialsOptions>,
-        _tunnel_opts: Option<TunnelOptions>,
-    ) -> Result<TableOptionsV1, DatasourceError> {
-        let location: String = opts.remove_required("location")?;
-        let mut storage_options = StorageOptions::try_from(opts)?;
-        if let Some(creds) = creds {
-            storage_options_with_credentials(&mut storage_options, creds);
-        }
-
-        Ok(TableOptionsObjectStore {
-            location,
-            storage_options,
-            file_type: Some("lance".to_string()),
-            compression: None,
-            schema_sample_size: None,
-        }
-        .into())
+    fn schema(&self) -> SchemaRef {
+        COUNT_SCHEMA.clone()
     }
 
+    fn output_partitioning(&self) -> Partitioning {
+        Partitioning::UnknownPartitioning(1)
+    }
 
-    async fn create_table_provider(
-        &self,
-        options: &TableOptionsV1,
-        _tunnel_opts: Option<&TunnelOptions>,
-    ) -> Result<Arc<dyn TableProvider>, DatasourceError> {
-        let TableOptionsObjectStore {
-            file_type,
-            location,
-            storage_options,
-            ..
-        } = options.extract()?;
-        if let Some(file_type) = file_type {
-            if file_type.as_str() != "lance" {
-                return Err(ObjectStoreSourceError::NotSupportFileType(file_type).into());
-            }
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        None
+    }
+
+    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
+        Vec::new()
+    }
+
+    fn with_new_children(
+        self: Arc<Self>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
+        if children.is_empty() {
+            Ok(self)
+        } else {
+            Err(DataFusionError::Execution(
+                "cannot replace children for LanceInsertExecPlan".to_string(),
+            ))
         }
+    }
 
+    fn execute(
+        &self,
+        _partition: usize,
+        ctx: Arc<TaskContext>,
+    ) -> datafusion::error::Result<SendableRecordBatchStream> {
+        let mut stream = execute_stream(self.input.clone(), ctx)?.chunks(32);
+        let mut ds = self.dataset.clone();
+        let schema = self.input.schema();
 
-        LanceTable::new(&location, storage_options)
-            .await
-            .map_err(|e| e.into())
-            .map(|t| Arc::new(t) as _)
+        Ok(Box::pin(RecordBatchStreamAdapter::new(
+            schema.clone(),
+            futures::stream::once(async move {
+                let write_opts = WriteParams {
+                    mode: WriteMode::Append,
+                    ..Default::default()
+                };
+
+                let mut count: u64 = 0;
+                while let Some(batches) = stream.next().await {
+                    let start = ds.count_rows().await?;
+                    let rbi = RecordBatchIterator::new(
+                        batches
+                            .into_iter()
+                            .map(|v| v.map_err(|dfe| ArrowError::ExternalError(Box::new(dfe)))),
+                        schema.clone(),
+                    );
+                    ds.append(rbi, Some(write_opts.clone())).await?;
+                    count += (ds.count_rows().await? - start) as u64;
+                }
+                Ok::<RecordBatch, DataFusionError>(create_count_record_batch(count))
+            }),
+        )))
+    }
+
+    fn statistics(&self) -> datafusion::error::Result<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
     }
 }

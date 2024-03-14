@@ -1424,11 +1424,11 @@ mod tests {
     use std::collections::HashSet;
 
     use datafusion::arrow::datatypes::DataType;
-    use datasources::debug::options::TableOptionsDebug;
     use object_store::memory::InMemory;
     use protogen::metastore::types::options::{
         DatabaseOptionsDebug,
         InternalColumnDefinition,
+        TableOptionsDebug,
         TableOptionsInternal,
     };
     use protogen::metastore::types::service::{

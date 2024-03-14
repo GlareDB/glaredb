@@ -23,17 +23,9 @@ use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
 use errors::{ObjectStoreSourceError, Result};
 use futures::StreamExt;
 use glob::{MatchOptions, Pattern};
-use object_store::aws::AmazonS3ConfigKey;
-use object_store::azure::AzureConfigKey;
-use object_store::gcp::GoogleConfigKey;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
-use protogen::metastore::types::options::{
-    CredentialsOptions,
-    StorageOptions,
-    TableOptionsObjectStore,
-    TableOptionsV0,
-};
+use protogen::metastore::types::options::{TableOptionsObjectStore, TableOptionsV0};
 
 use self::azure::AzureStoreAccess;
 use self::glob_util::{get_resolved_patterns, ResolvedPattern};
@@ -462,41 +454,4 @@ pub fn init_session_registry<'a>(
     }
 
     Ok(())
-}
-
-/// Update storage options with the provided credentials object contents
-pub(crate) fn storage_options_with_credentials(
-    storage_options: &mut StorageOptions,
-    creds: CredentialsOptions,
-) {
-    match creds {
-        CredentialsOptions::Debug(_) => {}  // Nothing to do here
-        CredentialsOptions::OpenAI(_) => {} // Nothing to do here. OpenAI is not a storage backend
-        CredentialsOptions::Gcp(creds) => {
-            storage_options.inner.insert(
-                GoogleConfigKey::ServiceAccountKey.as_ref().to_string(),
-                creds.service_account_key,
-            );
-        }
-        CredentialsOptions::Aws(creds) => {
-            storage_options.inner.insert(
-                AmazonS3ConfigKey::AccessKeyId.as_ref().to_string(),
-                creds.access_key_id,
-            );
-            storage_options.inner.insert(
-                AmazonS3ConfigKey::SecretAccessKey.as_ref().to_string(),
-                creds.secret_access_key,
-            );
-        }
-        CredentialsOptions::Azure(creds) => {
-            storage_options.inner.insert(
-                AzureConfigKey::AccountName.as_ref().to_string(),
-                creds.account_name,
-            );
-            storage_options.inner.insert(
-                AzureConfigKey::AccessKey.as_ref().to_string(),
-                creds.access_key,
-            );
-        }
-    }
 }

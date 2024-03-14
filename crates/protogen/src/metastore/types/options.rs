@@ -993,6 +993,14 @@ pub struct TableOptionsDebug {
     pub table_type: String,
 }
 
+impl Default for TableOptionsDebug {
+    fn default() -> Self {
+        TableOptionsDebug {
+            table_type: "never_ending".to_string(),
+        }
+    }
+}
+
 impl TableOptionsImpl for TableOptionsDebug {
     const NAME: &'static str = "debug";
 }
