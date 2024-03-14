@@ -121,7 +121,6 @@ use protogen::metastore::types::options::{
     TableOptionsSqlServer,
     TableOptionsSqlite,
     TableOptionsV0,
-    TableOptionsV1,
     TunnelOptions,
     TunnelOptionsDebug,
     TunnelOptionsInternal,
@@ -815,14 +814,14 @@ impl<'a> SessionPlanner<'a> {
                 opts.inner
                     .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
 
-                TableOptionsObjectStore {
+
+                TableOptionsV0::Azure(TableOptionsObjectStore {
                     location: source_url,
                     storage_options: opts,
                     file_type: Some(file_type.to_string()),
                     compression: compression.map(|c| c.to_string()),
                     schema_sample_size: None,
-                }
-                .into()
+                })
             }
             TableOptionsV0::DELTA | TableOptionsV0::ICEBERG => {
                 let location: String = m.remove_required("location")?;
@@ -835,27 +834,25 @@ impl<'a> SessionPlanner<'a> {
                 if datasource == TableOptionsV0::DELTA {
                     let _table = load_table_direct(&location, storage_options.clone()).await?;
 
-                    TableOptionsObjectStore {
+                    TableOptionsV0::Delta(TableOptionsObjectStore {
                         location,
                         storage_options,
-                        file_type: Some("delta".to_string()),
+                        file_type: None,
                         compression: None,
                         schema_sample_size: None,
-                    }
-                    .into()
+                    })
                 } else {
                     let url = DatasourceUrl::try_new(&location)?;
                     let store = storage_options_into_object_store(&url, &storage_options)?;
                     let _table = IcebergTable::open(url, store).await?;
 
-                    TableOptionsObjectStore {
+                    TableOptionsV0::Iceberg(TableOptionsObjectStore {
                         location,
                         storage_options,
-                        file_type: Some("iceberg".to_string()),
+                        file_type: None,
                         compression: None,
                         schema_sample_size: None,
-                    }
-                    .into()
+                    })
                 }
             }
             TableOptionsV0::LANCE => {
@@ -866,14 +863,13 @@ impl<'a> SessionPlanner<'a> {
                 }
                 // Validate that the table exists.
                 let _table = LanceTable::new(&location, storage_options.clone()).await?;
-                TableOptionsObjectStore {
+                TableOptionsV0::Lance(TableOptionsObjectStore {
                     location,
                     storage_options,
-                    file_type: Some("lance".to_string()),
+                    file_type: None,
                     compression: None,
                     schema_sample_size: None,
-                }
-                .into()
+                })
             }
             TableOptionsV0::BSON => {
                 let location: String = m.remove_required("location")?;
@@ -888,14 +884,13 @@ impl<'a> SessionPlanner<'a> {
                         .map(|strint| strint.parse())
                         .unwrap_or(Ok(100))?,
                 );
-                TableOptionsObjectStore {
+                TableOptionsV0::Bson(TableOptionsObjectStore {
                     location,
                     storage_options,
-                    file_type: Some("bson".to_string()),
+                    file_type: None,
                     compression: None,
                     schema_sample_size,
-                }
-                .into()
+                })
             }
             TableOptionsV0::EXCEL => {
                 let location: String = m.remove_required("location")?;

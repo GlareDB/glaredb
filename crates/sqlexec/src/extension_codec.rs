@@ -635,7 +635,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     tbl_reference: Some(exec.tbl_reference.clone().into()),
                     or_replace: exec.or_replace,
                     if_not_exists: exec.if_not_exists,
-                    table_options: Some(exec.table_options.clone().into()),
+                    table_options: Some(exec.table_options.clone().try_into()?),
                     tunnel: exec.tunnel.clone(),
                     table_schema: exec
                         .table_schema
