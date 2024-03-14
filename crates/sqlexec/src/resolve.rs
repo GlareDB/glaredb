@@ -108,9 +108,6 @@ impl<'a> EntryResolver<'a> {
                 schema,
                 table,
             } => {
-                if let Some(table) = self.catalog.get_temp_catalog().resolve_temp_table(table) {
-                    return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
-                }
                 // If catalog is anything but "default", we know we need to do
                 // external resolution since we don't store info about
                 // individual tables.
