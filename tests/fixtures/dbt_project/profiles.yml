@@ -9,13 +9,4 @@ glaredb_dbt_test:
       threads: 1
       type: postgres
       user: "{{ env_var('DBT_USER') }}"
-    cloud:
-      dbname: default
-      host: o_PRocU0j.proxy.glaredb.com
-      pass: glaredb_pw_SFZmILqgkZgsJWPUlnEF1KUts6b1
-      port: 6543
-      schema: public
-      threads: 1
-      type: postgres
-      user: 6AhiEN7GQDmo
   target: test_target
