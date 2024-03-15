@@ -1,0 +1,42 @@
+query I
+select count(*) from read_sqlite('gs://${GCS_BUCKET_NAME}/leaders.sqlite', leaders);
+----
+16386
+
+query II
+SELECT lead_count,location_count
+FROM read_sqlite('gs://${GCS_BUCKET_NAME}/leaders.sqlite', leaders)
+WHERE name = 'Sam Kleinman';
+----
+175	57
+
+statement ok
+CREATE EXTERNAL TABLE leaders
+    FROM sqlite
+    OPTIONS (
+        location = 'gs://${GCS_BUCKET_NAME}/leaders.sqlite',
+	table = 'leaders'
+    );
+
+query I
+select count(*) FROM leaders;
+----
+16386
+
+statment error
+INSERT INTO leaders VALUES (21294,'B.F. White',1,0.0,0,1);
+
+statement ok
+DROP TABLE leaders;
+
+statement ok
+CREATE EXTERNAL DATABASE minutes
+	FROM sqlite
+	OPTIONS (
+	        location = 'gs://${GCS_BUCKET_NAME}/leaders.sqlite',
+	);
+
+query I
+SELECT id FROM minutes.public.leaders WHERE last_name = 'Kleinman';
+----
+11517
