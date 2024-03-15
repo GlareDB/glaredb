@@ -2610,7 +2610,7 @@ dependencies = [
  "errno",
  "fix-hidden-lifetime-bug",
  "futures",
- "hashbrown 0.12.3",
+ "hashbrown 0.14.2",
  "indexmap 2.2.5",
  "itertools 0.12.0",
  "lazy_static",
@@ -8005,9 +8005,9 @@ dependencies = [
 
 [[package]]
 name = "ssh-key"
-version = "0.6.4"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01f8f4ea73476c0aa5d5e6a75ce1e8634e2c3f82005ef3bbed21547ac57f2bf7"
+checksum = "3b71299a724c8d84956caaf8fc3b3ea57c3587fe2d0b800cd0dc1f3599905d7e"
 dependencies = [
  "ed25519-dalek",
  "p256",
