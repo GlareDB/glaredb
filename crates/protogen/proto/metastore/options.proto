@@ -122,6 +122,7 @@ message StorageOptions {
 message TableOptionsV1 {
   string name = 1;
   bytes options = 2;
+  uint32 version = 3;
 }
 
 // Table options

@@ -69,7 +69,6 @@ impl TryFrom<options::InternalColumnDefinition> for InternalColumnDefinition {
     fn try_from(value: options::InternalColumnDefinition) -> Result<Self, Self::Error> {
         let arrow_type: DataType = value.arrow_type.as_ref().required("arrow_type")?;
 
-
         Ok(InternalColumnDefinition {
             name: value.name,
             nullable: value.nullable,
@@ -592,7 +591,6 @@ impl StorageOptions {
     }
 }
 
-
 impl TryFrom<options::StorageOptions> for StorageOptions {
     type Error = ProtoConvError;
     fn try_from(value: options::StorageOptions) -> Result<Self, Self::Error> {
@@ -610,12 +608,13 @@ impl From<StorageOptions> for options::StorageOptions {
 pub struct TableOptionsV1 {
     pub name: String,
     pub options: Vec<u8>,
+    pub version: u32,
 }
 
 pub trait TableOptionsImpl: Serialize + DeserializeOwned {
     const NAME: &'static str;
+    const VERSION: u32 = 1;
 }
-
 
 impl Display for TableOptionsV1 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -634,6 +633,7 @@ impl TableOptionsV1 {
         TableOptionsV1 {
             name: S::NAME.to_string(),
             options,
+            version: S::VERSION,
         }
     }
 
@@ -667,7 +667,6 @@ where
     }
 }
 
-
 impl TryFrom<options::TableOptionsV1> for TableOptionsV1 {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsV1) -> Result<Self, Self::Error> {
@@ -677,6 +676,7 @@ impl TryFrom<options::TableOptionsV1> for TableOptionsV1 {
         Ok(TableOptionsV1 {
             options: values,
             name,
+            version: value.version,
         })
     }
 }
@@ -686,10 +686,10 @@ impl From<TableOptionsV1> for options::TableOptionsV1 {
         options::TableOptionsV1 {
             name: value.name,
             options: value.options,
+            version: value.version,
         }
     }
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TableOptionsV0 {
@@ -799,7 +799,6 @@ impl TryFrom<&TableOptionsV1> for TableOptionsV0 {
 
     fn try_from(value: &TableOptionsV1) -> Result<Self, Self::Error> {
         let _v: serde_json::Value = serde_json::from_slice(&value.options).unwrap();
-
 
         match value.name.as_ref() {
             TableOptionsObjectStore::NAME => {
@@ -1031,7 +1030,6 @@ impl TableOptionsImpl for TableOptionsInternal {
     const NAME: &'static str = "internal";
 }
 
-
 impl From<DFSchemaRef> for TableOptionsInternal {
     fn from(value: DFSchemaRef) -> Self {
         TableOptionsInternal {
@@ -1103,7 +1101,6 @@ impl TableOptionsImpl for TableOptionsPostgres {
     const NAME: &'static str = "postgres";
 }
 
-
 impl TryFrom<options::TableOptionsPostgres> for TableOptionsPostgres {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsPostgres) -> Result<Self, Self::Error> {
@@ -1142,7 +1139,6 @@ impl From<TableOptionsBigQuery> for TableOptionsV0 {
 impl TableOptionsImpl for TableOptionsBigQuery {
     const NAME: &'static str = "bigquery";
 }
-
 
 impl TryFrom<options::TableOptionsBigQuery> for TableOptionsBigQuery {
     type Error = ProtoConvError;
@@ -1184,7 +1180,6 @@ impl TableOptionsImpl for TableOptionsMysql {
     const NAME: &'static str = "mysql";
 }
 
-
 impl TryFrom<options::TableOptionsMysql> for TableOptionsMysql {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsMysql) -> Result<Self, Self::Error> {
@@ -1222,7 +1217,6 @@ impl From<TableOptionsLocal> for TableOptionsV0 {
 impl TableOptionsImpl for TableOptionsLocal {
     const NAME: &'static str = "local";
 }
-
 
 impl TryFrom<options::TableOptionsLocal> for TableOptionsLocal {
     type Error = ProtoConvError;
@@ -1355,7 +1349,6 @@ impl TableOptionsImpl for TableOptionsMongoDb {
     const NAME: &'static str = "mongo";
 }
 
-
 impl TryFrom<options::TableOptionsMongo> for TableOptionsMongoDb {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsMongo) -> Result<Self, Self::Error> {
@@ -1396,7 +1389,6 @@ impl From<TableOptionsExcel> for TableOptionsV0 {
 impl TableOptionsImpl for TableOptionsExcel {
     const NAME: &'static str = "excel";
 }
-
 
 impl TryFrom<options::TableOptionsExcel> for TableOptionsExcel {
     type Error = ProtoConvError;
@@ -1441,7 +1433,6 @@ impl From<TableOptionsSqlServer> for TableOptionsV0 {
 impl TableOptionsImpl for TableOptionsSqlServer {
     const NAME: &'static str = "sql_server";
 }
-
 
 impl TryFrom<options::TableOptionsSqlServer> for TableOptionsSqlServer {
     type Error = ProtoConvError;
@@ -1562,7 +1553,6 @@ impl TableOptionsImpl for TableOptionsSqlite {
     const NAME: &'static str = "sqlite";
 }
 
-
 impl TryFrom<options::TableOptionsSqlite> for TableOptionsSqlite {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsSqlite) -> Result<Self, Self::Error> {
@@ -1644,11 +1634,9 @@ pub struct TableOptionsObjectStore {
     pub schema_sample_size: Option<i64>,
 }
 
-
 impl TableOptionsImpl for TableOptionsObjectStore {
     const NAME: &'static str = "object_store";
 }
-
 
 impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
     type Error = ProtoConvError;
