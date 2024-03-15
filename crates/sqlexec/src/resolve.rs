@@ -77,7 +77,7 @@ impl<'a> EntryResolver<'a> {
                     return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
                 }
 
-                // builtin table functions should be independent of schema, pull them out of 'public' schema
+                // builtin table functions should be independent of schema, pull them out of 'publc' schema
                 if let Some(function) = self.catalog.resolve_builtin_table_function(table) {
                     return Ok(ResolvedEntry::Entry(CatalogEntry::Function(function)));
                 }
@@ -108,6 +108,19 @@ impl<'a> EntryResolver<'a> {
                 schema,
                 table,
             } => {
+                // if the catalog has an alias, we need to check if the
+                // reference is to the alias and if so, resolve it to the
+                // actual catalog name.
+                if let Some(catalog_alias) = self.catalog.alias() {
+                    if catalog == catalog_alias {
+                        if let Some(ent) =
+                            self.catalog.resolve_entry(DEFAULT_CATALOG, schema, table)
+                        {
+                            return Ok(ResolvedEntry::Entry(ent.clone()));
+                        }
+                    }
+                }
+
                 // If catalog is anything but "default", we know we need to do
                 // external resolution since we don't store info about
                 // individual tables.
