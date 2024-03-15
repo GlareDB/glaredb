@@ -15,6 +15,7 @@ anyhow = { workspace = true }
 clap = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
+home = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }

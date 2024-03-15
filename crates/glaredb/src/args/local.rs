@@ -96,6 +96,17 @@ pub struct LocalClientOpts {
     /// Note: Keep in sync with py-glaredb connect
     #[arg(long, default_value = "https://console.glaredb.com", hide = true)]
     pub cloud_addr: String,
+
+    /// Path to a certificate that identifies this client.
+    ///
+    /// (Internal) - volatile, might be removed or modified.
+    ///
+    /// This option is meaningless if either `--disable_tls`or
+    /// `--ignore_rpc_auth` is set.
+    ///
+    /// TODO/REVIEW: It probably makes sense to keep this arg or an env var or
+    ///              around to enable workarounds and debugging.
+    pub identity_path: String,
 }
 
 impl LocalClientOpts {

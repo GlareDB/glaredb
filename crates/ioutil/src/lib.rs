@@ -1,6 +1,7 @@
-//! IO and formatting related utilies.
+//! IO and formatting related utilities.
 
 use std::path::{Path, PathBuf};
+
 pub mod fmt;
 pub mod write;
 
@@ -29,6 +30,18 @@ pub fn ensure_dir(path: impl AsRef<Path>) -> std::io::Result<()> {
     })
 }
 
+/// Returns the location where GlareDB stores application data, which is
+/// separate from user data (ie: `data_dir`).
+pub fn app_data_dir() -> Option<PathBuf> {
+    match home::home_dir() {
+        Some(mut dir) => {
+            dir.push(".glaredb");
+            Some(dir)
+        }
+        None => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -44,5 +57,10 @@ mod tests {
     #[test]
     fn fails_to_resolve_nonexistent_path() {
         assert!(resolve_path(Path::new("/foo/bar")).is_err());
+    }
+
+    #[test]
+    fn test_app_data_dir() {
+        assert!(app_data_dir().is_some());
     }
 }
