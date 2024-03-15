@@ -541,9 +541,9 @@ dependencies = [
 
 [[package]]
 name = "async-openai"
-version = "0.19.0"
+version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6791601019a2f14a6e5d3f7da849b5ff1594ef5c8da5492d63214c220449270c"
+checksum = "fbc0b1877fb1bc415caa14d1899f0f477e8eb38f2fe16f54be196d7c4a92e15c"
 dependencies = [
  "async-convert",
  "backoff",
@@ -2610,7 +2610,7 @@ dependencies = [
  "errno",
  "fix-hidden-lifetime-bug",
  "futures",
- "hashbrown 0.12.3",
+ "hashbrown 0.14.2",
  "indexmap 2.2.5",
  "itertools 0.12.0",
  "lazy_static",
