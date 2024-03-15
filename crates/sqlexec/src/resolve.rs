@@ -77,7 +77,7 @@ impl<'a> EntryResolver<'a> {
                     return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
                 }
 
-                // builtin table functions should be independent of schema, pull them out of 'publc' schema
+                // builtin table functions should be independent of schema, pull them out of 'public' schema
                 if let Some(function) = self.catalog.resolve_builtin_table_function(table) {
                     return Ok(ResolvedEntry::Entry(CatalogEntry::Function(function)));
                 }
