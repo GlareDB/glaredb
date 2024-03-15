@@ -4,3 +4,9 @@ query I
 SELECT count(*) FROM read_bigquery('${GCP_SERVICE_ACCOUNT_KEY}', '${GCP_PROJECT_ID}', '${BIGQUERY_DATASET_ID}', 'bikeshare_stations');
 ----
 102
+
+
+query I
+SELECT count(*) FROM read_bigquery('${GCP_SERVICE_ACCOUNT_KEY}', '${GCP_PROJECT_ID}', '${BIGQUERY_DATASET_ID}', 'bikeshare_stations') LIMIT 42;
+----
+42
