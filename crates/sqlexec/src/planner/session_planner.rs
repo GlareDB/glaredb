@@ -972,9 +972,9 @@ impl<'a> SessionPlanner<'a> {
                             .any(|k| matches!(k.option, ColumnOption::NotNull));
 
                         if has_not_null_constraint {
-                            return Err(PlanError::String(
+                            Err(PlanError::String(
                                 "'NOT NULL' constraint is not supported".to_string(),
-                            ));
+                            ))
                         } else {
                             Ok(Field::new(
                                 coll.name.to_string(),
