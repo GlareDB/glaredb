@@ -39,6 +39,12 @@ import "common/arrow.proto";
 
 // The state of the catalog at some version.
 message CatalogState {
+  // The version of the actual catalog implementation.
+  // This is incremented when there are incompatible changes to the physical
+  // catalog layout.
+  // Purposely set to a high number to avoid accidental collisions
+  optional uint32 catalog_version = 2047;
+
   // Version of this catalog. Increments on every mutation.
   uint64 version = 1;
 
@@ -50,12 +56,6 @@ message CatalogState {
   // Metadata for the deployment.
   DeploymentMetadata deployment = 3;
   // next: 4
-
-  // The version of the actual catalog implementation.
-  // This is incremented when there are incompatible changes to the physical
-  // catalog layout.
-  // Purposely set to a high number to avoid accidental collisions
-  optional uint32 catalog_version = 2047;
 }
 
 // Metadata for the deployment.

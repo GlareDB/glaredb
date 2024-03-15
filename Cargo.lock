@@ -4872,7 +4872,6 @@ dependencies = [
  "catalog",
  "dashmap",
  "datafusion",
- "datasources",
  "futures",
  "ioutil",
  "logutil",

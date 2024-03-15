@@ -966,16 +966,22 @@ impl<'a> SessionPlanner<'a> {
                     .into_iter()
                     .map(|coll| -> Result<Field, PlanError> {
                         // check if there is a NOT NULL constraint
-                        let is_nullable = !coll
+                        let has_not_null_constraint = coll
                             .options
                             .into_iter()
                             .any(|k| matches!(k.option, ColumnOption::NotNull));
 
-                        Ok(Field::new(
-                            coll.name.to_string(),
-                            convert_data_type(&coll.data_type)?,
-                            is_nullable,
-                        ))
+                        if has_not_null_constraint {
+                            return Err(PlanError::String(
+                                "'NOT NULL' constraint is not supported".to_string(),
+                            ));
+                        } else {
+                            Ok(Field::new(
+                                coll.name.to_string(),
+                                convert_data_type(&coll.data_type)?,
+                                true,
+                            ))
+                        }
                     })
                     .collect::<Result<Vec<_>, PlanError>>()?;
                 Ok::<_, PlanError>(Schema::new(fields))

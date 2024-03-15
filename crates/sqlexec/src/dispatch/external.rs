@@ -77,7 +77,6 @@ use sqlbuiltins::functions::FunctionRegistry;
 use super::{DispatchError, Result};
 
 /// Dispatch to external tables and databases.
-// TODO: add a `DatasourceRegistry` to the `ExternalDispatcher` to allow for dynamic datasources.
 pub struct ExternalDispatcher<'a> {
     catalog: &'a SessionCatalog,
     // TODO: Remove need for this.
