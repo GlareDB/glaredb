@@ -4111,14 +4111,14 @@ dependencies = [
  "futures",
  "half",
  "itertools 0.12.0",
- "lance-arrow",
- "lance-core",
+ "lance-arrow 0.10.2",
+ "lance-core 0.10.2",
  "lance-datafusion",
  "lance-datagen",
  "lance-file",
  "lance-index",
  "lance-io",
- "lance-linalg",
+ "lance-linalg 0.10.2",
  "lance-table",
  "lazy_static",
  "log",
@@ -4161,6 +4161,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "lance-arrow"
+version = "0.10.3"
+source = "git+https://github.com/GlareDB/lance?branch=datafusion-without-submodules#62ff0c46ffe931c4e7c42840ba83178c224ff1f8"
+dependencies = [
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-cast",
+ "arrow-data",
+ "arrow-schema",
+ "arrow-select",
+ "getrandom",
+ "half",
+ "num-traits",
+ "rand",
+ "serde",
+]
+
+[[package]]
 name = "lance-core"
 version = "0.10.2"
 source = "git+https://github.com/GlareDB/lance?rev=de6df70d9c5d95a4818b8799c23e3d1ad649bc1d#de6df70d9c5d95a4818b8799c23e3d1ad649bc1d"
@@ -4175,7 +4193,37 @@ dependencies = [
  "datafusion-common",
  "datafusion-sql",
  "futures",
- "lance-arrow",
+ "lance-arrow 0.10.2",
+ "lazy_static",
+ "libc",
+ "mock_instant",
+ "moka 0.11.3",
+ "object_store",
+ "pin-project",
+ "prost",
+ "rand",
+ "roaring",
+ "serde_json",
+ "snafu",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "lance-core"
+version = "0.10.3"
+source = "git+https://github.com/GlareDB/lance?branch=datafusion-without-submodules#62ff0c46ffe931c4e7c42840ba83178c224ff1f8"
+dependencies = [
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-schema",
+ "async-trait",
+ "byteorder",
+ "bytes",
+ "chrono",
+ "futures",
+ "lance-arrow 0.10.3",
  "lazy_static",
  "libc",
  "mock_instant",
@@ -4207,8 +4255,8 @@ dependencies = [
  "datafusion-physical-expr",
  "datafusion-substrait",
  "futures",
- "lance-arrow",
- "lance-core",
+ "lance-arrow 0.10.2",
+ "lance-core 0.10.2",
  "prost",
  "snafu",
  "substrait",
@@ -4243,8 +4291,8 @@ dependencies = [
  "async-trait",
  "datafusion-common",
  "futures",
- "lance-arrow",
- "lance-core",
+ "lance-arrow 0.10.2",
+ "lance-core 0.10.2",
  "lance-io",
  "num-traits",
  "num_cpus",
@@ -4277,12 +4325,12 @@ dependencies = [
  "futures",
  "half",
  "itertools 0.12.0",
- "lance-arrow",
- "lance-core",
+ "lance-arrow 0.10.2",
+ "lance-core 0.10.2",
  "lance-datafusion",
  "lance-file",
  "lance-io",
- "lance-linalg",
+ "lance-linalg 0.10.2",
  "lance-table",
  "lazy_static",
  "log",
@@ -4322,8 +4370,8 @@ dependencies = [
  "bytes",
  "chrono",
  "futures",
- "lance-arrow",
- "lance-core",
+ "lance-arrow 0.10.2",
+ "lance-core 0.10.2",
  "lazy_static",
  "num_cpus",
  "object_store",
@@ -4349,8 +4397,30 @@ dependencies = [
  "cc",
  "futures",
  "half",
- "lance-arrow",
- "lance-core",
+ "lance-arrow 0.10.2",
+ "lance-core 0.10.2",
+ "lazy_static",
+ "log",
+ "num-traits",
+ "num_cpus",
+ "rand",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "lance-linalg"
+version = "0.10.3"
+source = "git+https://github.com/GlareDB/lance?branch=datafusion-without-submodules#62ff0c46ffe931c4e7c42840ba83178c224ff1f8"
+dependencies = [
+ "arrow-array",
+ "arrow-ord",
+ "arrow-schema",
+ "cc",
+ "futures",
+ "half",
+ "lance-arrow 0.10.3",
+ "lance-core 0.10.3",
  "lazy_static",
  "log",
  "num-traits",
@@ -4375,8 +4445,8 @@ dependencies = [
  "bytes",
  "chrono",
  "futures",
- "lance-arrow",
- "lance-core",
+ "lance-arrow 0.10.2",
+ "lance-core 0.10.2",
  "lance-file",
  "lance-io",
  "log",
@@ -7786,7 +7856,7 @@ dependencies = [
  "futures",
  "ioutil",
  "kdl",
- "lance-linalg",
+ "lance-linalg 0.10.3",
  "logutil",
  "memoize",
  "num-traits",
