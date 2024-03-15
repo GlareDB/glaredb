@@ -9,7 +9,7 @@ use datafusion::execution::context::SessionState;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use object_store::http::HttpBuilder;
 use object_store::path::Path as ObjectStorePath;
-use object_store::{ObjectMeta, ObjectStore};
+use object_store::{ClientConfigKey, ObjectMeta, ObjectStore};
 use url::Url;
 
 use super::glob_util::ResolvedPattern;
@@ -43,13 +43,17 @@ impl ObjStoreAccess for HttpStoreAccess {
             // To make path part of URL we make it a '/'.
             .replace('/', "__slash__")
             // TODO: Add more characters which might be invalid for domain.
-            .replace('%', "__percent__");
+            .replace('%', "__percent__")
+            .replace('?', "__question__")
+            .replace('=', "__equal__");
 
         Ok(ObjectStoreUrl::parse(u)?)
     }
 
     fn create_store(&self) -> Result<Arc<dyn ObjectStore>> {
-        let builder = HttpBuilder::new().with_url(self.url.to_string());
+        let builder = HttpBuilder::new()
+            .with_url(self.url.to_string())
+            .with_config(ClientConfigKey::AllowHttp, "true");
         let build = builder.build()?;
         Ok(Arc::new(build))
     }
@@ -94,17 +98,17 @@ impl ObjStoreAccess for HttpStoreAccess {
         }
         // reqwest doesn't check the content length header, instead looks at the contents
         // See: https://github.com/seanmonstar/reqwest/issues/843
-        let len: u64 = res
+        let len = res
             .headers()
             .get("Content-Length")
             .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse().ok())
-            .unwrap_or_else(|| res.content_length().unwrap_or(0));
-        if len == 0 {
-            return Err(ObjectStoreSourceError::Static(
+            .and_then(|v| v.parse::<u64>().ok())
+            .or_else(|| res.content_length())
+            // TODO: Download the contents of the file and handle using local
+            // store (maybe outside of HTTP store).
+            .ok_or(ObjectStoreSourceError::Static(
                 "Missing content-length header",
-            ));
-        }
+            ))?;
 
         Ok(ObjectMeta {
             location: location.clone(),
