@@ -11,6 +11,7 @@ from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
 
 logger = logging.getLogger("json")
 
+
 @pytest.fixture
 def beatle_mock_data():
     beatles = ["john", "paul", "george", "ringo"]
