@@ -23,7 +23,7 @@ select count(*) FROM leaders;
 ----
 16386
 
-statment error
+statement error
 INSERT INTO leaders VALUES (21294,'B.F. White',1,0.0,0,1);
 
 statement ok
