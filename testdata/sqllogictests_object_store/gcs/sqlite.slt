@@ -43,6 +43,6 @@ CREATE EXTERNAL DATABASE minutes
 	);
 
 query I
-SELECT id FROM minutes.public.leaders WHERE last_name = 'Kleinman';
+SELECT id FROM minutes.public.leaders WHERE minutes.public.leaders.name = 'Sam Kleinman';
 ----
 11517
