@@ -1,11 +1,15 @@
+statement ok
+CREATE CREDENTIALS gcp_creds PROVIDER gcp OPTIONS
+	( service_account_key '${GCP_SERVICE_ACCOUNT_KEY}' );
+
 query I
-select count(*) from read_sqlite('gs://${GCS_BUCKET_NAME}/leaders.sqlite', service_account_key => '${GCP_SERVICE_ACCOUNT_KEY}', leaders);
+select count(*) from read_sqlite('gs://${GCS_BUCKET_NAME}/leaders.sqlite', gcp_creds, leaders);
 ----
 16386
 
 query II
 SELECT lead_count,location_count
-FROM read_sqlite('gs://${GCS_BUCKET_NAME}/leaders.sqlite', service_account_key => '${GCP_SERVICE_ACCOUNT_KEY}', leaders)
+FROM read_sqlite('gs://${GCS_BUCKET_NAME}/leaders.sqlite', gcp_creds, leaders)
 WHERE name = 'Sam Kleinman';
 ----
 175	57
