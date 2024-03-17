@@ -100,7 +100,9 @@ impl SqliteAccess {
                             storage_options
                                 .inner
                                 .get("__tmp_prefix")
-                                .unwrap_or_else(|| Uuid::new_v4()),
+                                .map(|i| i.to_owned())
+                                .unwrap_or_else(|| Uuid::new_v4().to_string())
+                                .as_str(),
                         )
                         .rand_bytes(8)
                         .tempdir()?,
