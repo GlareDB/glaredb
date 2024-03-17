@@ -36,6 +36,7 @@ use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{StreamExt, TryStreamExt};
 use object_store::ObjectStore;
 use protogen::metastore::types::options::StorageOptions;
+use uuid::Uuid;
 
 use self::errors::{Result, SqliteError};
 use self::wrapper::SqliteAsyncClient;
@@ -95,7 +96,12 @@ impl SqliteAccess {
 
                 let tmpdir = Arc::new(
                     tempfile::Builder::new()
-                        .prefix(storage_options.inner.get("__tmp_prefix").unwrap())
+                        .prefix(
+                            storage_options
+                                .inner
+                                .get("__tmp_prefix")
+                                .unwrap_or_else(|| Uuid::new_v4()),
+                        )
                         .rand_bytes(8)
                         .tempdir()?,
                 );
