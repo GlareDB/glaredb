@@ -1,11 +1,11 @@
 query I
-select count(*) from read_sqlite('gs://${GCS_BUCKET_NAME}/leaders.sqlite', leaders);
+select count(*) from read_sqlite('gs://${GCS_BUCKET_NAME}/leaders.sqlite', service_account_key => '${GCP_SERVICE_ACCOUNT_KEY}', leaders);
 ----
 16386
 
 query II
 SELECT lead_count,location_count
-FROM read_sqlite('gs://${GCS_BUCKET_NAME}/leaders.sqlite', leaders)
+FROM read_sqlite('gs://${GCS_BUCKET_NAME}/leaders.sqlite', service_account_key => '${GCP_SERVICE_ACCOUNT_KEY}', leaders)
 WHERE name = 'Sam Kleinman';
 ----
 175	57
@@ -15,7 +15,8 @@ CREATE EXTERNAL TABLE leaders
     FROM sqlite
     OPTIONS (
         location = 'gs://${GCS_BUCKET_NAME}/leaders.sqlite',
-	table = 'leaders'
+	table = 'leaders',
+	service_account_key ='${GCP_SERVICE_ACCOUNT_KEY}',
     );
 
 query I
@@ -34,6 +35,7 @@ CREATE EXTERNAL DATABASE minutes
 	FROM sqlite
 	OPTIONS (
 	        location = 'gs://${GCS_BUCKET_NAME}/leaders.sqlite',
+		service_account_key ='${GCP_SERVICE_ACCOUNT_KEY}'
 	);
 
 query I
