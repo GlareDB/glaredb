@@ -15,18 +15,6 @@ VALUES_SET = string.ascii_uppercase + string.digits
 logger = logging.getLogger("json")
 
 
-def run_query_operation(
-    glaredb_connection: psycopg2.extensions.connection,
-    path: pathlib.Path,
-    read_fn_name: str,
-):
-    with glaredb_connection.cursor() as curr:
-        curr.execute(f"SELECT count(*) FROM {read_fn_name}('{path}');")
-        res = curr.fetchone()
-        assert len(res) >= 1
-        assert res[0] >= 1
-
-
 @pytest.fixture
 def test_data_path(
     tmp_path_factory: pytest.TempPathFactory,
@@ -107,3 +95,17 @@ def test_json_function(
     benchmark: callable,
 ):
     benchmark(run_query_operation, glaredb_connection, test_data_path, read_fn_name)
+
+
+
+
+def run_query_operation(
+    glaredb_connection: psycopg2.extensions.connection,
+    path: pathlib.Path,
+    read_fn_name: str,
+):
+    with glaredb_connection.cursor() as curr:
+        curr.execute(f"SELECT count(*) FROM {read_fn_name}('{path}');")
+        res = curr.fetchone()
+        assert len(res) >= 1
+        assert res[0] >= 1
