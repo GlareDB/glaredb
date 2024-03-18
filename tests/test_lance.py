@@ -2,13 +2,11 @@ import os.path
 
 import lance
 import pyarrow as pa
-
 import psycopg2.extensions
 import psycopg2.extras
 import pytest
 
 import tests.tools
-from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
 
 
 def test_sanity_check(
@@ -37,7 +35,7 @@ def test_sanity_check(
     assert "_versions" in files
 
 
-def test_copy_to_round_trip(
+def test_copy_to_round_trip_path_handling(
     glaredb_connection: psycopg2.extensions.connection,
     tmp_path_factory: pytest.TempPathFactory,
 ):
@@ -72,7 +70,7 @@ def test_copy_to_round_trip(
             assert res[0] == 10
 
 
-def test_copy_to_round_trip(
+def test_inserts(
     glaredb_connection: psycopg2.extensions.connection,
     tmp_path_factory: pytest.TempPathFactory,
 ):

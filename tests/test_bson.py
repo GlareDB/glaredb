@@ -1,6 +1,5 @@
 import os.path
 import random
-import json
 import subprocess
 import pathlib
 
@@ -9,7 +8,6 @@ import psycopg2.extensions
 import psycopg2.extras
 import pytest
 
-from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
 import tests.tools
 
 
@@ -88,7 +86,12 @@ def test_read_bson(
             f"create external table bson_beatles from bson options ( location='{data_path}', file_type='bson')"
         )
 
-    for from_clause in ["bson_beatles", f"read_bson('{data_path}')", f"'{data_path}'", f"'{tmp_dir}/../read-bson-beatles0/beatles.100.bson'"]:
+    for from_clause in [
+        "bson_beatles",
+        f"read_bson('{data_path}')",
+        f"'{data_path}'",
+        f"'{tmp_dir}/../read-bson-beatles0/beatles.100.bson'",
+    ]:
         print(from_clause)
         with glaredb_connection.cursor() as curr:
             curr.execute(f"select count(*) from {from_clause}")
