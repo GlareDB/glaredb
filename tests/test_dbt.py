@@ -1,13 +1,11 @@
 import pathlib
 import tests
-import os
 
 import psycopg2.extensions
 from dbt.cli.main import dbtRunner, dbtRunnerResult
 import pytest
 
 import tests.tools
-from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
 
 
 @pytest.fixture

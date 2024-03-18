@@ -5,8 +5,6 @@ import subprocess
 import pytest
 import psycopg2
 
-from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
-
 
 def test_binary_exists(glaredb_path: list[pathlib.Path]):
     assert len(glaredb_path) == 2
