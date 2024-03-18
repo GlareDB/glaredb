@@ -29,3 +29,9 @@ pub enum BigQueryError {
 }
 
 pub type Result<T, E = BigQueryError> = std::result::Result<T, E>;
+
+impl From<BigQueryError> for datafusion::common::DataFusionError {
+    fn from(e: BigQueryError) -> Self {
+        datafusion::common::DataFusionError::External(Box::new(e))
+    }
+}

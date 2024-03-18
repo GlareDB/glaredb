@@ -4,3 +4,12 @@ query I
 SELECT count(*) FROM read_bigquery('${GCP_SERVICE_ACCOUNT_KEY}', '${GCP_PROJECT_ID}', '${BIGQUERY_DATASET_ID}', 'bikeshare_stations');
 ----
 102
+
+query I
+SELECT station_id, number_of_docks
+FROM read_bigquery('${GCP_SERVICE_ACCOUNT_KEY}', '${GCP_PROJECT_ID}', '${BIGQUERY_DATASET_ID}', 'bikeshare_stations')
+WHERE alternate_name IS NOT null
+ORDER BY station_id
+LIMIT 1;
+----
+2574 17
