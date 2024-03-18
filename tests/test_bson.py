@@ -1,6 +1,5 @@
 import os.path
 import random
-import json
 import subprocess
 import pathlib
 
@@ -9,7 +8,6 @@ import psycopg2.extensions
 import psycopg2.extras
 import pytest
 
-from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
 import tests.tools
 
 
