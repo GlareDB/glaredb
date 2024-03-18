@@ -1,7 +1,18 @@
-import collections.abc
 import contextlib
 import os
 import pathlib
+import datetime
+import logging
+
+
+@contextlib.contextmanager
+def timed(logger: logging.Logger, operation: str):
+    start = datetime.datetime.now()
+    try:
+        yield
+    finally:
+        end = datetime.datetime.now()
+        logger.info(f"operation '{operation if operation else 'unnamed'}' took {start - end}")
 
 
 @contextlib.contextmanager

@@ -1,4 +1,3 @@
-import os.path
 import random
 import json
 import logging
@@ -7,9 +6,8 @@ import psycopg2
 import psycopg2.extras
 import pytest
 
-from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
-
 logger = logging.getLogger("json")
+
 
 @pytest.fixture
 def beatle_mock_data():
@@ -109,8 +107,6 @@ def test_read_json_glob(
     tmp_path_factory: pytest.TempPathFactory,
     beatle_mock_data: list[dict],
 ):
-    beatles = ["john", "paul", "george", "ringo"]
-
     tmp_dir = tmp_path_factory.mktemp(basename="read-json-glob-", numbered=True)
 
     for idx, doc in enumerate(beatle_mock_data):

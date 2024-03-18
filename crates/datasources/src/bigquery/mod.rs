@@ -273,7 +273,7 @@ impl TableProvider for BigQueryTableProvider {
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
-        _limit: Option<usize>,
+        limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // TODO: Fix duplicated key deserialization.
         let storage = {
@@ -299,13 +299,16 @@ impl TableProvider for BigQueryTableProvider {
 
         // Add row restriction.
         // TODO: Check what restrictions are valid.
-        let predicate = if self.predicate_pushdown {
-            let restriction = exprs_to_predicate_string(filters)
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        let mut predicate = if self.predicate_pushdown {
+            let restriction = exprs_to_predicate_string(filters)?;
             builder = builder.row_restriction(restriction.clone());
             restriction
         } else {
             String::new()
+        };
+
+        if let Some(size) = limit {
+            write!(predicate, " LIMIT {}", size)?;
         };
 
         // Select fields based off of what's in our projected schema.
