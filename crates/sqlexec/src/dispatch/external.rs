@@ -282,7 +282,6 @@ impl<'a> ExternalDispatcher<'a> {
                 location,
                 storage_options,
             }) => {
-                // TODO: parse location into cache as needed. sqlite-cloud-cache
                 let state =
                     SqliteAccess::new(location.as_str().try_into()?, storage_options.to_owned())
                         .await?

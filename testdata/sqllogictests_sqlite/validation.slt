@@ -13,13 +13,23 @@ CREATE EXTERNAL DATABASE wrong_location
 		location = '/some/path/not/exists.db'
 	);
 
+
+statement error
+select * from wrong_location.public.datatypes;
+
 statement ok
-CREATE EXTERNAL TABLE wrong_location
+CREATE EXTERNAL TABLE wrong_location2
 	FROM sqlite
 	OPTIONS (
 		location = '/some/path/not/exists.db',
 		table = 'datatypes'
 	);
+
+statement error
+select * from wrong_location2.datatypes;
+
+statement error
+select * from wrong_location2.public.datatypes;
 
 statement ok
 CREATE EXTERNAL TABLE wrong_table
@@ -28,3 +38,6 @@ CREATE EXTERNAL TABLE wrong_table
 		location = '${SQLITE_DB_LOCATION}',
 		table = 'invalid_table'
 	);
+
+statement error
+select * from wrong_table;
