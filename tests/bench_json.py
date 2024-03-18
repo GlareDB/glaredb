@@ -11,8 +11,6 @@ import logging
 import pytest
 import psycopg2
 
-from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
-
 VALUES_SET = string.ascii_uppercase + string.digits
 logger = logging.getLogger("json")
 
@@ -23,7 +21,10 @@ def run_query_operation(
     read_fn_name: str,
 ):
     with glaredb_connection.cursor() as curr:
-        curr.execute(f"SELECT * FROM {read_fn_name}('{path}')")
+        curr.execute(f"SELECT count(*) FROM {read_fn_name}('{path}');")
+        res = curr.fetchone()
+        assert len(res) >= 1
+        assert res[0] >= 1
 
 
 @pytest.fixture
@@ -33,7 +34,7 @@ def test_data_path(
     row_count: int,
 ) -> pathlib.Path:
     try:
-        tmpdir = tmp_path_factory.mktemp(basename=f"json-bench", numbered=False)
+        tmpdir = tmp_path_factory.mktemp(basename="json-bench", numbered=False)
     except FileExistsError as e:
         tmpdir = pathlib.Path(e.filename)
 
@@ -75,6 +76,7 @@ def test_data_path(
     logger.info(f"wrote test file at {path}")
     return path
 
+
 @pytest.mark.parametrize(
     "column_count,row_count,read_fn_name",
     [
@@ -86,24 +88,6 @@ def test_data_path(
         (10, 100, "read_json"),
         (10, 250, "read_ndjson"),
         (10, 250, "read_json"),
-
-
-        # (10, 10000, "read_json"),
-        # (10, 100000, "read_json"),
-        # (10, 10000, "read_ndjson"),
-        # (10, 100000, "read_ndjson"),
-        # (50, 1000, "read_json"),
-        # (50, 10000, "read_json"),
-        # (50, 100000, "read_json"),
-        # (50, 1000, "read_ndjson"),
-        # (50, 10000, "read_ndjson"),
-        # (50, 100000, "read_ndjson"),
-        # (100, 1000, "read_json"),
-        # (100, 10000, "read_json"),
-        # (100, 100000, "read_json"),
-        # (100, 1000, "read_ndjson"),
-        # (100, 10000, "read_ndjson"),
-        # (100, 100000, "read_ndjson"),
     ],
 )
 @pytest.mark.benchmark(
