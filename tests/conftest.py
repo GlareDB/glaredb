@@ -1,1 +1,1 @@
-pytest_plugins = ["fixtures.glaredb"]
+pytest_plugins = ["tests.fixtures.glaredb"]

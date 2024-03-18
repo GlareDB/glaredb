@@ -281,12 +281,13 @@ impl RemoteClient {
 
         Ok((
             remote_sess_client,
-            SessionCatalog::new(
+            SessionCatalog::new_with_alias(
                 Arc::new(resp.catalog),
                 ResolveConfig {
                     default_schema_oid: SCHEMA_DEFAULT.oid,
                     session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
                 },
+                self.get_deployment_name().to_string(),
             ),
         ))
     }

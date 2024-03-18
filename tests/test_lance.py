@@ -6,7 +6,7 @@ import psycopg2.extensions
 import psycopg2.extras
 import pytest
 
-import tools
+import tests.tools
 
 
 def test_sanity_check(
@@ -61,7 +61,7 @@ def test_copy_to_round_trip_path_handling(
 
     output_path_rel = tmp_path_factory.mktemp("lance-rel")
 
-    with tools.cd(output_path_rel):
+    with tests.tools.cd(output_path_rel):
         with glaredb_connection.cursor() as curr:
             curr.execute("COPY lance_test TO './' FORMAT lance")
 
