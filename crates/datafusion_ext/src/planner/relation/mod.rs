@@ -243,8 +243,6 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
         .ok_or_else(|| DataFusionError::Plan(format!("strange file extension: {path}")))?
         .to_lowercase();
 
-    // TODO: We can be a bit more sophisticated here and handle compression
-    // schemes as well.
     Ok(match ext.as_str() {
         "parquet" => OwnedTableReference::Partial {
             schema: "public".into(),
@@ -254,7 +252,11 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
             schema: "public".into(),
             table: "read_csv".into(),
         },
-        "json" | "jsonl" | "ndjson" => OwnedTableReference::Partial {
+        "json" => OwnedTableReference::Partial {
+            schema: "public".into(),
+            table: "read_json".into(),
+        },
+        "ndjson" | "jsonl" => OwnedTableReference::Partial {
             schema: "public".into(),
             table: "read_ndjson".into(),
         },
@@ -270,6 +272,9 @@ fn infer_func_for_file(path: &str) -> Result<OwnedTableReference> {
             if let Ok(compression_type) = ext.parse::<FileCompressionType>() {
                 let ext = compression_type.get_ext();
                 let path = path.trim_end_matches(ext.as_str());
+                // TODO: only parquet/ndjson/csv actually support
+                // compression, so we'll end up attempting to handle
+                // compression for some types and not others.
                 infer_func_for_file(path)?
             } else {
                 return Err(DataFusionError::Plan(format!(

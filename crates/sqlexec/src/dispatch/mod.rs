@@ -78,6 +78,8 @@ pub enum DispatchError {
     #[error(transparent)]
     BsonDatasource(#[from] datasources::bson::errors::BsonError),
     #[error(transparent)]
+    JsonDatasource(#[from] datasources::json::errors::JsonError),
+    #[error(transparent)]
     ClickhouseDatasource(#[from] datasources::clickhouse::errors::ClickhouseError),
     #[error(transparent)]
     NativeDatasource(#[from] datasources::native::errors::NativeError),

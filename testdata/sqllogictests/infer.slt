@@ -15,9 +15,15 @@ select id, "./testdata/parquet/userdata1.parquet".first_name
 
 
 query I
+select count(*) from './testdata/json/userdata1.ndjson'
+----
+1000
+
+query I
 select count(*) from './testdata/json/userdata1.json'
 ----
 1000
+
 
 query IT
 select id, "./testdata/json/userdata1.json".first_name
@@ -56,7 +62,7 @@ select count(*) from './testdata/parquet/*'
 
 #Tests for inferring table functions from compressed file formats
 
-#Tests for CSV with .gz, .bz2, .xz, .zst 
+#Tests for CSV with .gz, .bz2, .xz, .zst
 #csv.gz
 query
 select count(*) from './testdata/csv/userdata1.csv.gz'
@@ -122,14 +128,14 @@ select id, "./testdata/csv/userdata1.csv.zst".first_name
 #Tests for json with .gz, .bz2, .xz, .zst
 #json.gz
 query
-select count(*) from './testdata/json/userdata1.json.gz'
+select count(*) from './testdata/json/userdata1.ndjson.gz'
 ----
 1000
 
 #json.gz
 query IT
-select id, "./testdata/json/userdata1.json.gz".first_name
-  from './testdata/json/userdata1.json.gz'
+select id, "./testdata/json/userdata1.ndjson.gz".first_name
+  from './testdata/json/userdata1.ndjson.gz'
   order by id
   limit 1
 ----
@@ -137,14 +143,14 @@ select id, "./testdata/json/userdata1.json.gz".first_name
 
 #json.bz2
 query
-select count(*) from './testdata/json/userdata1.json.bz2'
+select count(*) from './testdata/json/userdata1.ndjson.bz2'
 ----
 1000
 
 #json.bz2
 query IT
-select id, "./testdata/json/userdata1.json.bz2".first_name
-  from './testdata/json/userdata1.json.bz2'
+select id, "./testdata/json/userdata1.ndjson.bz2".first_name
+  from './testdata/json/userdata1.ndjson.bz2'
   order by id
   limit 1
 ----
@@ -152,14 +158,14 @@ select id, "./testdata/json/userdata1.json.bz2".first_name
 
 #json.xz
 query
-select count(*) from './testdata/json/userdata1.json.xz'
+select count(*) from './testdata/json/userdata1.ndjson.xz'
 ----
 1000
 
 #json.xz
 query IT
-select id, "./testdata/json/userdata1.json.xz".first_name
-  from './testdata/json/userdata1.json.xz'
+select id, "./testdata/json/userdata1.ndjson.xz".first_name
+  from './testdata/json/userdata1.ndjson.xz'
   order by id
   limit 1
 ----
@@ -167,14 +173,14 @@ select id, "./testdata/json/userdata1.json.xz".first_name
 
 #json.zst
 query
-select count(*) from './testdata/json/userdata1.json.zst'
+select count(*) from './testdata/json/userdata1.ndjson.zst'
 ----
 1000
 
 #json.zst
 query IT
-select id, "./testdata/json/userdata1.json.zst".first_name
-  from './testdata/json/userdata1.json.zst'
+select id, "./testdata/json/userdata1.ndjson.zst".first_name
+  from './testdata/json/userdata1.ndjson.zst'
   order by id
   limit 1
 ----
@@ -182,7 +188,7 @@ select id, "./testdata/json/userdata1.json.zst".first_name
 
 
 
-#For infering function from parquet compressed formats .bz2, .xz, .zst, .gz 
+#For infering function from parquet compressed formats .bz2, .xz, .zst, .gz
 #parquet.bz2
 statement error compression not supported for parquet
 select count(*) from './testdata/parquet/userdata1.parquet.bz2'
