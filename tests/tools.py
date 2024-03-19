@@ -12,7 +12,7 @@ def timed(logger: logging.Logger, operation: str):
         yield
     finally:
         end = datetime.datetime.now()
-        logger.info(f"operation '{operation if operation else 'unnamed'}' took {start - end}")
+        logger.info(f"operation '{operation if operation else 'unnamed'}' took {end - start}")
 
 
 @contextlib.contextmanager
