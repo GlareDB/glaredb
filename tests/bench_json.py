@@ -3,34 +3,27 @@
 # and read_json(), with the serde_json+streaming JSON code which has
 # more relaxed parsing with regards to newlines.
 import pathlib
+import os
 import json
 import random
 import string
 import logging
+import itertools
 
 import pytest
 import psycopg2
+
+import tests.tools
 
 VALUES_SET = string.ascii_uppercase + string.digits
 logger = logging.getLogger("json")
 
 
-@pytest.fixture
-def test_data_path(
-    tmp_path_factory: pytest.TempPathFactory,
+def write_random_json_file(
+    path: pathlib.Path,
     column_count: int,
     row_count: int,
 ) -> pathlib.Path:
-    try:
-        tmpdir = tmp_path_factory.mktemp(basename="json-bench", numbered=False)
-    except FileExistsError as e:
-        tmpdir = pathlib.Path(e.filename)
-
-    path = tmpdir.joinpath(f"case-c{column_count}.r{row_count}.json")
-    if path.exists():
-        logger.info(f"using cached file {path}")
-        return path
-
     with open(path, "w") as f:
         for rc in range(row_count):
             doc = {}
@@ -61,49 +54,78 @@ def test_data_path(
             json.dump(doc, f)
             f.write("\n")
 
-    logger.info(f"wrote test file at {path}")
     return path
 
 
+@pytest.fixture(scope="session")
+def generated_bench_data(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, pathlib.Path]:
+    out: dict[str, pathlib.Path] = {}
+
+    with tests.tools.timed(logger, "generating-test-data"):
+        tmpdir = tmp_path_factory.mktemp(basename="json-bench-singles", numbered=False)
+        for col, row in [(16, 64), (16, 256), (16, 512), (32, 64), (32, 256), (32, 512)]:
+            out[f"c{col}.r{row}"] = write_random_json_file(
+                path=tmpdir.joinpath(f"c{col}.r{row}.json"), column_count=col, row_count=row
+            )
+
+        globdir = tmp_path_factory.mktemp(basename="json-bench-globs", numbered=False)
+        for num in [16, 64, 256]:
+            tmpdir = globdir.joinpath(f"n{num}")
+            out[f"glob.n{num}"] = tmpdir.joinpath("*.json")
+            os.mkdir(tmpdir)
+            for i in range(num):
+                write_random_json_file(
+                    tmpdir.joinpath(f"benchdata.{i}.json"), column_count=16, row_count=512
+                )
+
+    return out
+
+
+CASES = [
+    "c16.r64",
+    "c16.r265",
+    "c16.r512",
+    "c32.r64",
+    "c32.r265",
+    "c32.r512",
+    "glob.n16",
+    "glob.n64",
+    "glob.n256",
+]
+
+
 @pytest.mark.parametrize(
-    "column_count,row_count,read_fn_name",
+    "case_name,read_fn_name",
     [
-        (10, 10, "read_ndjson"),
-        (10, 10, "read_json"),
-        (100, 10, "read_ndjson"),
-        (100, 10, "read_json"),
-        (10, 100, "read_ndjson"),
-        (10, 100, "read_json"),
-        (10, 250, "read_ndjson"),
-        (10, 250, "read_json"),
+        bench
+        for b in [[(item, "read_json"), (item, "read_ndjson")] for item in CASES]
+        for bench in b
     ],
 )
-@pytest.mark.benchmark(
-    warmup=True,
-    warmup_iterations=2,
-    max_time=20,
-    min_time=5,
-    min_rounds=10,
-)
+@pytest.mark.benchmark
 def test_json_function(
     glaredb_connection: psycopg2.extensions.connection,
     tmp_path_factory: pytest.TempPathFactory,
-    column_count: int,
-    row_count: int,
+    generated_bench_data: dict[str, pathlib.Path],
+    case_name: str,
     read_fn_name: str,
-    test_data_path: pathlib.Path,
     benchmark: callable,
 ):
-    benchmark(run_query_operation, glaredb_connection, test_data_path, read_fn_name)
-
-
+    benchmark(
+        run_query_operation, glaredb_connection, generated_bench_data, case_name, read_fn_name
+    )
 
 
 def run_query_operation(
     glaredb_connection: psycopg2.extensions.connection,
-    path: pathlib.Path,
+    generated_bench_data: dict[str, pathlib.Path],
+    case_name: str,
     read_fn_name: str,
 ):
+    path = generated_bench_data[case_name]
+
     with glaredb_connection.cursor() as curr:
         curr.execute(f"SELECT count(*) FROM {read_fn_name}('{path}');")
         res = curr.fetchone()
