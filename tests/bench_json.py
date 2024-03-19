@@ -8,7 +8,6 @@ import json
 import random
 import string
 import logging
-import itertools
 
 import pytest
 import psycopg2
@@ -17,6 +16,48 @@ import tests.tools
 
 VALUES_SET = string.ascii_uppercase + string.digits
 logger = logging.getLogger("json")
+
+
+CASES = [
+    "c16.r256",
+    "c16.r512",
+    "c32.r256",
+    "c32.r512",
+    "glob.n16",
+    "glob.n64",
+    "glob.n256",
+    "glob.n512",
+]
+
+
+@pytest.fixture(scope="session")
+def generated_bench_data(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, pathlib.Path]:
+    out: dict[str, pathlib.Path] = {}
+
+    with tests.tools.timed(logger, "generating-test-data"):
+        tmpdir = tmp_path_factory.mktemp(basename="json-bench-singles", numbered=False)
+        for col, row in [(16, 256), (16, 512), (32, 256), (32, 512)]:
+            out[f"c{col}.r{row}"] = write_random_json_file(
+                path=tmpdir.joinpath(f"c{col}.r{row}.json"), column_count=col, row_count=row
+            )
+
+        globdir = tmp_path_factory.mktemp(basename="json-bench-globs", numbered=False)
+        for num in [16, 64, 256, 512]:
+            tmpdir = globdir.joinpath(f"n{num}")
+            test_path = tmpdir.joinpath("*.json")
+            out[f"glob.n{num}"] = test_path
+            os.mkdir(tmpdir)
+            logger.info(f"added glob test at '{test_path}'")
+            for i in range(num):
+                write_random_json_file(
+                    tmpdir.joinpath(f"benchdata.{i}.json"), column_count=16, row_count=512
+                )
+
+    logger.info(f"wrote {len(out)} test cases; {len(CASES)} registered")
+
+    return out
 
 
 def write_random_json_file(
@@ -57,51 +98,12 @@ def write_random_json_file(
     return path
 
 
-@pytest.fixture(scope="session")
-def generated_bench_data(
-    tmp_path_factory: pytest.TempPathFactory,
-) -> dict[str, pathlib.Path]:
-    out: dict[str, pathlib.Path] = {}
-
-    with tests.tools.timed(logger, "generating-test-data"):
-        tmpdir = tmp_path_factory.mktemp(basename="json-bench-singles", numbered=False)
-        for col, row in [(16, 64), (16, 256), (16, 512), (32, 64), (32, 256), (32, 512)]:
-            out[f"c{col}.r{row}"] = write_random_json_file(
-                path=tmpdir.joinpath(f"c{col}.r{row}.json"), column_count=col, row_count=row
-            )
-
-        globdir = tmp_path_factory.mktemp(basename="json-bench-globs", numbered=False)
-        for num in [16, 64, 256]:
-            tmpdir = globdir.joinpath(f"n{num}")
-            out[f"glob.n{num}"] = tmpdir.joinpath("*.json")
-            os.mkdir(tmpdir)
-            for i in range(num):
-                write_random_json_file(
-                    tmpdir.joinpath(f"benchdata.{i}.json"), column_count=16, row_count=512
-                )
-
-    return out
-
-
-CASES = [
-    "c16.r64",
-    "c16.r256",
-    "c16.r512",
-    "c32.r64",
-    "c32.r256",
-    "c32.r512",
-    "glob.n16",
-    "glob.n64",
-    "glob.n256",
-]
-
-
 @pytest.mark.parametrize(
     "case_name,read_fn_name",
     [
         bench
-        for b in [[(item, "read_json"), (item, "read_ndjson")] for item in CASES]
-        for bench in b
+        for pair in [[(item, "read_json"), (item, "read_ndjson")] for item in CASES]
+        for bench in pair
     ],
 )
 @pytest.mark.benchmark
@@ -113,19 +115,18 @@ def test_json_function(
     read_fn_name: str,
     benchmark: callable,
 ):
-    benchmark(
-        run_query_operation, glaredb_connection, generated_bench_data, case_name, read_fn_name
-    )
+    path = generated_bench_data[case_name]
+
+    logger.info(f"using test data at '{path}' for {case_name}")
+
+    benchmark(run_query_operation, glaredb_connection, path, read_fn_name)
 
 
 def run_query_operation(
     glaredb_connection: psycopg2.extensions.connection,
-    generated_bench_data: dict[str, pathlib.Path],
-    case_name: str,
+    path: pathlib.Path,
     read_fn_name: str,
 ):
-    path = generated_bench_data[case_name]
-
     with glaredb_connection.cursor() as curr:
         curr.execute(f"SELECT count(*) FROM {read_fn_name}('{path}');")
         res = curr.fetchone()
