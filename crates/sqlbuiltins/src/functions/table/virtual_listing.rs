@@ -37,6 +37,7 @@ use protogen::metastore::types::options::{
     DatabaseOptionsSqlServer,
     DatabaseOptionsSqlite,
 };
+use uuid::Uuid;
 
 use super::TableFunc;
 use crate::functions::ConstBuiltinFunction;
@@ -384,11 +385,22 @@ pub(crate) async fn get_virtual_lister_for_external_db(
                     .map_err(ExtensionError::access)?;
             Box::new(state)
         }
-        DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
-            let access = SqliteAccess {
-                db: location.into(),
+        DatabaseOptions::Sqlite(DatabaseOptionsSqlite {
+            location,
+            storage_options,
+        }) => {
+            let storage_options = match storage_options.clone() {
+                Some(mut opts) => {
+                    opts.inner
+                        .insert("__tmp_prefix".to_string(), Uuid::new_v4().to_string());
+                    Some(opts)
+                }
+                None => None,
             };
-            let state = access.connect().await.map_err(ExtensionError::access)?;
+            let state = SqliteAccess::new(location.as_str().try_into()?, storage_options.clone())
+                .await?
+                .connect()
+                .await?;
             Box::new(state)
         }
         DatabaseOptions::Delta(_) => {

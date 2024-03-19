@@ -1,8 +1,6 @@
 use datafusion::error::DataFusionError;
 use datafusion_ext::errors::ExtensionError;
 
-use crate::object_store::errors::ObjectStoreSourceError;
-
 #[derive(Debug, thiserror::Error)]
 pub enum JsonError {
     #[error("Unsupported json type: {0}")]
@@ -18,7 +16,7 @@ pub enum JsonError {
     SendAlreadyInProgress,
 
     #[error(transparent)]
-    ObjectStoreSource(#[from] ObjectStoreSourceError),
+    ObjectStoreSource(#[from] crate::object_store::errors::ObjectStoreSourceError),
 
     #[error(transparent)]
     ObjectStore(#[from] object_store::Error),

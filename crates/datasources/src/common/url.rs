@@ -149,6 +149,7 @@ impl TryFrom<&str> for DatasourceUrl {
     }
 }
 
+
 impl TryFrom<FuncParamValue> for DatasourceUrl {
     type Error = ExtensionError;
 
@@ -158,6 +159,12 @@ impl TryFrom<FuncParamValue> for DatasourceUrl {
             param: url_string,
             expected: "datasource url",
         })
+    }
+}
+
+impl From<PathBuf> for DatasourceUrl {
+    fn from(path: PathBuf) -> Self {
+        DatasourceUrl::File(path)
     }
 }
 

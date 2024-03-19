@@ -1,0 +1,48 @@
+statement ok
+CREATE CREDENTIALS gcp_creds PROVIDER gcp OPTIONS
+	( service_account_key '${GCP_SERVICE_ACCOUNT_KEY}' );
+
+query I
+select count(*) from read_sqlite('gs://${GCS_BUCKET_NAME}/leaders.sqlite', gcp_creds, leaders);
+----
+16386
+
+query II
+SELECT lead_count,location_count
+FROM read_sqlite('gs://${GCS_BUCKET_NAME}/leaders.sqlite', gcp_creds, leaders)
+WHERE name = 'Sam Kleinman';
+----
+175	57
+
+statement ok
+CREATE EXTERNAL TABLE leaders
+    FROM sqlite
+    OPTIONS (
+        location = 'gs://${GCS_BUCKET_NAME}/leaders.sqlite',
+	table = 'leaders',
+	service_account_key ='${GCP_SERVICE_ACCOUNT_KEY}',
+    );
+
+query I
+select count(*) FROM leaders;
+----
+16386
+
+statement error
+INSERT INTO leaders VALUES (21294,'B.F. White',1,0.0,0,1);
+
+statement ok
+DROP TABLE leaders;
+
+statement ok
+CREATE EXTERNAL DATABASE minutes
+	FROM sqlite
+	OPTIONS (
+	        location = 'gs://${GCS_BUCKET_NAME}/leaders.sqlite',
+		service_account_key ='${GCP_SERVICE_ACCOUNT_KEY}'
+	);
+
+query I
+SELECT id FROM minutes.public.leaders WHERE minutes.public.leaders.name = 'Sam Kleinman';
+----
+11517

@@ -1,6 +1,7 @@
 use std::fmt;
 use std::path::PathBuf;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use async_sqlite::rusqlite;
@@ -10,6 +11,7 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::DataFusionError;
 use datafusion::physical_plan::RecordBatchStream;
 use futures::{Future, FutureExt, Stream};
+use tempfile;
 use tokio::sync::mpsc;
 
 use super::convert::Converter;
@@ -19,6 +21,8 @@ use crate::sqlite::errors::Result;
 pub struct SqliteAsyncClient {
     path: PathBuf,
     inner: async_sqlite::Client,
+    // we're just tying the lifetime of the tempdir to this connection
+    cache: Option<Arc<tempfile::TempDir>>,
 }
 
 impl fmt::Debug for SqliteAsyncClient {
@@ -28,12 +32,13 @@ impl fmt::Debug for SqliteAsyncClient {
 }
 
 impl SqliteAsyncClient {
-    pub async fn new(path: PathBuf) -> Result<Self> {
+    pub async fn new(path: PathBuf, cache: Option<Arc<tempfile::TempDir>>) -> Result<Self> {
         let inner = async_sqlite::ClientBuilder::new()
             .path(&path)
             .open()
             .await?;
-        Ok(Self { path, inner })
+
+        Ok(Self { path, inner, cache })
     }
 
     /// Query and return a RecordBatchStream for sqlite data.
@@ -117,6 +122,10 @@ impl SqliteAsyncClient {
                 })
             })
             .await?)
+    }
+
+    pub fn is_local_file(&self) -> bool {
+        self.cache.is_none()
     }
 }
 

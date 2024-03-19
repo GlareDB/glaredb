@@ -425,28 +425,6 @@ impl From<DatabaseOptionsCassandra> for options::DatabaseOptionsCassandra {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DatabaseOptionsSqlite {
-    pub location: String,
-}
-
-impl TryFrom<options::DatabaseOptionsSqlite> for DatabaseOptionsSqlite {
-    type Error = ProtoConvError;
-    fn try_from(value: options::DatabaseOptionsSqlite) -> Result<Self, Self::Error> {
-        Ok(DatabaseOptionsSqlite {
-            location: value.location,
-        })
-    }
-}
-
-impl From<DatabaseOptionsSqlite> for options::DatabaseOptionsSqlite {
-    fn from(value: DatabaseOptionsSqlite) -> Self {
-        options::DatabaseOptionsSqlite {
-            location: value.location,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsSnowflake {
     pub account_name: String,
     pub login_name: String,
@@ -595,10 +573,9 @@ impl StorageOptions {
     }
 }
 
-impl TryFrom<options::StorageOptions> for StorageOptions {
-    type Error = ProtoConvError;
-    fn try_from(value: options::StorageOptions) -> Result<Self, Self::Error> {
-        Ok(StorageOptions { inner: value.inner })
+impl From<options::StorageOptions> for StorageOptions {
+    fn from(value: options::StorageOptions) -> Self {
+        StorageOptions { inner: value.inner }
     }
 }
 
@@ -607,6 +584,7 @@ impl From<StorageOptions> for options::StorageOptions {
         options::StorageOptions { inner: value.inner }
     }
 }
+
 
 // Table options
 
@@ -631,7 +609,7 @@ pub enum TableOptions {
     Clickhouse(TableOptionsClickhouse),
     Cassandra(TableOptionsCassandra),
     Excel(TableOptionsExcel),
-    Sqlite(TableOptionsSqlite),
+    Sqlite(TableOptionsObjectStore),
 }
 
 impl TableOptions {
@@ -1227,31 +1205,6 @@ impl From<TableOptionsCassandra> for options::TableOptionsCassandra {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TableOptionsSqlite {
-    pub location: String,
-    pub table: String,
-}
-
-impl TryFrom<options::TableOptionsSqlite> for TableOptionsSqlite {
-    type Error = ProtoConvError;
-    fn try_from(value: options::TableOptionsSqlite) -> Result<Self, Self::Error> {
-        Ok(TableOptionsSqlite {
-            location: value.location,
-            table: value.table,
-        })
-    }
-}
-
-impl From<TableOptionsSqlite> for options::TableOptionsSqlite {
-    fn from(value: TableOptionsSqlite) -> Self {
-        options::TableOptionsSqlite {
-            location: value.location,
-            table: value.table,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsSnowflake {
     pub account_name: String,
     pub login_name: String,
@@ -1294,9 +1247,36 @@ impl From<TableOptionsSnowflake> for options::TableOptionsSnowflake {
     }
 }
 
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DatabaseOptionsSqlite {
+    pub location: String,
+    pub storage_options: Option<StorageOptions>,
+}
+
+impl TryFrom<options::DatabaseOptionsSqlite> for DatabaseOptionsSqlite {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DatabaseOptionsSqlite) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsSqlite {
+            location: value.location,
+            storage_options: value.storage_options.map(|v| v.into()),
+        })
+    }
+}
+
+impl From<DatabaseOptionsSqlite> for options::DatabaseOptionsSqlite {
+    fn from(value: DatabaseOptionsSqlite) -> Self {
+        options::DatabaseOptionsSqlite {
+            location: value.location,
+            storage_options: value.storage_options.map(|v| v.into()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsObjectStore {
     pub location: String,
+    pub name: Option<String>,
     pub storage_options: StorageOptions,
     pub file_type: Option<String>,
     pub compression: Option<String>,
@@ -1308,6 +1288,7 @@ impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsObjectStore) -> Result<Self, Self::Error> {
         Ok(TableOptionsObjectStore {
+            name: value.name,
             location: value.location,
             storage_options: value.storage_options.required("storage_options")?,
             file_type: value.file_type,
@@ -1330,6 +1311,7 @@ impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
 impl From<TableOptionsObjectStore> for options::TableOptionsObjectStore {
     fn from(value: TableOptionsObjectStore) -> Self {
         options::TableOptionsObjectStore {
+            name: value.name,
             location: value.location,
             storage_options: Some(value.storage_options.into()),
             file_type: value.file_type,
