@@ -184,6 +184,7 @@ pub fn table_location_and_opts(
     let mut storage_options = StorageOptions::default();
     match (source_url.datasource_url_type(), maybe_cred_opts) {
         (DatasourceUrlType::File, None) => {} // no options fine in this case
+        (DatasourceUrlType::Http, None) => {} // no options fine in this case
         (DatasourceUrlType::File, _) => {
             return Err(ExtensionError::String(
                 "Credentials incorrectly provided when accessing local delta table".to_string(),
@@ -223,11 +224,6 @@ pub fn table_location_and_opts(
                 AzureConfigKey::AccessKey.as_ref().to_string(),
                 creds.access_key,
             );
-        }
-        (DatasourceUrlType::Http, _) => {
-            return Err(ExtensionError::String(
-                "Accessing delta tables over http not supported".to_string(),
-            ))
         }
         (datasource, creds) => {
             return Err(ExtensionError::String(format!(
