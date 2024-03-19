@@ -85,10 +85,10 @@ def generated_bench_data(
 
 CASES = [
     "c16.r64",
-    "c16.r265",
+    "c16.r256",
     "c16.r512",
     "c32.r64",
-    "c32.r265",
+    "c32.r256",
     "c32.r512",
     "glob.n16",
     "glob.n64",
