@@ -66,7 +66,6 @@ def write_random_json_file(
     row_count: int,
 ) -> pathlib.Path:
     vals = [
-        str(path.absolute()),
         "".join(random.choices(VALUES_SET, k=4)),
         "".join(random.choices(VALUES_SET, k=8)),
         "".join(random.choices(VALUES_SET, k=16)),
