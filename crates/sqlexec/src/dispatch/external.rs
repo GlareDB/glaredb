@@ -18,6 +18,7 @@ use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
 use datasources::excel::table::ExcelTableProvider;
 use datasources::excel::ExcelTable;
+use datasources::json::table::json_streaming_table;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lake::{storage_options_into_object_store, storage_options_into_store_access};
@@ -641,6 +642,9 @@ impl<'a> ExternalDispatcher<'a> {
         compression: Option<&String>,
     ) -> Result<Arc<dyn TableProvider>> {
         let path = path.as_ref();
+        // TODO: only parquet/ndjson/csv actually support compression,
+        // so we'll end up attempting to handle compression for some
+        // types and not others.
         let compression = compression
             .map(|c| c.parse::<FileCompressionType>())
             .transpose()?
@@ -669,14 +673,6 @@ impl<'a> ExternalDispatcher<'a> {
                     accessor.clone().list_globbed(path).await?,
                 )
                 .await?),
-            "ndjson" | "json" => Ok(accessor
-                .clone()
-                .into_table_provider(
-                    &self.df_ctx.state(),
-                    Arc::new(JsonFormat::default().with_file_compression_type(compression)),
-                    accessor.clone().list_globbed(path).await?,
-                )
-                .await?),
             "bson" => Ok(bson_streaming_table(
                 access.clone(),
                 DatasourceUrl::try_new(path)?,
@@ -684,6 +680,17 @@ impl<'a> ExternalDispatcher<'a> {
                 Some(128),
             )
             .await?),
+            "json" => Ok(
+                json_streaming_table(access.clone(), DatasourceUrl::try_new(path)?, None).await?,
+            ),
+            "ndjson" | "jsonl" => Ok(accessor
+                .clone()
+                .into_table_provider(
+                    &self.df_ctx.state(),
+                    Arc::new(JsonFormat::default().with_file_compression_type(compression)),
+                    accessor.clone().list_globbed(path).await?,
+                )
+                .await?),
             _ => Err(DispatchError::String(
                 format!("Unsupported file type: '{}', for '{}'", file_type, path,).to_string(),
             )),
