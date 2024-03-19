@@ -65,32 +65,23 @@ def write_random_json_file(
     column_count: int,
     row_count: int,
 ) -> pathlib.Path:
+    vals = [
+        str(path.absolute()),
+        "".join(random.choices(VALUES_SET, k=4)),
+        "".join(random.choices(VALUES_SET, k=8)),
+        "".join(random.choices(VALUES_SET, k=16)),
+        "".join(random.choices(VALUES_SET, k=32)),
+        "".join(random.choices(VALUES_SET, k=64)),
+    ]
+
     with open(path, "w") as f:
-        for rc in range(row_count):
+        for idx, rc in enumerate(range(row_count)):
             doc = {}
             for cc in range(column_count):
-                rval = "".join(
-                    random.choices(
-                        VALUES_SET,
-                        k=random.choices(
-                            range(cc + 1),
-                        )[0],
-                    )
-                )
-                val = [i for i in range(42)]
-                val.extend(
-                    [
-                        True,
-                        False,
-                        None,
-                        cc,
-                        rc,
-                        str(path.absolute()),
-                        rval,
-                    ],
-                )
-                rkey = "".join(random.choices(VALUES_SET, k=8))
-                doc[f"{cc}.{rkey}"] = random.choices(val)
+                if cc % 4 == 0:
+                    doc[f"{cc}.{idx}"] = random.randint(0, (column_count + 1) * (row_count + 1))
+                else:
+                    doc[f"{cc}.{idx}"] = random.choice(vals)
 
             json.dump(doc, f)
             f.write("\n")
