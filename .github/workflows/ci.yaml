@@ -7,6 +7,8 @@ on:
   pull_request:
   merge_group:
   workflow_dispatch:
+  workflow_run:
+   workflows:
 
 concurrency:
   group: build-ci-${{ github.ref }}
@@ -486,6 +488,7 @@ jobs:
               -o access_key_id=$MINIO_ACCESS_KEY \
               -o secret_access_key=$MINIO_SECRET_KEY \
               'sqllogictests/*' \
+              --jobs 1 \
               --protocol=flightsql
 
   service-integration-tests-snowflake:
