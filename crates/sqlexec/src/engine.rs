@@ -457,10 +457,12 @@ impl Engine {
         // If the database name is in the form of `<UUID>/<db_id>`, then we
         // should use the <db_id> as the alias for the database.
         let database_name = vars.database_name();
-        if let Some((org_id, db_id)) = database_name.split_once('/') {
-            if Uuid::parse_str(org_id).is_ok() {
-                catalog = catalog.with_alias(db_id.to_string());
-            }
+        if let Some(db_id) = database_name
+            .split_once('/')
+            // check if the first part is a valid UUID
+            .and_then(|(org_id, db_id)| Uuid::parse_str(org_id).ok().map(|_| db_id))
+        {
+            catalog = catalog.with_alias(db_id.to_string());
         // else, we should use the entire database name as the alias if it's not empty
         } else if !database_name.is_empty() {
             catalog = catalog.with_alias(database_name);
