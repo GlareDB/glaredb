@@ -90,7 +90,7 @@ impl SessionCatalog {
         resolve_conf: ResolveConfig,
         alias: String,
     ) -> SessionCatalog {
-        let mut catalog = Self::new(state, resolve_conf);
+        let catalog = Self::new(state, resolve_conf);
         catalog.with_alias(alias)
     }
 

@@ -420,8 +420,6 @@ impl Engine {
         vars: SessionVars,
         storage: SessionStorageConfig,
     ) -> Result<TrackedSession> {
-        println!("new_local_session_context");
-
         let session = self.new_untracked_session(vars, storage).await?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
