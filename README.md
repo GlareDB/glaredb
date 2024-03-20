@@ -45,7 +45,7 @@ example, `~/.local/bin`.
 If you prefer manual installation, download, extract and run the GlareDB binary
 from a release in our [releases page].
 
-## Getting started
+## Getting Started
 
 After [Installing](#install), get up and running with:
 
@@ -138,7 +138,7 @@ df = con.sql("select * from df where fruits = 'banana'").to_polars();
 print(df)
 ```
 
-### Local server
+### Local Server
 
 The `server` subcommand can be used to launch a server process for GlareDB:
 
@@ -160,9 +160,9 @@ running server:
 psql "host=localhost user=glaredb dbname=glaredb port=6543"
 ```
 
-## Your first data source
+## Configure the First Data Source
 
-A demo Postgres instance is deployed at `pg.demo.glaredb.com`. Adding this
+You can use a demo Postgres instance at `pg.demo.glaredb.com`. Adding this
 Postgres instance as data source is as easy as running the following command:
 
 ```sql
@@ -196,46 +196,45 @@ Done with this data source? Remove it with the following command:
 DROP DATABASE my_pg;
 ```
 
-## Supported data sources
+## Supported Data Sources
 
-| Source                 | Read | Write | Table Function | External Table | External Database |
-| ---------------------- | :--: | :---: | :------------: | :------------: | ----------------- |
-| **Databases**          |  --  |       |       --       |       --       | --                |
-| MySQL                  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
-| PostgreSQL             |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
-| MariaDB _(via mysql)_  |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
-| Microsoft SQL Server   |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
-| MongoDB                |  ✅  |  ✅   |       ✅       |       ✅       | ✅                |
-| Snowflake              |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
-| BigQuery               |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
-| Cassandra/ScyllaDB     |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
-| ClickHouse             |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
-| DuckDB                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
-| Oracle                 |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
-| SQLite                 |  ✅  |  🚧   |       ✅       |       ✅       | ✅                |
-| ADBC                   |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
-| ODBC                   |  🚧  |  🚧   |       🚧       |       🚧       | 🚧                |
-| **File Formats**       |  --  |  --   |       --       |       --       | --                |
-| Apache Arrow           |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
-| CSV                    |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
-| Newline Delimited JSON |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
-| Apache Parquet         |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
-| BSON                   |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
-| Lance                  |  ✅  | ✅\*  |       ✅       |       ✅       | ➖                |
-| Delta                  |  ✅  |  🚧   |       ✅       |       ✅       | ➖                |
-| Iceberg                |  ✅  |  🚧   |       ✅       |       ✅       | ➖                |
-| Microsoft Excel        |  ✅  |  🚧   |       ✅       |       🚧       | ➖                |
-| JSON                   |  🚧  |  🚧   |       🚧       |       🚧       | ➖                |
-| Apache Avro            |  🚧  |  🚧   |       🚧       |       🚧       | ➖                |
-| Apache ORC             |  🚧  |  🚧   |       🚧       |       🚧       | ➖                |
+| Source                 | Read | `INSERT INTO` | `COPY TO` | Table Function | External Table | External Database |
+|------------------------|:----:|:-------------:|-----------|:--------------:|:--------------:|-------------------|
+| **Databases**          | --   | --            | --        | --             | --             | --                |
+| MySQL                  | ✅   | ✅            | ✅        | ✅             | ✅             | ✅                |
+| PostgreSQL             | ✅   | ✅            | ✅        | ✅             | ✅             | ✅                |
+| MariaDB _(via mysql)_  | ✅   | ✅            | ✅        | ✅             | ✅             | ✅                |
+| Microsoft SQL Server   | ✅   | 🚧            | 🚧        | ✅             | ✅             | ✅                |
+| MongoDB                | ✅   | ✅            | ✅        | ✅             | ✅             | ✅                |
+| SQLite                 | ✅   | ✅            | 🚧        | ✅             | ✅             | ✅                |
+| Snowflake              | ✅   | 🚧            | 🚧        | ✅             | ✅             | ✅                |
+| BigQuery               | ✅   | 🚧            | 🚧        | ✅             | ✅             | ✅                |
+| Cassandra/ScyllaDB     | ✅   | 🚧            | 🚧        | ✅             | ✅             | ✅                |
+| ClickHouse             | ✅   | 🚧            | 🚧        | ✅             | ✅             | ✅                |
+| Microsoft Excel        | ✅   | 🚧            | 🚧        | ✅             | ✅             | ➖                |
+| DuckDB                 | 🚧   | 🚧            | 🚧        | 🚧             | 🚧             | 🚧                |
+| Oracle                 | 🚧   | 🚧            | 🚧        | 🚧             | 🚧             | 🚧                |
+| ADBC                   | 🚧   | 🚧            | 🚧        | 🚧             | 🚧             | 🚧                |
+| ODBC                   | 🚧   | 🚧            | 🚧        | 🚧             | 🚧             | 🚧                |
+| **File Formats**       | --   | --            | --        | --             | --             | --                |
+| Apache Arrow           | ✅   | 🚧            | ✅        | ✅             | ✅             | ➖                |
+| CSV                    | ✅   | 🚧            | ✅        | ✅             | ✅             | ➖                |
+| Multi-Line JSON        | ✅   | 🚧            | ✅        | ✅             | ✅             | ➖                |
+| Newline Delimited JSON | ✅   | 🚧            | ✅        | ✅             | ✅             | ➖                |
+| Apache Parquet         | ✅   | 🚧            | ✅        | ✅             | ✅             | ➖                |
+| BSON                   | ✅   | 🚧            | ✅        | ✅             | ✅             | ➖                |
+| Apache Avro            | 🚧   | 🚧            | 🚧        | 🚧             | 🚧             | ➖                |
+| Apache ORC             | 🚧   | 🚧            | 🚧        | 🚧             | 🚧             | ➖                |
+| **Table Formats**      | --   | --            | --        | --             | --             | --                |
+| Lance                  | ✅   | ✅            | ✅        | ✅             | ✅             | ➖                |
+| Delta                  | ✅   | 🚧            | 🚧        | ✅             | ✅             | ➖                |
+| Iceberg                | ✅   | 🚧            | 🚧        | ✅             | ✅             | ➖                |
 
 ✅ = Supported
 ➖ = Not Applicable
 🚧 = Not Yet Supported
 
-\* `COPY TO` support only
-
-## Building from source
+## Building from Source
 
 Building GlareDB requires Rust/Cargo to be installed. Check out [rustup](https://rustup.rs/) for
 an easy way to install Rust on your system.
@@ -248,7 +247,7 @@ just build --release
 
 The compiled release binary can be found in `target/release/glaredb`.
 
-## Docs
+## Documentation
 
 Browse GlareDB documentation on our [docs.glaredb.com](https://docs.glaredb.com).
 
