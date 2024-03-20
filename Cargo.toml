@@ -16,6 +16,10 @@ strip = true
 [workspace.lints.clippy]
 wildcard_imports = "deny"
 
+[workspace.target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+ar = "aarch64-linux-gnu-ar"
+
 [workspace.dependencies]
 clap = { version = "4.5.3", features = ["derive"] }
 datafusion = { version = "35.0.0", features = ["avro"] }
@@ -41,6 +45,7 @@ tempfile = "3.10.1"
 thiserror = "1.0"
 tracing = "0.1"
 url = "2.5.0"
+deltalake = { git = "https://github.com/delta-io/delta-rs.git", rev = "5c324ccd0a8738251a9aea9452d7323400e5e8c6", features = ["s3", "gcs", "azure", "datafusion", "arrow"] }
 
 [workspace.dependencies.deltalake]
 git = "https://github.com/delta-io/delta-rs.git"
