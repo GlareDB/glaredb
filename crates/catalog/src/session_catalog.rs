@@ -91,8 +91,12 @@ impl SessionCatalog {
         alias: String,
     ) -> SessionCatalog {
         let mut catalog = Self::new(state, resolve_conf);
-        catalog.alias = Some(alias);
-        catalog
+        catalog.with_alias(alias)
+    }
+
+    pub fn with_alias(mut self, alias: String) -> SessionCatalog {
+        self.alias = Some(alias);
+        self
     }
 
     pub fn alias(&self) -> Option<&str> {

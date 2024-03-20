@@ -420,6 +420,8 @@ impl Engine {
         vars: SessionVars,
         storage: SessionStorageConfig,
     ) -> Result<TrackedSession> {
+        println!("new_local_session_context");
+
         let session = self.new_untracked_session(vars, storage).await?;
 
         let prev = self.session_counter.fetch_add(1, Ordering::Relaxed);
@@ -446,13 +448,25 @@ impl Engine {
             .storage
             .new_native_tables_storage(database_id, &storage)?;
         let state = metastore.get_cached_state().await?;
-        let catalog = SessionCatalog::new(
+        let mut catalog = SessionCatalog::new(
             state,
             ResolveConfig {
                 default_schema_oid: SCHEMA_DEFAULT.oid,
                 session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
             },
         );
+
+        // If the database name is in the form of `<UUID>/<db_id>`, then we
+        // should use the <db_id> as the alias for the database.
+        // else, we should just use the entire database name as the alias.
+        let database_name = vars.database_name();
+        if let Some((org_id, db_id)) = database_name.split_once('/') {
+            if Uuid::parse_str(org_id).is_ok() {
+                catalog = catalog.with_alias(db_id.to_string());
+            }
+        } else {
+            catalog = catalog.with_alias(database_name);
+        }
 
         Session::new(
             vars,
