@@ -18,6 +18,7 @@ use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
 use datasources::excel::table::ExcelTableProvider;
 use datasources::excel::ExcelTable;
+use datasources::json::table::json_streaming_table;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
 use datasources::lake::{storage_options_into_object_store, storage_options_into_store_access};
@@ -68,11 +69,11 @@ use protogen::metastore::types::options::{
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
-    TableOptionsSqlite,
     TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FunctionRegistry;
+use uuid::Uuid;
 
 use super::{DispatchError, Result};
 
@@ -278,11 +279,15 @@ impl<'a> ExternalDispatcher<'a> {
                 .await?;
                 Ok(Arc::new(table))
             }
-            DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
-                let access = SqliteAccess {
-                    db: location.into(),
-                };
-                let state = access.connect().await?;
+            DatabaseOptions::Sqlite(DatabaseOptionsSqlite {
+                location,
+                storage_options,
+            }) => {
+                let state =
+                    SqliteAccess::new(location.as_str().try_into()?, storage_options.to_owned())
+                        .await?
+                        .connect()
+                        .await?;
                 let table = SqliteTableProvider::try_new(state, name).await?;
                 Ok(Arc::new(table))
             }
@@ -605,13 +610,26 @@ impl<'a> ExternalDispatcher<'a> {
 
                 Ok(Arc::new(table))
             }
-            TableOptions::Sqlite(TableOptionsSqlite { location, table }) => {
-                let access = SqliteAccess {
-                    db: location.into(),
-                };
-                let state = access.connect().await?;
-                let table = SqliteTableProvider::try_new(state, table).await?;
-                Ok(Arc::new(table))
+            TableOptions::Sqlite(TableOptionsObjectStore {
+                location,
+                storage_options,
+                name,
+                ..
+            }) => {
+                let mut storage_options = storage_options.to_owned();
+
+                storage_options
+                    .inner
+                    .insert("__tmp_prefix".to_string(), Uuid::new_v4().to_string());
+
+                let table = name.clone().ok_or(DispatchError::MissingTable)?;
+                let state =
+                    SqliteAccess::new(location.as_str().try_into()?, Some(storage_options.clone()))
+                        .await?
+                        .connect()
+                        .await?;
+
+                Ok(Arc::new(SqliteTableProvider::try_new(state, table).await?))
             }
         }
     }
@@ -624,6 +642,9 @@ impl<'a> ExternalDispatcher<'a> {
         compression: Option<&String>,
     ) -> Result<Arc<dyn TableProvider>> {
         let path = path.as_ref();
+        // TODO: only parquet/ndjson/csv actually support compression,
+        // so we'll end up attempting to handle compression for some
+        // types and not others.
         let compression = compression
             .map(|c| c.parse::<FileCompressionType>())
             .transpose()?
@@ -652,14 +673,6 @@ impl<'a> ExternalDispatcher<'a> {
                     accessor.clone().list_globbed(path).await?,
                 )
                 .await?),
-            "ndjson" | "json" => Ok(accessor
-                .clone()
-                .into_table_provider(
-                    &self.df_ctx.state(),
-                    Arc::new(JsonFormat::default().with_file_compression_type(compression)),
-                    accessor.clone().list_globbed(path).await?,
-                )
-                .await?),
             "bson" => Ok(bson_streaming_table(
                 access.clone(),
                 DatasourceUrl::try_new(path)?,
@@ -667,6 +680,17 @@ impl<'a> ExternalDispatcher<'a> {
                 Some(128),
             )
             .await?),
+            "json" => Ok(
+                json_streaming_table(access.clone(), DatasourceUrl::try_new(path)?, None).await?,
+            ),
+            "ndjson" | "jsonl" => Ok(accessor
+                .clone()
+                .into_table_provider(
+                    &self.df_ctx.state(),
+                    Arc::new(JsonFormat::default().with_file_compression_type(compression)),
+                    accessor.clone().list_globbed(path).await?,
+                )
+                .await?),
             _ => Err(DispatchError::String(
                 format!("Unsupported file type: '{}', for '{}'", file_type, path,).to_string(),
             )),

@@ -34,21 +34,101 @@ use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::{StreamExt, TryStreamExt};
+use object_store::ObjectStore;
+use protogen::metastore::types::options::StorageOptions;
+use uuid::Uuid;
 
-use self::errors::Result;
+use self::errors::{Result, SqliteError};
 use self::wrapper::SqliteAsyncClient;
+use crate::common::url::DatasourceUrl;
 use crate::common::util::{self, COUNT_SCHEMA};
+use crate::lake::storage_options_into_store_access;
+use crate::object_store::ObjStoreAccessor;
 
 type DataFusionResult<T> = Result<T, DataFusionError>;
 
 #[derive(Debug, Clone)]
 pub struct SqliteAccess {
     pub db: PathBuf,
+    pub cache: Option<Arc<tempfile::TempDir>>,
 }
 
 impl SqliteAccess {
+    pub async fn new(url: DatasourceUrl, opts: Option<StorageOptions>) -> Result<Self> {
+        match url {
+            DatasourceUrl::File(ref location) => {
+                if !location.try_exists()? {
+                    Err(SqliteError::NoMatchingObjectFound {
+                        url: url.clone(),
+                        num: 0,
+                    })
+                } else {
+                    Ok(Self {
+                        db: location.clone(),
+                        cache: None,
+                    })
+                }
+            }
+            DatasourceUrl::Url(_) => {
+                let storage_options = match opts {
+                    Some(v) => v,
+                    None => {
+                        return Err(SqliteError::Internal(
+                            "storage options are required".to_string(),
+                        ))
+                    }
+                };
+                let store_access = storage_options_into_store_access(&url, &storage_options)?;
+
+                let accessor = ObjStoreAccessor::new(store_access)?;
+                let mut list = accessor.list_globbed(url.path()).await?;
+                if list.len() != 1 {
+                    return Err(SqliteError::NoMatchingObjectFound {
+                        url,
+                        num: list.len(),
+                    });
+                }
+
+                let store = accessor.into_object_store();
+
+                let obj = list.pop().unwrap().location;
+                let payload = store.get(&obj).await?.bytes().await?;
+
+                let tmpdir = Arc::new(
+                    tempfile::Builder::new()
+                        .prefix(
+                            storage_options
+                                .inner
+                                .get("__tmp_prefix")
+                                .map(|i| i.to_owned())
+                                .unwrap_or_else(|| Uuid::new_v4().to_string())
+                                .as_str(),
+                        )
+                        .rand_bytes(8)
+                        .tempdir()?,
+                );
+
+                let tmpdir_path = tmpdir.path();
+                let local_store =
+                    object_store::local::LocalFileSystem::new_with_prefix(tmpdir_path)?;
+
+                let local_path =
+                    object_store::path::Path::parse(obj.filename().unwrap_or("sqlite"))?;
+
+                local_store.put(&local_path, payload).await?;
+
+                let db = tmpdir_path.join(local_path.filename().unwrap());
+
+                Ok(Self {
+                    db,
+                    cache: Some(tmpdir.clone()),
+                })
+            }
+        }
+    }
+
     pub async fn connect(&self) -> Result<SqliteAccessState> {
-        let client = SqliteAsyncClient::new(self.db.to_path_buf()).await?;
+        let client = SqliteAsyncClient::new(self.db.to_path_buf(), self.cache.clone()).await?;
         Ok(SqliteAccessState { client })
     }
 
@@ -64,12 +144,17 @@ impl SqliteAccess {
     }
 }
 
+
 #[derive(Clone, Debug)]
 pub struct SqliteAccessState {
     client: SqliteAsyncClient,
 }
 
 impl SqliteAccessState {
+    pub fn is_local_file(&self) -> bool {
+        self.client.is_local_file()
+    }
+
     async fn validate_table_access(&self, table: &str) -> Result<()> {
         let query = format!("SELECT * FROM {table} WHERE FALSE");
         let _ = self.client.query_all(query).await?;
@@ -299,6 +384,12 @@ impl TableProvider for SqliteTableProvider {
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         if overwrite {
             return Err(DataFusionError::Execution("cannot overwrite".to_string()));
+        }
+
+        if !self.state.is_local_file() {
+            return Err(DataFusionError::Execution(
+                "cannot write remote file".to_string(),
+            ));
         }
 
         Ok(Arc::new(SqliteInsertExec {
