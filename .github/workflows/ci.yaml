@@ -429,6 +429,10 @@ jobs:
     name: MinIO Integration Tests (SLT::MinIO)
     runs-on: ubuntu-latest
     needs: ["sql-logic-tests"]
+    env:
+      MINIO_ACCESS_KEY: glaredb
+      MINIO_SECRET_KEY: glaredb_test
+      TEST_BUCKET: glaredb-test-bucket
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -443,20 +447,12 @@ jobs:
           key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
           fail-on-cache-miss: true
 
-      - name: run tests (slt)
-        env:
-          MINIO_ACCESS_KEY: glaredb
-          MINIO_SECRET_KEY: glaredb_test
-          TEST_BUCKET: glaredb-test-bucket
+      - run:./scripts/prepare-testdata.sh
+      - run: ./scripts/create-test-minio-store.sh
+
+      - name: run tests pg (slt)
         run: |
-          # prepare testdata
-          ./scripts/prepare-testdata.sh
-
-          # Prepare SLT (MinIO)
-          ./scripts/create-test-minio-store.sh
-
-          echo "--------------------------  MinIO (S3) -------------------------- "
-
+          echo "--------------------------  MinIO (S3) PostgreSQL Protocol -------------------------- "
           # PG protocol
           just slt-bin --location http://localhost:9100 \
             --option access_key_id=$MINIO_ACCESS_KEY \
@@ -465,7 +461,16 @@ jobs:
             'sqllogictests/*' \
             'sqllogictests_native/*'
 
-          # Flight protocol
+          echo "--------------------------  MinIO (S3) with a sub-directory -------------------------- "
+          # PG protocol
+          just slt-bin -l http://localhost:9100/$TEST_BUCKET/path/to/folder \
+              -o access_key_id=$MINIO_ACCESS_KEY \
+              -o secret_access_key=$MINIO_SECRET_KEY \
+              'sqllogictests/*'
+
+      - name: run tests FlightSQL (slt)
+        run: |
+          echo "--------------------------  MinIO (S3) FlightSQL -------------------------- "
           just slt-bin --location http://localhost:9100 \
             --option access_key_id=$MINIO_ACCESS_KEY \
             --option secret_access_key=$MINIO_SECRET_KEY \
@@ -474,14 +479,7 @@ jobs:
             'sqllogictests_native/*' \
             --protocol=flightsql
 
-          echo "--------------------------  MinIO (S3) With a sub-directory -------------------------- "
-          # PG protocol
-          just slt-bin -l http://localhost:9100/$TEST_BUCKET/path/to/folder \
-              -o access_key_id=$MINIO_ACCESS_KEY \
-              -o secret_access_key=$MINIO_SECRET_KEY \
-              'sqllogictests/*'
-
-          # Flight protocol
+          echo "--------------------------  MinIO (S3) with a sub-directory -------------------------- "
           just slt-bin -l http://localhost:9100/$TEST_BUCKET/path/to/folder \
               -o access_key_id=$MINIO_ACCESS_KEY \
               -o secret_access_key=$MINIO_SECRET_KEY \
