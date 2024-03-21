@@ -447,7 +447,7 @@ jobs:
           key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
           fail-on-cache-miss: true
 
-      - run:./scripts/prepare-testdata.sh
+      - run: ./scripts/prepare-testdata.sh
       - run: ./scripts/create-test-minio-store.sh
 
       - name: run tests pg (slt)
