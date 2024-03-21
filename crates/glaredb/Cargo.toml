@@ -1,0 +1,10 @@
+[package]
+name = "glaredb"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+derive_builder = "0.20.0"
