@@ -1,26 +1,21 @@
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use atty::Stream;
 use clap::Subcommand;
-use ioutil::ensure_dir;
-use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use slt::discovery::SltDiscovery;
 use slt::hooks::{AllTestsHook, IcebergFormatVersionHook, SqliteTestsHook, SshTunnelHook};
 use slt::tests::{PgBinaryEncoding, SshKeysTest};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
-use tracing::info;
 
 use crate::args::server::ServerArgs;
-use crate::args::{LocalArgs, MetastoreArgs, PgProxyArgs, RpcProxyArgs, SltArgs};
+use crate::args::{LocalArgs, PgProxyArgs, RpcProxyArgs, SltArgs};
 use crate::built_info;
 use crate::local::LocalSession;
-use crate::metastore::Metastore;
 use crate::proxy::{PgProxy, RpcProxy};
 use crate::server::ComputeServer;
 
@@ -36,9 +31,6 @@ pub enum Commands {
     /// Starts an instance of the rpcsrv proxy.
     #[clap(hide = true)]
     RpcProxy(RpcProxyArgs),
-    /// Starts an instance of the Metastore.
-    #[clap(hide = true)]
-    Metastore(MetastoreArgs),
     /// Runs SQL Logic Tests
     #[clap(hide = true, alias = "slt")]
     SqlLogicTests(SltArgs),
@@ -51,7 +43,6 @@ impl Commands {
             Commands::Server(server) => server.run(),
             Commands::PgProxy(pg_proxy) => pg_proxy.run(),
             Commands::RpcProxy(rpc_proxy) => rpc_proxy.run(),
-            Commands::Metastore(metastore) => metastore.run(),
             Commands::SqlLogicTests(slt) => slt.run(),
         }
     }
@@ -135,55 +126,44 @@ impl RunCommand for LocalArgs {
 
 impl RunCommand for ServerArgs {
     fn run(self) -> Result<()> {
-        let Self {
-            bind,
-            rpc_bind,
-            metastore_addr,
-            user,
-            password,
-            data_dir,
-            service_account_path,
-            storage_config,
-            spill_path,
-            ignore_pg_auth,
-            disable_rpc_auth,
-            segment_key,
-            enable_simple_query_rpc,
-            enable_flight_api,
-            disable_postgres_api,
-        } = self;
-
         // Map an empty string to None. Makes writing the terraform easier.
-        let segment_key = segment_key.and_then(|s| if s.is_empty() { None } else { Some(s) });
+        let segment_key = self
+            .segment_key
+            .and_then(|s| if s.is_empty() { None } else { Some(s) });
 
         // If we don't enable the rpc service, then trying to enable the simple
         // interface doesn't make sense.
         // Clap isn't intelligent enough to handle negative conditions, so we
         // have to manually check.
-        if rpc_bind.is_none() && enable_simple_query_rpc {
+        if self.rpc_bind.is_none() && self.enable_simple_query_rpc {
             return Err(anyhow!(
                 "An rpc bind address needs to be provided to enable the simple query interface"
             ));
         }
 
-        let auth: Box<dyn LocalAuthenticator> = match password {
-            Some(password) => Box::new(SingleUserAuthenticator { user, password }),
+        let auth: Box<dyn LocalAuthenticator> = match self.password {
+            Some(password) => Box::new(SingleUserAuthenticator {
+                user: self.user,
+                password,
+            }),
             None => Box::new(PasswordlessAuthenticator {
-                drop_auth_messages: ignore_pg_auth,
+                drop_auth_messages: self.ignore_pg_auth,
             }),
         };
 
         let runtime = build_runtime("server")?;
 
         runtime.block_on(async move {
-            let pg_listener = match bind {
+            let pg_listener = match self.bind {
                 Some(bind) => Some(TcpListener::bind(bind).await?),
-                None if disable_postgres_api => None,
+                None if self.disable_postgres_api => None,
                 None => Some(TcpListener::bind(DEFAULT_PG_BIND_ADDR).await?),
             };
-            let rpc_listener = match rpc_bind {
+            let rpc_listener = match self.rpc_bind {
                 Some(bind) => Some(TcpListener::bind(bind).await?),
-                None if enable_flight_api => Some(TcpListener::bind(DEFAULT_RPC_BIND_ADDR).await?),
+                None if self.enable_flight_api => {
+                    Some(TcpListener::bind(DEFAULT_RPC_BIND_ADDR).await?)
+                }
                 None => None,
             };
 
@@ -191,16 +171,18 @@ impl RunCommand for ServerArgs {
                 .with_authenticator(auth)
                 .with_pg_listener_opt(pg_listener)
                 .with_rpc_listener_opt(rpc_listener)
-                .with_metastore_addr_opt(metastore_addr)
                 .with_segment_key_opt(segment_key)
-                .with_data_dir_opt(data_dir)
-                .with_service_account_path_opt(service_account_path)
-                .with_location_opt(storage_config.location)
-                .with_storage_options(HashMap::from_iter(storage_config.storage_options.clone()))
-                .with_spill_path_opt(spill_path)
-                .disable_rpc_auth(disable_rpc_auth)
-                .enable_simple_query_rpc(enable_simple_query_rpc)
-                .enable_flight_api(enable_flight_api)
+                .with_data_dir_opt(self.data_dir)
+                .with_service_account_path_opt(self.service_account_path)
+                .with_location_opt(self.storage_config.location)
+                .with_storage_options(HashMap::from_iter(
+                    self.storage_config.storage_options.clone(),
+                ))
+                .with_spill_path_opt(self.spill_path)
+                .with_metastore_bucket_opt(self.metastore_bucket)
+                .disable_rpc_auth(self.disable_rpc_auth)
+                .enable_simple_query_rpc(self.enable_simple_query_rpc)
+                .enable_flight_api(self.enable_flight_api)
                 .connect()
                 .await?;
 
@@ -247,45 +229,6 @@ impl RunCommand for RpcProxyArgs {
     }
 }
 
-impl RunCommand for MetastoreArgs {
-    fn run(self) -> Result<()> {
-        let Self {
-            bind,
-            bucket,
-            service_account_path,
-            local_file_path,
-        } = self;
-        let conf = match (bucket, service_account_path, local_file_path) {
-            (Some(bucket), Some(service_account_path), None) => {
-                let service_account_key = std::fs::read_to_string(service_account_path)?;
-                StorageConfig::Gcs {
-                    bucket: Some(bucket),
-                    service_account_key,
-                }
-            }
-            (None, None, Some(p)) => {
-                ensure_dir(&p)?;
-                StorageConfig::Local { path: p }
-            }
-            (None, None, None) => StorageConfig::Memory,
-            _ => {
-                return Err(anyhow!(
-                    "Invalid arguments, 'service-account-path' and 'bucket' must both be provided."
-                ))
-            }
-        };
-        let addr: SocketAddr = bind.parse()?;
-        let runtime = build_runtime("metastore")?;
-
-        info!(?conf, "starting Metastore with object store config");
-
-        runtime.block_on(async move {
-            let store = conf.new_object_store()?;
-            let metastore = Metastore::new(store)?;
-            metastore.serve(addr).await
-        })
-    }
-}
 
 impl RunCommand for SltArgs {
     fn run(self) -> Result<()> {

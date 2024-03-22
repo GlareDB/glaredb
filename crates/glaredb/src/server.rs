@@ -4,7 +4,9 @@ use std::sync::Arc;
 use std::{env, fs};
 
 use anyhow::{anyhow, Result};
-use metastore::util::MetastoreClientMode;
+use ioutil::ensure_dir;
+use metastore::local::start_inprocess;
+use object_store_util::conf::StorageConfig;
 use pgsrv::auth::LocalAuthenticator;
 use pgsrv::handler::{ProtocolHandler, ProtocolHandlerConfig};
 use protogen::gen::rpcsrv::service::execution_service_server::ExecutionServiceServer;
@@ -45,7 +47,6 @@ pub struct ComputeServerBuilder {
     pg_listener: Option<TcpListener>,
     /// Listener to use for rpc handler.
     rpc_listener: Option<TcpListener>,
-    metastore_addr: Option<String>,
     segment_key: Option<String>,
     authenticator: Option<Box<dyn LocalAuthenticator>>,
     data_dir: Option<PathBuf>,
@@ -57,6 +58,7 @@ pub struct ComputeServerBuilder {
     disable_rpc_auth: bool,
     enable_simple_query_rpc: bool,
     enable_flight_api: bool,
+    metastore_bucket: Option<String>,
 }
 
 impl ComputeServerBuilder {
@@ -64,7 +66,6 @@ impl ComputeServerBuilder {
         ComputeServerBuilder {
             pg_listener: None,
             rpc_listener: None,
-            metastore_addr: None,
             segment_key: None,
             authenticator: None,
             data_dir: None,
@@ -76,67 +77,70 @@ impl ComputeServerBuilder {
             disable_rpc_auth: false,
             enable_simple_query_rpc: false,
             enable_flight_api: false,
+            metastore_bucket: None,
         }
     }
+
     /// Set the authenticator to use for the pg handler.
     pub fn with_authenticator<T: LocalAuthenticator + 'static>(mut self, authenticator: T) -> Self {
         self.authenticator = Some(Box::new(authenticator));
         self
     }
+
     /// Add a tcp listener to use for serving over the pg protocol.
     pub fn with_pg_listener(mut self, pg_listener: TcpListener) -> Self {
         self.pg_listener = Some(pg_listener);
         self
     }
+
     /// Optionally add a tcp listener to use for serving over the pg protocol.
     pub fn with_pg_listener_opt(mut self, pg_listener: Option<TcpListener>) -> Self {
         self.pg_listener = pg_listener;
         self
     }
+
     /// Add a tcp listener to use for serving over the rpc protocol.
     pub fn with_rpc_listener(mut self, rpc_listener: TcpListener) -> Self {
         self.rpc_listener = Some(rpc_listener);
         self
     }
+
     /// Optionally add a tcp listener to use for serving over the rpc protocol.
     pub fn with_rpc_listener_opt(mut self, rpc_listener: Option<TcpListener>) -> Self {
         self.rpc_listener = rpc_listener;
         self
     }
-    /// Add a metastore address to use for connecting to a remote metastore.
-    pub fn with_metastore_addr(mut self, metastore_addr: String) -> Self {
-        self.metastore_addr = Some(metastore_addr);
-        self
-    }
-    /// Optionally add a metastore address to use for connecting to a remote metastore.
-    pub fn with_metastore_addr_opt(mut self, metastore_addr: Option<String>) -> Self {
-        self.metastore_addr = metastore_addr;
-        self
-    }
+
     pub fn with_segment_key(mut self, segment_key: String) -> Self {
         self.segment_key = Some(segment_key);
         self
     }
+
     pub fn with_segment_key_opt(mut self, segment_key: Option<String>) -> Self {
         self.segment_key = segment_key;
         self
     }
+
     pub fn with_data_dir(mut self, data_dir: PathBuf) -> Self {
         self.data_dir = Some(data_dir);
         self
     }
+
     pub fn with_data_dir_opt(mut self, data_dir: Option<PathBuf>) -> Self {
         self.data_dir = data_dir;
         self
     }
+
     pub fn with_service_account_path(mut self, service_account_path: String) -> Self {
         self.service_account_path = Some(service_account_path);
         self
     }
+
     pub fn with_service_account_path_opt(mut self, service_account_path: Option<String>) -> Self {
         self.service_account_path = service_account_path;
         self
     }
+
     pub fn with_location(mut self, location: String) -> Self {
         self.location = Some(location);
         self
@@ -151,51 +155,51 @@ impl ComputeServerBuilder {
         self.storage_options = storage_options;
         self
     }
+
     pub fn with_spill_path(mut self, spill_path: PathBuf) -> Self {
         self.spill_path = Some(spill_path);
         self
     }
+
     pub fn with_spill_path_opt(mut self, spill_path: Option<PathBuf>) -> Self {
         self.spill_path = spill_path;
         self
     }
+
+
+    pub fn with_metastore_bucket(mut self, name: String) -> Self {
+        self.metastore_bucket = Some(name);
+        self
+    }
+
+    pub fn with_metastore_bucket_opt(mut self, bucket: Option<String>) -> Self {
+        self.metastore_bucket = bucket;
+        self
+    }
+
     pub fn integration_testing_mode(mut self, integration_testing: bool) -> Self {
         self.integration_testing = integration_testing;
         self
     }
+
     pub fn disable_rpc_auth(mut self, disable_rpc_auth: bool) -> Self {
         self.disable_rpc_auth = disable_rpc_auth;
         self
     }
+
     pub fn enable_simple_query_rpc(mut self, enable_simple_query_rpc: bool) -> Self {
         self.enable_simple_query_rpc = enable_simple_query_rpc;
         self
     }
+
     pub fn enable_flight_api(mut self, enable_flight_api: bool) -> Self {
         self.enable_flight_api = enable_flight_api;
         self
     }
 
     pub async fn connect(self) -> Result<ComputeServer> {
-        let ComputeServerBuilder {
-            metastore_addr,
-            segment_key,
-            authenticator,
-            data_dir,
-            service_account_path,
-            location,
-            storage_options,
-            spill_path,
-            integration_testing,
-            disable_rpc_auth,
-            enable_simple_query_rpc,
-            pg_listener,
-            rpc_listener,
-            enable_flight_api,
-        } = self;
-
         // Invalid state if we have a pg_listener but no authenticator.
-        if pg_listener.is_some() && authenticator.is_none() {
+        if self.pg_listener.is_some() && self.authenticator.is_none() {
             return Err(anyhow!("pg_listener provided but no authenticator"));
         }
 
@@ -205,7 +209,7 @@ impl ComputeServerBuilder {
         debug!(?env_tmp, "ensuring temp dir");
         fs::create_dir_all(&env_tmp)?;
 
-        let tracker = match segment_key {
+        let tracker = match self.segment_key.clone() {
             Some(key) => {
                 debug!("initializing segment telemetry tracker");
                 SegmentTracker::new(key).into()
@@ -217,25 +221,16 @@ impl ComputeServerBuilder {
         };
 
         // Create the `Engine` instance
-        let engine = create_engine_from_opts(
-            location,
-            storage_options,
-            tracker,
-            metastore_addr,
-            data_dir,
-            service_account_path,
-            spill_path,
-        )
-        .await?;
+        let engine = self.create_engine_from_opts(tracker).await?;
 
-        let pg_config = if let Some(listener) = pg_listener {
+        let pg_config = if let Some(listener) = self.pg_listener {
             let handler_conf = ProtocolHandlerConfig {
-                authenticator: authenticator.unwrap(),
+                authenticator: self.authenticator.unwrap(),
                 // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I
                 // want to hold off on doing that until we have a shared config
                 // between the proxy and GlareDB.
                 ssl_conf: None,
-                integration_testing,
+                integration_testing: self.integration_testing,
             };
             let pg_handler = Arc::new(ProtocolHandler::new(engine.clone(), handler_conf));
             Some(PostgresProtocolConfig {
@@ -248,77 +243,88 @@ impl ComputeServerBuilder {
         };
 
         Ok(ComputeServer {
-            integration_testing,
-            disable_rpc_auth,
-            enable_simple_query_rpc,
-            enable_flight_api,
+            integration_testing: self.integration_testing,
+            disable_rpc_auth: self.disable_rpc_auth,
+            enable_simple_query_rpc: self.enable_simple_query_rpc,
+            enable_flight_api: self.enable_flight_api,
             pg_config,
             engine,
-            rpc_listener,
+            rpc_listener: self.rpc_listener,
         })
+    }
+
+    async fn create_engine_from_opts(
+        &self,
+        tracker: Tracker,
+    ) -> Result<Arc<Engine>, anyhow::Error> {
+        let engine = if let Some(location) = self.location.clone() {
+            // TODO: try to consolidate with --data-dir and --metastore-addr options
+            let engine = Engine::from_storage_options(
+                &location,
+                &HashMap::from_iter(self.storage_options.clone()),
+            )
+            .await?;
+            Arc::new(engine.with_tracker(Arc::new(tracker)))
+        } else {
+            // TODO: There's going to need to more validation needed to ensure we're
+            // using a metastore that makes sense. E.g. using a remote metastore and
+            // in-memory table storage would cause inconsistency.
+            //
+            // We don't want to end up in a situation where a metastore thinks a
+            // table exists but it really doesn't (or the other way around).
+            let storage_conf = match (self.data_dir.clone(), self.service_account_path.clone()) {
+                (None, Some(path)) => EngineStorageConfig::try_from_options(
+                    "gs://",
+                    HashMap::from_iter([("service_account_path".to_string(), path)]),
+                )?,
+                (Some(dir), None) => EngineStorageConfig::try_from_path_buf(&dir)?,
+                (None, None) => {
+                    EngineStorageConfig::try_from_options("memory://", Default::default())?
+                }
+                (Some(_), Some(_)) => {
+                    return Err(anyhow!(
+                        "Data directory and service account both provided. Expected at most one."
+                    ))
+                }
+            };
+
+            let metastore_storage_conf =
+                match (self.metastore_bucket.clone(), self.data_dir.clone()) {
+                    (Some(_), Some(_)) => {
+                        return Err(anyhow!(
+                            "cannot specify local datadir and remote metastore bucket"
+                        ))
+                    }
+                    (Some(bucket), None) => StorageConfig::Gcs {
+                        bucket: Some(bucket),
+                        service_account_key: self.service_account_path.clone().unwrap_or_default(),
+                    },
+                    (None, Some(p)) => {
+                        let p = p.join("__metastore");
+                        ensure_dir(&p)?;
+                        StorageConfig::Local { path: p }
+                    }
+                    (None, None) => StorageConfig::Memory,
+                };
+
+
+            let metastore_client =
+                start_inprocess(metastore_storage_conf.new_object_store()?).await?;
+
+            Arc::new(
+                Engine::new(
+                    metastore_client,
+                    storage_conf,
+                    Arc::new(tracker),
+                    self.spill_path.clone(),
+                )
+                .await?,
+            )
+        };
+        Ok(engine)
     }
 }
 
-async fn create_engine_from_opts(
-    location: Option<String>,
-    storage_options: HashMap<String, String>,
-    tracker: Tracker,
-    metastore_addr: Option<String>,
-    data_dir: Option<PathBuf>,
-    service_account_path: Option<String>,
-    spill_path: Option<PathBuf>,
-) -> Result<Arc<Engine>, anyhow::Error> {
-    let engine = if let Some(location) = location {
-        // TODO: try to consolidate with --data-dir and --metastore-addr options
-        let engine =
-            Engine::from_storage_options(&location, &HashMap::from_iter(storage_options.clone()))
-                .await?;
-        Arc::new(engine.with_tracker(Arc::new(tracker)))
-    } else {
-        // Connect to metastore.
-        let mode = match (metastore_addr, &data_dir) {
-            (Some(_), Some(_)) => {
-                return Err(anyhow!(
-                    "Only one of metastore address or metastore path may be provided."
-                ))
-            }
-            (Some(addr), None) => MetastoreClientMode::Remote { addr },
-            _ => MetastoreClientMode::new_local(data_dir.clone()),
-        };
-        let metastore_client = mode.into_client().await?;
-
-        // TODO: There's going to need to more validation needed to ensure we're
-        // using a metastore that makes sense. E.g. using a remote metastore and
-        // in-memory table storage would cause inconsistency.
-        //
-        // We don't want to end up in a situation where a metastore thinks a
-        // table exists but it really doesn't (or the other way around).
-        let storage_conf = match (data_dir, service_account_path) {
-            (None, Some(path)) => EngineStorageConfig::try_from_options(
-                "gs://",
-                HashMap::from_iter([("service_account_path".to_string(), path)]),
-            )?,
-            (Some(dir), None) => EngineStorageConfig::try_from_path_buf(&dir)?,
-            (None, None) => EngineStorageConfig::try_from_options("memory://", Default::default())?,
-            (Some(_), Some(_)) => {
-                return Err(anyhow!(
-                    "Data directory and service account both provided. Expected at most one."
-                ))
-            }
-        };
-
-        Arc::new(
-            Engine::new(
-                metastore_client,
-                storage_conf,
-                Arc::new(tracker),
-                spill_path,
-            )
-            .await?,
-        )
-    };
-    Ok(engine)
-}
 
 impl ComputeServer {
     pub fn builder() -> ComputeServerBuilder {

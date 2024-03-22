@@ -21,26 +21,6 @@ pub enum OutputMode {
 }
 
 #[derive(Parser)]
-pub struct MetastoreArgs {
-    /// TCP address to bind do.
-    #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6545"))]
-    pub bind: String,
-
-    /// Bucket to use for database catalogs.
-    #[clap(short = 'u', long, value_parser)]
-    pub bucket: Option<String>,
-
-    /// Path to GCP service account to use when connecting to GCS.
-    #[clap(short, long, value_parser)]
-    pub service_account_path: Option<String>,
-
-    /// Local file path to store database catalog (for a local persistent
-    /// store).
-    #[clap(short = 'f', long, value_parser)]
-    pub local_file_path: Option<PathBuf>,
-}
-
-#[derive(Parser)]
 pub struct RpcProxyArgs {
     /// TCP address to bind to.
     #[clap(short, long, value_parser, default_value_t = String::from("0.0.0.0:6444"))]

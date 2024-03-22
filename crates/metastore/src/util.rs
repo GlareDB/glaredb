@@ -1,10 +1,8 @@
 use std::path::PathBuf;
-use std::time::Duration;
 
 use ioutil::ensure_dir;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
-use tonic::transport::{Channel, Endpoint};
-use tracing::info;
+use tonic::transport::Channel;
 
 use crate::errors::Result;
 use crate::local::{start_inprocess_inmemory, start_inprocess_local};
@@ -12,8 +10,6 @@ use crate::local::{start_inprocess_inmemory, start_inprocess_local};
 /// Determine how to connect to metastore.
 #[derive(Debug)]
 pub enum MetastoreClientMode {
-    /// Connect to a remote metastore.
-    Remote { addr: String },
     /// Start an in process metastore backed by files at some path.
     LocalDisk { path: PathBuf },
     /// Start an in process metastore that persists nothing.
@@ -31,16 +27,6 @@ impl MetastoreClientMode {
     /// Create a new metastore client.
     pub async fn into_client(self) -> Result<MetastoreServiceClient<Channel>> {
         match self {
-            MetastoreClientMode::Remote { addr } => {
-                info!(%addr, "connecting to remote metastore");
-                let channel = Endpoint::new(addr)?
-                    .tcp_keepalive(Some(Duration::from_secs(600)))
-                    .tcp_nodelay(true)
-                    .keep_alive_while_idle(true)
-                    .connect()
-                    .await?;
-                Ok(MetastoreServiceClient::new(channel))
-            }
             Self::LocalDisk { path } => {
                 ensure_dir(&path)?;
                 start_inprocess_local(path).await

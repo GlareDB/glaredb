@@ -18,13 +18,6 @@ pub struct ServerArgs {
     #[arg(id= "RPC_PORT", long="rpc-bind", value_parser, aliases=&["flight-bind"])]
     pub rpc_bind: Option<String>,
 
-    /// Address to the Metastore.
-    ///
-    /// If not provided and `local` is set to a true, an in-process
-    /// metastore will be started.
-    #[arg(short, long, hide = true, value_parser)]
-    pub metastore_addr: Option<String>,
-
     /// Set the user used for authentication.
     ///
     /// Only has an affect if a password is also provided. If a password is
@@ -108,4 +101,8 @@ pub struct ServerArgs {
     /// This will fully disable the postgres server on port 6543.
     #[arg(long, default_value="false", action = clap::ArgAction::SetTrue)]
     pub disable_postgres_api: bool,
+
+    /// Bucket to use for database catalogs.
+    #[clap(long, value_parser)]
+    pub metastore_bucket: Option<String>,
 }
