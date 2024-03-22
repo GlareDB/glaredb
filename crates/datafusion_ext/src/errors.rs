@@ -42,6 +42,12 @@ pub enum ExtensionError {
     #[error("object store: {0}")]
     ObjectStore(String),
 
+    #[error(transparent)]
+    ObjectStoreCrate(#[from] object_store::Error),
+
+    #[error(transparent)]
+    ObjectStorePath(#[from] object_store::path::Error),
+
     #[error("{0}")]
     String(String),
 }

@@ -1,6 +1,6 @@
 use async_sqlite::rusqlite::types::{Value, ValueRef};
 use async_sqlite::rusqlite::Rows;
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime};
 use datafusion::arrow::array::{
     ArrayBuilder,
     BinaryBuilder,
@@ -11,6 +11,7 @@ use datafusion::arrow::array::{
     StringBuilder,
     Time64MicrosecondBuilder,
     TimestampMicrosecondBuilder,
+    UInt64Builder,
 };
 use datafusion::arrow::datatypes::{DataType, SchemaRef, TimeUnit};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -40,6 +41,12 @@ impl Converter {
                 let builder: Box<dyn ArrayBuilder> = match field.data_type() {
                     DataType::Boolean => {
                         Box::new(BooleanBuilder::with_capacity(RECORD_BATCH_CAPACITY))
+                    }
+                    DataType::UInt64 => {
+                        // sqlite can't produce this type, but for
+                        // consistency with other glaredb count
+                        // interfaces, we might
+                        Box::new(UInt64Builder::with_capacity(RECORD_BATCH_CAPACITY))
                     }
                     DataType::Int64 => Box::new(Int64Builder::with_capacity(RECORD_BATCH_CAPACITY)),
                     DataType::Float64 => {
@@ -412,24 +419,22 @@ impl Converter {
                         match val_ref {
                             ValueRef::Null => builder.append_null(),
                             ValueRef::Integer(i) => {
-                                let timestamp =
-                                    NaiveDateTime::from_timestamp_opt(i, /* nsecs = */ 0)
-                                        .ok_or_else(|| SqliteError::InvalidConversion {
-                                            from: Value::Integer(i),
-                                            to: DataType::Timestamp(TimeUnit::Microsecond, None),
-                                        })?;
+                                let timestamp = DateTime::from_timestamp(i, /* nsecs = */ 0)
+                                    .ok_or_else(|| SqliteError::InvalidConversion {
+                                        from: Value::Integer(i),
+                                        to: DataType::Timestamp(TimeUnit::Microsecond, None),
+                                    })?;
                                 let micros = timestamp.timestamp_micros();
                                 builder.append_value(micros);
                             }
                             ValueRef::Real(r) => {
                                 let seconds = r as i64;
                                 let sub_nanos = (r.fract() * 1_000_000_000_f64) as u32;
-                                let timestamp =
-                                    NaiveDateTime::from_timestamp_opt(seconds, sub_nanos)
-                                        .ok_or_else(|| SqliteError::InvalidConversion {
-                                            from: Value::Real(r),
-                                            to: DataType::Timestamp(TimeUnit::Microsecond, None),
-                                        })?;
+                                let timestamp = DateTime::from_timestamp(seconds, sub_nanos)
+                                    .ok_or_else(|| SqliteError::InvalidConversion {
+                                        from: Value::Real(r),
+                                        to: DataType::Timestamp(TimeUnit::Microsecond, None),
+                                    })?;
                                 let micros = timestamp.timestamp_micros();
                                 builder.append_value(micros);
                             }
@@ -447,7 +452,7 @@ impl Converter {
                                             from: Value::Text(t.to_string()),
                                             to: DataType::Timestamp(TimeUnit::Microsecond, None),
                                         })?;
-                                let micros = timestamp.timestamp_micros();
+                                let micros = timestamp.and_utc().timestamp_micros();
                                 builder.append_value(micros);
                             }
                             v => {

@@ -19,6 +19,7 @@ sqlbuiltins = { path = "../sqlbuiltins" }
 datasources = { path = "../datasources" }
 datafusion_ext = { path = "../datafusion_ext" }
 object_store_util = { path = "../object_store_util" }
+parser = { path = "../parser" }
 distexec = { path = "../distexec" }
 dashmap = "5.5.0"
 metastore = { path = "../metastore" }
@@ -40,7 +41,6 @@ url.workspace = true
 parking_lot = "0.12.1"
 serde = { workspace = true }
 reqwest = { workspace = true }
-prql-compiler = "0.11.3"
 num_cpus = "1.16.0"
 
 [dev-dependencies]

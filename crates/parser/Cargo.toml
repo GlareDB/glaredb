@@ -1,0 +1,17 @@
+[package]
+name = "parser"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+datafusion.workspace = true
+datafusion_ext = { path = "../datafusion_ext" }
+protogen = { path = "../protogen" }
+prql-compiler = "0.11.3"
+thiserror.workspace = true
+
+
+[lints]
+workspace = true

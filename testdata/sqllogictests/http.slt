@@ -4,3 +4,8 @@ select * from 'http://host.com/path/*.parquet'
 statement error  Error during planning: missing file extension: http://host.com/path/*
 select * from 'http://host.com/path/*'
 
+# Querying a source without "Content-Length" information.
+query I
+SELECT count(*) FROM read_json('https://opdb.org/api/search/typeahead?q=*');
+----
+100

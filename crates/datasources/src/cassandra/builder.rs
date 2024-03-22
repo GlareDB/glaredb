@@ -177,7 +177,8 @@ impl CqlValueArrayBuilder {
             (Int64(builder), CqlValue::BigInt(value)) => builder.append_value(value),
             (Date64(builder), CqlValue::Date(value)) => {
                 let days_since_unix_epoch = value.0 as i64 - (1 << 31);
-                let duration_since_unix_epoch = chrono::Duration::days(days_since_unix_epoch);
+                let duration_since_unix_epoch =
+                    chrono::Duration::try_days(days_since_unix_epoch).unwrap();
                 let unix_epoch = chrono::NaiveDate::from_yo_opt(1970, 1).unwrap();
                 let date = unix_epoch + duration_since_unix_epoch;
                 let time = NaiveTime::from_hms_opt(0, 0, 0).unwrap(); // Midnight

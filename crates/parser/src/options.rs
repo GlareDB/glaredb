@@ -4,8 +4,6 @@ use std::fmt;
 use datafusion::common::parsers::CompressionTypeVariant;
 use datafusion::common::FileType;
 use datafusion::sql::sqlparser::parser::ParserError;
-use datasources::debug::DebugTableType;
-use datasources::mongodb::MongoDbProtocol;
 use protogen::metastore::types::options::StorageOptions;
 
 /// Contains the value parsed from Options(...).
@@ -37,12 +35,14 @@ pub trait ParseOptionValue<T> {
     fn parse_opt(self) -> Result<T, ParserError>;
 }
 
+#[macro_export]
 macro_rules! parser_err {
     ($($arg:tt)*) => {
         ParserError::ParserError(format!($($arg)*))
     };
 }
 
+#[macro_export]
 macro_rules! unexpected_type_err {
     ($t:expr, $v:expr) => {
         parser_err!("Expected a {}, got: {}", $t, $v)
@@ -150,29 +150,6 @@ impl ParseOptionValue<char> for OptionValue {
     }
 }
 
-impl ParseOptionValue<MongoDbProtocol> for OptionValue {
-    fn parse_opt(self) -> Result<MongoDbProtocol, ParserError> {
-        let opt = match self {
-            Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => {
-                s.parse().map_err(|e| parser_err!("{e}"))?
-            }
-            o => return Err(unexpected_type_err!("mongodb protocol", o)),
-        };
-        Ok(opt)
-    }
-}
-
-impl ParseOptionValue<DebugTableType> for OptionValue {
-    fn parse_opt(self) -> Result<DebugTableType, ParserError> {
-        let opt = match self {
-            Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => {
-                s.parse().map_err(|e| parser_err!("{e}"))?
-            }
-            o => return Err(unexpected_type_err!("debug table type", o)),
-        };
-        Ok(opt)
-    }
-}
 
 impl ParseOptionValue<FileType> for OptionValue {
     fn parse_opt(self) -> Result<FileType, ParserError> {
@@ -199,11 +176,11 @@ impl ParseOptionValue<CompressionTypeVariant> for OptionValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StmtOptions {
+pub struct StatementOptions {
     m: BTreeMap<String, OptionValue>,
 }
 
-impl fmt::Display for StmtOptions {
+impl fmt::Display for StatementOptions {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "OPTIONS (")?;
         let mut sep = "";
@@ -215,10 +192,10 @@ impl fmt::Display for StmtOptions {
     }
 }
 
-impl TryFrom<&mut StmtOptions> for StorageOptions {
+impl TryFrom<&mut StatementOptions> for StorageOptions {
     type Error = ParserError;
 
-    fn try_from(value: &mut StmtOptions) -> Result<Self, Self::Error> {
+    fn try_from(value: &mut StatementOptions) -> Result<Self, Self::Error> {
         let mut inner = BTreeMap::new();
         for (key, value) in value.m.iter() {
             inner.insert(key.clone(), value.clone().parse_opt()?);
@@ -227,7 +204,7 @@ impl TryFrom<&mut StmtOptions> for StorageOptions {
     }
 }
 
-impl StmtOptions {
+impl StatementOptions {
     pub fn new(m: BTreeMap<String, OptionValue>) -> Self {
         Self { m }
     }

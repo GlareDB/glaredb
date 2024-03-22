@@ -12,13 +12,13 @@ use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::{Column, Expr, SessionContext as DfSessionContext};
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::native::access::NativeTableStorage;
+use parser::CustomParser;
 use protogen::metastore::types::catalog::{DatabaseEntry, FunctionEntry, TableEntry, ViewEntry};
 use sqlbuiltins::functions::FunctionRegistry;
 
 use self::external::ExternalDispatcher;
 use crate::context::local::LocalSessionContext;
 use crate::dispatch::system::SystemTableDispatcher;
-use crate::parser::CustomParser;
 use crate::planner::errors::PlanError;
 use crate::planner::session_planner::SessionPlanner;
 
@@ -37,6 +37,9 @@ pub enum DispatchError {
 
     #[error("Missing temp table: {name}")]
     MissingTempTable { name: String },
+
+    #[error("Missing table")]
+    MissingTable,
 
     #[error("Missing object with oid: {0}")]
     MissingObjectWithOid(u32),
@@ -75,6 +78,8 @@ pub enum DispatchError {
     #[error(transparent)]
     BsonDatasource(#[from] datasources::bson::errors::BsonError),
     #[error(transparent)]
+    JsonDatasource(#[from] datasources::json::errors::JsonError),
+    #[error(transparent)]
     ClickhouseDatasource(#[from] datasources::clickhouse::errors::ClickhouseError),
     #[error(transparent)]
     NativeDatasource(#[from] datasources::native::errors::NativeError),
@@ -90,6 +95,8 @@ pub enum DispatchError {
     SqliteDatasource(#[from] datasources::sqlite::errors::SqliteError),
     #[error(transparent)]
     ExcelDatasource(#[from] datasources::excel::errors::ExcelError),
+    #[error(transparent)]
+    LakeStorageOptions(#[from] datasources::lake::LakeStorageOptionsError),
 
     #[error("{0}")]
     String(String),

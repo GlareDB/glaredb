@@ -17,6 +17,8 @@ pub enum PlanError {
 
     #[error(transparent)]
     DataFusion(#[from] datafusion::common::DataFusionError),
+    #[error(transparent)]
+    Parser(#[from] parser::errors::ParseError),
 
     #[error(transparent)]
     Preprocess(#[from] crate::planner::preprocess::PreprocessError),
@@ -64,7 +66,7 @@ pub enum PlanError {
     ExternalTableWithSsh,
 
     #[error("Expected exactly on SQL statement, got: {0:?}")]
-    ExpectedExactlyOneStatement(Vec<crate::parser::StatementWithExtensions>),
+    ExpectedExactlyOneStatement(Vec<parser::StatementWithExtensions>),
 
     #[error("Not allowed to write into the object: {0}")]
     ObjectNotAllowedToWriteInto(OwnedTableReference),
@@ -80,6 +82,9 @@ pub enum PlanError {
 
     #[error(transparent)]
     DatasourceCommon(#[from] datasources::common::errors::DatasourceCommonError),
+
+    #[error(transparent)]
+    LakeStorageOptions(#[from] datasources::lake::LakeStorageOptionsError),
 
     #[error(transparent)]
     SshKey(#[from] datasources::common::ssh::key::SshKeyError),

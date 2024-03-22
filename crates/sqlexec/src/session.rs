@@ -33,6 +33,7 @@ use distexec::scheduler::{OutputSink, Scheduler};
 use distexec::stream::create_coalescing_adapter;
 use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
+use parser::StatementWithExtensions;
 use pgrepr::format::Format;
 use pgrepr::notice::{Notice, NoticeSeverity, SqlState};
 use sqlbuiltins::functions::BuiltinScalarUDF;
@@ -42,7 +43,6 @@ use uuid::Uuid;
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
-use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::{LogicalPlan, OperationInfo, TransactionPlan};
 use crate::planner::physical_plan::{
     get_count_from_batch,
@@ -125,7 +125,7 @@ pub struct PrepareStatementArg {
 impl<'a> TryFrom<&'a str> for PrepareStatementArg {
     type Error = ExecError;
     fn try_from(query: &'a str) -> Result<Self> {
-        let mut statements = crate::parser::parse_sql(query)?;
+        let mut statements = parser::parse_sql(query)?;
         match statements.len() {
             0 => Err(ExecError::String("No statements in query".to_string())),
             1 => Ok(PrepareStatementArg {
@@ -732,7 +732,7 @@ impl Session {
     /// Errors if no statements or more than one statement is provided
     /// in the query.
     pub async fn prql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
-        let stmt = crate::parser::parse_prql(query)?;
+        let stmt = parser::parse_prql(query)?;
 
         self.prepare_statements(stmt).await
     }
@@ -784,10 +784,10 @@ impl Session {
     }
 
     pub fn parse_query(&self, query: &str) -> Result<VecDeque<StatementWithExtensions>> {
-        match self.get_session_vars().dialect() {
-            datafusion_ext::vars::Dialect::Sql => crate::parser::parse_sql(query),
-            datafusion_ext::vars::Dialect::Prql => crate::parser::parse_prql(query),
-        }
+        Ok(match self.get_session_vars().dialect() {
+            datafusion_ext::vars::Dialect::Sql => parser::parse_sql(query)?,
+            datafusion_ext::vars::Dialect::Prql => parser::parse_prql(query)?,
+        })
     }
 
     /// Execute a SQL query.

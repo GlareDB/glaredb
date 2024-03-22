@@ -1,7 +1,5 @@
 import psycopg2
 
-from tests.fixtures.glaredb import glaredb_connection, debug_path
-
 
 def test_scalar_parsing(
     glaredb_connection: psycopg2.extensions.connection,

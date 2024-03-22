@@ -47,6 +47,8 @@ pub struct ResolveConfig {
 /// from the remote state provided by metastore.
 #[derive(Clone, Debug)]
 pub struct SessionCatalog {
+    /// Optional alias for referencing objects in this catalog
+    alias: Option<String>,
     /// The state retrieved from a remote Metastore.
     state: Arc<CatalogState>,
     /// Map database names to their ids.
@@ -69,6 +71,7 @@ impl SessionCatalog {
     /// Create a new session catalog with an initial state.
     pub fn new(state: Arc<CatalogState>, resolve_conf: ResolveConfig) -> SessionCatalog {
         let mut catalog = SessionCatalog {
+            alias: None,
             state,
             database_names: HashMap::new(),
             tunnel_names: HashMap::new(),
@@ -80,6 +83,24 @@ impl SessionCatalog {
         };
         catalog.rebuild_name_maps();
         catalog
+    }
+
+    pub fn new_with_alias(
+        state: Arc<CatalogState>,
+        resolve_conf: ResolveConfig,
+        alias: String,
+    ) -> SessionCatalog {
+        let catalog = Self::new(state, resolve_conf);
+        catalog.with_alias(alias)
+    }
+
+    pub fn with_alias(mut self, alias: String) -> SessionCatalog {
+        self.alias = Some(alias);
+        self
+    }
+
+    pub fn alias(&self) -> Option<&str> {
+        self.alias.as_deref()
     }
 
     /// Get the version of this catalog state.
@@ -437,7 +458,7 @@ impl TempCatalog {
         let inner = self.inner.lock();
         inner.tables.get(name).map(|tbl| {
             let schema = tbl.schema();
-            let columns = schema
+            let columns: Vec<_> = schema
                 .fields()
                 .iter()
                 .map(|f| {
@@ -461,9 +482,12 @@ impl TempCatalog {
                     external: false,
                     is_temp: true,
                 },
-                options: TableOptions::Internal(TableOptionsInternal { columns }),
+                options: TableOptions::Internal(TableOptionsInternal {
+                    columns: columns.to_owned(),
+                }),
                 tunnel_id: None,
                 access_mode: SourceAccessMode::ReadWrite,
+                columns: Some(columns.to_owned()),
             }
         })
     }
@@ -507,6 +531,7 @@ impl TempCatalog {
                 }),
                 tunnel_id: None,
                 access_mode: SourceAccessMode::ReadWrite,
+                columns: Some(Vec::new()),
             });
         }
 

@@ -13,6 +13,24 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 
+
+[project.optional-dependencies]
+great-expectations = [
+  "great_expectations",
+  "great_expectations[postgresql]",
+]
+pandas = [
+  "pandas",
+  "pandasai",
+]
+polars = [
+  "polars",
+]
+pyarrow = [
+  "pyarrow",
+]
+
+
 [project.urls]
 Homepage = "https://glaredb.com"
 Documentation = "https://docs.glaredb.com"

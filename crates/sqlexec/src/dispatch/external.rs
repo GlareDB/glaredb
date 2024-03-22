@@ -18,13 +18,15 @@ use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
 use datasources::excel::table::ExcelTableProvider;
 use datasources::excel::ExcelTable;
+use datasources::json::table::json_streaming_table;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
+use datasources::lake::{storage_options_into_object_store, storage_options_into_store_access};
 use datasources::lance::LanceTable;
 use datasources::mongodb::{MongoDbAccessor, MongoDbTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
+use datasources::object_store::azure::AzureStoreAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
-use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
@@ -50,6 +52,7 @@ use protogen::metastore::types::options::{
     DatabaseOptionsSnowflake,
     DatabaseOptionsSqlServer,
     DatabaseOptionsSqlite,
+    InternalColumnDefinition,
     TableOptions,
     TableOptionsBigQuery,
     TableOptionsCassandra,
@@ -66,11 +69,11 @@ use protogen::metastore::types::options::{
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
-    TableOptionsSqlite,
     TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use sqlbuiltins::functions::FunctionRegistry;
+use uuid::Uuid;
 
 use super::{DispatchError, Result};
 
@@ -188,10 +191,13 @@ impl<'a> ExternalDispatcher<'a> {
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
-            DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string }) => {
+            DatabaseOptions::MongoDb(DatabaseOptionsMongoDb {
+                connection_string, ..
+            }) => {
                 let table_info = MongoDbTableAccessInfo {
-                    database: schema.to_string(), // A mongodb database is pretty much a schema.
+                    database: schema.to_string(),
                     collection: name.to_string(),
+                    fields: None,
                 };
                 let accessor = MongoDbAccessor::connect(connection_string).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
@@ -273,11 +279,15 @@ impl<'a> ExternalDispatcher<'a> {
                 .await?;
                 Ok(Arc::new(table))
             }
-            DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
-                let access = SqliteAccess {
-                    db: location.into(),
-                };
-                let state = access.connect().await?;
+            DatabaseOptions::Sqlite(DatabaseOptionsSqlite {
+                location,
+                storage_options,
+            }) => {
+                let state =
+                    SqliteAccess::new(location.as_str().try_into()?, storage_options.to_owned())
+                        .await?
+                        .connect()
+                        .await?;
                 let table = SqliteTableProvider::try_new(state, name).await?;
                 Ok(Arc::new(table))
             }
@@ -304,12 +314,8 @@ impl<'a> ExternalDispatcher<'a> {
                 ..
             }) => {
                 let source_url = DatasourceUrl::try_new(location)?;
-                let store_access = GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.to_owned(),
-                )?;
+                let store_access = storage_options_into_store_access(&source_url, storage_options)?;
                 let sheet_name: Option<&str> = sheet_name.as_deref();
-
 
                 let table =
                     ExcelTable::open(store_access, source_url, sheet_name, *has_header).await?;
@@ -367,10 +373,14 @@ impl<'a> ExternalDispatcher<'a> {
                 connection_string,
                 database,
                 collection,
+                columns,
             }) => {
                 let table_info = MongoDbTableAccessInfo {
                     database: database.to_string(),
                     collection: collection.to_string(),
+                    fields: columns
+                        .to_owned()
+                        .map(|cs| InternalColumnDefinition::to_arrow_fields(cs.into_iter())),
                 };
                 let accessor = MongoDbAccessor::connect(connection_string).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
@@ -440,6 +450,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let access = Arc::new(GcsStoreAccess {
                     service_account_key: service_account_key.clone(),
                     bucket: bucket.clone(),
+                    opts: HashMap::new(),
                 });
                 self.create_obj_store_table_provider(
                     access,
@@ -459,10 +470,11 @@ impl<'a> ExternalDispatcher<'a> {
                 compression,
             }) => {
                 let access = Arc::new(S3StoreAccess {
-                    region: region.clone(),
                     bucket: bucket.clone(),
+                    region: Some(region.clone()),
                     access_key_id: access_key_id.clone(),
                     secret_access_key: secret_access_key.clone(),
+                    opts: HashMap::new(),
                 });
                 self.create_obj_store_table_provider(
                     access,
@@ -491,10 +503,9 @@ impl<'a> ExternalDispatcher<'a> {
                     }
                 };
 
-                let access = Arc::new(GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.clone(),
-                )?);
+                let uri = DatasourceUrl::try_new(location)?;
+                let access = Arc::new(AzureStoreAccess::try_from_uri(&uri, storage_options)?);
+
                 self.create_obj_store_table_provider(
                     access,
                     DatasourceUrl::try_new(location)?.path(), // TODO: Workaround again
@@ -518,11 +529,7 @@ impl<'a> ExternalDispatcher<'a> {
                 ..
             }) => {
                 let url = DatasourceUrl::try_new(location)?;
-                let store = GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.clone(),
-                )?
-                .create_store()?;
+                let store = storage_options_into_object_store(&url, storage_options)?;
                 let table = IcebergTable::open(url, store).await?;
                 let reader = table.table_reader().await?;
                 Ok(reader)
@@ -563,17 +570,25 @@ impl<'a> ExternalDispatcher<'a> {
                 location,
                 storage_options,
                 schema_sample_size,
+                columns,
                 ..
             }) => {
-                let store_access = GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.to_owned(),
-                )?;
+                let columns = if columns.is_empty() {
+                    None
+                } else {
+                    Some(InternalColumnDefinition::to_arrow_fields(
+                        columns.to_owned(),
+                    ))
+                };
+
                 let source_url = DatasourceUrl::try_new(location)?;
+                let store_access = storage_options_into_store_access(&source_url, storage_options)?;
+
                 Ok(bson_streaming_table(
-                    Arc::new(store_access),
-                    schema_sample_size.to_owned(),
+                    store_access,
                     source_url,
+                    columns,
+                    schema_sample_size.to_owned(),
                 )
                 .await?)
             }
@@ -595,13 +610,26 @@ impl<'a> ExternalDispatcher<'a> {
 
                 Ok(Arc::new(table))
             }
-            TableOptions::Sqlite(TableOptionsSqlite { location, table }) => {
-                let access = SqliteAccess {
-                    db: location.into(),
-                };
-                let state = access.connect().await?;
-                let table = SqliteTableProvider::try_new(state, table).await?;
-                Ok(Arc::new(table))
+            TableOptions::Sqlite(TableOptionsObjectStore {
+                location,
+                storage_options,
+                name,
+                ..
+            }) => {
+                let mut storage_options = storage_options.to_owned();
+
+                storage_options
+                    .inner
+                    .insert("__tmp_prefix".to_string(), Uuid::new_v4().to_string());
+
+                let table = name.clone().ok_or(DispatchError::MissingTable)?;
+                let state =
+                    SqliteAccess::new(location.as_str().try_into()?, Some(storage_options.clone()))
+                        .await?
+                        .connect()
+                        .await?;
+
+                Ok(Arc::new(SqliteTableProvider::try_new(state, table).await?))
             }
         }
     }
@@ -614,6 +642,9 @@ impl<'a> ExternalDispatcher<'a> {
         compression: Option<&String>,
     ) -> Result<Arc<dyn TableProvider>> {
         let path = path.as_ref();
+        // TODO: only parquet/ndjson/csv actually support compression,
+        // so we'll end up attempting to handle compression for some
+        // types and not others.
         let compression = compression
             .map(|c| c.parse::<FileCompressionType>())
             .transpose()?
@@ -642,7 +673,17 @@ impl<'a> ExternalDispatcher<'a> {
                     accessor.clone().list_globbed(path).await?,
                 )
                 .await?),
-            "ndjson" | "json" => Ok(accessor
+            "bson" => Ok(bson_streaming_table(
+                access.clone(),
+                DatasourceUrl::try_new(path)?,
+                None,
+                Some(128),
+            )
+            .await?),
+            "json" => Ok(
+                json_streaming_table(access.clone(), DatasourceUrl::try_new(path)?, None).await?,
+            ),
+            "ndjson" | "jsonl" => Ok(accessor
                 .clone()
                 .into_table_provider(
                     &self.df_ctx.state(),
@@ -650,14 +691,8 @@ impl<'a> ExternalDispatcher<'a> {
                     accessor.clone().list_globbed(path).await?,
                 )
                 .await?),
-            "bson" => {
-                Ok(
-                    bson_streaming_table(access.clone(), Some(128), DatasourceUrl::try_new(path)?)
-                        .await?,
-                )
-            }
             _ => Err(DispatchError::String(
-                format!("Unsupported file type: {}, for '{}'", file_type, path,).to_string(),
+                format!("Unsupported file type: '{}', for '{}'", file_type, path,).to_string(),
             )),
         }
     }

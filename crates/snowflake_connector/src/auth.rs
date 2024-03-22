@@ -19,7 +19,7 @@ impl Token {
     pub fn new(value: String, validity_in_seconds: i64, created_at: DateTime<Utc>) -> Self {
         Self {
             value,
-            validity: Duration::seconds(validity_in_seconds),
+            validity: Duration::try_seconds(validity_in_seconds).unwrap(),
             created_at,
         }
     }

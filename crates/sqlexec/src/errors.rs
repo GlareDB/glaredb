@@ -64,7 +64,7 @@ pub enum ExecError {
     DataFusion(#[from] datafusion::common::DataFusionError),
 
     #[error(transparent)]
-    ParseError(#[from] datafusion::sql::sqlparser::parser::ParserError),
+    ParseError(#[from] parser::errors::ParseError),
 
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),

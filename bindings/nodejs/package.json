@@ -1,6 +1,6 @@
 {
   "name": "@glaredb/glaredb",
-  "version": "0.9.0",
+  "version": "0.9.2",
   "main": "glaredb.js",
   "types": "index.d.ts",
   "repository": {
@@ -47,7 +47,7 @@
     "artifacts": "napi artifacts",
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
-    "prepublishOnly": "napi prepublish -t npm",
+    "prepublishOnly": "napi prepublish --skip-gh-release -t npm",
     "test": "ava",
     "universal": "napi universal",
     "version": "napi version"

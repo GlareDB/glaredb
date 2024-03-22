@@ -35,3 +35,9 @@ pub enum DatasourceCommonError {
 }
 
 pub type Result<T, E = DatasourceCommonError> = std::result::Result<T, E>;
+
+impl From<DatasourceCommonError> for datafusion_ext::errors::ExtensionError {
+    fn from(value: DatasourceCommonError) -> Self {
+        datafusion_ext::errors::ExtensionError::access(value)
+    }
+}

@@ -36,7 +36,10 @@ pub enum BsonError {
     ),
 
     #[error("Invalid args for record struct builder")]
-    InvalidArgsForRecordStructBuilder,
+    RecordStructBuilderInvalidArgs,
+
+    #[error("Cannot construct RecordStructBuilder without columns")]
+    RecordStructBuilderRequiresColumns,
 
     #[error("Failed to read raw bson document")]
     FailedToReadRawBsonDocument,

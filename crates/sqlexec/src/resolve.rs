@@ -108,9 +108,19 @@ impl<'a> EntryResolver<'a> {
                 schema,
                 table,
             } => {
-                if let Some(table) = self.catalog.get_temp_catalog().resolve_temp_table(table) {
-                    return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
+                // if the catalog has an alias, we need to check if the
+                // reference is to the alias and if so, resolve it to the
+                // actual catalog name.
+                if let Some(catalog_alias) = self.catalog.alias() {
+                    if catalog == catalog_alias {
+                        if let Some(ent) =
+                            self.catalog.resolve_entry(DEFAULT_CATALOG, schema, table)
+                        {
+                            return Ok(ResolvedEntry::Entry(ent.clone()));
+                        }
+                    }
                 }
+
                 // If catalog is anything but "default", we know we need to do
                 // external resolution since we don't store info about
                 // individual tables.

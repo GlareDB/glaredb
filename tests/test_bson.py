@@ -1,6 +1,5 @@
 import os.path
 import random
-import json
 import subprocess
 import pathlib
 
@@ -9,13 +8,12 @@ import psycopg2.extensions
 import psycopg2.extras
 import pytest
 
-from tests.fixtures.glaredb import glaredb_connection, debug_path
 import tests.tools
 
 
 def test_bson_copy_to(
     glaredb_connection: psycopg2.extensions.connection,
-    debug_path: pathlib.Path,
+    binary_path: pathlib.Path,
     tmp_path_factory: pytest.TempPathFactory,
 ):
     curr = glaredb_connection.cursor()
@@ -48,7 +46,7 @@ def test_bson_copy_to(
     with tests.tools.cd(output_dir):
         out = subprocess.run(
             [
-                f"{debug_path}",
+                f"{binary_path}",
                 "--query",
                 f"select count(*) as count from '{output_fn}'",
                 "--mode",
@@ -65,7 +63,7 @@ def test_read_bson(
 ):
     beatles = ["john", "paul", "george", "ringo"]
 
-    tmp_dir = tmp_path_factory.mktemp(basename="read-bson-beatles-", numbered=True)
+    tmp_dir = tmp_path_factory.mktemp(basename="read-bson-beatles")
     data_path = tmp_dir.joinpath("beatles.100.bson")
 
     with open(data_path, "wb") as f:
@@ -88,7 +86,13 @@ def test_read_bson(
             f"create external table bson_beatles from bson options ( location='{data_path}', file_type='bson')"
         )
 
-    for from_clause in ["bson_beatles", f"read_bson('{data_path}')", f"'{data_path}'"]:
+    for from_clause in [
+        "bson_beatles",
+        f"read_bson('{data_path}')",
+        f"'{data_path}'",
+        f"'{tmp_dir}/../read-bson-beatles0/beatles.100.bson'",
+    ]:
+        print(from_clause)
         with glaredb_connection.cursor() as curr:
             curr.execute(f"select count(*) from {from_clause}")
             r = curr.fetchone()

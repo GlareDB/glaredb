@@ -50,7 +50,7 @@ message DatabaseOptions {
     DatabaseOptionsCassandra cassandra = 11;
     DatabaseOptionsSqlite sqlite = 12;
   }
-  // next: 12
+  // next: 13
 }
 
 message DatabaseOptionsInternal {}
@@ -72,10 +72,16 @@ message DatabaseOptionsMysql {
 
 message DatabaseOptionsMongoDb {
   string connection_string = 1;
+  repeated InternalColumnDefinition columns = 2;
 }
 
 message DatabaseOptionsSqlServer {
   string connection_string = 1;
+}
+
+message DatabaseOptionsSqlite {
+  string location = 1;
+  StorageOptions storage_options = 2;
 }
 
 message DatabaseOptionsClickhouse {
@@ -86,10 +92,6 @@ message DatabaseOptionsCassandra {
   string host = 1;
   optional string username = 2;
   optional string password = 3;
-}
-
-message DatabaseOptionsSqlite {
-  string location = 1;
 }
 
 message DatabaseOptionsSnowflake {
@@ -142,7 +144,7 @@ message TableOptions {
     TableOptionsClickhouse clickhouse = 17;
     TableOptionsCassandra cassandra = 18;
     TableOptionsExcel excel = 19;
-    TableOptionsSqlite sqlite = 20;
+    TableOptionsObjectStore sqlite = 20;
   }
   // next: 21
 }
@@ -203,6 +205,7 @@ message TableOptionsMongo {
   string connection_string = 1;
   string database = 2;
   string collection = 3;
+  repeated InternalColumnDefinition columns = 4;
 }
 
 message TableOptionsExcel{
@@ -240,6 +243,11 @@ message TableOptionsObjectStore {
 
   // Optional: number of records to sample for formats with inferred schema.
   optional int64 schema_sample_size = 5;
+
+  // (optional) explit schema
+  repeated InternalColumnDefinition columns = 6;
+
+  optional string name = 7;
 }
 
 message TableOptionsSqlServer {
@@ -260,11 +268,6 @@ message TableOptionsCassandra {
   string table = 3;
   optional string username = 4;
   optional string password = 5;
-}
-
-message TableOptionsSqlite {
-  string location = 1;
-  string table = 2;
 }
 
 // Tunnel options

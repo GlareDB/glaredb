@@ -12,7 +12,12 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use bson::RawBson;
-use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
+use datafusion::arrow::datatypes::{
+    FieldRef,
+    Fields,
+    Schema as ArrowSchema,
+    SchemaRef as ArrowSchemaRef,
+};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
@@ -25,6 +30,9 @@ use mongodb::bson::spec::BinarySubtype;
 use mongodb::bson::{bson, Binary, Bson, Document, RawDocumentBuf};
 use mongodb::options::{ClientOptions, FindOptions};
 use mongodb::{Client, Collection};
+use parser::errors::ParserError;
+use parser::options::{OptionValue, ParseOptionValue};
+use parser::{parser_err, unexpected_type_err};
 use tracing::debug;
 
 use crate::bson::array_to_bson;
@@ -65,6 +73,19 @@ impl FromStr for MongoDbProtocol {
         Ok(proto)
     }
 }
+
+impl ParseOptionValue<MongoDbProtocol> for OptionValue {
+    fn parse_opt(self) -> Result<MongoDbProtocol, ParserError> {
+        let opt = match self {
+            Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => {
+                s.parse().map_err(|e| parser_err!("{e}"))?
+            }
+            o => return Err(unexpected_type_err!("mongodb protocol", o)),
+        };
+        Ok(opt)
+    }
+}
+
 
 impl Display for MongoDbProtocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -208,6 +229,7 @@ impl VirtualLister for MongoDbAccessor {
 pub struct MongoDbTableAccessInfo {
     pub database: String, // "Schema"
     pub collection: String,
+    pub fields: Option<Vec<FieldRef>>, // filter
 }
 
 #[derive(Debug, Clone)]
@@ -234,13 +256,17 @@ impl MongoDbTableAccessor {
             .client
             .database(&self.info.database)
             .collection(&self.info.collection);
-        let sampler = TableSampler::new(&collection);
 
-        let estimated_count = collection.estimated_document_count(None).await?;
-        let schema = sampler.infer_schema_from_sample(estimated_count).await?;
+        let schema = if self.info.fields.is_some() {
+            ArrowSchema::new(self.info.fields.unwrap())
+        } else {
+            TableSampler::new(&collection)
+                .infer_schema_from_sample(128)
+                .await?
+        };
 
         Ok(MongoDbTableProvider {
-            estimated_count,
+            estimated_count: collection.estimated_document_count(None).await?,
             schema: Arc::new(schema),
             collection: self
                 .client

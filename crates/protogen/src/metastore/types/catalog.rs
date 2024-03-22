@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::fmt::{self, Display};
 use std::str::FromStr;
+use std::sync::Arc;
 
-use datafusion::arrow::datatypes::DataType;
+use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
-use proptest_derive::Arbitrary;
 
 use super::options::{
     CredentialsOptions,
@@ -186,7 +186,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
     }
 }
 
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EntryType {
     Database,
     Schema,
@@ -263,7 +263,7 @@ impl fmt::Display for EntryType {
 }
 
 /// Metadata associated with every entry in the catalog.
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EntryMeta {
     pub entry_type: EntryType,
     pub id: u32,
@@ -304,7 +304,7 @@ impl TryFrom<catalog::EntryMeta> for EntryMeta {
     }
 }
 
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SourceAccessMode {
     ReadOnly,
     ReadWrite,
@@ -382,7 +382,7 @@ impl From<SourceAccessMode> for i32 {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseEntry {
     pub meta: EntryMeta,
     pub options: DatabaseOptions,
@@ -414,7 +414,7 @@ impl From<DatabaseEntry> for catalog::DatabaseEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemaEntry {
     pub meta: EntryMeta,
 }
@@ -441,15 +441,35 @@ pub struct TableEntry {
     pub options: TableOptions,
     pub tunnel_id: Option<u32>,
     pub access_mode: SourceAccessMode,
+    pub columns: Option<Vec<InternalColumnDefinition>>,
 }
 
 impl TableEntry {
     /// Try to get the columns for this table if available.
-    pub fn get_internal_columns(&self) -> Option<&[InternalColumnDefinition]> {
+    pub fn get_internal_columns(&self) -> Option<Vec<InternalColumnDefinition>> {
         match &self.options {
-            TableOptions::Internal(TableOptionsInternal { columns, .. }) => Some(columns),
-            _ => None,
+            TableOptions::Internal(TableOptionsInternal { columns, .. }) => {
+                Some(columns.to_owned())
+            }
+            _ => {
+                if let Some(columns) = self.columns.as_ref() {
+                    let mut out = Vec::with_capacity(columns.len());
+                    out.extend_from_slice(columns.as_slice());
+                    Some(out)
+                } else {
+                    None
+                }
+            }
         }
+    }
+    pub fn get_columns(&self) -> Option<Vec<FieldRef>> {
+        self.get_internal_columns().map(|val| {
+            val.iter()
+                .map(InternalColumnDefinition::to_owned)
+                .map(|icd| Field::new(icd.name, icd.arrow_type, icd.nullable))
+                .map(Arc::new)
+                .collect()
+        })
     }
 }
 
@@ -457,11 +477,22 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
     type Error = ProtoConvError;
     fn try_from(value: catalog::TableEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
+        let mut columns = Vec::with_capacity(value.columns.len());
+        for col in value.columns {
+            columns.push(col.try_into()?);
+        }
+        let columns = if columns.is_empty() {
+            None
+        } else {
+            Some(columns)
+        };
+
         Ok(TableEntry {
             meta,
             options: value.options.required("options".to_string())?,
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.try_into()?,
+            columns,
         })
     }
 }
@@ -469,11 +500,21 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
 impl TryFrom<TableEntry> for catalog::TableEntry {
     type Error = ProtoConvError;
     fn try_from(value: TableEntry) -> Result<Self, Self::Error> {
+        let columns = if let Some(columns) = value.columns {
+            let mut out = Vec::with_capacity(columns.len());
+            for col in columns {
+                out.push(col.try_into()?);
+            }
+            out
+        } else {
+            Vec::new()
+        };
         Ok(catalog::TableEntry {
             meta: Some(value.meta.into()),
             options: Some(value.options.try_into()?),
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.into(),
+            columns,
         })
     }
 }
@@ -484,7 +525,7 @@ impl fmt::Display for TableEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ViewEntry {
     pub meta: EntryMeta,
     pub sql: String,
@@ -513,7 +554,7 @@ impl From<ViewEntry> for catalog::ViewEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TunnelEntry {
     pub meta: EntryMeta,
     pub options: TunnelOptions,
@@ -539,7 +580,7 @@ impl From<TunnelEntry> for catalog::TunnelEntry {
     }
 }
 
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionType {
     Aggregate,
     Scalar,
@@ -590,7 +631,7 @@ impl From<FunctionType> for catalog::FunctionType {
 }
 
 /// The runtime preference for a function.
-#[derive(Debug, Clone, Copy, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RuntimePreference {
     Unspecified,
     Local,
@@ -809,7 +850,7 @@ impl From<FunctionEntry> for catalog::FunctionEntry {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CredentialsEntry {
     pub meta: EntryMeta,
     pub options: CredentialsOptions,
@@ -840,28 +881,9 @@ impl From<CredentialsEntry> for catalog::CredentialsEntry {
 
 #[cfg(test)]
 mod tests {
-    use proptest::arbitrary::any;
-    use proptest::proptest;
 
     use super::*;
 
-    proptest! {
-        #[test]
-        fn roundtrip_entry_type(expected in any::<EntryType>()) {
-            let p: catalog::entry_meta::EntryType = expected.into();
-            let got: EntryType = p.try_into().unwrap();
-            assert_eq!(expected, got);
-        }
-    }
-
-    proptest! {
-        #[test]
-        fn roundtrip_entry_meta(expected in any::<EntryMeta>()) {
-            let p: catalog::EntryMeta = expected.clone().into();
-            let got: EntryMeta = p.try_into().unwrap();
-            assert_eq!(expected, got);
-        }
-    }
 
     #[test]
     fn convert_catalog_state_no_deployment_metadata() {

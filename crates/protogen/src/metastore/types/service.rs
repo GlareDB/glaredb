@@ -1,5 +1,4 @@
 use datafusion::logical_expr::Signature;
-use proptest_derive::Arbitrary;
 
 use super::catalog::{FunctionType, SourceAccessMode};
 use super::options::{
@@ -126,7 +125,7 @@ impl TryFrom<Mutation> for service::Mutation {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropDatabase {
     pub name: String,
     pub if_exists: bool,
@@ -152,7 +151,7 @@ impl From<DropDatabase> for service::DropDatabase {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropSchema {
     pub name: String,
     pub if_exists: bool,
@@ -181,7 +180,7 @@ impl From<DropSchema> for service::DropSchema {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropObject {
     pub schema: String,
     pub name: String,
@@ -210,7 +209,7 @@ impl From<DropObject> for service::DropObject {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateSchema {
     pub name: String,
     pub if_not_exists: bool,
@@ -235,7 +234,7 @@ impl From<CreateSchema> for service::CreateSchema {
         }
     }
 }
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateView {
     pub schema: String,
     pub name: String,
@@ -270,7 +269,7 @@ impl From<CreateView> for service::CreateView {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateTable {
     pub schema: String,
     pub name: String,
@@ -342,7 +341,7 @@ impl TryFrom<CreateFunction> for service::CreateFunction {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateExternalTable {
     pub schema: String,
     pub name: String,
@@ -381,7 +380,7 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateExternalDatabase {
     pub name: String,
     pub options: DatabaseOptions,
@@ -412,7 +411,7 @@ impl From<CreateExternalDatabase> for service::CreateExternalDatabase {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AlterTableOperation {
     RenameTable { new_name: String },
     SetAccessMode { access_mode: SourceAccessMode },
@@ -468,7 +467,7 @@ impl From<AlterTableOperation> for service::AlterTableOperation {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlterTable {
     pub schema: String,
     pub name: String,
@@ -496,7 +495,7 @@ impl From<AlterTable> for service::AlterTable {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AlterDatabaseOperation {
     RenameDatabase { new_name: String },
     SetAccessMode { access_mode: SourceAccessMode },
@@ -552,7 +551,7 @@ impl From<AlterDatabaseOperation> for service::AlterDatabaseOperation {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlterDatabase {
     pub name: String,
     pub operation: AlterDatabaseOperation,
@@ -577,7 +576,7 @@ impl From<AlterDatabase> for service::AlterDatabase {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateTunnel {
     pub name: String,
     pub options: TunnelOptions,
@@ -605,7 +604,7 @@ impl From<CreateTunnel> for service::CreateTunnel {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropTunnel {
     pub name: String,
     pub if_exists: bool,
@@ -630,7 +629,7 @@ impl From<DropTunnel> for service::DropTunnel {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlterTunnelRotateKeys {
     pub name: String,
     pub if_exists: bool,
@@ -658,7 +657,7 @@ impl From<AlterTunnelRotateKeys> for service::AlterTunnelRotateKeys {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateCredentials {
     pub name: String,
     pub options: CredentialsOptions,
@@ -689,7 +688,7 @@ impl From<CreateCredentials> for service::CreateCredentials {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropCredentials {
     pub name: String,
     pub if_exists: bool,
@@ -714,7 +713,7 @@ impl From<DropCredentials> for service::DropCredentials {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateDeploymentStorage {
     pub new_storage_size: u64,
 }

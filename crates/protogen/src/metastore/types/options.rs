@@ -1,20 +1,18 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{DataType, Field, Fields, SchemaRef};
 use datafusion::common::DFSchemaRef;
-use proptest_derive::Arbitrary;
 
 use crate::gen::common::arrow;
 use crate::gen::metastore::options;
 use crate::{FromOptionalField, ProtoConvError};
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InternalColumnDefinition {
     pub name: String,
     pub nullable: bool,
-    // TODO: change proptest strategy to select random DataType
-    #[proptest(value("DataType::Utf8"))]
     pub arrow_type: DataType,
 }
 
@@ -40,7 +38,7 @@ impl InternalColumnDefinition {
     /// Create a vec of column definitions from arrow fields.
     pub fn from_arrow_fields<C>(cols: C) -> Vec<InternalColumnDefinition>
     where
-        C: IntoIterator<Item = Field>,
+        C: IntoIterator<Item = Arc<Field>>,
     {
         cols.into_iter()
             .map(|field| InternalColumnDefinition {
@@ -48,6 +46,16 @@ impl InternalColumnDefinition {
                 nullable: field.is_nullable(),
                 arrow_type: field.data_type().clone(),
             })
+            .collect()
+    }
+
+    /// Create a vec of column definitions from arrow fields.
+    pub fn to_arrow_fields<C>(cols: C) -> Vec<Arc<Field>>
+    where
+        C: IntoIterator<Item = InternalColumnDefinition>,
+    {
+        cols.into_iter()
+            .map(|col| Arc::new(Field::new(col.name, col.arrow_type, col.nullable)))
             .collect()
     }
 }
@@ -64,8 +72,6 @@ impl TryFrom<options::InternalColumnDefinition> for InternalColumnDefinition {
     }
 }
 
-// TODO: Try to make this just `From`. Would require some additional conversions
-// for the arrow types.
 impl TryFrom<InternalColumnDefinition> for options::InternalColumnDefinition {
     type Error = ProtoConvError;
     fn try_from(value: InternalColumnDefinition) -> Result<Self, Self::Error> {
@@ -80,7 +86,7 @@ impl TryFrom<InternalColumnDefinition> for options::InternalColumnDefinition {
 
 // Database options
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DatabaseOptions {
     Internal(DatabaseOptionsInternal),
     Debug(DatabaseOptionsDebug),
@@ -212,7 +218,7 @@ impl From<DatabaseOptions> for options::DatabaseOptions {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsInternal {}
 
 impl TryFrom<options::DatabaseOptionsInternal> for DatabaseOptionsInternal {
@@ -228,7 +234,7 @@ impl From<DatabaseOptionsInternal> for options::DatabaseOptionsInternal {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsDebug {}
 
 impl TryFrom<options::DatabaseOptionsDebug> for DatabaseOptionsDebug {
@@ -244,7 +250,7 @@ impl From<DatabaseOptionsDebug> for options::DatabaseOptionsDebug {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsPostgres {
     pub connection_string: String,
 }
@@ -266,7 +272,7 @@ impl From<DatabaseOptionsPostgres> for options::DatabaseOptionsPostgres {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsBigQuery {
     pub service_account_key: String,
     pub project_id: String,
@@ -291,7 +297,7 @@ impl From<DatabaseOptionsBigQuery> for options::DatabaseOptionsBigQuery {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsMysql {
     pub connection_string: String,
 }
@@ -313,9 +319,10 @@ impl From<DatabaseOptionsMysql> for options::DatabaseOptionsMysql {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsMongoDb {
     pub connection_string: String,
+    pub columns: Vec<InternalColumnDefinition>,
 }
 
 impl TryFrom<options::DatabaseOptionsMongoDb> for DatabaseOptionsMongoDb {
@@ -323,6 +330,11 @@ impl TryFrom<options::DatabaseOptionsMongoDb> for DatabaseOptionsMongoDb {
     fn try_from(value: options::DatabaseOptionsMongoDb) -> Result<Self, Self::Error> {
         Ok(DatabaseOptionsMongoDb {
             connection_string: value.connection_string,
+            columns: value
+                .columns
+                .iter()
+                .map(|i| self::InternalColumnDefinition::try_from(i.to_owned()))
+                .collect::<Result<_, _>>()?,
         })
     }
 }
@@ -331,11 +343,17 @@ impl From<DatabaseOptionsMongoDb> for options::DatabaseOptionsMongoDb {
     fn from(value: DatabaseOptionsMongoDb) -> Self {
         options::DatabaseOptionsMongoDb {
             connection_string: value.connection_string,
+            columns: value
+                .columns
+                .into_iter()
+                .map(|v| v.try_into())
+                .collect::<Result<_, _>>()
+                .unwrap_or_else(|_| Vec::new()),
         }
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsSqlServer {
     pub connection_string: String,
 }
@@ -357,7 +375,7 @@ impl From<DatabaseOptionsSqlServer> for options::DatabaseOptionsSqlServer {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsClickhouse {
     pub connection_string: String,
 }
@@ -378,7 +396,7 @@ impl From<DatabaseOptionsClickhouse> for options::DatabaseOptionsClickhouse {
         }
     }
 }
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsCassandra {
     pub host: String,
     pub username: Option<String>,
@@ -406,29 +424,7 @@ impl From<DatabaseOptionsCassandra> for options::DatabaseOptionsCassandra {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
-pub struct DatabaseOptionsSqlite {
-    pub location: String,
-}
-
-impl TryFrom<options::DatabaseOptionsSqlite> for DatabaseOptionsSqlite {
-    type Error = ProtoConvError;
-    fn try_from(value: options::DatabaseOptionsSqlite) -> Result<Self, Self::Error> {
-        Ok(DatabaseOptionsSqlite {
-            location: value.location,
-        })
-    }
-}
-
-impl From<DatabaseOptionsSqlite> for options::DatabaseOptionsSqlite {
-    fn from(value: DatabaseOptionsSqlite) -> Self {
-        options::DatabaseOptionsSqlite {
-            location: value.location,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsSnowflake {
     pub account_name: String,
     pub login_name: String,
@@ -465,7 +461,7 @@ impl From<DatabaseOptionsSnowflake> for options::DatabaseOptionsSnowflake {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseOptionsDeltaLake {
     pub catalog: DeltaLakeCatalog,
     pub storage_options: StorageOptions,
@@ -492,7 +488,7 @@ impl From<DatabaseOptionsDeltaLake> for options::DatabaseOptionsDeltaLake {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DeltaLakeCatalog {
     Unity(DeltaLakeUnityCatalog),
 }
@@ -518,7 +514,7 @@ impl From<DeltaLakeCatalog> for options::database_options_delta_lake::Catalog {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DeltaLakeUnityCatalog {
     pub catalog_id: String,
     pub databricks_access_token: String,
@@ -558,7 +554,7 @@ impl From<DeltaLakeUnityCatalog> for options::DeltaLakeUnityCatalog {
 /// - [Azure options](https://docs.rs/object_store/latest/object_store/azure/enum.AzureConfigKey.html#variants)
 /// - [S3 options](https://docs.rs/object_store/latest/object_store/aws/enum.AmazonS3ConfigKey.html#variants)
 /// - [Google options](https://docs.rs/object_store/latest/object_store/gcp/enum.GoogleConfigKey.html#variants)
-#[derive(Debug, Default, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct StorageOptions {
     pub inner: BTreeMap<String, String>,
 }
@@ -577,10 +573,9 @@ impl StorageOptions {
     }
 }
 
-impl TryFrom<options::StorageOptions> for StorageOptions {
-    type Error = ProtoConvError;
-    fn try_from(value: options::StorageOptions) -> Result<Self, Self::Error> {
-        Ok(StorageOptions { inner: value.inner })
+impl From<options::StorageOptions> for StorageOptions {
+    fn from(value: options::StorageOptions) -> Self {
+        StorageOptions { inner: value.inner }
     }
 }
 
@@ -590,9 +585,10 @@ impl From<StorageOptions> for options::StorageOptions {
     }
 }
 
+
 // Table options
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TableOptions {
     Internal(TableOptionsInternal),
     Debug(TableOptionsDebug),
@@ -613,7 +609,7 @@ pub enum TableOptions {
     Clickhouse(TableOptionsClickhouse),
     Cassandra(TableOptionsCassandra),
     Excel(TableOptionsExcel),
-    Sqlite(TableOptionsSqlite),
+    Sqlite(TableOptionsObjectStore),
 }
 
 impl TableOptions {
@@ -748,7 +744,7 @@ impl TryFrom<TableOptions> for options::TableOptions {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsInternal {
     pub columns: Vec<InternalColumnDefinition>,
 }
@@ -811,7 +807,7 @@ impl TryFrom<TableOptionsInternal> for options::TableOptionsInternal {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsDebug {
     pub table_type: String,
 }
@@ -833,7 +829,7 @@ impl From<TableOptionsDebug> for options::TableOptionsDebug {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsPostgres {
     pub connection_string: String,
     pub schema: String,
@@ -861,7 +857,7 @@ impl From<TableOptionsPostgres> for options::TableOptionsPostgres {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsBigQuery {
     pub service_account_key: String,
     pub project_id: String,
@@ -892,7 +888,7 @@ impl From<TableOptionsBigQuery> for options::TableOptionsBigQuery {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsMysql {
     pub connection_string: String,
     pub schema: String,
@@ -920,7 +916,7 @@ impl From<TableOptionsMysql> for options::TableOptionsMysql {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsLocal {
     pub location: String,
     pub file_type: String,
@@ -948,7 +944,7 @@ impl From<TableOptionsLocal> for options::TableOptionsLocal {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsGcs {
     pub service_account_key: Option<String>,
     pub bucket: String,
@@ -982,7 +978,7 @@ impl From<TableOptionsGcs> for options::TableOptionsGcs {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsS3 {
     pub access_key_id: Option<String>,
     pub secret_access_key: Option<String>,
@@ -1021,35 +1017,67 @@ impl From<TableOptionsS3> for options::TableOptionsS3 {
         }
     }
 }
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsMongoDb {
     pub connection_string: String,
     pub database: String,
     pub collection: String,
+    pub columns: Option<Vec<InternalColumnDefinition>>,
 }
 
 impl TryFrom<options::TableOptionsMongo> for TableOptionsMongoDb {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsMongo) -> Result<Self, Self::Error> {
+        let columns = if value.columns.is_empty() {
+            None
+        } else {
+            Some(
+                value
+                    .columns
+                    .iter()
+                    .map(|i| {
+                        self::InternalColumnDefinition::try_from(i.to_owned()).map(|mut v| {
+                            v.nullable = true;
+                            v
+                        })
+                    })
+                    .collect::<Result<_, _>>()?,
+            )
+        };
+
         Ok(TableOptionsMongoDb {
             connection_string: value.connection_string,
             database: value.database,
             collection: value.collection,
+            columns,
         })
     }
 }
 
 impl From<TableOptionsMongoDb> for options::TableOptionsMongo {
     fn from(value: TableOptionsMongoDb) -> Self {
+        let columns = if value.columns.is_none() {
+            Vec::new()
+        } else {
+            value
+                .columns
+                .unwrap()
+                .into_iter()
+                .map(|v| v.try_into())
+                .collect::<Result<_, _>>()
+                .unwrap_or_else(|_| Vec::new())
+        };
+
         options::TableOptionsMongo {
             connection_string: value.connection_string,
             database: value.database,
             collection: value.collection,
+            columns,
         }
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsExcel {
     pub location: String,
     pub storage_options: StorageOptions,
@@ -1086,7 +1114,7 @@ impl From<TableOptionsExcel> for options::TableOptionsExcel {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsSqlServer {
     pub connection_string: String,
     pub schema: String,
@@ -1114,7 +1142,7 @@ impl From<TableOptionsSqlServer> for options::TableOptionsSqlServer {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsClickhouse {
     pub connection_string: String,
     pub table: String,
@@ -1142,7 +1170,7 @@ impl From<TableOptionsClickhouse> for options::TableOptionsClickhouse {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsCassandra {
     pub host: String,
     pub keyspace: String,
@@ -1176,32 +1204,7 @@ impl From<TableOptionsCassandra> for options::TableOptionsCassandra {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
-pub struct TableOptionsSqlite {
-    pub location: String,
-    pub table: String,
-}
-
-impl TryFrom<options::TableOptionsSqlite> for TableOptionsSqlite {
-    type Error = ProtoConvError;
-    fn try_from(value: options::TableOptionsSqlite) -> Result<Self, Self::Error> {
-        Ok(TableOptionsSqlite {
-            location: value.location,
-            table: value.table,
-        })
-    }
-}
-
-impl From<TableOptionsSqlite> for options::TableOptionsSqlite {
-    fn from(value: TableOptionsSqlite) -> Self {
-        options::TableOptionsSqlite {
-            location: value.location,
-            table: value.table,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsSnowflake {
     pub account_name: String,
     pub login_name: String,
@@ -1244,24 +1247,63 @@ impl From<TableOptionsSnowflake> for options::TableOptionsSnowflake {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DatabaseOptionsSqlite {
+    pub location: String,
+    pub storage_options: Option<StorageOptions>,
+}
+
+impl TryFrom<options::DatabaseOptionsSqlite> for DatabaseOptionsSqlite {
+    type Error = ProtoConvError;
+    fn try_from(value: options::DatabaseOptionsSqlite) -> Result<Self, Self::Error> {
+        Ok(DatabaseOptionsSqlite {
+            location: value.location,
+            storage_options: value.storage_options.map(|v| v.into()),
+        })
+    }
+}
+
+impl From<DatabaseOptionsSqlite> for options::DatabaseOptionsSqlite {
+    fn from(value: DatabaseOptionsSqlite) -> Self {
+        options::DatabaseOptionsSqlite {
+            location: value.location,
+            storage_options: value.storage_options.map(|v| v.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableOptionsObjectStore {
     pub location: String,
+    pub name: Option<String>,
     pub storage_options: StorageOptions,
     pub file_type: Option<String>,
     pub compression: Option<String>,
     pub schema_sample_size: Option<i64>,
+    pub columns: Vec<InternalColumnDefinition>,
 }
 
 impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
     type Error = ProtoConvError;
     fn try_from(value: options::TableOptionsObjectStore) -> Result<Self, Self::Error> {
         Ok(TableOptionsObjectStore {
+            name: value.name,
             location: value.location,
             storage_options: value.storage_options.required("storage_options")?,
             file_type: value.file_type,
             compression: value.compression,
             schema_sample_size: value.schema_sample_size,
+            columns: value
+                .columns
+                .iter()
+                .map(|i| {
+                    self::InternalColumnDefinition::try_from(i.to_owned()).map(|mut v| {
+                        v.nullable = true;
+                        v
+                    })
+                })
+                .collect::<Result<_, _>>()?,
         })
     }
 }
@@ -1269,16 +1311,23 @@ impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
 impl From<TableOptionsObjectStore> for options::TableOptionsObjectStore {
     fn from(value: TableOptionsObjectStore) -> Self {
         options::TableOptionsObjectStore {
+            name: value.name,
             location: value.location,
             storage_options: Some(value.storage_options.into()),
             file_type: value.file_type,
             compression: value.compression,
             schema_sample_size: value.schema_sample_size,
+            columns: value
+                .columns
+                .into_iter()
+                .map(|v| v.try_into())
+                .collect::<Result<_, _>>()
+                .unwrap_or_else(|_| Vec::new()),
         }
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TunnelOptions {
     Internal(TunnelOptionsInternal),
     Debug(TunnelOptionsDebug),
@@ -1341,7 +1390,7 @@ impl From<TunnelOptions> for options::TunnelOptions {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TunnelOptionsInternal {}
 
 impl TryFrom<options::TunnelOptionsInternal> for TunnelOptionsInternal {
@@ -1357,7 +1406,7 @@ impl From<TunnelOptionsInternal> for options::TunnelOptionsInternal {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TunnelOptionsDebug {}
 
 impl TryFrom<options::TunnelOptionsDebug> for TunnelOptionsDebug {
@@ -1373,7 +1422,7 @@ impl From<TunnelOptionsDebug> for options::TunnelOptionsDebug {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TunnelOptionsSsh {
     pub connection_string: String,
     pub ssh_key: Vec<u8>,
@@ -1397,34 +1446,7 @@ impl From<TunnelOptionsSsh> for options::TunnelOptionsSsh {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use proptest::arbitrary::any;
-    use proptest::proptest;
-
-    use super::*;
-
-    proptest! {
-        #[test]
-        fn roundtrip_table_options(expected in any::<TableOptions>()) {
-            let p: options::TableOptions = expected.clone().try_into().unwrap();
-            let got: TableOptions = p.try_into().unwrap();
-            assert_eq!(expected, got);
-        }
-    }
-
-    proptest! {
-        #[test]
-        fn roundtrip_connection_options(expected in any::<DatabaseOptions>()) {
-            let p: options::DatabaseOptions = expected.clone().into();
-            let got: DatabaseOptions = p.try_into().unwrap();
-            assert_eq!(expected, got);
-        }
-    }
-}
-
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CredentialsOptions {
     Debug(CredentialsOptionsDebug),
     Gcp(CredentialsOptionsGcp),
@@ -1499,7 +1521,7 @@ impl From<CredentialsOptions> for options::CredentialsOptions {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CredentialsOptionsDebug {
     pub table_type: String,
 }
@@ -1521,7 +1543,7 @@ impl From<CredentialsOptionsDebug> for options::CredentialsOptionsDebug {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CredentialsOptionsGcp {
     pub service_account_key: String,
 }
@@ -1543,7 +1565,7 @@ impl From<CredentialsOptionsGcp> for options::CredentialsOptionsGcp {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CredentialsOptionsAws {
     pub access_key_id: String,
     pub secret_access_key: String,
@@ -1568,7 +1590,7 @@ impl From<CredentialsOptionsAws> for options::CredentialsOptionsAws {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CredentialsOptionsAzure {
     pub account_name: String,
     pub access_key: String,
@@ -1593,7 +1615,7 @@ impl From<CredentialsOptionsAzure> for options::CredentialsOptionsAzure {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CredentialsOptionsOpenAI {
     pub api_key: String,
     pub api_base: Option<String>,
@@ -1705,6 +1727,7 @@ pub struct CopyToDestinationOptionsS3 {
 pub struct CopyToDestinationOptionsAzure {
     pub account: String,
     pub access_key: String,
+    pub container: String,
     pub location: String,
 }
 
