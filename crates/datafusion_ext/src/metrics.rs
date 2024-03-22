@@ -8,9 +8,9 @@ use std::task::{Context, Poll};
 
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::error::Result;
+use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::TaskContext;
-use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_expr::{PhysicalSortExpr, PhysicalSortRequirement};
 use datafusion::physical_plan::metrics::{
     BaselineMetrics,
     ExecutionPlanMetricsSet,
@@ -199,7 +199,7 @@ impl DataSourceMetricsOptsType for WriteOnlyDataSourceMetricsOptsType {
 /// able to modify directly to record metrics (e.g. Delta). Otherwise, this
 /// should be skipped and metrics collection should be added to the execution
 /// plan directly.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DataSourceMetricsExecAdapter<T: DataSourceMetricsOptsType> {
     child: Arc<dyn ExecutionPlan>,
     metrics: ExecutionPlanMetricsSet,
@@ -223,7 +223,15 @@ impl<T: DataSourceMetricsOptsType> DataSourceMetricsExecAdapter<T> {
     }
 }
 
-impl<T: DataSourceMetricsOptsType> ExecutionPlan for DataSourceMetricsExecAdapter<T> {
+impl<T: DataSourceMetricsOptsType> Debug for DataSourceMetricsExecAdapter<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct(format!("{}DataSourceMetricsExecAdapter", T::DISPLAY_NAME_PREFIX).as_str())
+            .field("child", &self.child)
+            .finish()
+    }
+}
+
+impl ExecutionPlan for WriteOnlyDataSourceMetricsExecAdapter {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -248,6 +256,11 @@ impl<T: DataSourceMetricsOptsType> ExecutionPlan for DataSourceMetricsExecAdapte
         self: Arc<Self>,
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        if children.is_empty() {
+            return Err(DataFusionError::Plan(
+                "DataSourceMetricsExecAdapter wrong number of children".to_string(),
+            ));
+        }
         Ok(Arc::new(Self::new(children[0].clone())))
     }
 
@@ -261,7 +274,71 @@ impl<T: DataSourceMetricsOptsType> ExecutionPlan for DataSourceMetricsExecAdapte
             stream,
             partition,
             &self.metrics,
-            T::OPTS,
+            WriteOnlyDataSourceMetricsOptsType::OPTS,
+        )))
+    }
+
+    fn statistics(&self) -> Result<Statistics> {
+        self.child.statistics()
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
+    }
+
+    fn required_input_ordering(&self) -> Vec<Option<Vec<PhysicalSortRequirement>>> {
+        // the input ordering must match the output ordering of the source
+        // without this, the sort may get removed by the optimizer
+        vec![self
+            .output_ordering()
+            .map(PhysicalSortRequirement::from_sort_exprs)]
+    }
+}
+
+impl ExecutionPlan for ReadOnlyDataSourceMetricsExecAdapter {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> Arc<Schema> {
+        self.child.schema()
+    }
+
+    fn output_partitioning(&self) -> Partitioning {
+        self.child.output_partitioning()
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        self.child.output_ordering()
+    }
+
+    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
+        vec![self.child.clone()]
+    }
+
+    fn with_new_children(
+        self: Arc<Self>,
+        children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        if children.is_empty() {
+            return Err(DataFusionError::Plan(
+                "DataSourceMetricsExecAdapter wrong number of children".to_string(),
+            ));
+        }
+        Ok(Arc::new(Self::new(children[0].clone())))
+    }
+
+    fn execute(
+        &self,
+        partition: usize,
+        context: Arc<TaskContext>,
+    ) -> Result<SendableRecordBatchStream> {
+        let stream = self.child.execute(partition, context)?;
+        Ok(Box::pin(BoxedStreamAdapater::new(
+            stream,
+            partition,
+            &self.metrics,
+            ReadOnlyDataSourceMetricsOptsType::OPTS,
         )))
     }
 
