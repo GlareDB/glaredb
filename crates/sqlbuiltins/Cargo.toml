@@ -33,6 +33,6 @@ kdl = "5.0.0-alpha.1"
 siphasher = "1.0.0"
 fnv = "1.0.7"
 memoize = { version = "0.4.2", features = ["full"] }
-uuid = { version = "1.7.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 arrow-cast = { version = "50.0.0" } # MUST synchronize sync with the datafusion::arrow version
 lance-linalg = { git = "https://github.com/GlareDB/lance", branch = "datafusion-without-submodules" } # omits duckdb submodule
