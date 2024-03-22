@@ -1,0 +1,10 @@
+statement ok
+COPY  (select * from './testdata/parquet/userdata1.parquet' order by id desc ) to '${TMP}/userdata1_sorted.parquet';
+
+
+#-this only works because it's a parquet file with a single row group. 
+# if it had multiple row groups, the ordering would not be guaranteed.
+query I
+select id from '${TMP}/userdata1_sorted.parquet' limit 1;
+----
+1000

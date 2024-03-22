@@ -171,7 +171,7 @@ use crate::planner::logical_plan::{
     TransactionPlan,
     Update,
 };
-use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
+use crate::planner::preprocess::{preprocess, CastOIDReplacer, EscapedStringToDoubleQuoted};
 use crate::remote::table::StubRemoteTableProvider;
 use crate::resolve::{EntryResolver, ResolvedEntry};
 
@@ -226,7 +226,7 @@ impl<'a> SessionPlanner<'a> {
 
         // Run replacers as needed.
         if let StatementWithExtensions::Statement(inner) = &mut statement {
-            preprocess(inner, &mut CastRegclassReplacer { ctx: self.ctx })?;
+            preprocess(inner, &mut CastOIDReplacer { ctx: self.ctx })?;
             preprocess(inner, &mut EscapedStringToDoubleQuoted)?;
         }
 
