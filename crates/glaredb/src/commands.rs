@@ -9,6 +9,7 @@ use clap::Subcommand;
 use ioutil::ensure_dir;
 use object_store_util::conf::StorageConfig;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
+use proxy::{PgProxy, RpcProxy};
 use slt::discovery::SltDiscovery;
 use slt::hooks::{AllTestsHook, IcebergFormatVersionHook, SqliteTestsHook, SshTunnelHook};
 use slt::tests::{PgBinaryEncoding, SshKeysTest};
@@ -21,7 +22,6 @@ use crate::args::{LocalArgs, MetastoreArgs, PgProxyArgs, RpcProxyArgs, SltArgs};
 use crate::built_info;
 use crate::local::LocalSession;
 use crate::metastore::Metastore;
-use crate::proxy::{PgProxy, RpcProxy};
 use crate::server::ComputeServer;
 
 #[derive(Subcommand)]

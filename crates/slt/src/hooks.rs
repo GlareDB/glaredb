@@ -198,6 +198,10 @@ impl Hook for SshTunnelHook {
         // TODO: make enum for skip/continue rather than booleans
         let client = match client {
             TestClient::Pg(client) => client,
+            TestClient::PgProxy(_) => {
+                error!("cannot run SSH tunnel test with the PgProxy protocol. Skipping...");
+                return Ok(false);
+            }
             TestClient::Rpc(_) => {
                 error!("cannot run SSH tunnel test with the RPC protocol. Skipping...");
                 return Ok(false);

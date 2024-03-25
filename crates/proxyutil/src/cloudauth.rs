@@ -89,6 +89,33 @@ pub trait ProxyAuthenticator: Sync + Send {
     async fn authenticate(&self, params: AuthParams<'_>) -> Result<DatabaseDetails>;
 }
 
+#[derive(Clone)]
+pub struct TestAuthenticator {
+    pub db_details: DatabaseDetails,
+}
+impl TestAuthenticator {
+    pub fn new(ip: &str, port: u16, db_name: &str, user: &str) -> Self {
+        TestAuthenticator {
+            db_details: DatabaseDetails {
+                ip: ip.to_string(),
+                port: port.to_string(),
+                nodes: None,
+                database_id: db_name.to_string(),
+                user_id: user.to_string(),
+                gcs_storage_bucket: "".to_string(),
+                memory_limit_bytes: 0,
+            },
+        }
+    }
+}
+
+#[async_trait]
+impl ProxyAuthenticator for TestAuthenticator {
+    async fn authenticate(&self, _params: AuthParams<'_>) -> Result<DatabaseDetails> {
+        Ok(self.db_details.clone())
+    }
+}
+
 /// Authentice connections using the Cloud service.
 #[derive(Clone)]
 pub struct CloudAuthenticator {
@@ -109,6 +136,16 @@ impl CloudAuthenticator {
             .build()?;
 
         Ok(CloudAuthenticator { api_url, client })
+    }
+}
+
+#[async_trait]
+impl<T> ProxyAuthenticator for Box<T>
+where
+    T: ProxyAuthenticator + ?Sized,
+{
+    async fn authenticate(&self, params: AuthParams<'_>) -> Result<DatabaseDetails> {
+        (**self).authenticate(params).await
     }
 }
 

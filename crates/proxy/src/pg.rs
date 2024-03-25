@@ -6,17 +6,25 @@ use anyhow::{anyhow, Result};
 use pgsrv::errors::PgSrvError;
 use pgsrv::proxy::ProxyHandler;
 use pgsrv::ssl::SslConfig;
-use proxyutil::cloudauth::CloudAuthenticator;
+use proxyutil::cloudauth::{CloudAuthenticator, ProxyAuthenticator, TestAuthenticator};
 use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::sync::oneshot;
 use tracing::{error, info, trace};
 
 pub struct PgProxy {
-    handler: Arc<ProxyHandler<CloudAuthenticator>>,
+    handler: Arc<ProxyHandler<Box<dyn ProxyAuthenticator>>>,
 }
 
 impl PgProxy {
+    /// create a new test PgProxy
+    /// IMPORTANT: this is only for testing purposes and should not be used in production
+    pub async fn new_test(ip: &str, port: u16, db_name: &str, user: &str) -> Result<Self> {
+        let auth = TestAuthenticator::new(ip, port, db_name, user);
+        Ok(PgProxy {
+            handler: Arc::new(ProxyHandler::new(Box::new(auth), None)),
+        })
+    }
     pub async fn new(
         api_addr: String,
         auth_code: String,
@@ -35,12 +43,13 @@ impl PgProxy {
 
         let auth = CloudAuthenticator::new(api_addr, auth_code)?;
         Ok(PgProxy {
-            handler: Arc::new(ProxyHandler::new(auth, ssl_conf)),
+            handler: Arc::new(ProxyHandler::new(Box::new(auth), ssl_conf)),
         })
     }
 
     /// Start proxying connections from the given listener to the server.
     pub async fn serve(self, listener: TcpListener) -> Result<()> {
+        println!("starting pg proxy service");
         let conn_count = Arc::new(AtomicU64::new(0));
 
         // Shutdown handler.
@@ -85,7 +94,7 @@ impl PgProxy {
                     let handler = self.handler.clone();
                     let conn_count = conn_count.clone();
                     tokio::spawn(async move {
-                        trace!("client connected (proxy)");
+                        println!("client connected (proxy)");
                         match handler.proxy_connection(inbound).await {
                             Ok(_) => trace!("client disconnected from normal closure"),
                             // When we attempt to read the startup message from

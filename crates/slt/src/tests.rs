@@ -28,6 +28,10 @@ impl FnTest for SshKeysTest {
     ) -> Result<()> {
         let client = match client {
             TestClient::Pg(client) => client,
+            TestClient::PgProxy(_) => {
+                warn!("skipping ssh keys test on pg_proxy");
+                return Ok(());
+            }
             TestClient::Rpc(_) | TestClient::FlightSql(_) => {
                 warn!("skipping ssh keys test on rpc");
                 return Ok(());
@@ -127,6 +131,10 @@ impl FnTest for PgBinaryEncoding {
     ) -> Result<()> {
         let client = match client {
             TestClient::Pg(client) => client,
+            TestClient::PgProxy(_) => {
+                warn!("cannot run pg binary encoding test on pg_proxy. Skipping...");
+                return Ok(());
+            }
             TestClient::Rpc(_) | TestClient::FlightSql(_) => {
                 warn!("cannot run pg binary encoding test on rpc. Skipping...");
                 return Ok(());

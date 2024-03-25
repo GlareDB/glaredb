@@ -7,6 +7,7 @@ use anyhow::{anyhow, Result};
 use clap::Args;
 use pgsrv::auth::SingleUserAuthenticator;
 use slt::clients::flightsql::FlightSqlTestClient;
+use slt::clients::pg_proxy::PgProxyTestClient;
 use slt::clients::postgres::PgTestClient;
 use slt::clients::rpc::RpcTestClient;
 use slt::clients::{ClientProtocol, TestClient};
@@ -180,6 +181,11 @@ impl SltArgs {
 
                 let (pg_listener, rpc_listener, socket_addr) = match self.protocol {
                     ClientProtocol::Postgres => {
+                        let listener = TcpListener::bind(bind_addr.clone()).await?;
+                        let addr = listener.local_addr().unwrap();
+                        (Some(listener), None, addr)
+                    }
+                    ClientProtocol::PgProxy => {
                         let listener = TcpListener::bind(bind_addr.clone()).await?;
                         let addr = listener.local_addr().unwrap();
                         (Some(listener), None, addr)
@@ -374,6 +380,9 @@ impl SltArgs {
         tracing::info!("Running test: `{}`", test_name);
         let client = match mode {
             ClientProtocol::Postgres => TestClient::Pg(PgTestClient::new(&client_config).await?),
+            ClientProtocol::PgProxy => {
+                TestClient::PgProxy(PgProxyTestClient::new(&client_config).await?)
+            }
             ClientProtocol::Rpc => {
                 TestClient::Rpc(RpcTestClient::new(data_dir, &client_config).await?)
             }
