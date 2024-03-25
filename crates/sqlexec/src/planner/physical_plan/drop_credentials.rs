@@ -24,6 +24,7 @@ use super::{
     new_operation_batch,
     new_operation_with_deprecation_batch,
     GENERIC_OPERATION_PHYSICAL_SCHEMA,
+    GENERIC_OPERATION_WITH_DEPRECATION_PHYSICAL_SCHEMA,
 };
 
 const DEPRECATION_MESSAGE: &str = "`DROP CREDENTIALS` is deprecated and will be removed in a future release. Use `DROP CREDENTIAL` instead.";
@@ -43,7 +44,11 @@ impl ExecutionPlan for DropCredentialsExec {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        GENERIC_OPERATION_PHYSICAL_SCHEMA.clone()
+        if self.show_deprecation_warning {
+            GENERIC_OPERATION_WITH_DEPRECATION_PHYSICAL_SCHEMA.clone()
+        } else {
+            GENERIC_OPERATION_PHYSICAL_SCHEMA.clone()
+        }
     }
 
     fn output_partitioning(&self) -> Partitioning {

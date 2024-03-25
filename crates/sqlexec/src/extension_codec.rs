@@ -335,7 +335,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     catalog_version: ext.catalog_version,
                     names: ext.names,
                     if_exists: ext.if_exists,
-                    show_deprecation_warning: false,
+                    show_deprecation_warning: ext.show_deprecation_warning,
                 })
             }
             proto::ExecutionPlanExtensionType::DropTablesExec(ext) => Arc::new(DropTablesExec {
@@ -660,6 +660,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                 catalog_version: exec.catalog_version,
                 names: exec.names.clone(),
                 if_exists: exec.if_exists,
+                show_deprecation_warning: exec.show_deprecation_warning,
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<DropTablesExec>() {
             proto::ExecutionPlanExtensionType::DropTablesExec(proto::DropTablesExec {

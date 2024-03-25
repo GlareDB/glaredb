@@ -239,6 +239,8 @@ pub struct DropCredentialsExec {
     pub names: Vec<String>, // TODO: Do these live in schemas?
     #[prost(bool, tag = "3")]
     pub if_exists: bool,
+    #[prost(bool, tag = "4")]
+    pub show_deprecation_warning: bool,
 }
 
 #[derive(Clone, PartialEq, Message)]
