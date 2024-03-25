@@ -343,11 +343,18 @@ impl fmt::Display for CreateCredentialStmt {
 pub struct DropCredentialsStmt {
     pub names: Vec<Ident>,
     pub if_exists: bool,
+    /// `CREDENTIALS` is deprecated in favor of `CREDENTIAL`.
+    /// This is set to true if the original statement used the deprecated (plural) syntax.
+    pub deprecated: bool,
 }
 
 impl fmt::Display for DropCredentialsStmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DROP CREDENTIALS ")?;
+        if self.deprecated {
+            write!(f, "DROP CREDENTIALS ")?;
+        } else {
+            write!(f, "DROP CREDENTIAL ")?;
+        }
         if self.if_exists {
             write!(f, "IF EXISTS ")?;
         }
@@ -969,7 +976,10 @@ impl<'a> CustomParser<'a> {
             self.parse_drop_tunnel()
         } else if self.consume_token(&Token::make_keyword("CREDENTIALS")) {
             // DROP CREDENTIALS ...
-            self.parse_drop_credentials()
+            self.parse_drop_credentials(true)
+        } else if self.consume_token(&Token::make_keyword("CREDENTIAL")) {
+            // DROP CREDENTIAL ...
+            self.parse_drop_credentials(false)
         } else {
             // Fall back to underlying parser.
             Ok(StatementWithExtensions::Statement(
@@ -1012,7 +1022,10 @@ impl<'a> CustomParser<'a> {
         }))
     }
 
-    fn parse_drop_credentials(&mut self) -> Result<StatementWithExtensions, ParserError> {
+    fn parse_drop_credentials(
+        &mut self,
+        deprecated: bool,
+    ) -> Result<StatementWithExtensions, ParserError> {
         let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
 
         let names = self
@@ -1024,7 +1037,11 @@ impl<'a> CustomParser<'a> {
         }
 
         Ok(StatementWithExtensions::DropCredentials(
-            DropCredentialsStmt { names, if_exists },
+            DropCredentialsStmt {
+                names,
+                if_exists,
+                deprecated,
+            },
         ))
     }
 

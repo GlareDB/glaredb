@@ -8,6 +8,8 @@ use super::{
 pub struct DropCredentials {
     pub names: Vec<String>,
     pub if_exists: bool,
+    /// If true, show a deprecation warning when the operation is executed.
+    pub show_deprecation_warning: bool,
 }
 
 impl UserDefinedLogicalNodeCore for DropCredentials {

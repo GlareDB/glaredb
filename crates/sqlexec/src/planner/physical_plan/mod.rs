@@ -57,6 +57,31 @@ pub static GENERIC_OPERATION_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> = Lazy::new(|| {
     )]))
 });
 
+pub static GENERIC_OPERATION_WITH_DEPRECATION_PHYSICAL_SCHEMA: Lazy<Arc<Schema>> =
+    Lazy::new(|| {
+        Arc::new(Schema::new(vec![
+            Field::new("$operation", DataType::Utf8, false),
+            Field::new("$deprecation_message", DataType::Utf8, false),
+        ]))
+    });
+
+/// This is used for operations that are being deprecated
+/// Create a new single-row record batch representing the ouptput for some
+/// command (most DDL) with a deprecation message.
+pub fn new_operation_with_deprecation_batch(
+    operation: impl Into<String>,
+    deprecation_message: impl Into<String>,
+) -> RecordBatch {
+    RecordBatch::try_new(
+        GENERIC_OPERATION_WITH_DEPRECATION_PHYSICAL_SCHEMA.clone(),
+        vec![
+            Arc::new(StringArray::from(vec![Some(operation.into())])),
+            Arc::new(StringArray::from(vec![Some(deprecation_message.into())])),
+        ],
+    )
+    .unwrap()
+}
+
 /// Create a new single-row record batch representing the ouptput for some
 /// command (most DDL).
 pub fn new_operation_batch(operation: impl Into<String>) -> RecordBatch {
@@ -103,6 +128,16 @@ pub fn get_count_from_batch(batch: &RecordBatch) -> Option<u64> {
         return None;
     }
     if let Ok(ScalarValue::UInt64(Some(val))) = ScalarValue::try_from_array(batch.column(1), 0) {
+        return Some(val);
+    }
+    None
+}
+
+pub fn get_deprecation_message_from_batch(batch: &RecordBatch) -> Option<String> {
+    if batch.columns().len() < 2 {
+        return None;
+    }
+    if let Ok(ScalarValue::Utf8(Some(val))) = ScalarValue::try_from_array(batch.column(1), 0) {
         return Some(val);
     }
     None

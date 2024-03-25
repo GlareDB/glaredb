@@ -20,13 +20,21 @@ use datafusion::physical_plan::{
 use futures::stream;
 use protogen::metastore::types::service::{self, Mutation};
 
-use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
+use super::{
+    new_operation_batch,
+    new_operation_with_deprecation_batch,
+    GENERIC_OPERATION_PHYSICAL_SCHEMA,
+};
+
+const DEPRECATION_MESSAGE: &str = "`DROP CREDENTIALS` is deprecated and will be removed in a future release. Use `DROP CREDENTIAL` instead.";
 
 #[derive(Debug, Clone)]
 pub struct DropCredentialsExec {
     pub catalog_version: u64,
     pub names: Vec<String>,
     pub if_exists: bool,
+    /// If true, show a deprecation warning when the operation is executed.
+    pub show_deprecation_warning: bool,
 }
 
 impl ExecutionPlan for DropCredentialsExec {
@@ -117,6 +125,12 @@ async fn drop_credentials(
         .mutate(plan.catalog_version, drops)
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to drop credentials: {e}")))?;
-
-    Ok(new_operation_batch("drop_credentials"))
+    if plan.show_deprecation_warning {
+        Ok(new_operation_with_deprecation_batch(
+            "drop_credentials",
+            DEPRECATION_MESSAGE,
+        ))
+    } else {
+        Ok(new_operation_batch("drop_credentials"))
+    }
 }

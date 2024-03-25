@@ -114,6 +114,22 @@ drop credentials drop_credentials;
 statement ok
 drop credentials if exists drop_credentials;
 
+# try again but with `credential` keyword instead of `credentials`
+
+statement ok
+create credential drop_credentials provider debug options (table_type = 'never_ending');
+
+statement ok
+drop credential drop_credentials;
+
+statement error
+drop credential drop_credentials;
+
+statement ok
+drop credential if exists drop_credentials;
+
+# ---
+
 query TT
 select credentials_name, provider
     from glare_catalog.credentials where credentials_name='drop_credentials';

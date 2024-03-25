@@ -335,6 +335,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     catalog_version: ext.catalog_version,
                     names: ext.names,
                     if_exists: ext.if_exists,
+                    show_deprecation_warning: false,
                 })
             }
             proto::ExecutionPlanExtensionType::DropTablesExec(ext) => Arc::new(DropTablesExec {

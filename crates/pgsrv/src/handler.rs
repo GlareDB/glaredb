@@ -757,8 +757,17 @@ where
             ExecutionResult::DropSchemas => Self::command_complete(conn, "DROP SCHEMA").await?,
             ExecutionResult::DropDatabase => Self::command_complete(conn, "DROP DATABASE").await?,
             ExecutionResult::DropTunnel => Self::command_complete(conn, "DROP TUNNEL").await?,
-            ExecutionResult::DropCredentials => {
-                Self::command_complete(conn, "DROP CREDENTIALS").await?
+            ExecutionResult::DropCredentials {
+                deprecation_message: None,
+            } => Self::command_complete(conn, "DROP CREDENTIALS").await?,
+            ExecutionResult::DropCredentials {
+                deprecation_message: Some(message),
+            } => {
+                Self::command_complete(
+                    conn,
+                    format!("DROP CREDENTIALS\nDEPRECATION WARNING. {message}"),
+                )
+                .await?
             }
         };
         Ok(())

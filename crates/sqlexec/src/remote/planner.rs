@@ -287,6 +287,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     catalog_version: self.catalog.version(),
                     names: lp.names.clone(),
                     if_exists: lp.if_exists,
+                    show_deprecation_warning: lp.show_deprecation_warning,
                 };
                 RuntimeGroupExec::new(RuntimePreference::Remote, Arc::new(exec))
             }
