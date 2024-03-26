@@ -6,15 +6,11 @@ use std::time::Duration;
 use anyhow::{anyhow, Result};
 use clap::Args;
 use pgsrv::auth::SingleUserAuthenticator;
-use slt::test::{
-    ClientProtocol,
-    FlightSqlTestClient,
-    PgTestClient,
-    RpcTestClient,
-    Test,
-    TestClient,
-    TestHooks,
-};
+use slt::clients::flightsql::FlightSqlTestClient;
+use slt::clients::postgres::PgTestClient;
+use slt::clients::rpc::RpcTestClient;
+use slt::clients::{ClientProtocol, TestClient};
+use slt::test::{Test, TestHooks};
 use tokio::net::TcpListener;
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;

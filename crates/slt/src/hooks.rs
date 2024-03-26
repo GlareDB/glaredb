@@ -11,7 +11,8 @@ use tokio::time::{sleep as tokio_sleep, Instant};
 use tokio_postgres::{Client, Config};
 use tracing::{error, info, warn};
 
-use super::test::{Hook, TestClient};
+use super::test::Hook;
+use crate::clients::TestClient;
 
 /// This [`Hook`] is used to set some local variables that might change for
 /// each test.
