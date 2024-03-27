@@ -10,19 +10,31 @@ use super::options::{
     CredentialsOptions,
     DatabaseOptions,
     InternalColumnDefinition,
-    TableOptions,
-    TableOptionsInternal,
+    TableOptionsV0,
     TunnelOptions,
 };
 use crate::gen::common::arrow::ArrowType;
 use crate::gen::metastore::catalog::{self, type_signature};
-use crate::{FromOptionalField, ProtoConvError};
+use crate::{gen, FromOptionalField, ProtoConvError};
+
+/// The current version of the catalog IMPLEMENTATION
+/// this is incremented every time there is a breaking change physical representation of the catalog.
+pub const CURRENT_CATALOG_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogState {
+    /// the version of the catalog STATE.
+    /// This version corresponds the state of the catalog and is incremented every time there is a change to the catalog.
+    /// It is associated with the "data" in the catalog
     pub version: u64,
     pub entries: HashMap<u32, CatalogEntry>,
     pub deployment: DeploymentMetadata,
+    /// This is the version of the catalog IMPLEMENTATION.
+    /// any new code paths should generally use [`CURRENT_CATALOG_VERSION`] unless it is specifically
+    /// for handling older versions of the catalog.
+    /// unlike the `version` field, this is only incremented when the physical representation of the catalog changes.
+    /// it is associated with the "code" that represents the catalog.
+    pub catalog_version: u32,
 }
 
 impl TryFrom<catalog::CatalogState> for CatalogState {
@@ -47,6 +59,7 @@ impl TryFrom<catalog::CatalogState> for CatalogState {
             version: value.version,
             entries,
             deployment,
+            catalog_version: value.catalog_version.unwrap_or(0),
         })
     }
 }
@@ -65,6 +78,7 @@ impl TryFrom<CatalogState> for catalog::CatalogState {
                 })
                 .collect::<Result<_, _>>()?,
             deployment: Some(value.deployment.try_into()?),
+            catalog_version: Some(value.catalog_version),
         })
     }
 }
@@ -177,7 +191,7 @@ impl TryFrom<CatalogEntry> for catalog::CatalogEntry {
             CatalogEntry::Database(v) => catalog::catalog_entry::Entry::Database(v.into()),
             CatalogEntry::Schema(v) => catalog::catalog_entry::Entry::Schema(v.into()),
             CatalogEntry::View(v) => catalog::catalog_entry::Entry::View(v.into()),
-            CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.try_into()?),
+            CatalogEntry::Table(v) => catalog::catalog_entry::Entry::Table(v.into()),
             CatalogEntry::Tunnel(v) => catalog::catalog_entry::Entry::Tunnel(v.into()),
             CatalogEntry::Function(v) => catalog::catalog_entry::Entry::Function(v.into()),
             CatalogEntry::Credentials(v) => catalog::catalog_entry::Entry::Credentials(v.into()),
@@ -438,7 +452,7 @@ impl From<SchemaEntry> for catalog::SchemaEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableEntry {
     pub meta: EntryMeta,
-    pub options: TableOptions,
+    pub options: TableOptionsV0,
     pub tunnel_id: Option<u32>,
     pub access_mode: SourceAccessMode,
     pub columns: Option<Vec<InternalColumnDefinition>>,
@@ -447,21 +461,12 @@ pub struct TableEntry {
 impl TableEntry {
     /// Try to get the columns for this table if available.
     pub fn get_internal_columns(&self) -> Option<Vec<InternalColumnDefinition>> {
-        match &self.options {
-            TableOptions::Internal(TableOptionsInternal { columns, .. }) => {
-                Some(columns.to_owned())
-            }
-            _ => {
-                if let Some(columns) = self.columns.as_ref() {
-                    let mut out = Vec::with_capacity(columns.len());
-                    out.extend_from_slice(columns.as_slice());
-                    Some(out)
-                } else {
-                    None
-                }
-            }
+        match self.options {
+            TableOptionsV0::Internal(ref options) => Some(options.columns.clone()),
+            _ => None,
         }
     }
+
     pub fn get_columns(&self) -> Option<Vec<FieldRef>> {
         self.get_internal_columns().map(|val| {
             val.iter()
@@ -472,15 +477,22 @@ impl TableEntry {
         })
     }
 }
-
 impl TryFrom<catalog::TableEntry> for TableEntry {
     type Error = ProtoConvError;
     fn try_from(value: catalog::TableEntry) -> Result<Self, Self::Error> {
         let meta: EntryMeta = value.meta.required("meta")?;
-        let mut columns = Vec::with_capacity(value.columns.len());
-        for col in value.columns {
-            columns.push(col.try_into()?);
+        if value.options.is_some() {
+            return Err(ProtoConvError::UnsupportedSerialization(
+                "new table options not suppported",
+            ));
         }
+
+        let columns: Vec<crate::metastore::types::options::InternalColumnDefinition> = value
+            .columns
+            .into_iter()
+            .map(|c| c.try_into())
+            .collect::<Result<_, _>>()?;
+
         let columns = if columns.is_empty() {
             None
         } else {
@@ -489,7 +501,7 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
 
         Ok(TableEntry {
             meta,
-            options: value.options.required("options".to_string())?,
+            options: value.options_v0.required("options_v0")?,
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.try_into()?,
             columns,
@@ -497,25 +509,23 @@ impl TryFrom<catalog::TableEntry> for TableEntry {
     }
 }
 
-impl TryFrom<TableEntry> for catalog::TableEntry {
-    type Error = ProtoConvError;
-    fn try_from(value: TableEntry) -> Result<Self, Self::Error> {
-        let columns = if let Some(columns) = value.columns {
-            let mut out = Vec::with_capacity(columns.len());
-            for col in columns {
-                out.push(col.try_into()?);
-            }
-            out
-        } else {
-            Vec::new()
-        };
-        Ok(catalog::TableEntry {
+impl From<TableEntry> for catalog::TableEntry {
+    fn from(value: TableEntry) -> Self {
+        let columns: Vec<gen::metastore::options::InternalColumnDefinition> = value
+            .columns
+            .unwrap_or_default()
+            .into_iter()
+            .map(Into::into)
+            .collect::<Vec<_>>();
+
+        catalog::TableEntry {
             meta: Some(value.meta.into()),
-            options: Some(value.options.try_into()?),
+            options_v0: Some(value.options.try_into().unwrap()),
             tunnel_id: value.tunnel_id,
             access_mode: value.access_mode.into(),
+            options: None,
             columns,
-        })
+        }
     }
 }
 
@@ -894,6 +904,7 @@ mod tests {
             version: 4,
             entries: HashMap::new(),
             deployment: None,
+            catalog_version: None,
         };
 
         let converted: CatalogState = state.try_into().unwrap();
@@ -901,6 +912,7 @@ mod tests {
             version: 4,
             entries: HashMap::new(),
             deployment: DeploymentMetadata { storage_size: 0 },
+            catalog_version: 0,
         };
 
         assert_eq!(expected, converted);

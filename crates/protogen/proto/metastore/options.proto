@@ -72,7 +72,6 @@ message DatabaseOptionsMysql {
 
 message DatabaseOptionsMongoDb {
   string connection_string = 1;
-  repeated InternalColumnDefinition columns = 2;
 }
 
 message DatabaseOptionsSqlServer {
@@ -121,9 +120,15 @@ message StorageOptions {
   map<string, string> inner = 1;
 }
 
+message TableOptionsV1 {
+  string name = 1;
+  bytes options = 2;
+  uint32 version = 3;
+}
+
 // Table options
 
-message TableOptions {
+message TableOptionsV0 {
   oneof options {
     TableOptionsInternal internal = 1;
     TableOptionsDebug debug = 2;
@@ -205,10 +210,9 @@ message TableOptionsMongo {
   string connection_string = 1;
   string database = 2;
   string collection = 3;
-  repeated InternalColumnDefinition columns = 4;
 }
 
-message TableOptionsExcel{
+message TableOptionsExcel {
   string location = 1;
   StorageOptions storage_options = 2;
   optional string file_type = 3;
@@ -244,8 +248,8 @@ message TableOptionsObjectStore {
   // Optional: number of records to sample for formats with inferred schema.
   optional int64 schema_sample_size = 5;
 
-  // (optional) explit schema
-  repeated InternalColumnDefinition columns = 6;
+  // explit schema (not used anymore)
+  reserved 6;
 
   optional string name = 7;
 }

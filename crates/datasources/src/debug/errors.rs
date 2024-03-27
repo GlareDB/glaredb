@@ -8,4 +8,5 @@ pub enum DebugError {
     InvalidTunnel(String),
 }
 
+
 pub type Result<T, E = DebugError> = std::result::Result<T, E>;

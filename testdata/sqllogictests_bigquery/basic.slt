@@ -1,8 +1,8 @@
 # Basic tests for bigquery external tables
 
 statement ok
-CREATE EXTERNAL TABLE basic
-	FROM bigquery
+CREATE EXTERNAL TABLE basic 
+FROM bigquery
 	OPTIONS (
 		service_account_key = '${GCP_SERVICE_ACCOUNT_KEY}',
 		project_id = '${GCP_PROJECT_ID}',
