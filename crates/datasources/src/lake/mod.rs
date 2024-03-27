@@ -16,6 +16,7 @@ use protogen::metastore::types::options::StorageOptions;
 use crate::common::url::{DatasourceUrl, DatasourceUrlType};
 use crate::object_store::azure::AzureStoreAccess;
 use crate::object_store::gcs::GcsStoreAccess;
+use crate::object_store::http::HttpStoreAccess;
 use crate::object_store::local::LocalStoreAccess;
 use crate::object_store::s3::S3StoreAccess;
 use crate::object_store::ObjStoreAccess;
@@ -101,9 +102,7 @@ pub fn storage_options_into_store_access(
             }))
         }
         DatasourceUrlType::File => Ok(Arc::new(LocalStoreAccess)),
-        DatasourceUrlType::Http => {
-            Err(LakeStorageOptionsError::UnsupportedObjectStore(url.clone()))
-        }
+        DatasourceUrlType::Http => Ok(Arc::new(HttpStoreAccess { url: url.as_url()? })),
     }
 }
 

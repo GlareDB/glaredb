@@ -24,6 +24,13 @@ select 'my_table'::regclass > 2000;
 ----
 t
 
+# make sure it works with the `CAST` syntax too
+statement ok
+select 
+    cast('my_table' as regclass) as lower, 
+    cast('my_table' as REGCLASS) as upper;
+
+
 # We don't support expressions other than strings right now.
 
 statement error

@@ -1,12 +1,8 @@
-import os
-
 import pytest
 import sqlite3
 
 import psycopg2
 import psycopg2.extras
-
-from tests.fixtures.glaredb import glaredb_connection, glaredb_path, binary_path
 
 
 def test_inserts(

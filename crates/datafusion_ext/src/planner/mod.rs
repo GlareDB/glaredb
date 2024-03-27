@@ -281,15 +281,17 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             SQLDataType::Bytea => Ok(DataType::Binary),
             SQLDataType::Interval => Ok(DataType::Interval(IntervalUnit::MonthDayNano)),
             SQLDataType::Custom(obj, _) => {
-                let obj = obj.to_string();
+                let obj = obj.to_string().to_lowercase();
                 match obj.as_str() {
                     // PSQL uses `pg_catalog.text` for `text` type in some cases
                     "pg_catalog.text" => Ok(DataType::Utf8),
-                    _ => Err(DataFusionError::NotImplemented(format!(
-                        "Unsupported SQL type {sql_type:?}"
-                    ))),
+                    "oid" => Ok(DataType::Int64),
+                    _ => not_impl_err!(
+                        "Unsupported custom SQL type {sql_type:?}"
+                    ),
                 }
             }
+            SQLDataType::Regclass => Ok(DataType::Int64),
             // Explicitly list all other types so that if sqlparser
             // adds/changes the `SQLDataType` the compiler will tell us on upgrade
             // and avoid bugs like https://github.com/apache/arrow-datafusion/issues/3059
@@ -300,7 +302,6 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             | SQLDataType::Varbinary(_)
             | SQLDataType::Blob(_)
             | SQLDataType::Datetime(_)
-            | SQLDataType::Regclass
             | SQLDataType::Array(_)
             | SQLDataType::Enum(_)
             | SQLDataType::Set(_)

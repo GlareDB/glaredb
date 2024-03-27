@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -39,7 +39,6 @@ use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{file_type_from_path, ObjStoreAccess, ObjStoreAccessor};
 use datasources::postgres::{PostgresAccess, PostgresDbConnection};
 use datasources::snowflake::{SnowflakeAccessor, SnowflakeDbConnection, SnowflakeTableAccess};
-use datasources::sqlite::SqliteAccess;
 use datasources::sqlserver::SqlServerAccess;
 use object_store::aws::AmazonS3ConfigKey;
 use object_store::azure::AzureConfigKey;
@@ -119,7 +118,6 @@ use protogen::metastore::types::options::{
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
-    TableOptionsSqlite,
     TableOptionsV0,
     TunnelOptions,
     TunnelOptionsDebug,
@@ -172,7 +170,7 @@ use crate::planner::logical_plan::{
     TransactionPlan,
     Update,
 };
-use crate::planner::preprocess::{preprocess, CastRegclassReplacer, EscapedStringToDoubleQuoted};
+use crate::planner::preprocess::{preprocess, CastOIDReplacer, EscapedStringToDoubleQuoted};
 use crate::remote::table::StubRemoteTableProvider;
 use crate::resolve::{EntryResolver, ResolvedEntry};
 
@@ -227,7 +225,7 @@ impl<'a> SessionPlanner<'a> {
 
         // Run replacers as needed.
         if let StatementWithExtensions::Statement(inner) = &mut statement {
-            preprocess(inner, &mut CastRegclassReplacer { ctx: self.ctx })?;
+            preprocess(inner, &mut CastOIDReplacer { ctx: self.ctx })?;
             preprocess(inner, &mut EscapedStringToDoubleQuoted)?;
         }
 
@@ -427,13 +425,15 @@ impl<'a> SessionPlanner<'a> {
             }
             DatabaseOptions::SQLITE => {
                 let location: String = m.remove_required("location")?;
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
 
-                let access = SqliteAccess {
-                    db: PathBuf::from(&location),
-                };
-                access.validate_access().await?;
-
-                DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location })
+                DatabaseOptions::Sqlite(DatabaseOptionsSqlite {
+                    location: location.clone(),
+                    storage_options: Some(storage_options),
+                })
             }
             DatabaseOptions::DEBUG => {
                 datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
@@ -675,13 +675,19 @@ impl<'a> SessionPlanner<'a> {
             TableOptionsV0::SQLITE => {
                 let location: String = m.remove_required("location")?;
                 let table: String = m.remove_required("table")?;
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
 
-                let access = SqliteAccess {
-                    db: PathBuf::from(&location),
-                };
-                access.validate_table_access(&table).await?;
-
-                TableOptionsSqlite { location, table }.into()
+                TableOptionsV0::Sqlite(TableOptionsObjectStore {
+                    location,
+                    storage_options,
+                    name: table.into(),
+                    file_type: None,
+                    compression: None,
+                    schema_sample_size: None,
+                })
             }
             TableOptionsV0::LOCAL => {
                 let location: String = m.remove_required("location")?;
@@ -816,6 +822,7 @@ impl<'a> SessionPlanner<'a> {
 
 
                 TableOptionsV0::Azure(TableOptionsObjectStore {
+                    name: None,
                     location: source_url,
                     storage_options: opts,
                     file_type: Some(file_type.to_string()),
@@ -837,6 +844,7 @@ impl<'a> SessionPlanner<'a> {
                     TableOptionsV0::Delta(TableOptionsObjectStore {
                         location,
                         storage_options,
+                        name: None,
                         file_type: None,
                         compression: None,
                         schema_sample_size: None,
@@ -849,6 +857,7 @@ impl<'a> SessionPlanner<'a> {
                     TableOptionsV0::Iceberg(TableOptionsObjectStore {
                         location,
                         storage_options,
+                        name: None,
                         file_type: None,
                         compression: None,
                         schema_sample_size: None,
@@ -866,6 +875,7 @@ impl<'a> SessionPlanner<'a> {
                 TableOptionsV0::Lance(TableOptionsObjectStore {
                     location,
                     storage_options,
+                    name: None,
                     file_type: None,
                     compression: None,
                     schema_sample_size: None,
@@ -887,6 +897,7 @@ impl<'a> SessionPlanner<'a> {
                 TableOptionsV0::Bson(TableOptionsObjectStore {
                     location,
                     storage_options,
+                    name: None,
                     file_type: None,
                     compression: None,
                     schema_sample_size,

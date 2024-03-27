@@ -14,6 +14,15 @@ select count(*) from bikeshare_stations;
 ----
 102
 
+query I
+SELECT station_id, number_of_docks
+FROM '${PWD}/testdata/sqllogictests_datasources_common/data/bikeshare_stations.csv'
+WHERE alternate_name IS NOT null
+ORDER BY station_id
+LIMIT 1;
+----
+2574 17
+
 query IT
 select count(*), status from bikeshare_stations group by status order by status;
 ----

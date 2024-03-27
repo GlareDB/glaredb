@@ -342,35 +342,29 @@ jobs:
       - run: just pytest
 
   service-integration-tests:
-    name: Service Integration Tests (SLT)
+    name: Object Store Service Integration Tests (SLT)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'GlareDB'
     runs-on: ubuntu-latest
     needs: ["sql-logic-tests"]
     steps:
       - name: checkout
         uses: actions/checkout@v4
-
       - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
-
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
           path: target/debug/glaredb
           key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
           fail-on-cache-miss: true
-
       - name: GCP authenticate
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
-
       - name: setup GCP
         uses: google-github-actions/setup-gcloud@v2
-
       - run: ./scripts/prepare-testdata.sh
-
       - name: run tests (slt)
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
@@ -379,6 +373,59 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AZURE_ACCESS_KEY: ${{ secrets.AZURE_ACCESS_KEY }}
           AZURE_ACCOUNT: ${{ secrets.AZURE_ACCOUNT }}
+          TEST_BUCKET: glaredb-test-bucket
+        run: |
+          # Prepare SLT (Object store)
+          export GCS_BUCKET_NAME=glaredb-test
+          export AWS_S3_REGION=us-east-1
+          export AWS_S3_BUCKET_NAME=glaredb-test
+
+          # Unset application default credentials. We don't want to unknowingly
+          # depend on this.
+          unset GOOGLE_APPLICATION_CREDENTIALS
+
+          echo "--------------------------  Iceberg -------------------------- "
+          just slt-bin --protocol=rpc 'sqllogictests_iceberg/*'
+
+          echo "--------------------------  Native -------------------------- "
+          just slt-bin --protocol=rpc 'sqllogictests_native/*'
+
+          echo "--------------------------  Object Store -------------------------- "
+          just slt-bin --protocol=rpc 'sqllogictests_object_store/*'
+
+          echo "--------------------------  Fake GCS server with a subdirectory -------------------------- "
+          ./scripts/create-test-gcs-store.sh # prepare fake GCS server
+          just slt-bin -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
+          just slt-bin -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
+
+
+  bigquery-integration-tests:
+    name: Big Query Integration Tests (SLT::MinIO)
+    runs-on: ubuntu-latest
+    needs: ["sql-logic-tests"]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - uses: extractions/setup-just@v2
+        with:
+          just-version: "1.23.0"
+      - uses: actions/cache/restore@v4
+        name: glaredb cache
+        with:
+          path: target/debug/glaredb
+          key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
+          fail-on-cache-miss: true
+      - name: GCP authenticate
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+      - name: setup GCP
+        uses: google-github-actions/setup-gcloud@v2
+      - run: ./scripts/prepare-testdata.sh
+      - name: run tests (slt)
+        env:
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GCP_PROJECT_ID: glaredb-artifacts
           TEST_BUCKET: glaredb-test-bucket
         run: |
           # Prepare SLT (BigQuery)
@@ -394,41 +441,20 @@ jobs:
             export BIGQUERY_DATASET_ID=glaredb_test
           fi
 
-          # Prepare SLT (Object store)
-          export GCS_BUCKET_NAME=glaredb-test
-          export AWS_S3_REGION=us-east-1
-          export AWS_S3_BUCKET_NAME=glaredb-test
-
           # Unset application default credentials. We don't want to unknowingly
           # depend on this.
           unset GOOGLE_APPLICATION_CREDENTIALS
 
-          # Prepare SLT (fake GCS server)
-          ./scripts/create-test-gcs-store.sh
-
-          echo "-------------------------------- RPC TESTS --------------------------------"
-          # TODO: move these into the datasource-integration-tests job
-
-          echo "--------------------------  BigQuery -------------------------- "
           just slt-bin --protocol=rpc 'sqllogictests_bigquery/*'
-
-          echo "--------------------------  Iceberg -------------------------- "
-          just slt-bin --protocol=rpc 'sqllogictests_iceberg/*'
-
-          echo "--------------------------  Native -------------------------- "
-          just slt-bin --protocol=rpc 'sqllogictests_native/*'
-
-          echo "--------------------------  Object Store -------------------------- "
-          just slt-bin --protocol=rpc 'sqllogictests_object_store/*'
-
-          echo "--------------------------  Fake GCS server with a subdirectory -------------------------- "
-          just slt-bin -l gs://$TEST_BUCKET/path/to/folder/1 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
-          just slt-bin -l gs://$TEST_BUCKET/path/to/folder/2 -o service_account_path=/tmp/fake-gcs-creds.json 'sqllogictests_native/*'
 
   minio-integration-tests:
     name: MinIO Integration Tests (SLT::MinIO)
     runs-on: ubuntu-latest
     needs: ["sql-logic-tests"]
+    env:
+      MINIO_ACCESS_KEY: glaredb
+      MINIO_SECRET_KEY: glaredb_test
+      TEST_BUCKET: glaredb-test-bucket
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -443,20 +469,12 @@ jobs:
           key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
           fail-on-cache-miss: true
 
-      - name: run tests (slt)
-        env:
-          MINIO_ACCESS_KEY: glaredb
-          MINIO_SECRET_KEY: glaredb_test
-          TEST_BUCKET: glaredb-test-bucket
+      - run: ./scripts/prepare-testdata.sh
+      - run: ./scripts/create-test-minio-store.sh
+
+      - name: run tests pg (slt)
         run: |
-          # prepare testdata
-          ./scripts/prepare-testdata.sh
-
-          # Prepare SLT (MinIO)
-          ./scripts/create-test-minio-store.sh
-
-          echo "--------------------------  MinIO (S3) -------------------------- "
-
+          echo "--------------------------  MinIO (S3) PostgreSQL Protocol -------------------------- "
           # PG protocol
           just slt-bin --location http://localhost:9100 \
             --option access_key_id=$MINIO_ACCESS_KEY \
@@ -465,7 +483,16 @@ jobs:
             'sqllogictests/*' \
             'sqllogictests_native/*'
 
-          # Flight protocol
+          echo "--------------------------  MinIO (S3) with a sub-directory -------------------------- "
+          # PG protocol
+          just slt-bin -l http://localhost:9100/$TEST_BUCKET/path/to/folder \
+              -o access_key_id=$MINIO_ACCESS_KEY \
+              -o secret_access_key=$MINIO_SECRET_KEY \
+              'sqllogictests/*'
+
+      - name: run tests FlightSQL (slt)
+        run: |
+          echo "--------------------------  MinIO (S3) FlightSQL -------------------------- "
           just slt-bin --location http://localhost:9100 \
             --option access_key_id=$MINIO_ACCESS_KEY \
             --option secret_access_key=$MINIO_SECRET_KEY \
@@ -474,14 +501,7 @@ jobs:
             'sqllogictests_native/*' \
             --protocol=flightsql
 
-          echo "--------------------------  MinIO (S3) With a sub-directory -------------------------- "
-          # PG protocol
-          just slt-bin -l http://localhost:9100/$TEST_BUCKET/path/to/folder \
-              -o access_key_id=$MINIO_ACCESS_KEY \
-              -o secret_access_key=$MINIO_SECRET_KEY \
-              'sqllogictests/*'
-
-          # Flight protocol
+          echo "--------------------------  MinIO (S3) with a sub-directory -------------------------- "
           just slt-bin -l http://localhost:9100/$TEST_BUCKET/path/to/folder \
               -o access_key_id=$MINIO_ACCESS_KEY \
               -o secret_access_key=$MINIO_SECRET_KEY \

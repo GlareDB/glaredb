@@ -4,7 +4,7 @@ default-members = ["crates/*", "xtask"]
 resolver = "2"
 
 [workspace.package]
-version = "0.9.1"
+version = "0.9.2"
 edition = "2021"
 
 [profile.release]
@@ -21,7 +21,7 @@ clap = { version = "4.5.3", features = ["derive"] }
 datafusion = { version = "35.0.0", features = ["avro"] }
 arrow-flight = { version = "50.0.0", features = ["flight-sql-experimental"] }
 datafusion-proto = { version = "35.0.0" }
-reqwest = { version = "0.11.26", default-features = false, features = [
+reqwest = { version = "0.11.27", default-features = false, features = [
   "json",
   "rustls-tls",
 ] }
@@ -29,7 +29,7 @@ serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 anyhow = "1.0.81"
-async-trait = "0.1.77"
+async-trait = "0.1.78"
 chrono = "0.4.35"
 futures = "0.3.30"
 object_store = "0.9"

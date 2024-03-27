@@ -38,6 +38,9 @@ pub enum DispatchError {
     #[error("Missing temp table: {name}")]
     MissingTempTable { name: String },
 
+    #[error("Missing table")]
+    MissingTable,
+
     #[error("Missing object with oid: {0}")]
     MissingObjectWithOid(u32),
 
@@ -74,6 +77,8 @@ pub enum DispatchError {
     SqlServerError(#[from] datasources::sqlserver::errors::SqlServerError),
     #[error(transparent)]
     BsonDatasource(#[from] datasources::bson::errors::BsonError),
+    #[error(transparent)]
+    JsonDatasource(#[from] datasources::json::errors::JsonError),
     #[error(transparent)]
     ClickhouseDatasource(#[from] datasources::clickhouse::errors::ClickhouseError),
     #[error(transparent)]

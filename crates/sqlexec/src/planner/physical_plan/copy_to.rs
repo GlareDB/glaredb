@@ -7,19 +7,20 @@ use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
-use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_expr::{PhysicalSortExpr, PhysicalSortRequirement};
 use datafusion::physical_plan::insert::DataSink;
+use datafusion::physical_plan::metrics::MetricsSet;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
     execute_stream,
     DisplayAs,
     DisplayFormatType,
+    Distribution,
     ExecutionPlan,
     Partitioning,
     SendableRecordBatchStream,
     Statistics,
 };
-use datafusion_ext::metrics::WriteOnlyDataSourceMetricsExecAdapter;
 use datasources::common::sink::bson::BsonSink;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
@@ -39,7 +40,7 @@ use super::{new_operation_with_count_batch, GENERIC_OPERATION_AND_COUNT_PHYSICAL
 pub struct CopyToExec {
     pub format: CopyToFormatOptions,
     pub dest: CopyToDestinationOptions,
-    pub source: Arc<WriteOnlyDataSourceMetricsExecAdapter>,
+    pub source: Arc<dyn ExecutionPlan>,
 }
 
 impl ExecutionPlan for CopyToExec {
@@ -56,7 +57,7 @@ impl ExecutionPlan for CopyToExec {
     }
 
     fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
-        None
+        self.source.output_ordering()
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
@@ -67,12 +68,15 @@ impl ExecutionPlan for CopyToExec {
         self: Arc<Self>,
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
+        if children.len() != 1 {
+            return Err(DataFusionError::Plan(
+                "CopyToExec wrong number of children".to_string(),
+            ));
+        }
         Ok(Arc::new(CopyToExec {
             format: self.format.clone(),
             dest: self.dest.clone(),
-            source: Arc::new(WriteOnlyDataSourceMetricsExecAdapter::new(
-                children.first().unwrap().clone(),
-            )),
+            source: children.first().unwrap().clone(),
         }))
     }
 
@@ -81,6 +85,7 @@ impl ExecutionPlan for CopyToExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
+        // This should never happen as we set the `required_input_distribution` to `SinglePartition`
         if partition != 0 {
             return Err(DataFusionError::Execution(
                 "CopyToExec only supports 1 partition".to_string(),
@@ -98,6 +103,33 @@ impl ExecutionPlan for CopyToExec {
 
     fn statistics(&self) -> DataFusionResult<Statistics> {
         Ok(Statistics::new_unknown(self.schema().as_ref()))
+    }
+
+    fn required_input_distribution(&self) -> Vec<Distribution> {
+        // We currently expect the input to be a single partition
+        vec![Distribution::SinglePartition]
+    }
+
+    fn required_input_ordering(&self) -> Vec<Option<Vec<PhysicalSortRequirement>>> {
+        // the input ordering must match the output ordering of the source
+        // without this, the sort may get removed by the optimizer
+        vec![self
+            .output_ordering()
+            .map(PhysicalSortRequirement::from_sort_exprs)]
+    }
+
+    fn maintains_input_order(&self) -> Vec<bool> {
+        // tell optimizer this operator doesn't reorder its input
+        vec![true]
+    }
+
+    fn benefits_from_input_partitioning(&self) -> Vec<bool> {
+        // We currently dont support partitioned `COPY TO` so we can't benefit from input partitioning
+        vec![false]
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        self.source.metrics()
     }
 }
 
