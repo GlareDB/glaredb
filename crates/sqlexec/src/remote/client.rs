@@ -122,7 +122,7 @@ pub struct AuthenticateClientError {
     pub msg: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RemoteClientType {
     Cli,
     Node,

@@ -20,7 +20,7 @@ pub(super) type JsTrackedSession = Arc<Mutex<TrackedSession>>;
 #[napi]
 #[derive(Clone)]
 pub struct Connection {
-    pub(crate) sess: JsTrackedSession,
+    pub(crate) session: JsTrackedSession,
     pub(crate) _engine: Arc<Engine>,
 }
 
@@ -81,55 +81,32 @@ impl Connection {
             .await
             .map_err(JsGlareDbError::from)?;
 
-        // If spill path not provided, default to some tmp dir.
-        let spill_path = match spill_path {
-            Some(p) => {
-                let path = PathBuf::from(p);
-                ensure_dir(&path)?;
-                Some(path)
-            }
-            None => {
-                let path = std::env::temp_dir().join("glaredb-js");
-                // if user doesn't have permission to write to temp dir, then
-                // just don't use a spill path.
-                ensure_dir(&path).ok().map(|_| path)
-            }
-        };
-        engine = engine.with_spill_path(spill_path);
+        engine = engine
+            .with_spill_path(spill_path.map(|p| p.into()))
+            .map_err(JsGlareDbError::from)?;
 
-        let session = if let Some(url) = conf.cloud_url.clone() {
-            let exec_client = RemoteClient::connect_with_proxy_destination(
-                url.try_into().map_err(JsGlareDbError::from)?,
+        let mut session = engine
+            .default_local_session_context()
+            .await
+            .map_err(JsGlareDbError::from)?;
+
+        session
+            .create_client_session(
+                conf.cloud_url.clone(),
                 cloud_addr,
                 disable_tls,
                 RemoteClientType::Node,
+                None,
             )
             .await
             .map_err(JsGlareDbError::from)?;
 
-            let mut sess = engine
-                .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
-                .await
-                .map_err(JsGlareDbError::from)?;
-            sess.attach_remote_session(exec_client.clone(), None)
-                .await
-                .map_err(JsGlareDbError::from)?;
-
-            sess
-        } else {
-            engine
-                .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
-                .await
-                .map_err(JsGlareDbError::from)?
-        };
-
-        let sess = Arc::new(Mutex::new(session));
-
         Ok(Connection {
-            sess,
+            session: Arc::new(Mutex::new(session)),
             _engine: Arc::new(engine),
         })
     }
+
     /// Returns a default connection to an in-memory database.
     ///
     /// The database is only initialized once, and all subsequent calls will
@@ -144,7 +121,7 @@ impl Connection {
             .await
             .map_err(JsGlareDbError::from)?;
         let con = Connection {
-            sess: Arc::new(Mutex::new(sess)),
+            session: Arc::new(Mutex::new(sess)),
             _engine: Arc::new(engine),
         };
 
@@ -190,8 +167,8 @@ impl Connection {
     /// ```
     #[napi(catch_unwind)]
     pub async fn sql(&self, query: String) -> napi::Result<JsLogicalPlan> {
-        let cloned_sess = self.sess.clone();
-        let mut sess = self.sess.lock().await;
+        let cloned_sess = self.session.clone();
+        let mut sess = self.session.lock().await;
 
         let plan = sess
             .create_logical_plan(&query)
@@ -238,8 +215,8 @@ impl Connection {
     /// processed.
     #[napi(catch_unwind)]
     pub async fn prql(&self, query: String) -> napi::Result<JsLogicalPlan> {
-        let cloned_sess = self.sess.clone();
-        let mut sess = self.sess.lock().await;
+        let cloned_sess = self.session.clone();
+        let mut sess = self.session.lock().await;
         let plan = sess
             .prql_to_lp(&query)
             .await
@@ -264,7 +241,7 @@ impl Connection {
     /// ```
     #[napi(catch_unwind)]
     pub async fn execute(&self, query: String) -> napi::Result<()> {
-        let sess = self.sess.clone();
+        let sess = self.session.clone();
         let mut sess = sess.lock().await;
 
         let plan = sess
