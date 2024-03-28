@@ -18,7 +18,7 @@ use datafusion::physical_plan::{
     Statistics,
 };
 use futures::stream;
-use protogen::metastore::types::options::TableOptions;
+use protogen::metastore::types::options::{InternalColumnDefinition, TableOptionsV0};
 use protogen::metastore::types::service::{self, Mutation};
 
 use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
@@ -30,8 +30,9 @@ pub struct CreateExternalTableExec {
     pub tbl_reference: OwnedFullObjectReference,
     pub or_replace: bool,
     pub if_not_exists: bool,
-    pub table_options: TableOptions,
+    pub table_options: TableOptionsV0,
     pub tunnel: Option<String>,
+    pub table_schema: Option<Schema>,
 }
 
 impl ExecutionPlan for CreateExternalTableExec {
@@ -107,6 +108,12 @@ async fn create_external_table(
     mutator: Arc<CatalogMutator>,
     plan: CreateExternalTableExec,
 ) -> DataFusionResult<RecordBatch> {
+    // We dont want to tightly couple the metastore types with the arrow types
+    // so we convert the arrow schema to metastore schema
+    let columns = plan.table_schema.map(|schema| {
+        InternalColumnDefinition::from_arrow_fields(schema.fields()).collect::<Vec<_>>()
+    });
+
     mutator
         .mutate(
             plan.catalog_version,
@@ -118,6 +125,7 @@ async fn create_external_table(
                     or_replace: plan.or_replace,
                     if_not_exists: plan.if_not_exists,
                     tunnel: plan.tunnel,
+                    columns,
                 },
             )],
         )

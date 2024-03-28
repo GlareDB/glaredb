@@ -27,11 +27,11 @@ klickhouse = { version = "0.11.2", features = ["tls"] }
 protogen = { path = "../protogen" }
 parser = {path = "../parser"}
 datafusion_ext = { path = "../datafusion_ext" }
-mongodb = "2.8.1"
-mysql_async = { version = "0.33.0", default-features = false, features = [
+mongodb = "2.8.2"
+mysql_async = { version = "0.34.1", default-features = false, features = [
   "default-rustls",
 ] }
-mysql_common = { version = "0.31", default-features = false, features = [
+mysql_common = { version = "0.32.1", default-features = false, features = [
   "chrono",
 ] }
 object_store = { workspace = true, features = ["gcp", "aws", "http"] }
@@ -61,7 +61,7 @@ tokio-postgres = { version = "0.7.8", features = [
 parking_lot = "0.12.1"
 tokio-rustls = "0.24.1"
 tracing = { workspace = true }
-uuid = "1.7.0"
+uuid = "1.8.0"
 url.workspace = true
 webpki-roots = "0.26.1"
 calamine = { version = "0.24.0", features = ["dates"] }

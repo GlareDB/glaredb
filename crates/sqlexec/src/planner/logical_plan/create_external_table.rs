@@ -1,10 +1,10 @@
-use datafusion::arrow::datatypes::FieldRef;
+use datafusion::arrow::datatypes::Schema;
+use protogen::metastore::types::options::TableOptionsV0;
 
 use super::{
     DfLogicalPlan,
     ExtensionNode,
     OwnedFullObjectReference,
-    TableOptions,
     UserDefinedLogicalNodeCore,
     GENERIC_OPERATION_LOGICAL_SCHEMA,
 };
@@ -14,9 +14,9 @@ pub struct CreateExternalTable {
     pub tbl_reference: OwnedFullObjectReference,
     pub or_replace: bool,
     pub if_not_exists: bool,
-    pub table_options: TableOptions,
+    pub table_options: TableOptionsV0,
     pub tunnel: Option<String>,
-    pub columns: Option<Vec<FieldRef>>,
+    pub schema: Option<Schema>,
 }
 
 impl UserDefinedLogicalNodeCore for CreateExternalTable {
