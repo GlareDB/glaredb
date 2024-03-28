@@ -6,6 +6,8 @@ use derive_builder::Builder;
 use sqlexec::engine::{Engine, EngineBackend, TrackedSession};
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClientType;
+use sqlexec::session::ExecutionResult;
+use sqlexec::OperationInfo;
 use url::Url;
 
 
@@ -31,7 +33,30 @@ pub struct ConnectOptions {
 }
 
 impl ConnectOptions {
-    pub fn backend(&self) -> EngineBackend {
+    pub async fn connect(&self) -> Result<Connection, ExecError> {
+        let mut engine = Engine::from_backend(self.backend()).await?;
+
+        engine = engine.with_spill_path(self.spill_path.clone().map(|p| p.into()))?;
+
+        let mut session = engine.default_local_session_context().await?;
+
+        session
+            .create_client_session(
+                self.cloud_url(),
+                self.cloud_addr.clone().unwrap_or_default(),
+                self.disable_tls.unwrap_or_default(),
+                self.client_type.clone().unwrap(),
+                None,
+            )
+            .await?;
+
+        Ok(Connection {
+            _session: Arc::new(Mutex::new(session)),
+            _engine: Arc::new(engine),
+        })
+    }
+
+    fn backend(&self) -> EngineBackend {
         if let Some(location) = self.location.clone() {
             EngineBackend::Remote {
                 location,
@@ -59,30 +84,6 @@ impl ConnectOptions {
             .clone()
             .and_then(|v| Url::parse(&v).ok())
     }
-
-
-    pub async fn connect(&self) -> Result<Connection, ExecError> {
-        let mut engine = Engine::from_backend(self.backend()).await?;
-
-        engine = engine.with_spill_path(self.spill_path.clone().map(|p| p.into()))?;
-
-        let mut session = engine.default_local_session_context().await?;
-
-        session
-            .create_client_session(
-                self.cloud_url(),
-                self.cloud_addr.clone().unwrap_or_default(),
-                self.disable_tls.unwrap_or_default(),
-                self.client_type.clone().unwrap(),
-                None,
-            )
-            .await?;
-
-        Ok(Connection {
-            _session: Arc::new(Mutex::new(session)),
-            _engine: Arc::new(engine),
-        })
-    }
 }
 
 impl ConnectOptionsBuilder {
@@ -104,4 +105,19 @@ impl ConnectOptionsBuilder {
 pub struct Connection {
     _session: Arc<Mutex<TrackedSession>>,
     _engine: Arc<Engine>,
+}
+
+// TODO (create blocking and non-blocking variants)
+impl Connection {
+    pub async fn sql(&mut self, query: &str) -> Result<ExecutionResult, ExecError> {
+        let mut ses = self._session.lock().unwrap();
+
+        let plan = ses.create_logical_plan(query).await?;
+        let op = OperationInfo::new().with_query_text(query);
+
+        let (ep, execres) = ses.execute_logical_plan(plan, &op).await?;
+
+
+        Ok(stream)
+    }
 }
