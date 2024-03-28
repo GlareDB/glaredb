@@ -160,6 +160,7 @@ impl ExtensionPlanner for DDLExtensionPlanner {
                     if_not_exists: lp.if_not_exists,
                     tunnel: lp.tunnel.clone(),
                     table_options: lp.table_options.clone(),
+                    table_schema: lp.schema.clone(),
                 };
                 RuntimeGroupExec::new(RuntimePreference::Remote, Arc::new(exec))
             }

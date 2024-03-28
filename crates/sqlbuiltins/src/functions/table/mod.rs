@@ -15,6 +15,7 @@ mod object_store;
 mod parquet_metadata;
 mod postgres;
 mod snowflake;
+
 mod sqlite;
 mod sqlserver;
 pub mod system;

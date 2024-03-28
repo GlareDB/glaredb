@@ -19,11 +19,12 @@ use protogen::metastore::types::catalog::{
     TableEntry,
     TunnelEntry,
     ViewEntry,
+    CURRENT_CATALOG_VERSION,
 };
 use protogen::metastore::types::options::{
     DatabaseOptions,
     DatabaseOptionsInternal,
-    TableOptions,
+    TableOptionsInternal,
     TunnelOptions,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
@@ -71,6 +72,7 @@ static BUILTIN_CATALOG: Lazy<BuiltinCatalog> = Lazy::new(|| BuiltinCatalog::new(
 /// 2. Persistence is managed via leases in object storage.
 ///
 /// The source of truth for a database catalog is always what's in object store.
+#[derive(Debug)]
 pub struct DatabaseCatalog {
     db_id: Uuid,
 
@@ -182,6 +184,7 @@ impl DatabaseCatalog {
             version: guard.version,
             entries: guard.entries.as_ref().clone(),
             deployment: guard.deployment.clone(),
+            catalog_version: CURRENT_CATALOG_VERSION,
         }
     }
 
@@ -529,6 +532,7 @@ impl State {
                     .into_iter()
                     .filter(|(_, ent)| !ent.get_meta().builtin)
                     .collect(),
+                catalog_version: CURRENT_CATALOG_VERSION,
             },
             extra: ExtraState {
                 oid_counter: self.oid_counter,
@@ -853,7 +857,7 @@ impl State {
                         external: false,
                         is_temp: false,
                     },
-                    options: TableOptions::Internal(create_table.options),
+                    options: create_table.options.into(),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadWrite,
                     columns: None,
@@ -894,10 +898,10 @@ impl State {
                         external: true,
                         is_temp: false,
                     },
-                    options: create_ext.options,
+                    options: create_ext.options.clone(),
                     tunnel_id,
                     access_mode: SourceAccessMode::ReadOnly,
-                    columns: None,
+                    columns: create_ext.columns,
                 };
 
                 let policy = CreatePolicy::new(create_ext.if_not_exists, create_ext.or_replace)?;
@@ -1266,7 +1270,10 @@ impl BuiltinCatalog {
                         external: false,
                         is_temp: false,
                     },
-                    options: TableOptions::new_internal(table.columns.clone()),
+                    options: TableOptionsInternal {
+                        columns: table.columns.clone(),
+                    }
+                    .into(),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadOnly,
                     columns: None,
@@ -1841,12 +1848,11 @@ mod tests {
         let mutation = Mutation::CreateExternalTable(CreateExternalTable {
             schema: "mushroom".to_string(),
             name: "bowser".to_string(),
-            options: TableOptions::Debug(TableOptionsDebug {
-                table_type: String::new(),
-            }),
+            options: TableOptionsDebug::default().into(),
             if_not_exists: true,
             or_replace: false,
             tunnel: None,
+            columns: None,
         });
         let _ = db
             .try_mutate(state.version, vec![mutation.clone(), mutation])
@@ -1998,12 +2004,11 @@ mod tests {
                 vec![Mutation::CreateExternalTable(CreateExternalTable {
                     schema: "public".to_string(),
                     name: "read_postgres".to_string(),
-                    options: TableOptions::Debug(TableOptionsDebug {
-                        table_type: String::new(),
-                    }),
+                    options: TableOptionsDebug::default().into(),
                     if_not_exists: true,
                     or_replace: false,
                     tunnel: None,
+                    columns: None,
                 })],
             )
             .await

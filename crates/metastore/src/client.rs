@@ -359,7 +359,6 @@ impl StatefulWorker {
                         .map_err(CatalogError::from),
                     Err(e) => Err(CatalogError::new(e.to_string())),
                 };
-
                 let result = match result {
                     Ok(resp) => {
                         let resp = resp.into_inner();
