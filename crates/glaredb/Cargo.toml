@@ -7,6 +7,8 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-url = { workspace = true }
 sqlexec = { path = "../sqlexec" }
+url = { workspace = true }
+datafusion = { workspace = true }
+futures = { workspace = true }
 derive_builder = "0.20.0"

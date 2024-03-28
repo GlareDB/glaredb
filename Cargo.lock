@@ -3552,7 +3552,9 @@ dependencies = [
 name = "glaredb"
 version = "0.9.2"
 dependencies = [
+ "datafusion",
  "derive_builder 0.20.0",
+ "futures",
  "sqlexec",
  "url",
 ]

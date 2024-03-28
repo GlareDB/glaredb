@@ -1,8 +1,19 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
+use datafusion::arrow::array::{StringArray, UInt64Array};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::error::DataFusionError;
+use datafusion::logical_expr::LogicalPlan;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+// public re-export so downstream users of this package don't have to
+// directly depend on DF (and our version no-less) to use our interfaces.
+pub use datafusion::physical_plan::SendableRecordBatchStream;
 use derive_builder::Builder;
+use futures::lock::Mutex;
+use futures::stream::StreamExt;
 use sqlexec::engine::{Engine, EngineBackend, TrackedSession};
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClientType;
@@ -32,6 +43,21 @@ pub struct ConnectOptions {
     pub client_type: Option<RemoteClientType>,
 }
 
+impl ConnectOptionsBuilder {
+    pub fn set_storage_option(
+        &mut self,
+        key: impl Into<String>,
+        value: impl Into<String>,
+    ) -> &mut Self {
+        let mut opts = match self.storage_options.to_owned() {
+            Some(opts) => opts,
+            None => HashMap::new(),
+        };
+        opts.insert(key.into(), value.into());
+        self.storage_options(opts)
+    }
+}
+
 impl ConnectOptions {
     pub async fn connect(&self) -> Result<Connection, ExecError> {
         let mut engine = Engine::from_backend(self.backend()).await?;
@@ -51,7 +77,7 @@ impl ConnectOptions {
             .await?;
 
         Ok(Connection {
-            _session: Arc::new(Mutex::new(session)),
+            session: Arc::new(Mutex::new(session)),
             _engine: Arc::new(engine),
         })
     }
@@ -86,38 +112,131 @@ impl ConnectOptions {
     }
 }
 
-impl ConnectOptionsBuilder {
-    pub fn set_storage_option(
-        &mut self,
-        key: impl Into<String>,
-        value: impl Into<String>,
-    ) -> &mut Self {
-        let mut opts = match self.storage_options.to_owned() {
-            Some(opts) => opts,
-            None => HashMap::new(),
-        };
-        opts.insert(key.into(), value.into());
-        self.storage_options(opts)
-    }
-}
-
-
 pub struct Connection {
-    _session: Arc<Mutex<TrackedSession>>,
+    session: Arc<Mutex<TrackedSession>>,
     _engine: Arc<Engine>,
 }
 
-// TODO (create blocking and non-blocking variants)
 impl Connection {
-    pub async fn sql(&mut self, query: &str) -> Result<ExecutionResult, ExecError> {
-        let mut ses = self._session.lock().unwrap();
-
+    // TODO:
+    //  - decide if we want to actually return the DF Sendable types
+    //    (putting the schema in the wrapper is annoying and it
+    //    doesn't get us much, but a sendable) stream is nice.
+    //  - do we want to have sync methods that return
+    //    Stream<Item=Result<RecordBatch>> (e.g. make it fully lazy
+    //    and flatten errors) or Iterator<Item=Result<RecordBatch>>?
+    //    Both of these seem useful in some (many?) cases.
+    //  - prql helper.
+    //  - regardless, wrapping/aliasing SRBS values in some way so
+    //    that we can provide helper methods (exhaust, converters(?))
+    //    might be good.
+    pub async fn execute(&self, query: &str) -> Result<SendableRecordBatchStream, ExecError> {
+        let mut ses = self.session.lock().await;
         let plan = ses.create_logical_plan(query).await?;
         let op = OperationInfo::new().with_query_text(query);
 
-        let (ep, execres) = ses.execute_logical_plan(plan, &op).await?;
+        Ok(Self::process_result(
+            ses.execute_logical_plan(plan, &op).await?.1,
+        ))
+    }
 
+    pub async fn query(&self, query: &str) -> Result<SendableRecordBatchStream, ExecError> {
+        let mut ses = self.session.lock().await;
+        let plan = ses.create_logical_plan(query).await?;
+        let op = OperationInfo::new().with_query_text(query);
 
-        Ok(stream)
+        match plan.to_owned().try_into_datafusion_plan()? {
+            LogicalPlan::Dml(_)
+            | LogicalPlan::Ddl(_)
+            | LogicalPlan::Copy(_)
+            | LogicalPlan::Extension(_) => Ok(Self::process_result(
+                ses.execute_logical_plan(plan, &op).await?.1,
+            )),
+            _ => {
+                let ses_clone = self.session.clone();
+
+                Ok(Self::process_result(ExecutionResult::Query {
+                    stream: Box::pin(RecordBatchStreamAdapter::new(
+                        Arc::new(plan.output_schema().unwrap_or_else(|| Schema::empty())),
+                        futures::stream::once(async move {
+                            let mut ses = ses_clone.lock().await;
+                            match ses.execute_logical_plan(plan, &op).await {
+                                Ok((_, res)) => Self::process_result(res),
+                                Err(e) => Self::handle_error(e),
+                            }
+                        })
+                        .flatten(),
+                    )),
+                }))
+            }
+        }
+    }
+
+    fn handle_error(err: impl Into<DataFusionError>) -> SendableRecordBatchStream {
+        Self::process_result(ExecutionResult::Error(err.into()))
+    }
+
+    fn process_result(res: ExecutionResult) -> SendableRecordBatchStream {
+        match res {
+            ExecutionResult::Query { stream } => stream,
+            ExecutionResult::Error(e) => Box::pin(RecordBatchStreamAdapter::new(
+                Arc::new(Schema::empty()),
+                futures::stream::once(async move { Err(e) }),
+            )),
+            ExecutionResult::InsertSuccess { rows_inserted } => {
+                Self::numeric_result("count", rows_inserted as u64)
+            }
+            ExecutionResult::DeleteSuccess { deleted_rows } => {
+                Self::numeric_result("count", deleted_rows as u64)
+            }
+            ExecutionResult::UpdateSuccess { updated_rows } => {
+                Self::numeric_result("count", updated_rows as u64)
+            }
+            _ => Self::operation_result("result", res.to_string()),
+        }
+    }
+
+    fn numeric_result(field_name: impl Into<String>, num: u64) -> SendableRecordBatchStream {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            field_name,
+            DataType::UInt64,
+            false,
+        )]));
+
+        Box::pin(RecordBatchStreamAdapter::new(
+            schema.clone(),
+            futures::stream::once(async move {
+                RecordBatch::try_new(
+                    schema.clone(),
+                    vec![Arc::new(UInt64Array::from_value(num, 1))],
+                )
+                .map_err(DataFusionError::from)
+            }),
+        ))
+    }
+
+    fn operation_result(
+        field_name: impl Into<String>,
+        op: impl Into<String>,
+    ) -> SendableRecordBatchStream {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            field_name,
+            DataType::Utf8,
+            false,
+        )]));
+        let op = op.into();
+
+        Box::pin(RecordBatchStreamAdapter::new(
+            schema.clone(),
+            futures::stream::once(async move {
+                RecordBatch::try_new(
+                    schema.clone(),
+                    vec![Arc::new(StringArray::from_iter_values(
+                        vec![op].into_iter(),
+                    ))],
+                )
+                .map_err(DataFusionError::from)
+            }),
+        ))
     }
 }
