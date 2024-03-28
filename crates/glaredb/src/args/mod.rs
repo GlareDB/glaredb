@@ -3,12 +3,11 @@ use std::path::PathBuf;
 use anyhow::{anyhow, Result};
 use clap::{Parser, ValueEnum};
 
-use crate::proxy::TLSMode;
-
 pub mod local;
 pub mod server;
 pub mod slt;
 pub use local::*;
+use proxy::TLSMode;
 pub use server::*;
 pub use slt::*;
 

@@ -375,6 +375,9 @@ fn get_org_and_db_name<'a>(
     db_name: &'a String,
     options: Option<&'a HashMap<String, String>>,
 ) -> Result<(&'a str, &'a str)> {
+    println!("hostname: {:?}", hostname);
+    println!("db_name: {:?}", db_name);
+    println!("options: {:?}", options);
     fn get_org_id_from_options(options: Option<&HashMap<String, String>>) -> Option<&'_ String> {
         let options = options?;
         options.get("org")

@@ -26,6 +26,7 @@ datafusion_ext = { path = "../datafusion_ext" }
 ioutil = { path = "../ioutil" }
 logutil = { path = "../logutil" }
 metastore = { path = "../metastore" }
+proxy = { path = "../proxy" }
 object_store_util = { path = "../object_store_util" }
 pgrepr = { path = "../pgrepr" }
 pgsrv = { path = "../pgsrv" }
