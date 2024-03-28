@@ -1741,6 +1741,7 @@ impl<'a> SessionPlanner<'a> {
         Ok(DropCredentials {
             names,
             if_exists: stmt.if_exists,
+            show_deprecation_warning: stmt.deprecated,
         }
         .into_logical_plan())
     }

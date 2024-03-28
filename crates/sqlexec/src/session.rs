@@ -46,6 +46,7 @@ use crate::errors::{ExecError, Result};
 use crate::planner::logical_plan::{LogicalPlan, OperationInfo, TransactionPlan};
 use crate::planner::physical_plan::{
     get_count_from_batch,
+    get_deprecation_message_from_batch,
     get_operation_from_batch,
     GENERIC_OPERATION_AND_COUNT_PHYSICAL_SCHEMA,
     GENERIC_OPERATION_PHYSICAL_SCHEMA,
@@ -115,7 +116,7 @@ pub enum ExecutionResult {
     /// Tunnel is dropped.
     DropTunnel,
     /// Credentials are dropped.
-    DropCredentials,
+    DropCredentials { deprecation_message: Option<String> },
 }
 // this just makes the `prepare_statement` method a bit more ergonomic.
 pub struct PrepareStatementArg {
@@ -201,10 +202,13 @@ impl ExecutionResult {
         // `Query` if we don't know how to translate it into a result.
         let op = get_operation_from_batch(&batch).unwrap_or_default();
         let count = get_count_from_batch(&batch);
+        let deprecation_message = get_deprecation_message_from_batch(&batch);
 
-        ExecutionResult::from_str_and_count(&op, count).unwrap_or(ExecutionResult::Query {
-            stream: Box::pin(stream),
-        })
+        ExecutionResult::from_str_and_count(&op, count, deprecation_message).unwrap_or(
+            ExecutionResult::Query {
+                stream: Box::pin(stream),
+            },
+        )
     }
 
     const fn result_type_str(&self) -> &'static str {
@@ -235,7 +239,12 @@ impl ExecutionResult {
             ExecutionResult::DropSchemas => "drop_schemas",
             ExecutionResult::DropDatabase => "drop_database",
             ExecutionResult::DropTunnel => "drop_tunnel",
-            ExecutionResult::DropCredentials => "drop_credentials",
+            ExecutionResult::DropCredentials {
+                deprecation_message: Some(_),
+            } => "drop_credentials",
+            ExecutionResult::DropCredentials {
+                deprecation_message: None,
+            } => "drop_credential",
         }
     }
 
@@ -257,7 +266,7 @@ impl ExecutionResult {
                 | ExecutionResult::DropSchemas
                 | ExecutionResult::DropDatabase
                 | ExecutionResult::DropTunnel
-                | ExecutionResult::DropCredentials
+                | ExecutionResult::DropCredentials { .. }
         )
     }
 
@@ -265,7 +274,11 @@ impl ExecutionResult {
         matches!(self, ExecutionResult::Error(_))
     }
 
-    fn from_str_and_count(s: &str, count: Option<u64>) -> Option<ExecutionResult> {
+    fn from_str_and_count(
+        s: &str,
+        count: Option<u64>,
+        deprecation_message: Option<String>,
+    ) -> Option<ExecutionResult> {
         Some(match s {
             "begin" => ExecutionResult::Begin,
             "commit" => ExecutionResult::Commit,
@@ -296,7 +309,9 @@ impl ExecutionResult {
             "drop_schemas" => ExecutionResult::DropSchemas,
             "drop_database" => ExecutionResult::DropDatabase,
             "drop_tunnel" => ExecutionResult::DropTunnel,
-            "drop_credentials" => ExecutionResult::DropCredentials,
+            "drop_credentials" => ExecutionResult::DropCredentials {
+                deprecation_message,
+            },
             _ => return None,
         })
     }
@@ -353,7 +368,13 @@ impl fmt::Display for ExecutionResult {
             ExecutionResult::DropSchemas => write!(f, "Schema(s) dropped"),
             ExecutionResult::DropDatabase => write!(f, "Database(s) dropped"),
             ExecutionResult::DropTunnel => write!(f, "Tunnel(s) dropped"),
-            ExecutionResult::DropCredentials => write!(f, "Credentials dropped"),
+            ExecutionResult::DropCredentials {deprecation_message} => {
+                write!(f, "Credentials dropped")?;
+                if let Some(msg) = deprecation_message {
+                    write!(f, "\nDEPRECATION WARNING: {}", msg)?;
+                };
+                Ok(())
+            },
         }
     }
 }
