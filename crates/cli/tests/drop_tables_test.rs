@@ -30,7 +30,7 @@ async fn test_drop_tables_removes_files() {
         },
         timing: false,
         ignore_rpc_auth: true,
-        mode: glaredb::args::OutputMode::Table,
+        mode: cli::args::OutputMode::Table,
         max_width: None,
         max_rows: None,
         disable_tls: true,
