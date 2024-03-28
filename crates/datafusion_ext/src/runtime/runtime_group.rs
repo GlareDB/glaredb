@@ -3,7 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::Schema;
-use datafusion::error::Result as DataFusionResult;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::TaskContext;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::MetricsSet;
@@ -58,6 +58,11 @@ impl ExecutionPlan for RuntimeGroupExec {
         self: Arc<Self>,
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
+        if children.len() != 1 {
+            return Err(DataFusionError::Plan(
+                "RuntimeGroupExec wrong number of children".to_string(),
+            ));
+        }
         Ok(Arc::new(Self {
             preference: self.preference,
             child: children[0].clone(),
@@ -77,7 +82,7 @@ impl ExecutionPlan for RuntimeGroupExec {
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
-        None
+        self.child.metrics()
     }
 }
 

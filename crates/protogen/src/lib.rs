@@ -8,9 +8,8 @@
 
 pub mod common;
 pub mod metastore;
-pub mod sqlexec;
-
 pub mod rpcsrv;
+pub mod sqlexec;
 pub use errors::ProtoConvError;
 
 pub mod errors {
@@ -22,6 +21,9 @@ pub mod errors {
 
         #[error("Unknown enum variant for '{0}': {1}")]
         UnknownEnumVariant(&'static str, i32),
+
+        #[error("Unknown variant for '{0}'")]
+        UnknownVariant(String),
 
         #[error("Received zero-value enum variant for '{0}'")]
         ZeroValueEnumVariant(&'static str),
