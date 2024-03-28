@@ -6,7 +6,7 @@ use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
 use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
 use ioutil::ensure_dir;
-use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
+use sqlexec::engine::{Engine, EngineBackend, SessionStorageConfig, TrackedSession};
 use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::{LogicalPlan, OperationInfo};
 use url::Url;
@@ -66,18 +66,20 @@ impl Connection {
     ) -> napi::Result<Self> {
         let conf = JsSessionConf::from(data_dir_or_cloud_url);
 
-        let mut engine = if let Some(location) = location {
-            // TODO: try to consolidate with --data-dir option
-            Engine::from_storage_options(&location, &storage_options.unwrap_or_default())
-                .await
-                .map_err(JsGlareDbError::from)?
+        let backend = if let Some(location) = location.clone() {
+            EngineBackend::Remote {
+                location,
+                options: storage_options.unwrap_or_default(),
+            }
+        } else if let Some(data_dir) = conf.data_dir.clone() {
+            EngineBackend::Local(data_dir)
         } else {
-            // If data dir is provided, then both table storage and metastore
-            // storage will reside at that path. Otherwise everything is in memory.
-            Engine::from_data_dir(conf.data_dir.as_ref())
-                .await
-                .map_err(JsGlareDbError::from)?
+            EngineBackend::Memory
         };
+
+        let mut engine = Engine::from_backend(backend)
+            .await
+            .map_err(JsGlareDbError::from)?;
 
         // If spill path not provided, default to some tmp dir.
         let spill_path = match spill_path {
@@ -134,7 +136,7 @@ impl Connection {
     /// return the same connection.
     #[napi(catch_unwind)]
     pub async fn default_in_memory() -> napi::Result<Connection> {
-        let engine = Engine::from_data_dir(None)
+        let engine = Engine::from_backend(EngineBackend::Memory)
             .await
             .map_err(JsGlareDbError::from)?;
         let sess = engine
