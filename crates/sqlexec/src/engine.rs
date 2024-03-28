@@ -27,6 +27,7 @@ use protogen::gen::metastore::service::metastore_service_client::MetastoreServic
 use protogen::rpcsrv::types::common;
 use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
 use telemetry::Tracker;
+use tempfile;
 use tonic::transport::Channel;
 use tracing::{debug, info};
 use url::Url;
@@ -321,6 +322,7 @@ pub struct Engine {
     task_scheduler: Scheduler,
     /// Task executors.
     _task_executors: Vec<TaskExecutor>,
+    _tmp_dir: Option<tempfile::TempDir>,
 }
 
 pub enum EngineBackend {
@@ -360,6 +362,7 @@ impl Engine {
             session_counter: Arc::new(AtomicU64::new(0)),
             task_scheduler,
             _task_executors: task_executors,
+            _tmp_dir: None,
         })
     }
 
@@ -419,9 +422,24 @@ impl Engine {
         self
     }
 
-    pub fn with_spill_path(mut self, spill_path: Option<PathBuf>) -> Engine {
-        self.spill_path = spill_path;
-        self
+    pub fn with_spill_path(mut self, spill_path: Option<PathBuf>) -> Result<Engine> {
+        self.spill_path = match spill_path {
+            Some(path) => {
+                ensure_dir(&path)?;
+                Some(path)
+            }
+            None => {
+                self._tmp_dir = Some(
+                    tempfile::Builder::new()
+                        .prefix("glaredb")
+                        .rand_bytes(8)
+                        .tempdir()?,
+                );
+                Some(self._tmp_dir.as_ref().unwrap().path().to_path_buf())
+            }
+        };
+
+        Ok(self)
     }
 
     /// Get the current number of sessions.
@@ -448,6 +466,12 @@ impl Engine {
             inner: session,
             session_counter: self.session_counter.clone(),
         })
+    }
+
+    pub async fn default_local_session_context(&self) -> Result<TrackedSession> {
+        Ok(self
+            .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
+            .await?)
     }
 
     /// Create a new untracked session.
