@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
-use glaredb::args::LocalArgs;
-use glaredb::commands::Commands;
+use cli::args::LocalArgs;
+use cli::commands::Commands;
 
 #[derive(Debug, Clone, Copy, ValueEnum, Default)]
 enum LoggingMode {

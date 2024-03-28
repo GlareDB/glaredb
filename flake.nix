@@ -19,7 +19,7 @@
           src = ./.;
           doCheck = false;
           nativeBuildInputs = with pkgs; [ protobuf ];
-          buildAndTestSubdir = "crates/glaredb";
+          buildAndTestSubdir = "crates/cli";
           preBuild = ''
             export PROTOC=${pkgs.protobuf}/bin/protoc
           '';

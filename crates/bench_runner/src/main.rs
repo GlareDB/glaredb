@@ -4,7 +4,7 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::Result;
 use clap::Parser;
-use glaredb::server::ComputeServer;
+use cli::server::ComputeServer;
 use glob::glob;
 use pgsrv::auth::SingleUserAuthenticator;
 use tokio::net::TcpListener;

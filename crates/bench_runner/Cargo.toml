@@ -8,7 +8,7 @@ workspace = true
 
 [dependencies]
 logutil = {path = "../logutil"}
-glaredb = {path = "../glaredb"}
+cli = {path = "../cli"}
 pgsrv = {path = "../pgsrv"}
 anyhow = { workspace = true }
 async-trait = { workspace = true }
