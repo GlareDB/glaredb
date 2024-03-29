@@ -1,19 +1,20 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{StringArray, UInt64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::error::DataFusionError;
-use datafusion::logical_expr::LogicalPlan;
-use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 // public re-export so downstream users of this package don't have to
 // directly depend on DF (and our version no-less) to use our interfaces.
+pub use datafusion::arrow::record_batch::RecordBatch;
+pub use datafusion::error::DataFusionError;
+use datafusion::logical_expr::LogicalPlan;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 pub use datafusion::physical_plan::SendableRecordBatchStream;
 use derive_builder::Builder;
 use futures::lock::Mutex;
-use futures::stream::StreamExt;
+use futures::stream::{Stream, StreamExt};
 use sqlexec::engine::{Engine, EngineBackend, TrackedSession};
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClientType;
@@ -125,22 +126,36 @@ pub struct Connection {
     _engine: Arc<Engine>,
 }
 
+pub struct RecordStream(Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>);
+
+impl Into<RecordStream> for SendableRecordBatchStream {
+    fn into(self) -> RecordStream {
+        RecordStream(self.boxed())
+    }
+}
+
+impl RecordStream {
+    pub fn all(&mut self) -> Result<Vec<RecordBatch>, DataFusionError> {
+        futures::executor::block_on(async move {
+            let mut out = Vec::new();
+
+            while let Some(batch) = self.0.next().await {
+                out.push(batch?)
+            }
+            Ok(out)
+        })
+    }
+}
+
+
 impl Connection {
-    // TODO:
-    //  - decide if we want to actually return the DF Sendable types
-    //    (putting the schema in the wrapper is annoying and it
-    //    doesn't get us much, but a sendable) stream is nice.
-    //  - do we want to have sync methods that return
-    //    Stream<Item=Result<RecordBatch>> (e.g. make it fully lazy
-    //    and flatten errors) or Iterator<Item=Result<RecordBatch>>?
-    //    Both of these seem useful in some (many?) cases.
-    //  - prql helper.
-    //  - regardless, wrapping/aliasing SRBS values in some way so
-    //    that we can provide helper methods (exhaust, converters(?))
-    //    might be good.
-    pub async fn execute(&self, query: &str) -> Result<SendableRecordBatchStream, ExecError> {
+    pub async fn execute(
+        &self,
+        query: impl Into<String>,
+    ) -> Result<SendableRecordBatchStream, ExecError> {
         let mut ses = self.session.lock().await;
-        let plan = ses.create_logical_plan(query).await?;
+        let query = query.into();
+        let plan = ses.create_logical_plan(&query).await?;
         let op = OperationInfo::new().with_query_text(query);
 
         Ok(Self::process_result(
@@ -148,9 +163,35 @@ impl Connection {
         ))
     }
 
-    pub async fn query(&self, query: &str) -> Result<SendableRecordBatchStream, ExecError> {
+    pub fn call(&self, query: impl Into<String>) -> RecordStream {
+        let ses = self.session.clone();
+        let query = query.into();
+
+        RecordStream(Box::pin(
+            futures::stream::once(async move {
+                let mut ses = ses.lock().await;
+                let plan = match ses.create_logical_plan(&query).await {
+                    Ok(p) => p,
+                    Err(e) => return Self::handle_error(e),
+                };
+                let op = OperationInfo::new().with_query_text(query);
+
+                match ses.execute_logical_plan(plan, &op).await {
+                    Ok((_, stream)) => Self::process_result(stream.into()),
+                    Err(err) => Self::handle_error(err),
+                }
+            })
+            .flatten(),
+        ))
+    }
+
+    pub async fn query(
+        &self,
+        query: impl Into<String>,
+    ) -> Result<SendableRecordBatchStream, ExecError> {
         let mut ses = self.session.lock().await;
-        let plan = ses.create_logical_plan(query).await?;
+        let query = query.into();
+        let plan = ses.create_logical_plan(&query).await?;
         let op = OperationInfo::new().with_query_text(query);
 
         match plan.to_owned().try_into_datafusion_plan()? {
@@ -179,6 +220,54 @@ impl Connection {
             }
         }
     }
+
+    pub async fn prql_query(
+        &self,
+        query: impl Into<String>,
+    ) -> Result<SendableRecordBatchStream, ExecError> {
+        let mut ses = self.session.lock().await;
+        let query = query.into();
+        let plan = ses.prql_to_lp(&query).await?;
+        let op = OperationInfo::new().with_query_text(query);
+
+        let ses_clone = self.session.clone();
+        Ok(Self::process_result(ExecutionResult::Query {
+            stream: Box::pin(RecordBatchStreamAdapter::new(
+                Arc::new(plan.output_schema().unwrap_or_else(|| Schema::empty())),
+                futures::stream::once(async move {
+                    let mut ses = ses_clone.lock().await;
+                    match ses.execute_logical_plan(plan, &op).await {
+                        Ok((_, res)) => Self::process_result(res),
+                        Err(e) => Self::handle_error(e),
+                    }
+                })
+                .flatten(),
+            )),
+        }))
+    }
+
+    pub fn prql_call(&self, query: impl Into<String>) -> RecordStream {
+        let ses = self.session.clone();
+        let query = query.into();
+
+        RecordStream(Box::pin(
+            futures::stream::once(async move {
+                let mut ses = ses.lock().await;
+                let plan = match ses.prql_to_lp(&query).await {
+                    Ok(p) => p,
+                    Err(e) => return Self::handle_error(e),
+                };
+                let op = OperationInfo::new().with_query_text(query);
+
+                match ses.execute_logical_plan(plan, &op).await {
+                    Ok((_, stream)) => Self::process_result(stream.into()),
+                    Err(err) => Self::handle_error(err),
+                }
+            })
+            .flatten(),
+        ))
+    }
+
 
     fn handle_error(err: impl Into<DataFusionError>) -> SendableRecordBatchStream {
         Self::process_result(ExecutionResult::Error(err.into()))

@@ -207,7 +207,7 @@ impl Connection {
     /// import glaredb from "@glaredb/glaredb"
     ///
     /// let con = glaredb.connect()
-    /// let cursor = await con.sql('from my_table | take 1');
+    /// let cursor = await con.prql('from my_table | take 1');
     /// await cursor.show()
     /// ```
     ///
