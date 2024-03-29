@@ -27,7 +27,14 @@ use futures::StreamExt;
 use object_store::path::Path as ObjectPath;
 use object_store::{ObjectMeta, ObjectStore};
 
-use super::spec::{Manifest, ManifestContent, ManifestList, Snapshot, TableMetadata};
+use super::spec::{
+    Manifest,
+    ManifestContent,
+    ManifestEntryStatus,
+    ManifestList,
+    Snapshot,
+    TableMetadata,
+};
 use crate::common::url::DatasourceUrl;
 use crate::lake::iceberg::errors::{IcebergError, Result};
 
@@ -359,7 +366,17 @@ impl TableProvider for IcebergTableReader {
         let data_files: Vec<_> = manifests
             .into_iter()
             .filter(|m| matches!(m.metadata.content, ManifestContent::Data))
-            .flat_map(|m| m.entries.into_iter().map(|ent| ent.data_file))
+            .flat_map(|m| {
+                m.entries.into_iter().filter_map(|ent| {
+                    let ent_status: ManifestEntryStatus = ent.status.try_into().unwrap_or_default();
+                    if ent_status.is_deleted() {
+                        // Ignore deleted entries during table scans.
+                        None
+                    } else {
+                        Some(ent.data_file)
+                    }
+                })
+            })
             .collect();
 
         let partitioned_files = data_files

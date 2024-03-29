@@ -226,6 +226,37 @@ impl Manifest {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
+pub enum ManifestEntryStatus {
+    #[default]
+    Existing,
+    Added,
+    Deleted,
+}
+
+impl ManifestEntryStatus {
+    pub fn is_deleted(&self) -> bool {
+        matches!(self, Self::Deleted)
+    }
+}
+
+impl TryFrom<i32> for ManifestEntryStatus {
+    type Error = IcebergError;
+
+    fn try_from(value: i32) -> std::prelude::v1::Result<Self, Self::Error> {
+        Ok(match value {
+            0 => Self::Existing,
+            1 => Self::Added,
+            2 => Self::Deleted,
+            i => {
+                return Err(IcebergError::DataInvalid(format!(
+                    "unknown manifest entry status: {i}"
+                )))
+            }
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManifestEntry {
     pub status: i32,
