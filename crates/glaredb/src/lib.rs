@@ -156,7 +156,7 @@ impl Connection {
                 let op = OperationInfo::new().with_query_text(query);
 
                 match ses.execute_logical_plan(plan, &op).await {
-                    Ok((_, stream)) => Self::process_result(stream.into()),
+                    Ok((_, stream)) => Self::process_result(stream),
                     Err(err) => Self::handle_error(err),
                 }
             })
@@ -185,7 +185,7 @@ impl Connection {
 
                 Ok(Self::process_result(ExecutionResult::Query {
                     stream: Box::pin(RecordBatchStreamAdapter::new(
-                        Arc::new(plan.output_schema().unwrap_or_else(|| Schema::empty())),
+                        Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)),
                         futures::stream::once(async move {
                             let mut ses = ses_clone.lock().await;
                             match ses.execute_logical_plan(plan, &op).await {
@@ -212,7 +212,7 @@ impl Connection {
         let ses_clone = self.session.clone();
         Ok(Self::process_result(ExecutionResult::Query {
             stream: Box::pin(RecordBatchStreamAdapter::new(
-                Arc::new(plan.output_schema().unwrap_or_else(|| Schema::empty())),
+                Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)),
                 futures::stream::once(async move {
                     let mut ses = ses_clone.lock().await;
                     match ses.execute_logical_plan(plan, &op).await {
@@ -239,7 +239,7 @@ impl Connection {
                 let op = OperationInfo::new().with_query_text(query);
 
                 match ses.execute_logical_plan(plan, &op).await {
-                    Ok((_, stream)) => Self::process_result(stream.into()),
+                    Ok((_, stream)) => Self::process_result(stream),
                     Err(err) => Self::handle_error(err),
                 }
             })
@@ -319,15 +319,15 @@ impl Connection {
 
 pub struct RecordStream(Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>);
 
-impl Into<RecordStream> for SendableRecordBatchStream {
-    fn into(self) -> RecordStream {
-        RecordStream(self.boxed())
+impl From<SendableRecordBatchStream> for RecordStream {
+    fn from(val: SendableRecordBatchStream) -> RecordStream {
+        RecordStream(val.boxed())
     }
 }
 
-impl Into<RecordStream> for Result<SendableRecordBatchStream, DataFusionError> {
-    fn into(self) -> RecordStream {
-        match self {
+impl From<Result<SendableRecordBatchStream, DataFusionError>> for RecordStream {
+    fn from(val: Result<SendableRecordBatchStream, DataFusionError>) -> RecordStream {
+        match val {
             Ok(stream) => stream.into(),
             Err(err) => RecordStream(Connection::handle_error(err).boxed()),
         }
