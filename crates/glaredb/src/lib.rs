@@ -126,36 +126,6 @@ pub struct Connection {
     _engine: Arc<Engine>,
 }
 
-pub struct RecordStream(Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>);
-
-impl Into<RecordStream> for SendableRecordBatchStream {
-    fn into(self) -> RecordStream {
-        RecordStream(self.boxed())
-    }
-}
-
-impl Into<RecordStream> for Result<SendableRecordBatchStream, DataFusionError> {
-    fn into(self) -> RecordStream {
-        match self {
-            Ok(stream) => stream.into(),
-            Err(err) => RecordStream(Connection::handle_error(err).boxed()),
-        }
-    }
-}
-
-impl RecordStream {
-    pub fn all(&mut self) -> Result<Vec<RecordBatch>, DataFusionError> {
-        futures::executor::block_on(async move {
-            let mut out = Vec::new();
-
-            while let Some(batch) = self.0.next().await {
-                out.push(batch?)
-            }
-            Ok(out)
-        })
-    }
-}
-
 
 impl Connection {
     pub async fn execute(
@@ -344,5 +314,22 @@ impl Connection {
                 .map_err(DataFusionError::from)
             }),
         ))
+    }
+}
+
+pub struct RecordStream(Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>);
+
+impl Into<RecordStream> for SendableRecordBatchStream {
+    fn into(self) -> RecordStream {
+        RecordStream(self.boxed())
+    }
+}
+
+impl Into<RecordStream> for Result<SendableRecordBatchStream, DataFusionError> {
+    fn into(self) -> RecordStream {
+        match self {
+            Ok(stream) => stream.into(),
+            Err(err) => RecordStream(Connection::handle_error(err).boxed()),
+        }
     }
 }
