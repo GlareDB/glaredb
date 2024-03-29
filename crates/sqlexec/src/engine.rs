@@ -469,9 +469,8 @@ impl Engine {
     }
 
     pub async fn default_local_session_context(&self) -> Result<TrackedSession> {
-        Ok(self
-            .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
-            .await?)
+        self.new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
+            .await
     }
 
     /// Create a new untracked session.
