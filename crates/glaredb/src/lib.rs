@@ -8,7 +8,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 // public re-export so downstream users of this package don't have to
 // directly depend on DF (and our version no-less) to use our interfaces.
 pub use datafusion::arrow::record_batch::RecordBatch;
-pub use datafusion::error::DataFusionError;
+use datafusion::error::DataFusionError;
 use datafusion::logical_expr::LogicalPlan;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 pub use datafusion::physical_plan::SendableRecordBatchStream;
@@ -131,6 +131,15 @@ pub struct RecordStream(Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusion
 impl Into<RecordStream> for SendableRecordBatchStream {
     fn into(self) -> RecordStream {
         RecordStream(self.boxed())
+    }
+}
+
+impl Into<RecordStream> for Result<SendableRecordBatchStream, DataFusionError> {
+    fn into(self) -> RecordStream {
+        match self {
+            Ok(stream) => stream.into(),
+            Err(err) => RecordStream(Connection::handle_error(err).boxed()),
+        }
     }
 }
 
