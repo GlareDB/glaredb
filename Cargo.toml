@@ -29,7 +29,7 @@ serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 anyhow = "1.0.81"
-async-trait = "0.1.78"
+async-trait = "0.1.79"
 chrono = "0.4.35"
 futures = "0.3.30"
 object_store = "0.9"
