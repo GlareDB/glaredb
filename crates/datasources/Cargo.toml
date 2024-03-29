@@ -41,7 +41,7 @@ rand = "0.8.5"
 regex = "1.10.4"
 repr = { path = "../repr" }
 ring = "0.17.8"
-rustls = "0.21.10"
+rustls = "0.22.2"
 reqwest = { workspace = true }
 rust_decimal = { version = "1.35.0", features = ["db-tokio-postgres"] }
 serde = { workspace = true }
