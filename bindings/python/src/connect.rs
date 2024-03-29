@@ -7,10 +7,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
 use pyo3::prelude::*;
-use sqlexec::engine::{Engine, EngineBackend, SessionStorageConfig};
+use sqlexec::engine::{Engine, EngineBackend};
 use sqlexec::remote::client::RemoteClientType;
 use url::Url;
 

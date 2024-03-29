@@ -5,9 +5,8 @@ use std::sync::Arc;
 use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
 use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
-use ioutil::ensure_dir;
 use sqlexec::engine::{Engine, EngineBackend, SessionStorageConfig, TrackedSession};
-use sqlexec::remote::client::{RemoteClient, RemoteClientType};
+use sqlexec::remote::client::RemoteClientType;
 use sqlexec::{LogicalPlan, OperationInfo};
 use url::Url;
 
