@@ -22,7 +22,6 @@ parser = { path = "../parser" }
 pgrepr = { path = "../pgrepr"}
 datafusion_ext = { path = "../datafusion_ext" }
 bytes = "1.6.0"
-bytes = "1.4.0"
 rustls = "0.22.2"
 webpki-roots = "0.26.1"
 tokio-rustls = "0.25.0"
