@@ -102,7 +102,9 @@ pub fn connect(
             EngineBackend::Memory
         };
 
-        let mut engine = Engine::from_backend(backend).await?;
+        let mut engine = Engine::from_backend(backend)
+            .await
+            .map_err(PyGlareDbError::from)?;
 
         // If spill path not provided, default to some tmp dir.
         let spill_path = match spill_path {
