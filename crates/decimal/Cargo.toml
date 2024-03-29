@@ -9,4 +9,4 @@ workspace = true
 [dependencies]
 thiserror.workspace = true
 num-traits = "0.2.18"
-regex = "1.10.3"
+regex = "1.10.4"
