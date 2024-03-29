@@ -59,7 +59,7 @@ tokio-postgres = { version = "0.7.8", features = [
   "with-chrono-0_4",
 ] }
 parking_lot = "0.12.1"
-tokio-rustls = "0.24.1"
+tokio-rustls = "0.25.0"
 tracing = { workspace = true }
 uuid = "1.8.0"
 url.workspace = true
