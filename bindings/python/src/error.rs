@@ -11,11 +11,15 @@ pub enum PyGlareDbError {
     #[error(transparent)]
     Arrow(#[from] ArrowError),
     #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
+
+    #[error(transparent)]
     Metastore(#[from] MetastoreError),
     #[error(transparent)]
     Exec(#[from] ExecError),
     #[error(transparent)]
-    Anyhow(#[from] anyhow::Error),
+    ConfigurationBuilder(#[from] glaredb::ConnectOptionsBuilderError),
+
     #[error("{0}")]
     Other(String),
 }

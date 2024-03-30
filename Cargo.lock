@@ -6314,6 +6314,7 @@ dependencies = [
  "datafusion",
  "datafusion_ext",
  "futures",
+ "glaredb",
  "ioutil",
  "lzma-sys",
  "metastore",
