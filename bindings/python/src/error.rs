@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use datafusion::arrow::error::ArrowError;
+use datafusion::error::DataFusionError;
 use metastore::errors::MetastoreError;
 use pyo3::exceptions::{PyException, PyRuntimeError};
 use pyo3::{create_exception, PyErr};
@@ -12,6 +13,8 @@ pub enum PyGlareDbError {
     Arrow(#[from] ArrowError),
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
+    #[error(transparent)]
+    DataFusion(#[from] DataFusionError),
 
     #[error(transparent)]
     Metastore(#[from] MetastoreError),
@@ -38,10 +41,16 @@ impl From<PyGlareDbError> for PyErr {
             PyGlareDbError::Exec(err) => ExecutionException::new_err(err.to_string()),
             PyGlareDbError::Anyhow(err) => PyRuntimeError::new_err(format!("{err:?}")),
             PyGlareDbError::Other(msg) => PyRuntimeError::new_err(msg),
+            PyGlareDbError::DataFusion(err) => DataFusionErrorException::new_err(err.to_string()),
+            PyGlareDbError::ConfigurationBuilder(err) => {
+                ConfigurationException::new_err(err.to_string())
+            }
         }
     }
 }
 
 create_exception!(exceptions, ArrowErrorException, PyException);
-create_exception!(exceptions, MetastoreException, PyException);
+create_exception!(exceptions, ConfigurationException, PyException);
+create_exception!(exceptions, DataFusionErrorException, PyException);
 create_exception!(exceptions, ExecutionException, PyException);
+create_exception!(exceptions, MetastoreException, PyException);

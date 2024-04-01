@@ -13,6 +13,7 @@ use url::Url;
 
 use crate::connection::Connection;
 use crate::environment::PyEnvironmentReader;
+use crate::error::PyGlareDbError;
 use crate::runtime::wait_for_future;
 
 
@@ -85,17 +86,23 @@ pub fn connect(
     storage_options: Option<HashMap<String, String>>,
 ) -> PyResult<Connection> {
     wait_for_future(py, async move {
-        Ok(glaredb::ConnectOptionsBuilder::default()
-            .connection_target(data_dir_or_cloud_url.clone())
-            .set_storage_options(storage_options)
-            .location(location)
-            .spill_path(spill_path)
-            .cloud_addr(cloud_addr)
-            .disable_tls(disable_tls)
-            .client_type(RemoteClientType::Python)
-            .environment_reader(Arc::new(Box::new(PyEnvironmentReader)))
-            .build()?
-            .connect()
-            .await?)
+        Ok(Connection {
+            inner: Arc::new(
+                glaredb::ConnectOptionsBuilder::default()
+                    .connection_target(data_dir_or_cloud_url.clone())
+                    .set_storage_options(storage_options)
+                    .location(location)
+                    .spill_path(spill_path)
+                    .cloud_addr(cloud_addr)
+                    .disable_tls(disable_tls)
+                    .client_type(RemoteClientType::Python)
+                    .environment_reader(Arc::new(Box::new(PyEnvironmentReader)))
+                    .build()
+                    .map_err(PyGlareDbError::from)?
+                    .connect()
+                    .await
+                    .map_err(PyGlareDbError::from)?,
+            ),
+        })
     })
 }

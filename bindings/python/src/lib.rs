@@ -4,7 +4,6 @@ mod connect;
 mod connection;
 mod environment;
 mod error;
-mod execution_result;
 mod logical_plan;
 mod runtime;
 mod util;
@@ -12,7 +11,6 @@ mod util;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use connection::Connection;
-use execution_result::PyExecutionResult;
 use logical_plan::PyLogicalPlan;
 use pyo3::prelude::*;
 use runtime::TokioRuntime;
@@ -51,7 +49,7 @@ pub fn sql(py: Python, query: &str) -> PyResult<PyLogicalPlan> {
 
 /// Execute a query against an in-memory GlareDB database.
 #[pyfunction]
-pub fn execute(py: Python, query: &str) -> PyResult<PyExecutionResult> {
+pub fn execute(py: Python, query: &str) -> PyResult<PyLogicalPlan> {
     let mut con = Connection::default_in_memory(py)?;
     con.execute(py, query)
 }

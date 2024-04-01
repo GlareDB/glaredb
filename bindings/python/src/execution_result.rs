@@ -16,69 +16,10 @@ use crate::util::pyprint;
 
 /// The result of an executed query.
 #[pyclass]
-pub struct PyExecutionResult(pub ExecutionResult);
-
-#[pymethods]
-impl PyExecutionResult {
-    /// Convert to Arrow Table
-    /// Collect the batches and pass to Arrow Table
-    pub fn to_arrow(&mut self, py: Python) -> PyResult<PyObject> {
-        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
-
-        Python::with_gil(|py| {
-            // Instantiate pyarrow Table object and use its from_batches method
-            let table_class = py.import("pyarrow")?.getattr("Table")?;
-            let args = PyTuple::new(py, &[batches, schema]);
-            let table: PyObject = table_class.call_method1("from_batches", args)?.into();
-            Ok(table)
-        })
-    }
-
-    pub fn to_polars(&mut self, py: Python) -> PyResult<PyObject> {
-        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
-
-        Python::with_gil(|py| {
-            let table_class = py.import("pyarrow")?.getattr("Table")?;
-            let args = PyTuple::new(py, &[batches, schema]);
-            let table: PyObject = table_class.call_method1("from_batches", args)?.into();
-
-            let table_class = py.import("polars")?.getattr("DataFrame")?;
-            let args = PyTuple::new(py, &[table]);
-            let result = table_class.call1(args)?.into();
-            Ok(result)
-        })
-    }
-
-    pub fn to_pandas(&mut self, py: Python) -> PyResult<PyObject> {
-        let (batches, schema) = to_arrow_batches_and_schema(&mut self.0, py)?;
-
-        Python::with_gil(|py| {
-            let table_class = py.import("pyarrow")?.getattr("Table")?;
-            let args = PyTuple::new(py, &[batches, schema]);
-            let table: PyObject = table_class.call_method1("from_batches", args)?.into();
-
-            let result = table.call_method0(py, "to_pandas")?;
-            Ok(result)
-        })
-    }
-
-    pub fn execute(&mut self, py: Python) -> PyResult<()> {
-        match &mut self.0 {
-            ExecutionResult::Query { stream, .. } => wait_for_future(py, async move {
-                while let Some(r) = stream.next().await {
-                    let _ = r?;
-                }
-                Ok(())
-            }),
-            _ => Ok(()),
-        }
-    }
-
-    pub fn show(&mut self, py: Python) -> PyResult<()> {
-        print_batch(&mut self.0, py)?;
-        Ok(())
-    }
+pub struct PyExecutionResult {
+    stream: glaredb::SendableRecordBatchStream,
 }
+
 
 fn to_arrow_batches_and_schema(
     result: &mut ExecutionResult,
@@ -117,31 +58,5 @@ fn to_arrow_batches_and_schema(
                 .to_object(py);
             Ok((batches, schema.to_pyarrow(py)?))
         }
-    }
-}
-
-fn print_batch(result: &mut ExecutionResult, py: Python<'_>) -> PyResult<()> {
-    match result {
-        ExecutionResult::Query { stream, .. } => {
-            let schema = stream.schema();
-            let batches = wait_for_future(py, async move {
-                stream
-                    .collect::<Vec<_>>()
-                    .await
-                    .into_iter()
-                    .collect::<Result<Vec<RecordBatch>, _>>()
-            })?;
-
-            let disp = pretty::pretty_format_batches(
-                &schema,
-                &batches,
-                Some(terminal_util::term_width()),
-                None,
-            )
-            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-
-            pyprint(disp, py)
-        }
-        _ => Err(PyRuntimeError::new_err("Not able to show executed result")),
     }
 }
