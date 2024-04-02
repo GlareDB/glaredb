@@ -17,7 +17,7 @@ uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 datafusion = { workspace = true }
 hex = "0.4.3"
 base64 = "0.22.0"
-bytes = "1.4.0"
+bytes = "1.6.0"
 flate2 = "1.0.28"
 decimal = { path = "../decimal" }
 
