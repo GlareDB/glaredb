@@ -29,7 +29,7 @@ async-trait = { workspace = true }
 datafusion = { workspace = true }
 prost = { workspace = true }
 datafusion-proto = { workspace = true }
-bytes = "1.4.0"
+bytes = "1.6.0"
 futures = { workspace = true }
 tracing = { workspace = true }
 object_store = { workspace = true }
