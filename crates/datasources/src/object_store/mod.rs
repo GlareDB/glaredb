@@ -324,7 +324,8 @@ impl TableProvider for ObjStoreTableProvider {
             })
             .boxed()
             .buffered(ctx.config_options().execution.meta_fetch_concurrency);
-        let (files, statistics) = get_statistics_with_limit(files, self.schema(), limit).await?;
+        let (files, statistics) =
+            get_statistics_with_limit(files, self.schema(), limit, true).await?;
 
         // If there are no files, return an empty exec plan.
         if files.is_empty() {

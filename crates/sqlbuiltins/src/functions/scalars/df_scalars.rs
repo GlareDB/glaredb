@@ -672,8 +672,43 @@ document! {
     doc => "Resize an array to the specified length",
     example => "array_resize([1, 2, 3], 5, 0)",
     name => array_resize
-
 }
+
+document! {
+    doc => "Reverse the elements of an array",
+    example => "array_reverse([1, 2, 3])",
+    name => array_reverse
+}
+
+document! {
+    doc => "Returns true if value ends with the specified suffix",
+    example => "ends_with('hello', 'lo')",
+    name => ends_with
+}
+
+document! {
+    doc => "Returns the position of the first occurrence of substring in string",
+    example => "instr('hello', 'el')",
+    name => instr
+}
+
+document! {
+    doc => "Returns true if the string matches the regular expression",
+    example => "regexp_like('hello', 'el')",
+    name => regexp_like
+}
+
+document! {
+    doc => "Create a date from year, month, and day",
+    example => "make_date(2020, 1, 1)",
+    name => make_date
+}
+document! {
+    doc => "Converts a date to a string",
+    example => "to_char(make_date(2020, 1, 1), 'YYYY-MM-DD')",
+    name => to_char
+}
+
 impl BuiltinFunction for BuiltinScalarFunction {
     fn function_type(&self) -> FunctionType {
         FunctionType::Scalar
@@ -700,7 +735,6 @@ impl BuiltinFunction for BuiltinScalarFunction {
             Factorial => factorial::NAME,
             Floor => floor::NAME,
             Gcd => gcd::NAME,
-            Isnan => isnan::NAME,
             Iszero => iszero::NAME,
             Lcm => lcm::NAME,
             Ln => ln::NAME,
@@ -721,7 +755,6 @@ impl BuiltinFunction for BuiltinScalarFunction {
             Tanh => tanh::NAME,
             Trunc => trunc::NAME,
             Coalesce => coalesce::NAME,
-            NullIf => nullif::NAME,
             Ascii => ascii::NAME,
             BitLength => bit_length::NAME,
             Btrim => btrim::NAME,
@@ -771,8 +804,6 @@ impl BuiltinFunction for BuiltinScalarFunction {
             SHA256 => sha256::NAME,
             SHA384 => sha384::NAME,
             SHA512 => sha512::NAME,
-            Encode => encode::NAME,
-            Decode => decode::NAME,
             ArrowTypeof => arrow_typeof::NAME,
             ArrayAppend => array_append::NAME,
             ArrayConcat => array_concat::NAME,
@@ -797,7 +828,6 @@ impl BuiltinFunction for BuiltinScalarFunction {
             ArrayReplaceN => array_replace_n::NAME,
             ArrayReplaceAll => array_replace_all::NAME,
             ArraySlice => array_slice::NAME,
-            ArrayToString => array_to_string::NAME,
             ArraySort => array_sort::NAME,
             ArrayPopFront => array_pop_front::NAME,
             ArrayDistinct => array_distinct::NAME,
@@ -813,6 +843,13 @@ impl BuiltinFunction for BuiltinScalarFunction {
             FindInSet => find_in_set::NAME,
             Struct => struct_::NAME,
             ArrayResize => array_resize::NAME,
+
+            ArrayReverse => array_reverse::NAME,
+            EndsWith => ends_with::NAME,
+            InStr => instr::NAME,
+            RegexpLike => regexp_like::NAME,
+            MakeDate => make_date::NAME,
+            ToChar => to_char::NAME,
         }
     }
 
@@ -837,7 +874,6 @@ impl BuiltinFunction for BuiltinScalarFunction {
             Factorial => factorial::EXAMPLE,
             Floor => floor::EXAMPLE,
             Gcd => gcd::EXAMPLE,
-            Isnan => isnan::EXAMPLE,
             Iszero => iszero::EXAMPLE,
             Lcm => lcm::EXAMPLE,
             Ln => ln::EXAMPLE,
@@ -858,7 +894,6 @@ impl BuiltinFunction for BuiltinScalarFunction {
             Tanh => tanh::EXAMPLE,
             Trunc => trunc::EXAMPLE,
             Coalesce => coalesce::EXAMPLE,
-            NullIf => nullif::EXAMPLE,
             Ascii => ascii::EXAMPLE,
             BitLength => bit_length::EXAMPLE,
             Btrim => btrim::EXAMPLE,
@@ -908,8 +943,6 @@ impl BuiltinFunction for BuiltinScalarFunction {
             SHA256 => sha256::EXAMPLE,
             SHA384 => sha384::EXAMPLE,
             SHA512 => sha512::EXAMPLE,
-            Encode => encode::EXAMPLE,
-            Decode => decode::EXAMPLE,
             ArrowTypeof => arrow_typeof::EXAMPLE,
             ArrayAppend => array_append::EXAMPLE,
             ArrayConcat => array_concat::EXAMPLE,
@@ -934,7 +967,6 @@ impl BuiltinFunction for BuiltinScalarFunction {
             ArrayReplaceN => array_replace_n::EXAMPLE,
             ArrayReplaceAll => array_replace_all::EXAMPLE,
             ArraySlice => array_slice::EXAMPLE,
-            ArrayToString => array_to_string::EXAMPLE,
             ArraySort => array_sort::EXAMPLE,
             ArrayPopFront => array_pop_front::EXAMPLE,
             ArrayDistinct => array_distinct::EXAMPLE,
@@ -950,6 +982,12 @@ impl BuiltinFunction for BuiltinScalarFunction {
             FindInSet => find_in_set::EXAMPLE,
             Struct => struct_::EXAMPLE,
             ArrayResize => array_resize::EXAMPLE,
+            ArrayReverse => array_reverse::EXAMPLE,
+            EndsWith => ends_with::EXAMPLE,
+            InStr => instr::EXAMPLE,
+            RegexpLike => regexp_like::EXAMPLE,
+            MakeDate => make_date::EXAMPLE,
+            ToChar => to_char::EXAMPLE,
         })
     }
 
@@ -974,7 +1012,6 @@ impl BuiltinFunction for BuiltinScalarFunction {
             Factorial => factorial::DESCRIPTION,
             Floor => floor::DESCRIPTION,
             Gcd => gcd::DESCRIPTION,
-            Isnan => isnan::DESCRIPTION,
             Iszero => iszero::DESCRIPTION,
             Lcm => lcm::DESCRIPTION,
             Ln => ln::DESCRIPTION,
@@ -995,7 +1032,6 @@ impl BuiltinFunction for BuiltinScalarFunction {
             Tanh => tanh::DESCRIPTION,
             Trunc => trunc::DESCRIPTION,
             Coalesce => coalesce::DESCRIPTION,
-            NullIf => nullif::DESCRIPTION,
             Ascii => ascii::DESCRIPTION,
             BitLength => bit_length::DESCRIPTION,
             Btrim => btrim::DESCRIPTION,
@@ -1045,8 +1081,6 @@ impl BuiltinFunction for BuiltinScalarFunction {
             SHA256 => sha256::DESCRIPTION,
             SHA384 => sha384::DESCRIPTION,
             SHA512 => sha512::DESCRIPTION,
-            Encode => encode::DESCRIPTION,
-            Decode => decode::DESCRIPTION,
             ArrowTypeof => arrow_typeof::DESCRIPTION,
             ArrayAppend => array_append::DESCRIPTION,
             ArrayConcat => array_concat::DESCRIPTION,
@@ -1071,7 +1105,6 @@ impl BuiltinFunction for BuiltinScalarFunction {
             ArrayReplaceN => array_replace_n::DESCRIPTION,
             ArrayReplaceAll => array_replace_all::DESCRIPTION,
             ArraySlice => array_slice::DESCRIPTION,
-            ArrayToString => array_to_string::DESCRIPTION,
             ArraySort => array_sort::DESCRIPTION,
             ArrayPopFront => array_pop_front::DESCRIPTION,
             ArrayDistinct => array_distinct::DESCRIPTION,
@@ -1087,6 +1120,12 @@ impl BuiltinFunction for BuiltinScalarFunction {
             FindInSet => find_in_set::DESCRIPTION,
             Struct => struct_::DESCRIPTION,
             ArrayResize => array_resize::DESCRIPTION,
+            ArrayReverse => array_reverse::DESCRIPTION,
+            EndsWith => ends_with::DESCRIPTION,
+            InStr => instr::DESCRIPTION,
+            RegexpLike => regexp_like::DESCRIPTION,
+            MakeDate => make_date::DESCRIPTION,
+            ToChar => to_char::DESCRIPTION,
         })
     }
 }

@@ -324,6 +324,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             | SQLDataType::Int64
             | SQLDataType::Float64
             | SQLDataType::Struct(_)
+            | SQLDataType::JSONB
+            | SQLDataType::Unspecified
+            
             => not_impl_err!(
                 "Unsupported SQL type {sql_type:?}"
             ),
