@@ -14,7 +14,6 @@ use crate::environment::PyEnvironmentReader;
 use crate::error::PyGlareDbError;
 use crate::runtime::wait_for_future;
 
-
 /// Connect to a GlareDB database.
 ///
 /// # Examples

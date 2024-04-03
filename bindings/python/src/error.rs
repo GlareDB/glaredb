@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use datafusion::arrow::error::ArrowError;
-use datafusion::error::DataFusionError;
+use glaredb::DataFusionError;
 use metastore::errors::MetastoreError;
 use pyo3::exceptions::{PyException, PyRuntimeError};
 use pyo3::{create_exception, PyErr};

@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyType;
 
 use crate::error::PyGlareDbError;
-use crate::logical_plan::PyLogicalPlan;
+use crate::execution::PyExecution;
 use crate::runtime::wait_for_future;
 
 /// A connected session to a GlareDB database.
@@ -91,7 +91,7 @@ impl Connection {
     /// con = glaredb.connect()
     /// con.sql('create table my_table (a int)').execute()
     /// ```
-    pub fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyLogicalPlan> {
+    pub fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
         wait_for_future(py, async move {
             Ok(self
                 .inner
@@ -116,7 +116,7 @@ impl Connection {
     ///
     /// All operations execute lazily when their results are
     /// processed.
-    pub fn prql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyLogicalPlan> {
+    pub fn prql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
         wait_for_future(py, async move {
             Ok(self
                 .inner
@@ -139,7 +139,7 @@ impl Connection {
     /// con = glaredb.connect()
     /// con.execute('create table my_table (a int)')
     /// ```
-    pub fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyLogicalPlan> {
+    pub fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
         wait_for_future(py, async move {
             Ok(self
                 .inner

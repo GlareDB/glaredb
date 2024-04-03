@@ -1,13 +1,22 @@
-use std::sync::Arc;
+use std::any::Any;
+use std::sync::{Arc, Mutex};
 
+use async_trait::async_trait;
+use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::arrow::pyarrow::PyArrowType;
-use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
+use datafusion::execution::context::SessionState;
+use datafusion::execution::TaskContext;
+use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
+use datafusion::physical_plan::streaming::{PartitionStream, StreamingTableExec};
+use datafusion::physical_plan::ExecutionPlan;
+use datafusion::prelude::Expr;
+use glaredb::{DataFusionError, RecordBatch, SendableRecordBatchStream};
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyTuple, PyType};
 use sqlexec::environment::EnvironmentReader;
 
-use crate::logical_plan::{PyLogicalPlan, PyTable};
+use crate::execution::PyExecution;
 
 /// Read polars dataframes from the python environment.
 #[derive(Debug, Clone, Copy)]
@@ -166,6 +175,79 @@ fn resolve_pandas(py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvi
 }
 
 fn resolve_logical_plan(_py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvider>>> {
-    let lp: PyLogicalPlan = var.extract()?;
+    let lp: PyExecution = var.extract()?;
     Ok(Some(Arc::new(PyTable::from(lp)) as Arc<dyn TableProvider>))
+}
+
+#[pyclass]
+struct PyTable {
+    schema: SchemaRef,
+    inner: Mutex<PyExecution>,
+}
+
+impl From<PyExecution> for PyTable {
+    fn from(lp: PyExecution) -> Self {
+        Self {
+            schema: lp.schema.clone(),
+            inner: Mutex::new(lp),
+        }
+    }
+}
+
+// just a wrapper around the stream so that we can compose multiple subqueries
+#[async_trait]
+impl TableProvider for PyTable {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+
+    fn table_type(&self) -> TableType {
+        TableType::View
+    }
+
+    fn supports_filter_pushdown(
+        &self,
+        _filter: &Expr,
+    ) -> Result<TableProviderFilterPushDown, DataFusionError> {
+        Ok(TableProviderFilterPushDown::Inexact)
+    }
+
+    async fn scan(
+        &self,
+        _ctx: &SessionState,
+        projection: Option<&Vec<usize>>,
+        _filters: &[Expr],
+        _limit: Option<usize>,
+    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        let stream = self.inner.lock().unwrap().stream.clone();
+        Ok(Arc::new(StreamingTableExec::try_new(
+            self.schema.clone(),
+            vec![Arc::new(PyPartition {
+                schema: self.schema.clone(),
+                inner: stream.clone(),
+            })],
+            projection,
+            None,
+            false,
+        )?))
+    }
+}
+
+struct PyPartition {
+    schema: SchemaRef,
+    inner: Arc<Mutex<Option<SendableRecordBatchStream>>>,
+}
+
+impl PartitionStream for PyPartition {
+    fn schema(&self) -> &SchemaRef {
+        &self.schema
+    }
+
+    fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
+        self.inner.lock().unwrap().take().unwrap()
+    }
 }

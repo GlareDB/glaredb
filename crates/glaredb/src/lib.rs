@@ -8,7 +8,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 // public re-export so downstream users of this package don't have to
 // directly depend on DF (and our version no-less) to use our interfaces.
 pub use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::error::DataFusionError;
+pub use datafusion::error::DataFusionError;
 use datafusion::logical_expr::LogicalPlan;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 pub use datafusion::physical_plan::SendableRecordBatchStream;
