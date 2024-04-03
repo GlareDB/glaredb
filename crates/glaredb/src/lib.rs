@@ -32,7 +32,7 @@ pub struct ConnectOptions {
     pub location: Option<String>,
     #[builder(setter(into))]
     pub spill_path: Option<String>,
-    #[builder(setter(strip_option))]
+    #[builder(setter(into), default = "HashMap::new()")]
     pub storage_options: HashMap<String, String>,
 
     #[builder(setter(strip_option))]
@@ -93,7 +93,7 @@ impl ConnectOptions {
                 self.cloud_url(),
                 self.cloud_addr.clone().unwrap_or_default(),
                 self.disable_tls.unwrap_or_default(),
-                self.client_type.clone().unwrap(),
+                self.client_type.clone().unwrap_or_default(),
                 None,
             )
             .await?;

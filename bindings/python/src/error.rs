@@ -15,6 +15,8 @@ pub enum PyGlareDbError {
     Anyhow(#[from] anyhow::Error),
     #[error(transparent)]
     DataFusion(#[from] DataFusionError),
+    #[error(transparent)]
+    PyErr(#[from] PyErr),
 
     #[error(transparent)]
     Metastore(#[from] MetastoreError),
@@ -42,6 +44,7 @@ impl From<PyGlareDbError> for PyErr {
             PyGlareDbError::Anyhow(err) => PyRuntimeError::new_err(format!("{err:?}")),
             PyGlareDbError::Other(msg) => PyRuntimeError::new_err(msg),
             PyGlareDbError::DataFusion(err) => DataFusionErrorException::new_err(err.to_string()),
+            PyGlareDbError::PyErr(err) => err,
             PyGlareDbError::ConfigurationBuilder(err) => {
                 ConfigurationException::new_err(err.to_string())
             }

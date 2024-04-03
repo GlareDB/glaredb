@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
 use crate::error::PyGlareDbError;
-use crate::execution::PyExecution;
+use crate::execution::{OperationType, PyExecution};
 use crate::runtime::wait_for_future;
 
 /// A connected session to a GlareDB database.
@@ -93,12 +93,19 @@ impl Connection {
     /// ```
     pub fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
         wait_for_future(py, async move {
-            Ok(self
+            let stream = self
                 .inner
                 .query(query)
                 .await
-                .map_err(PyGlareDbError::from)?
-                .into())
+                .map_err(PyGlareDbError::from)?;
+
+            Ok(PyExecution {
+                db: self.clone().to_owned(),
+                query: query.to_owned(),
+                op: OperationType::Sql,
+                schema: stream.schema(),
+                stream: Arc::new(Mutex::new(Some(stream))),
+            })
         })
     }
 
@@ -118,12 +125,19 @@ impl Connection {
     /// processed.
     pub fn prql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
         wait_for_future(py, async move {
-            Ok(self
+            let stream = self
                 .inner
                 .prql_query(query)
                 .await
-                .map_err(PyGlareDbError::from)?
-                .into())
+                .map_err(PyGlareDbError::from)?;
+
+            Ok(PyExecution {
+                db: self.clone().to_owned(),
+                query: query.to_owned(),
+                op: OperationType::Prql,
+                schema: stream.schema(),
+                stream: Arc::new(Mutex::new(Some(stream))),
+            })
         })
     }
 
@@ -141,12 +155,19 @@ impl Connection {
     /// ```
     pub fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
         wait_for_future(py, async move {
-            Ok(self
+            let stream = self
                 .inner
                 .execute(query)
                 .await
-                .map_err(PyGlareDbError::from)?
-                .into())
+                .map_err(PyGlareDbError::from)?;
+
+            Ok(PyExecution {
+                db: self.clone().to_owned(),
+                query: query.to_owned(),
+                op: OperationType::Execute,
+                schema: stream.schema(),
+                stream: Arc::new(Mutex::new(Some(stream))),
+            })
         })
     }
 
