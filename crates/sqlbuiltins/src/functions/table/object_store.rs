@@ -16,7 +16,11 @@ use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
+use datasources::bson::table::bson_streaming_table_from_object;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
+use datasources::excel::excel_table_from_object;
+use datasources::excel::table::ExcelTableProvider;
+use datasources::json::table::json_streaming_table_from_object;
 use datasources::native::access::NativeTableStorage;
 use datasources::object_store::azure::AzureStoreAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
@@ -663,9 +667,29 @@ impl TableFunc for CloudUpload {
                     .to_string(),
                 )
             })?;
-        let store = storage.store.clone(); // Cheap to clone
 
         let file_name: String = args.into_iter().next().unwrap().try_into()?;
+
+        // Path is required to read the object_store meta, but we unfortunately
+        // also need the base_url below for ObjStoreTableProvider impl.
+        // Maybe there's a refactor opportunity.
+        let path = ObjectStorePath::from(format!(
+            "databases/{}/uploads/{}",
+            storage.db_id(),
+            file_name
+        ));
+
+        // No globbing: just retrieve meta for the requested file
+        let meta: ObjectMeta = match storage.store.head(&path).await {
+            Ok(meta) => meta,
+            Err(_) => {
+                return Err(ExtensionError::String(format!(
+                    "file not found: {}",
+                    file_name,
+                )))
+            }
+        };
+
         let ext = Path::new(&file_name)
             .extension()
             .ok_or_else(|| {
@@ -678,51 +702,70 @@ impl TableFunc for CloudUpload {
                 ExtensionError::String(format!("unsupported file extension: {file_name}"))
             })?
             .to_lowercase();
-        let file_format: Arc<dyn FileFormat> = match ext.as_str() {
-            "csv" => Arc::new(CsvFormat::default().with_schema_infer_max_rec(Some(20480))),
-            "json" => Arc::new(JsonFormat::default()),
-            "parquet" => Arc::new(ParquetFormat::default()),
+
+        match ext.as_str() {
+            "csv" => {
+                let file_format =
+                    Arc::new(CsvFormat::default().with_schema_infer_max_rec(Some(20480)));
+                object_store_table_from_file_format(ctx, file_format, &storage, meta).await
+            }
+            "ndjson" | "jsonl" => {
+                let file_format = Arc::new(JsonFormat::default());
+                object_store_table_from_file_format(ctx, file_format, &storage, meta).await
+            }
+            "parquet" => {
+                let file_format = Arc::new(ParquetFormat::default());
+                object_store_table_from_file_format(ctx, file_format, &storage, meta).await
+            }
+            "json" => {
+                Ok(json_streaming_table_from_object(storage.store.inner.clone(), meta).await?)
+            }
+            "bson" => {
+                Ok(bson_streaming_table_from_object(storage.store.inner.clone(), meta).await?)
+            }
+            "xlsx" => {
+                let table = excel_table_from_object(
+                    storage.store.inner.as_ref(),
+                    meta,
+                    /* sheet_name = */ None,
+                    /* has_header = */ true,
+                )
+                .await?;
+                let table = ExcelTableProvider::try_new(table).await?;
+                Ok(Arc::new(table))
+            }
             ext => {
                 return Err(ExtensionError::String(format!(
                     "unsupported file extension: {ext}"
                 )))
             }
-        };
-
-        // Path is required to read the object_store meta, but we unfortunately
-        // also need the base_url below for ObjStoreTableProvider impl.
-        // Maybe there's a refactor opportunity.
-        let path = ObjectStorePath::from(format!(
-            "databases/{}/uploads/{}",
-            storage.db_id(),
-            file_name
-        ));
-        let base_url = storage.root_url.to_string();
-        let base_url = ObjectStoreUrl::parse(base_url)?;
-
-        // No globbing: just retrieve meta for the requested file
-        let meta: ObjectMeta = match store.head(&path).await {
-            Ok(meta) => meta,
-            Err(_) => {
-                return Err(ExtensionError::String(format!(
-                    "file not found: {}",
-                    file_name
-                )))
-            }
-        };
-        let objects: Vec<ObjectMeta> = vec![meta]; // needed for ObjStoreTableProvider impl
-
-        let session_state = ctx.get_session_state();
-        let arrow_schema = file_format
-            .infer_schema(&session_state, &store.inner, &objects)
-            .await?;
-
-        Ok(Arc::new(ObjStoreTableProvider::new(
-            store.inner.clone(),
-            arrow_schema,
-            base_url,
-            objects,
-            file_format,
-        )))
+        }
     }
+}
+
+async fn object_store_table_from_file_format(
+    ctx: &dyn TableFuncContextProvider,
+    file_format: Arc<dyn FileFormat>,
+    storage: &NativeTableStorage,
+    meta: ObjectMeta,
+) -> Result<Arc<dyn TableProvider>> {
+    let store = &storage.store;
+
+    let base_url = storage.root_url.to_string();
+    let base_url = ObjectStoreUrl::parse(base_url)?;
+
+    let objects = vec![meta]; // needed for ObjStoreTableProvider impl
+
+    let session_state = ctx.get_session_state();
+    let arrow_schema = file_format
+        .infer_schema(&session_state, &store.inner, &objects)
+        .await?;
+
+    Ok(Arc::new(ObjStoreTableProvider::new(
+        store.inner.clone(),
+        arrow_schema,
+        base_url,
+        objects,
+        file_format,
+    )))
 }
