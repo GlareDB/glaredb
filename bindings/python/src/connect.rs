@@ -4,48 +4,16 @@
 //! queries.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
 use sqlexec::remote::client::RemoteClientType;
-use url::Url;
 
 use crate::connection::Connection;
 use crate::environment::PyEnvironmentReader;
 use crate::error::PyGlareDbError;
 use crate::runtime::wait_for_future;
 
-
-#[derive(Debug, Clone)]
-struct PythonSessionConf {
-    /// Where to store both metastore and user data.
-    data_dir: Option<PathBuf>,
-    /// URL for cloud deployment to connect to.
-    cloud_url: Option<Url>,
-}
-
-impl From<Option<String>> for PythonSessionConf {
-    fn from(value: Option<String>) -> Self {
-        match value {
-            Some(s) => match Url::parse(&s) {
-                Ok(u) => PythonSessionConf {
-                    data_dir: None,
-                    cloud_url: Some(u),
-                },
-                // Assume failing to parse a url just means the user provided a local path.
-                Err(_) => PythonSessionConf {
-                    data_dir: Some(PathBuf::from(s)),
-                    cloud_url: None,
-                },
-            },
-            None => PythonSessionConf {
-                data_dir: None,
-                cloud_url: None,
-            },
-        }
-    }
-}
 
 /// Connect to a GlareDB database.
 ///

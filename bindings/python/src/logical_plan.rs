@@ -1,6 +1,8 @@
 use std::any::Any;
 use std::fmt::Debug;
-use std::sync::Arc;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 
 use arrow_util::pretty;
 use datafusion::arrow::datatypes::SchemaRef;
@@ -13,8 +15,7 @@ use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
 use datafusion::physical_plan::streaming::{PartitionStream, StreamingTableExec};
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
-use futures::lock::Mutex;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use glaredb::{RecordBatch, SendableRecordBatchStream};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -25,19 +26,20 @@ use crate::runtime::wait_for_future;
 use crate::util::pyprint;
 
 #[pyclass]
+#[derive(Clone)]
 pub struct PyLogicalPlan {
     schema: SchemaRef,
-    stream: SendableRecordBatchStream,
+    stream: Arc<Mutex<Option<SendableRecordBatchStream>>>,
 }
 
-impl Clone for PyLogicalPlan {
-    fn clone(&self) -> Self {
-        Self {
-            schema: self.schema.clone(),
-            stream: self.stream,
-        }
-    }
-}
+// impl Clone for PyLogicalPlan {
+//     fn clone(&self) -> Self {
+//         Self {
+//             schema: self.schema.clone(),
+//             stream: self.stream,
+//         }
+//     }
+// }
 
 impl Debug for PyLogicalPlan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -50,7 +52,7 @@ impl From<SendableRecordBatchStream> for PyLogicalPlan {
     fn from(stream: SendableRecordBatchStream) -> Self {
         Self {
             schema: stream.schema().clone(),
-            stream: stream,
+            stream: Arc::new(Mutex::new(Some(stream))),
         }
     }
 }
@@ -107,7 +109,7 @@ impl PyLogicalPlan {
     pub fn execute(&mut self, py: Python) -> PyResult<()> {
         let lp = self.clone();
         wait_for_future(py, async move {
-            let mut stream = lp.stream;
+            let mut stream = lp.stream.lock().unwrap().take().unwrap();
             while let Some(r) = stream.next().await {
                 let _ = r?;
             }
@@ -118,13 +120,12 @@ impl PyLogicalPlan {
     pub fn show(&mut self, py: Python) -> PyResult<()> {
         let lp = self.clone();
         let batches = wait_for_future(py, async move {
-            let stream = lp.stream;
-
-            stream
-                .collect::<Vec<_>>()
-                .await
-                .into_iter()
-                .collect::<Result<Vec<RecordBatch>, _>>()
+            let mut stream = lp.stream.lock().unwrap().take().unwrap();
+            let mut out = Vec::new();
+            while let Some(batch) = stream.next().await {
+                out.push(batch?)
+            }
+            Ok::<Vec<glaredb::RecordBatch>, DataFusionError>(out)
         })?;
 
         let disp = pretty::pretty_format_batches(
@@ -135,7 +136,7 @@ impl PyLogicalPlan {
         )
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
-        pyprint(disp, py);
+        let _ = pyprint(disp, py);
 
         Ok(())
     }
@@ -143,7 +144,8 @@ impl PyLogicalPlan {
     fn get_batches_and_schema(&self, py: Python) -> PyResult<(PyObject, PyObject)> {
         let lp = self.clone();
         let batches: Vec<RecordBatch> = wait_for_future(py, async move {
-            lp.stream
+            let stream = lp.stream.lock().unwrap().take().unwrap();
+            stream
                 .collect::<Vec<Result<RecordBatch, DataFusionError>>>()
                 .await
                 .into_iter()
@@ -206,13 +208,12 @@ impl TableProvider for PyTable {
         _filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        let schema = self.schema.clone();
-        let plan = self.inner.lock().await.clone();
+        let stream = self.inner.lock().unwrap().stream.clone();
         Ok(Arc::new(StreamingTableExec::try_new(
-            schema.clone(),
+            self.schema.clone(),
             vec![Arc::new(PyPartition {
-                schema: schema.clone(),
-                inner: std::sync::Mutex::new(Some(plan.stream)),
+                schema: self.schema.clone(),
+                inner: stream.clone(),
             })],
             projection,
             None,
@@ -221,9 +222,23 @@ impl TableProvider for PyTable {
     }
 }
 
+struct LockedStreamAdapter {
+    inner: Arc<Mutex<SendableRecordBatchStream>>,
+}
+
+impl Stream for LockedStreamAdapter {
+    type Item = Result<RecordBatch, DataFusionError>;
+
+    // Required method
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.poll_next_unpin(cx)
+    }
+}
+
 struct PyPartition {
     schema: SchemaRef,
-    inner: std::sync::Mutex<Option<SendableRecordBatchStream>>,
+    inner: Arc<Mutex<Option<SendableRecordBatchStream>>>,
 }
 
 impl PartitionStream for PyPartition {
@@ -232,10 +247,6 @@ impl PartitionStream for PyPartition {
     }
 
     fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
-        self.inner
-            .lock()
-            .unwrap()
-            .take()
-            .expect("streams can only be used once")
+        self.inner.lock().unwrap().take().unwrap()
     }
 }

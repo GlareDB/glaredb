@@ -1,12 +1,8 @@
 use std::sync::Arc;
 
-use futures::lock::Mutex;
 use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
 use pyo3::types::PyType;
-use sqlexec::engine::TrackedSession;
-
-pub(super) type PyTrackedSession = Arc<Mutex<TrackedSession>>;
 
 use crate::error::PyGlareDbError;
 use crate::logical_plan::PyLogicalPlan;
@@ -16,7 +12,7 @@ use crate::runtime::wait_for_future;
 #[pyclass]
 #[derive(Clone)]
 pub struct Connection {
-    inner: Arc<glaredb::Connection>,
+    pub(crate) inner: Arc<glaredb::Connection>,
 }
 
 impl Connection {
