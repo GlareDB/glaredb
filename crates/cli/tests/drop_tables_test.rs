@@ -1,6 +1,6 @@
-use glaredb::args::{LocalClientOpts, StorageConfigArgs};
-use glaredb::local::LocalSession;
-use glaredb::server::ComputeServer;
+use cli::args::{LocalClientOpts, StorageConfigArgs};
+use cli::local::LocalSession;
+use cli::server::ComputeServer;
 use tokio::net::TcpListener;
 
 #[tokio::test]
@@ -30,7 +30,7 @@ async fn test_drop_tables_removes_files() {
         },
         timing: false,
         ignore_rpc_auth: true,
-        mode: glaredb::args::OutputMode::Table,
+        mode: cli::args::OutputMode::Table,
         max_width: None,
         max_rows: None,
         disable_tls: true,
