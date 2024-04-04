@@ -752,7 +752,10 @@ async fn object_store_table_from_file_format(
     let store = &storage.store;
 
     let base_url = storage.root_url.to_string();
-    let base_url = ObjectStoreUrl::parse(base_url)?;
+    let base_url = match storage.root_url.scheme() {
+        "file" => ObjectStoreUrl::local_filesystem(),
+        _ => ObjectStoreUrl::parse(base_url)?,
+    };
 
     let objects = vec![meta]; // needed for ObjStoreTableProvider impl
 
