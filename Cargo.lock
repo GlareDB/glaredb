@@ -1095,7 +1095,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap",
- "glaredb",
+ "cli",
  "glob",
  "logutil",
  "pgsrv",
@@ -1612,6 +1612,51 @@ name = "clap_lex"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98cc8fbded0c607b7ba9dd60cd98df59af97e84d24e49c8557331cfc26d301ce"
+
+[[package]]
+name = "cli"
+version = "0.9.2"
+dependencies = [
+ "anyhow",
+ "arrow_util",
+ "assert_cmd",
+ "atty",
+ "built",
+ "clap",
+ "colored",
+ "console-subscriber",
+ "datafusion",
+ "datafusion_ext",
+ "futures",
+ "glob",
+ "ioutil",
+ "logutil",
+ "lzma-sys",
+ "metastore",
+ "nu-ansi-term 0.50.0",
+ "num_cpus",
+ "object_store",
+ "object_store_util",
+ "pgrepr",
+ "pgsrv",
+ "predicates",
+ "protogen",
+ "proxyutil",
+ "reedline",
+ "rpcsrv",
+ "slt",
+ "sqlbuiltins",
+ "sqlexec",
+ "telemetry",
+ "tempfile",
+ "terminal_util",
+ "tokio",
+ "tokio-postgres",
+ "tonic",
+ "tracing",
+ "url",
+ "uuid",
+]
 
 [[package]]
 name = "cmake"
@@ -3473,51 +3518,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "glaredb"
-version = "0.9.2"
-dependencies = [
- "anyhow",
- "arrow_util",
- "assert_cmd",
- "atty",
- "built",
- "clap",
- "colored",
- "console-subscriber",
- "datafusion",
- "datafusion_ext",
- "futures",
- "glob",
- "ioutil",
- "logutil",
- "lzma-sys",
- "metastore",
- "nu-ansi-term 0.50.0",
- "num_cpus",
- "object_store",
- "object_store_util",
- "pgrepr",
- "pgsrv",
- "predicates",
- "protogen",
- "proxyutil",
- "reedline",
- "rpcsrv",
- "slt",
- "sqlbuiltins",
- "sqlexec",
- "telemetry",
- "tempfile",
- "terminal_util",
- "tokio",
- "tokio-postgres",
- "tonic",
- "tracing",
- "url",
- "uuid",
-]
-
-[[package]]
 name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3991,7 +3991,6 @@ dependencies = [
  "datafusion",
  "datafusion_ext",
  "futures",
- "glaredb",
  "ioutil",
  "lzma-sys",
  "metastore",
@@ -6259,7 +6258,6 @@ dependencies = [
  "datafusion",
  "datafusion_ext",
  "futures",
- "glaredb",
  "ioutil",
  "lzma-sys",
  "metastore",
