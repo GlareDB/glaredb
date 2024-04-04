@@ -151,7 +151,7 @@ impl BuiltinScalarUDF for OpenAIEmbed {
                         }
                         Some(config)
                     } else {
-                        return None;
+                        None
                     }
                 }
                 _ => None,

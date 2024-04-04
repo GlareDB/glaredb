@@ -4,7 +4,11 @@
 
 #![allow(non_camel_case_types)]
 
+use datafusion::arrow::datatypes::DataType;
+use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
+
 use super::{document, BuiltinFunction, BuiltinScalarFunction, ConstBuiltinFunction, FunctionType};
+use crate::functions::BuiltinScalarUDF;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ArrowCastFunction;
@@ -1127,5 +1131,181 @@ impl BuiltinFunction for BuiltinScalarFunction {
             MakeDate => make_date::DESCRIPTION,
             ToChar => to_char::DESCRIPTION,
         })
+    }
+}
+
+// The rest of these functions are ones that are implemented using datafusion's new function system.
+// Until 37.1.0 is released, we need to redefine these functions here instead of using the ones in datafusion
+// because they are not public. (only the `expr` is public, not the struct itself)
+// see https://github.com/apache/arrow-datafusion/pull/9903
+
+#[derive(Debug, Clone, Copy)]
+pub struct IsNan;
+
+impl ConstBuiltinFunction for IsNan {
+    const NAME: &'static str = "isnan";
+    const DESCRIPTION: &'static str = "Returns true if the argument is NaN, false otherwise.";
+    const EXAMPLE: &'static str = "isnan(0.0)";
+    const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::one_of(
+            vec![
+                TypeSignature::Exact(vec![DataType::Float32]),
+                TypeSignature::Exact(vec![DataType::Float64]),
+            ],
+            Volatility::Immutable,
+        ))
+    }
+}
+
+impl BuiltinScalarUDF for IsNan {
+    fn try_as_expr(
+        &self,
+        _: &catalog::session_catalog::SessionCatalog,
+        args: Vec<datafusion::prelude::Expr>,
+    ) -> datafusion::error::Result<datafusion::prelude::Expr> {
+        if args.len() != 1 {
+            return Err(datafusion::error::DataFusionError::Execution(
+                "isnan() takes exactly one argument".to_string(),
+            ));
+        }
+        Ok(datafusion::functions::math::expr_fn::isnan(args[0].clone()))
+    }
+}
+#[derive(Debug, Clone, Copy)]
+pub struct NullIf;
+
+/// Currently supported types by the nullif function.
+/// The order of these types correspond to the order on which coercion applies
+/// This should thus be from least informative to most informative
+static SUPPORTED_NULLIF_TYPES: &[DataType] = &[
+    DataType::Boolean,
+    DataType::UInt8,
+    DataType::UInt16,
+    DataType::UInt32,
+    DataType::UInt64,
+    DataType::Int8,
+    DataType::Int16,
+    DataType::Int32,
+    DataType::Int64,
+    DataType::Float32,
+    DataType::Float64,
+    DataType::Utf8,
+    DataType::LargeUtf8,
+];
+
+impl ConstBuiltinFunction for NullIf {
+    const NAME: &'static str = "nullif";
+    const DESCRIPTION: &'static str =
+        "Returns null if the two arguments are equal, otherwise returns the first argument.";
+    const EXAMPLE: &'static str = "nullif(1, 1)";
+    const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::uniform(
+            2,
+            SUPPORTED_NULLIF_TYPES.to_vec(),
+            Volatility::Immutable,
+        ))
+    }
+}
+
+impl BuiltinScalarUDF for NullIf {
+    fn try_as_expr(
+        &self,
+        _: &catalog::session_catalog::SessionCatalog,
+        args: Vec<datafusion::prelude::Expr>,
+    ) -> datafusion::error::Result<datafusion::prelude::Expr> {
+        if args.len() != 2 {
+            return Err(datafusion::error::DataFusionError::Execution(
+                "nullif() takes exactly two arguments".to_string(),
+            ));
+        }
+        Ok(datafusion::functions::expr_fn::nullif(
+            args[0].clone(),
+            args[1].clone(),
+        ))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Encode;
+
+impl ConstBuiltinFunction for Encode {
+    const NAME: &'static str = encode::NAME;
+    const DESCRIPTION: &'static str = encode::DESCRIPTION;
+    const EXAMPLE: &'static str = encode::EXAMPLE;
+    const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+    fn signature(&self) -> Option<Signature> {
+        use DataType::*;
+        use TypeSignature::*;
+
+        Some(Signature::one_of(
+            vec![
+                Exact(vec![Utf8, Utf8]),
+                Exact(vec![LargeUtf8, Utf8]),
+                Exact(vec![Binary, Utf8]),
+                Exact(vec![LargeBinary, Utf8]),
+            ],
+            Volatility::Immutable,
+        ))
+    }
+}
+
+impl BuiltinScalarUDF for Encode {
+    fn try_as_expr(
+        &self,
+        _: &catalog::session_catalog::SessionCatalog,
+        args: Vec<datafusion::prelude::Expr>,
+    ) -> datafusion::error::Result<datafusion::prelude::Expr> {
+        if args.len() != 2 {
+            return Err(datafusion::error::DataFusionError::Execution(
+                "encode() takes exactly two arguments".to_string(),
+            ));
+        }
+        Ok(datafusion::functions::expr_fn::encode(
+            args[0].clone(),
+            args[1].clone(),
+        ))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Decode;
+impl ConstBuiltinFunction for Decode {
+    const NAME: &'static str = decode::NAME;
+    const DESCRIPTION: &'static str = decode::DESCRIPTION;
+    const EXAMPLE: &'static str = decode::EXAMPLE;
+    const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+    fn signature(&self) -> Option<Signature> {
+        use DataType::*;
+        use TypeSignature::*;
+
+        Some(Signature::one_of(
+            vec![
+                Exact(vec![Utf8, Utf8]),
+                Exact(vec![LargeUtf8, Utf8]),
+                Exact(vec![Binary, Utf8]),
+                Exact(vec![LargeBinary, Utf8]),
+            ],
+            Volatility::Immutable,
+        ))
+    }
+}
+
+impl BuiltinScalarUDF for Decode {
+    fn try_as_expr(
+        &self,
+        _: &catalog::session_catalog::SessionCatalog,
+        args: Vec<datafusion::prelude::Expr>,
+    ) -> datafusion::error::Result<datafusion::prelude::Expr> {
+        if args.len() != 2 {
+            return Err(datafusion::error::DataFusionError::Execution(
+                "decode() takes exactly two arguments".to_string(),
+            ));
+        }
+        Ok(datafusion::functions::expr_fn::decode(
+            args[0].clone(),
+            args[1].clone(),
+        ))
     }
 }

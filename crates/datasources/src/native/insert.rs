@@ -90,7 +90,7 @@ impl ExecutionPlan for NativeTableInsertExec {
             input: children[0].clone(),
             store: self.store.clone(),
             snapshot: self.snapshot.clone(),
-            save_mode: self.save_mode.clone(),
+            save_mode: self.save_mode,
         }))
     }
 
@@ -162,7 +162,7 @@ impl ExecutionPlan for NativeTableInsertExec {
         // TODO: Possibly try avoiding cloning the snapshot.
         let builder = WriteBuilder::new(self.store.clone(), Some(self.snapshot.clone()))
             .with_input_session_state(state)
-            .with_save_mode(self.save_mode.clone())
+            .with_save_mode(self.save_mode)
             .with_input_execution_plan(input.clone());
 
         let output = futures::stream::once(async move {

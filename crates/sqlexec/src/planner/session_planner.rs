@@ -2356,8 +2356,8 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
             | ast::DataType::BigNumeric(_)
             | ast::DataType::BigDecimal(_)
             | ast::DataType::Struct(_)
-            | ast::DataType::Clob(_) 
-            | ast::DataType::JSONB 
+            | ast::DataType::Clob(_)
+            | ast::DataType::JSONB
             | ast::DataType::Unspecified
             => Err(internal!(
                 "Unsupported SQL type {:?}",

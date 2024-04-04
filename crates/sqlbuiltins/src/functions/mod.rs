@@ -40,6 +40,7 @@ use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
 
 use self::alias_map::AliasMap;
+use crate::functions::scalars::df_scalars::{Decode, Encode, IsNan, NullIf};
 use crate::functions::scalars::openai::OpenAIEmbed;
 use crate::functions::scalars::similarity::CosineSimilarity;
 
@@ -214,6 +215,11 @@ impl FunctionRegistry {
 
         // GlareDB specific functions
         let udfs: Vec<Arc<dyn BuiltinScalarUDF>> = vec![
+            // Datafusion functions that aren't part of BuiltinScalarFunction
+            Arc::new(IsNan),
+            Arc::new(NullIf),
+            Arc::new(Encode),
+            Arc::new(Decode),
             // Postgres functions
             Arc::new(HasSchemaPrivilege),
             Arc::new(HasDatabasePrivilege),
