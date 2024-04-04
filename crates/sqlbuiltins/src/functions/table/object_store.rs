@@ -694,7 +694,7 @@ impl TableFunc for CloudUpload {
             .extension()
             .ok_or_else(|| {
                 ExtensionError::String(
-                    "missing file extension, supported: [.csv, .json, .parquet]".to_string(),
+                    "missing file extension, supported: [.csv, .ndjson, .jsonl, .json, .parquet, .bson, .xlsx]".to_string(),
                 )
             })?
             .to_str()
