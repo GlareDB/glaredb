@@ -87,7 +87,7 @@ impl PyExecution {
     fn resolve_stream(&self) -> Result<SendableRecordBatchStream, PyGlareDbError> {
         self.take_stream()
             .map(Ok)
-            .unwrap_or_else(|| Err(PyGlareDbError::new("data is not accessible").into()))
+            .unwrap_or_else(|| Err(PyGlareDbError::new("data is not accessible")))
     }
 
     fn take_stream(&self) -> Option<SendableRecordBatchStream> {
