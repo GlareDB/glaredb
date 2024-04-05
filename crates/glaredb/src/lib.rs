@@ -138,68 +138,119 @@ impl ConnectOptions {
     }
 }
 
+#[derive(Clone)]
 pub struct Connection {
     session: Arc<Mutex<TrackedSession>>,
     _engine: Arc<Engine>,
 }
 
-
 impl Connection {
-    pub async fn execute(
-        &self,
-        query: impl Into<String>,
-    ) -> Result<SendableRecordBatchStream, ExecError> {
-        let mut ses = self.session.lock().await;
-        let query = query.into();
-        let plan = ses.create_logical_plan(&query).await?;
-        let op = OperationInfo::new().with_query_text(query);
-
-        Ok(Self::process_result(
-            ses.execute_logical_plan(plan, &op).await?.1,
-        ))
+    pub fn execute(&self, query: impl Into<String>) -> Operation {
+        Operation {
+            op: OperationType::Execute,
+            query: query.into(),
+            conn: Arc::new(self.clone()),
+        }
     }
 
-    pub fn call(&self, query: impl Into<String>) -> RecordStream {
-        let ses = self.session.clone();
-        let query = query.into();
+    pub fn sql(&self, query: impl Into<String>) -> Operation {
+        Operation {
+            op: OperationType::Sql,
+            query: query.into(),
+            conn: Arc::new(self.clone()),
+        }
+    }
 
-        RecordStream(Box::pin(
-            futures::stream::once(async move {
-                let mut ses = ses.lock().await;
-                let plan = match ses.create_logical_plan(&query).await {
-                    Ok(p) => p,
-                    Err(e) => return Self::handle_error(e),
-                };
-                let op = OperationInfo::new().with_query_text(query);
+    pub fn prql(&self, query: impl Into<String>) -> Operation {
+        Operation {
+            op: OperationType::Prql,
+            query: query.into(),
+            conn: Arc::new(self.clone()),
+        }
+    }
+}
 
-                match ses.execute_logical_plan(plan, &op).await {
-                    Ok((_, stream)) => Self::process_result(stream),
-                    Err(err) => Self::handle_error(err),
+pub struct RecordStream(Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>);
+
+impl From<SendableRecordBatchStream> for RecordStream {
+    fn from(val: SendableRecordBatchStream) -> Self {
+        RecordStream(val.boxed())
+    }
+}
+
+impl From<Result<SendableRecordBatchStream, DataFusionError>> for RecordStream {
+    fn from(val: Result<SendableRecordBatchStream, DataFusionError>) -> Self {
+        match val {
+            Ok(stream) => stream.into(),
+            Err(err) => RecordStream(Operation::handle_error(err).boxed()),
+        }
+    }
+}
+
+impl From<Result<SendableRecordBatchStream, ExecError>> for RecordStream {
+    fn from(val: Result<SendableRecordBatchStream, ExecError>) -> Self {
+        match val {
+            Ok(stream) => stream.into(),
+            Err(err) => RecordStream(Operation::handle_error(err).boxed()),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum OperationType {
+    Sql,
+    Prql,
+    Execute,
+}
+
+#[derive(Clone)]
+#[must_use = "operations do nothing unless call() or execute() run"]
+pub struct Operation {
+    op: OperationType,
+    query: String,
+    conn: Arc<Connection>,
+}
+
+impl Operation {
+    pub async fn execute(&self) -> Result<SendableRecordBatchStream, ExecError> {
+        match self.op {
+            OperationType::Sql => {
+                let mut ses = self.conn.session.lock().await;
+                let plan = ses.create_logical_plan(&self.query).await?;
+                let op = OperationInfo::new().with_query_text(self.query.clone());
+
+                match plan.to_owned().try_into_datafusion_plan()? {
+                    LogicalPlan::Dml(_)
+                    | LogicalPlan::Ddl(_)
+                    | LogicalPlan::Copy(_)
+                    | LogicalPlan::Extension(_) => Ok(Self::process_result(
+                        ses.execute_logical_plan(plan, &op).await?.1,
+                    )),
+                    _ => {
+                        let ses_clone = self.conn.session.clone();
+
+                        Ok(Self::process_result(ExecutionResult::Query {
+                            stream: Box::pin(RecordBatchStreamAdapter::new(
+                                Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)),
+                                futures::stream::once(async move {
+                                    let mut ses = ses_clone.lock().await;
+                                    match ses.execute_logical_plan(plan, &op).await {
+                                        Ok((_, res)) => Self::process_result(res),
+                                        Err(e) => Self::handle_error(e),
+                                    }
+                                })
+                                .flatten(),
+                            )),
+                        }))
+                    }
                 }
-            })
-            .flatten(),
-        ))
-    }
+            }
+            OperationType::Prql => {
+                let mut ses = self.conn.session.lock().await;
+                let plan = ses.prql_to_lp(&self.query).await?;
+                let op = OperationInfo::new().with_query_text(self.query.clone());
 
-    pub async fn query(
-        &self,
-        query: impl Into<String>,
-    ) -> Result<SendableRecordBatchStream, ExecError> {
-        let mut ses = self.session.lock().await;
-        let query = query.into();
-        let plan = ses.create_logical_plan(&query).await?;
-        let op = OperationInfo::new().with_query_text(query);
-
-        match plan.to_owned().try_into_datafusion_plan()? {
-            LogicalPlan::Dml(_)
-            | LogicalPlan::Ddl(_)
-            | LogicalPlan::Copy(_)
-            | LogicalPlan::Extension(_) => Ok(Self::process_result(
-                ses.execute_logical_plan(plan, &op).await?.1,
-            )),
-            _ => {
-                let ses_clone = self.session.clone();
-
+                let ses_clone = self.conn.session.clone();
                 Ok(Self::process_result(ExecutionResult::Query {
                     stream: Box::pin(RecordBatchStreamAdapter::new(
                         Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)),
@@ -214,45 +265,39 @@ impl Connection {
                     )),
                 }))
             }
+            OperationType::Execute => {
+                let mut ses = self.conn.session.lock().await;
+                let plan = ses.create_logical_plan(&self.query).await?;
+                let op = OperationInfo::new().with_query_text(self.query.clone());
+
+                Ok(Self::process_result(
+                    ses.execute_logical_plan(plan, &op).await?.1,
+                ))
+            }
         }
     }
 
-    pub async fn prql_query(
-        &self,
-        query: impl Into<String>,
-    ) -> Result<SendableRecordBatchStream, ExecError> {
-        let mut ses = self.session.lock().await;
-        let query = query.into();
-        let plan = ses.prql_to_lp(&query).await?;
-        let op = OperationInfo::new().with_query_text(query);
-
-        let ses_clone = self.session.clone();
-        Ok(Self::process_result(ExecutionResult::Query {
-            stream: Box::pin(RecordBatchStreamAdapter::new(
-                Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)),
-                futures::stream::once(async move {
-                    let mut ses = ses_clone.lock().await;
-                    match ses.execute_logical_plan(plan, &op).await {
-                        Ok((_, res)) => Self::process_result(res),
-                        Err(e) => Self::handle_error(e),
-                    }
-                })
-                .flatten(),
-            )),
-        }))
-    }
-
-    pub fn prql_call(&self, query: impl Into<String>) -> RecordStream {
-        let ses = self.session.clone();
-        let query = query.into();
+    pub fn call(&self) -> RecordStream {
+        let ses = self.conn.session.clone();
+        let query = self.query.clone();
+        let op = self.op.clone();
 
         RecordStream(Box::pin(
             futures::stream::once(async move {
                 let mut ses = ses.lock().await;
-                let plan = match ses.prql_to_lp(&query).await {
+
+                let plan_result = match op {
+                    OperationType::Sql | OperationType::Execute => {
+                        ses.create_logical_plan(&query).await
+                    }
+                    OperationType::Prql => ses.prql_to_lp(&query).await,
+                };
+
+                let plan = match plan_result {
                     Ok(p) => p,
                     Err(e) => return Self::handle_error(e),
                 };
+
                 let op = OperationInfo::new().with_query_text(query);
 
                 match ses.execute_logical_plan(plan, &op).await {
@@ -263,7 +308,6 @@ impl Connection {
             .flatten(),
         ))
     }
-
 
     fn handle_error(err: impl Into<DataFusionError>) -> SendableRecordBatchStream {
         Self::process_result(ExecutionResult::Error(err.into()))
@@ -331,22 +375,5 @@ impl Connection {
                 .map_err(DataFusionError::from)
             }),
         ))
-    }
-}
-
-pub struct RecordStream(Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>);
-
-impl From<SendableRecordBatchStream> for RecordStream {
-    fn from(val: SendableRecordBatchStream) -> RecordStream {
-        RecordStream(val.boxed())
-    }
-}
-
-impl From<Result<SendableRecordBatchStream, DataFusionError>> for RecordStream {
-    fn from(val: Result<SendableRecordBatchStream, DataFusionError>) -> RecordStream {
-        match val {
-            Ok(stream) => stream.into(),
-            Err(err) => RecordStream(Connection::handle_error(err).boxed()),
-        }
     }
 }
