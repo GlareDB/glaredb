@@ -31,7 +31,7 @@ mongodb = "2.8.2"
 mysql_async = { version = "0.34.1", default-features = false, features = [
   "default-rustls",
 ] }
-mysql_common = { version = "0.32.1", default-features = false, features = [
+mysql_common = { version = "0.32.2", default-features = false, features = [
   "chrono",
 ] }
 object_store = { workspace = true, features = ["gcp", "aws", "http"] }
