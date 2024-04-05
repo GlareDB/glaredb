@@ -10,7 +10,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 // public re-export so downstream users of this package don't have to
 // directly depend on DF (and our version no-less) to use our interfaces.
 pub use datafusion::arrow::record_batch::RecordBatch;
-pub use datafusion::error::DataFusionError;
+use datafusion::error::DataFusionError;
 use datafusion::logical_expr::LogicalPlan;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 pub use datafusion::physical_plan::SendableRecordBatchStream;
@@ -18,7 +18,6 @@ use derive_builder::Builder;
 use futures::lock::Mutex;
 use futures::stream::{Stream, StreamExt};
 use sqlexec::engine::{Engine, EngineBackend, TrackedSession};
-use sqlexec::environment::EnvironmentReader;
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClientType;
 use sqlexec::session::ExecutionResult;
@@ -28,16 +27,16 @@ use url::Url;
 
 #[derive(Default, Builder)]
 pub struct ConnectOptions {
-    #[builder(setter(into))]
+    #[builder(setter(into, strip_option))]
     pub connection_target: Option<String>,
-    #[builder(setter(into))]
+    #[builder(setter(into, strip_option))]
     pub location: Option<String>,
-    #[builder(setter(into))]
+    #[builder(setter(into, strip_option))]
     pub spill_path: Option<String>,
-    #[builder(setter(into), default = "HashMap::new()")]
+    #[builder(setter(strip_option))]
     pub storage_options: HashMap<String, String>,
 
-    #[builder(setter(strip_option))]
+    #[builder]
     pub disable_tls: Option<bool>,
     #[builder(default = "Some(\"https://console.glaredb.com\".to_string())")]
     #[builder(setter(into, strip_option))]
@@ -45,12 +44,10 @@ pub struct ConnectOptions {
     #[builder(default = "Some(RemoteClientType::Cli)")]
     #[builder(setter(strip_option))]
     pub client_type: Option<RemoteClientType>,
-    #[builder(setter(strip_option))]
-    pub environment_reader: Option<Arc<Box<dyn EnvironmentReader>>>,
 }
 
 impl ConnectOptionsBuilder {
-    pub fn storage_option(
+    pub fn set_storage_option(
         &mut self,
         key: impl Into<String>,
         value: impl Into<String>,
@@ -61,11 +58,6 @@ impl ConnectOptionsBuilder {
         };
         opts.insert(key.into(), value.into());
         self.storage_options(opts)
-    }
-
-    pub fn set_storage_options(&mut self, opts: Option<HashMap<String, String>>) -> &mut Self {
-        self.storage_options = opts;
-        self
     }
 }
 
@@ -78,12 +70,7 @@ impl ConnectOptions {
         }
     }
 
-    pub fn with_env_reader(&mut self, reader: Arc<Box<dyn EnvironmentReader>>) -> &mut Self {
-        self.environment_reader.replace(reader);
-        self
-    }
-
-    pub async fn connect(&mut self) -> Result<Connection, ExecError> {
+    pub async fn connect(&self) -> Result<Connection, ExecError> {
         let mut engine = Engine::from_backend(self.backend()).await?;
 
         engine = engine.with_spill_path(self.spill_path.clone().map(|p| p.into()))?;
@@ -95,14 +82,10 @@ impl ConnectOptions {
                 self.cloud_url(),
                 self.cloud_addr.clone().unwrap_or_default(),
                 self.disable_tls.unwrap_or_default(),
-                self.client_type.clone().unwrap_or_default(),
+                self.client_type.clone().unwrap(),
                 None,
             )
             .await?;
-
-        if let Some(env_reader) = self.environment_reader.take() {
-            session.register_env_reader(env_reader)
-        }
 
         Ok(Connection {
             session: Arc::new(Mutex::new(session)),
