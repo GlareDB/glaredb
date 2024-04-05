@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use datafusion::arrow::array::RecordBatch;
 use datafusion::arrow::pyarrow::PyArrowType;
 use datafusion::datasource::{MemTable, TableProvider};
-use glaredb::RecordBatch;
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyTuple, PyType};
 use sqlexec::environment::EnvironmentReader;
@@ -165,10 +165,7 @@ fn resolve_pandas(py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvi
     Ok(Some(Arc::new(table) as Arc<dyn TableProvider>))
 }
 
-fn resolve_logical_plan(py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvider>>> {
+fn resolve_logical_plan(_py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvider>>> {
     let exec: PyExecution = var.extract()?;
-
-    Ok(Some(
-        Arc::new(exec.resolve_table(py)?) as Arc<dyn TableProvider>
-    ))
+    Ok(Some(Arc::new(exec) as Arc<dyn TableProvider>))
 }

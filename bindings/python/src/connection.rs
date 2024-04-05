@@ -1,11 +1,11 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
 use crate::error::PyGlareDbError;
-use crate::execution::{OperationType, PyExecution};
+use crate::execution::PyExecution;
 use crate::runtime::wait_for_future;
 
 /// A connected session to a GlareDB database.
@@ -92,23 +92,8 @@ impl Connection {
     /// con.sql('create table my_table (a int)').execute()
     /// ```
     pub fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
-        wait_for_future(py, async move {
-            let stream = self
-                .inner
-                .query(query)
-                .await
-                .map_err(PyGlareDbError::from)?;
-
-            Ok(PyExecution {
-                db: self.clone().to_owned(),
-                query: query.to_owned(),
-                op: OperationType::Sql,
-                schema: stream.schema(),
-                stream: Arc::new(Mutex::new(Some(stream))),
-            })
-        })
+        wait_for_future(py, async move { Ok(self.inner.sql(query).into()) })
     }
-
 
     /// Run a PRQL query against a GlareDB database. Does not change
     /// the state or dialect of the connection object.
@@ -124,21 +109,7 @@ impl Connection {
     /// All operations execute lazily when their results are
     /// processed.
     pub fn prql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
-        wait_for_future(py, async move {
-            let stream = self
-                .inner
-                .prql_query(query)
-                .await
-                .map_err(PyGlareDbError::from)?;
-
-            Ok(PyExecution {
-                db: self.clone().to_owned(),
-                query: query.to_owned(),
-                op: OperationType::Prql,
-                schema: stream.schema(),
-                stream: Arc::new(Mutex::new(Some(stream))),
-            })
-        })
+        wait_for_future(py, async move { Ok(self.inner.prql(query).into()) })
     }
 
     /// Execute a SQL query.
@@ -154,21 +125,7 @@ impl Connection {
     /// con.execute('create table my_table (a int)')
     /// ```
     pub fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
-        wait_for_future(py, async move {
-            let stream = self
-                .inner
-                .execute(query)
-                .await
-                .map_err(PyGlareDbError::from)?;
-
-            Ok(PyExecution {
-                db: self.clone().to_owned(),
-                query: query.to_owned(),
-                op: OperationType::Execute,
-                schema: stream.schema(),
-                stream: Arc::new(Mutex::new(Some(stream))),
-            })
-        })
+        wait_for_future(py, async move { Ok(self.inner.execute(query).into()) })
     }
 
     /// Close the current session.

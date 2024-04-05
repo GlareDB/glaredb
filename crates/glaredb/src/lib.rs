@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use datafusion::arrow::array::{StringArray, UInt64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
@@ -150,6 +152,7 @@ impl Connection {
             op: OperationType::Execute,
             query: query.into(),
             conn: Arc::new(self.clone()),
+            schema: None,
         }
     }
 
@@ -158,6 +161,7 @@ impl Connection {
             op: OperationType::Sql,
             query: query.into(),
             conn: Arc::new(self.clone()),
+            schema: None,
         }
     }
 
@@ -166,11 +170,20 @@ impl Connection {
             op: OperationType::Prql,
             query: query.into(),
             conn: Arc::new(self.clone()),
+            schema: None,
         }
     }
 }
 
 pub struct RecordStream(Pin<Box<dyn Stream<Item = Result<RecordBatch, DataFusionError>> + Send>>);
+
+impl Stream for RecordStream {
+    type Item = Result<RecordBatch, DataFusionError>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.0.poll_next_unpin(cx)
+    }
+}
 
 impl From<SendableRecordBatchStream> for RecordStream {
     fn from(val: SendableRecordBatchStream) -> Self {
@@ -209,15 +222,31 @@ pub struct Operation {
     op: OperationType,
     query: String,
     conn: Arc<Connection>,
+    schema: Option<Arc<Schema>>,
+}
+
+impl Debug for Operation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Operation<{:?}>(\"{:?}\")", self.op, self.query)
+    }
 }
 
 impl Operation {
-    pub async fn execute(&self) -> Result<SendableRecordBatchStream, ExecError> {
+    pub fn schema(&self) -> Option<Arc<Schema>> {
+        self.schema.clone()
+    }
+
+    pub async fn execute(&mut self) -> Result<SendableRecordBatchStream, ExecError> {
         match self.op {
             OperationType::Sql => {
                 let mut ses = self.conn.session.lock().await;
                 let plan = ses.create_logical_plan(&self.query).await?;
                 let op = OperationInfo::new().with_query_text(self.query.clone());
+                let schema = self.schema.insert(
+                    plan.output_schema()
+                        .map(Arc::new)
+                        .unwrap_or_else(|| Arc::new(Schema::empty())),
+                );
 
                 match plan.to_owned().try_into_datafusion_plan()? {
                     LogicalPlan::Dml(_)
@@ -231,7 +260,7 @@ impl Operation {
 
                         Ok(Self::process_result(ExecutionResult::Query {
                             stream: Box::pin(RecordBatchStreamAdapter::new(
-                                Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)),
+                                schema.clone(),
                                 futures::stream::once(async move {
                                     let mut ses = ses_clone.lock().await;
                                     match ses.execute_logical_plan(plan, &op).await {
@@ -249,11 +278,16 @@ impl Operation {
                 let mut ses = self.conn.session.lock().await;
                 let plan = ses.prql_to_lp(&self.query).await?;
                 let op = OperationInfo::new().with_query_text(self.query.clone());
+                let schema = self.schema.insert(
+                    plan.output_schema()
+                        .map(Arc::new)
+                        .unwrap_or_else(|| Arc::new(Schema::empty())),
+                );
 
                 let ses_clone = self.conn.session.clone();
                 Ok(Self::process_result(ExecutionResult::Query {
                     stream: Box::pin(RecordBatchStreamAdapter::new(
-                        Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)),
+                        schema.clone(),
                         futures::stream::once(async move {
                             let mut ses = ses_clone.lock().await;
                             match ses.execute_logical_plan(plan, &op).await {
@@ -269,6 +303,11 @@ impl Operation {
                 let mut ses = self.conn.session.lock().await;
                 let plan = ses.create_logical_plan(&self.query).await?;
                 let op = OperationInfo::new().with_query_text(self.query.clone());
+                let _ = self.schema.insert(
+                    plan.output_schema()
+                        .map(Arc::new)
+                        .unwrap_or_else(|| Arc::new(Schema::empty())),
+                );
 
                 Ok(Self::process_result(
                     ses.execute_logical_plan(plan, &op).await?.1,
@@ -277,32 +316,13 @@ impl Operation {
         }
     }
 
-    pub fn call(&self) -> RecordStream {
-        let ses = self.conn.session.clone();
-        let query = self.query.clone();
-        let op = self.op.clone();
-
+    pub fn call(&mut self) -> RecordStream {
+        let mut op = self.clone();
         RecordStream(Box::pin(
             futures::stream::once(async move {
-                let mut ses = ses.lock().await;
-
-                let plan_result = match op {
-                    OperationType::Sql | OperationType::Execute => {
-                        ses.create_logical_plan(&query).await
-                    }
-                    OperationType::Prql => ses.prql_to_lp(&query).await,
-                };
-
-                let plan = match plan_result {
-                    Ok(p) => p,
-                    Err(e) => return Self::handle_error(e),
-                };
-
-                let op = OperationInfo::new().with_query_text(query);
-
-                match ses.execute_logical_plan(plan, &op).await {
-                    Ok((_, stream)) => Self::process_result(stream),
+                match op.execute().await {
                     Err(err) => Self::handle_error(err),
+                    Ok(stream) => stream,
                 }
             })
             .flatten(),

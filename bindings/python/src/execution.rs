@@ -4,108 +4,50 @@ use std::sync::{Arc, Mutex};
 
 use arrow_util::pretty;
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::datatypes::{Schema, SchemaRef};
 use datafusion::arrow::pyarrow::ToPyArrow;
 use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
 use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::streaming::{PartitionStream, StreamingTableExec};
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use futures::StreamExt;
-use glaredb::{DataFusionError, RecordBatch, SendableRecordBatchStream};
+use glaredb::{DataFusionError, Operation, RecordBatch, SendableRecordBatchStream};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
-use crate::connection::Connection;
 use crate::error::PyGlareDbError;
 use crate::runtime::wait_for_future;
 use crate::util::pyprint;
 
-#[derive(Debug, Clone)]
-pub(crate) enum OperationType {
-    Sql,
-    Prql,
-    Execute,
-}
-
 #[pyclass]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PyExecution {
-    pub(crate) db: Connection,
-    pub(crate) query: String,
-    pub(crate) op: OperationType,
-    pub(crate) schema: SchemaRef,
-    pub(crate) stream: Arc<Mutex<Option<SendableRecordBatchStream>>>,
+    op: Arc<Mutex<Operation>>,
 }
 
-
-impl Debug for PyExecution {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PyExecution({:?}){:?}", self.op, self.schema.clone())
+impl From<Operation> for PyExecution {
+    fn from(op: Operation) -> Self {
+        Self {
+            op: Arc::new(Mutex::new(op)),
+        }
     }
 }
-
-impl PyExecution {
-    pub(crate) fn get_stream(
-        &mut self,
-        py: Python,
-    ) -> Result<SendableRecordBatchStream, PyGlareDbError> {
-        match self.take_stream() {
-            Some(stream) => Ok(stream),
-            None => self.reexec(py),
-        }
-    }
-
-    pub(crate) fn resolve_table(&self, py: Python<'_>) -> PyResult<PyTable> {
-        let stream = self.stream.lock().unwrap();
-        if stream.is_some() {
-            Ok(PyTable {
-                inner: Arc::new(Mutex::new(self.clone())),
-                schema: self.schema.clone(),
-            })
-        } else {
-            let mut exec = self.clone();
-            exec.stream = Arc::new(Mutex::new(Some(exec.reexec(py)?)));
-            Ok(PyTable {
-                inner: Arc::new(Mutex::new(exec)),
-                schema: self.schema.clone(),
-            })
-        }
-    }
-
-    fn reexec(&mut self, py: Python<'_>) -> Result<SendableRecordBatchStream, PyGlareDbError> {
-        match self.op {
-            OperationType::Sql => self.db.sql(py, &self.query)?.resolve_stream(),
-            OperationType::Prql => self.db.prql(py, &self.query)?.resolve_stream(),
-            OperationType::Execute => self.db.execute(py, &self.query)?.resolve_stream(),
-        }
-    }
-
-    fn resolve_stream(&self) -> Result<SendableRecordBatchStream, PyGlareDbError> {
-        self.take_stream()
-            .map(Ok)
-            .unwrap_or_else(|| Err(PyGlareDbError::new("data is not accessible")))
-    }
-
-    fn take_stream(&self) -> Option<SendableRecordBatchStream> {
-        self.stream.clone().lock().unwrap().take()
-    }
-}
-
 
 #[pymethods]
 impl PyExecution {
     fn __repr__(&self) -> PyResult<String> {
-        Ok(format!("PyExecution{:#?}", self.schema))
+        Ok(format!("PyExecution{:#?}", self.op))
     }
 
     /// Convert to Arrow Table
     /// Collect the batches and pass to Arrow Table
     pub fn to_arrow(&mut self, py: Python) -> PyResult<PyObject> {
-        let (batches, schema) = self.get_batches_and_schema(py)?;
+        let (schema, batches) = self.get_schema_and_batches(py)?;
 
         Python::with_gil(|py| {
             // Instantiate pyarrow Table object and use its from_batches method
@@ -117,7 +59,7 @@ impl PyExecution {
     }
 
     pub fn to_polars(&mut self, py: Python) -> PyResult<PyObject> {
-        let (batches, schema) = self.get_batches_and_schema(py)?;
+        let (schema, batches) = self.get_schema_and_batches(py)?;
 
         Python::with_gil(|py| {
             let table_class = py.import("pyarrow")?.getattr("Table")?;
@@ -132,7 +74,7 @@ impl PyExecution {
     }
 
     pub fn to_pandas(&mut self, py: Python) -> PyResult<PyObject> {
-        let (batches, schema) = self.get_batches_and_schema(py)?;
+        let (schema, batches) = self.get_schema_and_batches(py)?;
 
         Python::with_gil(|py| {
             let table_class = py.import("pyarrow")?.getattr("Table")?;
@@ -144,8 +86,9 @@ impl PyExecution {
         })
     }
 
-    pub fn execute(&mut self, py: Python) -> PyResult<()> {
-        let mut stream = self.clone().get_stream(py)?;
+    pub fn execute(&self, py: Python) -> PyResult<()> {
+        let mut stream = self.op.lock().unwrap().call();
+
         wait_for_future(py, async move {
             while let Some(r) = stream.next().await {
                 let _ = r?;
@@ -155,17 +98,10 @@ impl PyExecution {
     }
 
     pub fn show(&mut self, py: Python) -> PyResult<()> {
-        let mut stream = self.clone().get_stream(py)?;
-        let batches = wait_for_future(py, async move {
-            let mut out = Vec::new();
-            while let Some(batch) = stream.next().await {
-                out.push(batch?)
-            }
-            Ok::<Vec<RecordBatch>, PyGlareDbError>(out)
-        })?;
+        let (schema, batches) = self.resovle_operation(py)?;
 
         let disp = pretty::pretty_format_batches(
-            &self.schema.clone(),
+            &schema,
             &batches,
             Some(terminal_util::term_width()),
             None,
@@ -176,46 +112,62 @@ impl PyExecution {
 
         Ok(())
     }
+}
 
-    fn get_batches_and_schema(&self, py: Python) -> PyResult<(PyObject, PyObject)> {
-        let stream = self.clone().get_stream(py)?;
-        let batches: Vec<RecordBatch> = wait_for_future(py, async move {
-            stream
-                .collect::<Vec<Result<RecordBatch, DataFusionError>>>()
-                .await
-                .into_iter()
-                .collect::<Result<Vec<RecordBatch>, DataFusionError>>()
-                .map_err(PyGlareDbError::from)
-        })?;
+impl PyExecution {
+    fn get_schema_and_batches(&self, py: Python) -> PyResult<(PyObject, PyObject)> {
+        let (schema, batches) = self.resovle_operation(py)?;
+
         let batches = batches
             .into_iter()
             .map(|rb| rb.to_pyarrow(py))
-            .collect::<Result<Vec<_>, _>>()?
-            .to_object(py);
+            .collect::<Result<Vec<_>, _>>()?;
 
-        let schema = self.schema.clone().to_pyarrow(py)?;
-
-        Ok((batches, schema))
+        Ok((schema.to_pyarrow(py)?, batches.to_object(py)))
     }
-}
 
+    fn resovle_operation(
+        &self,
+        py: Python,
+    ) -> Result<(Arc<Schema>, Vec<RecordBatch>), PyGlareDbError> {
+        let batches = self.resolve_batches(py)?;
 
-#[pyclass]
-pub(crate) struct PyTable {
-    schema: SchemaRef,
-    inner: Arc<Mutex<PyExecution>>,
+        let schema = if batches.is_empty() {
+            Arc::new(Schema::empty())
+        } else {
+            batches.get(0).unwrap().schema()
+        };
+
+        Ok((schema, batches))
+    }
+
+    fn resolve_batches(&self, py: Python) -> Result<Vec<RecordBatch>, PyGlareDbError> {
+        let mut stream = self.op.lock().unwrap().call();
+
+        wait_for_future(py, async move {
+            let mut out = Vec::new();
+            while let Some(batch) = stream.next().await {
+                out.push(batch?)
+            }
+            Ok(out)
+        })
+    }
 }
 
 
 // just a wrapper around the stream so that we can compose multiple subqueries
 #[async_trait]
-impl TableProvider for PyTable {
+impl TableProvider for PyExecution {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        self.op
+            .lock()
+            .unwrap()
+            .schema()
+            .expect("table must be resolved before use")
     }
 
     fn table_type(&self) -> TableType {
@@ -236,11 +188,13 @@ impl TableProvider for PyTable {
         _filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        let op = self.op.lock().unwrap();
+        let schema = op.schema().expect("table must be resolved");
         Ok(Arc::new(StreamingTableExec::try_new(
-            self.schema.clone(),
+            schema.clone(),
             vec![Arc::new(PyPartition {
-                schema: self.schema.clone(),
-                exec: self.inner.clone(),
+                schema: schema.clone(),
+                exec: self.op.clone(),
             })],
             projection,
             None,
@@ -251,7 +205,7 @@ impl TableProvider for PyTable {
 
 struct PyPartition {
     schema: SchemaRef,
-    exec: Arc<Mutex<PyExecution>>,
+    exec: Arc<Mutex<Operation>>,
 }
 
 impl PartitionStream for PyPartition {
@@ -260,6 +214,11 @@ impl PartitionStream for PyPartition {
     }
 
     fn execute(&self, _ctx: Arc<TaskContext>) -> SendableRecordBatchStream {
-        self.exec.lock().unwrap().take_stream().unwrap()
+        let mut op = self.exec.lock().unwrap();
+
+        Box::pin(RecordBatchStreamAdapter::new(
+            self.schema.clone(),
+            op.call(),
+        ))
     }
 }
