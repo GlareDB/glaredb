@@ -13,6 +13,6 @@ def test_compose():
         out_1 = intermediate.to_arrow().to_pydict()
         expected = {"a": [3, 5], "b": [4, 6]}
         assert out_1 == expected
-        out_2  = con.sql("select * from intermediate where b > 4;").to_arrow().to_pydict()
+        out_2 = con.sql("select * from intermediate where b > 4;").to_arrow().to_pydict()
         expected = {"a": [5], "b": [6]}
         assert out_2 == expected
