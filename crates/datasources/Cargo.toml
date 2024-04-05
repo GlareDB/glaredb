@@ -17,7 +17,7 @@ bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch
 bitvec = "1"
 bytes = "1.6.0"
 chrono = { workspace = true }
-chrono-tz = "0.8.6"
+chrono-tz = "0.9.0"
 datafusion = { workspace = true }
 decimal = { path = "../decimal" }
 deltalake = { workspace = true }
