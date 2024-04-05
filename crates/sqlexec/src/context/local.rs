@@ -73,7 +73,7 @@ pub struct LocalSessionContext {
     /// Datafusion session context used for planning and execution.
     df_ctx: DfSessionContext,
     /// Read tables from the environment.
-    env_reader: Option<Box<dyn EnvironmentReader>>,
+    env_reader: Option<Arc<Box<dyn EnvironmentReader>>>,
     /// Task scheduler.
     task_scheduler: Scheduler,
     /// Notices that should be sent to the user.
@@ -217,12 +217,12 @@ impl LocalSessionContext {
         Ok(())
     }
 
-    pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
+    pub fn register_env_reader(&mut self, env_reader: Arc<Box<dyn EnvironmentReader>>) {
         self.env_reader = Some(env_reader);
     }
 
-    pub fn get_env_reader(&self) -> Option<&dyn EnvironmentReader> {
-        self.env_reader.as_deref()
+    pub fn get_env_reader(&self) -> Option<Arc<Box<dyn EnvironmentReader>>> {
+        self.env_reader.clone()
     }
 
     pub fn get_metrics_handler(&self) -> SessionMetricsHandler {
