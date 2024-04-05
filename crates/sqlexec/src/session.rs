@@ -466,7 +466,7 @@ impl Session {
         self.ctx.get_session_catalog()
     }
 
-    pub fn register_env_reader(&mut self, env_reader: Arc<Box<dyn EnvironmentReader>>) {
+    pub fn register_env_reader(&mut self, env_reader: Option<Arc<Box<dyn EnvironmentReader>>>) {
         self.ctx.register_env_reader(env_reader);
     }
 

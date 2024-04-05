@@ -79,11 +79,11 @@ impl ConnectOptions {
     }
 
     pub fn with_env_reader(&mut self, reader: Arc<Box<dyn EnvironmentReader>>) -> &mut Self {
-        self.environment_reader.replace(reader);
+        self.environment_reader = Some(reader);
         self
     }
 
-    pub async fn connect(&mut self) -> Result<Connection, ExecError> {
+    pub async fn connect(&self) -> Result<Connection, ExecError> {
         let mut engine = Engine::from_backend(self.backend()).await?;
 
         engine = engine.with_spill_path(self.spill_path.clone().map(|p| p.into()))?;
@@ -99,10 +99,7 @@ impl ConnectOptions {
                 None,
             )
             .await?;
-
-        if let Some(env_reader) = self.environment_reader.take() {
-            session.register_env_reader(env_reader)
-        }
+        session.register_env_reader(self.environment_reader.clone());
 
         Ok(Connection {
             session: Arc::new(Mutex::new(session)),

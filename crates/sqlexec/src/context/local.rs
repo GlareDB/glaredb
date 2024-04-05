@@ -217,8 +217,8 @@ impl LocalSessionContext {
         Ok(())
     }
 
-    pub fn register_env_reader(&mut self, env_reader: Arc<Box<dyn EnvironmentReader>>) {
-        self.env_reader = Some(env_reader);
+    pub fn register_env_reader(&mut self, reader: Option<Arc<Box<dyn EnvironmentReader>>>) {
+        self.env_reader = reader;
     }
 
     pub fn get_env_reader(&self) -> Option<Arc<Box<dyn EnvironmentReader>>> {

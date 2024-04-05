@@ -4,6 +4,7 @@ use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
+use crate::environment::PyEnvironmentReader;
 use crate::error::PyGlareDbError;
 use crate::execution::PyExecution;
 use crate::runtime::wait_for_future;
@@ -26,7 +27,12 @@ impl Connection {
         let con = DEFAULT_CON.get_or_try_init(|| {
             wait_for_future(py, async move {
                 Ok(Connection {
-                    inner: Arc::new(glaredb::ConnectOptions::new_in_memory().connect().await?),
+                    inner: Arc::new(
+                        glaredb::ConnectOptions::new_in_memory()
+                            .with_env_reader(Arc::new(Box::new(PyEnvironmentReader)))
+                            .connect()
+                            .await?,
+                    ),
                 }) as Result<_, PyGlareDbError>
             })
         })?;
@@ -92,7 +98,11 @@ impl Connection {
     /// con.sql('create table my_table (a int)').execute()
     /// ```
     pub fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
-        wait_for_future(py, async move { Ok(self.inner.sql(query).into()) })
+        wait_for_future(py, async move {
+            let mut op = self.inner.sql(query);
+            op.execute().await.map_err(PyGlareDbError::from)?;
+            Ok(op.into())
+        })
     }
 
     /// Run a PRQL query against a GlareDB database. Does not change
@@ -109,7 +119,11 @@ impl Connection {
     /// All operations execute lazily when their results are
     /// processed.
     pub fn prql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
-        wait_for_future(py, async move { Ok(self.inner.prql(query).into()) })
+        wait_for_future(py, async move {
+            let mut op = self.inner.prql(query);
+            op.execute().await.map_err(PyGlareDbError::from)?;
+            Ok(op.into())
+        })
     }
 
     /// Execute a SQL query.
@@ -125,12 +139,19 @@ impl Connection {
     /// con.execute('create table my_table (a int)')
     /// ```
     pub fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
-        wait_for_future(py, async move { Ok(self.inner.execute(query).into()) })
+        wait_for_future(py, async move {
+            let mut op = self.inner.execute(query);
+            op.execute().await.map_err(PyGlareDbError::from)?;
+            Ok(op.into())
+        })
     }
 
     /// Close the current session.
     pub fn close(&mut self, _py: Python<'_>) -> PyResult<()> {
         // TODO: Remove this method. No longer required.
+        //
+        // could we use this method to clear the environment/in memory
+        // database?
         Ok(())
     }
 }
