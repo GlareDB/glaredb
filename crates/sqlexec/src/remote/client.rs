@@ -127,13 +127,22 @@ pub enum RemoteClientType {
     Cli,
     Node,
     Python,
+    Rust,
 }
+
+impl Default for RemoteClientType {
+    fn default() -> Self {
+        Self::Rust
+    }
+}
+
 impl fmt::Display for RemoteClientType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RemoteClientType::Cli => write!(f, "cli"),
             RemoteClientType::Node => write!(f, "node"),
             RemoteClientType::Python => write!(f, "python"),
+            RemoteClientType::Rust => write!(f, "rust"),
         }
     }
 }
