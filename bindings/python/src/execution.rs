@@ -135,7 +135,7 @@ impl PyExecution {
         let schema = if batches.is_empty() {
             Arc::new(Schema::empty())
         } else {
-            batches.get(0).unwrap().schema()
+            batches.first().unwrap().schema()
         };
 
         Ok((schema, batches))
