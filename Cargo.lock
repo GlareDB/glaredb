@@ -265,7 +265,7 @@ dependencies = [
  "arrow-data",
  "arrow-schema",
  "chrono",
- "chrono-tz",
+ "chrono-tz 0.8.6",
  "half",
  "hashbrown 0.14.2",
  "num",
@@ -1521,7 +1521,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d59ae0466b83e838b81a54256c39d5d7c20b9d7daa10510a242d9b75abd5936e"
 dependencies = [
  "chrono",
- "chrono-tz-build",
+ "chrono-tz-build 0.2.1",
+ "phf",
+]
+
+[[package]]
+name = "chrono-tz"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93698b29de5e97ad0ae26447b344c482a7284c737d9ddc5f9e52b74a336671bb"
+dependencies = [
+ "chrono",
+ "chrono-tz-build 0.3.0",
  "phf",
 ]
 
@@ -1530,6 +1541,17 @@ name = "chrono-tz-build"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "433e39f13c9a060046954e0592a8d0a4bcb1040125cbf91cb8ee58964cfb350f"
+dependencies = [
+ "parse-zoneinfo",
+ "phf",
+ "phf_codegen",
+]
+
+[[package]]
+name = "chrono-tz-build"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c088aee841df9c3041febbb73934cfc39708749bf96dc827e3359cd39ef11b1"
 dependencies = [
  "parse-zoneinfo",
  "phf",
@@ -2512,7 +2534,7 @@ dependencies = [
  "bytes",
  "calamine",
  "chrono",
- "chrono-tz",
+ "chrono-tz 0.9.0",
  "datafusion",
  "datafusion_ext",
  "decimal",
@@ -4165,7 +4187,7 @@ checksum = "e59783d301f980e8f23877a39471fd2a43931a840222e2386513e513847fa742"
 dependencies = [
  "async-trait",
  "chrono",
- "chrono-tz",
+ "chrono-tz 0.8.6",
  "cityhash-rs",
  "compiler-tools",
  "compiler-tools-derive",
@@ -5854,7 +5876,7 @@ version = "0.9.2"
 dependencies = [
  "bytes",
  "chrono",
- "chrono-tz",
+ "chrono-tz 0.9.0",
  "const_format",
  "datafusion",
  "decimal",
