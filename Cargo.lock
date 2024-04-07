@@ -3213,13 +3213,13 @@ checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
 
 [[package]]
 name = "fd-lock"
-version = "3.0.13"
+version = "4.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef033ed5e9bad94e55838ca0ca906db0e043f517adda0c8b79c7a8c66c93c1b5"
+checksum = "7e5768da2206272c81ef0b5e951a41862938a6070da63bcea197899942d3b947"
 dependencies = [
  "cfg-if",
  "rustix",
- "windows-sys 0.48.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6632,9 +6632,9 @@ dependencies = [
 
 [[package]]
 name = "reedline"
-version = "0.30.0"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413a9fa6a5d8c937d3ae1e975bfb6a918bb0b6cdfae6a10416218c837a31b8fc"
+checksum = "65ebc241ed0ccea0bbbd775a55a76f0dd9971ef084589dea938751a03ffedc14"
 dependencies = [
  "chrono",
  "crossterm",
@@ -6643,8 +6643,8 @@ dependencies = [
  "nu-ansi-term 0.50.0",
  "serde",
  "strip-ansi-escapes",
- "strum 0.25.0",
- "strum_macros 0.25.3",
+ "strum 0.26.1",
+ "strum_macros 0.26.1",
  "thiserror",
  "unicode-segmentation",
  "unicode-width",
