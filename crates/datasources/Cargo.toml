@@ -22,7 +22,7 @@ datafusion = { workspace = true }
 decimal = { path = "../decimal" }
 deltalake = { workspace = true }
 futures = { workspace = true }
-gcp-bigquery-client = "0.18.0"
+gcp-bigquery-client = "0.18.1"
 klickhouse = { version = "0.11.2", features = ["tls"] }
 protogen = { path = "../protogen" }
 parser = {path = "../parser"}
