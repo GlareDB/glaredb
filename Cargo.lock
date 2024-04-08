@@ -6804,8 +6804,8 @@ dependencies = [
  "nu-ansi-term 0.50.0",
  "serde",
  "strip-ansi-escapes",
- "strum 0.26.1",
- "strum_macros 0.26.1",
+ "strum 0.26.2",
+ "strum_macros 0.26.2",
  "thiserror",
  "unicode-segmentation",
  "unicode-width",
@@ -9411,15 +9411,6 @@ checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 [[package]]
 name = "wasite"
 version = "0.1.0"
-<<<<<<< HEAD
-=======
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8dad83b4f25e74f184f64c43b150b91efe7647395b42289f38e50566d82855b"
-
-[[package]]
-name = "wasm-bindgen"
-version = "0.2.87"
->>>>>>> a2c69e723133f0eab013d9cfe78a905f04f6618a
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8dad83b4f25e74f184f64c43b150b91efe7647395b42289f38e50566d82855b"
 
@@ -9565,7 +9556,7 @@ version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a44ab49fad634e88f55bf8f9bb3abd2f27d7204172a112c7c9987e01c1c94ea9"
 dependencies = [
- "redox_syscall 0.4.1",
+ "redox_syscall",
  "wasite",
  "web-sys",
 ]
