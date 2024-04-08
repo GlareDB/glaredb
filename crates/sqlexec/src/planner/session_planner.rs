@@ -820,7 +820,6 @@ impl<'a> SessionPlanner<'a> {
                 opts.inner
                     .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
 
-
                 TableOptionsV0::Azure(TableOptionsObjectStore {
                     name: None,
                     location: source_url,
@@ -969,7 +968,6 @@ impl<'a> SessionPlanner<'a> {
             })?;
         }
 
-
         let schema = stmt
             .columns
             .map(|columns| {
@@ -1005,7 +1003,6 @@ impl<'a> SessionPlanner<'a> {
         let external_table_options = self
             .get_tbl_opts_from_v0(datasource.as_str(), m, creds_options, tunnel_options)
             .await?;
-
 
         let table_name = object_name_to_table_ref(stmt.name)?;
 
@@ -1298,13 +1295,13 @@ impl<'a> SessionPlanner<'a> {
                 name,
                 columns,
                 query,
-                with_options,
+                options,
                 ..
             } => {
                 validate_object_name(&name)?;
                 let name = object_name_to_table_ref(name)?;
 
-                if !with_options.is_empty() {
+                if !matches!(options, ast::CreateTableOptions::None) {
                     return Err(PlanError::UnsupportedFeature("view options"));
                 }
 
@@ -1324,7 +1321,10 @@ impl<'a> SessionPlanner<'a> {
                 let mut planner = SqlQueryPlanner::new(&mut context_provider);
                 let input = planner.query_to_plan(*query).await?;
 
-                let columns: Vec<_> = columns.into_iter().map(normalize_ident).collect();
+                let columns: Vec<_> = columns
+                    .into_iter()
+                    .map(|col| normalize_ident(col.name))
+                    .collect();
                 // Only validate number of aliases equals number of fields in
                 // the ouput if aliases were actually provided.
                 if !columns.is_empty() && input.schema().fields().len() != columns.len() {
@@ -1356,6 +1356,7 @@ impl<'a> SessionPlanner<'a> {
                 on: None,
                 returning: None,
                 ignore: _,
+                ..
             } if after_columns.is_empty() => {
                 let source = source.ok_or(PlanError::InvalidInsertStatement {
                     msg: "Nothing to insert: source empty",
@@ -2355,7 +2356,10 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
             | ast::DataType::BigNumeric(_)
             | ast::DataType::BigDecimal(_)
             | ast::DataType::Struct(_)
-            | ast::DataType::Clob(_) => Err(internal!(
+            | ast::DataType::Clob(_)
+            | ast::DataType::JSONB
+            | ast::DataType::Unspecified
+            => Err(internal!(
                 "Unsupported SQL type {:?}",
                 sql_type
             )),
