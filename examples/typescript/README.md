@@ -36,5 +36,5 @@ For more information on installing `glaredb` locally, see: [Trying GlareDB local
 For more information on our cloud offering, see: [Getting Started].
 
 [Node.js installed]: https://nodejs.org/
-[Trying GlareDB locally]: https://docs.glaredb.com/glaredb/local/
-[Getting Started]: https://docs.glaredb.com/docs/about/getting-started.html#glaredb-cloud
+[Trying GlareDB locally]: https://docs.glaredb.com/introduction/locally-cli.html
+[Getting Started]: https://docs.glaredb.com/introduction/sign-up-for-cloud.html

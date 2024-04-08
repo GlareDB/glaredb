@@ -7,7 +7,7 @@ async function main() {
   //
   // For more information on connection strings for our Cloud offering, see:
   //
-  //     <https://docs.glaredb.com/cloud/access/connection-details/>
+  //     <https://docs.glaredb.com/cloud/deployments.html#connecting-to-deployments>
   //
   // An example connection string might look like:
   //
