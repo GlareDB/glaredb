@@ -629,13 +629,13 @@ impl<'a> CustomParser<'a> {
             self.parser.expect_token(&Token::RParen)?;
             CopyToSource::Query(query)
         } else {
-            let table_name = self.parser.parse_object_name()?;
+            let table_name = self.parser.parse_object_name(false)?;
             CopyToSource::Table(table_name)
         };
 
         // TO 'source'
         self.parser.expect_keyword(Keyword::TO)?;
-        let dest = self.parser.parse_identifier()?;
+        let dest = self.parser.parse_identifier(false)?;
 
         // [FORMAT ..]
         let format = self.parse_data_format()?;
@@ -670,7 +670,7 @@ impl<'a> CustomParser<'a> {
         let if_not_exists =
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
-        let name = self.parser.parse_object_name()?;
+        let name = self.parser.parse_object_name(false)?;
         validate_object_name(&name)?;
 
         // FROM datasource
@@ -733,7 +733,7 @@ impl<'a> CustomParser<'a> {
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
 
-        let name = self.parser.parse_identifier()?;
+        let name = self.parser.parse_identifier(false)?;
         validate_ident(&name)?;
 
         // FROM datasource
@@ -767,7 +767,7 @@ impl<'a> CustomParser<'a> {
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
 
-        let name = self.parser.parse_identifier()?;
+        let name = self.parser.parse_identifier(false)?;
         validate_ident(&name)?;
 
         // FROM tunnel
@@ -790,7 +790,7 @@ impl<'a> CustomParser<'a> {
         deprecated: bool,
         or_replace: bool,
     ) -> Result<StatementWithExtensions, ParserError> {
-        let name = self.parser.parse_identifier()?;
+        let name = self.parser.parse_identifier(false)?;
         validate_ident(&name)?;
 
         // PROVIDER credentials
@@ -830,7 +830,7 @@ impl<'a> CustomParser<'a> {
     /// Example: `TUNNEL xyz`...
     fn parse_optional_ref(&mut self, k: &str) -> Result<Option<Ident>, ParserError> {
         let opt = if self.consume_token(&Token::make_keyword(k)) {
-            let opt = self.parser.parse_identifier()?;
+            let opt = self.parser.parse_identifier(false)?;
             validate_ident(&opt)?;
             Some(opt)
         } else {
@@ -886,7 +886,7 @@ impl<'a> CustomParser<'a> {
 
             // TODO: Keep the options "key" as identifier so later we can
             // normalize it.
-            let key = self.parser.parse_identifier()?.value;
+            let key = self.parser.parse_identifier(false)?.value;
 
             // Optional `=`
             let _ = self.parser.consume_token(&Token::Eq);
@@ -912,7 +912,7 @@ impl<'a> CustomParser<'a> {
 
     fn parse_options_value(&mut self) -> Result<OptionValue, ParserError> {
         let opt_val = if self.consume_token(&Token::make_keyword("SECRET")) {
-            OptionValue::Secret(self.parser.parse_identifier()?.value)
+            OptionValue::Secret(self.parser.parse_identifier(false)?.value)
         } else {
             let tok = self.parser.next_token();
             match tok.token {
@@ -983,7 +983,7 @@ impl<'a> CustomParser<'a> {
 
         let names = self
             .parser
-            .parse_comma_separated(Parser::parse_identifier)?;
+            .parse_comma_separated(|parser| parser.parse_identifier(false))?;
 
         for name in names.iter() {
             validate_ident(name)?;
@@ -1000,7 +1000,7 @@ impl<'a> CustomParser<'a> {
 
         let names = self
             .parser
-            .parse_comma_separated(Parser::parse_identifier)?;
+            .parse_comma_separated(|parser| parser.parse_identifier(false))?;
 
         for name in names.iter() {
             validate_ident(name)?;
@@ -1017,7 +1017,7 @@ impl<'a> CustomParser<'a> {
 
         let names = self
             .parser
-            .parse_comma_separated(Parser::parse_identifier)?;
+            .parse_comma_separated(|parser| parser.parse_identifier(false))?;
 
         for name in names.iter() {
             validate_ident(name)?;
@@ -1029,18 +1029,18 @@ impl<'a> CustomParser<'a> {
     }
 
     fn parse_alter_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
-        let name = self.parser.parse_identifier()?;
+        let name = self.parser.parse_identifier(false)?;
         validate_ident(&name)?;
 
         let operation = if self.parser.parse_keywords(&[Keyword::RENAME, Keyword::TO]) {
-            let new_name = self.parser.parse_identifier()?;
+            let new_name = self.parser.parse_identifier(false)?;
             validate_ident(&new_name)?;
             AlterDatabaseOperation::RenameDatabase { new_name }
         } else if self.parser.parse_keyword(Keyword::SET) {
             self.expect_token(&Token::make_keyword("ACCESS_MODE"))?;
             self.expect_token(&Token::make_keyword("TO"))?;
 
-            let access_mode = self.parser.parse_identifier()?;
+            let access_mode = self.parser.parse_identifier(false)?;
             AlterDatabaseOperation::SetAccessMode { access_mode }
         } else {
             return self.expected(
@@ -1058,13 +1058,13 @@ impl<'a> CustomParser<'a> {
     fn parse_alter_table(&mut self) -> Result<StatementWithExtensions, ParserError> {
         let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
         let only = self.parser.parse_keyword(Keyword::ONLY);
-        let name = self.parser.parse_object_name()?;
+        let name = self.parser.parse_object_name(false)?;
 
         let operation = if self.parser.parse_keyword(Keyword::SET) {
             self.expect_token(&Token::make_keyword("ACCESS_MODE"))?;
             self.expect_token(&Token::make_keyword("TO"))?;
 
-            let access_mode = self.parser.parse_identifier()?;
+            let access_mode = self.parser.parse_identifier(false)?;
             AlterTableOperationExtension::SetAccessMode { access_mode }
         } else {
             let operations = self
@@ -1088,7 +1088,7 @@ impl<'a> CustomParser<'a> {
     fn parse_alter_tunnel(&mut self) -> Result<StatementWithExtensions, ParserError> {
         let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
 
-        let name = self.parser.parse_identifier()?;
+        let name = self.parser.parse_identifier(false)?;
         validate_ident(&name)?;
 
         let mut action = None;
