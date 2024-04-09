@@ -5,8 +5,8 @@
 //! The GlareDB Rust SDK is a set of high-level wrappers for a GlareDB
 //! instance as either a client or an embedded database. The
 //! implementation primarily underpins the implementations of the
-//! Python and Node.JS bindings, but may be used/useful directly for
-//! testing GlareDB from within Rust tests, and even inside of rust
+//! Python and Node.js bindings, but may be used/useful directly for
+//! testing GlareDB from within Rust tests, and even inside of Rust
 //! applications or to produce other bindings.
 
 use std::collections::HashMap;
@@ -36,7 +36,7 @@ use sqlexec::session::ExecutionResult;
 use sqlexec::OperationInfo;
 use url::Url;
 
-/// ConnectionOptions are the set of options to configure a GlareDB
+/// ConnectOptions are the set of options to configure a GlareDB
 /// instance, and are an analogue to the commandline arguments to
 /// produce a "running database". The ConnectOptionsBuilder provides a
 /// chainable interface to construct these values and produce as
@@ -77,13 +77,13 @@ pub struct ConnectOptions {
     pub storage_options: HashMap<String, String>,
 
     /// By default, the client will connect to the GlareDB service
-    /// using TLS. When this option is specified (and true), the this
+    /// using TLS. When this option is specified (and true), then this
     /// GlareDB instance will establish an insecure connection. Use for
     /// testing and development.
     #[builder(setter(strip_option))]
     pub disable_tls: Option<bool>,
-    /// Location of the GlareDB clout instance used by GlareDB
-    /// negotiate out-of-band certificate provisioning.
+    /// Location of the GlareDB cloud instance used by GlareDB
+    /// to negotiate out-of-band certificate provisioning.
     #[builder(default = "Some(\"https://console.glaredb.com\".to_string())")]
     #[builder(setter(into, strip_option))]
     pub cloud_addr: Option<String>,
@@ -103,7 +103,7 @@ pub struct ConnectOptions {
 impl ConnectOptionsBuilder {
     /// Adds a single option (key/value pair) to the builder for the
     /// storage options map. All keys must be unique, and setting the
-    /// same otpion more than once.
+    /// same option more than once.
     pub fn storage_option(
         &mut self,
         key: impl Into<String>,
@@ -329,7 +329,7 @@ impl Operation {
         self.schema.clone()
     }
 
-    /// Executes the query, according the semantics of the operation's
+    /// Executes the query, according to the semantics of the operation's
     /// type. Returns an error if there was a problem parsing the
     /// query or creating a stream. Operations created with
     /// `execute()` run when this `execute()` method runs. For
