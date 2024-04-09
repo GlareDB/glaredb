@@ -70,14 +70,6 @@ impl ConnectOptionsBuilder {
 }
 
 impl ConnectOptions {
-    pub fn new_in_memory() -> Self {
-        Self {
-            location: None,
-            connection_target: None,
-            ..Default::default()
-        }
-    }
-
     pub async fn connect(self) -> Result<Connection, ExecError> {
         let mut engine = Engine::from_storage(self.backend()).await?;
 
