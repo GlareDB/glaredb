@@ -9,7 +9,7 @@ use datafusion::arrow::array::{ArrayRef, BooleanArray, Date64Array, PrimitiveArr
 use datafusion::arrow::datatypes::{DataType, Field, Float64Type, Int64Type, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::MemTable;
-use object_store::ObjectStore;
+use object_store::{ObjectMeta, ObjectStore};
 
 use crate::common::url::DatasourceUrl;
 use crate::object_store::{ObjStoreAccess, ObjStoreAccessor};
@@ -52,7 +52,7 @@ impl ExcelTable {
             DatasourceUrl::Url(_) => {
                 let accessor = ObjStoreAccessor::new(store_access)?;
 
-                let list = accessor.list_globbed(source_url.path()).await?;
+                let mut list = accessor.list_globbed(source_url.path()).await?;
                 if list.is_empty() {
                     return Err(ExcelError::Load(
                         "could not find .xlsx file at remote".to_string(),
@@ -63,30 +63,36 @@ impl ExcelTable {
                     ));
                 };
 
-                let meta = list.first().expect("remote file has a sheet");
-                let bs = accessor
-                    .into_object_store()
-                    .get(&meta.location)
-                    .await?
-                    .bytes()
-                    .await?;
+                let meta = list.pop().expect("remote file has a sheet");
+                let store = accessor.into_object_store();
 
-                let buffer = Cursor::new(bs);
-                let mut sheets: Sheets<_> = calamine::open_workbook_auto_from_rs(buffer).unwrap();
-
-                let first_sheet = sheet_name.map(Cow::Borrowed).unwrap_or_else(|| {
-                    let sheets = sheets.sheet_names();
-                    let first = sheets.first().unwrap();
-                    Cow::Owned(first.clone())
-                });
-
-                Ok(ExcelTable {
-                    cell_range: sheets.worksheet_range(&first_sheet).unwrap(),
-                    has_header,
-                })
+                excel_table_from_object(store.as_ref(), meta, sheet_name, has_header).await
             }
         }
     }
+}
+
+pub async fn excel_table_from_object(
+    store: &dyn ObjectStore,
+    meta: ObjectMeta,
+    sheet_name: Option<&str>,
+    has_header: bool,
+) -> Result<ExcelTable, ExcelError> {
+    let bs = store.get(&meta.location).await?.bytes().await?;
+
+    let buffer = Cursor::new(bs);
+    let mut sheets: Sheets<_> = calamine::open_workbook_auto_from_rs(buffer).unwrap();
+
+    let first_sheet = sheet_name.map(Cow::Borrowed).unwrap_or_else(|| {
+        let sheets = sheets.sheet_names();
+        let first = sheets.first().unwrap();
+        Cow::Owned(first.clone())
+    });
+
+    Ok(ExcelTable {
+        cell_range: sheets.worksheet_range(&first_sheet).unwrap(),
+        has_header,
+    })
 }
 
 pub async fn read_excel_impl(

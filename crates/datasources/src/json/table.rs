@@ -5,7 +5,7 @@ use datafusion::arrow::datatypes::{DataType, Field, FieldRef, Schema};
 use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
 use datafusion::physical_plan::streaming::PartitionStream;
-use object_store::ObjectStore;
+use object_store::{ObjectMeta, ObjectStore};
 use serde_json::{Map, Value};
 
 use crate::common::url::DatasourceUrl;
@@ -22,7 +22,7 @@ pub async fn json_streaming_table(
 
     let accessor = ObjStoreAccessor::new(store_access)?;
 
-    let mut list = accessor.list_globbed(source_url.path()).await?;
+    let mut list = accessor.list_globbed(&path).await?;
     if list.is_empty() {
         return Err(JsonError::NotFound(path));
     }
@@ -33,6 +33,22 @@ pub async fn json_streaming_table(
 
     let store = accessor.into_object_store();
 
+    json_streaming_table_inner(store, &path, list, fields).await
+}
+
+pub async fn json_streaming_table_from_object(
+    store: Arc<dyn ObjectStore>,
+    object: ObjectMeta,
+) -> Result<Arc<dyn TableProvider>, JsonError> {
+    json_streaming_table_inner(store, "", vec![object], None).await
+}
+
+async fn json_streaming_table_inner(
+    store: Arc<dyn ObjectStore>,
+    original_path: &str, // Just for error
+    mut list: Vec<ObjectMeta>,
+    fields: Option<Vec<FieldRef>>,
+) -> Result<Arc<dyn TableProvider>, JsonError> {
     let mut streams = Vec::<Arc<dyn PartitionStream>>::with_capacity(list.len());
 
     let schema = match fields {
@@ -40,7 +56,10 @@ pub async fn json_streaming_table(
         None => {
             let mut data = Vec::new();
             {
-                let first_obj = list.pop().ok_or_else(|| JsonError::NotFound(path))?;
+                let first_obj = list
+                    .pop()
+                    .ok_or_else(|| JsonError::NotFound(original_path.to_string()))?;
+
                 let blob = store
                     .get(&first_obj.location)
                     .await?
