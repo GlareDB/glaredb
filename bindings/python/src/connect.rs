@@ -11,7 +11,7 @@ use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
 use ioutil::ensure_dir;
 use pyo3::prelude::*;
-use sqlexec::engine::{Engine, EngineBackend, SessionStorageConfig};
+use sqlexec::engine::{Engine, EngineStorage, SessionStorageConfig};
 use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use url::Url;
 
@@ -91,18 +91,18 @@ pub fn connect(
     wait_for_future(py, async move {
         let conf = PythonSessionConf::from(data_dir_or_cloud_url);
 
-        let backend = if let Some(location) = location.clone() {
-            EngineBackend::Remote {
+        let storage = if let Some(location) = location.clone() {
+            EngineStorage::Remote {
                 location,
                 options: storage_options.unwrap_or_default(),
             }
         } else if let Some(data_dir) = conf.data_dir.clone() {
-            EngineBackend::Local(data_dir)
+            EngineStorage::Local(data_dir)
         } else {
-            EngineBackend::Memory
+            EngineStorage::Memory
         };
 
-        let mut engine = Engine::from_backend(backend)
+        let mut engine = Engine::from_storage(storage)
             .await
             .map_err(PyGlareDbError::from)?;
 

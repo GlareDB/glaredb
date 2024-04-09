@@ -323,7 +323,7 @@ pub struct Engine {
     _task_executors: Vec<TaskExecutor>,
 }
 
-pub enum EngineBackend {
+pub enum EngineStorage {
     Memory,
     Local(PathBuf),
     Remote {
@@ -368,11 +368,11 @@ impl Engine {
         self.tracker.clone()
     }
 
-    pub async fn from_backend(opts: EngineBackend) -> Result<Engine> {
+    pub async fn from_storage(opts: EngineStorage) -> Result<Engine> {
         match opts {
-            EngineBackend::Memory => Self::from_data_dir(None).await,
-            EngineBackend::Local(path) => Self::from_data_dir(Some(&path)).await,
-            EngineBackend::Remote { location, options } => {
+            EngineStorage::Memory => Self::from_data_dir(None).await,
+            EngineStorage::Local(path) => Self::from_data_dir(Some(&path)).await,
+            EngineStorage::Remote { location, options } => {
                 Self::from_storage_options(&location, &options).await
             }
         }
