@@ -726,6 +726,7 @@ files = [
     {file = "msgpack-1.0.8-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:5fbb160554e319f7b22ecf530a80a3ff496d38e8e07ae763b9e82fadfe96f273"},
     {file = "msgpack-1.0.8-cp39-cp39-win32.whl", hash = "sha256:f9af38a89b6a5c04b7d18c492c8ccf2aee7048aff1ce8437c4683bb5a1df893d"},
     {file = "msgpack-1.0.8-cp39-cp39-win_amd64.whl", hash = "sha256:ed59dd52075f8fc91da6053b12e8c89e37aa043f8986efd89e61fae69dc1b011"},
+    {file = "msgpack-1.0.8-py3-none-any.whl", hash = "sha256:24f727df1e20b9876fa6e95f840a2a2651e34c0ad147676356f4bf5fbb0206ca"},
     {file = "msgpack-1.0.8.tar.gz", hash = "sha256:95c02b0e27e706e48d0e5426d1710ca78e0f0628d6e89d5b5a5b91a5f12274f3"},
 ]
 
@@ -1271,22 +1272,6 @@ test = ["pytest (>=7)"]
 zstd = ["zstandard"]
 
 [[package]]
-name = "pysqlite3-binary"
-version = "0.5.2.post3"
-description = "DB-API 2.0 interface for Sqlite 3.x"
-optional = false
-python-versions = "*"
-files = [
-    {file = "pysqlite3_binary-0.5.2.post3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9e3535276d490b60d4f1cb1bace7613afc90333f2b37ce76bffb21d09032eccb"},
-    {file = "pysqlite3_binary-0.5.2.post3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:82a2a0972ebb29736ef1536cc025f0a2795a6a74140d070630a24083422cd376"},
-    {file = "pysqlite3_binary-0.5.2.post3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4950fe4fbf6f21ce6bed5cf9bb44f04d56f9442cea9f513e67d5f627651d2737"},
-    {file = "pysqlite3_binary-0.5.2.post3-cp36-cp36m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6048cdf4473f9186e93cf58b84c6e4f191d64050e3d6a00737a7df2310eb2f5f"},
-    {file = "pysqlite3_binary-0.5.2.post3-cp37-cp37m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b5e42f0c706e69bce24bb7a2de78985ec7589a4b6e1c719668c9d42350f49ed1"},
-    {file = "pysqlite3_binary-0.5.2.post3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2fe1d8c9b1c992cff3cf54ea33f00face82343de9c6a03f8a914679550d2d379"},
-    {file = "pysqlite3_binary-0.5.2.post3-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:674bb5fe16beb289eb2560f12055548cf0e496eee93f7f4cdd84276d03b7d541"},
-]
-
-[[package]]
 name = "pytest"
 version = "7.4.4"
 description = "pytest: simple powerful testing with Python"
@@ -1726,4 +1711,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "fb60360af8ac50f8f0952e0a574ede034b418f18a105f383a9a8543f687f2c69"
+content-hash = "910f225f5077e0f155a4375204d9ae24159da49527a6ccf411192b7b0d987320"
