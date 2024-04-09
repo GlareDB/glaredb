@@ -93,6 +93,7 @@ impl TableFunc for ExcelScan {
         let table = read_excel_impl(&url, sheet_name.as_deref(), has_header, infer_schema_len)
             .await
             .map_err(|e| ExtensionError::Access(Box::new(e)))?;
+
         Ok(Arc::new(table))
     }
 }

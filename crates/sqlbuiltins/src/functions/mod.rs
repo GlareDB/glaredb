@@ -40,6 +40,7 @@ use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
 
 use self::alias_map::AliasMap;
+use crate::functions::scalars::df_scalars::{Decode, Encode, IsNan, NullIf};
 use crate::functions::scalars::openai::OpenAIEmbed;
 use crate::functions::scalars::similarity::CosineSimilarity;
 
@@ -192,12 +193,14 @@ pub struct FunctionRegistry {
 impl FunctionRegistry {
     pub fn new() -> Self {
         use strum::IntoEnumIterator;
-        let scalars = BuiltinScalarFunction::iter().map(|f| {
+        let scalars = BuiltinScalarFunction::iter();
+        let scalars = scalars.into_iter().map(|f| {
             let key = f.to_string().to_lowercase(); // Display impl is already lowercase for scalars, but lowercase here just to be sure.
             let value: Arc<dyn BuiltinFunction> = Arc::new(f);
             (vec![key], value)
         });
-        let aggregates = AggregateFunction::iter().map(|f| {
+        let aggregates = AggregateFunction::iter();
+        let aggregates = aggregates.into_iter().map(|f| {
             let key = f.to_string().to_lowercase(); // Display impl is uppercase for aggregates. Lowercase it to be consistent.
             let value: Arc<dyn BuiltinFunction> = Arc::new(f);
             (vec![key], value)
@@ -212,6 +215,11 @@ impl FunctionRegistry {
 
         // GlareDB specific functions
         let udfs: Vec<Arc<dyn BuiltinScalarUDF>> = vec![
+            // Datafusion functions that aren't part of BuiltinScalarFunction
+            Arc::new(IsNan),
+            Arc::new(NullIf),
+            Arc::new(Encode),
+            Arc::new(Decode),
             // Postgres functions
             Arc::new(HasSchemaPrivilege),
             Arc::new(HasDatabasePrivilege),
@@ -313,15 +321,7 @@ impl FunctionRegistry {
     ///
     /// A function will only be returned once, even if it has multiple aliases.
     pub fn scalar_udfs_iter(&self) -> impl Iterator<Item = &Arc<dyn BuiltinScalarUDF>> {
-        self.udfs.values().filter(|func| {
-            // Currently we have two "array_to_string" entries, one provided by
-            // datafusion, and one "aliased" to "pg_catalog.array_to_string".
-            // However those exist in different maps, and so the current
-            // aliasing logic doesn't work well.
-            //
-            // See https://github.com/GlareDB/glaredb/issues/2371
-            func.name() != "array_to_string"
-        })
+        self.udfs.values()
     }
 
     /// Iterate over all table funcs.
