@@ -1,11 +1,14 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::datatypes::{DataType, SchemaRef};
+use datafusion::common::ToDFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
-use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::logical_expr::{ident, Cast, Expr};
+use datafusion::physical_expr::{create_physical_expr, PhysicalSortExpr};
+use datafusion::physical_plan::projection::ProjectionExec;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
     DisplayAs,
@@ -16,6 +19,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream,
     Statistics,
 };
+use deltalake::kernel::StructField;
 use deltalake::logstore::LogStore;
 use deltalake::operations::write::WriteBuilder;
 use deltalake::protocol::SaveMode;
@@ -86,7 +90,7 @@ impl ExecutionPlan for NativeTableInsertExec {
             input: children[0].clone(),
             store: self.store.clone(),
             snapshot: self.snapshot.clone(),
-            save_mode: self.save_mode.clone(),
+            save_mode: self.save_mode,
         }))
     }
 
@@ -107,16 +111,60 @@ impl ExecutionPlan for NativeTableInsertExec {
             context.session_config().clone(),
             context.runtime_env(),
         );
+
+        let schema = self.input.schema();
+        let fields = schema.fields().clone();
+        let input_dfschema = schema.to_dfschema()?;
+        // delta-rs does not support all data types, so we need to check if the input schema
+        // contains any unsupported data types.
+        // If it does, we need to cast them to supported data types.
+        let mut contains_unsupported_fields = false;
+        let projections = fields
+            .iter()
+            .map(|field| {
+                let e = if StructField::try_from(field.as_ref()).is_ok() {
+                    ident(field.name())
+                } else {
+                    contains_unsupported_fields = true;
+
+                    match field.data_type() {
+                        DataType::Timestamp(_, _) => Expr::Cast(Cast {
+                            expr: Box::new(ident(field.name())),
+                            data_type: DataType::Timestamp(
+                                datafusion::arrow::datatypes::TimeUnit::Microsecond,
+                                None,
+                            ),
+                        }),
+
+                        dtype => {
+                            return Err(DataFusionError::Execution(format!(
+                                "Unsupported data type {:?} for field {}",
+                                dtype,
+                                field.name()
+                            )))
+                        }
+                    }
+                };
+                let e = create_physical_expr(&e, &input_dfschema, state.execution_props()).unwrap();
+                Ok((e, field.name().clone()))
+            })
+            .collect::<DataFusionResult<Vec<_>>>()?;
+
+        let input = if contains_unsupported_fields {
+            Arc::new(ProjectionExec::try_new(projections, self.input.clone())?)
+        } else {
+            self.input.clone()
+        };
+
         // Allows writing multiple output partitions from the input execution
         // plan.
         //
         // TODO: Possibly try avoiding cloning the snapshot.
         let builder = WriteBuilder::new(self.store.clone(), Some(self.snapshot.clone()))
             .with_input_session_state(state)
-            .with_save_mode(self.save_mode.clone())
-            .with_input_execution_plan(self.input.clone());
+            .with_save_mode(self.save_mode)
+            .with_input_execution_plan(input.clone());
 
-        let input = self.input.clone();
         let output = futures::stream::once(async move {
             let _ = builder
                 .await

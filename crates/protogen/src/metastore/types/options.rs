@@ -3,6 +3,7 @@ use std::fmt::{self, Display};
 use std::hash::Hash;
 use std::sync::Arc;
 
+use datafusion::arrow::array::{ArrayRef, GenericStringArray, StructArray};
 use datafusion::arrow::datatypes::{DataType, Field, Fields, SchemaRef};
 use datafusion::common::DFSchemaRef;
 use serde::de::DeserializeOwned;
@@ -1567,7 +1568,6 @@ impl From<TableOptionsSnowflake> for options::TableOptionsSnowflake {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DatabaseOptionsSqlite {
     pub location: String,
@@ -1944,14 +1944,14 @@ impl CredentialsOptionsOpenAI {
 }
 impl From<CredentialsOptionsOpenAI> for datafusion::scalar::ScalarValue {
     fn from(value: CredentialsOptionsOpenAI) -> Self {
-        datafusion::scalar::ScalarValue::Struct(
-            Some(vec![
-                datafusion::scalar::ScalarValue::Utf8(Some(value.api_key)),
-                datafusion::scalar::ScalarValue::Utf8(value.api_base),
-                datafusion::scalar::ScalarValue::Utf8(value.org_id),
-            ]),
-            CredentialsOptionsOpenAI::fields(),
-        )
+        let arrays: Vec<ArrayRef> = vec![
+            Arc::new(GenericStringArray::<i32>::from(vec![value.api_key])),
+            Arc::new(GenericStringArray::<i32>::from(vec![value.api_base])),
+            Arc::new(GenericStringArray::<i32>::from(vec![value.org_id])),
+        ];
+
+        let sa = StructArray::new(CredentialsOptionsOpenAI::fields(), arrays, None);
+        datafusion::scalar::ScalarValue::Struct(Arc::new(sa))
     }
 }
 
