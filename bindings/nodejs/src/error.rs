@@ -18,6 +18,8 @@ pub enum JsGlareDbError {
     Anyhow(#[from] anyhow::Error),
     #[error(transparent)]
     DataFusion(#[from] datafusion::error::DataFusionError),
+    #[error(transparent)]
+    ConnectionConfiguration(#[from] glaredb::ConnectOptionsBuilderError),
     #[error("{0}")]
     Other(String),
 }

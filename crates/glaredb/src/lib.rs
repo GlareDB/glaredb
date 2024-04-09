@@ -124,6 +124,21 @@ impl ConnectOptionsBuilder {
         self.storage_options = opts;
         self
     }
+
+    pub fn cloud_addr_opt(&mut self, v: Option<String>) -> &mut Self {
+        self.cloud_addr = Some(v);
+        self
+    }
+
+    pub fn disable_tls_opt(&mut self, v: Option<bool>) -> &mut Self {
+        self.disable_tls = Some(v);
+        self
+    }
+
+    pub fn storage_options_opt(&mut self, v: Option<HashMap<String, String>>) -> &mut Self {
+        self.storage_options = v;
+        self
+    }
 }
 
 impl ConnectOptions {
