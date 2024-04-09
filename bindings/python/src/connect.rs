@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use futures::lock::Mutex;
 use pyo3::prelude::*;
-quse sqlexec::engine::{Engine, EngineStorage};
+use sqlexec::engine::{Engine, EngineStorage};
 use sqlexec::remote::client::RemoteClientType;
 use url::Url;
 
