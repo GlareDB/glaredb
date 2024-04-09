@@ -17,7 +17,6 @@ dbt-core = "^1.7.7"
 dbt-postgres = "^1.7.7"
 pytest-timeout = "^2.2.0"
 pytest-xdist = "^3.5.0"
-pysqlite3-binary = "^0.5.2.post3"
 pytest-benchmark = "^4.0.0"
 
 [build-system]
