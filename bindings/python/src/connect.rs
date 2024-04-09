@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use futures::lock::Mutex;
 use pyo3::prelude::*;
-use sqlexec::engine::{Engine, EngineBackend};
+use sqlexec::engine::{Engine, EngineStorage};
 use sqlexec::remote::client::RemoteClientType;
 use url::Url;
 
@@ -90,14 +90,14 @@ pub fn connect(
         let conf = PythonSessionConf::from(data_dir_or_cloud_url);
 
         let backend = if let Some(location) = location.clone() {
-            EngineBackend::Remote {
+            EngineStorage::Remote {
                 location,
                 options: storage_options.unwrap_or_default(),
             }
         } else if let Some(data_dir) = conf.data_dir.clone() {
-            EngineBackend::Local(data_dir)
+            EngineStorage::Local(data_dir)
         } else {
-            EngineBackend::Memory
+            EngineStorage::Memory
         };
 
         let mut engine = Engine::from_backend(backend)
