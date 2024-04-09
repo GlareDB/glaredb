@@ -86,7 +86,6 @@ impl ParseOptionValue<MongoDbProtocol> for OptionValue {
     }
 }
 
-
 impl Display for MongoDbProtocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
@@ -462,15 +461,24 @@ fn df_to_bson(val: ScalarValue) -> Result<Bson, ExtensionError> {
         ScalarValue::UInt64(v) => Ok(Bson::Int64(i64::try_from(v.unwrap_or_default()).unwrap())),
         ScalarValue::Float32(v) => Ok(Bson::Double(f64::from(v.unwrap_or_default()))),
         ScalarValue::Float64(v) => Ok(Bson::Double(v.unwrap_or_default())),
-        ScalarValue::Struct(v, f) => {
+        ScalarValue::Struct(sa) => {
             let mut doc = RawDocumentBuf::new();
-            for (key, value) in f.into_iter().zip(v.unwrap_or_default().into_iter()) {
+            let fields = sa.fields();
+            let columns = sa.columns();
+            for (field, column) in fields.iter().zip(columns.iter()) {
+                if column.len() != 1 {
+                    return Err(ExtensionError::String(
+                        "Struct column should have only one row".to_string(),
+                    ));
+                }
+                let sv = ScalarValue::try_from_array(column, 0).unwrap();
                 doc.append(
-                    key.name(),
-                    RawBson::try_from(df_to_bson(value)?)
+                    field.name(),
+                    RawBson::try_from(df_to_bson(sv)?)
                         .map_err(|e| DataFusionError::External(Box::new(e)))?,
                 );
             }
+
             Ok(Bson::Document(
                 doc.to_document()
                     .map_err(|e| DataFusionError::External(Box::new(e)))?,

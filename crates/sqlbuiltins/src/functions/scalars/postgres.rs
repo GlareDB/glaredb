@@ -2,10 +2,9 @@ use std::sync::Arc;
 
 use catalog::session_catalog::SessionCatalog;
 use datafusion::arrow::datatypes::{DataType, Field};
-use datafusion::error::Result as DataFusionResult;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
-    BuiltinScalarFunction,
     ReturnTypeFunction,
     ScalarFunctionImplementation,
     ScalarUDF,
@@ -105,7 +104,6 @@ impl BuiltinScalarUDF for PgTableIsVisible {
             &return_type_fn,
             &scalar_fn_impl,
         );
-
         Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
             Arc::new(udf),
             args,
@@ -476,9 +474,6 @@ impl BuiltinScalarUDF for User {
     }
 }
 
-// This one is a bit different from the others as it's also handled via
-// datafusion. So all we need to do is add it to the pg_catalog namespace and
-// map it to the df implementation
 #[derive(Clone, Copy, Debug)]
 pub struct PgArrayToString;
 
@@ -488,20 +483,26 @@ impl ConstBuiltinFunction for PgArrayToString {
     const EXAMPLE: &'static str = array_to_string::EXAMPLE;
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
     fn signature(&self) -> Option<Signature> {
-        Some(BuiltinScalarFunction::ArrayToString.signature())
+        // Datafusion doesn't have a good way to represent the signature of this function
+        None
     }
 }
 
 impl BuiltinScalarUDF for PgArrayToString {
     fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
-        Ok(Expr::ScalarFunction(ScalarFunction::new(
-            BuiltinScalarFunction::ArrayToString,
-            args,
-        )))
+        if args.len() < 2 || args.len() > 3 {
+            return Err(DataFusionError::Plan(
+                "array_to_string() takes exactly two or three arguments".to_string(),
+            ));
+        }
+        Ok(datafusion_functions_array::expr_fn::array_to_string(
+            args[0].clone(),
+            args[1].clone(),
+        ))
     }
 
     fn namespace(&self) -> FunctionNamespace {
-        FunctionNamespace::Required("pg_catalog")
+        FunctionNamespace::Optional("pg_catalog")
     }
 }
 

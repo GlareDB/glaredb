@@ -62,7 +62,7 @@ fn arr_to_query_vec(
         dtype @ DataType::List(fld) => match fld.data_type() {
             DataType::Float64 | DataType::Float16 | DataType::Float32 => {
                 let arr = arr.as_any().downcast_ref::<ListArray>().unwrap().value(0);
-                arrow_cast::cast(&arr, to_type)?
+                arrow_cast::cast(arr.as_ref(), to_type)?
             }
             _ => {
                 return Err(DataFusionError::Execution(format!(
