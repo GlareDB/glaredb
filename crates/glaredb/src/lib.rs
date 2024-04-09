@@ -17,7 +17,7 @@ pub use datafusion::physical_plan::SendableRecordBatchStream;
 use derive_builder::Builder;
 use futures::lock::Mutex;
 use futures::stream::{Stream, StreamExt};
-use sqlexec::engine::{Engine, EngineBackend, TrackedSession};
+use sqlexec::engine::{Engine, EngineStorage, TrackedSession};
 use sqlexec::environment::EnvironmentReader;
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClientType;
@@ -78,12 +78,7 @@ impl ConnectOptions {
         }
     }
 
-    pub fn with_env_reader(&mut self, reader: Arc<Box<dyn EnvironmentReader>>) -> &mut Self {
-        self.environment_reader = Some(reader);
-        self
-    }
-
-    pub async fn connect(&self) -> Result<Connection, ExecError> {
+    pub async fn connect(self) -> Result<Connection, ExecError> {
         let mut engine = Engine::from_backend(self.backend()).await?;
 
         engine = engine.with_spill_path(self.spill_path.clone().map(|p| p.into()))?;
@@ -99,6 +94,7 @@ impl ConnectOptions {
                 None,
             )
             .await?;
+
         session.register_env_reader(self.environment_reader.clone());
 
         Ok(Connection {
@@ -107,16 +103,16 @@ impl ConnectOptions {
         })
     }
 
-    fn backend(&self) -> EngineBackend {
+    fn backend(&self) -> EngineStorage {
         if let Some(location) = self.location.clone() {
-            EngineBackend::Remote {
+            EngineStorage::Remote {
                 location,
                 options: self.storage_options.clone(),
             }
         } else if let Some(data_dir) = self.data_dir() {
-            EngineBackend::Local(data_dir)
+            EngineStorage::Local(data_dir)
         } else {
-            EngineBackend::Memory
+            EngineStorage::Memory
         }
     }
 
@@ -137,7 +133,7 @@ impl ConnectOptions {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Connection {
     session: Arc<Mutex<TrackedSession>>,
     _engine: Arc<Engine>,
@@ -149,7 +145,6 @@ impl Connection {
             op: OperationType::Execute,
             query: query.into(),
             conn: Arc::new(self.clone()),
-            schema: None,
         }
     }
 
@@ -158,7 +153,6 @@ impl Connection {
             op: OperationType::Sql,
             query: query.into(),
             conn: Arc::new(self.clone()),
-            schema: None,
         }
     }
 
@@ -167,7 +161,6 @@ impl Connection {
             op: OperationType::Prql,
             query: query.into(),
             conn: Arc::new(self.clone()),
-            schema: None,
         }
     }
 }
@@ -213,37 +206,28 @@ enum OperationType {
     Execute,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 #[must_use = "operations do nothing unless call() or execute() run"]
 pub struct Operation {
     op: OperationType,
     query: String,
     conn: Arc<Connection>,
-    schema: Option<Arc<Schema>>,
 }
 
-impl Debug for Operation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Operation<{:?}>(\"{:?}\")", self.op, self.query)
+impl ToString for Operation {
+    fn to_string(&self) -> String {
+        self.query.clone()
     }
 }
 
 impl Operation {
-    pub fn schema(&self) -> Option<Arc<Schema>> {
-        self.schema.clone()
-    }
-
-    pub async fn execute(&mut self) -> Result<SendableRecordBatchStream, ExecError> {
+    pub async fn execute(&self) -> Result<SendableRecordBatchStream, ExecError> {
         match self.op {
             OperationType::Sql => {
                 let mut ses = self.conn.session.lock().await;
                 let plan = ses.create_logical_plan(&self.query).await?;
                 let op = OperationInfo::new().with_query_text(self.query.clone());
-                let schema = self.schema.insert(
-                    plan.output_schema()
-                        .map(Arc::new)
-                        .unwrap_or_else(|| Arc::new(Schema::empty())),
-                );
+                let schema = Arc::new(plan.output_schema().unwrap_or_else(Schema::empty));
 
                 match plan.to_owned().try_into_datafusion_plan()? {
                     LogicalPlan::Dml(_)
@@ -275,11 +259,7 @@ impl Operation {
                 let mut ses = self.conn.session.lock().await;
                 let plan = ses.prql_to_lp(&self.query).await?;
                 let op = OperationInfo::new().with_query_text(self.query.clone());
-                let schema = self.schema.insert(
-                    plan.output_schema()
-                        .map(Arc::new)
-                        .unwrap_or_else(|| Arc::new(Schema::empty())),
-                );
+                let schema = Arc::new(plan.output_schema().unwrap_or_else(Schema::empty));
 
                 let ses_clone = self.conn.session.clone();
                 Ok(Self::process_result(ExecutionResult::Query {
@@ -300,11 +280,6 @@ impl Operation {
                 let mut ses = self.conn.session.lock().await;
                 let plan = ses.create_logical_plan(&self.query).await?;
                 let op = OperationInfo::new().with_query_text(self.query.clone());
-                let _ = self.schema.insert(
-                    plan.output_schema()
-                        .map(Arc::new)
-                        .unwrap_or_else(|| Arc::new(Schema::empty())),
-                );
 
                 Ok(Self::process_result(
                     ses.execute_logical_plan(plan, &op).await?.1,
@@ -313,8 +288,8 @@ impl Operation {
         }
     }
 
-    pub fn call(&mut self) -> RecordStream {
-        let mut op = self.clone();
+    pub fn call(&self) -> RecordStream {
+        let op = self.clone();
         RecordStream(Box::pin(
             futures::stream::once(async move {
                 match op.execute().await {

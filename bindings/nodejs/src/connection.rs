@@ -5,7 +5,7 @@ use std::sync::Arc;
 use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
 use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
-use sqlexec::engine::{Engine, EngineBackend, SessionStorageConfig, TrackedSession};
+use sqlexec::engine::{Engine, EngineStorage, SessionStorageConfig, TrackedSession};
 use sqlexec::remote::client::RemoteClientType;
 use sqlexec::{LogicalPlan, OperationInfo};
 use url::Url;
@@ -66,14 +66,14 @@ impl Connection {
         let conf = JsSessionConf::from(data_dir_or_cloud_url);
 
         let backend = if let Some(location) = location.clone() {
-            EngineBackend::Remote {
+            EngineStorage::Remote {
                 location,
                 options: storage_options.unwrap_or_default(),
             }
         } else if let Some(data_dir) = conf.data_dir.clone() {
-            EngineBackend::Local(data_dir)
+            EngineStorage::Local(data_dir)
         } else {
-            EngineBackend::Memory
+            EngineStorage::Memory
         };
 
         let mut engine = Engine::from_backend(backend)
@@ -112,7 +112,7 @@ impl Connection {
     /// return the same connection.
     #[napi(catch_unwind)]
     pub async fn default_in_memory() -> napi::Result<Connection> {
-        let engine = Engine::from_backend(EngineBackend::Memory)
+        let engine = Engine::from_backend(EngineStorage::Memory)
             .await
             .map_err(JsGlareDbError::from)?;
         let sess = engine
