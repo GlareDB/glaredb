@@ -98,7 +98,7 @@ impl PyExecution {
     }
 
     pub fn show(&mut self, py: Python) -> PyResult<()> {
-        let (schema, batches) = self.resovle_operation(py)?;
+        let (schema, batches) = self.resolve_operation(py)?;
 
         let disp = pretty::pretty_format_batches(
             &schema,
@@ -116,7 +116,7 @@ impl PyExecution {
 
 impl PyExecution {
     fn get_schema_and_batches(&self, py: Python) -> PyResult<(PyObject, PyObject)> {
-        let (schema, batches) = self.resovle_operation(py)?;
+        let (schema, batches) = self.resolve_operation(py)?;
 
         let batches = batches
             .into_iter()
@@ -126,7 +126,7 @@ impl PyExecution {
         Ok((schema.to_pyarrow(py)?, batches.to_object(py)))
     }
 
-    fn resovle_operation(
+    fn resolve_operation(
         &self,
         py: Python,
     ) -> Result<(Arc<Schema>, Vec<RecordBatch>), PyGlareDbError> {
