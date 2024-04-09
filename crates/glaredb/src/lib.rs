@@ -79,7 +79,7 @@ impl ConnectOptions {
     }
 
     pub async fn connect(self) -> Result<Connection, ExecError> {
-        let mut engine = Engine::from_backend(self.backend()).await?;
+        let mut engine = Engine::from_storage(self.backend()).await?;
 
         engine = engine.with_spill_path(self.spill_path.clone().map(|p| p.into()))?;
 
