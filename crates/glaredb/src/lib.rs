@@ -67,6 +67,15 @@ impl ConnectOptionsBuilder {
         self.storage_options = opts;
         self
     }
+
+    pub fn new_in_memory() -> Self {
+        Self::default()
+            .connection_target(None)
+            .location(None)
+            .spill_path(None)
+            .disable_tls(true)
+            .to_owned()
+    }
 }
 
 impl ConnectOptions {
@@ -137,6 +146,7 @@ impl Connection {
             op: OperationType::Execute,
             query: query.into(),
             conn: Arc::new(self.clone()),
+            schema: None,
         }
     }
 
@@ -145,6 +155,7 @@ impl Connection {
             op: OperationType::Sql,
             query: query.into(),
             conn: Arc::new(self.clone()),
+            schema: None,
         }
     }
 
@@ -153,6 +164,7 @@ impl Connection {
             op: OperationType::Prql,
             query: query.into(),
             conn: Arc::new(self.clone()),
+            schema: None,
         }
     }
 }
@@ -204,6 +216,7 @@ pub struct Operation {
     op: OperationType,
     query: String,
     conn: Arc<Connection>,
+    schema: Option<Arc<Schema>>,
 }
 
 impl ToString for Operation {
@@ -213,13 +226,18 @@ impl ToString for Operation {
 }
 
 impl Operation {
-    pub async fn execute(&self) -> Result<SendableRecordBatchStream, ExecError> {
+    pub fn schema(&self) -> Option<Arc<Schema>> {
+        self.schema.clone()
+    }
+
+    pub async fn execute(&mut self) -> Result<SendableRecordBatchStream, ExecError> {
         match self.op {
             OperationType::Sql => {
                 let mut ses = self.conn.session.lock().await;
                 let plan = ses.create_logical_plan(&self.query).await?;
                 let op = OperationInfo::new().with_query_text(self.query.clone());
                 let schema = Arc::new(plan.output_schema().unwrap_or_else(Schema::empty));
+                self.schema.replace(schema.clone());
 
                 match plan.to_owned().try_into_datafusion_plan()? {
                     LogicalPlan::Dml(_)
@@ -280,8 +298,8 @@ impl Operation {
         }
     }
 
-    pub fn call(&self) -> RecordStream {
-        let op = self.clone();
+    pub fn call(&mut self) -> RecordStream {
+        let mut op = self.clone();
         RecordStream(Box::pin(
             futures::stream::once(async move {
                 match op.execute().await {

@@ -29,7 +29,7 @@ impl Connection {
             wait_for_future(py, async move {
                 Ok(Connection {
                     inner: Arc::new(
-                        glaredb::ConnectOptionsBuilder::default()
+                        glaredb::ConnectOptionsBuilder::new_in_memory()
                             .client_type(RemoteClientType::Python)
                             .environment_reader(Arc::new(Box::new(PyEnvironmentReader)))
                             .build()?
