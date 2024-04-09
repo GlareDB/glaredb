@@ -130,24 +130,29 @@ impl BuiltinScalarUDF for OpenAIEmbed {
 
             match scalar.ok()? {
                 ScalarValue::Utf8(v) => Some(OpenAIConfig::new().with_api_key(v.unwrap())),
-                ScalarValue::Struct(Some(values), _) => {
-                    let api_key = values.first()?;
-                    let api_base = values.get(1);
-                    let org_id = values.get(2);
-                    let api_key = match api_key {
-                        ScalarValue::Utf8(v) => v.clone().unwrap(),
-                        _ => return None,
-                    };
-                    let mut config = OpenAIConfig::new().with_api_key(api_key);
-                    config = match api_base {
-                        Some(ScalarValue::Utf8(Some(v))) => config.with_api_base(v.clone()),
-                        _ => config,
-                    };
-                    config = match org_id {
-                        Some(ScalarValue::Utf8(Some(v))) => config.with_org_id(v.clone()),
-                        _ => config,
-                    };
-                    Some(config)
+                ScalarValue::Struct(sa) => {
+                    let api_key = sa
+                        .column_by_name("api_key")
+                        .map(|c| c.as_string::<i32>().value(0));
+                    let api_base = sa
+                        .column_by_name("api_base")
+                        .map(|c| c.as_string::<i32>().value(0));
+                    let org_id = sa
+                        .column_by_name("org_id")
+                        .map(|c| c.as_string::<i32>().value(0));
+
+                    if let Some(api_key) = api_key {
+                        let mut config = OpenAIConfig::new().with_api_key(api_key);
+                        if let Some(api_base) = api_base {
+                            config = config.with_api_base(api_base);
+                        }
+                        if let Some(org_id) = org_id {
+                            config = config.with_org_id(org_id);
+                        }
+                        Some(config)
+                    } else {
+                        None
+                    }
                 }
                 _ => None,
             }

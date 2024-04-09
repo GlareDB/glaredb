@@ -792,8 +792,13 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     self.sql_expr_to_logical_expr(*right, schema, planner_context)
                         .await?,
                 );
+                let stride = Box::new(Expr::Literal(ScalarValue::Int64(Some(1))));
 
-                GetFieldAccess::ListRange { start, stop }
+                GetFieldAccess::ListRange {
+                    start,
+                    stop,
+                    stride,
+                }
             }
             _ => GetFieldAccess::ListIndex {
                 key: Box::new(

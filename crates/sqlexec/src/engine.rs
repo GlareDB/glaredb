@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
@@ -322,16 +323,23 @@ pub struct Engine {
     task_scheduler: Scheduler,
     /// Task executors.
     _task_executors: Vec<TaskExecutor>,
-    _tmp_dir: Option<tempfile::TempDir>,
+    tmp_dir: Option<tempfile::TempDir>,
 }
 
-pub enum EngineBackend {
+#[derive(Debug)]
+pub enum EngineStorage {
     Memory,
     Local(PathBuf),
     Remote {
         location: String,
         options: HashMap<String, String>,
     },
+}
+
+impl Debug for Engine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.storage)
+    }
 }
 
 impl Engine {
@@ -362,7 +370,7 @@ impl Engine {
             session_counter: Arc::new(AtomicU64::new(0)),
             task_scheduler,
             _task_executors: task_executors,
-            _tmp_dir: None,
+            tmp_dir: None,
         })
     }
 
@@ -371,11 +379,11 @@ impl Engine {
         self.tracker.clone()
     }
 
-    pub async fn from_backend(opts: EngineBackend) -> Result<Engine> {
+    pub async fn from_storage(opts: EngineStorage) -> Result<Engine> {
         match opts {
-            EngineBackend::Memory => Self::from_data_dir(None).await,
-            EngineBackend::Local(path) => Self::from_data_dir(Some(&path)).await,
-            EngineBackend::Remote { location, options } => {
+            EngineStorage::Memory => Self::from_data_dir(None).await,
+            EngineStorage::Local(path) => Self::from_data_dir(Some(&path)).await,
+            EngineStorage::Remote { location, options } => {
                 Self::from_storage_options(&location, &options).await
             }
         }
@@ -429,13 +437,13 @@ impl Engine {
                 Some(path)
             }
             None => {
-                self._tmp_dir = Some(
+                self.tmp_dir = Some(
                     tempfile::Builder::new()
                         .prefix("glaredb")
                         .rand_bytes(8)
                         .tempdir()?,
                 );
-                Some(self._tmp_dir.as_ref().unwrap().path().to_path_buf())
+                Some(self.tmp_dir.as_ref().unwrap().path().to_path_buf())
             }
         };
 

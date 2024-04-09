@@ -9,6 +9,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::parquet::data_type::AsBytes;
 use datafusion::physical_plan::streaming::PartitionStream;
 use futures::StreamExt;
+use object_store::{ObjectMeta, ObjectStore};
 use tokio_util::codec::LengthDelimitedCodec;
 
 use crate::bson::errors::BsonError;
@@ -23,14 +24,6 @@ pub async fn bson_streaming_table(
     schema: Option<Schema>,
     schema_inference_sample_size: Option<i64>,
 ) -> Result<Arc<dyn TableProvider>, BsonError> {
-    // TODO: set a maximum (1024?) or have an adaptive mode
-    // (at least n but stop after n the same) or skip documents
-    let sample_size = if schema.is_some() {
-        0
-    } else {
-        schema_inference_sample_size.unwrap_or(100)
-    };
-
     let accessor = ObjStoreAccessor::new(store_access)?;
 
     let mut list = accessor.list_globbed(source_url.path()).await?;
@@ -43,6 +36,30 @@ pub async fn bson_streaming_table(
     list.sort_by(|a, b| a.location.cmp(&b.location));
 
     let store = accessor.into_object_store();
+
+    bson_streaming_table_inner(store, list, schema, schema_inference_sample_size).await
+}
+
+pub async fn bson_streaming_table_from_object(
+    store: Arc<dyn ObjectStore>,
+    object: ObjectMeta,
+) -> Result<Arc<dyn TableProvider>, BsonError> {
+    bson_streaming_table_inner(store, vec![object], None, None).await
+}
+
+async fn bson_streaming_table_inner(
+    store: Arc<dyn ObjectStore>,
+    list: Vec<ObjectMeta>,
+    schema: Option<Schema>,
+    schema_inference_sample_size: Option<i64>,
+) -> Result<Arc<dyn TableProvider>, BsonError> {
+    // TODO: set a maximum (1024?) or have an adaptive mode
+    // (at least n but stop after n the same) or skip documents
+    let sample_size = if schema.is_some() {
+        0
+    } else {
+        schema_inference_sample_size.unwrap_or(100)
+    };
 
     // build a vector of streams, one for each file, that handle BSON's framing.
     let mut readers = VecDeque::with_capacity(list.len());
