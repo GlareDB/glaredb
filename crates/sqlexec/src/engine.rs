@@ -380,7 +380,7 @@ impl Engine {
         self.tracker.clone()
     }
 
-    pub async fn from_backend(opts: EngineStorage) -> Result<Engine> {
+    pub async fn from_storage(opts: EngineStorage) -> Result<Engine> {
         match opts {
             EngineStorage::Memory => Self::from_data_dir(None).await,
             EngineStorage::Local(path) => Self::from_data_dir(Some(&path)).await,

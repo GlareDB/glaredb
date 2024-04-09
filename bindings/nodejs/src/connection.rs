@@ -65,7 +65,7 @@ impl Connection {
     ) -> napi::Result<Self> {
         let conf = JsSessionConf::from(data_dir_or_cloud_url);
 
-        let backend = if let Some(location) = location.clone() {
+        let storage = if let Some(location) = location.clone() {
             EngineStorage::Remote {
                 location,
                 options: storage_options.unwrap_or_default(),
@@ -76,7 +76,7 @@ impl Connection {
             EngineStorage::Memory
         };
 
-        let mut engine = Engine::from_backend(backend)
+        let mut engine = Engine::from_storage(storage)
             .await
             .map_err(JsGlareDbError::from)?;
 
@@ -112,7 +112,7 @@ impl Connection {
     /// return the same connection.
     #[napi(catch_unwind)]
     pub async fn default_in_memory() -> napi::Result<Connection> {
-        let engine = Engine::from_backend(EngineStorage::Memory)
+        let engine = Engine::from_storage(EngineStorage::Memory)
             .await
             .map_err(JsGlareDbError::from)?;
         let sess = engine
