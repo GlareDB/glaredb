@@ -35,7 +35,7 @@ impl Connection {
 
         let con = DEFAULT_CON.get_or_try_init(|| {
             wait_for_future(py, async move {
-                let engine = Engine::from_backend(EngineStorage::Memory).await?;
+                let engine = Engine::from_storage(EngineStorage::Memory).await?;
                 let sess = engine
                     .new_local_session_context(
                         SessionVars::default(),

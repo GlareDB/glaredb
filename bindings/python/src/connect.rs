@@ -89,7 +89,7 @@ pub fn connect(
     wait_for_future(py, async move {
         let conf = PythonSessionConf::from(data_dir_or_cloud_url);
 
-        let backend = if let Some(location) = location.clone() {
+        let storage = if let Some(location) = location.clone() {
             EngineStorage::Remote {
                 location,
                 options: storage_options.unwrap_or_default(),
@@ -100,7 +100,7 @@ pub fn connect(
             EngineStorage::Memory
         };
 
-        let mut engine = Engine::from_backend(backend)
+        let mut engine = Engine::from_storage(storage)
             .await
             .map_err(PyGlareDbError::from)?;
 
