@@ -155,7 +155,7 @@ impl ConnectOptions {
                 self.cloud_url(),
                 self.cloud_addr.clone().unwrap_or_default(),
                 self.disable_tls.unwrap_or_default(),
-                self.client_type.clone().unwrap_or_default(),
+                self.client_type.unwrap_or_default(),
                 None,
             )
             .await?;
