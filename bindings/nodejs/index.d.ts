@@ -15,10 +15,11 @@ export function connect(dataDirOrCloudUrl?: string | undefined | null, options?:
 /** A connected session to a GlareDB database. */
 export class Connection {
   /**
-   * Returns a default connection to an in-memory database.
+   * Returns a default connection to the global in-memory database.
    *
-   * The database is only initialized once, and all subsequent calls will
-   * return the same connection.
+   * The database is only initialized once, and all subsequent calls
+   * will return the same connection, and therefore have access to the
+   * same data and database.
    */
   static defaultInMemory(): Promise<Connection>
   /**

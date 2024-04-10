@@ -28,8 +28,9 @@ pub struct Connection {
 impl Connection {
     /// Returns a default connection to an in-memory database.
     ///
-    /// The database is only initialized once, and all subsequent calls will
-    /// return the same connection.
+    /// This database is only initialized once, and all subsequent
+    /// calls will return the same connection object and therefore
+    /// access the same data and database.
     pub fn default_in_memory(py: Python<'_>) -> PyResult<Self> {
         static DEFAULT_CON: OnceCell<Connection> = OnceCell::new();
 
