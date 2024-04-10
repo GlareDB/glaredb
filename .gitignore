@@ -10,6 +10,8 @@ pgsrv_image
 gcs-artifacts/
 # Prepared sqlite database
 testdata/sqllogictests_sqlite/data/db.sqlite3
+# Prepared pyiceberg database
+testdata/iceberg/pyiceberg*
 # Outputs from cargo flamegraph
 flamegraph.svg
 # Benchmark artifacts

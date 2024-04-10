@@ -461,7 +461,7 @@ impl ExecutionPlan for IcebergTableScan {
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
-        vec![self.parquet_scan.clone()]
+        self.parquet_scan.children()
     }
 
     fn with_new_children(
