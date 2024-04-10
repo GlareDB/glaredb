@@ -39,7 +39,7 @@ use url::Url;
 /// ConnectOptions are the set of options to configure a GlareDB
 /// instance, and are an analogue to the commandline arguments to
 /// produce a "running database". The ConnectOptionsBuilder provides a
-/// chainable interface to construct these values and produce as
+/// chainable interface to construct these values and produce a
 /// structure. You can construct `ConnectOptions` fully without the
 /// builder interface, depending on your preference.
 ///
