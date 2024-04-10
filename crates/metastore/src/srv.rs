@@ -5,7 +5,12 @@ use dashmap::DashMap;
 use object_store::ObjectStore;
 use protogen::gen::metastore::service::metastore_service_server::MetastoreService;
 use protogen::gen::metastore::service::{
-    self, CommitRequest, CommitResponse, FetchCatalogRequest, FetchCatalogResponse, MutateRequest,
+    self,
+    CommitRequest,
+    CommitResponse,
+    FetchCatalogRequest,
+    FetchCatalogResponse,
+    MutateRequest,
     MutateResponse,
 };
 use protogen::metastore::types::service::Mutation;

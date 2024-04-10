@@ -6,22 +6,44 @@ use std::sync::Arc;
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use protogen::metastore::types::catalog::{
-    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
-    EntryType, FunctionEntry, SchemaEntry, SourceAccessMode, TableEntry, TunnelEntry, ViewEntry,
+    CatalogEntry,
+    CatalogState,
+    CredentialsEntry,
+    DatabaseEntry,
+    DeploymentMetadata,
+    EntryMeta,
+    EntryType,
+    FunctionEntry,
+    SchemaEntry,
+    SourceAccessMode,
+    TableEntry,
+    TunnelEntry,
+    ViewEntry,
     CURRENT_CATALOG_VERSION,
 };
 use protogen::metastore::types::options::{
-    DatabaseOptions, DatabaseOptionsInternal, TableOptionsInternal, TunnelOptions,
+    DatabaseOptions,
+    DatabaseOptionsInternal,
+    TableOptionsInternal,
+    TunnelOptions,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
 use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
-    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
-    FIRST_NON_STATIC_OID, SCHEMA_DEFAULT,
+    BuiltinDatabase,
+    BuiltinSchema,
+    BuiltinTable,
+    BuiltinView,
+    DATABASE_DEFAULT,
+    DEFAULT_SCHEMA,
+    FIRST_NON_STATIC_OID,
+    SCHEMA_DEFAULT,
 };
 use sqlbuiltins::functions::{BuiltinFunction, DEFAULT_BUILTIN_FUNCTIONS};
 use sqlbuiltins::validation::{
-    validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
+    validate_database_tunnel_support,
+    validate_object_name,
+    validate_table_tunnel_support,
 };
 use tokio::sync::Mutex;
 use tracing::debug;
@@ -1424,11 +1446,20 @@ mod tests {
     use datafusion::arrow::datatypes::DataType;
     use object_store::memory::InMemory;
     use protogen::metastore::types::options::{
-        DatabaseOptionsDebug, InternalColumnDefinition, TableOptionsDebug, TableOptionsInternal,
+        DatabaseOptionsDebug,
+        InternalColumnDefinition,
+        TableOptionsDebug,
+        TableOptionsInternal,
     };
     use protogen::metastore::types::service::{
-        AlterDatabase, CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable,
-        CreateView, DropDatabase, DropSchema,
+        AlterDatabase,
+        CreateExternalDatabase,
+        CreateExternalTable,
+        CreateSchema,
+        CreateTable,
+        CreateView,
+        DropDatabase,
+        DropSchema,
     };
     use sqlbuiltins::builtins::{DEFAULT_CATALOG, INTERNAL_SCHEMA};
 
