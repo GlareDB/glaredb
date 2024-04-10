@@ -17,14 +17,14 @@ def test_eager_ddl():
     with pytest.raises(Exception, match="Duplicate name"):
         one.execute()
 
-    assert con.sql("select count(*) from tblsqlhelper;").to_arrow().to_pydict()["COUNT(*)"][0] == 0
-
-    two = con.sql("insert into tblsqlhelper values (1, 2);")
-    assert con.sql("select * from tblsqlhelper;").to_arrow().num_rows == 1
     assert con.sql("select count(*) from tblsqlhelper;").to_arrow().to_pydict()["COUNT(*)"][0] == 1
 
-    two.execute()
+    two = con.sql("insert into tblsqlhelper values (1, 2);")
     assert con.sql("select * from tblsqlhelper;").to_arrow().num_rows == 2
+    assert con.sql("select count(*) from tblsqlhelper;").to_arrow().to_pydict()["COUNT(*)"][0] == 2
+
+    two.execute()
+    assert con.sql("select * from tblsqlhelper;").to_arrow().num_rows == 3
 
 
 def test_execute_is_eager():
