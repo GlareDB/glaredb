@@ -323,6 +323,15 @@ pub struct Engine {
     _task_executors: Vec<TaskExecutor>,
 }
 
+pub enum EngineStorage {
+    Memory,
+    Local(PathBuf),
+    Remote {
+        location: String,
+        options: HashMap<String, String>,
+    },
+}
+
 impl Engine {
     /// Create a new engine using the provided access runtime.
     pub async fn new(
@@ -357,6 +366,16 @@ impl Engine {
     /// Returns the telemetry tracker used by this engine.
     pub fn get_tracker(&self) -> Arc<Tracker> {
         self.tracker.clone()
+    }
+
+    pub async fn from_storage(opts: EngineStorage) -> Result<Engine> {
+        match opts {
+            EngineStorage::Memory => Self::from_data_dir(None).await,
+            EngineStorage::Local(path) => Self::from_data_dir(Some(&path)).await,
+            EngineStorage::Remote { location, options } => {
+                Self::from_storage_options(&location, &options).await
+            }
+        }
     }
 
     /// Create a new `Engine` instance from the provided storage configuration with a in-process metastore
