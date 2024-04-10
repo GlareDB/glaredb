@@ -6,7 +6,7 @@ use futures::lock::Mutex;
 use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
 use pyo3::types::PyType;
-use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
+use sqlexec::engine::{Engine, EngineStorage, SessionStorageConfig, TrackedSession};
 use sqlexec::{LogicalPlan, OperationInfo};
 
 use crate::execution_result::PyExecutionResult;
@@ -28,14 +28,15 @@ pub struct Connection {
 impl Connection {
     /// Returns a default connection to an in-memory database.
     ///
-    /// The database is only initialized once, and all subsequent calls will
-    /// return the same connection.
+    /// This database is only initialized once, and all subsequent
+    /// calls will return the same connection object and therefore
+    /// access the same data and database.
     pub fn default_in_memory(py: Python<'_>) -> PyResult<Self> {
         static DEFAULT_CON: OnceCell<Connection> = OnceCell::new();
 
         let con = DEFAULT_CON.get_or_try_init(|| {
             wait_for_future(py, async move {
-                let engine = Engine::from_data_dir(None).await?;
+                let engine = Engine::from_storage(EngineStorage::Memory).await?;
                 let sess = engine
                     .new_local_session_context(
                         SessionVars::default(),

@@ -11,7 +11,7 @@ use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
 use ioutil::ensure_dir;
 use pyo3::prelude::*;
-use sqlexec::engine::{Engine, SessionStorageConfig};
+use sqlexec::engine::{Engine, EngineStorage, SessionStorageConfig};
 use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use url::Url;
 
@@ -54,7 +54,8 @@ impl From<Option<String>> for PythonSessionConf {
 ///
 /// # Examples
 ///
-/// Connect to an in-memory database.
+/// Connect to an in-memory database. Each connection object is
+/// associated with a __different__ database instance.
 ///
 /// ```python
 /// import glaredb
@@ -91,18 +92,20 @@ pub fn connect(
     wait_for_future(py, async move {
         let conf = PythonSessionConf::from(data_dir_or_cloud_url);
 
-        let mut engine = if let Some(location) = location {
-            // TODO: try to consolidate with --data-dir option
-            Engine::from_storage_options(&location, &storage_options.unwrap_or_default())
-                .await
-                .map_err(PyGlareDbError::from)?
+        let storage = if let Some(location) = location.clone() {
+            EngineStorage::Remote {
+                location,
+                options: storage_options.unwrap_or_default(),
+            }
+        } else if let Some(data_dir) = conf.data_dir.clone() {
+            EngineStorage::Local(data_dir)
         } else {
-            // If data dir is provided, then both table storage and metastore
-            // storage will reside at that path. Otherwise everything is in memory.
-            Engine::from_data_dir(conf.data_dir.as_ref())
-                .await
-                .map_err(PyGlareDbError::from)?
+            EngineStorage::Memory
         };
+
+        let mut engine = Engine::from_storage(storage)
+            .await
+            .map_err(PyGlareDbError::from)?;
 
         // If spill path not provided, default to some tmp dir.
         let spill_path = match spill_path {
