@@ -5803,7 +5803,6 @@ dependencies = [
  "logutil",
  "moka 0.12.5",
  "object_store",
- "once_cell",
  "tempfile",
  "thiserror",
  "tokio",

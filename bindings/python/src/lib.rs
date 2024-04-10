@@ -40,16 +40,20 @@ fn glaredb(_py: Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-/// Run a SQL query against an in-memory GlareDB database.
+/// Run a SQL query against the default in-memory GlareDB
+/// database. Subsequent calls to this method will always interact
+/// with the same underlying connection object and therefore access
+/// the same data and database.
 #[pyfunction]
 pub fn sql(py: Python, query: &str) -> PyResult<PyExecution> {
-    let mut con = Connection::default_in_memory(py)?;
-    con.sql(py, query)
+    Connection::default_in_memory(py)?.sql(py, query)
 }
 
-/// Execute a query against an in-memory GlareDB database.
+/// Execute a query against the default in-memory GlareDB
+/// database. Subsequent calls to this method will always interact
+/// with the same underlying connection object and therefore access
+/// the same data and database.
 #[pyfunction]
 pub fn execute(py: Python, query: &str) -> PyResult<PyExecution> {
-    let mut con = Connection::default_in_memory(py)?;
-    con.execute(py, query)
+    Connection::default_in_memory(py)?.execute(py, query)
 }

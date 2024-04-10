@@ -18,7 +18,8 @@ use crate::runtime::wait_for_future;
 ///
 /// # Examples
 ///
-/// Connect to an in-memory database.
+/// Connect to an in-memory database. Each connection object is
+/// associated with a __different__ database instance.
 ///
 /// ```python
 /// import glaredb
