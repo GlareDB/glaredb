@@ -49,7 +49,6 @@
 //! easiest way to accomplish the desired catalog caching behavior, and not due
 //! to any limitations in metastore itself.
 
-
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -71,7 +70,6 @@ pub struct MetastoreClientConfig {
     /// Number of ticks with no session references before the worker exits.
     pub max_ticks_before_exit: usize,
 }
-
 
 /// Handle to a metastore client.
 #[derive(Debug, Clone)]
@@ -117,7 +115,25 @@ impl MetastoreClientHandle {
             .and_then(std::convert::identity) // Flatten
     }
 
-    /// Try to run mutations against the Metastore catalog.
+    pub async fn commit_state(
+        &self,
+        version: u64,
+        state: CatalogState,
+    ) -> Result<Arc<CatalogState>> {
+        let (tx, rx) = oneshot::channel();
+        self.send(
+            ClientRequest::Commit {
+                version,
+                state: Arc::new(state),
+                response: tx,
+            },
+            rx,
+        )
+        .await
+        .and_then(std::convert::identity) // Flatten
+    }
+
+    /// Try to run mutations against the Metastore catalog and commit them.
     ///
     /// The version provided should be the version of the catalog state that the
     /// session currently has.
@@ -174,6 +190,11 @@ pub enum ClientRequest {
     GetCachedState {
         response: oneshot::Sender<Result<Arc<CatalogState>>>,
     },
+    Commit {
+        version: u64,
+        state: Arc<CatalogState>,
+        response: oneshot::Sender<Result<Arc<CatalogState>>>,
+    },
 
     /// Execute mutations against a catalog.
     ExecMutations {
@@ -192,6 +213,7 @@ impl ClientRequest {
     fn tag(&self) -> &'static str {
         match self {
             ClientRequest::Ping { .. } => "ping",
+            ClientRequest::Commit { .. } => "commit",
             ClientRequest::GetCachedState { .. } => "get_cached_state",
             ClientRequest::ExecMutations { .. } => "exec_mutations",
             ClientRequest::RefreshCachedState { .. } => "refresh_cached_state",

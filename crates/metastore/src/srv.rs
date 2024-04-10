@@ -5,10 +5,7 @@ use dashmap::DashMap;
 use object_store::ObjectStore;
 use protogen::gen::metastore::service::metastore_service_server::MetastoreService;
 use protogen::gen::metastore::service::{
-    self,
-    FetchCatalogRequest,
-    FetchCatalogResponse,
-    MutateRequest,
+    self, CommitRequest, CommitResponse, FetchCatalogRequest, FetchCatalogResponse, MutateRequest,
     MutateResponse,
 };
 use protogen::metastore::types::service::Mutation;
@@ -106,8 +103,8 @@ impl MetastoreService for Service {
             .into_iter()
             .map(|m| Mutation::try_from(m).map_err(MetastoreError::from))
             .collect::<Result<_, _>>()?;
-        // TODO: Catch error and return status.
 
+        // TODO: Catch error and return status.
         let updated = catalog.try_mutate(req.catalog_version, mutations).await?;
 
         Ok(Response::new(MutateResponse {
@@ -115,8 +112,26 @@ impl MetastoreService for Service {
             catalog: Some(updated.try_into().map_err(MetastoreError::from)?),
         }))
     }
-}
+    async fn commit_catalog(
+        &self,
+        request: Request<CommitRequest>,
+    ) -> Result<Response<CommitResponse>, Status> {
+        let req = request.into_inner();
+        let id = Uuid::from_slice(&req.db_id)
+            .map_err(|_| MetastoreError::InvalidDatabaseId(req.db_id))?;
+        let state = req.catalog.ok_or(MetastoreError::MissingCatalog)?;
+        let catalog = self.get_or_load_catalog(id).await?;
 
+        let updated = catalog
+            .commit(req.catalog_version, state.try_into()?)
+            .await?;
+
+        Ok(Response::new(CommitResponse {
+            status: service::mutate_response::Status::Applied as i32,
+            catalog: Some(updated.try_into().map_err(MetastoreError::from)?),
+        }))
+    }
+}
 
 #[cfg(test)]
 mod tests {

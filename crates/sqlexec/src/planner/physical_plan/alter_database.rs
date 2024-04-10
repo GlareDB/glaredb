@@ -103,7 +103,7 @@ async fn alter_database(
     plan: AlterDatabaseExec,
 ) -> DataFusionResult<RecordBatch> {
     mutator
-        .mutate(
+        .mutate_and_commit(
             plan.catalog_version,
             [Mutation::AlterDatabase(service::AlterDatabase {
                 name: plan.name,

@@ -12,11 +12,7 @@ use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    SendableRecordBatchStream,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
 use datasources::native::access::{NativeTable, NativeTableStorage, SaveMode};
@@ -128,10 +124,10 @@ impl CreateTableExec {
     ) -> DataFusionResult<RecordBatch> {
         let or_replace = self.or_replace;
         let if_not_exists = self.if_not_exists;
-
+        let catalog_version = self.catalog_version;
         let state = mutator
             .mutate(
-                self.catalog_version,
+                catalog_version.clone(),
                 [Mutation::CreateTable(service::CreateTable {
                     schema: self.tbl_reference.schema.clone().into_owned(),
                     name: self.tbl_reference.name.clone().into_owned(),
@@ -160,7 +156,7 @@ impl CreateTableExec {
         // TODO: We should be returning _what_ was updated from metastore
         // instead of needing to do this. Sean has a stash working on this.
         let new_catalog = SessionCatalog::new(
-            state,
+            state.clone(),
             ResolveConfig {
                 default_schema_oid: 0,
                 session_schema_oid: 0,
@@ -192,16 +188,26 @@ impl CreateTableExec {
             DataFusionError::Execution(format!("failed to create table in storage: {e}"))
         })?;
 
-        match (source, or_replace) {
-            (Some(input), overwrite) => insert(&table, input, overwrite, context).await?,
+        let insert_res = match (source, or_replace) {
+            (Some(input), overwrite) => insert(&table, input, overwrite, context).await,
 
             // if it's a 'replace' and there is no insert, we overwrite with an empty table
             (None, true) => {
                 let input = Arc::new(EmptyExec::new(TableProvider::schema(&table)));
-                insert(&table, input, true, context).await?
+                insert(&table, input, true, context).await
             }
-            (None, false) => {}
+            (None, false) => Ok(()),
         };
+
+        if let Err(e) = insert_res {
+            storage.delete_table(ent).await.unwrap();
+            return Err(e);
+        } else {
+            mutator
+                .commit_state(catalog_version, state.as_ref().clone())
+                .await
+                .unwrap();
+        }
         debug!(loc = %table.storage_location(), "native table created");
 
         // TODO: Add storage tracking job.

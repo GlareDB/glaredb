@@ -57,7 +57,7 @@ use std::time::Duration;
 use catalog::client::{ClientRequest, MetastoreClientHandle};
 use catalog::errors::CatalogError;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
-use protogen::gen::metastore::service::{FetchCatalogRequest, MutateRequest};
+use protogen::gen::metastore::service::{CommitRequest, FetchCatalogRequest, MutateRequest};
 use protogen::metastore::types::catalog::CatalogState;
 use tokio::sync::{mpsc, RwLock};
 use tokio::task::JoinHandle;
@@ -332,6 +332,28 @@ impl StatefulWorker {
                     error!("failed to respond to ping");
                 }
             }
+            ClientRequest::Commit {
+                version,
+                state,
+                response,
+            } => {
+                let state: CatalogState = state.as_ref().clone();
+                let commit_request = tonic::Request::new(CommitRequest {
+                    db_id: self.db_id.into_bytes().to_vec(),
+                    catalog_version: version,
+                    catalog: Some(state.try_into().unwrap()),
+                });
+
+                let result = self.client.commit_catalog(commit_request).await.unwrap();
+                let result = result.into_inner();
+                let state: CatalogState = result.catalog.unwrap().try_into().unwrap();
+                self.set_cached_state(state);
+                let res = Ok(self.cached_state.clone());
+
+                if response.send(res).is_err() {
+                    error!("failed to respond to commit");
+                }
+            }
             ClientRequest::GetCachedState { response, .. } => {
                 if response.send(Ok(self.cached_state.clone())).is_err() {
                     error!("failed to send cached state");
@@ -365,13 +387,13 @@ impl StatefulWorker {
                         // TODO: Properly check if we updated.
                         match resp.catalog {
                             Some(catalog) => {
-                                // Update this worker's cache.
                                 let state: CatalogState = catalog.try_into().unwrap(); // TODO
-                                self.set_cached_state(state);
+                                Ok(Arc::new(state))
                             }
-                            _ => error!("missing catalog state"),
+                            _ => {
+                                panic!("missing catalog state")
+                            }
                         }
-                        Ok(self.cached_state.clone())
                     }
                     Err(e) => Err(e),
                 };

@@ -30,12 +30,52 @@ impl CatalogMutator {
         self.client.as_ref()
     }
 
+    /// Commit the catalog state.
+    /// This persists the state to the metastore.
+    pub async fn commit_state(
+        &self,
+        catalog_version: u64,
+        state: CatalogState,
+    ) -> Result<Arc<CatalogState>> {
+        let client = match &self.client {
+            Some(client) => client,
+            None => return Err(CatalogError::new("metastore client not configured")),
+        };
+
+        let state = match client.commit_state(catalog_version, state).await {
+            Ok(state) => state,
+            Err(CatalogError {
+                msg,
+                strategy: Some(ResolveErrorStrategy::FetchCatalogAndRetry),
+            }) => {
+                // Go ahead and refetch the catalog and retry the mutation.
+                //
+                // Note that this relies on metastore _always_ being stricter
+                // when validating mutations. What this means is that retrying
+                // here should be semantically equivalent to manually refreshing
+                // the catalog and rerunning and replanning the query.
+                debug!(error_message = msg, "retrying mutations");
+
+                client.refresh_cached_state().await?;
+                let state = client.get_cached_state().await?;
+                let version = state.version;
+
+                client.commit_state(version, state.as_ref().clone()).await?
+            }
+            Err(e) => return Err(e),
+        };
+
+        Ok(state)
+    }
+
     /// Mutate the catalog if possible.
+    /// This returns the catalog state with the mutations reflected.
+    /// IMPORTANT: these changes are not yet persisted and must be 'committed' manually via `commit_state`.
+    /// If you wish to mutate and immediately commit, use `mutate_and_commit`
     ///
     /// Errors if the metastore client isn't configured.
     ///
-    /// This will retry mutations if we were working with an out of date
-    /// catalog.
+    /// This will retry mutations if we were working with an out of date catalog.
     pub async fn mutate(
         &self,
         catalog_version: u64,
@@ -73,6 +113,22 @@ impl CatalogMutator {
         };
 
         Ok(state)
+    }
+
+    /// Mutate the catalog if possible and immediately commit the changes.
+    ///
+    /// Errors if the metastore client isn't configured.
+    ///
+    /// This will retry mutations if we were working with an out of date
+    /// catalog.
+    pub async fn mutate_and_commit(
+        &self,
+        catalog_version: u64,
+        mutations: impl IntoIterator<Item = Mutation>,
+    ) -> Result<Arc<CatalogState>> {
+        let state = self.mutate(catalog_version, mutations).await?;
+        self.commit_state(catalog_version, state.as_ref().clone())
+            .await
     }
 }
 
