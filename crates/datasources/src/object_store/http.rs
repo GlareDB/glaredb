@@ -46,7 +46,8 @@ impl HttpStoreAccess {
     async fn content_length(u: Url) -> Result<Option<u64>> {
         let res = reqwest::Client::new().head(u.clone()).send().await?;
         let status = res.status();
-        if !status.is_success() {
+        // Ignore client errors (head method might not be supported).
+        if !status.is_success() && !status.is_client_error() {
             if u.as_str().contains('*') {
                 return Err(ObjectStoreSourceError::InvalidHttpStatus(format!(
                     "Unexpected status code '{}' for url: '{}'. \
