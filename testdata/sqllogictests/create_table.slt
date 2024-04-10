@@ -121,11 +121,11 @@ select * from "Case Sensitive"
 
 
 # create a table with an invalid select statement
-statement error  Failed to convert into Arrow schema
+statement error Failed to convert into Arrow schema
 create table invalid_ctas as (select cast('test' as int) as 'bad_cast');
 
 # make sure the table was not created
-statement error  failed to find table: invalid_ctas
+statement error failed to find table: invalid_ctas
 select * from invalid_ctas;
 
 
