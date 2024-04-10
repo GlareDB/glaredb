@@ -54,7 +54,8 @@ impl From<Option<String>> for PythonSessionConf {
 ///
 /// # Examples
 ///
-/// Connect to an in-memory database.
+/// Connect to an in-memory database. Each connection object is
+/// associated with a __different__ database instance.
 ///
 /// ```python
 /// import glaredb
