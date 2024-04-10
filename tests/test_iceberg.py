@@ -11,4 +11,4 @@ def test_pyiceberg(
         cur.execute(f"select count(*) from read_iceberg('{pyiceberg_table}')")
         result = cur.fetchall()
 
-    print(result)
+    assert result[0][0] == 3066766
