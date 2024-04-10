@@ -12,11 +12,7 @@ use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    SendableRecordBatchStream,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
 use datasources::native::access::{NativeTable, NativeTableStorage, SaveMode};
@@ -131,7 +127,7 @@ impl CreateTableExec {
         let catalog_version = self.catalog_version;
         let state = mutator
             .mutate(
-                catalog_version.clone(),
+                catalog_version,
                 [Mutation::CreateTable(service::CreateTable {
                     schema: self.tbl_reference.schema.clone().into_owned(),
                     name: self.tbl_reference.name.clone().into_owned(),

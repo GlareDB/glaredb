@@ -6,44 +6,22 @@ use std::sync::Arc;
 use once_cell::sync::Lazy;
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use protogen::metastore::types::catalog::{
-    CatalogEntry,
-    CatalogState,
-    CredentialsEntry,
-    DatabaseEntry,
-    DeploymentMetadata,
-    EntryMeta,
-    EntryType,
-    FunctionEntry,
-    SchemaEntry,
-    SourceAccessMode,
-    TableEntry,
-    TunnelEntry,
-    ViewEntry,
+    CatalogEntry, CatalogState, CredentialsEntry, DatabaseEntry, DeploymentMetadata, EntryMeta,
+    EntryType, FunctionEntry, SchemaEntry, SourceAccessMode, TableEntry, TunnelEntry, ViewEntry,
     CURRENT_CATALOG_VERSION,
 };
 use protogen::metastore::types::options::{
-    DatabaseOptions,
-    DatabaseOptionsInternal,
-    TableOptionsInternal,
-    TunnelOptions,
+    DatabaseOptions, DatabaseOptionsInternal, TableOptionsInternal, TunnelOptions,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
 use protogen::metastore::types::storage::{ExtraState, PersistedCatalog};
 use sqlbuiltins::builtins::{
-    BuiltinDatabase,
-    BuiltinSchema,
-    BuiltinTable,
-    BuiltinView,
-    DATABASE_DEFAULT,
-    DEFAULT_SCHEMA,
-    FIRST_NON_STATIC_OID,
-    SCHEMA_DEFAULT,
+    BuiltinDatabase, BuiltinSchema, BuiltinTable, BuiltinView, DATABASE_DEFAULT, DEFAULT_SCHEMA,
+    FIRST_NON_STATIC_OID, SCHEMA_DEFAULT,
 };
 use sqlbuiltins::functions::{BuiltinFunction, DEFAULT_BUILTIN_FUNCTIONS};
 use sqlbuiltins::validation::{
-    validate_database_tunnel_support,
-    validate_object_name,
-    validate_table_tunnel_support,
+    validate_database_tunnel_support, validate_object_name, validate_table_tunnel_support,
 };
 use tokio::sync::Mutex;
 use tracing::debug;
@@ -160,22 +138,6 @@ impl DatabaseCatalog {
         }
         let state = self.serializable_state(&state);
         Ok(state)
-    }
-
-    /// Try to mutate the catalog and immediately commit the changes.
-    ///
-    /// Errors if the provided version doesn't match the version of the current
-    /// catalog.
-    ///
-    /// On success, a full copy of the updated catalog state will be returned.
-    // TODO: All or none.
-    pub async fn try_mutate_and_commit(
-        &self,
-        version: u64,
-        mutations: Vec<Mutation>,
-    ) -> Result<CatalogState> {
-        let state = self.try_mutate(version, mutations).await?;
-        self.commit(version, state.clone()).await
     }
 
     /// Return the serializable state of the catalog at this version.
@@ -1440,26 +1402,36 @@ impl BuiltinCatalog {
 }
 
 #[cfg(test)]
+impl DatabaseCatalog {
+    /// Try to mutate the catalog and immediately commit the changes.
+    ///
+    /// Errors if the provided version doesn't match the version of the current
+    /// catalog.
+    ///
+    /// On success, a full copy of the updated catalog state will be returned.
+    // TODO: All or none.
+    pub async fn try_mutate_and_commit(
+        &self,
+        version: u64,
+        mutations: Vec<Mutation>,
+    ) -> Result<CatalogState> {
+        let state = self.try_mutate(version, mutations).await?;
+        self.commit(version, state.clone()).await
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use std::collections::HashSet;
 
     use datafusion::arrow::datatypes::DataType;
     use object_store::memory::InMemory;
     use protogen::metastore::types::options::{
-        DatabaseOptionsDebug,
-        InternalColumnDefinition,
-        TableOptionsDebug,
-        TableOptionsInternal,
+        DatabaseOptionsDebug, InternalColumnDefinition, TableOptionsDebug, TableOptionsInternal,
     };
     use protogen::metastore::types::service::{
-        AlterDatabase,
-        CreateExternalDatabase,
-        CreateExternalTable,
-        CreateSchema,
-        CreateTable,
-        CreateView,
-        DropDatabase,
-        DropSchema,
+        AlterDatabase, CreateExternalDatabase, CreateExternalTable, CreateSchema, CreateTable,
+        CreateView, DropDatabase, DropSchema,
     };
     use sqlbuiltins::builtins::{DEFAULT_CATALOG, INTERNAL_SCHEMA};
 
