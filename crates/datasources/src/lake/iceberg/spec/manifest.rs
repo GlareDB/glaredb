@@ -8,6 +8,7 @@ use serde_with::{serde_as, Bytes};
 
 use super::{PartitionField, Schema};
 use crate::lake::iceberg::errors::{IcebergError, Result};
+use crate::lake::iceberg::spec::PartitionSpec;
 
 /// Manifest lists include summary medata for the table alongside the path the
 /// actual manifest.
@@ -176,12 +177,23 @@ impl Manifest {
         // Spec says schema id is required, but seems like it's actually
         // optional. Missing from the spark outputs.
         let schema_id = get_metadata_as_i32(m, "schema-id").unwrap_or_default();
-        let partition_spec = serde_json::from_slice(m.get("partition-spec").ok_or_else(|| {
+
+        let partition_spec_id = get_metadata_as_i32(m, "partition-spec-id")?;
+
+        let raw_partition_spec = m.get("partition-spec").ok_or_else(|| {
             IcebergError::DataInvalid(
                 "Missing field 'partition-spec' in manifest metadata".to_string(),
             )
-        })?)?;
-        let partition_spec_id = get_metadata_as_i32(m, "partition-spec-id")?;
+        })?;
+
+        let partition_spec = match serde_json::from_slice::<PartitionSpec>(raw_partition_spec) {
+            Ok(spec) => spec.fields,
+            Err(_e) => {
+                // Try to get it as a slice of PartitionField.
+                serde_json::from_slice(raw_partition_spec)?
+            }
+        };
+
         let format_version = get_metadata_as_i32(m, "format-version")?;
         let content = match get_metadata_field(m, "content") {
             Ok(c) => String::from_utf8_lossy(c).parse()?,
@@ -211,6 +223,37 @@ impl Manifest {
         }
 
         Ok(Manifest { metadata, entries })
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
+pub enum ManifestEntryStatus {
+    #[default]
+    Existing,
+    Added,
+    Deleted,
+}
+
+impl ManifestEntryStatus {
+    pub fn is_deleted(&self) -> bool {
+        matches!(self, Self::Deleted)
+    }
+}
+
+impl TryFrom<i32> for ManifestEntryStatus {
+    type Error = IcebergError;
+
+    fn try_from(value: i32) -> std::prelude::v1::Result<Self, Self::Error> {
+        Ok(match value {
+            0 => Self::Existing,
+            1 => Self::Added,
+            2 => Self::Deleted,
+            i => {
+                return Err(IcebergError::DataInvalid(format!(
+                    "unknown manifest entry status: {i}"
+                )))
+            }
+        })
     }
 }
 
