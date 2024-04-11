@@ -125,11 +125,7 @@ pub fn connect(
             .await
             .map_err(PyGlareDbError::from)?;
 
-<<<<<<< HEAD
-        session.register_env_reader(Some(Arc::new(Box::new(PyEnvironmentReader))));
-=======
         session.register_env_reader(Some(Arc::new(PyEnvironmentReader)));
->>>>>>> origin/main
 
         Ok(Connection {
             session: Arc::new(Mutex::new(session)),
