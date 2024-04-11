@@ -100,7 +100,13 @@ pub enum DispatchError {
 
     #[error("{0}")]
     String(String),
+
+    #[error(transparent)]
+    Builtin(#[from] sqlbuiltins::errors::BuiltinError),
+    #[error(transparent)]
+    Datasource(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
+
 
 /// Trait for planning views.
 ///

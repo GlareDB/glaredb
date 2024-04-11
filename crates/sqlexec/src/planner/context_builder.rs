@@ -17,7 +17,7 @@ use datafusion_ext::planner::AsyncContextProvider;
 use datafusion_ext::runtime::table_provider::RuntimeAwareTableProvider;
 use datafusion_ext::vars::CredentialsVarProvider;
 use protogen::metastore::types::catalog::{CatalogEntry, RuntimePreference};
-use protogen::metastore::types::options::TableOptions;
+use protogen::metastore::types::options::TableOptionsV0;
 use protogen::rpcsrv::types::service::ResolvedTableReference;
 
 use crate::context::local::LocalSessionContext;
@@ -196,8 +196,8 @@ impl<'a> PartialContextProvider<'a> {
                     let run_local = table.meta.is_temp
                         || table.meta.builtin
                         || matches!(
-                            &table.options,
-                            TableOptions::Debug(_) | TableOptions::Local(_)
+                            table.options,
+                            TableOptionsV0::Debug(_) | TableOptionsV0::Local(_)
                         );
 
                     if run_local {

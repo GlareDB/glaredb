@@ -1,62 +1,14 @@
 [package]
 name = "glaredb"
-version = { workspace = true }
-edition = { workspace = true }
+version.workspace = true
+edition.workspace = true
 
 [lints]
 workspace = true
 
-[[bin]]
-name = "glaredb"
-path = "src/bin/main.rs"
-
 [dependencies]
-anyhow = { workspace = true }
-clap = { workspace = true }
+sqlexec = { path = "../sqlexec" }
+url = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
-tempfile = { workspace = true }
-tokio = { workspace = true }
-tonic = { workspace = true }
-url = { workspace = true }
-object_store = { workspace = true, features = ["gcp"] }
-tracing = { workspace = true }
-
-datafusion_ext = { path = "../datafusion_ext" }
-ioutil = { path = "../ioutil" }
-logutil = { path = "../logutil" }
-metastore = { path = "../metastore" }
-object_store_util = { path = "../object_store_util" }
-pgrepr = { path = "../pgrepr" }
-pgsrv = { path = "../pgsrv" }
-protogen = { path = "../protogen" }
-proxyutil = { path = "../proxyutil" }
-rpcsrv = { path = "../rpcsrv" }
-slt = { path = "../slt" }
-sqlexec = { path = "../sqlexec" }
-telemetry = { path = "../telemetry" }
-sqlbuiltins = { path = "../sqlbuiltins" }
-arrow_util = { path = "../arrow_util" }
-terminal_util = { path = "../terminal_util" }
-
-num_cpus = "1.16.0"
-colored = "2.1.0"
-reedline = "0.30.0"
-nu-ansi-term = "0.50.0"
-atty = "0.2.14"
-console-subscriber = "0.2.0"
-tokio-postgres = "0.7.8"
-uuid = { version = "1.7.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
-glob = "0.3.1"
-
-# Prevent dynamic linking of lzma, which comes from datafusion
-lzma-sys = { version = "*", features = ["static"] }
-
-[dev-dependencies]
-predicates = "3.1.0"
-assert_cmd = "2.0.14"
-tokio-postgres = "0.7.8"
-tempfile = { workspace = true }
-
-[build-dependencies]
-built = { version = "0.7.1", features = ["git2"] }
+derive_builder = "0.20.0"

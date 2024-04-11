@@ -6,6 +6,7 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
+    ColumnarValue,
     ReturnTypeFunction,
     ScalarFunctionImplementation,
     ScalarUDF,
@@ -19,7 +20,7 @@ use fnv::FnvHasher;
 use protogen::metastore::types::catalog::FunctionType;
 use siphasher::sip::SipHasher24;
 
-use super::{get_nth_scalar_value, get_nth_u64_fn_arg};
+use super::{apply_op_to_col_array, get_nth_scalar_value, get_nth_u64_fn_arg};
 use crate::errors::BuiltinError;
 use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
 
@@ -33,9 +34,8 @@ impl ConstBuiltinFunction for SipHash {
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
 
     fn signature(&self) -> Option<Signature> {
-        Some(Signature::new(
-            // args: <FIELD>
-            TypeSignature::Any(1),
+        Some(Signature::one_of(
+            vec![TypeSignature::Any(0), TypeSignature::Any(1)],
             Volatility::Immutable,
         ))
     }
@@ -44,14 +44,35 @@ impl BuiltinScalarUDF for SipHash {
     fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
         let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::UInt64)));
         let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
-            Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
-                ScalarValue,
-                BuiltinError,
-            > {
-                let mut hasher = SipHasher24::new();
-                value.hash(&mut hasher);
-                Ok(ScalarValue::UInt64(Some(hasher.finish())))
-            })?)
+            Ok(match input {
+                [] => {
+                    let mut hasher = SipHasher24::new();
+                    let value = ScalarValue::Null;
+                    value.hash(&mut hasher);
+                    ColumnarValue::Scalar(ScalarValue::UInt64(Some(hasher.finish())))
+                }
+                [ColumnarValue::Scalar(scalar)] => {
+                    let mut hasher = SipHasher24::new();
+                    scalar.hash(&mut hasher);
+                    ColumnarValue::Scalar(ScalarValue::UInt64(Some(hasher.finish())))
+                }
+                [ColumnarValue::Array(array)] => {
+                    let out = apply_op_to_col_array(array, &|value| -> Result<
+                        ScalarValue,
+                        BuiltinError,
+                    > {
+                        let mut hasher = SipHasher24::new();
+                        value.hash(&mut hasher);
+                        Ok(ScalarValue::UInt64(Some(hasher.finish())))
+                    })?;
+                    ColumnarValue::Array(out)
+                }
+                _ => {
+                    return Err(DataFusionError::Internal(
+                        "siphash expects exactly one argument".to_string(),
+                    ));
+                }
+            })
         });
         let udf = ScalarUDF::new(
             Self::NAME,
@@ -76,9 +97,8 @@ impl ConstBuiltinFunction for FnvHash {
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
 
     fn signature(&self) -> Option<Signature> {
-        Some(Signature::new(
-            // args: <FIELD>
-            TypeSignature::Any(1),
+        Some(Signature::one_of(
+            vec![TypeSignature::Any(0), TypeSignature::Any(1)],
             Volatility::Immutable,
         ))
     }
@@ -88,14 +108,35 @@ impl BuiltinScalarUDF for FnvHash {
     fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
         let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::UInt64)));
         let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
-            Ok(get_nth_scalar_value(input, 0, &|value| -> Result<
-                ScalarValue,
-                BuiltinError,
-            > {
-                let mut hasher = FnvHasher::default();
-                value.hash(&mut hasher);
-                Ok(ScalarValue::UInt64(Some(hasher.finish())))
-            })?)
+            Ok(match input {
+                [] => {
+                    let mut hasher = FnvHasher::default();
+                    let value = ScalarValue::Null;
+                    value.hash(&mut hasher);
+                    ColumnarValue::Scalar(ScalarValue::UInt64(Some(hasher.finish())))
+                }
+                [ColumnarValue::Scalar(scalar)] => {
+                    let mut hasher = FnvHasher::default();
+                    scalar.hash(&mut hasher);
+                    ColumnarValue::Scalar(ScalarValue::UInt64(Some(hasher.finish())))
+                }
+                [ColumnarValue::Array(array)] => {
+                    let out = apply_op_to_col_array(array, &|value| -> Result<
+                        ScalarValue,
+                        BuiltinError,
+                    > {
+                        let mut hasher = FnvHasher::default();
+                        value.hash(&mut hasher);
+                        Ok(ScalarValue::UInt64(Some(hasher.finish())))
+                    })?;
+                    ColumnarValue::Array(out)
+                }
+                _ => {
+                    return Err(DataFusionError::Internal(
+                        "fnvhash expects exactly one argument".to_string(),
+                    ));
+                }
+            })
         });
         let udf = ScalarUDF::new(
             Self::NAME,

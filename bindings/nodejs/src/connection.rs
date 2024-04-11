@@ -5,9 +5,8 @@ use std::sync::Arc;
 use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
 use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
-use ioutil::ensure_dir;
-use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
-use sqlexec::remote::client::{RemoteClient, RemoteClientType};
+use sqlexec::engine::{Engine, EngineStorage, SessionStorageConfig, TrackedSession};
+use sqlexec::remote::client::RemoteClientType;
 use sqlexec::{LogicalPlan, OperationInfo};
 use url::Url;
 
@@ -20,7 +19,7 @@ pub(super) type JsTrackedSession = Arc<Mutex<TrackedSession>>;
 #[napi]
 #[derive(Clone)]
 pub struct Connection {
-    pub(crate) sess: JsTrackedSession,
+    pub(crate) session: JsTrackedSession,
     pub(crate) _engine: Arc<Engine>,
 }
 
@@ -66,75 +65,55 @@ impl Connection {
     ) -> napi::Result<Self> {
         let conf = JsSessionConf::from(data_dir_or_cloud_url);
 
-        let mut engine = if let Some(location) = location {
-            // TODO: try to consolidate with --data-dir option
-            Engine::from_storage_options(&location, &storage_options.unwrap_or_default())
-                .await
-                .map_err(JsGlareDbError::from)?
+        let storage = if let Some(location) = location.clone() {
+            EngineStorage::Remote {
+                location,
+                options: storage_options.unwrap_or_default(),
+            }
+        } else if let Some(data_dir) = conf.data_dir.clone() {
+            EngineStorage::Local(data_dir)
         } else {
-            // If data dir is provided, then both table storage and metastore
-            // storage will reside at that path. Otherwise everything is in memory.
-            Engine::from_data_dir(conf.data_dir.as_ref())
-                .await
-                .map_err(JsGlareDbError::from)?
+            EngineStorage::Memory
         };
 
-        // If spill path not provided, default to some tmp dir.
-        let spill_path = match spill_path {
-            Some(p) => {
-                let path = PathBuf::from(p);
-                ensure_dir(&path)?;
-                Some(path)
-            }
-            None => {
-                let path = std::env::temp_dir().join("glaredb-js");
-                // if user doesn't have permission to write to temp dir, then
-                // just don't use a spill path.
-                ensure_dir(&path).ok().map(|_| path)
-            }
-        };
-        engine = engine.with_spill_path(spill_path);
+        let mut engine = Engine::from_storage(storage)
+            .await
+            .map_err(JsGlareDbError::from)?;
 
-        let session = if let Some(url) = conf.cloud_url.clone() {
-            let exec_client = RemoteClient::connect_with_proxy_destination(
-                url.try_into().map_err(JsGlareDbError::from)?,
+        engine = engine
+            .with_spill_path(spill_path.map(|p| p.into()))
+            .map_err(JsGlareDbError::from)?;
+
+        let mut session = engine
+            .default_local_session_context()
+            .await
+            .map_err(JsGlareDbError::from)?;
+
+        session
+            .create_client_session(
+                conf.cloud_url.clone(),
                 cloud_addr,
                 disable_tls,
                 RemoteClientType::Node,
+                None,
             )
             .await
             .map_err(JsGlareDbError::from)?;
 
-            let mut sess = engine
-                .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
-                .await
-                .map_err(JsGlareDbError::from)?;
-            sess.attach_remote_session(exec_client.clone(), None)
-                .await
-                .map_err(JsGlareDbError::from)?;
-
-            sess
-        } else {
-            engine
-                .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
-                .await
-                .map_err(JsGlareDbError::from)?
-        };
-
-        let sess = Arc::new(Mutex::new(session));
-
         Ok(Connection {
-            sess,
+            session: Arc::new(Mutex::new(session)),
             _engine: Arc::new(engine),
         })
     }
-    /// Returns a default connection to an in-memory database.
+
+    /// Returns the default connection to a global in-memory database.
     ///
-    /// The database is only initialized once, and all subsequent calls will
-    /// return the same connection.
+    /// The database is only initialized once, and all subsequent
+    /// calls will return the same connection object and therefore
+    /// have access to the same data.
     #[napi(catch_unwind)]
     pub async fn default_in_memory() -> napi::Result<Connection> {
-        let engine = Engine::from_data_dir(None)
+        let engine = Engine::from_storage(EngineStorage::Memory)
             .await
             .map_err(JsGlareDbError::from)?;
         let sess = engine
@@ -142,7 +121,7 @@ impl Connection {
             .await
             .map_err(JsGlareDbError::from)?;
         let con = Connection {
-            sess: Arc::new(Mutex::new(sess)),
+            session: Arc::new(Mutex::new(sess)),
             _engine: Arc::new(engine),
         };
 
@@ -188,8 +167,8 @@ impl Connection {
     /// ```
     #[napi(catch_unwind)]
     pub async fn sql(&self, query: String) -> napi::Result<JsLogicalPlan> {
-        let cloned_sess = self.sess.clone();
-        let mut sess = self.sess.lock().await;
+        let cloned_sess = self.session.clone();
+        let mut sess = self.session.lock().await;
 
         let plan = sess
             .create_logical_plan(&query)
@@ -228,7 +207,7 @@ impl Connection {
     /// import glaredb from "@glaredb/glaredb"
     ///
     /// let con = glaredb.connect()
-    /// let cursor = await con.sql('from my_table | take 1');
+    /// let cursor = await con.prql('from my_table | take 1');
     /// await cursor.show()
     /// ```
     ///
@@ -236,8 +215,8 @@ impl Connection {
     /// processed.
     #[napi(catch_unwind)]
     pub async fn prql(&self, query: String) -> napi::Result<JsLogicalPlan> {
-        let cloned_sess = self.sess.clone();
-        let mut sess = self.sess.lock().await;
+        let cloned_sess = self.session.clone();
+        let mut sess = self.session.lock().await;
         let plan = sess
             .prql_to_lp(&query)
             .await
@@ -262,7 +241,7 @@ impl Connection {
     /// ```
     #[napi(catch_unwind)]
     pub async fn execute(&self, query: String) -> napi::Result<()> {
-        let sess = self.sess.clone();
+        let sess = self.session.clone();
         let mut sess = sess.lock().await;
 
         let plan = sess

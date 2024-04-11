@@ -7,6 +7,7 @@ use datafusion::arrow::datatypes::{
     DataType,
     Field,
     IntervalUnit,
+    Schema,
     TimeUnit,
     UnionFields,
     UnionMode,
@@ -248,6 +249,35 @@ impl TryFrom<&Field> for arrow::Field {
             arrow_type: Some(Box::new(arrow_type)),
             nullable: field.is_nullable(),
             children: Vec::new(),
+        })
+    }
+}
+
+
+impl TryFrom<&arrow::Schema> for Schema {
+    type Error = ProtoConvError;
+
+    fn try_from(schema: &arrow::Schema) -> Result<Self, Self::Error> {
+        let fields = schema
+            .columns
+            .iter()
+            .map(Field::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self::new_with_metadata(fields, schema.metadata.clone()))
+    }
+}
+
+impl TryFrom<&Schema> for arrow::Schema {
+    type Error = ProtoConvError;
+
+    fn try_from(schema: &Schema) -> Result<Self, Self::Error> {
+        Ok(Self {
+            columns: schema
+                .fields()
+                .iter()
+                .map(|f| f.as_ref().try_into())
+                .collect::<Result<Vec<_>, ProtoConvError>>()?,
+            metadata: schema.metadata.clone(),
         })
     }
 }

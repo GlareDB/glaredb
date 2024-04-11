@@ -9,5 +9,5 @@ workspace = true
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }
-xshell = "0.2.5"
+xshell = "0.2.6"
 zip = "0.6.6"

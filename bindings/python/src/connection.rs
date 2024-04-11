@@ -6,7 +6,7 @@ use futures::lock::Mutex;
 use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
 use pyo3::types::PyType;
-use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
+use sqlexec::engine::{Engine, EngineStorage, SessionStorageConfig, TrackedSession};
 use sqlexec::{LogicalPlan, OperationInfo};
 
 use crate::execution_result::PyExecutionResult;
@@ -21,21 +21,22 @@ use crate::runtime::wait_for_future;
 #[pyclass]
 #[derive(Clone)]
 pub struct Connection {
-    pub(super) sess: PyTrackedSession,
+    pub(super) session: PyTrackedSession,
     pub(super) _engine: Arc<Engine>,
 }
 
 impl Connection {
     /// Returns a default connection to an in-memory database.
     ///
-    /// The database is only initialized once, and all subsequent calls will
-    /// return the same connection.
+    /// This database is only initialized once, and all subsequent
+    /// calls will return the same connection object and therefore
+    /// access the same data and database.
     pub fn default_in_memory(py: Python<'_>) -> PyResult<Self> {
         static DEFAULT_CON: OnceCell<Connection> = OnceCell::new();
 
         let con = DEFAULT_CON.get_or_try_init(|| {
             wait_for_future(py, async move {
-                let engine = Engine::from_data_dir(None).await?;
+                let engine = Engine::from_storage(EngineStorage::Memory).await?;
                 let sess = engine
                     .new_local_session_context(
                         SessionVars::default(),
@@ -43,7 +44,7 @@ impl Connection {
                     )
                     .await?;
                 Ok(Connection {
-                    sess: Arc::new(Mutex::new(sess)),
+                    session: Arc::new(Mutex::new(sess)),
                     _engine: Arc::new(engine),
                 }) as Result<_, PyGlareDbError>
             })
@@ -110,9 +111,9 @@ impl Connection {
     /// con.sql('create table my_table (a int)').execute()
     /// ```
     pub fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyLogicalPlan> {
-        let cloned_sess = self.sess.clone();
+        let cloned_sess = self.session.clone();
         wait_for_future(py, async move {
-            let mut sess = self.sess.lock().await;
+            let mut sess = self.session.lock().await;
 
             let plan = sess
                 .create_logical_plan(query)
@@ -159,9 +160,9 @@ impl Connection {
     /// All operations execute lazily when their results are
     /// processed.
     pub fn prql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyLogicalPlan> {
-        let cloned_sess = self.sess.clone();
+        let cloned_sess = self.session.clone();
         wait_for_future(py, async move {
-            let mut sess = self.sess.lock().await;
+            let mut sess = self.session.lock().await;
             let plan = sess.prql_to_lp(query).await.map_err(PyGlareDbError::from)?;
             let op = OperationInfo::new().with_query_text(query);
 
@@ -182,7 +183,7 @@ impl Connection {
     /// con.execute('create table my_table (a int)')
     /// ```
     pub fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionResult> {
-        let sess = self.sess.clone();
+        let sess = self.session.clone();
         let (_, exec_result) = wait_for_future(py, async move {
             let mut sess = sess.lock().await;
             let plan = sess

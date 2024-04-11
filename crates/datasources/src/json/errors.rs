@@ -9,7 +9,7 @@ pub enum JsonError {
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
 
-    #[error("no objects found {0}")]
+    #[error("no objects found at path: {0}")]
     NotFound(String),
 
     #[error("sending data already in progress")]

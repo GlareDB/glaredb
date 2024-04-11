@@ -264,12 +264,12 @@ this repository.
 
 GlareDB is proudly powered by [Apache Datafusion](https://arrow.apache.org/datafusion/) and [Apache Arrow](https://arrow.apache.org/). We are grateful for the work of the Apache Software Foundation and the community around these projects.
 
-[Postgres]: https://docs.glaredb.com/docs/data-sources/supported/postgres.html
-[Snowflake]: https://docs.glaredb.com/docs/data-sources/supported/snowflake.html
-[files in S3]: https://docs.glaredb.com/docs/data-sources/supported/s3
+[Postgres]: https://docs.glaredb.com/data-sources/postgres.html
+[Snowflake]: https://docs.glaredb.com/data-sources/snowflake.html
+[files in S3]: https://docs.glaredb.com/data-sources/s3.html
 [releases page]: https://github.com/GlareDB/glaredb/releases
 [announcement on Hybrid Execution]: https://glaredb.com/blog/hybrid-execution
 [GlareDB Python library]: https://pypi.org/project/glaredb/
 [Pandas]: https://github.com/pandas-dev/pandas
 [Polars]: https://github.com/pola-rs/polars
-[supported data sources]: https://docs.glaredb.com/docs/data-sources/supported/
+[supported data sources]: https://docs.glaredb.com/data-sources/

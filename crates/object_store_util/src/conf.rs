@@ -7,9 +7,6 @@ use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::local::LocalFileSystem;
 use object_store::memory::InMemory;
 use object_store::{Error as ObjectStoreError, ObjectStore};
-use once_cell::sync::Lazy;
-
-static IN_MEMORY_STORE: Lazy<Arc<InMemory>> = Lazy::new(|| Arc::new(InMemory::new()));
 
 /// Configuration options for various types of storage we support.
 #[derive(Debug, Clone, PartialEq)]
@@ -102,7 +99,7 @@ impl StorageConfig {
                 Arc::new(builder.build()?)
             }
             StorageConfig::Local { path } => Arc::new(LocalFileSystem::new_with_prefix(path)?),
-            StorageConfig::Memory => IN_MEMORY_STORE.clone(),
+            StorageConfig::Memory => Arc::new(InMemory::new()),
         })
     }
 }

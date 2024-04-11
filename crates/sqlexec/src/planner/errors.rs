@@ -103,6 +103,9 @@ pub enum PlanError {
 
     #[error("{0}")]
     String(String),
+
+    #[error(transparent)]
+    Builtin(#[from] sqlbuiltins::errors::BuiltinError),
 }
 
 impl From<PlanError> for datafusion::error::DataFusionError {
