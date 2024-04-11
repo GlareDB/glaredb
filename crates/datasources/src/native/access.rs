@@ -8,7 +8,7 @@ use datafusion::common::ToDFSchema;
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::{col, Cast, LogicalPlan, TableProviderFilterPushDown, TableType};
+use datafusion::logical_expr::{ident, Cast, LogicalPlan, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::create_physical_expr;
 use datafusion::physical_expr::execution_props::ExecutionProps;
 use datafusion::physical_plan::empty::EmptyExec;
@@ -16,6 +16,7 @@ use datafusion::physical_plan::projection::ProjectionExec;
 use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use datafusion::prelude::Expr;
 use datafusion_ext::metrics::ReadOnlyDataSourceMetricsExecAdapter;
+use deltalake::delta_datafusion::DataFusionMixins;
 use deltalake::kernel::{ArrayType, DataType as DeltaDataType};
 use deltalake::logstore::{default_logstore, logstores, LogStore, LogStoreFactory};
 use deltalake::operations::create::CreateBuilder;
@@ -97,6 +98,7 @@ impl LogStoreFactory for FakeStoreFactory {
 /// DeltaField represents data types as stored in Delta Lake, with additional
 /// metadata for indicating the 'real' (original) type, for cases when
 /// downcasting occurs.
+#[derive(Debug)]
 struct DeltaField {
     data_type: DeltaDataType,
     metadata: Option<HashMap<String, Value>>,
@@ -111,10 +113,9 @@ fn arrow_to_delta_safe(arrow_type: &DataType) -> DeltaResult<DeltaField> {
                 (&DataType::Timestamp(TimeUnit::Microsecond, tz.clone())).try_into()?;
             let mut metadata = HashMap::new();
             metadata.insert("arrow_type".to_string(), json!(dtype));
-
             Ok(DeltaField {
                 data_type: delta_type,
-                metadata: None,
+                metadata: Some(metadata),
             })
         }
         dtype @ DataType::FixedSizeList(fld, _) => {
@@ -216,7 +217,6 @@ impl NativeTableStorage {
 
             for col in &opts.columns {
                 let delta_col = arrow_to_delta_safe(&col.arrow_type)?;
-
                 builder = builder.with_column(
                     col.name.clone(),
                     delta_col.data_type,
@@ -225,8 +225,9 @@ impl NativeTableStorage {
                 );
             }
 
+            let delta_table = builder.await?;
             // TODO: Partitioning
-            NativeTable::new(builder.await?)
+            NativeTable::new(delta_table)
         };
 
         Ok(tbl)
@@ -356,6 +357,7 @@ impl NativeTable {
         } else {
             SaveMode::Append
         };
+
         let store = self.delta.log_store();
         let snapshot = self.delta.state.clone();
         Arc::new(NativeTableInsertExec::new(
@@ -446,10 +448,10 @@ impl TableProvider for NativeTable {
                     .zip(schema.fields())
                     .map(|(f1, f2)| {
                         let expr = if f1.data_type() == f2.data_type() {
-                            col(f1.name())
+                            ident(f1.name())
                         } else {
                             let cast_expr =
-                                Cast::new(Box::new(col(f1.name())), f2.data_type().clone());
+                                Cast::new(Box::new(ident(f1.name())), f2.data_type().clone());
                             Expr::Cast(cast_expr)
                         };
                         let execution_props = ExecutionProps::new();

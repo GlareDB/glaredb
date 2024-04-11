@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use futures::lock::Mutex;
 use pyo3::prelude::*;
-use sqlexec::engine::{Engine, EngineBackend};
+use sqlexec::engine::{Engine, EngineStorage};
 use sqlexec::remote::client::RemoteClientType;
 use url::Url;
 
@@ -52,7 +52,8 @@ impl From<Option<String>> for PythonSessionConf {
 ///
 /// # Examples
 ///
-/// Connect to an in-memory database.
+/// Connect to an in-memory database. Each connection object is
+/// associated with a __different__ database instance.
 ///
 /// ```python
 /// import glaredb
@@ -89,18 +90,18 @@ pub fn connect(
     wait_for_future(py, async move {
         let conf = PythonSessionConf::from(data_dir_or_cloud_url);
 
-        let backend = if let Some(location) = location.clone() {
-            EngineBackend::Remote {
+        let storage = if let Some(location) = location.clone() {
+            EngineStorage::Remote {
                 location,
                 options: storage_options.unwrap_or_default(),
             }
         } else if let Some(data_dir) = conf.data_dir.clone() {
-            EngineBackend::Local(data_dir)
+            EngineStorage::Local(data_dir)
         } else {
-            EngineBackend::Memory
+            EngineStorage::Memory
         };
 
-        let mut engine = Engine::from_backend(backend)
+        let mut engine = Engine::from_storage(storage)
             .await
             .map_err(PyGlareDbError::from)?;
 
@@ -124,7 +125,7 @@ pub fn connect(
             .await
             .map_err(PyGlareDbError::from)?;
 
-        session.register_env_reader(Some(Arc::new(Box::new(PyEnvironmentReader))));
+        session.register_env_reader(Some(Arc::new(PyEnvironmentReader)));
 
         Ok(Connection {
             session: Arc::new(Mutex::new(session)),

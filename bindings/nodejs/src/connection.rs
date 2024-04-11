@@ -19,10 +19,11 @@ pub struct Connection {
 
 #[napi]
 impl Connection {
-    /// Returns a default connection to an in-memory database.
+    /// Returns the default connection to a global in-memory database.
     ///
-    /// The database is only initialized once, and all subsequent calls will
-    /// return the same connection.
+    /// The database is only initialized once, and all subsequent
+    /// calls will return the same connection object and therefore
+    /// have access to the same data.
     #[napi(catch_unwind)]
     pub async fn default_in_memory() -> napi::Result<Connection> {
         static DEFAULT_CON: OnceCell<Connection> = OnceCell::new();

@@ -5,8 +5,8 @@
 //! The GlareDB Rust SDK is a set of high-level wrappers for a GlareDB
 //! instance as either a client or an embedded database. The
 //! implementation primarily underpins the implementations of the
-//! Python and Node.JS bindings, but may be used/useful directly for
-//! testing GlareDB from within Rust tests, and even inside of rust
+//! Python and Node.js bindings, but may be used/useful directly for
+//! testing GlareDB from within Rust tests, and even inside of Rust
 //! applications or to produce other bindings.
 
 use std::collections::HashMap;
@@ -36,10 +36,10 @@ use sqlexec::session::ExecutionResult;
 use sqlexec::OperationInfo;
 use url::Url;
 
-/// ConnectionOptions are the set of options to configure a GlareDB
+/// ConnectOptions are the set of options to configure a GlareDB
 /// instance, and are an analogue to the commandline arguments to
 /// produce a "running database". The ConnectOptionsBuilder provides a
-/// chainable interface to construct these values and produce as
+/// chainable interface to construct these values and produce a
 /// structure. You can construct `ConnectOptions` fully without the
 /// builder interface, depending on your preference.
 ///
@@ -77,13 +77,13 @@ pub struct ConnectOptions {
     pub storage_options: HashMap<String, String>,
 
     /// By default, the client will connect to the GlareDB service
-    /// using TLS. When this option is specified (and true), the this
+    /// using TLS. When this option is specified (and true), then this
     /// GlareDB instance will establish an insecure connection. Use for
     /// testing and development.
     #[builder(setter(strip_option))]
     pub disable_tls: Option<bool>,
-    /// Location of the GlareDB clout instance used by GlareDB
-    /// negotiate out-of-band certificate provisioning.
+    /// Location of the GlareDB cloud instance used by GlareDB
+    /// to negotiate out-of-band certificate provisioning.
     #[builder(default = "Some(\"https://console.glaredb.com\".to_string())")]
     #[builder(setter(into, strip_option))]
     pub cloud_addr: Option<String>,
@@ -97,13 +97,13 @@ pub struct ConnectOptions {
     /// from variables in the binding's scope that data frames, or the
     /// output of a query.
     #[builder(setter(strip_option))]
-    pub environment_reader: Option<Arc<Box<dyn EnvironmentReader>>>,
+    pub environment_reader: Option<Arc<dyn EnvironmentReader>>,
 }
 
 impl ConnectOptionsBuilder {
     /// Adds a single option (key/value pair) to the builder for the
     /// storage options map. All keys must be unique, and setting the
-    /// same otpion more than once.
+    /// same option more than once.
     pub fn storage_option(
         &mut self,
         key: impl Into<String>,
@@ -139,26 +139,27 @@ impl ConnectOptionsBuilder {
         self.storage_options = v;
         self
     }
+
+    /// Constructs an in-memory connection configuration, which can be
+    /// used for default operations and tests without impacting the
+    /// file system. All state (tables, catalog, etc,) are local, but
+    /// these instances can write data to files and process data in
+    /// other data sources.
+    pub fn new_in_memory() -> Self {
+        Self::default()
+            .connection_target(None)
+            .location(None)
+            .spill_path(None)
+            .disable_tls(true)
+            .to_owned()
+    }
 }
 
 impl ConnectOptions {
-    /// Constructs an in-memory connection, which can be used for
-    /// default operations and tests without impacting the file
-    /// system. All state (tables, catalog, etc,) are local, but these
-    /// instances can write data to files and process data in other
-    /// data sources.
-    pub fn new_in_memory() -> Self {
-        Self {
-            location: None,
-            connection_target: None,
-            ..Default::default()
-        }
-    }
-
     /// Creates a Connection object according to the options
     /// specified.
-    pub async fn connect(&self) -> Result<Connection, ExecError> {
-        let mut engine = Engine::from_backend(self.backend()).await?;
+    pub async fn connect(self) -> Result<Connection, ExecError> {
+        let mut engine = Engine::from_storage(self.backend()).await?;
 
         engine = engine.with_spill_path(self.spill_path.clone().map(|p| p.into()))?;
 
@@ -169,11 +170,12 @@ impl ConnectOptions {
                 self.cloud_url(),
                 self.cloud_addr.clone().unwrap_or_default(),
                 self.disable_tls.unwrap_or_default(),
-                self.client_type.clone().unwrap_or_default(),
+                self.client_type.unwrap_or_default(),
                 None,
             )
             .await?;
-        session.register_env_reader(self.environment_reader.clone());
+
+        session.register_env_reader(self.environment_reader);
 
         Ok(Connection {
             session: Arc::new(Mutex::new(session)),
@@ -181,16 +183,16 @@ impl ConnectOptions {
         })
     }
 
-    fn backend(&self) -> EngineBackend {
+    fn backend(&self) -> EngineStorage {
         if let Some(location) = self.location.clone() {
-            EngineBackend::Remote {
+            EngineStorage::Remote {
                 location,
                 options: self.storage_options.clone(),
             }
         } else if let Some(data_dir) = self.data_dir() {
-            EngineBackend::Local(data_dir)
+            EngineStorage::Local(data_dir)
         } else {
-            EngineBackend::Memory
+            EngineStorage::Memory
         }
     }
 
@@ -223,7 +225,7 @@ impl ConnectOptions {
 /// `Operation` objects that must be executed in order for the query
 /// to run. `Operation` objects can be executed more than once to
 /// rerun the query.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Connection {
     session: Arc<Mutex<TrackedSession>>,
     _engine: Arc<Engine>,
@@ -306,7 +308,6 @@ impl From<Result<SendableRecordBatchStream, ExecError>> for RecordStream {
     }
 }
 
-
 #[derive(Debug, Clone)]
 enum OperationType {
     /// SQL operations create a lazy operation that runs DDL/DML
@@ -322,7 +323,7 @@ enum OperationType {
     Execute,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 #[must_use = "operations do nothing unless call() or execute() run"]
 pub struct Operation {
     op: OperationType,
@@ -331,9 +332,9 @@ pub struct Operation {
     schema: Option<Arc<Schema>>,
 }
 
-impl Debug for Operation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Operation<{:?}>(\"{:?}\")", self.op, self.query)
+impl ToString for Operation {
+    fn to_string(&self) -> String {
+        self.query.clone()
     }
 }
 
@@ -344,7 +345,7 @@ impl Operation {
         self.schema.clone()
     }
 
-    /// Executes the query, according the semantics of the operation's
+    /// Executes the query, according to the semantics of the operation's
     /// type. Returns an error if there was a problem parsing the
     /// query or creating a stream. Operations created with
     /// `execute()` run when this `execute()` method runs. For
@@ -358,11 +359,8 @@ impl Operation {
                 let mut ses = self.conn.session.lock().await;
                 let plan = ses.create_logical_plan(&self.query).await?;
                 let op = OperationInfo::new().with_query_text(self.query.clone());
-                let schema = self.schema.insert(
-                    plan.output_schema()
-                        .map(Arc::new)
-                        .unwrap_or_else(|| Arc::new(Schema::empty())),
-                );
+                let schema = Arc::new(plan.output_schema().unwrap_or_else(Schema::empty));
+                self.schema.replace(schema.clone());
 
                 match plan.to_owned().try_into_datafusion_plan()? {
                     LogicalPlan::Dml(_)
@@ -394,11 +392,7 @@ impl Operation {
                 let mut ses = self.conn.session.lock().await;
                 let plan = ses.prql_to_lp(&self.query).await?;
                 let op = OperationInfo::new().with_query_text(self.query.clone());
-                let schema = self.schema.insert(
-                    plan.output_schema()
-                        .map(Arc::new)
-                        .unwrap_or_else(|| Arc::new(Schema::empty())),
-                );
+                let schema = Arc::new(plan.output_schema().unwrap_or_else(Schema::empty));
 
                 let ses_clone = self.conn.session.clone();
                 Ok(Self::process_result(ExecutionResult::Query {
@@ -419,11 +413,6 @@ impl Operation {
                 let mut ses = self.conn.session.lock().await;
                 let plan = ses.create_logical_plan(&self.query).await?;
                 let op = OperationInfo::new().with_query_text(self.query.clone());
-                let _ = self.schema.insert(
-                    plan.output_schema()
-                        .map(Arc::new)
-                        .unwrap_or_else(|| Arc::new(Schema::empty())),
-                );
 
                 Ok(Self::process_result(
                     ses.execute_logical_plan(plan, &op).await?.1,
@@ -436,9 +425,6 @@ impl Operation {
     /// processing happens until the stream is processed, and errors
     /// parsing the query are returned as the the first result.
     pub fn call(&mut self) -> RecordStream {
-        // note the synchronous iterator in
-        // https://github.com/GlareDB/glaredb/pull/2848, provides a
-        // "native" way to write fully synchronous tests
         let mut op = self.clone();
         RecordStream(Box::pin(
             futures::stream::once(async move {
