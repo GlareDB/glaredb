@@ -12,11 +12,7 @@ use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
-    DisplayAs,
-    DisplayFormatType,
-    ExecutionPlan,
-    Partitioning,
-    SendableRecordBatchStream,
+    DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     Statistics,
 };
 use datasources::native::access::{NativeTable, NativeTableStorage, SaveMode};
@@ -27,7 +23,6 @@ use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use tracing::debug;
 
 use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
-use crate::errors::ExecError;
 use crate::planner::logical_plan::OwnedFullObjectReference;
 use crate::planner::physical_plan::new_operation_batch;
 
@@ -173,8 +168,9 @@ impl CreateTableExec {
                 &self.tbl_reference.schema,
                 &self.tbl_reference.name,
             )
-            .ok_or_else(|| ExecError::Execution("Missing table after catalog insert".to_string()))
-            .unwrap();
+            .ok_or_else(|| {
+                DataFusionError::Execution("Missing table after catalog insert".to_string())
+            })?;
 
         let save_mode = match (if_not_exists, or_replace) {
             (true, false) => SaveMode::Ignore,
