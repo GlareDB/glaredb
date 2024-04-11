@@ -97,9 +97,7 @@ impl Connection {
     /// processed.
     #[napi(catch_unwind)]
     pub async fn prql(&self, query: String) -> napi::Result<JsExecution> {
-        let mut op = self.inner.prql(query);
-        op.execute().await.map_err(JsGlareDbError::from)?;
-        Ok(op.into())
+        Ok(self.inner.prql(query).into())
     }
 
     /// Execute a query.

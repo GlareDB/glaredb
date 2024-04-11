@@ -15,11 +15,11 @@ export function connect(dataDirOrCloudUrl?: string | undefined | null, options?:
 /** A connected session to a GlareDB database. */
 export class Connection {
   /**
-   * Returns a default connection to the global in-memory database.
+   * Returns the default connection to a global in-memory database.
    *
-   * The database is only initialized once, and all subsequent calls
-   * will return the same connection, and therefore have access to the
-   * same data and database.
+   * The database is only initialized once, and all subsequent
+   * calls will return the same connection object and therefore
+   * have access to the same data.
    */
   static defaultInMemory(): Promise<Connection>
   /**
@@ -61,7 +61,7 @@ export class Connection {
    * await con.sql('create table my_table (a int)').then(cursor => cursor.execute())
    * ```
    */
-  sql(query: string): Promise<JsLogicalPlan>
+  sql(query: string): Promise<JsExecution>
   /**
    * Run a PRQL query against a GlareDB database. Does not change
    * the state or dialect of the connection object.
@@ -70,14 +70,14 @@ export class Connection {
    * import glaredb from "@glaredb/glaredb"
    *
    * let con = glaredb.connect()
-   * let cursor = await con.sql('from my_table | take 1');
+   * let cursor = await con.prql('from my_table | take 1');
    * await cursor.show()
    * ```
    *
    * All operations execute lazily when their results are
    * processed.
    */
-  prql(query: string): Promise<JsLogicalPlan>
+  prql(query: string): Promise<JsExecution>
   /**
    * Execute a query.
    *
@@ -96,7 +96,7 @@ export class Connection {
   /** Close the current session. */
   close(): Promise<void>
 }
-export class JsLogicalPlan {
+export class JsExecution {
   toString(): string
   show(): Promise<void>
   execute(): Promise<void>
