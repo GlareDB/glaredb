@@ -11,7 +11,7 @@ import psycopg2
 
 import tests
 
-logger = logging.getLogger("fixtures")
+logger = logging.getLogger("fixtures.glaredb")
 
 
 @pytest.fixture
