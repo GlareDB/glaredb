@@ -46,7 +46,7 @@ pub struct ConnectOptions {
     #[builder(setter(strip_option))]
     pub client_type: Option<RemoteClientType>,
     #[builder(setter(strip_option))]
-    pub environment_reader: Option<Arc<Box<dyn EnvironmentReader>>>,
+    pub environment_reader: Option<Arc<dyn EnvironmentReader>>,
 }
 
 impl ConnectOptionsBuilder {
@@ -96,7 +96,7 @@ impl ConnectOptions {
             )
             .await?;
 
-        session.register_env_reader(self.environment_reader.clone());
+        session.register_env_reader(self.environment_reader);
 
         Ok(Connection {
             session: Arc::new(Mutex::new(session)),
