@@ -64,7 +64,7 @@ pub fn connect(
                     .cloud_addr(cloud_addr)
                     .disable_tls(disable_tls)
                     .client_type(RemoteClientType::Python)
-                    .environment_reader(Arc::new(Box::new(PyEnvironmentReader)))
+                    .environment_reader(Arc::new(PyEnvironmentReader))
                     .build()
                     .map_err(PyGlareDbError::from)?
                     .connect()

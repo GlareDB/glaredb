@@ -32,7 +32,7 @@ impl Connection {
                     inner: Arc::new(
                         glaredb::ConnectOptionsBuilder::new_in_memory()
                             .client_type(RemoteClientType::Python)
-                            .environment_reader(Arc::new(Box::new(PyEnvironmentReader)))
+                            .environment_reader(Arc::new(PyEnvironmentReader))
                             .build()?
                             .connect()
                             .await?,
