@@ -134,7 +134,29 @@ impl MetastoreClientHandle {
     }
 
     /// Try to run mutations against the Metastore catalog and commit them.
-    ///
+    pub async fn try_mutate_and_commit(
+        &self,
+        current_version: u64,
+        mutations: Vec<Mutation>,
+    ) -> Result<Arc<CatalogState>> {
+        let (tx, rx) = oneshot::channel();
+        let state = self
+            .send(
+                ClientRequest::ExecMutations {
+                    version: current_version,
+                    mutations,
+                    response: tx,
+                },
+                rx,
+            )
+            .await??;
+
+        self.commit_state(current_version, state.as_ref().clone())
+            .await
+    }
+
+    /// Try to run mutations against the Metastore catalog
+    /// IMPORTANT: This method does not commit the mutations to the catalog. see `try_mutate_and_commit`
     /// The version provided should be the version of the catalog state that the
     /// session currently has.
     pub async fn try_mutate(

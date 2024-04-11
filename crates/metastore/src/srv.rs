@@ -92,6 +92,8 @@ impl MetastoreService for Service {
         }))
     }
 
+    /// Mutate the catalog.
+    /// Returns the new UNCOMMITTED catalog state.
     async fn mutate_catalog(
         &self,
         request: Request<MutateRequest>,
@@ -175,17 +177,30 @@ mod tests {
             .await
             .unwrap();
         let resp = resp.into_inner();
+        let version = resp.catalog.unwrap().version;
 
         // Mutate (create schema)
-        svc.mutate_catalog(Request::new(MutateRequest {
+        let state = svc
+            .mutate_catalog(Request::new(MutateRequest {
+                db_id: id_bs.clone(),
+                catalog_version: version,
+                mutations: vec![Mutation::CreateSchema(CreateSchema {
+                    name: "test_schema".to_string(),
+                    if_not_exists: false,
+                })
+                .try_into()
+                .unwrap()],
+            }))
+            .await
+            .unwrap()
+            .into_inner()
+            .catalog;
+
+        // Commit the new catalog.
+        svc.commit_catalog(Request::new(CommitRequest {
             db_id: id_bs.clone(),
-            catalog_version: resp.catalog.unwrap().version,
-            mutations: vec![Mutation::CreateSchema(CreateSchema {
-                name: "test_schema".to_string(),
-                if_not_exists: false,
-            })
-            .try_into()
-            .unwrap()],
+            catalog_version: version,
+            catalog: state,
         }))
         .await
         .unwrap();

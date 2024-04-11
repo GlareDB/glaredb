@@ -481,7 +481,7 @@ mod tests {
 
         let state = client.get_cached_state().await.unwrap();
         let new_state = client
-            .try_mutate(
+            .try_mutate_and_commit(
                 state.version,
                 vec![Mutation::CreateView(CreateView {
                     schema: "public".to_string(),
@@ -502,7 +502,6 @@ mod tests {
         let client = new_local_metastore().await;
 
         let supervisor = MetastoreClientSupervisor::new(client, DEFAULT_METASTORE_CLIENT_CONFIG);
-
         let db_id = Uuid::nil();
 
         let c1 = supervisor.init_client(db_id).await.unwrap();
@@ -515,7 +514,7 @@ mod tests {
 
         // Client 1 mutates.
         let _ = c1
-            .try_mutate(
+            .try_mutate_and_commit(
                 s1.version,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "wario".to_string(),
@@ -526,7 +525,7 @@ mod tests {
             .unwrap();
 
         // Client 2 fails to mutate because its out of date.
-        c2.try_mutate(
+        c2.try_mutate_and_commit(
             s2.version,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "yoshi".to_string(),
@@ -545,7 +544,7 @@ mod tests {
 
         // Mutation should go through now.
         let _ = c2
-            .try_mutate(
+            .try_mutate_and_commit(
                 s2.version,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "yoshi".to_string(),
