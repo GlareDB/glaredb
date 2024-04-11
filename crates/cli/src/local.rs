@@ -60,7 +60,7 @@ impl LocalSession {
             Engine::from_data_dir(opts.data_dir.as_ref()).await?
         };
 
-        engine = engine.with_spill_path(opts.spill_path.clone());
+        engine = engine.with_spill_path(opts.spill_path.clone())?;
 
         let sess = if let Some(url) = opts.cloud_url.clone() {
             let (exec_client, info_msg) = if opts.ignore_rpc_auth {
