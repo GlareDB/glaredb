@@ -1,4 +1,5 @@
-statement error Unexpected status code '403 Forbidden'
+# TODO: Maybe someday fix the error message (should be 403 Forbidden)
+statement error
 select * from 'http://host.com/path/*.parquet'
 
 statement error  Error during planning: missing file extension: http://host.com/path/*

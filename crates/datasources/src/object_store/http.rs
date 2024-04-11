@@ -337,7 +337,7 @@ impl ObjectStore for SimpleHttpStore {
                 self.simple_get_req(location.clone()).await.map_err(|err| {
                     let err = if self.url.as_str().contains('*') {
                         ObjectStoreSourceError::String(format!(
-                            "{err}\n\
+                            "{err}: \
                             Note that globbing is not supported for HTTP.",
                         ))
                     } else {
