@@ -129,3 +129,9 @@ statement error failed to find table: invalid_ctas
 select * from invalid_ctas;
 
 
+# https://github.com/GlareDB/glaredb/issues/2777
+statement ok
+create table test as select vector, point as "Point" from lance_scan('./testdata/lance/table1');
+
+statement ok
+select * from test;
