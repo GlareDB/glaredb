@@ -54,7 +54,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use catalog::client::{ClientRequest, MetastoreClientHandle};
+use catalog::client::{ClientRequest, MetastoreClientConfig, MetastoreClientHandle};
 use catalog::errors::CatalogError;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
 use protogen::gen::metastore::service::{CommitRequest, FetchCatalogRequest, MutateRequest};
@@ -69,15 +69,6 @@ use crate::errors::Result;
 
 /// Number of outstanding requests per database.
 const PER_DATABASE_BUFFER: usize = 128;
-
-/// Configuration values used when starting up a worker.
-#[derive(Debug, Clone, Copy)]
-pub struct MetastoreClientConfig {
-    /// How often to fetch the latest catalog from Metastore.
-    fetch_tick_dur: Duration,
-    /// Number of ticks with no session references before the worker exits.
-    max_ticks_before_exit: usize,
-}
 
 pub const DEFAULT_METASTORE_CLIENT_CONFIG: MetastoreClientConfig = MetastoreClientConfig {
     fetch_tick_dur: Duration::from_secs(60 * 5),
@@ -103,7 +94,7 @@ impl MetastoreClientSupervisor {
     /// Create a new worker supervisor.
     pub fn new(
         client: MetastoreServiceClient<Channel>,
-        worker_conf: MetastoreClientConfig,
+        worker_conf: catalog::client::MetastoreClientConfig,
     ) -> MetastoreClientSupervisor {
         MetastoreClientSupervisor {
             workers: RwLock::new(HashMap::new()),

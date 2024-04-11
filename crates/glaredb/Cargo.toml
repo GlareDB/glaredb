@@ -1,0 +1,14 @@
+[package]
+name = "glaredb"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sqlexec = { path = "../sqlexec" }
+url = { workspace = true }
+datafusion = { workspace = true }
+futures = { workspace = true }
+derive_builder = "0.20.0"

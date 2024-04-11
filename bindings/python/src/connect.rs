@@ -7,12 +7,10 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use datafusion_ext::vars::SessionVars;
 use futures::lock::Mutex;
-use ioutil::ensure_dir;
 use pyo3::prelude::*;
-use sqlexec::engine::{Engine, EngineStorage, SessionStorageConfig};
-use sqlexec::remote::client::{RemoteClient, RemoteClientType};
+use sqlexec::engine::{Engine, EngineStorage};
+use sqlexec::remote::client::RemoteClientType;
 use url::Url;
 
 use crate::connection::Connection;
@@ -107,53 +105,30 @@ pub fn connect(
             .await
             .map_err(PyGlareDbError::from)?;
 
-        // If spill path not provided, default to some tmp dir.
-        let spill_path = match spill_path {
-            Some(p) => {
-                let path = PathBuf::from(p);
-                ensure_dir(&path)?;
-                Some(path)
-            }
-            None => {
-                let path = std::env::temp_dir().join("glaredb-python");
-                // if user doesn't have permission to write to temp dir, then
-                // just don't use a spill path.
-                ensure_dir(&path).ok().map(|_| path)
-            }
-        };
-        engine = engine.with_spill_path(spill_path);
+        engine = engine
+            .with_spill_path(spill_path.map(|p| p.into()))
+            .map_err(PyGlareDbError::from)?;
 
-        let mut session = if let Some(url) = conf.cloud_url.clone() {
-            let exec_client = RemoteClient::connect_with_proxy_destination(
-                url.try_into().map_err(PyGlareDbError::from)?,
+        let mut session = engine
+            .default_local_session_context()
+            .await
+            .map_err(PyGlareDbError::from)?;
+
+        session
+            .create_client_session(
+                conf.cloud_url.clone(),
                 cloud_addr,
                 disable_tls,
                 RemoteClientType::Python,
+                None,
             )
             .await
             .map_err(PyGlareDbError::from)?;
 
-            let mut sess = engine
-                .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
-                .await
-                .map_err(PyGlareDbError::from)?;
-            sess.attach_remote_session(exec_client.clone(), None)
-                .await
-                .map_err(PyGlareDbError::from)?;
-
-            sess
-        } else {
-            engine
-                .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
-                .await
-                .map_err(PyGlareDbError::from)?
-        };
-
-        session.register_env_reader(Box::new(PyEnvironmentReader));
-        let sess = Arc::new(Mutex::new(session));
+        session.register_env_reader(Some(Arc::new(PyEnvironmentReader)));
 
         Ok(Connection {
-            sess,
+            session: Arc::new(Mutex::new(session)),
             _engine: Arc::new(engine),
         })
     })
