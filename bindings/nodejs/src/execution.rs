@@ -1,9 +1,9 @@
 use std::sync::{Arc, Mutex};
 
 use arrow_util::pretty;
+use datafusion::arrow::ipc::writer::FileWriter;
 use futures::stream::StreamExt;
-use glaredb::RecordBatch;
-use sqlexec::session::ExecutionResult;
+use glaredb::{RecordBatch, SendableRecordBatchStream};
 
 use crate::error::JsGlareDbError;
 
@@ -22,40 +22,24 @@ impl From<glaredb::Operation> for JsExecution {
 }
 
 impl JsExecution {
-    pub(crate) async fn legacy_execute(&mut self) -> napi::Result<()> {
-        match &mut self.0 {
-            ExecutionResult::Query { stream, .. } => {
-                while let Some(r) = stream.next().await {
-                    let _ = r.map_err(JsGlareDbError::from)?;
-                }
-                Ok(())
+    pub(crate) async fn to_arrow_inner(&self) -> napi::Result<Vec<u8>> {
+        let mut op = self.op.lock().unwrap().clone();
+        Ok(async move {
+            let mut stream = op.execute().await?;
+            let mut data_batch = Vec::new();
+            let cursor = std::io::Cursor::new(&mut data_batch);
+            let mut writer = FileWriter::try_new(cursor, stream.schema().as_ref())?;
+
+            while let Some(batch) = stream.next().await {
+                writer.write(&batch?)?;
             }
-            _ => Ok(()),
+
+            writer.finish()?;
+            drop(writer);
+
+            Ok::<Vec<u8>, JsGlareDbError>(data_batch)
         }
-    }
-
-    pub(crate) async fn legacy_to_arrow_inner(&mut self) -> napi::Result<Vec<u8>> {
-        let mut stream = self.op.lock().unwrap().execute().await?;
-
-        let mut data_batch = vec![];
-        let cursor = std::io::Cursor::new(&mut data_batch);
-        let mut writer =
-            FileWriter::try_new(cursor, stream.schema().as_ref()).map_err(JsGlareDbError::from)?;
-
-        while let Some(batch) = stream.next().await {
-            let batch = batch.map_err(JsGlareDbError::from)?;
-            writer.write(&batch).map_err(JsGlareDbError::from)?;
-        }
-
-        writer.finish().map_err(JsGlareDbError::from)?;
-        drop(writer);
-
-        Ok(data_batch)
-    }
-
-    pub(crate) async fn legacy_show(&mut self) -> napi::Result<()> {
-        print_batch(&mut self.0).await?;
-        Ok(())
+        .await?)
     }
 }
 
@@ -68,25 +52,30 @@ impl JsExecution {
 
     #[napi(catch_unwind)]
     pub async fn show(&self) -> napi::Result<()> {
-        let _res = self
-            .op
-            .lock()
-            .unwrap()
-            .execute()
-            .await
-            .map_err(JsGlareDbError::from)?;
-        Ok(())
+        let mut op = self.op.lock().unwrap().clone();
+        Ok(async move {
+            let stream = op.execute().await?;
+            print_record_batches(stream).await
+        }
+        .await?)
     }
 
     #[napi(catch_unwind)]
     pub async fn execute(&self) -> napi::Result<()> {
-        self.execute_inner().await?.execute().await?;
-        Ok(())
+        let mut op = self.op.lock().unwrap().clone();
+        Ok(async move {
+            let mut stream = op.call();
+            while let Some(r) = stream.next().await {
+                let _ = r?;
+            }
+            Ok::<_, JsGlareDbError>(())
+        }
+        .await?)
     }
 
     #[napi(catch_unwind)]
     pub async fn to_ipc(&self) -> napi::Result<napi::bindgen_prelude::Buffer> {
-        let inner = self.execute_inner().await?.to_arrow_inner().await?;
+        let inner = self.to_arrow_inner().await?;
         Ok(inner.into())
     }
 
@@ -111,28 +100,17 @@ impl JsExecution {
     }
 }
 
-async fn print_batch(result: &mut ExecutionResult) -> napi::Result<()> {
-    match result {
-        ExecutionResult::Query { stream, .. } => {
-            let schema = stream.schema();
-            let batches = stream
-                .collect::<Vec<_>>()
-                .await
-                .into_iter()
-                .collect::<Result<Vec<RecordBatch>, _>>()
-                .map_err(JsGlareDbError::from)?;
+async fn print_record_batches(stream: SendableRecordBatchStream) -> Result<(), JsGlareDbError> {
+    let schema = stream.schema();
+    let batches = stream
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect::<Result<Vec<RecordBatch>, _>>()?;
 
-            let disp = pretty::pretty_format_batches(
-                &schema,
-                &batches,
-                Some(terminal_util::term_width()),
-                None,
-            )
-            .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+    let disp =
+        pretty::pretty_format_batches(&schema, &batches, Some(terminal_util::term_width()), None)?;
 
-            println!("{}", disp);
-            Ok(())
-        }
-        _ => Err(napi::Error::from_reason("Not able to show executed result")),
-    }
+    println!("{}", disp);
+    Ok(())
 }

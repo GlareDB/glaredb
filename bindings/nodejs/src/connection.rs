@@ -1,14 +1,9 @@
 use std::sync::Arc;
 
 use async_once_cell::OnceCell;
-use futures::lock::Mutex;
-use sqlexec::engine::TrackedSession;
-use sqlexec::errors::ExecError;
 
 use crate::error::JsGlareDbError;
 use crate::execution::JsExecution;
-
-pub(super) type JsTrackedSession = Arc<Mutex<TrackedSession>>;
 
 /// A connected session to a GlareDB database.
 #[napi]
@@ -30,12 +25,16 @@ impl Connection {
 
         Ok(DEFAULT_CON
             .get_or_try_init(async {
-                Ok::<_, ExecError>(Connection {
-                    inner: Arc::new(glaredb::ConnectOptions::new_in_memory().connect().await?),
+                Ok::<_, JsGlareDbError>(Connection {
+                    inner: Arc::new(
+                        glaredb::ConnectOptionsBuilder::new_in_memory()
+                            .build()?
+                            .connect()
+                            .await?,
+                    ),
                 })
             })
-            .await
-            .map_err(JsGlareDbError::from)?
+            .await?
             .clone())
     }
 
@@ -78,12 +77,9 @@ impl Connection {
     /// ```
     #[napi(catch_unwind)]
     pub async fn sql(&self, query: String) -> napi::Result<JsExecution> {
-        Ok(self
-            .inner
-            .sql(query)
-            .execute()
-            .await
-            .map_err(JsGlareDbError::from)?)
+        let mut op = self.inner.sql(query);
+        op.execute().await.map_err(JsGlareDbError::from)?;
+        Ok(op.into())
     }
 
     /// Run a PRQL query against a GlareDB database. Does not change
@@ -101,7 +97,9 @@ impl Connection {
     /// processed.
     #[napi(catch_unwind)]
     pub async fn prql(&self, query: String) -> napi::Result<JsExecution> {
-        Ok(self.inner.prql(query).await.map_err(JsGlareDbError::from)?)
+        let mut op = self.inner.prql(query);
+        op.execute().await.map_err(JsGlareDbError::from)?;
+        Ok(op.into())
     }
 
     /// Execute a query.
@@ -118,11 +116,12 @@ impl Connection {
     /// ```
     #[napi(catch_unwind)]
     pub async fn execute(&self, query: String) -> napi::Result<()> {
-        Ok(self
-            .inner
+        self.inner
             .execute(query)
             .execute()
-            .map_err(JsGlareDbError::from)?)
+            .await
+            .map_err(JsGlareDbError::from)?;
+        Ok(())
     }
 
     /// Close the current session.

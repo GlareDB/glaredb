@@ -28,7 +28,7 @@ pub use datafusion::physical_plan::SendableRecordBatchStream;
 use derive_builder::Builder;
 use futures::lock::Mutex;
 use futures::stream::{Stream, StreamExt};
-use sqlexec::engine::{Engine, EngineBackend, TrackedSession};
+use sqlexec::engine::{Engine, EngineStorage, TrackedSession};
 pub use sqlexec::environment::EnvironmentReader;
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClientType;
