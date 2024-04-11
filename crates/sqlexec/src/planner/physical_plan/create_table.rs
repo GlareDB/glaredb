@@ -173,7 +173,7 @@ impl CreateTableExec {
                 &self.tbl_reference.schema,
                 &self.tbl_reference.name,
             )
-            .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))
+            .ok_or_else(|| ExecError::Execution("Missing table after catalog insert".to_string()))
             .unwrap();
 
         let save_mode = match (if_not_exists, or_replace) {
@@ -181,7 +181,7 @@ impl CreateTableExec {
             (false, true) => SaveMode::Overwrite,
             (false, false) => SaveMode::ErrorIfExists,
             (true, true) => {
-                return Err(DataFusionError::Internal(
+                return Err(DataFusionError::Execution(
                     "cannot create table with both `if_not_exists` and `or_replace` policies"
                         .to_string(),
                 ))
@@ -204,13 +204,17 @@ impl CreateTableExec {
         };
 
         if let Err(e) = insert_res {
-            storage.delete_table(ent).await.unwrap();
+            storage.delete_table(ent).await.map_err(|e| {
+                DataFusionError::Execution(format!("failed to clean up table: {e}"))
+            })?;
             return Err(e);
         } else {
             mutator
                 .commit_state(catalog_version, state.as_ref().clone())
                 .await
-                .unwrap();
+                .map_err(|e| {
+                    DataFusionError::Execution(format!("failed to commit catalog state: {e}"))
+                })?;
         }
         debug!(loc = %table.storage_location(), "native table created");
 
