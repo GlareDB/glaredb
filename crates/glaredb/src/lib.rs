@@ -96,7 +96,7 @@ impl ConnectOptions {
             )
             .await?;
 
-        session.register_env_reader(self.environment_reader.clone());
+        session.register_env_reader(self.environment_reader);
 
         Ok(Connection {
             session: Arc::new(Mutex::new(session)),
