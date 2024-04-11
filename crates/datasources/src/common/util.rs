@@ -205,6 +205,7 @@ pub fn create_count_record_batch(count: u64) -> RecordBatch {
     .unwrap()
 }
 
+
 #[cfg(test)]
 mod tests {
     use datafusion::arrow::array::{

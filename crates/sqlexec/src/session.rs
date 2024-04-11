@@ -38,6 +38,7 @@ use pgrepr::format::Format;
 use pgrepr::notice::{Notice, NoticeSeverity, SqlState};
 use sqlbuiltins::functions::BuiltinScalarUDF;
 use telemetry::Tracker;
+use url::Url;
 use uuid::Uuid;
 
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
@@ -51,7 +52,7 @@ use crate::planner::physical_plan::{
     GENERIC_OPERATION_PHYSICAL_SCHEMA,
 };
 use crate::planner::session_planner::SessionPlanner;
-use crate::remote::client::RemoteClient;
+use crate::remote::client::{RemoteClient, RemoteClientType};
 use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 
 static EMPTY_EXEC_PLAN: Lazy<Arc<dyn ExecutionPlan>> =
@@ -430,6 +431,29 @@ impl Session {
         self.ctx.register_function(udf).await
     }
 
+    pub async fn create_client_session(
+        &mut self,
+        cloud_url: Option<Url>,
+        cloud_addr: String,
+        disable_tls: bool,
+        client_type: RemoteClientType,
+        test_db_id: Option<Uuid>,
+    ) -> Result<()> {
+        let client = match cloud_url {
+            Some(url) => {
+                RemoteClient::connect_with_proxy_destination(
+                    url.try_into()?,
+                    cloud_addr,
+                    disable_tls,
+                    client_type,
+                )
+                .await?
+            }
+            None => return Ok(()),
+        };
+        self.attach_remote_session(client, test_db_id).await
+    }
+
     pub async fn attach_remote_session(
         &mut self,
         client: RemoteClient,
@@ -442,7 +466,7 @@ impl Session {
         self.ctx.get_session_catalog()
     }
 
-    pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
+    pub fn register_env_reader(&mut self, env_reader: Option<Arc<dyn EnvironmentReader>>) {
         self.ctx.register_env_reader(env_reader);
     }
 

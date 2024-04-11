@@ -25,15 +25,15 @@ impl PyGlareDbError {
         Self::Other(msg.to_string())
     }
 }
+
 impl From<PyGlareDbError> for PyErr {
     fn from(err: PyGlareDbError) -> Self {
-        use PyGlareDbError::*;
         match err {
-            Arrow(err) => ArrowErrorException::new_err(format!("{err:?}")),
-            Metastore(err) => MetastoreException::new_err(err.to_string()),
-            Exec(err) => ExecutionException::new_err(err.to_string()),
-            Anyhow(err) => PyRuntimeError::new_err(format!("{err:?}")),
-            Other(msg) => PyRuntimeError::new_err(msg),
+            PyGlareDbError::Arrow(err) => ArrowErrorException::new_err(format!("{err:?}")),
+            PyGlareDbError::Metastore(err) => MetastoreException::new_err(err.to_string()),
+            PyGlareDbError::Exec(err) => ExecutionException::new_err(err.to_string()),
+            PyGlareDbError::Anyhow(err) => PyRuntimeError::new_err(format!("{err:?}")),
+            PyGlareDbError::Other(msg) => PyRuntimeError::new_err(msg),
         }
     }
 }
