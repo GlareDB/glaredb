@@ -8,7 +8,7 @@ use datafusion::common::ToDFSchema;
 use datafusion::datasource::TableProvider;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::SessionState;
-use datafusion::logical_expr::{col, Cast, LogicalPlan, TableProviderFilterPushDown, TableType};
+use datafusion::logical_expr::{ident, Cast, LogicalPlan, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::create_physical_expr;
 use datafusion::physical_expr::execution_props::ExecutionProps;
 use datafusion::physical_plan::empty::EmptyExec;
@@ -448,10 +448,10 @@ impl TableProvider for NativeTable {
                     .zip(schema.fields())
                     .map(|(f1, f2)| {
                         let expr = if f1.data_type() == f2.data_type() {
-                            col(f1.name())
+                            ident(f1.name())
                         } else {
                             let cast_expr =
-                                Cast::new(Box::new(col(f1.name())), f2.data_type().clone());
+                                Cast::new(Box::new(ident(f1.name())), f2.data_type().clone());
                             Expr::Cast(cast_expr)
                         };
                         let execution_props = ExecutionProps::new();
