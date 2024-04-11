@@ -119,3 +119,10 @@ select * from "Case_Sensitive"
 statement ok
 select * from "Case Sensitive"
 
+
+# https://github.com/GlareDB/glaredb/issues/2777
+statement ok
+create table test as select vector, point as "Point" from lance_scan('./testdata/lance/table1');
+
+statement ok
+select * from test;

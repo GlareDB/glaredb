@@ -97,7 +97,7 @@ pub struct ConnectOptions {
     /// from variables in the binding's scope that data frames, or the
     /// output of a query.
     #[builder(setter(strip_option))]
-    pub environment_reader: Option<Arc<Box<dyn EnvironmentReader>>>,
+    pub environment_reader: Option<Arc<dyn EnvironmentReader>>,
 }
 
 impl ConnectOptionsBuilder {
@@ -143,7 +143,7 @@ impl ConnectOptionsBuilder {
 impl ConnectOptions {
     /// Creates a Connection object according to the options
     /// specified.
-    pub async fn connect(&self) -> Result<Connection, ExecError> {
+    pub async fn connect(self) -> Result<Connection, ExecError> {
         let mut engine = Engine::from_storage(self.backend()).await?;
 
         engine = engine.with_spill_path(self.spill_path.clone().map(|p| p.into()))?;
@@ -160,7 +160,7 @@ impl ConnectOptions {
             )
             .await?;
 
-        session.register_env_reader(self.environment_reader.clone());
+        session.register_env_reader(self.environment_reader);
 
         Ok(Connection {
             session: Arc::new(Mutex::new(session)),
@@ -293,7 +293,6 @@ impl From<Result<SendableRecordBatchStream, ExecError>> for RecordStream {
     }
 }
 
-
 #[derive(Debug, Clone)]
 enum OperationType {
     /// SQL operations create a lazy operation that runs DDL/DML
@@ -411,9 +410,6 @@ impl Operation {
     /// processing happens until the stream is processed, and errors
     /// parsing the query are returned as the the first result.
     pub fn call(&mut self) -> RecordStream {
-        // note the synchronous iterator in
-        // https://github.com/GlareDB/glaredb/pull/2848, provides a
-        // "native" way to write fully synchronous tests
         let mut op = self.clone();
         RecordStream(Box::pin(
             futures::stream::once(async move {
