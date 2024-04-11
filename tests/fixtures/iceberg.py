@@ -1,5 +1,7 @@
 import logging
 import pathlib
+import sys
+from urllib.request import urlretrieve
 
 import pytest
 
@@ -15,12 +17,27 @@ logger = logging.getLogger("fixtures.iceberg")
 
 
 @pytest.fixture
-def pyiceberg_table() -> pathlib.Path:
+def pyiceberg_table(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> pathlib.Path:
     warehouse_path = tests.PKG_DIRECTORY.joinpath("testdata", "iceberg").absolute()
+
     taxi_data_source_path = warehouse_path.joinpath(
         "source_data",
         "yellow_tripdata_2023-01.parquet",
     )
+
+    # Check if the taxi_data_source_path exists, else download the data.
+    if not taxi_data_source_path.is_file():
+        logger.info(f"Downloading taxi_dataset at '{taxi_data_source_path}'")
+
+        taxi_data_source_path, _ = urlretrieve(
+            "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-01.parquet",
+            taxi_data_source_path,
+        )
+    else:
+        logger.warning(f"Dataset at path '{taxi_data_source_path}' already exists")
+        logger.info("To re-create, remove the file and run the fixture again.")
 
     catalog = SqlCatalog(
         "default",
