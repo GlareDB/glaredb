@@ -45,8 +45,14 @@ pub struct HttpStoreAccess {
 impl HttpStoreAccess {
     async fn content_length(u: Url) -> Result<Option<u64>> {
         let res = reqwest::Client::new().head(u.clone()).send().await?;
+
         let status = res.status();
         if !status.is_success() {
+            // Ignore client errors (head method might not be supported).
+            if status.is_client_error() {
+                return Ok(None);
+            }
+
             if u.as_str().contains('*') {
                 return Err(ObjectStoreSourceError::InvalidHttpStatus(format!(
                     "Unexpected status code '{}' for url: '{}'. \
@@ -54,11 +60,13 @@ impl HttpStoreAccess {
                     status, u,
                 )));
             }
+
             return Err(ObjectStoreSourceError::InvalidHttpStatus(format!(
                 "Unexpected status code '{}' for url: '{}'",
                 status, u,
             )));
         }
+
         // reqwest doesn't check the content length header, instead looks at the contents
         // See: https://github.com/seanmonstar/reqwest/issues/843
         let len = res
@@ -326,10 +334,19 @@ impl ObjectStore for SimpleHttpStore {
             if content_length != 0 {
                 self.obj_store.get_opts(location, options).await
             } else {
-                self.simple_get_req(location.clone()).await.map_err(|e| {
+                self.simple_get_req(location.clone()).await.map_err(|err| {
+                    let err = if self.url.as_str().contains('*') {
+                        ObjectStoreSourceError::String(format!(
+                            "{err}: \
+                            Note that globbing is not supported for HTTP.",
+                        ))
+                    } else {
+                        err
+                    };
+
                     object_store::Error::Generic {
                         store: "HTTP",
-                        source: Box::new(e),
+                        source: Box::new(err),
                     }
                 })
             }
