@@ -11,7 +11,7 @@ mod util;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use connection::Connection;
-use execution::PyExecution;
+use execution::PyExecutionOutput;
 use pyo3::prelude::*;
 use runtime::TokioRuntime;
 use tokio::runtime::Builder;
@@ -45,7 +45,7 @@ fn glaredb(_py: Python, m: &PyModule) -> PyResult<()> {
 /// with the same underlying connection object and therefore access
 /// the same data and database.
 #[pyfunction]
-pub fn sql(py: Python, query: &str) -> PyResult<PyExecution> {
+pub fn sql(py: Python, query: &str) -> PyResult<PyExecutionOutput> {
     Connection::default_in_memory(py)?.sql(py, query)
 }
 
@@ -54,7 +54,7 @@ pub fn sql(py: Python, query: &str) -> PyResult<PyExecution> {
 /// with the same underlying connection object and therefore access
 /// the same data and database.
 #[pyfunction]
-pub fn prql(py: Python, query: &str) -> PyResult<PyExecution> {
+pub fn prql(py: Python, query: &str) -> PyResult<PyExecutionOutput> {
     Connection::default_in_memory(py)?.prql(py, query)
 }
 
@@ -63,6 +63,6 @@ pub fn prql(py: Python, query: &str) -> PyResult<PyExecution> {
 /// with the same underlying connection object and therefore access
 /// the same data and database.
 #[pyfunction]
-pub fn execute(py: Python, query: &str) -> PyResult<PyExecution> {
+pub fn execute(py: Python, query: &str) -> PyResult<PyExecutionOutput> {
     Connection::default_in_memory(py)?.execute(py, query)
 }

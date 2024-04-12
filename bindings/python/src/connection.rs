@@ -7,7 +7,7 @@ use sqlexec::remote::client::RemoteClientType;
 
 use crate::environment::PyEnvironmentReader;
 use crate::error::PyGlareDbError;
-use crate::execution::PyExecution;
+use crate::execution::PyExecutionOutput;
 use crate::runtime::wait_for_future;
 
 /// A connected session to a GlareDB database.
@@ -101,7 +101,7 @@ impl Connection {
     /// con = glaredb.connect()
     /// con.sql('create table my_table (a int)').execute()
     /// ```
-    pub fn sql(&self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
+    pub fn sql(&self, py: Python<'_>, query: &str) -> PyResult<PyExecutionOutput> {
         wait_for_future(py, async move {
             Ok(self
                 .inner
@@ -126,7 +126,7 @@ impl Connection {
     ///
     /// All operations execute lazily when their results are
     /// processed.
-    pub fn prql(&self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
+    pub fn prql(&self, py: Python<'_>, query: &str) -> PyResult<PyExecutionOutput> {
         wait_for_future(py, async move {
             Ok(self
                 .inner
@@ -150,7 +150,7 @@ impl Connection {
     /// con = glaredb.connect()
     /// con.execute('create table my_table (a int)')
     /// ```
-    pub fn execute(&self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
+    pub fn execute(&self, py: Python<'_>, query: &str) -> PyResult<PyExecutionOutput> {
         wait_for_future(py, async move {
             Ok(self
                 .inner

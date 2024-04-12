@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyTuple, PyType};
 use sqlexec::environment::EnvironmentReader;
 
-use crate::execution::PyExecution;
+use crate::execution::PyExecutionOutput;
 
 /// Read polars dataframes from the python environment.
 #[derive(Debug, Clone, Copy)]
@@ -166,6 +166,6 @@ fn resolve_pandas(py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvi
 }
 
 fn resolve_logical_plan(_py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvider>>> {
-    let exec: PyExecution = var.extract()?;
+    let exec: PyExecutionOutput = var.extract()?;
     Ok(Some(Arc::new(exec) as Arc<dyn TableProvider>))
 }

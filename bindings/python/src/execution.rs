@@ -26,11 +26,11 @@ use crate::util::pyprint;
 
 #[pyclass]
 #[derive(Debug, Clone)]
-pub struct PyExecution {
+pub struct PyExecutionOutput {
     op: Arc<Mutex<Operation>>,
 }
 
-impl From<Operation> for PyExecution {
+impl From<Operation> for PyExecutionOutput {
     fn from(op: Operation) -> Self {
         Self {
             op: Arc::new(Mutex::new(op)),
@@ -39,7 +39,7 @@ impl From<Operation> for PyExecution {
 }
 
 #[pymethods]
-impl PyExecution {
+impl PyExecutionOutput {
     fn __repr__(&self) -> PyResult<String> {
         Ok(format!("PyExecution{:#?}", self.op))
     }
@@ -114,7 +114,7 @@ impl PyExecution {
     }
 }
 
-impl PyExecution {
+impl PyExecutionOutput {
     fn get_schema_and_batches(&self, py: Python) -> PyResult<(PyObject, PyObject)> {
         let (schema, batches) = self.resolve_operation(py)?;
 
@@ -157,7 +157,7 @@ impl PyExecution {
 
 // just a wrapper around the stream so that we can compose multiple subqueries
 #[async_trait]
-impl TableProvider for PyExecution {
+impl TableProvider for PyExecutionOutput {
     fn as_any(&self) -> &dyn Any {
         self
     }
