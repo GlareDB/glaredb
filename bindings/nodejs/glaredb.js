@@ -3,7 +3,7 @@ const glaredb = require('./index.js')
 // Some of methods can't be performed through `n-api`
 // So we need to monkey patch them here
 // The methods should still be defined in rust so we can keep a consistent `index.d.ts` file.
-Object.assign(glaredb.JsLogicalPlan.prototype, {
+Object.assign(glaredb.JsExecutionOutput.prototype, {
   async toPolars() {
     try {
       const pl = require("nodejs-polars")

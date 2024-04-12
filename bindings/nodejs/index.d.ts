@@ -61,7 +61,7 @@ export class Connection {
    * await con.sql('create table my_table (a int)').then(cursor => cursor.execute())
    * ```
    */
-  sql(query: string): Promise<JsExecution>
+  sql(query: string): Promise<JsExecutionOutput>
   /**
    * Run a PRQL query against a GlareDB database. Does not change
    * the state or dialect of the connection object.
@@ -77,7 +77,7 @@ export class Connection {
    * All operations execute lazily when their results are
    * processed.
    */
-  prql(query: string): Promise<JsExecution>
+  prql(query: string): Promise<JsExecutionOutput>
   /**
    * Execute a query.
    *
@@ -96,7 +96,7 @@ export class Connection {
   /** Close the current session. */
   close(): Promise<void>
 }
-export class JsExecution {
+export class JsExecutionOutput {
   toString(): string
   show(): Promise<void>
   execute(): Promise<void>

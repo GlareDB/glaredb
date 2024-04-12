@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_once_cell::OnceCell;
 
 use crate::error::JsGlareDbError;
-use crate::execution::JsExecution;
+use crate::execution::JsExecutionOutput;
 
 /// A connected session to a GlareDB database.
 #[napi]
@@ -76,7 +76,7 @@ impl Connection {
     /// await con.sql('create table my_table (a int)').then(cursor => cursor.execute())
     /// ```
     #[napi(catch_unwind)]
-    pub async fn sql(&self, query: String) -> napi::Result<JsExecution> {
+    pub async fn sql(&self, query: String) -> napi::Result<JsExecutionOutput> {
         Ok(self
             .inner
             .sql(query)
@@ -100,7 +100,7 @@ impl Connection {
     /// All operations execute lazily when their results are
     /// processed.
     #[napi(catch_unwind)]
-    pub async fn prql(&self, query: String) -> napi::Result<JsExecution> {
+    pub async fn prql(&self, query: String) -> napi::Result<JsExecutionOutput> {
         Ok(self
             .inner
             .prql(query)

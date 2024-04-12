@@ -9,11 +9,11 @@ use crate::error::JsGlareDbError;
 
 #[napi]
 #[derive(Clone, Debug)]
-pub struct JsExecution {
+pub struct JsExecutionOutput {
     op: Arc<Mutex<glaredb::Operation>>,
 }
 
-impl From<glaredb::Operation> for JsExecution {
+impl From<glaredb::Operation> for JsExecutionOutput {
     fn from(opt: glaredb::Operation) -> Self {
         Self {
             op: Arc::new(Mutex::new(opt)),
@@ -21,7 +21,7 @@ impl From<glaredb::Operation> for JsExecution {
     }
 }
 
-impl JsExecution {
+impl JsExecutionOutput {
     pub(crate) async fn to_arrow_inner(&self) -> napi::Result<Vec<u8>> {
         let mut op = self.op.lock().unwrap().clone();
         Ok(async move {
@@ -44,7 +44,7 @@ impl JsExecution {
 }
 
 #[napi]
-impl JsExecution {
+impl JsExecutionOutput {
     #[napi(catch_unwind)]
     pub fn to_string(&self) -> napi::Result<String> {
         Ok(format!("{:?}", self.op.lock().unwrap()))
