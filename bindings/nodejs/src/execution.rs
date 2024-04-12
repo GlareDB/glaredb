@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use arrow_util::pretty;
 use datafusion::arrow::ipc::writer::FileWriter;
 use futures::stream::StreamExt;
-use glaredb::{RecordBatch, SendableRecordBatchStream};
+use glaredb::{RecordStream, SendableRecordBatchStream};
 
 use crate::error::JsGlareDbError;
 
@@ -25,7 +25,7 @@ impl JsExecution {
     pub(crate) async fn to_arrow_inner(&self) -> napi::Result<Vec<u8>> {
         let mut op = self.op.lock().unwrap().clone();
         Ok(async move {
-            let mut stream = op.execute().await?;
+            let mut stream = op.resolve().await?;
             let mut data_batch = Vec::new();
             let cursor = std::io::Cursor::new(&mut data_batch);
             let mut writer = FileWriter::try_new(cursor, stream.schema().as_ref())?;
@@ -53,30 +53,18 @@ impl JsExecution {
     #[napi(catch_unwind)]
     pub async fn show(&self) -> napi::Result<()> {
         let mut op = self.op.lock().unwrap().clone();
-        Ok(async move {
-            let stream = op.execute().await?;
-            print_record_batches(stream).await
-        }
-        .await?)
+        Ok(async move { print_record_batches(op.resolve().await?).await }.await?)
     }
 
     #[napi(catch_unwind)]
     pub async fn execute(&self) -> napi::Result<()> {
         let mut op = self.op.lock().unwrap().clone();
-        Ok(async move {
-            let mut stream = op.call();
-            while let Some(r) = stream.next().await {
-                let _ = r?;
-            }
-            Ok::<_, JsGlareDbError>(())
-        }
-        .await?)
+        Ok(async move { Ok::<_, JsGlareDbError>(op.call().check().await?) }.await?)
     }
 
     #[napi(catch_unwind)]
     pub async fn to_ipc(&self) -> napi::Result<napi::bindgen_prelude::Buffer> {
-        let inner = self.to_arrow_inner().await?;
-        Ok(inner.into())
+        Ok(self.to_arrow_inner().await?.into())
     }
 
     #[napi(ts_return_type = "pl.DataFrame")]
@@ -102,11 +90,8 @@ impl JsExecution {
 
 async fn print_record_batches(stream: SendableRecordBatchStream) -> Result<(), JsGlareDbError> {
     let schema = stream.schema();
-    let batches = stream
-        .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .collect::<Result<Vec<RecordBatch>, _>>()?;
+    let mut stream: RecordStream = stream.into();
+    let batches = stream.to_vec().await?;
 
     let disp =
         pretty::pretty_format_batches(&schema, &batches, Some(terminal_util::term_width()), None)?;

@@ -314,7 +314,7 @@ impl From<Result<SendableRecordBatchStream, ExecError>> for RecordStream {
 impl RecordStream {
     // Collects all of the record batches in a stream, aborting if
     // there are any errors.
-    pub async fn all(&mut self) -> Result<Vec<RecordBatch>, DataFusionError> {
+    pub async fn to_vec(&mut self) -> Result<Vec<RecordBatch>, DataFusionError> {
         let mut out = Vec::new();
         let stream = &mut self.0;
 

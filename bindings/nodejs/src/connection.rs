@@ -77,9 +77,13 @@ impl Connection {
     /// ```
     #[napi(catch_unwind)]
     pub async fn sql(&self, query: String) -> napi::Result<JsExecution> {
-        let mut op = self.inner.sql(query);
-        op.execute().await.map_err(JsGlareDbError::from)?;
-        Ok(op.into())
+        Ok(self
+            .inner
+            .sql(query)
+            .evaluate()
+            .await
+            .map_err(JsGlareDbError::from)?
+            .into())
     }
 
     /// Run a PRQL query against a GlareDB database. Does not change
@@ -97,7 +101,13 @@ impl Connection {
     /// processed.
     #[napi(catch_unwind)]
     pub async fn prql(&self, query: String) -> napi::Result<JsExecution> {
-        Ok(self.inner.prql(query).into())
+        Ok(self
+            .inner
+            .prql(query)
+            .evaluate()
+            .await
+            .map_err(JsGlareDbError::from)?
+            .into())
     }
 
     /// Execute a query.
@@ -116,9 +126,11 @@ impl Connection {
     pub async fn execute(&self, query: String) -> napi::Result<()> {
         self.inner
             .execute(query)
-            .execute()
+            .call()
+            .check()
             .await
             .map_err(JsGlareDbError::from)?;
+
         Ok(())
     }
 
