@@ -208,14 +208,14 @@ impl CreateTableExec {
                 DataFusionError::Execution(format!("failed to clean up table: {e}"))
             })?;
             return Err(e);
-        } else {
-            mutator
-                .commit_state(catalog_version, state.as_ref().clone())
-                .await
-                .map_err(|e| {
-                    DataFusionError::Execution(format!("failed to commit catalog state: {e}"))
-                })?;
         }
+        
+        mutator
+            .commit_state(catalog_version, state.as_ref().clone())
+            .await
+            .map_err(|e| {
+                DataFusionError::Execution(format!("failed to commit catalog state: {e}"))
+            })?;
         debug!(loc = %table.storage_location(), "native table created");
 
         // TODO: Add storage tracking job.
