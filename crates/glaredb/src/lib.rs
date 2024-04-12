@@ -29,7 +29,7 @@ use derive_builder::Builder;
 use futures::lock::Mutex;
 use futures::stream::{Stream, StreamExt};
 use sqlexec::engine::{Engine, EngineStorage, TrackedSession};
-use sqlexec::environment::EnvironmentReader;
+pub use sqlexec::environment::EnvironmentReader;
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClientType;
 use sqlexec::session::ExecutionResult;
@@ -122,6 +122,21 @@ impl ConnectOptionsBuilder {
     /// resets the state of the storage options in the builder.
     pub fn set_storage_options(&mut self, opts: Option<HashMap<String, String>>) -> &mut Self {
         self.storage_options = opts;
+        self
+    }
+
+    pub fn cloud_addr_opt(&mut self, v: Option<String>) -> &mut Self {
+        self.cloud_addr = Some(v);
+        self
+    }
+
+    pub fn disable_tls_opt(&mut self, v: Option<bool>) -> &mut Self {
+        self.disable_tls = Some(v);
+        self
+    }
+
+    pub fn storage_options_opt(&mut self, v: Option<HashMap<String, String>>) -> &mut Self {
+        self.storage_options = v;
         self
     }
 
@@ -299,7 +314,7 @@ impl From<Result<SendableRecordBatchStream, ExecError>> for RecordStream {
 impl RecordStream {
     // Collects all of the record batches in a stream, aborting if
     // there are any errors.
-    pub async fn all(&mut self) -> Result<Vec<RecordBatch>, DataFusionError> {
+    pub async fn to_vec(&mut self) -> Result<Vec<RecordBatch>, DataFusionError> {
         let mut out = Vec::new();
         let stream = &mut self.0;
 
