@@ -37,7 +37,7 @@ memoize = { version = "0.4.2", features = ["full"] }
 uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 
 # MUST synchronize sync with the datafusion::arrow version
-arrow-cast = { version = "50.0.0" }
+arrow-cast = { version = "51.0.0" }
 
 # omits duckdb submodule
 lance-linalg = { git = "https://github.com/GlareDB/lance", branch = "df36" }
