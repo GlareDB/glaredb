@@ -369,7 +369,6 @@ impl State {
     /// This will build the schema names and objects maps.
     fn from_persisted(persisted: PersistedCatalog) -> Result<State> {
         let mut state = persisted.state;
-        let counter = persisted.extra.oid_counter;
 
         let mut database_names = HashMap::new();
         let mut tunnel_names = HashMap::new();
@@ -497,7 +496,7 @@ impl State {
         let internal_state = State {
             version: state.version,
             deployment: state.deployment,
-            oid_counter: counter,
+            oid_counter: persisted.extra.oid_counter,
             entries: state.entries.into(),
             database_names,
             tunnel_names,
@@ -1426,12 +1425,6 @@ impl BuiltinCatalog {
 #[cfg(test)]
 impl DatabaseCatalog {
     /// Try to mutate the catalog and immediately commit the changes.
-    ///
-    /// Errors if the provided version doesn't match the version of the current
-    /// catalog.
-    ///
-    /// On success, a full copy of the updated catalog state will be returned.
-    // TODO: All or none.
     pub async fn try_mutate_and_commit(
         &self,
         version: u64,

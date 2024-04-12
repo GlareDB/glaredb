@@ -209,7 +209,7 @@ impl CreateTableExec {
             })?;
             return Err(e);
         }
-        
+
         mutator
             .commit_state(catalog_version, state.as_ref().clone())
             .await
