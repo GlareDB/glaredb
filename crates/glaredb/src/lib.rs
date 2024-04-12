@@ -472,7 +472,7 @@ impl Operation {
                     self.plan.take().unwrap()
                 } else {
                     self.schema = None;
-                    ses.prql_to_lp(&self.query).await?
+                    ses.create_logical_plan(&self.query).await?
                 };
 
                 let schema = if self.schema.is_some() {
