@@ -49,6 +49,16 @@ pub fn sql(py: Python, query: &str) -> PyResult<PyExecution> {
     Connection::default_in_memory(py)?.sql(py, query)
 }
 
+/// Run a PRQL query against the default in-memory GlareDB
+/// database. Subsequent calls to this method will always interact
+/// with the same underlying connection object and therefore access
+/// the same data and database.
+#[pyfunction]
+pub fn prql(py: Python, query: &str) -> PyResult<PyExecution> {
+    Connection::default_in_memory(py)?.prql(py, query)
+}
+
+
 /// Execute a query against the default in-memory GlareDB
 /// database. Subsequent calls to this method will always interact
 /// with the same underlying connection object and therefore access

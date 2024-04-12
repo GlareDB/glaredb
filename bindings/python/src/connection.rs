@@ -103,9 +103,13 @@ impl Connection {
     /// ```
     pub fn sql(&self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
         wait_for_future(py, async move {
-            let mut op = self.inner.sql(query);
-            op.execute().await.map_err(PyGlareDbError::from)?;
-            Ok(op.into())
+            Ok(self
+                .inner
+                .sql(query)
+                .evaluate()
+                .await
+                .map_err(PyGlareDbError::from)?
+                .into())
         })
     }
 
@@ -123,7 +127,15 @@ impl Connection {
     /// All operations execute lazily when their results are
     /// processed.
     pub fn prql(&self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
-        wait_for_future(py, async move { Ok(self.inner.prql(query).into()) })
+        wait_for_future(py, async move {
+            Ok(self
+                .inner
+                .prql(query)
+                .evaluate()
+                .await
+                .map_err(PyGlareDbError::from)?
+                .into())
+        })
     }
 
     /// Execute a SQL query.
@@ -140,9 +152,13 @@ impl Connection {
     /// ```
     pub fn execute(&self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
         wait_for_future(py, async move {
-            let mut op = self.inner.execute(query);
-            op.execute().await.map_err(PyGlareDbError::from)?;
-            Ok(op.into())
+            Ok(self
+                .inner
+                .execute(query)
+                .evaluate()
+                .await
+                .map_err(PyGlareDbError::from)?
+                .into())
         })
     }
 
