@@ -47,12 +47,12 @@ impl Connection {
 
 #[pymethods]
 impl Connection {
-    fn __enter__(&mut self, _py: Python<'_>) -> PyResult<Self> {
+    fn __enter__(&self, _py: Python<'_>) -> PyResult<Self> {
         Ok(self.clone())
     }
 
     fn __exit__(
-        &mut self,
+        &self,
         py: Python<'_>,
         _exc_type: Option<&PyType>,
         _exc_value: Option<PyObject>,
@@ -101,7 +101,7 @@ impl Connection {
     /// con = glaredb.connect()
     /// con.sql('create table my_table (a int)').execute()
     /// ```
-    pub fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
+    pub fn sql(&self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
         wait_for_future(py, async move {
             let mut op = self.inner.sql(query);
             op.execute().await.map_err(PyGlareDbError::from)?;
@@ -122,7 +122,7 @@ impl Connection {
     ///
     /// All operations execute lazily when their results are
     /// processed.
-    pub fn prql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
+    pub fn prql(&self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
         wait_for_future(py, async move {
             let mut op = self.inner.prql(query);
             op.execute().await.map_err(PyGlareDbError::from)?;
@@ -142,7 +142,7 @@ impl Connection {
     /// con = glaredb.connect()
     /// con.execute('create table my_table (a int)')
     /// ```
-    pub fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
+    pub fn execute(&self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
         wait_for_future(py, async move {
             let mut op = self.inner.execute(query);
             op.execute().await.map_err(PyGlareDbError::from)?;
@@ -151,7 +151,7 @@ impl Connection {
     }
 
     /// Close the current session.
-    pub fn close(&mut self, _py: Python<'_>) -> PyResult<()> {
+    pub fn close(&self, _py: Python<'_>) -> PyResult<()> {
         // TODO: Remove this method. No longer required.
         //
         // could we use this method to clear the environment/in memory
