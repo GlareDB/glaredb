@@ -123,11 +123,7 @@ impl Connection {
     /// All operations execute lazily when their results are
     /// processed.
     pub fn prql(&self, py: Python<'_>, query: &str) -> PyResult<PyExecution> {
-        wait_for_future(py, async move {
-            let mut op = self.inner.prql(query);
-            op.execute().await.map_err(PyGlareDbError::from)?;
-            Ok(op.into())
-        })
+        wait_for_future(py, async move { Ok(self.inner.prql(query).into()) })
     }
 
     /// Execute a SQL query.
