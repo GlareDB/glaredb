@@ -59,4 +59,4 @@ tokio-postgres = "0.7.8"
 tempfile = { workspace = true }
 
 [build-dependencies]
-built = { version = "0.7.1", features = ["git2"] }
+built = { version = "0.7.2", features = ["git2"] }

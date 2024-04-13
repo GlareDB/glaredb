@@ -21,15 +21,15 @@ clap = { version = "4.5.4", features = ["derive"] }
 datafusion = { version = "36.0.0", features = ["avro"] }
 arrow-flight = { version = "50.0.0", features = ["flight-sql-experimental"] }
 datafusion-proto = { version = "36.0.0" }
-reqwest = { version = "0.11.27", default-features = false, features = [
+reqwest = { version = "0.12.2", default-features = false, features = [
   "json",
   "rustls-tls",
 ] }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
-anyhow = "1.0.81"
-async-trait = "0.1.79"
+anyhow = "1.0.82"
+async-trait = "0.1.80"
 chrono = "0.4.37"
 futures = "0.3.30"
 object_store = "0.9"
