@@ -28,8 +28,9 @@ pub use datafusion::physical_plan::SendableRecordBatchStream;
 use derive_builder::Builder;
 use futures::lock::Mutex;
 use futures::stream::{Stream, StreamExt};
+use futures::TryStreamExt;
 use sqlexec::engine::{Engine, EngineStorage, TrackedSession};
-use sqlexec::environment::EnvironmentReader;
+pub use sqlexec::environment::EnvironmentReader;
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClientType;
 use sqlexec::session::ExecutionResult;
@@ -122,6 +123,21 @@ impl ConnectOptionsBuilder {
     /// resets the state of the storage options in the builder.
     pub fn set_storage_options(&mut self, opts: Option<HashMap<String, String>>) -> &mut Self {
         self.storage_options = opts;
+        self
+    }
+
+    pub fn cloud_addr_opt(&mut self, v: Option<String>) -> &mut Self {
+        self.cloud_addr = Some(v);
+        self
+    }
+
+    pub fn disable_tls_opt(&mut self, v: Option<bool>) -> &mut Self {
+        self.disable_tls = Some(v);
+        self
+    }
+
+    pub fn storage_options_opt(&mut self, v: Option<HashMap<String, String>>) -> &mut Self {
+        self.storage_options = v;
         self
     }
 
@@ -226,6 +242,7 @@ impl Connection {
             query: query.into(),
             conn: Arc::new(self.clone()),
             schema: None,
+            plan: None,
         }
     }
 
@@ -239,6 +256,7 @@ impl Connection {
             query: query.into(),
             conn: Arc::new(self.clone()),
             schema: None,
+            plan: None,
         }
     }
 
@@ -252,6 +270,7 @@ impl Connection {
             query: query.into(),
             conn: Arc::new(self.clone()),
             schema: None,
+            plan: None,
         }
     }
 }
@@ -293,28 +312,50 @@ impl From<Result<SendableRecordBatchStream, ExecError>> for RecordStream {
     }
 }
 
+impl RecordStream {
+    // Collects all of the record batches in a stream, aborting if
+    // there are any errors.
+    pub async fn to_vec(&mut self) -> Result<Vec<RecordBatch>, DataFusionError> {
+        let stream = &mut self.0;
+        stream.try_collect().await
+    }
+
+    // Iterates through the stream, ensuring propagating any errors,
+    // but discarding all of the data.
+    pub async fn check(&mut self) -> Result<(), DataFusionError> {
+        let stream = &mut self.0;
+
+        while let Some(b) = stream.next().await {
+            b?;
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 enum OperationType {
-    /// SQL operations create a lazy operation that runs DDL/DML
-    /// operations directly, and executes other queries when the
-    /// results are iterated.
+    /// SQL operations create a operation that runs DDL/DML operations
+    /// directly, and executes other queries lazily when the results
+    /// are iterated.
     Sql,
     /// PRQL, which does not support DDL/DML in our implementation,
     /// creates a lazy query object that only runs when the results
     /// are iterated.
     Prql,
     /// Execute Operations run a SQL operation directly when the
-    /// `Operation`'s `execute()` method runs.
+    /// `Operation`'s `evalutate()` or `resolve()` methods run.
     Execute,
 }
 
 #[derive(Debug, Clone)]
-#[must_use = "operations do nothing unless call() or execute() run"]
+#[must_use = "operations do nothing unless evaluate() or resolve() run"]
 pub struct Operation {
     op: OperationType,
     query: String,
     conn: Arc<Connection>,
     schema: Option<Arc<Schema>>,
+    plan: Option<sqlexec::LogicalPlan>,
 }
 
 impl ToString for Operation {
@@ -330,23 +371,115 @@ impl Operation {
         self.schema.clone()
     }
 
-    /// Executes the query, according to the semantics of the operation's
-    /// type. Returns an error if there was a problem parsing the
-    /// query or creating a stream. Operations created with
-    /// `execute()` run when this `execute()` method runs. For
-    /// operations with the `sql()` method, write operations and DDL
-    /// operations run before `execute()` returns. All other
-    /// operations are lazy and only execute when the results are
-    /// processed.
-    pub async fn execute(&mut self) -> Result<SendableRecordBatchStream, ExecError> {
+    /// Evaluate constructs a plan for the query, and in the case of
+    /// all `OperationType::Execute` operations and
+    /// `OperationType::Sql` operations that write data, the operation
+    /// run immediately. All other operations run when `.resolve()` is
+    /// called.
+    pub async fn evaluate(&mut self) -> Result<Self, ExecError> {
         match self.op {
             OperationType::Sql => {
                 let mut ses = self.conn.session.lock().await;
+
                 let plan = ses.create_logical_plan(&self.query).await?;
-                let op = OperationInfo::new().with_query_text(self.query.clone());
-                let schema = Arc::new(plan.output_schema().unwrap_or_else(Schema::empty));
+
+                self.schema
+                    .replace(Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)));
+
+                match plan.to_owned().try_into_datafusion_plan()? {
+                    LogicalPlan::Dml(_)
+                    | LogicalPlan::Ddl(_)
+                    | LogicalPlan::Copy(_)
+                    | LogicalPlan::Extension(_) => {
+                        RecordStream::from(Self::process_result(
+                            ses.execute_logical_plan(
+                                plan,
+                                &OperationInfo::new().with_query_text(self.query.clone()),
+                            )
+                            .await?
+                            .1,
+                        ))
+                        .check()
+                        .await?;
+                    }
+                    _ => {
+                        self.plan.replace(plan);
+                    }
+                };
+
+                Ok(self.clone())
+            }
+            OperationType::Prql => {
+                let plan = self
+                    .conn
+                    .session
+                    .lock()
+                    .await
+                    .prql_to_lp(&self.query)
+                    .await?;
+
+                self.schema
+                    .replace(Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)));
+
+                self.plan.replace(plan);
+
+                Ok(self.clone())
+            }
+            OperationType::Execute => {
+                let mut ses = self.conn.session.lock().await;
+                let plan = ses.create_logical_plan(&self.query).await?;
+
+                self.schema
+                    .replace(Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)));
+
+                RecordStream::from(Self::process_result(
+                    ses.execute_logical_plan(
+                        plan,
+                        &OperationInfo::new().with_query_text(self.query.clone()),
+                    )
+                    .await?
+                    .1,
+                ))
+                .check()
+                .await?;
+
+                Ok(self.clone())
+            }
+        }
+    }
+
+    /// Resolves the results of the query, according to the semantics
+    /// of the operation's type. Uses the plan built during
+    /// `evaluate()` if populated, but will re-plan on subsequent
+    /// calls or when evaluate isn't called first. Returns an error if
+    /// there is problem parsing the query or creating a
+    /// stream. Operations created with `execute()` run when the
+    /// `resolve()` method runs. For operations with the `sql()`
+    /// method, write operations and DDL operations run before
+    /// `resolve()` returns. All other operations are lazy and only
+    /// execute as the results are processed.
+    pub async fn resolve(&mut self) -> Result<SendableRecordBatchStream, ExecError> {
+        match self.op {
+            OperationType::Sql => {
+                let mut ses = self.conn.session.lock().await;
+
+                let plan = if self.plan.is_some() {
+                    self.plan.take().unwrap()
+                } else {
+                    self.schema = None;
+                    ses.create_logical_plan(&self.query).await?
+                };
+
+                let schema = if self.schema.is_some() {
+                    self.schema.clone().unwrap()
+                } else {
+                    self.schema
+                        .insert(Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)))
+                        .to_owned()
+                };
                 self.schema.replace(schema.clone());
 
+                let op = OperationInfo::new().with_query_text(self.query.clone());
                 match plan.to_owned().try_into_datafusion_plan()? {
                     LogicalPlan::Dml(_)
                     | LogicalPlan::Ddl(_)
@@ -375,11 +508,24 @@ impl Operation {
             }
             OperationType::Prql => {
                 let mut ses = self.conn.session.lock().await;
-                let plan = ses.prql_to_lp(&self.query).await?;
-                let op = OperationInfo::new().with_query_text(self.query.clone());
-                let schema = Arc::new(plan.output_schema().unwrap_or_else(Schema::empty));
+
+                let plan = if self.plan.is_some() {
+                    self.plan.take().unwrap()
+                } else {
+                    self.schema = None;
+                    ses.prql_to_lp(&self.query).await?
+                };
+
+                let schema = if self.schema.is_some() {
+                    self.schema.clone().unwrap()
+                } else {
+                    self.schema
+                        .insert(Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)))
+                        .to_owned()
+                };
 
                 let ses_clone = self.conn.session.clone();
+                let op = OperationInfo::new().with_query_text(self.query.clone());
                 Ok(Self::process_result(ExecutionResult::Query {
                     stream: Box::pin(RecordBatchStreamAdapter::new(
                         schema.clone(),
@@ -413,7 +559,7 @@ impl Operation {
         let mut op = self.clone();
         RecordStream(Box::pin(
             futures::stream::once(async move {
-                match op.execute().await {
+                match op.resolve().await {
                     Err(err) => Self::handle_error(err),
                     Ok(stream) => stream,
                 }
