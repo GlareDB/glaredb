@@ -1,0 +1,8 @@
+query T
+select filename from read_blob('gs://${GCS_BUCKET_NAME}/multi_csv/**/*', gcp_creds);
+----
+multi_csv/bikeshare_stations.csv
+multi_csv/bikeshare_stations_2.csv
+
+statement ok
+select * from read_blob('gs://${GCS_BUCKET_NAME}/multi_csv/**/*', gcp_creds);

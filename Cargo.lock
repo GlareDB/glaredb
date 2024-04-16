@@ -8077,6 +8077,7 @@ dependencies = [
  "arrow-cast",
  "async-openai",
  "async-trait",
+ "bytes",
  "catalog",
  "datafusion",
  "datafusion-functions-array",
