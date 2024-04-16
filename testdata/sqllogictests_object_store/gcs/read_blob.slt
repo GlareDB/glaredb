@@ -1,3 +1,10 @@
+statement ok
+CREATE CREDENTIAL gcp_creds 
+PROVIDER gcp OPTIONS ( 
+  service_account_key '${GCP_SERVICE_ACCOUNT_KEY}' 
+);
+
+
 query T
 select filename from read_blob('gs://${GCS_BUCKET_NAME}/multi_csv/**/*', gcp_creds);
 ----
