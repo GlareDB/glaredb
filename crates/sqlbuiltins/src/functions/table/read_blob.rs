@@ -58,8 +58,6 @@ impl Default for BlobFormat {
 }
 
 impl BlobFormat {
-    /// Set a `FileCompressionType` of JSON
-    /// - defaults to `FileCompressionType::UNCOMPRESSED`
     pub fn with_file_compression_type(
         mut self,
         file_compression_type: FileCompressionType,
