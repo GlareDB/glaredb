@@ -188,23 +188,28 @@ impl CreateTableExec {
             }
         };
 
-        let table = storage.create_table(ent, save_mode).await.map_err(|e| {
-            DataFusionError::Execution(format!("failed to create table in storage: {e}"))
-        })?;
+        let table_existed = storage
+            .table_exists(ent)
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-        match (source, or_replace) {
-            (Some(input), overwrite) => insert(&table, input, overwrite, context).await?,
+        if !table_existed || !if_not_exists {
+            let table = storage.create_table(ent, save_mode).await.map_err(|e| {
+                DataFusionError::Execution(format!("failed to create table in storage: {e}"))
+            })?;
 
-            // if it's a 'replace' and there is no insert, we overwrite with an empty table
-            (None, true) => {
-                let input = Arc::new(EmptyExec::new(TableProvider::schema(&table)));
-                insert(&table, input, true, context).await?
-            }
-            (None, false) => {}
-        };
-        debug!(loc = %table.storage_location(), "native table created");
-
-        // TODO: Add storage tracking job.
+            match (source, or_replace) {
+                (Some(input), overwrite) => insert(&table, input, overwrite, context).await?,
+                // if it's a 'replace' and there is no insert, we overwrite with an empty table
+                (None, true) => {
+                    let input = Arc::new(EmptyExec::new(TableProvider::schema(&table)));
+                    insert(&table, input, true, context).await?
+                }
+                (None, false) => {}
+            };
+            debug!(loc = %table.storage_location(), "native table created");
+            // TODO: Add storage tracking job.
+        }
 
         Ok(new_operation_batch("create_table"))
     }
