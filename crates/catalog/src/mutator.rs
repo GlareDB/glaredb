@@ -33,8 +33,8 @@ impl CatalogMutator {
     /// Commit the catalog state.
     /// This persists the state to the metastore.
     /// The `current_catalog_version` is the version of the catalog prior to the state being committed.
-    /// This is usually `state.version - 1`, but not guaranteed.
-    /// This will retry commits if we were working with an out of date catalog.
+    /// the 'state.version' should always be greater than 'current_catalog_version'.
+    /// If not, the commit will not succeed.
     pub async fn commit_state(
         &self,
         current_catalog_version: u64,
@@ -45,22 +45,9 @@ impl CatalogMutator {
             None => return Err(CatalogError::new("metastore client not configured")),
         };
 
-        match client
+        client
             .commit_state(current_catalog_version, state.clone())
             .await
-        {
-            Err(CatalogError {
-                msg,
-                strategy: Some(ResolveErrorStrategy::FetchCatalogAndRetry),
-            }) => {
-                debug!(error_message = msg, "retrying commit");
-                // refresh the cached state and retry the commit
-                client.refresh_cached_state().await?;
-
-                client.commit_state(state.version, state).await
-            }
-            other => other,
-        }
     }
 
     /// Mutate the catalog if possible.
