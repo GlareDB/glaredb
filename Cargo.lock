@@ -540,6 +540,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-once-cell"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9338790e78aa95a416786ec8389546c4b6a1dfc3dc36071ed9518a9413a542eb"
+
+[[package]]
 name = "async-openai"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4355,11 +4361,13 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "arrow_util",
+ "async-once-cell",
  "async-trait",
  "bytes",
  "datafusion",
  "datafusion_ext",
  "futures",
+ "glaredb",
  "ioutil",
  "lzma-sys",
  "metastore",
