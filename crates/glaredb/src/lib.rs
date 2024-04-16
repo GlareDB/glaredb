@@ -28,6 +28,7 @@ pub use datafusion::physical_plan::SendableRecordBatchStream;
 use derive_builder::Builder;
 use futures::lock::Mutex;
 use futures::stream::{Stream, StreamExt};
+use futures::TryStreamExt;
 use sqlexec::engine::{Engine, EngineStorage, TrackedSession};
 pub use sqlexec::environment::EnvironmentReader;
 use sqlexec::errors::ExecError;
@@ -315,14 +316,8 @@ impl RecordStream {
     // Collects all of the record batches in a stream, aborting if
     // there are any errors.
     pub async fn to_vec(&mut self) -> Result<Vec<RecordBatch>, DataFusionError> {
-        let mut out = Vec::new();
         let stream = &mut self.0;
-
-        while let Some(b) = stream.next().await {
-            out.push(b?);
-        }
-
-        Ok(out)
+        stream.try_collect().await
     }
 
     // Iterates through the stream, ensuring propagating any errors,
