@@ -1,111 +1,19 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
-use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
-use datafusion_ext::vars::SessionVars;
-use futures::lock::Mutex;
-use sqlexec::engine::{Engine, EngineStorage, SessionStorageConfig, TrackedSession};
-use sqlexec::remote::client::RemoteClientType;
-use sqlexec::{LogicalPlan, OperationInfo};
-use url::Url;
+use async_once_cell::OnceCell;
 
 use crate::error::JsGlareDbError;
-use crate::logical_plan::JsLogicalPlan;
-
-pub(super) type JsTrackedSession = Arc<Mutex<TrackedSession>>;
+use crate::execution::JsExecutionOutput;
 
 /// A connected session to a GlareDB database.
 #[napi]
 #[derive(Clone)]
 pub struct Connection {
-    pub(crate) session: JsTrackedSession,
-    pub(crate) _engine: Arc<Engine>,
-}
-
-#[derive(Debug, Clone)]
-struct JsSessionConf {
-    /// Where to store both metastore and user data.
-    data_dir: Option<PathBuf>,
-    /// URL for cloud deployment to connect to.
-    cloud_url: Option<Url>,
-}
-
-impl From<Option<String>> for JsSessionConf {
-    fn from(value: Option<String>) -> Self {
-        match value {
-            Some(s) => match Url::parse(&s) {
-                Ok(u) => JsSessionConf {
-                    data_dir: None,
-                    cloud_url: Some(u),
-                },
-                // Assume failing to parse a url just means the user provided a local path.
-                Err(_) => JsSessionConf {
-                    data_dir: Some(PathBuf::from(s)),
-                    cloud_url: None,
-                },
-            },
-            None => JsSessionConf {
-                data_dir: None,
-                cloud_url: None,
-            },
-        }
-    }
+    pub(crate) inner: Arc<glaredb::Connection>,
 }
 
 #[napi]
 impl Connection {
-    pub(crate) async fn connect(
-        data_dir_or_cloud_url: Option<String>,
-        spill_path: Option<String>,
-        disable_tls: bool,
-        cloud_addr: String,
-        location: Option<String>,
-        storage_options: Option<HashMap<String, String>>,
-    ) -> napi::Result<Self> {
-        let conf = JsSessionConf::from(data_dir_or_cloud_url);
-
-        let storage = if let Some(location) = location.clone() {
-            EngineStorage::Remote {
-                location,
-                options: storage_options.unwrap_or_default(),
-            }
-        } else if let Some(data_dir) = conf.data_dir.clone() {
-            EngineStorage::Local(data_dir)
-        } else {
-            EngineStorage::Memory
-        };
-
-        let mut engine = Engine::from_storage(storage)
-            .await
-            .map_err(JsGlareDbError::from)?;
-
-        engine = engine
-            .with_spill_path(spill_path.map(|p| p.into()))
-            .map_err(JsGlareDbError::from)?;
-
-        let mut session = engine
-            .default_local_session_context()
-            .await
-            .map_err(JsGlareDbError::from)?;
-
-        session
-            .create_client_session(
-                conf.cloud_url.clone(),
-                cloud_addr,
-                disable_tls,
-                RemoteClientType::Node,
-                None,
-            )
-            .await
-            .map_err(JsGlareDbError::from)?;
-
-        Ok(Connection {
-            session: Arc::new(Mutex::new(session)),
-            _engine: Arc::new(engine),
-        })
-    }
-
     /// Returns the default connection to a global in-memory database.
     ///
     /// The database is only initialized once, and all subsequent
@@ -113,19 +21,21 @@ impl Connection {
     /// have access to the same data.
     #[napi(catch_unwind)]
     pub async fn default_in_memory() -> napi::Result<Connection> {
-        let engine = Engine::from_storage(EngineStorage::Memory)
-            .await
-            .map_err(JsGlareDbError::from)?;
-        let sess = engine
-            .new_local_session_context(SessionVars::default(), SessionStorageConfig::default())
-            .await
-            .map_err(JsGlareDbError::from)?;
-        let con = Connection {
-            session: Arc::new(Mutex::new(sess)),
-            _engine: Arc::new(engine),
-        };
+        static DEFAULT_CON: OnceCell<Connection> = OnceCell::new();
 
-        Ok(con.clone())
+        Ok(DEFAULT_CON
+            .get_or_try_init(async {
+                Ok::<_, JsGlareDbError>(Connection {
+                    inner: Arc::new(
+                        glaredb::ConnectOptionsBuilder::new_in_memory()
+                            .build()?
+                            .connect()
+                            .await?,
+                    ),
+                })
+            })
+            .await?
+            .clone())
     }
 
     /// Run a SQL operation against a GlareDB database.
@@ -166,38 +76,14 @@ impl Connection {
     /// await con.sql('create table my_table (a int)').then(cursor => cursor.execute())
     /// ```
     #[napi(catch_unwind)]
-    pub async fn sql(&self, query: String) -> napi::Result<JsLogicalPlan> {
-        let cloned_sess = self.session.clone();
-        let mut sess = self.session.lock().await;
-
-        let plan = sess
-            .create_logical_plan(&query)
+    pub async fn sql(&self, query: String) -> napi::Result<JsExecutionOutput> {
+        Ok(self
+            .inner
+            .sql(query)
+            .evaluate()
             .await
-            .map_err(JsGlareDbError::from)?;
-
-        let op = OperationInfo::new().with_query_text(query);
-
-        match plan
-            .to_owned()
-            .try_into_datafusion_plan()
-            .expect("resolving logical plan")
-        {
-            DFLogicalPlan::Extension(_)
-            | DFLogicalPlan::Dml(_)
-            | DFLogicalPlan::Ddl(_)
-            | DFLogicalPlan::Copy(_) => {
-                sess.execute_logical_plan(plan, &op)
-                    .await
-                    .map_err(JsGlareDbError::from)?;
-
-                Ok(JsLogicalPlan::new(
-                    LogicalPlan::Noop,
-                    cloned_sess,
-                    Default::default(),
-                ))
-            }
-            _ => Ok(JsLogicalPlan::new(plan, cloned_sess, op)),
-        }
+            .map_err(JsGlareDbError::from)?
+            .into())
     }
 
     /// Run a PRQL query against a GlareDB database. Does not change
@@ -214,17 +100,14 @@ impl Connection {
     /// All operations execute lazily when their results are
     /// processed.
     #[napi(catch_unwind)]
-    pub async fn prql(&self, query: String) -> napi::Result<JsLogicalPlan> {
-        let cloned_sess = self.session.clone();
-        let mut sess = self.session.lock().await;
-        let plan = sess
-            .prql_to_lp(&query)
+    pub async fn prql(&self, query: String) -> napi::Result<JsExecutionOutput> {
+        Ok(self
+            .inner
+            .prql(query)
+            .evaluate()
             .await
-            .map_err(JsGlareDbError::from)?;
-
-        let op = OperationInfo::new().with_query_text(query);
-
-        Ok(JsLogicalPlan::new(plan, cloned_sess, op))
+            .map_err(JsGlareDbError::from)?
+            .into())
     }
 
     /// Execute a query.
@@ -241,18 +124,10 @@ impl Connection {
     /// ```
     #[napi(catch_unwind)]
     pub async fn execute(&self, query: String) -> napi::Result<()> {
-        let sess = self.session.clone();
-        let mut sess = sess.lock().await;
-
-        let plan = sess
-            .create_logical_plan(&query)
-            .await
-            .map_err(JsGlareDbError::from)?;
-
-        let op = OperationInfo::new().with_query_text(query);
-
-        let _ = sess
-            .execute_logical_plan(plan, &op)
+        self.inner
+            .execute(query)
+            .call()
+            .check()
             .await
             .map_err(JsGlareDbError::from)?;
 
