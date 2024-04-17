@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 
-use apache_avro::{from_value, Reader};
+use apache_avro::schema::{RecordField, RecordFieldOrder, RecordSchema};
+use apache_avro::{from_value, to_value, Reader, Schema as AvroSchema, Writer};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 
@@ -224,6 +225,20 @@ impl Manifest {
 
         Ok(Manifest { metadata, entries })
     }
+
+    pub fn into_raw_avro(self) -> Result<Vec<u8>> {
+        const DATA_FILE_SCHEMA: &str = r#"{
+            "name": "data_file",
+            "type": "record",
+            "fields": [
+                {"name": "content", "type": "int"},
+                {"name": "file_path", "type": "string"},
+                {"name": "file_format", type: "string"},
+            ]
+        }"#;
+
+        todo!()
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
@@ -257,6 +272,16 @@ impl TryFrom<i32> for ManifestEntryStatus {
     }
 }
 
+impl From<ManifestEntryStatus> for i32 {
+    fn from(value: ManifestEntryStatus) -> Self {
+        match value {
+            ManifestEntryStatus::Existing => 0,
+            ManifestEntryStatus::Added => 1,
+            ManifestEntryStatus::Deleted => 2,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManifestEntry {
     pub status: i32,
@@ -270,7 +295,7 @@ pub struct ManifestEntry {
 }
 
 #[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DataFile {
     #[serde(default)]
     pub content: i32,

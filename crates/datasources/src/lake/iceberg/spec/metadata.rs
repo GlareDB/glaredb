@@ -8,6 +8,19 @@ use serde::{de, Deserialize, Deserializer};
 use super::Schema;
 use crate::lake::iceberg::errors::{IcebergError, Result};
 
+/// File path style for metadata.
+#[derive(Debug, Clone, Copy)]
+pub enum TableMetadataFilePathStyle {
+    /// Get the version string from `version-hint.text`.
+    ///
+    /// File path: `v<version string>.metadata.json`.
+    FromVersionHint,
+    /// Get the file-path from table which uses an iceberg catalog.
+    ///
+    /// File path: `v<latest version>-<random uuid>.metadata.json`.
+    FromCatalog,
+}
+
 /// On disk table metadata.
 ///
 /// JSON serialization only.
