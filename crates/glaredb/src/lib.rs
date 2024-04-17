@@ -25,6 +25,7 @@ pub use datafusion::error::DataFusionError;
 use datafusion::logical_expr::LogicalPlan;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 pub use datafusion::physical_plan::SendableRecordBatchStream;
+pub use datafusion::scalar::ScalarValue;
 use derive_builder::Builder;
 use futures::lock::Mutex;
 use futures::stream::{Stream, StreamExt};
@@ -312,12 +313,89 @@ impl From<Result<SendableRecordBatchStream, ExecError>> for RecordStream {
     }
 }
 
+// RowMap represents a single record in an ordered map.
+type RowMap = indexmap::IndexMap<String, ScalarValue>;
+
+// RowMapBatch is equivalent to a row-based view of a record batch.
+pub struct RowMapBatch(Vec<RowMap>);
+
+impl TryFrom<RecordBatch> for RowMapBatch {
+    type Error = DataFusionError;
+
+    fn try_from(batch: RecordBatch) -> Result<Self, Self::Error> {
+        let schema = batch.schema();
+        let mut out = Vec::with_capacity(batch.num_rows());
+
+        for row in 0..batch.num_rows() {
+            let mut record = RowMap::with_capacity(batch.num_columns());
+            for (idx, field) in schema.fields.into_iter().enumerate() {
+                record.insert(
+                    field.name().to_owned(),
+                    ScalarValue::try_from_array(batch.column(idx), row)?,
+                );
+            }
+            out.push(record);
+        }
+        Ok(RowMapBatch(out))
+    }
+}
+
+impl TryFrom<Result<RecordBatch, DataFusionError>> for RowMapBatch {
+    type Error = DataFusionError;
+
+    fn try_from(value: Result<RecordBatch, DataFusionError>) -> Result<Self, Self::Error> {
+        Ok(RowMapBatch::try_from(value?)?)
+    }
+}
+
+impl Extend<RowMap> for RowMapBatch {
+    fn extend<T: IntoIterator<Item = RowMap>>(&mut self, iter: T) {
+        for elem in iter {
+            self.0.push(elem)
+        }
+    }
+}
+
+impl Default for RowMapBatch {
+    fn default() -> Self {
+        RowMapBatch(Vec::new())
+    }
+}
+
+impl RowMapBatch {
+    pub fn iter(&self) -> impl Iterator<Item = RowMap> {
+        self.0.clone().into_iter()
+    }
+
+    // Returns the row at the specific index, or None if the index is
+    // out of bounds.
+    pub fn row(&self, idx: usize) -> Option<RowMap> {
+        self.0.get(idx).cloned()
+    }
+
+    // The number of rows in the RowMapBatch.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
 impl RecordStream {
     // Collects all of the record batches in a stream, aborting if
     // there are any errors.
     pub async fn to_vec(&mut self) -> Result<Vec<RecordBatch>, DataFusionError> {
         let stream = &mut self.0;
         stream.try_collect().await
+    }
+
+    // Collects all of the record batches and rotates the results for
+    // a map-based row-oriented format.
+    pub async fn to_rows(&mut self) -> Result<Vec<RowMapBatch>, DataFusionError> {
+        let stream = &mut self.0;
+        stream.map(RowMapBatch::try_from).try_collect().await
     }
 
     // Iterates through the stream, ensuring propagating any errors,

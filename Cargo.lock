@@ -3800,6 +3800,7 @@ dependencies = [
  "datafusion",
  "derive_builder",
  "futures",
+ "indexmap 2.2.6",
  "sqlexec",
  "url",
 ]
