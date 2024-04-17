@@ -7,4 +7,4 @@ edition = {workspace = true}
 workspace = true
 
 [dependencies]
-bytes = "1.6.0"
+bytes = { workspace = true }

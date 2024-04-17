@@ -170,15 +170,15 @@ impl WithCompression for ParquetFormat {
 #[derive(Debug, Clone)]
 pub struct ObjScanTableFunc<Opts> {
     /// Primary name for the function.
-    name: &'static str,
+    pub(super) name: &'static str,
 
     /// Additional aliases for this function.
-    aliases: &'static [&'static str],
+    pub(super) aliases: &'static [&'static str],
 
-    description: &'static str,
-    example: &'static str,
+    pub(super) description: &'static str,
+    pub(super) example: &'static str,
 
-    phantom: PhantomData<Opts>,
+    pub(super) phantom: PhantomData<Opts>,
 }
 
 impl<Opts: OptionReader> BuiltinFunction for ObjScanTableFunc<Opts> {
