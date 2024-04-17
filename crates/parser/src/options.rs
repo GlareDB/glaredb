@@ -1,10 +1,72 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::str::FromStr;
 
-use datafusion::common::parsers::CompressionTypeVariant;
-use datafusion::common::FileType;
-use datafusion::sql::sqlparser::parser::ParserError;
-use protogen::metastore::types::options::StorageOptions;
+use sqlparser::parser::ParserError;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FileType {
+    /// Apache Arrow file
+    ARROW,
+    /// Apache Avro file
+    AVRO,
+    /// Apache Parquet file
+    PARQUET,
+    /// CSV file
+    CSV,
+    /// JSON file
+    JSON,
+}
+
+impl FromStr for FileType {
+    type Err = ParserError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_uppercase();
+        match s.as_str() {
+            "ARROW" => Ok(FileType::ARROW),
+            "AVRO" => Ok(FileType::AVRO),
+            "PARQUET" => Ok(FileType::PARQUET),
+            "CSV" => Ok(FileType::CSV),
+            "JSON" | "NDJSON" => Ok(FileType::JSON),
+            _ => Err(ParserError::ParserError(format!(
+                "Unsupported file type {s}"
+            ))),
+        }
+    }
+}
+/// Readable file compression type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompressionTypeVariant {
+    /// Gzip-ed file
+    GZIP,
+    /// Bzip2-ed file
+    BZIP2,
+    /// Xz-ed file (liblzma)
+    XZ,
+    /// Zstd-ed file,
+    ZSTD,
+    /// Uncompressed file
+    UNCOMPRESSED,
+}
+
+impl FromStr for CompressionTypeVariant {
+    type Err = ParserError;
+
+    fn from_str(s: &str) -> Result<Self, ParserError> {
+        let s = s.to_uppercase();
+        match s.as_str() {
+            "GZIP" | "GZ" => Ok(Self::GZIP),
+            "BZIP2" | "BZ2" => Ok(Self::BZIP2),
+            "XZ" => Ok(Self::XZ),
+            "ZST" | "ZSTD" => Ok(Self::ZSTD),
+            "" | "UNCOMPRESSED" => Ok(Self::UNCOMPRESSED),
+            _ => Err(ParserError::ParserError(format!(
+                "Unsupported file compression type {s}"
+            ))),
+        }
+    }
+}
 
 /// Contains the value parsed from Options(...).
 ///
@@ -150,7 +212,6 @@ impl ParseOptionValue<char> for OptionValue {
     }
 }
 
-
 impl ParseOptionValue<FileType> for OptionValue {
     fn parse_opt(self) -> Result<FileType, ParserError> {
         let opt = match self {
@@ -192,17 +253,17 @@ impl fmt::Display for StatementOptions {
     }
 }
 
-impl TryFrom<&mut StatementOptions> for StorageOptions {
-    type Error = ParserError;
+// impl TryFrom<&mut StatementOptions> for StorageOptions {
+//     type Error = ParserError;
 
-    fn try_from(value: &mut StatementOptions) -> Result<Self, Self::Error> {
-        let mut inner = BTreeMap::new();
-        for (key, value) in value.m.iter() {
-            inner.insert(key.clone(), value.clone().parse_opt()?);
-        }
-        Ok(StorageOptions { inner })
-    }
-}
+//     fn try_from(value: &mut StatementOptions) -> Result<Self, Self::Error> {
+//         let mut inner = BTreeMap::new();
+//         for (key, value) in value.m.iter() {
+//             inner.insert(key.clone(), value.clone().parse_opt()?);
+//         }
+//         Ok(StorageOptions { inner })
+//     }
+// }
 
 impl StatementOptions {
     pub fn new(m: BTreeMap<String, OptionValue>) -> Self {

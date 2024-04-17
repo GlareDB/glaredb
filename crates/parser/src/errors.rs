@@ -1,4 +1,4 @@
-pub use datafusion::sql::sqlparser::parser::ParserError;
+pub use sqlparser::parser::ParserError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParseError {
