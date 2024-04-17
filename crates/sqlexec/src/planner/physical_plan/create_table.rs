@@ -198,7 +198,6 @@ impl CreateTableExec {
                 DataFusionError::Execution(format!("failed to create table in storage: {e}"))
             })?;
 
-
             let insert_res = match (source, or_replace) {
                 (Some(input), overwrite) => insert(&table, input, overwrite, context).await,
 
