@@ -238,6 +238,7 @@ pub(crate) fn normalize_ident(id: Ident) -> String {
     }
 }
 
+/// Copied from https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/expr/src/utils.rs#L354
 /// Returns all `Expr`s in the schema, except the `Column`s in the `columns_to_skip`
 fn get_exprs_except_skipped(schema: &DFSchema, columns_to_skip: HashSet<Column>) -> Vec<Expr> {
     if columns_to_skip.is_empty() {
@@ -262,6 +263,7 @@ fn get_exprs_except_skipped(schema: &DFSchema, columns_to_skip: HashSet<Column>)
     }
 }
 
+/// Copied from https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/expr/src/utils.rs#L381
 /// Resolves an `Expr::Wildcard` to a collection of `Expr::Column`'s.
 pub fn expand_wildcard(
     schema: &DFSchema,
@@ -305,6 +307,8 @@ pub fn expand_wildcard(
     Ok(get_exprs_except_skipped(schema, columns_to_skip))
 }
 
+/// Copied from https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/expr/src/utils.rs#L424
+/// Resolves an `Expr::Wildcard` to a collection of qualified `Expr::Column`'s.
 pub fn expand_qualified_wildcard(
     qualifier: &str,
     schema: &DFSchema,
@@ -344,6 +348,7 @@ pub fn expand_qualified_wildcard(
     Ok(get_exprs_except_skipped(&qualified_schema, columns_to_skip))
 }
 
+/// Copied from https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/expr/src/utils.rs#L314
 /// Find excluded columns in the schema, if any
 /// SELECT * EXCLUDE(col1, col2), would return `vec![col1, col2]`
 fn get_excluded_columns(
