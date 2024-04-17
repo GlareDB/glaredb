@@ -120,6 +120,15 @@ statement ok
 select * from "Case Sensitive"
 
 
+# create a table with an invalid select statement
+statement error Failed to convert into Arrow schema
+create table invalid_ctas as (select cast('test' as int) as 'bad_cast');
+
+# make sure the table was not created
+statement error failed to find table: invalid_ctas
+select * from invalid_ctas;
+
+
 # https://github.com/GlareDB/glaredb/issues/2777
 statement ok
 create table test as select vector, point as "Point" from lance_scan('./testdata/lance/table1');

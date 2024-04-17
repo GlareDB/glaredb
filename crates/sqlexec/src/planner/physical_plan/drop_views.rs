@@ -116,7 +116,7 @@ async fn drop_views(
         .collect();
 
     mutator
-        .mutate(plan.catalog_version, drops)
+        .mutate_and_commit(plan.catalog_version, drops)
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to drop views: {e}")))?;
 

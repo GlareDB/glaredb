@@ -212,7 +212,9 @@ impl LocalSessionContext {
         })];
 
         // This will error if the catalog already has a function with the same
-        catalog_mutator.mutate(catalog_version, mutations).await?;
+        catalog_mutator
+            .mutate_and_commit(catalog_version, mutations)
+            .await?;
         self.functions.register_udf(udf);
         Ok(())
     }
