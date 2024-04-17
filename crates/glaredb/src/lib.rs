@@ -314,9 +314,12 @@ impl From<Result<SendableRecordBatchStream, ExecError>> for RecordStream {
 }
 
 /// RowMap represents a single record in an ordered map.
-type RowMap = indexmap::IndexMap<String, ScalarValue>;
+type RowMap = indexmap::IndexMap<Arc<String>, ScalarValue>;
 
-/// RowMapBatch is equivalent to a row-based view of a record batch.
+/// RowMapBatch is equivalent to a row-based view of a record
+/// batch. Use this type sparingly, and/or in tests when you know the
+/// result size is small.
+#[derive(Default, Debug)]
 pub struct RowMapBatch(Vec<RowMap>);
 
 impl TryFrom<RecordBatch> for RowMapBatch {
@@ -326,16 +329,19 @@ impl TryFrom<RecordBatch> for RowMapBatch {
         let schema = batch.schema();
         let mut out = Vec::with_capacity(batch.num_rows());
 
+        let mut fields = Vec::with_capacity(schema.fields.len());
+        for field in schema.fields().into_iter() {
+            fields.push(Arc::new(field.name().to_owned()))
+        }
+
         for row in 0..batch.num_rows() {
             let mut record = RowMap::with_capacity(batch.num_columns());
-            for (idx, field) in schema.fields.into_iter().enumerate() {
-                record.insert(
-                    field.name().to_owned(),
-                    ScalarValue::try_from_array(batch.column(idx), row)?,
-                );
+            for (idx, field) in fields.clone().into_iter().enumerate() {
+                record.insert(field, ScalarValue::try_from_array(batch.column(idx), row)?);
             }
             out.push(record);
         }
+
         Ok(RowMapBatch(out))
     }
 }
@@ -344,7 +350,7 @@ impl TryFrom<Result<RecordBatch, DataFusionError>> for RowMapBatch {
     type Error = DataFusionError;
 
     fn try_from(value: Result<RecordBatch, DataFusionError>) -> Result<Self, Self::Error> {
-        Ok(RowMapBatch::try_from(value?)?)
+        RowMapBatch::try_from(value?)
     }
 }
 
@@ -353,12 +359,6 @@ impl Extend<RowMap> for RowMapBatch {
         for elem in iter {
             self.0.push(elem)
         }
-    }
-}
-
-impl Default for RowMapBatch {
-    fn default() -> Self {
-        RowMapBatch(Vec::new())
     }
 }
 
