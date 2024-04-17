@@ -463,6 +463,21 @@ impl fmt::Display for StatementWithExtensions {
 pub struct GlareDbParser<'a> {
     parser: Parser<'a>,
 }
+#[derive(Debug)]
+pub struct GlareDbDialect;
+
+impl sqlparser::dialect::Dialect for GlareDbDialect {
+    fn is_identifier_start(&self, ch: char) -> bool {
+        ch.is_alphabetic() || ch == '_'
+    }
+
+    fn is_identifier_part(&self, ch: char) -> bool {
+        ch.is_alphabetic() || ch.is_ascii_digit() || ch == '$' || ch == '_'
+    }
+    fn supports_named_fn_args_with_eq_operator(&self) -> bool {
+        true
+    }
+}
 
 impl GlareDbParser<'_> {
     const PRQL_OPTIONS: &'static Options = &Options {
@@ -471,7 +486,7 @@ impl GlareDbParser<'_> {
         signature_comment: false,
         color: false,
     };
-    const SQL_DIALECT: &'static GenericDialect = &GenericDialect {};
+    const SQL_DIALECT: &'static GlareDbDialect = &GlareDbDialect;
 
     pub fn new(mut sql: &str, dialect: Dialect) -> Result<GlareDbParser<'_>, ParserError> {
         let tokens = Tokenizer::new(Self::SQL_DIALECT, sql).tokenize()?;
