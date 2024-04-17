@@ -13,3 +13,13 @@ userdata1.parquet.bz2
 userdata1.parquet.gz
 userdata1.parquet.xz
 userdata1.parquet.zst
+
+
+# make sure the projections are working properly
+statement ok
+select size, last_modified, filename from read_blob('testdata/parquet/*');
+
+# if the projections are working properly, then the order of the columns should not matter
+statement ok
+select filename, last_modified, size from read_blob('testdata/parquet/*');
+

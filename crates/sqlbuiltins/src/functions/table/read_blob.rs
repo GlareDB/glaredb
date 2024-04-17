@@ -27,6 +27,7 @@ use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
 use datafusion::physical_plan::{DisplayAs, ExecutionPlan, Partitioning, PhysicalExpr};
 use datafusion_ext::errors::Result;
 use datafusion_ext::functions::FuncParamValue;
+use futures::stream::once;
 use futures::{StreamExt, TryStreamExt};
 use object_store::{collect_bytes, GetOptions, ObjectMeta, ObjectStore};
 use once_cell::sync::Lazy;
@@ -139,86 +140,74 @@ impl FileOpener for BlobOpener {
             let options = GetOptions::default();
             let result = store.get_opts(file_meta.location(), options).await?;
 
-            // manually add columns based on the projected schema
             let mut columns = Vec::new();
+            if let Some((idx, _)) = schema.column_with_name("size") {
+                columns.push((
+                    idx,
+                    Arc::new(Int64Array::from(vec![result.meta.size as i64])) as ArrayRef,
+                ));
+            }
 
-            let mut size = schema
-                .column_with_name("size")
-                .map(|_| Arc::new(Int64Array::from(vec![result.meta.size as i64])) as ArrayRef);
+            if let Some((idx, _)) = schema.column_with_name("last_modified") {
+                columns.push((
+                    idx,
+                    Arc::new(TimestampNanosecondArray::from_vec(
+                        vec![result.meta.last_modified.timestamp_nanos()],
+                        None,
+                    )),
+                ));
+            }
 
-            let mut last_modified = schema.column_with_name("last_modified").map(|_| {
-                Arc::new(TimestampNanosecondArray::from_vec(
-                    vec![result.meta.last_modified.timestamp_nanos()],
-                    None,
-                )) as ArrayRef
-            });
+            if let Some((idx, _)) = schema.column_with_name("filename") {
+                columns.push((
+                    idx,
+                    Arc::new(StringArray::from(vec![result.meta.location.to_string()])) as ArrayRef,
+                ));
+            }
 
-            let mut filename = schema.column_with_name("filename").map(|_| {
-                Arc::new(StringArray::from(vec![result.meta.location.to_string()])) as ArrayRef
-            });
+            if let Some((idx, _)) = schema.column_with_name("content") {
+                let len = result.range.end - result.range.start;
+                match result.payload {
+                    object_store::GetResultPayload::File(mut file, _) => {
+                        let mut bytes = match file_meta.range {
+                            None => file_compression_type.convert_read(file)?,
+                            Some(_) => {
+                                file.seek(SeekFrom::Start(result.range.start as _))?;
+                                let limit = result.range.end - result.range.start;
+                                file_compression_type.convert_read(file.take(limit as u64))?
+                            }
+                        };
+                        let mut data = Vec::new();
+                        bytes.read_to_end(&mut data)?;
 
-            let mut content = match schema.column_with_name("content") {
-                Some(_) => {
-                    let len = result.range.end - result.range.start;
-                    match result.payload {
-                        object_store::GetResultPayload::File(mut file, _) => {
-                            let mut bytes = match file_meta.range {
-                                None => file_compression_type.convert_read(file)?,
-                                Some(_) => {
-                                    file.seek(SeekFrom::Start(result.range.start as _))?;
-                                    let limit = result.range.end - result.range.start;
-                                    file_compression_type.convert_read(file.take(limit as u64))?
-                                }
-                            };
-                            let mut data = Vec::new();
-                            bytes.read_to_end(&mut data)?;
-
-                            Some(Arc::new(BinaryArray::from_vec(vec![&data])) as ArrayRef)
-                        }
-                        object_store::GetResultPayload::Stream(s) => {
-                            let s = s.map_err(DataFusionError::from);
-
-                            let s = file_compression_type.convert_stream(s.boxed())?.fuse();
-                            let bytes = collect_bytes(s, Some(len)).await?;
-                            Some(Arc::new(BinaryArray::from_vec(vec![&bytes])) as ArrayRef)
-                        }
+                        columns.push((
+                            idx,
+                            Arc::new(BinaryArray::from_vec(vec![&data])) as ArrayRef,
+                        ));
                     }
-                }
-                None => None,
-            };
+                    object_store::GetResultPayload::Stream(s) => {
+                        let s = s.map_err(DataFusionError::from);
 
-            for field in schema.fields() {
-                // we need to do this hacky option take because of the borrow checker.
-                // these matches should only ever match once, but the borrow checker doesn't know that.
-                // so we just wrap the value in an option to ensure it's only taken once.
-                match field.name().as_str() {
-                    "size" => {
-                        if let Some(size) = size.take() {
-                            columns.push(size);
-                        }
+                        let s = file_compression_type.convert_stream(s.boxed())?.fuse();
+                        let bytes = collect_bytes(s, Some(len)).await?;
+                        columns.push((
+                            idx,
+                            Arc::new(BinaryArray::from_vec(vec![&bytes])) as ArrayRef,
+                        ))
                     }
-                    "last_modified" => {
-                        if let Some(last_modified) = last_modified.take() {
-                            columns.push(last_modified);
-                        }
-                    }
-                    "filename" => {
-                        if let Some(filename) = filename.take() {
-                            columns.push(filename);
-                        }
-                    }
-                    "content" => {
-                        if let Some(content) = content.take() {
-                            columns.push(content);
-                        }
-                    }
-                    _ => panic!("unexpected column name: {}", field.name()),
                 }
             }
 
-            let batch = RecordBatch::try_new(schema.clone(), columns)?;
-            let iterator = vec![batch].into_iter().map(Ok);
-            let stream = futures::stream::iter(iterator).boxed();
+            // sort columns by index.
+            // This retains the order of the columns as they were defined in the schema
+            columns.sort_by(|a, b| a.0.cmp(&b.0));
+
+            let batch = RecordBatch::try_new(
+                schema.clone(),
+                columns.into_iter().map(|(_, v)| v).collect(),
+            )?;
+
+            let stream = once(async move { Ok(batch) }).boxed();
             Ok(stream)
         }))
     }
