@@ -105,7 +105,7 @@ async fn create_tunnel(
     plan: CreateTunnelExec,
 ) -> DataFusionResult<RecordBatch> {
     mutator
-        .mutate(
+        .mutate_and_commit(
             plan.catalog_version,
             [Mutation::CreateTunnel(service::CreateTunnel {
                 name: plan.name,

@@ -104,7 +104,7 @@ async fn create_schema(
     plan: CreateSchemaExec,
 ) -> DataFusionResult<RecordBatch> {
     mutator
-        .mutate(
+        .mutate_and_commit(
             plan.catalog_version,
             [Mutation::CreateSchema(service::CreateSchema {
                 name: plan.schema_reference.schema.into_owned(),
