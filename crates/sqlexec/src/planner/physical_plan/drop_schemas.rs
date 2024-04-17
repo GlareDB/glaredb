@@ -117,7 +117,7 @@ async fn drop_schemas(
         .collect();
 
     mutator
-        .mutate(plan.catalog_version, drops)
+        .mutate_and_commit(plan.catalog_version, drops)
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to drop schemas: {e}")))?;
 

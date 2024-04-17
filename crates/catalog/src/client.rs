@@ -20,7 +20,6 @@ pub struct MetastoreClientConfig {
     pub max_ticks_before_exit: usize,
 }
 
-
 /// Handle to a metastore client.
 #[derive(Debug, Clone)]
 pub struct MetastoreClientHandle {
@@ -65,8 +64,48 @@ impl MetastoreClientHandle {
             .and_then(std::convert::identity) // Flatten
     }
 
-    /// Try to run mutations against the Metastore catalog.
-    ///
+    pub async fn commit_state(
+        &self,
+        version: u64,
+        state: CatalogState,
+    ) -> Result<Arc<CatalogState>> {
+        let (tx, rx) = oneshot::channel();
+        self.send(
+            ClientRequest::Commit {
+                version,
+                state: Arc::new(state),
+                response: tx,
+            },
+            rx,
+        )
+        .await
+        .and_then(std::convert::identity) // Flatten
+    }
+
+    /// Try to run mutations against the Metastore catalog and commit them.
+    pub async fn try_mutate_and_commit(
+        &self,
+        current_version: u64,
+        mutations: Vec<Mutation>,
+    ) -> Result<Arc<CatalogState>> {
+        let (tx, rx) = oneshot::channel();
+        let state = self
+            .send(
+                ClientRequest::ExecMutations {
+                    version: current_version,
+                    mutations,
+                    response: tx,
+                },
+                rx,
+            )
+            .await??;
+
+        self.commit_state(current_version, state.as_ref().clone())
+            .await
+    }
+
+    /// Try to run mutations against the Metastore catalog
+    /// IMPORTANT: This method does not commit the mutations to the catalog. see `try_mutate_and_commit`
     /// The version provided should be the version of the catalog state that the
     /// session currently has.
     pub async fn try_mutate(
@@ -122,6 +161,11 @@ pub enum ClientRequest {
     GetCachedState {
         response: oneshot::Sender<Result<Arc<CatalogState>>>,
     },
+    Commit {
+        version: u64,
+        state: Arc<CatalogState>,
+        response: oneshot::Sender<Result<Arc<CatalogState>>>,
+    },
 
     /// Execute mutations against a catalog.
     ExecMutations {
@@ -140,6 +184,7 @@ impl ClientRequest {
     fn tag(&self) -> &'static str {
         match self {
             ClientRequest::Ping { .. } => "ping",
+            ClientRequest::Commit { .. } => "commit",
             ClientRequest::GetCachedState { .. } => "get_cached_state",
             ClientRequest::ExecMutations { .. } => "exec_mutations",
             ClientRequest::RefreshCachedState { .. } => "refresh_cached_state",

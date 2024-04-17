@@ -115,7 +115,7 @@ async fn create_external_table(
     });
 
     mutator
-        .mutate(
+        .mutate_and_commit(
             plan.catalog_version,
             [Mutation::CreateExternalTable(
                 service::CreateExternalTable {
