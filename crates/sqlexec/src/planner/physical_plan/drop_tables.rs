@@ -117,7 +117,7 @@ async fn drop_tables(
 
     // we want to make sure that the catalog is updated before we delete the delta tables
     mutator
-        .mutate(plan.catalog_version, drops)
+        .mutate_and_commit(plan.catalog_version, drops)
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to drop tables: {e}")))?;
 

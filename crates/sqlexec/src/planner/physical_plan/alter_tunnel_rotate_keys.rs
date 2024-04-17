@@ -104,7 +104,7 @@ async fn alter_tunnel_rotate_keys(
     plan: AlterTunnelRotateKeysExec,
 ) -> DataFusionResult<RecordBatch> {
     mutator
-        .mutate(
+        .mutate_and_commit(
             plan.catalog_version,
             [Mutation::AlterTunnelRotateKeys(
                 service::AlterTunnelRotateKeys {

@@ -97,7 +97,7 @@ async fn create_credentials(
     mutator: Arc<CatalogMutator>,
 ) -> DataFusionResult<RecordBatch> {
     mutator
-        .mutate(
+        .mutate_and_commit(
             plan.catalog_version,
             [Mutation::CreateCredentials(service::CreateCredentials {
                 name: plan.name,

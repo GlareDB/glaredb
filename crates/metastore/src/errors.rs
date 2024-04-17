@@ -108,6 +108,9 @@ pub enum MetastoreError {
 
     #[error(transparent)]
     Catalog(#[from] CatalogError),
+
+    #[error("Missing Catalog")]
+    MissingCatalog,
 }
 
 pub type Result<T, E = MetastoreError> = std::result::Result<T, E>;
