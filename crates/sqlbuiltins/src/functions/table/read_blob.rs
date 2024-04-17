@@ -140,6 +140,10 @@ impl FileOpener for BlobOpener {
             let options = GetOptions::default();
             let result = store.get_opts(file_meta.location(), options).await?;
 
+            // We build up the columns with their index in the schema
+            // The index is needed to retain the order of the projected schema
+            // Such as `select filename, size from read_blob(...)` -> [filename, size]
+            // instead of the default [size, filename], which is what we'd output without reordering.
             let mut columns = Vec::new();
             if let Some((idx, _)) = schema.column_with_name("size") {
                 columns.push((
@@ -161,7 +165,7 @@ impl FileOpener for BlobOpener {
             if let Some((idx, _)) = schema.column_with_name("filename") {
                 columns.push((
                     idx,
-                    Arc::new(StringArray::from(vec![result.meta.location.to_string()])) as ArrayRef,
+                    Arc::new(StringArray::from(vec![result.meta.location.to_string()])),
                 ));
             }
 
@@ -180,26 +184,19 @@ impl FileOpener for BlobOpener {
                         let mut data = Vec::new();
                         bytes.read_to_end(&mut data)?;
 
-                        columns.push((
-                            idx,
-                            Arc::new(BinaryArray::from_vec(vec![&data])) as ArrayRef,
-                        ));
+                        columns.push((idx, Arc::new(BinaryArray::from_vec(vec![&data]))));
                     }
                     object_store::GetResultPayload::Stream(s) => {
                         let s = s.map_err(DataFusionError::from);
 
                         let s = file_compression_type.convert_stream(s.boxed())?.fuse();
                         let bytes = collect_bytes(s, Some(len)).await?;
-                        columns.push((
-                            idx,
-                            Arc::new(BinaryArray::from_vec(vec![&bytes])) as ArrayRef,
-                        ))
+                        columns.push((idx, Arc::new(BinaryArray::from_vec(vec![&bytes]))))
                     }
                 }
             }
 
-            // sort columns by index.
-            // This retains the order of the columns as they were defined in the schema
+            // reorder the columns based on their index in the schema
             columns.sort_by(|a, b| a.0.cmp(&b.0));
 
             let batch = RecordBatch::try_new(
