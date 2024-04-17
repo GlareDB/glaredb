@@ -253,18 +253,6 @@ impl fmt::Display for StatementOptions {
     }
 }
 
-// impl TryFrom<&mut StatementOptions> for StorageOptions {
-//     type Error = ParserError;
-
-//     fn try_from(value: &mut StatementOptions) -> Result<Self, Self::Error> {
-//         let mut inner = BTreeMap::new();
-//         for (key, value) in value.m.iter() {
-//             inner.insert(key.clone(), value.clone().parse_opt()?);
-//         }
-//         Ok(StorageOptions { inner })
-//     }
-// }
-
 impl StatementOptions {
     pub fn new(m: BTreeMap<String, OptionValue>) -> Self {
         Self { m }
