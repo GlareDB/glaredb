@@ -1,11 +1,11 @@
 pub mod errors;
 pub mod options;
-
 use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 
 use prql_compiler::sql::Dialect as PrqlDialect;
 use prql_compiler::{compile, Options, Target};
+pub use sqlparser;
 use sqlparser::ast::{self, ColumnDef, Ident, ObjectName};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::keywords::Keyword;

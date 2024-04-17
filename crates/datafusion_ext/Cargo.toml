@@ -17,6 +17,7 @@ telemetry = { path = "../telemetry" }
 catalog = { path = "../catalog" }
 decimal = { path = "../decimal" }
 protogen = { path = "../protogen" }
+parser = { path = "../parser" }
 pgrepr = { path = "../pgrepr" }
 serde_json = { workspace = true }
 datafusion = { workspace = true }

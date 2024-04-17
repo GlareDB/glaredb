@@ -238,7 +238,7 @@ impl ParseOptionValue<CompressionTypeVariant> for OptionValue {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatementOptions {
-    m: BTreeMap<String, OptionValue>,
+    pub m: BTreeMap<String, OptionValue>,
 }
 
 impl fmt::Display for StatementOptions {

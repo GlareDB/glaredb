@@ -1,6 +1,6 @@
 use datafusion::common::{not_impl_err, DataFusionError, Result};
 use datafusion::logical_expr::Operator;
-use datafusion::sql::sqlparser::ast::JsonOperator;
+use parser::sqlparser::ast::JsonOperator;
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 

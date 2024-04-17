@@ -19,7 +19,7 @@ use datafusion::common::{DFSchema, DataFusionError, Result, ScalarValue};
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{BuiltinScalarFunction, Expr};
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::Expr as SQLExpr;
+use parser::sqlparser::ast::Expr as SQLExpr;
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 

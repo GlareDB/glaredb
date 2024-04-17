@@ -38,7 +38,7 @@ use datafusion::logical_expr::{
     WindowFunctionDefinition,
 };
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{
+use parser::sqlparser::ast::{
     Expr as SQLExpr,
     Function as SQLFunction,
     FunctionArg,
@@ -47,6 +47,7 @@ use datafusion::sql::sqlparser::ast::{
 };
 
 use super::arrow_cast::ARROW_CAST_NAME;
+use crate::conversion::try_convert;
 use crate::planner::expr::arrow_cast::create_arrow_cast;
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
@@ -149,7 +150,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 .window_frame
                 .as_ref()
                 .map(|window_frame| {
-                    let window_frame = window_frame.clone().try_into()?;
+                    let window_frame = try_convert(window_frame.clone())?;
                     check_window_frame(&window_frame, order_by.len()).map(|_| window_frame)
                 })
                 .transpose()?;
@@ -270,6 +271,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Expr(arg),
+                operator: _,
             } => {
                 self.sql_expr_to_logical_expr(arg, schema, planner_context)
                     .await
@@ -277,6 +279,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
+                operator: _,
             } => Ok(Expr::Wildcard { qualifier: None }),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
                 self.sql_expr_to_logical_expr(arg, schema, planner_context)

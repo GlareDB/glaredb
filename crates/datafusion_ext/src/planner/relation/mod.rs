@@ -24,7 +24,7 @@ use datafusion::datasource::file_format::file_compression_type::FileCompressionT
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast;
+use parser::sqlparser::ast;
 
 use crate::functions::FuncParamValue;
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
@@ -167,6 +167,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
             ast::FunctionArg::Named {
                 name,
                 arg: ast::FunctionArgExpr::Expr(expr),
+                ..
             } => {
                 let name = self.normalizer.normalize(name);
                 Ok((Some(name), self.get_param_val(expr)?))

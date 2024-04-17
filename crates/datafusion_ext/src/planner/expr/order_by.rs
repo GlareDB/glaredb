@@ -19,7 +19,7 @@ use datafusion::common::{plan_datafusion_err, plan_err, DFSchema, DataFusionErro
 use datafusion::logical_expr::expr::Sort;
 use datafusion::logical_expr::Expr;
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{Expr as SQLExpr, OrderByExpr, Value};
+use parser::sqlparser::ast::{Expr as SQLExpr, OrderByExpr, Value};
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
