@@ -437,8 +437,16 @@ impl From<CreateExternalDatabase> for service::CreateExternalDatabase {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AlterTableOperation {
-    RenameTable { new_name: String },
-    SetAccessMode { access_mode: SourceAccessMode },
+    RenameTable {
+        new_name: String,
+    },
+    SetAccessMode {
+        access_mode: SourceAccessMode,
+    },
+    RenameColumn {
+        old_column_name: String,
+        new_column_name: String,
+    },
 }
 
 impl TryFrom<service::alter_table_operation::Operation> for AlterTableOperation {
@@ -452,6 +460,15 @@ impl TryFrom<service::alter_table_operation::Operation> for AlterTableOperation 
                 service::AlterTableOperationSetAccessMode { access_mode },
             ) => Self::SetAccessMode {
                 access_mode: access_mode.try_into()?,
+            },
+            service::alter_table_operation::Operation::AlterTableOperationRenameColumn(
+                service::AlterTableOperationRenameColumn {
+                    old_column_name,
+                    new_column_name,
+                },
+            ) => Self::RenameColumn {
+                old_column_name,
+                new_column_name,
             },
         })
     }
@@ -472,6 +489,15 @@ impl From<AlterTableOperation> for service::alter_table_operation::Operation {
                     },
                 )
             }
+            AlterTableOperation::RenameColumn {
+                old_column_name,
+                new_column_name,
+            } => service::alter_table_operation::Operation::AlterTableOperationRenameColumn(
+                service::AlterTableOperationRenameColumn {
+                    old_column_name,
+                    new_column_name,
+                },
+            ),
         }
     }
 }

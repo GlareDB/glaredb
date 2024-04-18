@@ -17,7 +17,9 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream,
     Statistics,
 };
+use datasources::native::access::NativeTableStorage;
 use futures::stream;
+use protogen::metastore::types::catalog::CatalogEntry;
 use protogen::metastore::types::service::{self, AlterTableOperation, Mutation};
 
 use super::{new_operation_batch, GENERIC_OPERATION_PHYSICAL_SCHEMA};
@@ -80,7 +82,12 @@ impl ExecutionPlan for AlterTableExec {
             .get_extension::<CatalogMutator>()
             .expect("context should have catalog mutator");
 
-        let stream = stream::once(alter_table_rename(mutator, self.clone()));
+        let storage = context
+            .session_config()
+            .get_extension::<NativeTableStorage>()
+            .unwrap();
+
+        let stream = stream::once(alter_table(mutator, self.clone(), storage));
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
@@ -99,22 +106,53 @@ impl DisplayAs for AlterTableExec {
     }
 }
 
-async fn alter_table_rename(
+async fn alter_table(
     mutator: Arc<CatalogMutator>,
     plan: AlterTableExec,
+    storage: Arc<NativeTableStorage>,
 ) -> DataFusionResult<RecordBatch> {
     // TODO: Error if schemas between references differ.
-    mutator
-        .mutate_and_commit(
+    let new_state = mutator
+        .mutate(
             plan.catalog_version,
             [Mutation::AlterTable(service::AlterTable {
                 schema: plan.schema,
-                name: plan.name,
-                operation: plan.operation,
+                name: plan.name.clone(),
+                operation: plan.operation.clone(),
             })],
         )
         .await
         .map_err(|e| DataFusionError::Execution(format!("failed to alter table: {e}")))?;
+
+    // Table was successfully altered. We can re-name delta table now.
+    if let AlterTableOperation::RenameColumn { .. } = plan.operation {
+        let updated_table = new_state
+            .entries
+            .iter()
+            .find_map(|(_, e)| {
+                if let CatalogEntry::Table(t) = e {
+                    if t.meta.name == plan.name {
+                        Some(t)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+
+        let _updated_table = storage.load_table(updated_table).await.map_err(|e| {
+            DataFusionError::Execution(format!("unable to load table '{}': {}", plan.name, e))
+        })?;
+
+        todo!("actually update the table with new schema...");
+    }
+
+    mutator
+        .commit_state(plan.catalog_version, new_state.as_ref().clone())
+        .await
+        .map_err(|e| DataFusionError::Execution(format!("failed to commit state: {e}")))?;
 
     Ok(new_operation_batch("alter_table"))
 }

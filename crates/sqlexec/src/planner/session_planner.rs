@@ -1457,6 +1457,33 @@ impl<'a> SessionPlanner<'a> {
                         }
                         .into_logical_plan())
                     }
+                    ast::AlterTableOperation::RenameColumn {
+                        old_column_name,
+                        new_column_name,
+                    } => {
+                        validate_object_name(&name)?;
+                        let name = object_name_to_table_ref(name)?;
+                        let name = self.ctx.resolve_table_ref(name)?;
+
+                        let schema = name.schema.into_owned();
+                        let name = name.name.into_owned();
+
+                        validate_ident(&old_column_name)?;
+                        let old_column_name = normalize_ident(old_column_name);
+
+                        validate_ident(&new_column_name)?;
+                        let new_column_name = normalize_ident(new_column_name);
+
+                        Ok(AlterTable {
+                            schema,
+                            name,
+                            operation: AlterTableOperation::RenameColumn {
+                                old_column_name,
+                                new_column_name,
+                            },
+                        }
+                        .into_logical_plan())
+                    }
                     other => Err(PlanError::UnsupportedSQLStatement(other.to_string())),
                 }
             }

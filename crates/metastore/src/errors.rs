@@ -50,6 +50,12 @@ pub enum MetastoreError {
     #[error("Missing entry: {0}")]
     MissingEntry(u32),
 
+    #[error("Missing columns definition for table '{table}'")]
+    MissingColumnDefinition { table: String },
+
+    #[error("Missing column '{column}' from table '{table}'")]
+    MissingColumnFromTable { column: String, table: String },
+
     #[error("Tunnel '{tunnel} not supported for {action}'")]
     TunnelNotSupportedForAction {
         tunnel: String,

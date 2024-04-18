@@ -116,10 +116,16 @@ message AlterTableOperationSetAccessMode {
   catalog.SourceAccessMode access_mode = 1;
 }
 
+message AlterTableOperationRenameColumn {
+  string old_column_name = 1;
+  string new_column_name = 2;
+}
+
 message AlterTableOperation {
   oneof operation {
     AlterTableOperationRename alter_table_operation_rename = 1;
     AlterTableOperationSetAccessMode alter_table_operation_set_access_mode = 2;
+    AlterTableOperationRenameColumn alter_table_operation_rename_column = 3;
   };
 }
 

@@ -975,6 +975,41 @@ impl State {
                             other => unreachable!("unexpected entry type: {:?}", other),
                         };
                     }
+                    AlterTableOperation::RenameColumn {
+                        old_column_name,
+                        new_column_name,
+                    } => {
+                        let oid = match objs.tables.get(&alter_table.name) {
+                            None => {
+                                return Err(MetastoreError::MissingNamedObject {
+                                    schema: alter_table.schema,
+                                    name: alter_table.name,
+                                })
+                            }
+                            Some(id) => id,
+                        };
+
+                        match self.entries.get_mut(oid)?.unwrap() {
+                            CatalogEntry::Table(ent) => {
+                                let columns = ent.get_internal_columns_mut().ok_or_else(|| {
+                                    MetastoreError::MissingColumnDefinition {
+                                        table: alter_table.name.to_string(),
+                                    }
+                                })?;
+
+                                let column = columns
+                                    .iter_mut()
+                                    .find(|c| c.name == old_column_name)
+                                    .ok_or_else(|| MetastoreError::MissingColumnFromTable {
+                                        column: old_column_name,
+                                        table: alter_table.name.to_string(),
+                                    })?;
+
+                                column.name = new_column_name;
+                            }
+                            other => unreachable!("unexpected entry type: {:?}", other),
+                        };
+                    }
                 };
             }
             Mutation::AlterDatabase(alter_database) => {
