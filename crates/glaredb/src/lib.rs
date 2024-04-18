@@ -313,10 +313,10 @@ impl From<Result<SendableRecordBatchStream, ExecError>> for RecordStream {
     }
 }
 
-// RowMap represents a single record in an ordered map.
+/// RowMap represents a single record in an ordered map.
 type RowMap = indexmap::IndexMap<String, ScalarValue>;
 
-// RowMapBatch is equivalent to a row-based view of a record batch.
+/// RowMapBatch is equivalent to a row-based view of a record batch.
 pub struct RowMapBatch(Vec<RowMap>);
 
 impl TryFrom<RecordBatch> for RowMapBatch {
@@ -367,13 +367,13 @@ impl RowMapBatch {
         self.0.clone().into_iter()
     }
 
-    // Returns the row at the specific index, or None if the index is
-    // out of bounds.
+    /// Returns the row at the specific index, or None if the index is
+    /// out of bounds.
     pub fn row(&self, idx: usize) -> Option<RowMap> {
         self.0.get(idx).cloned()
     }
 
-    // The number of rows in the RowMapBatch.
+    /// The number of rows in the RowMapBatch.
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -391,8 +391,8 @@ impl RecordStream {
         stream.try_collect().await
     }
 
-    // Collects all of the record batches and rotates the results for
-    // a map-based row-oriented format.
+    /// Collects all of the record batches and rotates the results for
+    /// a map-based row-oriented format.
     pub async fn to_rows(&mut self) -> Result<Vec<RowMapBatch>, DataFusionError> {
         let stream = &mut self.0;
         stream.map(RowMapBatch::try_from).try_collect().await
