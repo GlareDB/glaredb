@@ -4,49 +4,15 @@
 //! queries.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
-use futures::lock::Mutex;
 use pyo3::prelude::*;
-use sqlexec::engine::{Engine, EngineStorage};
 use sqlexec::remote::client::RemoteClientType;
-use url::Url;
 
 use crate::connection::Connection;
 use crate::environment::PyEnvironmentReader;
 use crate::error::PyGlareDbError;
 use crate::runtime::wait_for_future;
-
-#[derive(Debug, Clone)]
-struct PythonSessionConf {
-    /// Where to store both metastore and user data.
-    data_dir: Option<PathBuf>,
-    /// URL for cloud deployment to connect to.
-    cloud_url: Option<Url>,
-}
-
-impl From<Option<String>> for PythonSessionConf {
-    fn from(value: Option<String>) -> Self {
-        match value {
-            Some(s) => match Url::parse(&s) {
-                Ok(u) => PythonSessionConf {
-                    data_dir: None,
-                    cloud_url: Some(u),
-                },
-                // Assume failing to parse a url just means the user provided a local path.
-                Err(_) => PythonSessionConf {
-                    data_dir: Some(PathBuf::from(s)),
-                    cloud_url: None,
-                },
-            },
-            None => PythonSessionConf {
-                data_dir: None,
-                cloud_url: None,
-            },
-        }
-    }
-}
 
 /// Connect to a GlareDB database.
 ///
@@ -88,48 +54,23 @@ pub fn connect(
     storage_options: Option<HashMap<String, String>>,
 ) -> PyResult<Connection> {
     wait_for_future(py, async move {
-        let conf = PythonSessionConf::from(data_dir_or_cloud_url);
-
-        let storage = if let Some(location) = location.clone() {
-            EngineStorage::Remote {
-                location,
-                options: storage_options.unwrap_or_default(),
-            }
-        } else if let Some(data_dir) = conf.data_dir.clone() {
-            EngineStorage::Local(data_dir)
-        } else {
-            EngineStorage::Memory
-        };
-
-        let mut engine = Engine::from_storage(storage)
-            .await
-            .map_err(PyGlareDbError::from)?;
-
-        engine = engine
-            .with_spill_path(spill_path.map(|p| p.into()))
-            .map_err(PyGlareDbError::from)?;
-
-        let mut session = engine
-            .default_local_session_context()
-            .await
-            .map_err(PyGlareDbError::from)?;
-
-        session
-            .create_client_session(
-                conf.cloud_url.clone(),
-                cloud_addr,
-                disable_tls,
-                RemoteClientType::Python,
-                None,
-            )
-            .await
-            .map_err(PyGlareDbError::from)?;
-
-        session.register_env_reader(Some(Arc::new(PyEnvironmentReader)));
-
         Ok(Connection {
-            session: Arc::new(Mutex::new(session)),
-            _engine: Arc::new(engine),
+            inner: Arc::new(
+                glaredb::ConnectOptionsBuilder::default()
+                    .connection_target(data_dir_or_cloud_url.clone())
+                    .set_storage_options(storage_options)
+                    .location(location)
+                    .spill_path(spill_path)
+                    .cloud_addr(cloud_addr)
+                    .disable_tls(disable_tls)
+                    .client_type(RemoteClientType::Python)
+                    .environment_reader(Arc::new(PyEnvironmentReader))
+                    .build()
+                    .map_err(PyGlareDbError::from)?
+                    .connect()
+                    .await
+                    .map_err(PyGlareDbError::from)?,
+            ),
         })
     })
 }

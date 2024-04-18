@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
+use datafusion::arrow::array::RecordBatch;
 use datafusion::arrow::pyarrow::PyArrowType;
-use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyTuple, PyType};
 use sqlexec::environment::EnvironmentReader;
 
-use crate::logical_plan::PyLogicalPlan;
+use crate::execution::PyExecutionOutput;
 
 /// Read polars dataframes from the python environment.
 #[derive(Debug, Clone, Copy)]
@@ -166,6 +166,6 @@ fn resolve_pandas(py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvi
 }
 
 fn resolve_logical_plan(_py: Python, var: &PyAny) -> PyResult<Option<Arc<dyn TableProvider>>> {
-    let lp: PyLogicalPlan = var.extract()?;
-    Ok(Some(Arc::new(lp) as Arc<dyn TableProvider>))
+    let exec: PyExecutionOutput = var.extract()?;
+    Ok(Some(Arc::new(exec) as Arc<dyn TableProvider>))
 }
