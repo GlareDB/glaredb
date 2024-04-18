@@ -1,0 +1,25 @@
+query I
+select CAST(content as text) from read_blob('./testdata/blob/hello.txt');
+----
+hello world
+
+
+query T
+select string_to_array(filename, '/')[-1] as filename from read_blob('testdata/parquet/*') order by filename asc
+----
+userdata0.parquet
+userdata1.parquet
+userdata1.parquet.bz2
+userdata1.parquet.gz
+userdata1.parquet.xz
+userdata1.parquet.zst
+
+
+# make sure the projections are working properly
+statement ok
+select size, last_modified, filename from read_blob('testdata/parquet/*');
+
+# if the projections are working properly, then the order of the columns should not matter
+statement ok
+select filename, last_modified, size from read_blob('testdata/parquet/*');
+

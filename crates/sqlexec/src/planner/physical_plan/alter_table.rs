@@ -105,7 +105,7 @@ async fn alter_table_rename(
 ) -> DataFusionResult<RecordBatch> {
     // TODO: Error if schemas between references differ.
     mutator
-        .mutate(
+        .mutate_and_commit(
             plan.catalog_version,
             [Mutation::AlterTable(service::AlterTable {
                 schema: plan.schema,

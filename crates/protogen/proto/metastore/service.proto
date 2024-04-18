@@ -200,6 +200,21 @@ message MutateRequest {
   // next: 4
 }
 
+message CommitRequest {
+  // Mutate the catalog for this database.
+  bytes db_id = 1;
+
+  // Catalog version we're trying to execution mutations against. Mutations will
+  // be rejected if this version doesn't match Metastore's version of the
+  // catalog.
+  uint64 catalog_version = 2;
+
+  // The catalog state that we're trying to commit.
+  catalog.CatalogState catalog = 3;
+  
+  // next: 4
+}
+
 message MutateResponse {
   enum Status {
     UNKNOWN = 0;
@@ -218,8 +233,28 @@ message MutateResponse {
   // the mutation was rejected, this catalog will not have that mutation
   // applied. In either case, this catalog should replace any stale catalog.
   catalog.CatalogState catalog = 2;
-
   // next: 3
+}
+
+message CommitResponse {
+    enum Status {
+        UNKNOWN = 0;
+        // Commit applied.
+        APPLIED = 1;
+        // Commit rejected.
+        REJECTED = 2;
+    }
+    
+    // Status of the commit.
+    Status status = 1;
+    
+    // The current state of the catalog as witnessed by metastore.
+    //
+    // If tcommit mutation was accepted, this catalog will included that mutation. If
+    // the mutation was rejected, this catalog will not have that mutation
+    // applied. In either case, this catalog should replace any stale catalog.
+    catalog.CatalogState catalog = 2;
+    // next: 3
 }
 
 service MetastoreService {
@@ -233,4 +268,5 @@ service MetastoreService {
 
   // Mutate a database's catalog.
   rpc MutateCatalog(MutateRequest) returns (MutateResponse);
+  rpc CommitCatalog(CommitRequest) returns (CommitResponse);
 }

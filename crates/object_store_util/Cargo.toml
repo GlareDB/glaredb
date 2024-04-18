@@ -15,6 +15,6 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
 tempfile = "3"
-bytes = "1.6.0"
+bytes = { workspace = true }
 moka = { version = "0.12.5", features = ["future"] }
 uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }

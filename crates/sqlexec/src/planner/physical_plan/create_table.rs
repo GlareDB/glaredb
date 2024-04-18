@@ -27,7 +27,6 @@ use sqlbuiltins::builtins::DEFAULT_CATALOG;
 use tracing::debug;
 
 use super::GENERIC_OPERATION_PHYSICAL_SCHEMA;
-use crate::errors::ExecError;
 use crate::planner::logical_plan::OwnedFullObjectReference;
 use crate::planner::physical_plan::new_operation_batch;
 
@@ -128,10 +127,10 @@ impl CreateTableExec {
     ) -> DataFusionResult<RecordBatch> {
         let or_replace = self.or_replace;
         let if_not_exists = self.if_not_exists;
-
+        let catalog_version = self.catalog_version;
         let state = mutator
             .mutate(
-                self.catalog_version,
+                catalog_version,
                 [Mutation::CreateTable(service::CreateTable {
                     schema: self.tbl_reference.schema.clone().into_owned(),
                     name: self.tbl_reference.name.clone().into_owned(),
@@ -160,7 +159,7 @@ impl CreateTableExec {
         // TODO: We should be returning _what_ was updated from metastore
         // instead of needing to do this. Sean has a stash working on this.
         let new_catalog = SessionCatalog::new(
-            state,
+            state.clone(),
             ResolveConfig {
                 default_schema_oid: 0,
                 session_schema_oid: 0,
@@ -173,38 +172,61 @@ impl CreateTableExec {
                 &self.tbl_reference.schema,
                 &self.tbl_reference.name,
             )
-            .ok_or_else(|| ExecError::Internal("Missing table after catalog insert".to_string()))
-            .unwrap();
+            .ok_or_else(|| {
+                DataFusionError::Execution("Missing table after catalog insert".to_string())
+            })?;
 
         let save_mode = match (if_not_exists, or_replace) {
             (true, false) => SaveMode::Ignore,
             (false, true) => SaveMode::Overwrite,
             (false, false) => SaveMode::ErrorIfExists,
             (true, true) => {
-                return Err(DataFusionError::Internal(
+                return Err(DataFusionError::Execution(
                     "cannot create table with both `if_not_exists` and `or_replace` policies"
                         .to_string(),
                 ))
             }
         };
 
-        let table = storage.create_table(ent, save_mode).await.map_err(|e| {
-            DataFusionError::Execution(format!("failed to create table in storage: {e}"))
-        })?;
+        let table_existed = storage
+            .table_exists(ent)
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-        match (source, or_replace) {
-            (Some(input), overwrite) => insert(&table, input, overwrite, context).await?,
+        if !table_existed || !if_not_exists {
+            let table = storage.create_table(ent, save_mode).await.map_err(|e| {
+                DataFusionError::Execution(format!("failed to create table in storage: {e}"))
+            })?;
 
-            // if it's a 'replace' and there is no insert, we overwrite with an empty table
-            (None, true) => {
-                let input = Arc::new(EmptyExec::new(TableProvider::schema(&table)));
-                insert(&table, input, true, context).await?
+            let insert_res = match (source, or_replace) {
+                (Some(input), overwrite) => insert(&table, input, overwrite, context).await,
+
+                // if it's a 'replace' and there is no insert, we overwrite with an empty table
+                (None, true) => {
+                    let input = Arc::new(EmptyExec::new(TableProvider::schema(&table)));
+                    insert(&table, input, true, context).await
+                }
+                (None, false) => Ok(()),
+            };
+
+            if let Err(e) = insert_res {
+                storage.delete_table(ent).await.map_err(|e| {
+                    DataFusionError::Execution(format!("failed to clean up table: {e}"))
+                })?;
+                return Err(e);
             }
-            (None, false) => {}
-        };
-        debug!(loc = %table.storage_location(), "native table created");
 
-        // TODO: Add storage tracking job.
+            mutator
+                .commit_state(catalog_version, state.as_ref().clone())
+                .await
+                .map_err(|e| {
+                    DataFusionError::Execution(format!("failed to commit catalog state: {e}"))
+                })?;
+
+            debug!(loc = %table.storage_location(), "native table created");
+
+            // TODO: Add storage tracking job.
+        }
 
         Ok(new_operation_batch("create_table"))
     }
