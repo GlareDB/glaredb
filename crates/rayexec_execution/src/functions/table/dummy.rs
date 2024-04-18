@@ -1,6 +1,9 @@
 use super::{BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs};
 use crate::{
-    physical::{plans::Source, TaskContext},
+    physical::{
+        plans::{PollPull, Source},
+        TaskContext,
+    },
     planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
     types::batch::{DataBatch, NamedDataBatchSchema},
 };
@@ -80,15 +83,15 @@ impl Source for DummyTableFunctionSource {
         1
     }
 
-    fn poll_next(
+    fn poll_pull(
         &self,
         _task_cx: &TaskContext,
         _cx: &mut Context<'_>,
         _partition: usize,
-    ) -> Poll<Option<Result<DataBatch>>> {
+    ) -> Result<PollPull> {
         match self.batch.lock().take() {
-            Some(batch) => Poll::Ready(Some(Ok(batch.project(&self.projection)))),
-            None => Poll::Ready(None),
+            Some(batch) => Ok(PollPull::Batch(batch.project(&self.projection))),
+            None => Ok(PollPull::Exhausted),
         }
     }
 }

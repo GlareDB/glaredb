@@ -1,10 +1,7 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::{
-    expr::{scalar::ScalarValue},
-    types::batch::DataBatchSchema,
-};
+use crate::{expr::scalar::ScalarValue, types::batch::DataBatchSchema};
 
 use super::{
     operator::LogicalExpression,
@@ -115,6 +112,7 @@ impl<'a> ExpressionContext<'a> {
         })
     }
 
+    /// Converts an AST expression to a logical expression.
     pub fn plan_expression(&self, expr: ast::Expr) -> Result<LogicalExpression> {
         match expr {
             ast::Expr::Ident(ident) => self.plan_ident(ident),
@@ -125,6 +123,47 @@ impl<'a> ExpressionContext<'a> {
                 left: Box::new(self.plan_expression(*left)?),
                 right: Box::new(self.plan_expression(*right)?),
             }),
+            ast::Expr::Function(func) => {
+                // Check if there exists an aggregate function with this name.
+                if let Some(agg) = self
+                    .plan_context
+                    .resolver
+                    .resolve_aggregate_function(&func.name)?
+                {
+                    // TODO: We'll actually want to pass down additional plans
+                    // to ensure we're not planning nested
+                    // aggregates/subqueries.
+                    //
+                    // Same thing with the filter.
+                    let args = func
+                        .args
+                        .into_iter()
+                        .map(|arg| match arg {
+                            ast::FunctionArg::Unnamed { arg } => {
+                                Ok(Box::new(self.plan_expression(arg)?))
+                            }
+                            ast::FunctionArg::Named { .. } => Err(RayexecError::new(
+                                "Named arguments to aggregate functions not supported",
+                            )),
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+
+                    let filter = match func.filter {
+                        Some(filter) => Some(Box::new(self.plan_expression(*filter)?)),
+                        None => None,
+                    };
+
+                    // TODO: agg
+                    return Ok(LogicalExpression::Aggregate { args, filter });
+                }
+
+                // TODO: Check normal scalars.
+
+                Err(RayexecError::new(format!(
+                    "Cannot resolve function with name {}",
+                    func.name
+                )))
+            }
             _ => unimplemented!(),
         }
     }

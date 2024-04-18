@@ -12,8 +12,8 @@ use crate::{
     functions::table::Pushdown,
     physical::plans::{
         filter::PhysicalFilter, hash_join::PhysicalPartitionedHashJoin,
-        hash_repartition::PhysicalHashRepartition, nested_loop_join::PhysicalNestedLoopJoin,
-        values::PhysicalValues,
+        hash_repartition::PhysicalHashRepartition, limit::PhysicalLimit,
+        nested_loop_join::PhysicalNestedLoopJoin, values::PhysicalValues,
     },
     planner::operator::{self, LogicalOperator},
     types::batch::DataBatch,
@@ -131,6 +131,7 @@ impl PipelineBuilder {
             LogicalOperator::CrossJoin(join) => self.plan_cross_join(join),
             LogicalOperator::AnyJoin(join) => self.plan_any_join(join),
             LogicalOperator::EqualityJoin(join) => self.plan_equality_join(join),
+            LogicalOperator::Limit(limit) => self.plan_limit(limit),
             LogicalOperator::Empty => self.plan_empty(),
             LogicalOperator::SetVar(set_var) => self.plan_set_var(set_var),
             LogicalOperator::ShowVar(show_var) => self.plan_show_var(show_var),
@@ -151,6 +152,26 @@ impl PipelineBuilder {
             return Err(RayexecError::new("Expected source to be None"));
         }
         self.source = Some(Box::new(PhysicalSetVar::new(set_var.name, set_var.value)));
+        Ok(())
+    }
+
+    fn plan_limit(&mut self, limit: operator::Limit) -> Result<()> {
+        if self.source.is_some() {
+            return Err(RayexecError::new("Expected source to be None"));
+        }
+
+        let mut physical_limit = PhysicalLimit::new(limit.offset, limit.limit, 1);
+        let limit_sink = physical_limit.take_sink().expect("limit sink to exist");
+
+        // Build children.
+        let mut builder = PipelineBuilder::new(Box::new(limit_sink), self.debug);
+        builder.walk_plan(*limit.input)?;
+        builder.create_complete_chain()?;
+        let mut chains = builder.completed_chains;
+
+        self.completed_chains.append(&mut chains);
+        self.source = Some(Box::new(physical_limit));
+
         Ok(())
     }
 

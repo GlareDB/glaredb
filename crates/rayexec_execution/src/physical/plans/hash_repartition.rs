@@ -1,4 +1,4 @@
-use super::{Sink, Source};
+use super::{PollPull, PollPush, Sink, Source};
 use crate::physical::plans::util::hash::{build_hashes, partition_for_hash};
 use crate::physical::plans::util::take::take_indexes;
 use crate::physical::TaskContext;
@@ -70,21 +70,21 @@ impl Source for PhysicalHashRepartition {
         self.output_states.len()
     }
 
-    fn poll_next(
+    fn poll_pull(
         &self,
         _task_cx: &TaskContext,
         cx: &mut Context,
         partition: usize,
-    ) -> Poll<Option<Result<DataBatch>>> {
+    ) -> Result<PollPull> {
         let mut state = self.output_states[partition].lock();
         match state.batches.pop_front() {
-            Some(batch) => Poll::Ready(Some(Ok(batch))),
+            Some(batch) => Ok(PollPull::Batch(batch)),
             None => {
                 if state.finished {
-                    Poll::Ready(None)
+                    Ok(PollPull::Exhausted)
                 } else {
                     state.pending = Some(cx.waker().clone());
-                    Poll::Pending
+                    Ok(PollPull::Pending)
                 }
             }
         }
@@ -118,12 +118,15 @@ impl Sink for PhysicalHashRepartitionSink {
         self.input_partitions
     }
 
-    fn poll_ready(&self, _task_cx: &TaskContext, _cx: &mut Context, _partition: usize) -> Poll<()> {
-        // TODO: Idk
-        Poll::Ready(())
-    }
+    fn poll_push(
+        &self,
+        _task_cx: &TaskContext,
+        _cx: &mut Context,
+        input: DataBatch,
+        _partition: usize,
+    ) -> Result<PollPush> {
+        // TODO: Probably needs backpressure.
 
-    fn push(&self, _task_cx: &TaskContext, input: DataBatch, _partition: usize) -> Result<()> {
         // TODO: Maybe don't allocate this for every input partition.
         let mut hashes = Vec::with_capacity(input.num_rows());
         hashes.resize(input.num_rows(), 0);
@@ -168,12 +171,13 @@ impl Sink for PhysicalHashRepartitionSink {
             let mut output_state = self.output_states[partition_idx].lock();
             output_state.batches.push_back(output_batch);
 
+            // TODO: Do this outside the loop.
             if let Some(waker) = output_state.pending.take() {
                 waker.wake();
             }
         }
 
-        Ok(())
+        Ok(PollPush::Pushed)
     }
 
     fn finish(&self, _task_cx: &TaskContext, _partition: usize) -> Result<()> {

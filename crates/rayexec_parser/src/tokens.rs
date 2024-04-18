@@ -280,6 +280,10 @@ impl<'a> Tokenizer<'a> {
                     _ => Token::Div,
                 }
             }
+            '%' => {
+                self.state.next();
+                Token::Mod
+            }
             '>' => {
                 self.state.next();
                 match self.state.peek() {

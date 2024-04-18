@@ -97,6 +97,16 @@ impl DataBatch {
         &self.cols
     }
 
+    pub fn slice(&self, offset: usize, len: usize) -> Self {
+        let cols = self.cols.iter().map(|col| col.slice(offset, len)).collect();
+        // TODO: Might make sense to slice the hashes here too.
+        DataBatch {
+            cols,
+            num_rows: len - offset,
+            column_hash: None,
+        }
+    }
+
     pub fn project(&self, indices: &[usize]) -> Self {
         let cols = indices
             .iter()

@@ -69,8 +69,6 @@ impl AstParseable for SelectNode {
     }
 }
 
-impl SelectNode {}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectExpr {
     /// An unaliases expression.

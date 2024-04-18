@@ -1,5 +1,6 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::scope::ColumnRef;
+use crate::functions::aggregate::AggregateFunction;
 use crate::{
     engine::vars::SessionVar,
     expr::{
@@ -272,8 +273,8 @@ impl Explainable for CrossJoin {
 
 #[derive(Debug)]
 pub struct Limit {
-    pub offset: usize,
-    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+    pub limit: usize,
     pub input: Box<LogicalOperator>,
 }
 
@@ -391,21 +392,32 @@ pub enum LogicalExpression {
     ColumnRef(ColumnRef),
     /// Literal value.
     Literal(ScalarValue),
-    /// Unary function.
+    /// Unary operator.
     Unary {
         op: UnaryOperator,
         expr: Box<LogicalExpression>,
     },
-    /// Binary function.
+    /// Binary operator.
     Binary {
         op: BinaryOperator,
         left: Box<LogicalExpression>,
         right: Box<LogicalExpression>,
     },
-    /// Variadic function.
+    /// Variadic operator.
     Variadic {
         op: VariadicOperator,
         exprs: Vec<LogicalExpression>,
+    },
+    /// An aggregate function.
+    Aggregate {
+        /// The function.
+        // agg: Box<dyn AggregateFunction>, // TODO
+
+        /// Input expressions to the aggragate.
+        args: Vec<Box<LogicalExpression>>,
+
+        /// Optional filter to the aggregate.
+        filter: Option<Box<LogicalExpression>>,
     },
     /// Case expressions.
     Case {
@@ -428,7 +440,9 @@ impl fmt::Display for LogicalExpression {
             Self::Literal(val) => write!(f, "{val}"),
             Self::Unary { op, expr } => write!(f, "{op}{expr}"),
             Self::Binary { op, left, right } => write!(f, "{left}{op}{right}"),
-            _ => unimplemented!(),
+            Self::Variadic { .. } => write!(f, "VARIADIC TODO"),
+            Self::Aggregate { .. } => write!(f, "AGG TODO"),
+            Self::Case { .. } => write!(f, "CASE TODO"),
         }
     }
 }

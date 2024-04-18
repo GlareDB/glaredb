@@ -78,6 +78,47 @@ pub enum Literal {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Function {
+    pub name: ObjectReference,
+    pub args: Vec<FunctionArg>,
+    /// Filter part of `COUNT(col) FILTER (WHERE col > 5)`
+    pub filter: Option<Box<Expr>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FunctionArg {
+    /// A named argument. Allows use of either `=>` or `=` for assignment.
+    ///
+    /// `ident => <expr>` or `ident = <expr>`
+    Named { name: Ident, arg: Expr },
+    /// `<expr>`
+    Unnamed { arg: Expr },
+}
+
+impl AstParseable for FunctionArg {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        let is_named = match parser.peek_nth(1) {
+            Some(tok) => matches!(tok.token, Token::RightArrow | Token::Eq),
+            None => false,
+        };
+
+        if is_named {
+            let ident = Ident::parse(parser)?;
+            parser.expect_one_of_tokens(&[&Token::RightArrow, &Token::Eq])?;
+            let expr = Expr::parse(parser)?;
+
+            Ok(FunctionArg::Named {
+                name: ident,
+                arg: expr,
+            })
+        } else {
+            let expr = Expr::parse(parser)?;
+            Ok(FunctionArg::Unnamed { arg: expr })
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
     /// Column or table identifier.
     Ident(Ident),
@@ -93,6 +134,8 @@ pub enum Expr {
         op: BinaryOperator,
         right: Box<Expr>,
     },
+    /// A function call.
+    Function(Function),
     /// A colation.
     ///
     /// `<expr> COLLATE <collation>`
@@ -148,9 +191,37 @@ impl Expr {
                 },
                 None => {
                     // TODO: Extend, compound idents.
-                    Expr::Ident(Ident {
+                    let ident = Ident {
                         value: w.value.clone(),
-                    })
+                    };
+
+                    // Function call if left paren.
+                    if parser.consume_token(&Token::LeftParen) {
+                        let args = parser.parse_comma_separated(FunctionArg::parse)?;
+                        parser.expect_token(&Token::RightParen)?;
+
+                        // FILTER (WHERE <expr>)
+                        let filter = if parser.parse_keyword(Keyword::FILTER) {
+                            parser.expect_token(&Token::LeftParen)?;
+                            parser.expect_keyword(Keyword::WHERE)?;
+                            let filter = Expr::parse(parser)?;
+                            parser.expect_token(&Token::RightParen)?;
+                            Some(Box::new(filter))
+                        } else {
+                            None
+                        };
+
+                        // TODO: Windows
+
+                        Expr::Function(Function {
+                            name: ObjectReference(vec![ident]),
+                            args,
+                            filter,
+                        })
+                    } else {
+                        // Just some reference
+                        Expr::Ident(ident)
+                    }
                 }
             },
             Token::SingleQuotedString(s) => Expr::Literal(Literal::SingleQuotedString(s.clone())),
@@ -324,5 +395,60 @@ impl Expr {
 
             _ => Ok(0),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ast::testutil::parse_ast;
+
+    use super::*;
+
+    #[test]
+    fn literal() {
+        let expr: Expr = parse_ast("5").unwrap();
+        let expected = Expr::Literal(Literal::Number("5".to_string()));
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn binary_op() {
+        let expr: Expr = parse_ast("5 + 8").unwrap();
+        let expected = Expr::BinaryExpr {
+            left: Box::new(Expr::Literal(Literal::Number("5".to_string()))),
+            op: BinaryOperator::Plus,
+            right: Box::new(Expr::Literal(Literal::Number("8".to_string()))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn function_call_simple() {
+        let expr: Expr = parse_ast("sum(my_col)").unwrap();
+        let expected = Expr::Function(Function {
+            name: ObjectReference(vec![Ident::from_string("sum")]),
+            args: vec![FunctionArg::Unnamed {
+                arg: Expr::Ident(Ident::from_string("my_col")),
+            }],
+            filter: None,
+        });
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn function_call_with_over() {
+        let expr: Expr = parse_ast("count(x) filter (where x > 5)").unwrap();
+        let expected = Expr::Function(Function {
+            name: ObjectReference(vec![Ident::from_string("count")]),
+            args: vec![FunctionArg::Unnamed {
+                arg: Expr::Ident(Ident::from_string("x")),
+            }],
+            filter: Some(Box::new(Expr::BinaryExpr {
+                left: Box::new(Expr::Ident(Ident::from_string("x"))),
+                op: BinaryOperator::Gt,
+                right: Box::new(Expr::Literal(Literal::Number("5".to_string()))),
+            })),
+        });
+        assert_eq!(expected, expr);
     }
 }

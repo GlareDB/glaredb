@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use rayexec_error::Result;
 use std::task::{Context, Poll};
 
-use super::Source;
+use super::{PollPull, Source};
 
 #[derive(Debug)]
 pub struct PhysicalValues {
@@ -26,15 +26,15 @@ impl Source for PhysicalValues {
         1
     }
 
-    fn poll_next(
+    fn poll_pull(
         &self,
         _task_cx: &TaskContext,
         _cx: &mut Context,
         _partition: usize,
-    ) -> Poll<Option<Result<DataBatch>>> {
+    ) -> Result<PollPull> {
         match self.batch.lock().take() {
-            Some(batch) => Poll::Ready(Some(Ok(batch))),
-            None => Poll::Ready(None),
+            Some(batch) => Ok(PollPull::Batch(batch)),
+            None => Ok(PollPull::Exhausted),
         }
     }
 }

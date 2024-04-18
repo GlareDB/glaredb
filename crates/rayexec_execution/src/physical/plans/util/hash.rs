@@ -10,11 +10,15 @@ use arrow_array::types::{
 };
 use arrow_array::{
     Array, ArrayAccessor, ArrayRef, DictionaryArray, FixedSizeBinaryArray, FixedSizeListArray,
-    GenericListArray, OffsetSizeTrait, PrimitiveArray, StructArray,
+    GenericListArray, OffsetSizeTrait, PrimitiveArray, StructArray, UInt64Array,
 };
 use arrow_buffer::i256;
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
+
+use crate::types::batch::DataBatch;
+
+use super::take::take_indexes;
 
 /// State used for all hashing operations during physical execution.
 pub const HASH_RANDOM_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);
@@ -25,6 +29,53 @@ pub const HASH_RANDOM_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);
 /// whatever else requires consistent hash to partition mappings.
 pub const fn partition_for_hash(hash: u64, partitions: usize) -> usize {
     hash as usize % partitions
+}
+
+#[derive(Debug)]
+pub struct HashPartitionedBatch {
+    pub batch: DataBatch,
+    pub hashes: Vec<u64>,
+}
+
+/// Partition a batch based on an arbitrary list of hashes.
+pub fn hash_partition_batch(
+    batch: &DataBatch,
+    hashes: &[u64],
+    partitions: usize,
+) -> Result<Vec<HashPartitionedBatch>> {
+    let mut outputs = Vec::with_capacity(partitions);
+
+    let mut row_indexes: Vec<Vec<usize>> = (0..partitions)
+        .map(|_| Vec::with_capacity(batch.num_rows() / partitions))
+        .collect();
+
+    for (row_idx, hash) in hashes.iter().enumerate() {
+        row_indexes[partition_for_hash(*hash, partitions)].push(row_idx);
+    }
+
+    for (partition_idx, partition_rows) in row_indexes.into_iter().enumerate() {
+        // Get the hashes corresponding to the rows for this output
+        // partition.
+        let batch_hashes = take_indexes(&hashes, &partition_rows);
+
+        let partition_rows =
+            UInt64Array::from_iter(partition_rows.into_iter().map(|idx| idx as u64));
+
+        // Get the rows for this batch.
+        let cols = batch
+            .columns()
+            .iter()
+            .map(|col| arrow::compute::take(col.as_ref(), &partition_rows, None))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let batch = DataBatch::try_new(cols)?;
+        outputs.push(HashPartitionedBatch {
+            batch,
+            hashes: batch_hashes,
+        })
+    }
+
+    Ok(outputs)
 }
 
 /// Hash every row in the provided arrays, writing the values to `hashes`.

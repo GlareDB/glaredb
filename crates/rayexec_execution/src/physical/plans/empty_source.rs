@@ -1,4 +1,4 @@
-use super::Source;
+use super::{PollPull, Source};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::DataBatch;
@@ -34,19 +34,19 @@ impl Source for EmptySource {
         1
     }
 
-    fn poll_next(
+    fn poll_pull(
         &self,
         _task_cx: &TaskContext,
         _cx: &mut Context<'_>,
         partition: usize,
-    ) -> Poll<Option<Result<DataBatch>>> {
+    ) -> Result<PollPull> {
         assert_eq!(0, partition);
         match self
             .finished
             .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
         {
-            Ok(_) => Poll::Ready(Some(Ok(DataBatch::empty_with_num_rows(1)))),
-            Err(_) => Poll::Ready(None),
+            Ok(_) => Ok(PollPull::Batch(DataBatch::empty_with_num_rows(1))),
+            Err(_) => Ok(PollPull::Exhausted),
         }
     }
 }

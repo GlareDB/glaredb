@@ -1,6 +1,6 @@
 use super::{BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs};
 use crate::expr::scalar::ScalarValue;
-use crate::physical::plans::Source;
+use crate::physical::plans::{PollPull, Source};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::types::batch::{DataBatch, NamedDataBatchSchema};
@@ -115,17 +115,17 @@ impl Source for GenerateSeriesIntegerOperator {
         1
     }
 
-    fn poll_next(
+    fn poll_pull(
         &self,
         _task_cx: &TaskContext,
         _cx: &mut Context<'_>,
         _partition: usize,
-    ) -> Poll<Option<Result<DataBatch>>> {
+    ) -> Result<PollPull> {
         const BATCH_SIZE: usize = 1000;
         let curr = self.curr.load(Ordering::Relaxed);
 
         if curr > self.s.stop {
-            return Poll::Ready(None);
+            return Ok(PollPull::Exhausted);
         }
 
         let vals: Vec<_> = (curr..=self.s.stop)
@@ -135,13 +135,13 @@ impl Source for GenerateSeriesIntegerOperator {
 
         let last = match vals.last() {
             Some(last) => *last,
-            None => return Poll::Ready(None),
+            None => return Ok(PollPull::Exhausted),
         };
 
         self.curr.store(last + self.s.step, Ordering::Relaxed);
         let arr = Arc::new(Int32Array::from(vals));
 
-        Poll::Ready(Some(Ok(DataBatch::try_new(vec![arr]).unwrap())))
+        Ok(PollPull::Batch(DataBatch::try_new(vec![arr]).unwrap()))
     }
 }
 

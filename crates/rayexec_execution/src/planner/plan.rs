@@ -1,4 +1,5 @@
 use crate::{
+    expr::scalar::ScalarValue,
     functions::table::TableFunctionArgs,
     planner::{
         operator::{ExpressionList, Filter, JoinType, Scan, ScanItem, SetVar, ShowVar},
@@ -9,7 +10,7 @@ use crate::{
 
 use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
-    operator::{AnyJoin, CrossJoin, LogicalExpression, LogicalOperator, Projection},
+    operator::{AnyJoin, CrossJoin, Limit, LogicalExpression, LogicalOperator, Projection},
     scope::{ColumnRef, Scope},
     Resolver,
 };
@@ -87,7 +88,7 @@ impl<'a> PlanContext<'a> {
     fn plan_query(&mut self, query: ast::QueryNode) -> Result<LogicalQuery> {
         // TODO: CTEs
 
-        let planned = match query.body {
+        let mut planned = match query.body {
             ast::QueryNodeBody::Select(select) => self.plan_select(*select)?,
             ast::QueryNodeBody::Set {
                 left: _,
@@ -99,6 +100,29 @@ impl<'a> PlanContext<'a> {
 
         // ORDER BY
         // DISTINCT
+
+        // Handle LIMIT/OFFSET
+        let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_SCHEMA);
+        if let Some(limit_expr) = query.limit.limit {
+            let expr = expr_ctx.plan_expression(limit_expr)?;
+            let limit = expr.try_into_scalar()?.try_as_int()? as usize;
+
+            let offset = match query.limit.offset {
+                Some(offset_expr) => {
+                    let expr = expr_ctx.plan_expression(offset_expr)?;
+                    let offset = expr.try_into_scalar()?.try_as_int()?;
+                    Some(offset as usize)
+                }
+                None => None,
+            };
+
+            // Update plan, does not change scope.
+            planned.root = LogicalOperator::Limit(Limit {
+                offset,
+                limit,
+                input: Box::new(planned.root),
+            });
+        }
 
         Ok(planned)
     }
@@ -133,6 +157,8 @@ impl<'a> PlanContext<'a> {
             let mut expanded = expr_ctx.expand_select_expr(select_proj)?;
             projections.append(&mut expanded);
         }
+
+        println!("projs: {projections:?}");
 
         // GROUP BY
         // Aggregates

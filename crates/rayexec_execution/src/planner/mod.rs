@@ -4,11 +4,19 @@ pub mod operator;
 pub mod plan;
 pub mod scope;
 
-use crate::{engine::vars::SessionVar, functions::table::TableFunction};
+use crate::{
+    engine::vars::SessionVar,
+    functions::{aggregate::AggregateFunction, table::TableFunction},
+};
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
 pub trait Resolver: std::fmt::Debug {
+    fn resolve_aggregate_function(
+        &self,
+        reference: &ast::ObjectReference,
+    ) -> Result<Option<Box<dyn AggregateFunction>>>;
+
     fn resolve_table_function(
         &self,
         reference: &ast::ObjectReference,

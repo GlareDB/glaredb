@@ -5,7 +5,7 @@ use crate::{
 };
 use rayexec_error::{RayexecError, Result};
 
-use super::{AstParseable, Expr, Ident, ObjectReference, QueryNode};
+use super::{AstParseable, Expr, FunctionArg, Ident, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FromNode {
@@ -237,39 +237,6 @@ pub struct FromJoin {
     pub right: Box<FromNode>,
     pub join_type: JoinType,
     pub join_condition: JoinCondition,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FunctionArg {
-    /// A named argument. Allows use of either `=>` or `=` for assignment.
-    ///
-    /// `ident => <expr>` or `ident = <expr>`
-    Named { name: Ident, arg: Expr },
-    /// `<expr>`
-    Unnamed { arg: Expr },
-}
-
-impl AstParseable for FunctionArg {
-    fn parse(parser: &mut Parser) -> Result<Self> {
-        let is_named = match parser.peek_nth(1) {
-            Some(tok) => matches!(tok.token, Token::RightArrow | Token::Eq),
-            None => false,
-        };
-
-        if is_named {
-            let ident = Ident::parse(parser)?;
-            parser.expect_one_of_tokens(&[&Token::RightArrow, &Token::Eq])?;
-            let expr = Expr::parse(parser)?;
-
-            Ok(FunctionArg::Named {
-                name: ident,
-                arg: expr,
-            })
-        } else {
-            let expr = Expr::parse(parser)?;
-            Ok(FunctionArg::Unnamed { arg: expr })
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

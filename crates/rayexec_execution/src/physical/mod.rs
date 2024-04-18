@@ -5,11 +5,11 @@ pub mod planner;
 pub mod plans;
 pub mod scheduler;
 
+use crate::{engine::modify::Modification, planner::explainable::ExplainConfig};
 use crossbeam::channel::Sender;
 use plans::{Sink, Source};
+use rayexec_error::Result;
 use std::sync::Arc;
-
-use crate::engine::modify::Modification;
 
 use self::chain::OperatorChain;
 
@@ -41,4 +41,35 @@ pub struct TaskContext {
 pub struct Pipeline {
     /// The operator chains that make up this pipeline.
     pub chains: Vec<Arc<OperatorChain>>,
+}
+
+impl Pipeline {
+    pub fn as_explain_string(&self) -> Result<String> {
+        use std::fmt::Write as _;
+
+        let mut buf = String::new();
+        let conf = ExplainConfig { verbose: true };
+
+        for (idx, chain) in self.chains.iter().enumerate() {
+            writeln!(buf, "Chain {idx}:")?;
+            writeln!(buf, "  Sink:")?;
+            writeln!(buf, "    {}", chain.sink().explain_entry(conf))?;
+            writeln!(
+                buf,
+                "  Operators:{}",
+                if chain.operators().is_empty() {
+                    " (None)"
+                } else {
+                    ""
+                }
+            )?;
+            for op in chain.operators() {
+                writeln!(buf, "    {}", op.explain_entry(conf))?;
+            }
+            writeln!(buf, "  Source:")?;
+            writeln!(buf, "    {}", chain.source().explain_entry(conf))?;
+        }
+
+        Ok(buf)
+    }
 }

@@ -95,6 +95,28 @@ impl ScalarValue {
             other => Err(RayexecError::new(format!("Not a bool: {other:?}"))),
         }
     }
+
+    pub fn try_as_int(&self) -> Result<i64> {
+        match self {
+            Self::Int8(i) => Ok(*i as i64),
+            Self::Int16(i) => Ok(*i as i64),
+            Self::Int32(i) => Ok(*i as i64),
+            Self::Int64(i) => Ok(*i),
+            Self::UInt8(i) => Ok(*i as i64),
+            Self::UInt16(i) => Ok(*i as i64),
+            Self::UInt32(i) => Ok(*i as i64),
+            Self::UInt64(i) => {
+                if *i < i64::MAX as u64 {
+                    Ok(*i as i64)
+                } else {
+                    Err(RayexecError::new(format!(
+                        "u64 too large to fit into an i64"
+                    )))
+                }
+            }
+            other => Err(RayexecError::new(format!("Not an integer: {other:?}"))),
+        }
+    }
 }
 
 impl fmt::Display for ScalarValue {

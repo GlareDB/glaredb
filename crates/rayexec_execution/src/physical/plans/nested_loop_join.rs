@@ -9,9 +9,9 @@ use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::task::{Context, Poll, Waker};
+use std::task::{Context, Waker};
 
-use super::{Sink, Source};
+use super::{PollPull, PollPush, Sink, Source};
 
 /// Nested loop join for joining tables on arbitrary expressions.
 #[derive(Debug)]
@@ -74,28 +74,29 @@ impl Source for PhysicalNestedLoopJoin {
         self.states.len()
     }
 
-    fn poll_next(
+    fn poll_pull(
         &self,
         _task_cx: &TaskContext,
         cx: &mut Context,
         partition: usize,
-    ) -> Poll<Option<Result<DataBatch>>> {
+    ) -> Result<PollPull> {
         let mut state = self.states[partition].lock();
         if !state.build_finished {
             state.pending_pull = Some(cx.waker().clone());
-            return Poll::Pending;
+            return Ok(PollPull::Pending);
         }
 
         if let Some(batch) = state.computed.pop_front() {
-            return Poll::Ready(Some(Ok(batch)));
+            return Ok(PollPull::Batch(batch));
         }
 
         if state.probe_finished {
-            return Poll::Ready(None);
+            return Ok(PollPull::Exhausted);
         }
 
+        // Note yet finished, and there's no batches for us to take right now.
         state.pending_pull = Some(cx.waker().clone());
-        Poll::Pending
+        Ok(PollPull::Pending)
     }
 }
 
@@ -186,16 +187,17 @@ impl Sink for PhysicalNestedLoopJoinBuildSink {
         self.states.len()
     }
 
-    fn poll_ready(&self, _task_cx: &TaskContext, _cx: &mut Context, _partition: usize) -> Poll<()> {
-        // Always need to collect build side.
-        Poll::Ready(())
-    }
-
-    fn push(&self, _task_cx: &TaskContext, input: DataBatch, partition: usize) -> Result<()> {
+    fn poll_push(
+        &self,
+        _task_cx: &TaskContext,
+        _cx: &mut Context,
+        input: DataBatch,
+        partition: usize,
+    ) -> Result<PollPush> {
         let mut state = self.states[partition].lock();
         assert!(!state.build_finished);
         state.left_batches.push_for_build(input)?;
-        Ok(())
+        Ok(PollPush::Pushed)
     }
 
     fn finish(&self, _task_cx: &TaskContext, partition: usize) -> Result<()> {
@@ -259,24 +261,22 @@ impl Sink for PhysicalNestedLoopJoinProbeSink {
         self.states.len()
     }
 
-    fn poll_ready(&self, _task_cx: &TaskContext, cx: &mut Context, partition: usize) -> Poll<()> {
-        let mut state = self.states[partition].lock();
-        if !state.build_finished {
-            // We're still building, register for a wakeup.
-            state.pending_push = Some(cx.waker().clone());
-            return Poll::Pending;
-        }
-        assert!(!state.probe_finished);
-        Poll::Ready(())
-    }
-
-    fn push(&self, _task_cx: &TaskContext, input: DataBatch, partition: usize) -> Result<()> {
+    fn poll_push(
+        &self,
+        _task_cx: &TaskContext,
+        cx: &mut Context,
+        input: DataBatch,
+        partition: usize,
+    ) -> Result<PollPush> {
         let left_batches = {
             // TODO: Maybe split input/output states to allow holding this lock
             // for the entire function call.
-            let state = self.states[partition].lock();
-            assert!(state.build_finished);
-            assert!(!state.probe_finished);
+            let mut state = self.states[partition].lock();
+            if !state.build_finished {
+                // We're still building, register for a wakeup.
+                state.pending_push = Some(cx.waker().clone());
+                return Ok(PollPush::Pending(input));
+            }
 
             state.left_batches.get_global_batches()?
         };
@@ -294,7 +294,7 @@ impl Sink for PhysicalNestedLoopJoinProbeSink {
             waker.wake();
         }
 
-        Ok(())
+        Ok(PollPush::Pushed)
     }
 
     fn finish(&self, _task_cx: &TaskContext, partition: usize) -> Result<()> {

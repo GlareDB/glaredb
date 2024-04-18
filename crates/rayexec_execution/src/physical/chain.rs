@@ -7,7 +7,7 @@ use std::{
 };
 
 use super::{
-    plans::{PhysicalOperator, Sink, Source},
+    plans::{PhysicalOperator, PollPull, PollPush, Sink, Source},
     TaskContext,
 };
 
@@ -29,6 +29,20 @@ pub struct OperatorChain {
 
     /// Partition-local states.
     states: Vec<Mutex<PartitionState>>,
+}
+
+impl OperatorChain {
+    pub fn sink(&self) -> &dyn Sink {
+        self.sink.as_ref()
+    }
+
+    pub fn operators(&self) -> &[Box<dyn PhysicalOperator>] {
+        self.operators.as_slice()
+    }
+
+    pub fn source(&self) -> &dyn Source {
+        self.source.as_ref()
+    }
 }
 
 /// State local to each partition in the chain.
@@ -91,8 +105,8 @@ impl OperatorChain {
         let mut state = self.states[partition].lock();
         loop {
             match &mut *state {
-                PartitionState::Pull => match self.source.poll_next(task_cx, cx, partition) {
-                    Poll::Ready(Some(Ok(batch))) => {
+                PartitionState::Pull => match self.source.poll_pull(task_cx, cx, partition) {
+                    Ok(PollPull::Batch(batch)) => {
                         // We got a batch, run it through the executors.
                         match self.execute_operators(task_cx, batch) {
                             Ok(batch) => {
@@ -103,46 +117,44 @@ impl OperatorChain {
                             Err(e) => return Poll::Ready(Some(Err(e))),
                         }
                     }
-                    Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
-                    Poll::Ready(None) => {
-                        // This partition is exhausted for the source. Mark as
-                        // finished.
-                        *state = PartitionState::Finished;
-                        continue;
-                    }
-                    Poll::Pending => {
+                    Ok(PollPull::Pending) => {
                         // Setting state here not needed since it's already in Pull,
                         // but just to be explicit.
                         *state = PartitionState::Pull;
                         return Poll::Pending;
                     }
+                    Ok(PollPull::Exhausted) => {
+                        // This partition is exhausted for the source. Mark as
+                        // finished.
+                        *state = PartitionState::Finished;
+                        continue;
+                    }
+                    Err(e) => return Poll::Ready(Some(Err(e))),
                 },
                 PartitionState::PushPending { batch } => {
-                    // Try to push again.
-                    match self.sink.poll_ready(task_cx, cx, partition) {
-                        Poll::Ready(_) => {
-                            // We're good to push.
-                            match self.sink.push(
-                                task_cx,
-                                batch.take().expect("batch to exist"),
-                                partition,
-                            ) {
-                                Ok(_) => {
-                                    // Successfully pushed, reset state back to Pull
-                                    // to get the next batch.
-                                    *state = PartitionState::Pull;
-                                    continue;
-                                }
-                                Err(e) => return Poll::Ready(Some(Err(e))),
-                            }
+                    // Batch should always exist at this point. It's currently
+                    // wrapped in an Option to satisfy the borrow checker here
+                    // (we have a mut reference, not the owned reference).
+                    let batch = batch.take().expect("batch to exist");
+
+                    match self.sink.poll_push(task_cx, cx, batch, partition) {
+                        Ok(PollPush::Pushed) => {
+                            // Successfully pushed, reset state back to Pull
+                            // to get the next batch.
+                            *state = PartitionState::Pull;
+                            continue;
                         }
-                        Poll::Pending => {
+                        Ok(PollPush::Pending(batch)) => {
                             // Still need to wait before we can push.
-                            *state = PartitionState::PushPending {
-                                batch: batch.take(),
-                            };
+                            *state = PartitionState::PushPending { batch: Some(batch) };
                             return Poll::Pending;
                         }
+                        Ok(PollPush::Break) => {
+                            // This sink requires no more input.
+                            *state = PartitionState::Finished;
+                            continue;
+                        }
+                        Err(e) => return Poll::Ready(Some(Err(e))),
                     }
                 }
                 PartitionState::Finished => match self.sink.finish(task_cx, partition) {

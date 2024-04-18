@@ -60,6 +60,7 @@ define_keywords!(
     EXPLAIN,
     FALSE,
     FETCH,
+    FILTER,
     FIRST,
     FROM,
     FULL,

@@ -7,7 +7,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
 
-use super::Source;
+use super::{PollPull, Source};
 
 #[derive(Debug)]
 pub struct PhysicalSetVar {
@@ -48,21 +48,19 @@ impl Source for PhysicalSetVar {
         1
     }
 
-    fn poll_next(
+    fn poll_pull(
         &self,
         task_cx: &TaskContext,
         _cx: &mut Context,
         partition: usize,
-    ) -> Poll<Option<Result<DataBatch>>> {
+    ) -> Result<PollPull> {
         assert_eq!(0, partition);
         if self.sent.load(Ordering::Relaxed) {
-            return Poll::Ready(None);
+            return Ok(PollPull::Exhausted);
         }
 
-        match self.set_inner(task_cx) {
-            Ok(_) => Poll::Ready(Some(Ok(DataBatch::empty()))),
-            Err(e) => Poll::Ready(Some(Err(e))),
-        }
+        self.set_inner(task_cx)?;
+        Ok(PollPull::Batch(DataBatch::empty()))
     }
 }
 

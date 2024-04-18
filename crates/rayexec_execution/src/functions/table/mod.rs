@@ -2,6 +2,7 @@ pub mod dummy;
 pub mod empty;
 pub mod generate_series;
 pub mod read_csv;
+pub mod read_parquet;
 
 use rayexec_error::Result;
 use std::collections::HashMap;

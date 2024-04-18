@@ -47,6 +47,12 @@ impl From<ArrowError> for RayexecError {
     }
 }
 
+impl From<fmt::Error> for RayexecError {
+    fn from(value: fmt::Error) -> Self {
+        Self::with_source("Format error", Box::new(value))
+    }
+}
+
 impl fmt::Display for RayexecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.msg)?;

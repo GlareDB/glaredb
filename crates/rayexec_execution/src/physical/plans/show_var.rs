@@ -8,7 +8,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
 
-use super::Source;
+use super::{PollPull, Source};
 
 #[derive(Debug)]
 pub struct PhysicalShowVar {
@@ -30,15 +30,15 @@ impl Source for PhysicalShowVar {
         1
     }
 
-    fn poll_next(
+    fn poll_pull(
         &self,
         task_cx: &TaskContext,
         _cx: &mut Context,
         partition: usize,
-    ) -> Poll<Option<Result<DataBatch>>> {
+    ) -> Result<PollPull> {
         assert_eq!(0, partition);
         if self.sent.load(Ordering::Relaxed) {
-            return Poll::Ready(None);
+            return Ok(PollPull::Exhausted);
         }
 
         let arr = self
@@ -51,7 +51,7 @@ impl Source for PhysicalShowVar {
 
         self.sent.store(true, Ordering::Relaxed);
 
-        Poll::Ready(Some(Ok(batch)))
+        Ok(PollPull::Batch(batch))
     }
 }
 

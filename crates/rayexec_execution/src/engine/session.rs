@@ -5,6 +5,7 @@ use rayexec_parser::{ast, parser};
 use tracing::trace;
 
 use crate::{
+    functions::aggregate::{self, AggregateFunction},
     functions::table::{self, TableFunction},
     optimizer::Optimizer,
     physical::{planner::PhysicalPlanner, scheduler::Scheduler, TaskContext},
@@ -25,6 +26,20 @@ pub struct DebugResolver<'a> {
 }
 
 impl<'a> Resolver for DebugResolver<'a> {
+    fn resolve_aggregate_function(
+        &self,
+        reference: &ast::ObjectReference,
+    ) -> Result<Option<Box<dyn AggregateFunction>>> {
+        if reference.0.len() != 1 {
+            return Err(RayexecError::new("Expected a single ident"));
+        }
+
+        Ok(match reference.0[0].value.as_ref() {
+            "sum" => Some(Box::new(aggregate::sum::Sum)),
+            other => return Err(RayexecError::new(format!("unknown function: {other}"))),
+        })
+    }
+
     fn resolve_table_function(
         &self,
         reference: &ast::ObjectReference,
@@ -93,7 +108,7 @@ impl Session {
 
         let physical_planner = PhysicalPlanner::try_new_from_vars(&self.vars)?;
         let pipeline = physical_planner.create_plan(logical.root, output_stream.take_sink()?)?;
-        trace!("physical plan created");
+        println!("PIPELINE: \n{}", pipeline.as_explain_string()?);
 
         let context = TaskContext {
             modifications: Some(self.modifications.clone_sender()),
