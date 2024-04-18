@@ -7,7 +7,6 @@ use prql_compiler::sql::Dialect as PrqlDialect;
 use prql_compiler::{compile, Options, Target};
 pub use sqlparser;
 use sqlparser::ast::{self, ColumnDef, Ident, ObjectName};
-use sqlparser::dialect::GenericDialect;
 use sqlparser::keywords::Keyword;
 use sqlparser::parser::{Parser, ParserError, ParserOptions};
 use sqlparser::tokenizer::{Token, Tokenizer, Word};
