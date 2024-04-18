@@ -30,6 +30,7 @@ object_store_util = { path = "../object_store_util" }
 pgrepr = { path = "../pgrepr" }
 pgsrv = { path = "../pgsrv" }
 protogen = { path = "../protogen" }
+parser = { path = "../parser" }
 proxyutil = { path = "../proxyutil" }
 rpcsrv = { path = "../rpcsrv" }
 slt = { path = "../slt" }

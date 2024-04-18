@@ -21,7 +21,7 @@ use datafusion::common::{DFSchema, Result};
 use datafusion::logical_expr::expr::{Exists, InSubquery};
 use datafusion::logical_expr::{Expr, Subquery};
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{Expr as SQLExpr, Query};
+use parser::sqlparser::ast::{Expr as SQLExpr, Query};
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 

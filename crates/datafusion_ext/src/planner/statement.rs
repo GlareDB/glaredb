@@ -23,7 +23,7 @@ use datafusion::logical_expr::{
 };
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{self, Query, SetExpr, Statement, Value};
+use parser::sqlparser::ast::{self, Query, SetExpr, Statement, Value};
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 

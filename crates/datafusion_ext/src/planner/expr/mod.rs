@@ -55,7 +55,8 @@ use datafusion::logical_expr::{
     TryCast,
 };
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{
+use datafusion::sql::sqlparser::parser::ParserError::ParserError;
+use parser::sqlparser::ast::{
     ArrayAgg,
     Expr as SQLExpr,
     Interval,
@@ -63,7 +64,6 @@ use datafusion::sql::sqlparser::ast::{
     TrimWhereField,
     Value,
 };
-use datafusion::sql::sqlparser::parser::ParserError::ParserError;
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
@@ -229,7 +229,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 if let SQLExpr::Identifier(id) = *column {
                     self.plan_indexed(
                         col(self.normalizer.normalize(id)),
-                        keys,
+                        keys.into_iter().map(|k| k.key).collect(),
                         schema,
                         planner_context,
                     )

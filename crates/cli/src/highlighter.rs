@@ -1,9 +1,9 @@
 use std::io::{self};
 
-use datafusion::sql::sqlparser::dialect::GenericDialect;
-use datafusion::sql::sqlparser::keywords::Keyword;
-use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer};
 use nu_ansi_term::{Color, Style};
+use parser::sqlparser::dialect::GenericDialect;
+use parser::sqlparser::keywords::Keyword;
+use parser::sqlparser::tokenizer::{Token, Tokenizer};
 use reedline::{Highlighter, Hinter, SearchQuery, StyledText, ValidationResult, Validator};
 use sqlbuiltins::functions::DEFAULT_BUILTIN_FUNCTIONS;
 
