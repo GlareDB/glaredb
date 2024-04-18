@@ -4,6 +4,9 @@ use std::str::FromStr;
 
 use sqlparser::parser::ParserError;
 
+/// Copied from datafusion's `FileType`.
+/// We may want to customize this in the future.
+/// See https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/common/src/file_options/file_type.rs#L45
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FileType {
     /// Apache Arrow file
@@ -18,6 +21,8 @@ pub enum FileType {
     JSON,
 }
 
+/// Copied from datafusion's `FileType` implementation.
+/// https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/common/src/file_options/file_type.rs#L86
 impl FromStr for FileType {
     type Err = ParserError;
 
@@ -35,7 +40,10 @@ impl FromStr for FileType {
         }
     }
 }
+
 /// Readable file compression type
+/// This is a direct equivalent to datafusion's `CompressionTypeVariant`.
+/// https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/common/src/parsers.rs#L26
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CompressionTypeVariant {
     /// Gzip-ed file
@@ -50,6 +58,8 @@ pub enum CompressionTypeVariant {
     UNCOMPRESSED,
 }
 
+/// Copied from datafusion's `CompressionTypeVariant` implementation.
+/// https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/common/src/parsers.rs#L39
 impl FromStr for CompressionTypeVariant {
     type Err = ParserError;
 
