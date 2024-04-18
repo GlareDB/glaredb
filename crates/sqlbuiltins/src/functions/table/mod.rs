@@ -6,6 +6,7 @@ mod clickhouse;
 mod delta;
 mod excel;
 mod generate_series;
+mod google_sheet;
 mod iceberg;
 mod json;
 mod lance;
@@ -16,7 +17,6 @@ mod parquet_metadata;
 mod postgres;
 mod read_blob;
 mod snowflake;
-
 mod sqlite;
 mod sqlserver;
 pub mod system;
@@ -43,6 +43,7 @@ use self::clickhouse::ReadClickhouse;
 use self::delta::DeltaScan;
 use self::excel::ExcelScan;
 use self::generate_series::GenerateSeries;
+use self::google_sheet::ReadGoogleSheet;
 use self::iceberg::data_files::IcebergDataFiles;
 use self::iceberg::scan::IcebergScan;
 use self::iceberg::snapshots::IcebergSnapshots;
@@ -115,8 +116,10 @@ impl BuiltinTableFuncs {
             Arc::new(IcebergScan),
             Arc::new(IcebergSnapshots),
             Arc::new(IcebergDataFiles),
-            Arc::new(ExcelScan),
             Arc::new(LanceScan),
+            // File Formats
+            Arc::new(ReadGoogleSheet),
+            Arc::new(ExcelScan),
             // Listing
             Arc::new(ListSchemas),
             Arc::new(ListTables),
