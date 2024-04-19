@@ -558,7 +558,7 @@ dependencies = [
  "derive_builder",
  "futures",
  "rand",
- "reqwest 0.12.2",
+ "reqwest 0.12.3",
  "reqwest-eventsource",
  "secrecy",
  "serde",
@@ -2841,7 +2841,7 @@ dependencies = [
  "rand",
  "regex",
  "repr",
- "reqwest 0.12.2",
+ "reqwest 0.12.3",
  "ring 0.17.8",
  "rust_decimal",
  "rustls 0.21.10",
@@ -3741,7 +3741,7 @@ dependencies = [
  "hyper 0.14.28",
  "hyper-rustls 0.25.0",
  "log",
- "reqwest 0.12.2",
+ "reqwest 0.12.3",
  "serde",
  "serde_json",
  "thiserror",
@@ -4315,7 +4315,7 @@ dependencies = [
  "socket2 0.5.6",
  "widestring",
  "windows-sys 0.48.0",
- "winreg",
+ "winreg 0.50.0",
 ]
 
 [[package]]
@@ -6064,7 +6064,7 @@ dependencies = [
  "parser",
  "pgrepr",
  "proxyutil",
- "reqwest 0.12.2",
+ "reqwest 0.12.3",
  "rustls 0.21.10",
  "rustls-pemfile 2.1.1",
  "serde",
@@ -6420,7 +6420,7 @@ version = "0.9.2"
 dependencies = [
  "async-trait",
  "futures",
- "reqwest 0.12.2",
+ "reqwest 0.12.3",
  "serde",
  "serde_json",
  "thiserror",
@@ -6923,16 +6923,16 @@ dependencies = [
  "wasm-streams",
  "web-sys",
  "webpki-roots 0.25.4",
- "winreg",
+ "winreg 0.50.0",
 ]
 
 [[package]]
 name = "reqwest"
-version = "0.12.2"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d66674f2b6fb864665eea7a3c1ac4e3dfacd2fda83cf6f935a612e01b0e3338"
+checksum = "3e6cc1e89e689536eb5aeede61520e874df5a4707df811cd5da4aa5fbb2aae19"
 dependencies = [
- "base64 0.21.7",
+ "base64 0.22.0",
  "bytes",
  "futures-core",
  "futures-util",
@@ -6952,7 +6952,7 @@ dependencies = [
  "pin-project-lite",
  "rustls 0.22.3",
  "rustls-native-certs 0.7.0",
- "rustls-pemfile 1.0.4",
+ "rustls-pemfile 2.1.1",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -6968,7 +6968,7 @@ dependencies = [
  "wasm-streams",
  "web-sys",
  "webpki-roots 0.26.1",
- "winreg",
+ "winreg 0.52.0",
 ]
 
 [[package]]
@@ -6983,7 +6983,7 @@ dependencies = [
  "mime",
  "nom",
  "pin-project-lite",
- "reqwest 0.12.2",
+ "reqwest 0.12.3",
  "thiserror",
 ]
 
@@ -8029,7 +8029,7 @@ dependencies = [
  "flate2",
  "hex",
  "logutil",
- "reqwest 0.12.2",
+ "reqwest 0.12.3",
  "serde",
  "serde_json",
  "thiserror",
@@ -8107,7 +8107,7 @@ dependencies = [
  "parser",
  "pgrepr",
  "protogen",
- "reqwest 0.12.2",
+ "reqwest 0.12.3",
  "siphasher 1.0.1",
  "strum 0.26.2",
  "telemetry",
@@ -8146,7 +8146,7 @@ dependencies = [
  "prost",
  "protogen",
  "proxyutil",
- "reqwest 0.12.2",
+ "reqwest 0.12.3",
  "serde",
  "sqlbuiltins",
  "telemetry",
@@ -9752,6 +9752,16 @@ name = "winreg"
 version = "0.50.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "524e57b2c537c0f9b1e69f1965311ec12182b4122e45035b1508cd24d2adadb1"
+dependencies = [
+ "cfg-if",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "winreg"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a277a57398d4bfa075df44f501a17cfdf8542d224f0d36095a2adc7aee4ef0a5"
 dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
