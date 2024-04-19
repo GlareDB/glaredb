@@ -1162,6 +1162,8 @@ pub fn validate_object_name(name: &ast::ObjectName) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use sqlparser::dialect::GenericDialect;
+
     use super::*;
 
     #[test]
