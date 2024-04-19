@@ -466,6 +466,10 @@ pub struct GlareDbParser<'a> {
 pub struct GlareDbDialect;
 
 impl sqlparser::dialect::Dialect for GlareDbDialect {
+    fn dialect(&self) -> std::any::TypeId {
+        // This tells the parser that we are essentially extending `GenericDialect``.
+        std::any::TypeId::of::<sqlparser::dialect::GenericDialect>()
+    }
     fn is_identifier_start(&self, ch: char) -> bool {
         ch.is_alphabetic() || ch == '_'
     }
