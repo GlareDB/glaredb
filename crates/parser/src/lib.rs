@@ -1162,7 +1162,6 @@ pub fn validate_object_name(name: &ast::ObjectName) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use sqlparser::dialect::GenericDialect;
 
     use super::*;
 
@@ -1546,7 +1545,7 @@ mod tests {
         ];
 
         for (sql, map) in test_cases {
-            let d = GenericDialect {};
+            let d = GlareDbDialect;
             let t = Tokenizer::new(&d, sql).tokenize().unwrap();
             let mut p = GlareDbParser {
                 parser: Parser::new(&d).with_tokens(t),
