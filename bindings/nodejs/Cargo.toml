@@ -36,4 +36,4 @@ bytes = { workspace = true }
 async-once-cell = "0.5.3"
 
 [build-dependencies]
-napi-build = "2.1.2"
+napi-build = "2.1.3"
