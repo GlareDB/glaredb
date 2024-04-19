@@ -30,7 +30,7 @@ tokio = { version = "1", features = ["full"] }
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 anyhow = "1.0.82"
 async-trait = "0.1.80"
-chrono = "0.4.37"
+chrono = "0.4.38"
 futures = "0.3.30"
 object_store = "0.9"
 prost = "0.12"
