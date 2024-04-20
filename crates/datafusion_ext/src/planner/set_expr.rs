@@ -19,7 +19,7 @@ use async_recursion::async_recursion;
 use datafusion::common::{not_impl_err, DataFusionError, Result};
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{SetExpr, SetOperator, SetQuantifier};
+use parser::sqlparser::ast::{SetExpr, SetOperator, SetQuantifier};
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 

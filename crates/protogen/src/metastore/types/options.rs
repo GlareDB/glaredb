@@ -6,6 +6,7 @@ use std::sync::Arc;
 use datafusion::arrow::array::{ArrayRef, GenericStringArray, StructArray};
 use datafusion::arrow::datatypes::{DataType, Field, Fields, SchemaRef};
 use datafusion::common::DFSchemaRef;
+use parser::options::StatementOptions;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -579,6 +580,19 @@ impl From<options::StorageOptions> for StorageOptions {
 impl From<StorageOptions> for options::StorageOptions {
     fn from(value: StorageOptions) -> Self {
         options::StorageOptions { inner: value.inner }
+    }
+}
+
+impl TryFrom<&mut StatementOptions> for StorageOptions {
+    type Error = parser::errors::ParserError;
+
+    fn try_from(value: &mut StatementOptions) -> Result<Self, Self::Error> {
+        use parser::options::ParseOptionValue;
+        let mut inner = BTreeMap::new();
+        for (key, value) in value.m.iter() {
+            inner.insert(key.clone(), value.clone().parse_opt()?);
+        }
+        Ok(StorageOptions { inner })
     }
 }
 

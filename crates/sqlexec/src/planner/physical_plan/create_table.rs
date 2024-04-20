@@ -188,37 +188,46 @@ impl CreateTableExec {
             }
         };
 
-        let table = storage.create_table(ent, save_mode).await.map_err(|e| {
-            DataFusionError::Execution(format!("failed to create table in storage: {e}"))
-        })?;
-
-        let insert_res = match (source, or_replace) {
-            (Some(input), overwrite) => insert(&table, input, overwrite, context).await,
-
-            // if it's a 'replace' and there is no insert, we overwrite with an empty table
-            (None, true) => {
-                let input = Arc::new(EmptyExec::new(TableProvider::schema(&table)));
-                insert(&table, input, true, context).await
-            }
-            (None, false) => Ok(()),
-        };
-
-        if let Err(e) = insert_res {
-            storage.delete_table(ent).await.map_err(|e| {
-                DataFusionError::Execution(format!("failed to clean up table: {e}"))
-            })?;
-            return Err(e);
-        }
-
-        mutator
-            .commit_state(catalog_version, state.as_ref().clone())
+        let table_existed = storage
+            .table_exists(ent)
             .await
-            .map_err(|e| {
-                DataFusionError::Execution(format!("failed to commit catalog state: {e}"))
-            })?;
-        debug!(loc = %table.storage_location(), "native table created");
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-        // TODO: Add storage tracking job.
+
+        if !table_existed || !if_not_exists {
+            let table = storage.create_table(ent, save_mode).await.map_err(|e| {
+                DataFusionError::Execution(format!("failed to create table in storage: {e}"))
+            })?;
+
+            let insert_res = match (source, or_replace) {
+                (Some(input), overwrite) => insert(&table, input, overwrite, context).await,
+
+                // if it's a 'replace' and there is no insert, we overwrite with an empty table
+                (None, true) => {
+                    let input = Arc::new(EmptyExec::new(TableProvider::schema(&table)));
+                    insert(&table, input, true, context).await
+                }
+                (None, false) => Ok(()),
+            };
+
+            if let Err(e) = insert_res {
+                storage.delete_table(ent).await.map_err(|e| {
+                    DataFusionError::Execution(format!("failed to clean up table: {e}"))
+                })?;
+                return Err(e);
+            }
+
+            mutator
+                .commit_state(catalog_version, state.as_ref().clone())
+                .await
+                .map_err(|e| {
+                    DataFusionError::Execution(format!("failed to commit catalog state: {e}"))
+                })?;
+
+            debug!(loc = %table.storage_location(), "native table created");
+
+            // TODO: Add storage tracking job.
+        }
 
         Ok(new_operation_batch("create_table"))
     }

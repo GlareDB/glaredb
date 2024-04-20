@@ -18,7 +18,7 @@
 use datafusion::common::{DFSchema, Result};
 use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::Values as SQLValues;
+use parser::sqlparser::ast::Values as SQLValues;
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 

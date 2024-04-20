@@ -9,6 +9,7 @@ workspace = true
 [dependencies]
 datafusion = { workspace = true, features = ["serde"] }
 datafusion-proto = { workspace = true }
+parser = { path = "../parser" }
 thiserror.workspace = true
 tonic = { workspace = true }
 prost = { workspace = true }

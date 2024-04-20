@@ -19,7 +19,7 @@ use datafusion::common::{Column, DFField, DFSchema, DataFusionError, Result, Tab
 use datafusion::logical_expr::{Case, Expr};
 use datafusion::physical_plan::internal_err;
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{Expr as SQLExpr, Ident};
+use parser::sqlparser::ast::{Expr as SQLExpr, Ident};
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 

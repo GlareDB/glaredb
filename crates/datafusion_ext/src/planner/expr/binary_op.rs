@@ -17,7 +17,7 @@
 
 use datafusion::common::{DataFusionError, Result};
 use datafusion::logical_expr::Operator;
-use datafusion::sql::sqlparser::ast::BinaryOperator;
+use parser::sqlparser::ast::BinaryOperator;
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 

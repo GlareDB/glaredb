@@ -14,11 +14,11 @@ use datafusion::arrow::datatypes::{
 use datafusion::common::parsers::CompressionTypeVariant;
 use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
 use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
-use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
-use datafusion::sql::sqlparser::ast::{self, ColumnOption, Ident, ObjectName, ObjectType};
+use datafusion::sql::planner::{object_name_to_table_reference, PlannerContext};
 use datafusion::sql::TableReference;
+use datafusion_ext::conversion::convert;
 use datafusion_ext::planner::SqlQueryPlanner;
-use datafusion_ext::AsyncContextProvider;
+use datafusion_ext::{AsyncContextProvider, IdentNormalizer};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::cassandra::{CassandraAccess, CassandraAccessState};
 use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableRef};
@@ -44,6 +44,15 @@ use object_store::aws::AmazonS3ConfigKey;
 use object_store::azure::AzureConfigKey;
 use object_store::gcp::GoogleConfigKey;
 use parser::options::StatementOptions;
+use parser::sqlparser::ast::{
+    self,
+    ColumnOption,
+    DescribeAlias,
+    FromTable,
+    Ident,
+    ObjectName,
+    ObjectType,
+};
 use parser::{
     self,
     validate_ident,
@@ -1123,7 +1132,7 @@ impl<'a> SessionPlanner<'a> {
             }
 
             ast::Statement::Explain {
-                describe_alias: false,
+                describe_alias: DescribeAlias::Explain,
                 verbose,
                 statement,
                 analyze,
@@ -1137,8 +1146,9 @@ impl<'a> SessionPlanner<'a> {
             }
             // DESCRIBE <table_name>
             ast::Statement::ExplainTable {
-                describe_alias: true,
+                describe_alias: DescribeAlias::Describe,
                 table_name,
+                ..
             } => {
                 validate_object_name(&table_name)?;
                 let table_name = object_name_to_table_ref(table_name)?;
@@ -1566,7 +1576,7 @@ impl<'a> SessionPlanner<'a> {
             // or all the rows if no expression is provided.
             ast::Statement::Delete {
                 tables,
-                from,
+                from: FromTable::WithFromKeyword(from) | FromTable::WithoutKeyword(from),
                 using: None,
                 selection,
                 returning: None,
@@ -2164,17 +2174,18 @@ async fn validate_and_get_file_type_and_compression(
         });
     }
 
-    let compression = match m.remove_optional::<CompressionTypeVariant>("compression")? {
-        Some(compression) => Some(compression),
-        None => objects
-            .first()
-            .ok_or_else(|| PlanError::InvalidExternalTable {
-                source: Box::new(internal!("object '{path} not found'")),
-            })?
-            .location
-            .extension()
-            .and_then(|ext| ext.parse().ok()),
-    };
+    let compression =
+        match m.remove_optional::<parser::options::CompressionTypeVariant>("compression")? {
+            Some(compression) => Some(convert(compression)),
+            None => objects
+                .first()
+                .ok_or_else(|| PlanError::InvalidExternalTable {
+                    source: Box::new(internal!("object '{path} not found'")),
+                })?
+                .location
+                .extension()
+                .and_then(|ext| ext.parse().ok()),
+        };
 
     let file_type = match m.remove_optional("file_type")? {
         Some(file_type) => file_type,
@@ -2209,7 +2220,7 @@ fn normalize_ident(ident: Ident) -> String {
 }
 
 fn object_name_to_table_ref(name: ObjectName) -> Result<OwnedTableReference> {
-    let r = object_name_to_table_reference(name, /* enable_normalization = */ true)?;
+    let r = object_name_to_table_reference(convert(name), /* enable_normalization = */ true)?;
     Ok(r)
 }
 

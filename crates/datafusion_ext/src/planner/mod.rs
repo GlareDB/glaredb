@@ -44,8 +44,8 @@ use datafusion::common::{
 use datafusion::logical_expr::logical_plan::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::logical_expr::utils::find_column_exprs;
 use datafusion::logical_expr::{col, AggregateUDF, Expr, SubqueryAlias, TableSource, WindowUDF};
-use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, ParserOptions};
-use datafusion::sql::sqlparser::ast::{
+use datafusion::sql::planner::{object_name_to_table_reference, ParserOptions};
+use parser::sqlparser::ast::{
     ArrayElemTypeDef,
     ColumnDef as SQLColumnDef,
     ColumnOption,
@@ -57,9 +57,34 @@ use datafusion::sql::sqlparser::ast::{
     TimezoneInfo,
 };
 
+use crate::conversion::convert;
 use crate::functions::FuncParamValue;
 use crate::utils::make_decimal_type;
 
+#[derive(Debug)]
+pub struct IdentNormalizer {
+    normalize: bool,
+}
+
+impl Default for IdentNormalizer {
+    fn default() -> Self {
+        Self { normalize: true }
+    }
+}
+
+impl IdentNormalizer {
+    pub fn new(normalize: bool) -> Self {
+        Self { normalize }
+    }
+
+    pub fn normalize(&self, ident: Ident) -> String {
+        if self.normalize {
+            crate::utils::normalize_ident(ident)
+        } else {
+            ident.value
+        }
+    }
+}
 /// The ContextProvider trait allows the query planner to obtain meta-data about tables and
 /// functions referenced in SQL statements
 #[async_trait]
@@ -336,6 +361,9 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
         &self,
         object_name: ObjectName,
     ) -> Result<OwnedTableReference> {
-        object_name_to_table_reference(object_name, self.options.enable_ident_normalization)
+        object_name_to_table_reference(
+            convert(object_name),
+            self.options.enable_ident_normalization,
+        )
     }
 }

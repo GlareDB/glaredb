@@ -1,10 +1,82 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::str::FromStr;
 
-use datafusion::common::parsers::CompressionTypeVariant;
-use datafusion::common::FileType;
-use datafusion::sql::sqlparser::parser::ParserError;
-use protogen::metastore::types::options::StorageOptions;
+use sqlparser::parser::ParserError;
+
+/// Copied from datafusion's `FileType`.
+/// We may want to customize this in the future.
+/// See https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/common/src/file_options/file_type.rs#L45
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FileType {
+    /// Apache Arrow file
+    ARROW,
+    /// Apache Avro file
+    AVRO,
+    /// Apache Parquet file
+    PARQUET,
+    /// CSV file
+    CSV,
+    /// JSON file
+    JSON,
+}
+
+/// Copied from datafusion's `FileType` implementation.
+/// https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/common/src/file_options/file_type.rs#L86
+impl FromStr for FileType {
+    type Err = ParserError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_uppercase();
+        match s.as_str() {
+            "ARROW" => Ok(FileType::ARROW),
+            "AVRO" => Ok(FileType::AVRO),
+            "PARQUET" => Ok(FileType::PARQUET),
+            "CSV" => Ok(FileType::CSV),
+            "JSON" | "NDJSON" => Ok(FileType::JSON),
+            _ => Err(ParserError::ParserError(format!(
+                "Unsupported file type {s}"
+            ))),
+        }
+    }
+}
+
+/// Readable file compression type
+/// This is a direct equivalent to datafusion's `CompressionTypeVariant`.
+/// https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/common/src/parsers.rs#L26
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompressionTypeVariant {
+    /// Gzip-ed file
+    GZIP,
+    /// Bzip2-ed file
+    BZIP2,
+    /// Xz-ed file (liblzma)
+    XZ,
+    /// Zstd-ed file,
+    ZSTD,
+    /// Uncompressed file
+    UNCOMPRESSED,
+}
+
+/// Copied from datafusion's `CompressionTypeVariant` implementation.
+/// https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/common/src/parsers.rs#L39
+impl FromStr for CompressionTypeVariant {
+    type Err = ParserError;
+
+    fn from_str(s: &str) -> Result<Self, ParserError> {
+        let s = s.to_uppercase();
+        match s.as_str() {
+            "GZIP" | "GZ" => Ok(Self::GZIP),
+            "BZIP2" | "BZ2" => Ok(Self::BZIP2),
+            "XZ" => Ok(Self::XZ),
+            "ZST" | "ZSTD" => Ok(Self::ZSTD),
+            "" | "UNCOMPRESSED" => Ok(Self::UNCOMPRESSED),
+            _ => Err(ParserError::ParserError(format!(
+                "Unsupported file compression type {s}"
+            ))),
+        }
+    }
+}
 
 /// Contains the value parsed from Options(...).
 ///
@@ -150,7 +222,6 @@ impl ParseOptionValue<char> for OptionValue {
     }
 }
 
-
 impl ParseOptionValue<FileType> for OptionValue {
     fn parse_opt(self) -> Result<FileType, ParserError> {
         let opt = match self {
@@ -177,7 +248,7 @@ impl ParseOptionValue<CompressionTypeVariant> for OptionValue {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatementOptions {
-    m: BTreeMap<String, OptionValue>,
+    pub m: BTreeMap<String, OptionValue>,
 }
 
 impl fmt::Display for StatementOptions {
@@ -189,18 +260,6 @@ impl fmt::Display for StatementOptions {
             sep = ", ";
         }
         write!(f, ")")
-    }
-}
-
-impl TryFrom<&mut StatementOptions> for StorageOptions {
-    type Error = ParserError;
-
-    fn try_from(value: &mut StatementOptions) -> Result<Self, Self::Error> {
-        let mut inner = BTreeMap::new();
-        for (key, value) in value.m.iter() {
-            inner.insert(key.clone(), value.clone().parse_opt()?);
-        }
-        Ok(StorageOptions { inner })
     }
 }
 
