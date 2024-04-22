@@ -1,4 +1,5 @@
 # Adding something new? It's probably good to add to .dockerignore too.
+.DS_Store
 
 .pre-commit-config.yaml
 # Cargo target directories.
