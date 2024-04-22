@@ -193,6 +193,7 @@ impl CreateTableExec {
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
+
         if !table_existed || !if_not_exists {
             let table = storage.create_table(ent, save_mode).await.map_err(|e| {
                 DataFusionError::Execution(format!("failed to create table in storage: {e}"))

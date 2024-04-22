@@ -12,3 +12,4 @@ url = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
 derive_builder = "0.20.0"
+indexmap = "2.2.6"
