@@ -15,6 +15,7 @@ mod object_store;
 mod parquet_metadata;
 mod postgres;
 mod read_blob;
+mod read_text;
 mod snowflake;
 
 mod sqlite;
@@ -54,6 +55,7 @@ use self::object_store::{CloudUpload, READ_CSV, READ_JSON, READ_PARQUET};
 use self::parquet_metadata::ParquetMetadataFunc;
 use self::postgres::ReadPostgres;
 use self::read_blob::READ_BLOB;
+use self::read_text::READ_TEXT;
 use self::snowflake::ReadSnowflake;
 use self::sqlite::ReadSqlite;
 use self::sqlserver::ReadSqlServer;
@@ -104,6 +106,7 @@ impl BuiltinTableFuncs {
             Arc::new(ReadCassandra),
             // Object store
             Arc::new(READ_BLOB),
+            Arc::new(READ_TEXT),
             Arc::new(READ_PARQUET),
             Arc::new(READ_CSV),
             Arc::new(READ_JSON),
