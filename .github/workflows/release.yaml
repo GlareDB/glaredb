@@ -81,7 +81,7 @@ jobs:
           name: dist-${{ matrix.target }}
           path: ./target/dist/
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.25.0
+        uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -139,7 +139,7 @@ jobs:
           name: releases
           path: ./dist
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.25.0
+        uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -186,7 +186,7 @@ jobs:
           path: dist
 
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.25.0
+        uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -227,7 +227,7 @@ jobs:
           name: wheels
           path: bindings/python/dist
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.25.0
+        uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -271,7 +271,7 @@ jobs:
           path: bindings/python/dist
 
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.25.0
+        uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -298,7 +298,7 @@ jobs:
           command: upload
           args: --skip-existing *
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.25.0
+        uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -429,7 +429,7 @@ jobs:
           path: bindings/nodejs/${{ env.APP_NAME }}.*.node
           if-no-files-found: error
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.25.0
+        uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -483,7 +483,7 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Post to slack
-        uses: slackapi/slack-github-action@v1.25.0
+        uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
