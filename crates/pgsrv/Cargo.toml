@@ -15,14 +15,14 @@ reqwest = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
+bytes = { workspace = true }
 sqlexec = { path = "../sqlexec" }
 proxyutil = { path = "../proxyutil" }
 bytesutil = { path = "../bytesutil" }
 parser = { path = "../parser" }
 pgrepr = { path = "../pgrepr" }
 datafusion_ext = { path = "../datafusion_ext" }
-bytes = { workspace = true }
-rustls = "0.21.10"
+rustls = "0.22.3"
 webpki-roots = "0.26.1"
 tokio-rustls = "0.24.1"
 rustls-pemfile = "2.1.1"
