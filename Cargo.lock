@@ -1956,6 +1956,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "object_store_util",
+ "parking_lot",
  "parser",
  "pgrepr",
  "pgsrv",

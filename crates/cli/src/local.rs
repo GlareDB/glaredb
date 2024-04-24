@@ -1,9 +1,3 @@
-use std::collections::HashMap;
-use std::env;
-use std::io::Write;
-use std::path::PathBuf;
-use std::time::Instant;
-
 use anyhow::{anyhow, Result};
 use arrow_util::pretty;
 use clap::ValueEnum;
@@ -11,20 +5,25 @@ use colored::Colorize;
 use datafusion::arrow::csv::writer::WriterBuilder as CsvWriterBuilder;
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::json::writer::{
-    JsonFormat,
-    LineDelimited as JsonLineDelimted,
-    Writer as JsonWriter,
+    JsonFormat, LineDelimited as JsonLineDelimted, Writer as JsonWriter,
 };
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_ext::vars::SessionVars;
 use futures::StreamExt;
+use parking_lot::Mutex;
 use pgrepr::format::Format;
 use pgrepr::notice::NoticeSeverity;
 use reedline::{FileBackedHistory, Reedline, Signal};
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::session::ExecutionResult;
+use std::collections::HashMap;
+use std::env;
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Instant;
 use url::Url;
 
 use crate::args::{LocalClientOpts, OutputMode, StorageConfigArgs};
@@ -40,7 +39,7 @@ enum ClientCommandResult {
 }
 
 pub struct LocalSession {
-    sess: TrackedSession,
+    sess: Arc<Mutex<TrackedSession>>,
     _engine: Engine,
     opts: LocalClientOpts,
 }
@@ -106,7 +105,7 @@ impl LocalSession {
         };
 
         Ok(LocalSession {
-            sess,
+            sess: Arc::new(Mutex::new(sess)),
             _engine: engine,
             opts,
         })
@@ -172,7 +171,8 @@ impl LocalSession {
                         // non-interactive fashion which and having notice
                         // messages interspersed with the output would be
                         // annoying.
-                        for notice in self.sess.take_notices() {
+                        let mut sess = self.sess.lock();
+                        for notice in sess.take_notices() {
                             eprintln!(
                                 "{}: {}",
                                 match notice.severity {
@@ -214,21 +214,20 @@ impl LocalSession {
 
         const UNNAMED: String = String::new();
 
-        let statements = self.sess.parse_query(text)?;
+        let mut sess = self.sess.lock();
+        let statements = sess.parse_query(text)?;
         for stmt in statements {
-            self.sess
-                .prepare_statement(UNNAMED, stmt, Vec::new())
-                .await?;
-            let prepared = self.sess.get_prepared_statement(&UNNAMED)?;
+            sess.prepare_statement(UNNAMED, stmt, Vec::new()).await?;
+            let prepared = sess.get_prepared_statement(&UNNAMED)?;
             let num_fields = prepared.output_fields().map(|f| f.len()).unwrap_or(0);
-            self.sess.bind_statement(
+            sess.bind_statement(
                 UNNAMED,
                 &UNNAMED,
                 Vec::new(),
                 vec![Format::Text; num_fields],
             )?;
 
-            let stream = self.sess.execute_portal(&UNNAMED, 0).await?;
+            let stream = sess.execute_portal(&UNNAMED, 0).await?;
 
             match stream {
                 ExecutionResult::Query { stream, .. } => {
