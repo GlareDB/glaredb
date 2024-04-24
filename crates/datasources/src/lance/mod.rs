@@ -23,6 +23,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream,
     Statistics,
 };
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::StreamExt;
 use lance::dataset::builder::DatasetBuilder;
 use lance::dataset::{WriteMode, WriteParams};
@@ -147,14 +148,14 @@ impl ExecutionPlan for LanceInsertExecPlan {
 
     fn execute(
         &self,
-        _partition: usize,
+        partition: usize,
         ctx: Arc<TaskContext>,
     ) -> datafusion::error::Result<SendableRecordBatchStream> {
-        let mut stream = execute_stream(self.input.clone(), ctx)?.chunks(32);
+        let mut input = execute_stream(self.input.clone(), ctx)?.chunks(32);
         let mut ds = self.dataset.clone();
         let schema = self.input.schema();
 
-        Ok(Box::pin(RecordBatchStreamAdapter::new(
+        let stream = RecordBatchStreamAdapter::new(
             schema.clone(),
             futures::stream::once(async move {
                 let write_opts = WriteParams {
@@ -176,6 +177,12 @@ impl ExecutionPlan for LanceInsertExecPlan {
                 }
                 Ok::<RecordBatch, DataFusionError>(create_count_record_batch(count))
             }),
+        );
+
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            stream,
+            partition,
+            &self.metrics,
         )))
     }
 

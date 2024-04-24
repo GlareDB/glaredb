@@ -17,6 +17,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream,
     Statistics,
 };
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::StreamExt;
 use mongodb::bson::RawDocumentBuf;
 use mongodb::Collection;
@@ -96,14 +97,14 @@ impl ExecutionPlan for MongoDbInsertExecPlan {
             ));
         }
 
-        let mut stream = execute_stream(self.input.clone(), ctx)?;
+        let mut input = execute_stream(self.input.clone(), ctx)?;
         let coll = self.collection.clone();
 
-        Ok(Box::pin(RecordBatchStreamAdapter::new(
+        let stream = RecordBatchStreamAdapter::new(
             self.input.schema(),
             futures::stream::once(async move {
                 let mut count: u64 = 0;
-                while let Some(batch) = stream.next().await {
+                while let Some(batch) = input.next().await {
                     let rb = batch?;
 
                     let mut docs = Vec::with_capacity(rb.num_rows());
@@ -127,6 +128,12 @@ impl ExecutionPlan for MongoDbInsertExecPlan {
                 }
                 Ok::<RecordBatch, DataFusionError>(create_count_record_batch(count))
             }),
+        );
+
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            stream,
+            partition,
+            &self.metrics,
         )))
     }
 
@@ -135,6 +142,4 @@ impl ExecutionPlan for MongoDbInsertExecPlan {
     }
 
     fn metrics(&self) -> Option<MetricsSet> {
-        Some(self.metrics.clone_inner())
-    }
-}
+     
