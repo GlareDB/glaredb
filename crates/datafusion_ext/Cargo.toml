@@ -35,7 +35,7 @@ bson = "2.10.0"
 
 [dev-dependencies]
 chrono.workspace = true
-ctor = "0.2.7"
+ctor = "0.2.8"
 env_logger = "0.11"
 paste = "^1.0"
 rand = "0.8.5"
