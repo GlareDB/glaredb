@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::arrow::array::{Int32Builder, Int64Builder, StringBuilder};
-use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
 use datafusion_ext::errors::{ExtensionError, Result};
@@ -51,13 +51,15 @@ impl TableFunc for IcebergSnapshots {
             .await
             .map_err(ExtensionError::access)?;
 
-        let snapshots = &table.metadata().snapshots;
-
         let schema = Arc::new(Schema::new(vec![
             Field::new("snapshot_id", DataType::Int64, false),
-            Field::new("timestamp_ms", DataType::Int64, false),
+            Field::new(
+                "timestamp",
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                false,
+            ),
             Field::new("manifest_list", DataType::Utf8, false),
-            Field::new("schema_id", DataType::Int32, false),
+            Field::new("schema_id", DataType::Int32, true),
         ]));
 
         let mut snapshot_id = Int64Builder::new();
@@ -65,11 +67,11 @@ impl TableFunc for IcebergSnapshots {
         let mut manifest_list = StringBuilder::new();
         let mut schema_id = Int32Builder::new();
 
-        for snapshot in snapshots {
-            snapshot_id.append_value(snapshot.snapshot_id);
-            timestamp_ms.append_value(snapshot.timestamp_ms);
-            manifest_list.append_value(&snapshot.manifest_list);
-            schema_id.append_value(snapshot.schema_id);
+        for snapshot in table.metadata().snapshots() {
+            snapshot_id.append_value(snapshot.snapshot_id());
+            timestamp_ms.append_value(snapshot.timestamp().timestamp_millis());
+            manifest_list.append_value(snapshot.manifest_list());
+            schema_id.append_option(snapshot.schema_id());
         }
 
         let batch = RecordBatch::try_new(

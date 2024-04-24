@@ -80,19 +80,21 @@ impl TableFunc for IcebergDataFiles {
         let mut file_size_bytes = Int64Builder::new();
 
         for (idx, manifest) in manifests.into_iter().enumerate() {
-            for entry in manifest.entries {
+            for entry in manifest.entries() {
                 // Manifest metadata
                 manifest_index.append_value(idx as u64);
-                manifest_content.append_value(manifest.metadata.content.to_string());
+                manifest_content.append_value(manifest.metadata().content().to_string());
 
                 // Entry data
-                snapshot_id.append_option(entry.snapshot_id);
-                sequence_number.append_option(entry.sequence_number);
-                file_sequence_number.append_option(entry.file_sequence_number);
-                file_path.append_value(&entry.data_file.file_path);
-                file_format.append_value(&entry.data_file.file_format);
-                record_count.append_value(entry.data_file.record_count);
-                file_size_bytes.append_value(entry.data_file.file_size_in_bytes);
+                snapshot_id.append_option(entry.snapshot_id());
+                sequence_number.append_option(entry.sequence_number());
+                file_sequence_number.append_option(entry.file_sequence_number());
+
+                let data_file = entry.data_file();
+                file_path.append_value(data_file.file_path());
+                file_format.append_value(data_file.file_format().to_string());
+                record_count.append_value(data_file.record_count() as i64);
+                file_size_bytes.append_value(data_file.file_size_in_bytes() as i64);
             }
         }
 
