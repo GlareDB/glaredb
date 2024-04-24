@@ -22,9 +22,9 @@ bytesutil = { path = "../bytesutil" }
 parser = { path = "../parser" }
 pgrepr = { path = "../pgrepr" }
 datafusion_ext = { path = "../datafusion_ext" }
-rustls = "0.22.3"
+rustls = "0.23.5"
 webpki-roots = "0.26.1"
-tokio-rustls = "0.24.1"
+tokio-rustls = "0.26.0"
 rustls-pemfile = "2.1.2"
 tokio-util = { version = "0.7.10", features = ["codec"] }
 tokio-postgres = "0.7.8"

@@ -41,7 +41,7 @@ rand = "0.8.5"
 regex = "1.10.4"
 repr = { path = "../repr" }
 ring = "0.17.8"
-rustls = "0.22.3"
+rustls = "0.23.5"
 reqwest = { workspace = true }
 rust_decimal = { version = "1.35.0", features = ["db-tokio-postgres"] }
 serde = { workspace = true }
@@ -59,7 +59,7 @@ tokio-postgres = { version = "0.7.8", features = [
   "with-chrono-0_4",
 ] }
 parking_lot = "0.12.1"
-tokio-rustls = "0.24.1"
+tokio-rustls = "0.26.0"
 tracing = { workspace = true }
 uuid = "1.8.0"
 url.workspace = true
@@ -77,6 +77,7 @@ glob = "0.3.1"
 indexmap = "2.2.6"
 async-sqlite = "0.2.2"
 json-stream = { git = "https://github.com/tychoish/json-stream", rev = "bd4990fab95f789740a75a8eea98d5dac1f0160a" }
+tokio-postgres-rustls = "0.12.0"
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]

@@ -1,7 +1,6 @@
 pub mod errors;
 
 mod query_exec;
-mod tls;
 
 use std::any::Any;
 use std::borrow::{Borrow, Cow};
@@ -64,6 +63,7 @@ use futures::stream::BoxStream;
 use futures::{ready, FutureExt, Stream, StreamExt};
 use protogen::metastore::types::options::TunnelOptions;
 use protogen::{FromOptionalField, ProtoConvError};
+use rustls::ClientConfig;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
@@ -254,8 +254,15 @@ impl PostgresAccessState {
                 (client, handle)
             }
             SslMode::Prefer => {
-                match tokio_postgres::connect(connection_string, tls::MakeRustlsConnect::default())
-                    .await
+                match tokio_postgres::connect(
+                    connection_string,
+                    tokio_postgres_rustls::MakeRustlsConnect::new(
+                        ClientConfig::builder()
+                            .with_root_certificates(rustls::RootCertStore::empty())
+                            .with_no_client_auth(),
+                    ),
+                )
+                .await
                 {
                     Ok((client, conn)) => {
                         let handle = spawn_conn(conn);
@@ -273,9 +280,15 @@ impl PostgresAccessState {
                 }
             }
             SslMode::Require => {
-                let (client, conn) =
-                    tokio_postgres::connect(connection_string, tls::MakeRustlsConnect::default())
-                        .await?;
+                let (client, conn) = tokio_postgres::connect(
+                    connection_string,
+                    tokio_postgres_rustls::MakeRustlsConnect::new(
+                        ClientConfig::builder()
+                            .with_root_certificates(rustls::RootCertStore::empty())
+                            .with_no_client_auth(),
+                    ),
+                )
+                .await?;
                 let handle = spawn_conn(conn);
                 (client, handle)
             }
@@ -325,8 +338,14 @@ impl PostgresAccessState {
         let tcp_stream = TcpStream::connect(tunnel_addr).await?;
 
         // Rust doesn't feel like type inferring this for us.
-        let tls_connect = <tls::MakeRustlsConnect as MakeTlsConnect<TcpStream>>::make_tls_connect(
-            &mut tls::MakeRustlsConnect::default(),
+        let tls_connect = <tokio_postgres_rustls::MakeRustlsConnect as MakeTlsConnect<
+            TcpStream,
+        >>::make_tls_connect(
+            &mut tokio_postgres_rustls::MakeRustlsConnect::new(
+                ClientConfig::builder()
+                    .with_root_certificates(rustls::RootCertStore::empty())
+                    .with_no_client_auth(),
+            ),
             // TODO: Which host do we want to specify? Since this is being tunneled
             // over ssh, I don't know if SNI actually matters.
             "",
