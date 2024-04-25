@@ -153,34 +153,33 @@ impl ExecutionPlan for LanceInsertExecPlan {
     ) -> datafusion::error::Result<SendableRecordBatchStream> {
         let mut input = execute_stream(self.input.clone(), ctx)?.chunks(32);
         let mut ds = self.dataset.clone();
-        let schema = self.input.schema();
-
-        let stream = RecordBatchStreamAdapter::new(
-            schema.clone(),
-            futures::stream::once(async move {
-                let write_opts = WriteParams {
-                    mode: WriteMode::Append,
-                    ..Default::default()
-                };
-
-                let mut count: u64 = 0;
-                while let Some(batches) = stream.next().await {
-                    let start = ds.count_rows().await?;
-                    let rbi = RecordBatchIterator::new(
-                        batches
-                            .into_iter()
-                            .map(|v| v.map_err(|dfe| ArrowError::ExternalError(Box::new(dfe)))),
-                        schema.clone(),
-                    );
-                    ds.append(rbi, Some(write_opts.clone())).await?;
-                    count += (ds.count_rows().await? - start) as u64;
-                }
-                Ok::<RecordBatch, DataFusionError>(create_count_record_batch(count))
-            }),
-        );
+        let schema = self.input.schema().clone();
 
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
-            stream,
+            RecordBatchStreamAdapter::new(
+                COUNT_SCHEMA.clone(),
+                futures::stream::once(async move {
+                    let write_opts = WriteParams {
+                        mode: WriteMode::Append,
+                        ..Default::default()
+                    };
+
+                    let mut count: u64 = 0;
+                    while let Some(batches) = input.next().await {
+                        let start = ds.count_rows().await?;
+                        let rbi = RecordBatchIterator::new(
+                            batches
+                                .into_iter()
+                                .map(|v| v.map_err(|dfe| ArrowError::ExternalError(Box::new(dfe)))),
+                            schema.clone(),
+                        );
+                        ds.append(rbi, Some(write_opts.clone())).await?;
+                        count += (ds.count_rows().await? - start) as u64;
+                    }
+                    Ok::<RecordBatch, DataFusionError>(create_count_record_batch(count))
+                })
+                .boxed(),
+            ),
             partition,
             &self.metrics,
         )))
