@@ -8,7 +8,7 @@ edition.workspace = true
 [dependencies]
 rayexec_error = { path = '../rayexec_error' }
 rayexec_execution = { path = '../rayexec_execution' }
-sqllogictest = "0.20.1"
+sqllogictest = "0.20.2"
 arrow = { workspace = true }
 env_logger = "0.11.3"
 futures = { workspace = true, features = ["executor"] }
