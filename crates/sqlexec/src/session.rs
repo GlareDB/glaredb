@@ -721,8 +721,11 @@ impl Session {
                                 )),
                             }
                         }
-                        write_result @ ExecutionResult::InsertSuccess { .. }
-                        | write_result @ ExecutionResult::CopySuccess => {
+                        write_result @ ExecutionResult::CreateTable
+                        | write_result @ ExecutionResult::CopySuccess
+                        | write_result @ ExecutionResult::InsertSuccess { .. }
+                        | write_result @ ExecutionResult::UpdateSuccess { .. }
+                        | write_result @ ExecutionResult::DeleteSuccess { .. } => {
                             // Push the metrics from the plan since the stream
                             // is already processed.
                             let agg_metrics = AggregatedMetrics::new_from_plan(plan.as_ref());
