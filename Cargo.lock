@@ -4450,7 +4450,7 @@ dependencies = [
 [[package]]
 name = "iceberg"
 version = "0.2.0"
-source = "git+https://github.com/GlareDB/iceberg-rust.git?rev=f268c56a04ba3282777136315b12e023857dc4a6#f268c56a04ba3282777136315b12e023857dc4a6"
+source = "git+https://github.com/GlareDB/iceberg-rust.git?rev=f16fcc557d1c69f27614578a9d2df6e7d3a54463#f16fcc557d1c69f27614578a9d2df6e7d3a54463"
 dependencies = [
  "anyhow",
  "apache-avro",
@@ -4477,7 +4477,7 @@ dependencies = [
  "opendal",
  "ordered-float 4.2.0",
  "parquet 51.0.0",
- "reqwest 0.12.2",
+ "reqwest 0.12.3",
  "rust_decimal",
  "serde",
  "serde_bytes",

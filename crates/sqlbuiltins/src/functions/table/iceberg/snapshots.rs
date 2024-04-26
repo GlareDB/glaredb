@@ -2,7 +2,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use datafusion::arrow::array::{Int32Builder, Int64Builder, StringBuilder};
+use datafusion::arrow::array::{
+    Int32Builder,
+    Int64Builder,
+    StringBuilder,
+    TimestampMillisecondBuilder,
+};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::{MemTable, TableProvider};
@@ -63,13 +68,13 @@ impl TableFunc for IcebergSnapshots {
         ]));
 
         let mut snapshot_id = Int64Builder::new();
-        let mut timestamp_ms = Int64Builder::new();
+        let mut timestamp = TimestampMillisecondBuilder::new();
         let mut manifest_list = StringBuilder::new();
         let mut schema_id = Int32Builder::new();
 
         for snapshot in table.metadata().snapshots() {
             snapshot_id.append_value(snapshot.snapshot_id());
-            timestamp_ms.append_value(snapshot.timestamp().timestamp_millis());
+            timestamp.append_value(snapshot.timestamp().timestamp_millis());
             manifest_list.append_value(snapshot.manifest_list());
             schema_id.append_option(snapshot.schema_id());
         }
@@ -78,7 +83,7 @@ impl TableFunc for IcebergSnapshots {
             schema.clone(),
             vec![
                 Arc::new(snapshot_id.finish()),
-                Arc::new(timestamp_ms.finish()),
+                Arc::new(timestamp.finish()),
                 Arc::new(manifest_list.finish()),
                 Arc::new(schema_id.finish()),
             ],
