@@ -42,4 +42,4 @@ arrow-cast = { version = "50.0.0" }
 
 # omits duckdb submodule
 lance-linalg = { git = "https://github.com/GlareDB/lance", branch = "df36" }
-datafusion-functions-array = { version = "36.0.0" }
+datafusion-functions-array = { version = "37.1.0" }
