@@ -80,4 +80,4 @@ json-stream = { git = "https://github.com/tychoish/json-stream", rev = "bd4990fa
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
-openssh = "0.10.3"
+openssh = "0.10.4"
