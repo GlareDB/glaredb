@@ -11,5 +11,5 @@ datafusion.workspace = true
 tokio.workspace = true
 futures.workspace = true
 tracing.workspace = true
-parking_lot = "0.12.1"
+parking_lot = "0.12.2"
 async-channel = "2.2.1"

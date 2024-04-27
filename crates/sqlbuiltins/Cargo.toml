@@ -28,18 +28,14 @@ tokio = { workspace = true }
 reqwest = { workspace = true }
 bytes = { workspace = true }
 async-openai = "0.20.0"
-once_cell = "1.19.0"
-num-traits = "0.2.18"
-strum = "0.26.2"
-kdl = "5.0.0-alpha.1"
-siphasher = "1.0.1"
+datafusion-functions-array = "36.0.0"
 fnv = "1.0.7"
+kdl = "5.0.0-alpha.1"
+num-traits = "0.2.18"
+once_cell = "1.19.0"
+siphasher = "1.0.1"
+strum = "0.26.2"
 memoize = { version = "0.4.2", features = ["full"] }
 uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
-
-# MUST synchronize sync with the datafusion::arrow version
-arrow-cast = { version = "50.0.0" }
-
-# omits duckdb submodule
-lance-linalg = { git = "https://github.com/GlareDB/lance", branch = "df36" }
-datafusion-functions-array = { version = "36.0.0" }
+arrow-cast = { version = "50.0.0" } # MUST synchronize sync with the datafusion::arrow version
+lance-linalg = { git = "https://github.com/GlareDB/lance", branch = "df36" } # omits duckdb submodule
