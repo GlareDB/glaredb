@@ -36,6 +36,7 @@ use errors::{ClickhouseError, Result};
 use futures::StreamExt;
 use klickhouse::{Client, ClientOptions, KlickhouseError};
 use rustls::pki_types::ServerName;
+use tokio_rustls::TlsConnector;
 use url::Url;
 
 use self::convert::ConvertStream;
@@ -166,13 +167,7 @@ impl ClickhouseAccessState {
                 ClickhouseError::String(format!("failed to create server name for {conn_str}: {e}"))
             })?;
 
-            Client::connect_tls(
-                host,
-                opts,
-                server_name,
-                &tokio_rustls::TlsConnector::from(config),
-            )
-            .await?
+            Client::connect_tls(host, opts, server_name, &TlsConnector::from(config)).await?
         } else {
             Client::connect(host, opts).await?
         };

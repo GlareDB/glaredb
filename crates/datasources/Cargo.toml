@@ -58,8 +58,8 @@ tokio-postgres = { version = "0.7.8", features = [
   "with-serde_json-1",
   "with-chrono-0_4",
 ] }
-tokio-rustls = "0.26.0"
 parking_lot = "0.12.2"
+tokio-rustls = "0.26.0"
 tracing = { workspace = true }
 uuid = "1.8.0"
 url.workspace = true
