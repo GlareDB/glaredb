@@ -241,6 +241,12 @@ impl PostgresAccessState {
             })
         }
 
+        let mut root_store = rustls::RootCertStore::empty();
+        root_store
+            .roots
+            .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| r.to_owned()));
+
+
         // Configure tls depending on ssl mode.
         //
         // - Disable => no tls
@@ -254,11 +260,17 @@ impl PostgresAccessState {
                 (client, handle)
             }
             SslMode::Prefer => {
+                let mut root_store = rustls::RootCertStore::empty();
+                root_store
+                    .roots
+                    .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| r.to_owned()));
+
+
                 match tokio_postgres::connect(
                     connection_string,
                     tokio_postgres_rustls::MakeRustlsConnect::new(
                         ClientConfig::builder()
-                            .with_root_certificates(rustls::RootCertStore::empty())
+                            .with_root_certificates(root_store)
                             .with_no_client_auth(),
                     ),
                 )
@@ -280,11 +292,16 @@ impl PostgresAccessState {
                 }
             }
             SslMode::Require => {
+                let mut root_store = rustls::RootCertStore::empty();
+                root_store
+                    .roots
+                    .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| r.to_owned()));
+
                 let (client, conn) = tokio_postgres::connect(
                     connection_string,
                     tokio_postgres_rustls::MakeRustlsConnect::new(
                         ClientConfig::builder()
-                            .with_root_certificates(rustls::RootCertStore::empty())
+                            .with_root_certificates(root_store)
                             .with_no_client_auth(),
                     ),
                 )
@@ -337,13 +354,18 @@ impl PostgresAccessState {
 
         let tcp_stream = TcpStream::connect(tunnel_addr).await?;
 
+        let mut root_store = rustls::RootCertStore::empty();
+        root_store
+            .roots
+            .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| r.to_owned()));
+
         // Rust doesn't feel like type inferring this for us.
         let tls_connect = <tokio_postgres_rustls::MakeRustlsConnect as MakeTlsConnect<
             TcpStream,
         >>::make_tls_connect(
             &mut tokio_postgres_rustls::MakeRustlsConnect::new(
                 ClientConfig::builder()
-                    .with_root_certificates(rustls::RootCertStore::empty())
+                    .with_root_certificates(root_store)
                     .with_no_client_auth(),
             ),
             // TODO: Which host do we want to specify? Since this is being tunneled
