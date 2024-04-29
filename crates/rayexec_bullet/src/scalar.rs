@@ -1,6 +1,5 @@
+use crate::field::DataType;
 use std::borrow::Cow;
-
-use crate::datatype::DataType;
 
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq)]

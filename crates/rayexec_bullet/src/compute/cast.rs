@@ -1,6 +1,6 @@
 use crate::{
     array::{Array, OffsetIndex, PrimitiveArray, PrimitiveNumeric, VarlenArray},
-    datatype::DataType,
+    field::DataType,
     scalar::ScalarValue,
 };
 use rayexec_error::{RayexecError, Result};

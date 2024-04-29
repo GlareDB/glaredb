@@ -1,0 +1,6 @@
+[submodule "submodules/arrow"]
+	path = submodules/arrow
+	url = https://github.com/apache/arrow
+[submodule "submodules/parquet-testing"]
+	path = submodules/parquet-testing
+	url = https://github.com/apache/parquet-testing

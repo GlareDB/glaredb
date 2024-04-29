@@ -1,7 +1,6 @@
-use crate::{statement::Statement};
+use crate::statement::Statement;
 
-
-use super::{QueryNode};
+use super::QueryNode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExplainOutput {

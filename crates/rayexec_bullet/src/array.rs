@@ -1,5 +1,5 @@
 use crate::bitmap::Bitmap;
-use crate::datatype::DataType;
+use crate::field::DataType;
 use crate::scalar::ScalarValue;
 use crate::storage::PrimitiveStorage;
 use std::fmt::Debug;

@@ -1,5 +1,5 @@
+use rayexec_error::{RayexecError, Result};
 use std::borrow::BorrowMut;
-use rayexec_error::{ Result, RayexecError };
 
 /// An LSB ordered bitmap.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

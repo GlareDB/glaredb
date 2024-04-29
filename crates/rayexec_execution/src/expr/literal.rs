@@ -1,8 +1,4 @@
-
-
 use super::scalar::ScalarValue;
-
-
 
 use std::fmt;
 

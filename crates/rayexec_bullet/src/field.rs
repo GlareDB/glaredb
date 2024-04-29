@@ -1,5 +1,3 @@
-use std::hash::Hash;
-
 /// All possible data types.
 // TODO: Additional types (compound, decimal, timestamp, etc)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -38,4 +36,12 @@ impl DataType {
                 | Self::UInt64
         )
     }
+}
+
+/// A named field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Field {
+    pub name: String,
+    pub datatype: DataType,
+    pub nullable: bool,
 }

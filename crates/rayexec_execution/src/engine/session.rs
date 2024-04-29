@@ -99,16 +99,13 @@ impl Session {
         let mut logical = plan_context.plan_statement(stmts.next().unwrap())?;
         trace!(?logical, "logical plan created");
 
-        println!("BEFORE: \n{}", logical.root.as_explain_string()?);
         let optimizer = Optimizer::new();
         logical.root = optimizer.optimize(logical.root)?;
-        println!("AFTER: \n{}", logical.root.as_explain_string()?);
 
         let mut output_stream = MaterializedBatchStream::new();
 
         let physical_planner = PhysicalPlanner::try_new_from_vars(&self.vars)?;
         let pipeline = physical_planner.create_plan(logical.root, output_stream.take_sink()?)?;
-        println!("PIPELINE: \n{}", pipeline.as_explain_string()?);
 
         let context = TaskContext {
             modifications: Some(self.modifications.clone_sender()),

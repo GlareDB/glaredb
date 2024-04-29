@@ -22,7 +22,7 @@ futures = "0.3.30"
 hashbrown = "0.14.3"
 once_cell = "1.19.0"
 parking_lot = "0.12"
-parquet = { version = "50.0.0", default-features = false }
+parquet = { version = "51.0.0", default-features = false } # Default features has libc dependency.
 smallvec = "1.13.2"
 rayon = "1.10.0"
 num_cpus = "1.16.0"

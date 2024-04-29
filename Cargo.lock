@@ -234,7 +234,7 @@ dependencies = [
  "arrow-cast",
  "arrow-data",
  "arrow-schema",
- "flatbuffers",
+ "flatbuffers 23.5.26",
  "lz4_flex",
 ]
 
@@ -763,6 +763,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "flatbuffers"
+version = "24.3.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8add37afff2d4ffa83bc748a70b4b1370984f6980768554182424ef71447c35f"
+dependencies = [
+ "bitflags 1.3.2",
+ "rustc_version",
+]
+
+[[package]]
 name = "fs-err"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -877,8 +887,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "190092ea657667030ac6a35e305e62fc4dd69fd98ac98631e5d3a2b1575a12b5"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1340,9 +1352,9 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "50.0.0"
+version = "51.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "547b92ebf0c1177e3892f44c8f79757ee62e678d564a9834189725f2c5b7a750"
+checksum = "096795d4f47f65fd3ee1ec5a98b77ab26d602f2cc785b0e4be5443add17ecc32"
 dependencies = [
  "ahash",
  "bytes",
@@ -1466,6 +1478,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 
 [[package]]
+name = "rayexec_arrow_ipc"
+version = "0.0.1"
+dependencies = [
+ "flatbuffers 24.3.25",
+]
+
+[[package]]
 name = "rayexec_bin"
 version = "0.0.1"
 dependencies = [
@@ -1482,7 +1501,11 @@ dependencies = [
 name = "rayexec_bullet"
 version = "0.0.1"
 dependencies = [
+ "csv-core",
+ "getrandom",
  "num",
+ "parquet",
+ "rayexec_arrow_ipc",
  "rayexec_error",
 ]
 
@@ -1491,6 +1514,7 @@ name = "rayexec_error"
 version = "0.0.1"
 dependencies = [
  "arrow",
+ "parquet",
 ]
 
 [[package]]

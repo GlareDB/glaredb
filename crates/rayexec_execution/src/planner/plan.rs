@@ -158,8 +158,6 @@ impl<'a> PlanContext<'a> {
             projections.append(&mut expanded);
         }
 
-        println!("projs: {projections:?}");
-
         // GROUP BY
         // Aggregates
         // HAVING
