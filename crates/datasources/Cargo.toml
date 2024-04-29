@@ -45,7 +45,7 @@ rustls = "0.23.5"
 reqwest = { workspace = true }
 rust_decimal = { version = "1.35.0", features = ["db-tokio-postgres"] }
 serde = { workspace = true }
-serde_with = "3.7.0"
+serde_with = "3.8.0"
 serde_json = {workspace = true}
 snowflake_connector = { path = "../snowflake_connector" }
 tempfile = { workspace = true }
@@ -58,8 +58,8 @@ tokio-postgres = { version = "0.7.8", features = [
   "with-serde_json-1",
   "with-chrono-0_4",
 ] }
-parking_lot = "0.12.1"
 tokio-rustls = "0.26.0"
+parking_lot = "0.12.2"
 tracing = { workspace = true }
 uuid = "1.8.0"
 url.workspace = true
@@ -81,4 +81,4 @@ tokio-postgres-rustls = "0.12.0"
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
-openssh = "0.10.3"
+openssh = "0.10.4"
