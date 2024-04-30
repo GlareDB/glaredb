@@ -4529,14 +4529,14 @@ dependencies = [
  "opendal",
  "ordered-float 4.2.0",
  "parquet 51.0.0",
- "reqwest 0.12.3",
+ "reqwest 0.12.4",
  "rust_decimal",
  "serde",
  "serde_bytes",
  "serde_derive",
  "serde_json",
  "serde_repr",
- "serde_with 3.7.0",
+ "serde_with 3.8.0",
  "tokio",
  "typed-builder 0.18.2",
  "url",
@@ -6463,16 +6463,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83a0692ec44e4cf1ef28ca317f14f8f07da2d95ec3fa01f86e4467b725e60917"
 dependencies = [
  "digest",
-]
-
-[[package]]
-name = "pbkdf2"
-version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
-dependencies = [
- "digest",
- "hmac",
 ]
 
 [[package]]
