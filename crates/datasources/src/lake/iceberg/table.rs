@@ -14,7 +14,11 @@ use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown, TableType};
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::insert::DataSink;
+use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
+    execute_stream,
     DisplayAs,
     DisplayFormatType,
     ExecutionPlan,
@@ -22,12 +26,23 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream,
     Statistics,
 };
-use futures::StreamExt;
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
+use deltalake::arrow::array::{RecordBatch, UInt64Array};
+use futures::{stream, StreamExt};
 use iceberg::spec::{
+    DataContentType,
+    DataFile,
+    DataFileBuilder,
+    DataFileFormat,
     Manifest,
     ManifestContentType,
+    ManifestEntry,
     ManifestList,
+    ManifestMetadata,
+    ManifestStatus,
+    PartitionSpec,
     SnapshotRef,
+    Struct,
     StructType,
     TableMetadata,
 };
@@ -35,7 +50,9 @@ use object_store::path::Path as ObjectPath;
 use object_store::{ObjectMeta, ObjectStore};
 
 use super::spec::iceberg_schema_to_arrow;
+use crate::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
 use crate::common::url::DatasourceUrl;
+use crate::common::util::COUNT_SCHEMA;
 use crate::lake::iceberg::errors::{IcebergError, Result};
 
 #[derive(Debug)]
@@ -62,7 +79,8 @@ impl IcebergTable {
     /// Read all manifests for the current snapshot according to the currently
     /// loaded table metadata.
     pub async fn read_manifests(&self) -> Result<Vec<Manifest>> {
-        let manifests = self.state.read_manifests().await?;
+        let list = self.state.read_manifest_list().await?;
+        let manifests = self.state.read_manifests(&list).await?;
         Ok(manifests)
     }
 
@@ -202,9 +220,7 @@ impl TableState {
         iceberg_schema_to_arrow(schema.as_ref())
     }
 
-    async fn read_manifests(&self) -> Result<Vec<Manifest>> {
-        let list = self.read_manifest_list().await?;
-
+    async fn read_manifests(&self, list: &ManifestList) -> Result<Vec<Manifest>> {
         let mut manifests = Vec::new();
         for ent in list.entries() {
             let manifest_path = self.resolver.relative_path(&ent.manifest_path);
@@ -340,9 +356,15 @@ impl TableProvider for IcebergTableReader {
 
         // TODO: Collect statistics and pass to exec.
 
+        let manifest_list = self
+            .state
+            .read_manifest_list()
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
         let manifests = self
             .state
-            .read_manifests()
+            .read_manifests(&manifest_list)
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
@@ -404,6 +426,21 @@ impl TableProvider for IcebergTableReader {
             .await?;
 
         Ok(Arc::new(IcebergTableScan { parquet_scan: plan }))
+    }
+
+    async fn insert_into(
+        &self,
+        _state: &SessionState,
+        _input: Arc<dyn ExecutionPlan>,
+        overwrite: bool,
+    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        if overwrite {
+            return Err(DataFusionError::Execution(
+                "insert into iceberg table doesn't support overwrite".to_string(),
+            ));
+        }
+
+        todo!()
     }
 }
 
@@ -473,6 +510,168 @@ impl DisplayAs for IcebergTableScan {
         write!(f, "IcebergTableScan(")?;
         self.parquet_scan.fmt_as(t, f)?;
         write!(f, ")")
+    }
+}
+
+#[derive(Debug)]
+pub struct IcebergTableInsert {
+    state: TableState,
+    input: Arc<dyn ExecutionPlan>,
+    metrics: ExecutionPlanMetricsSet,
+}
+
+impl ExecutionPlan for IcebergTableInsert {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> Arc<ArrowSchema> {
+        COUNT_SCHEMA.clone()
+    }
+
+    fn output_partitioning(&self) -> Partitioning {
+        Partitioning::UnknownPartitioning(1)
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        None
+    }
+
+    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
+        vec![self.input.clone()]
+    }
+
+    fn with_new_children(
+        self: Arc<Self>,
+        mut children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
+        let input = children.pop().ok_or_else(|| {
+            DataFusionError::Execution("expected 1 child for iceberg table insert".to_string())
+        })?;
+
+        if children.is_empty() {
+            Ok(Arc::new(Self {
+                input,
+                state: self.state.clone(),
+                metrics: self.metrics.clone(),
+            }))
+        } else {
+            Err(DataFusionError::Execution(
+                "expected 1 child for iceberg table insert".to_string(),
+            ))
+        }
+    }
+
+    fn execute(
+        &self,
+        partition: usize,
+        context: Arc<TaskContext>,
+    ) -> DataFusionResult<SendableRecordBatchStream> {
+        if partition != 0 {
+            return Err(DataFusionError::Execution(
+                "expected only 1 partition for iceberg table insert".to_string(),
+            ));
+        }
+
+        let path = "insert-file.parquet"; // FIXME: Generate file name.
+        let object_path = format_object_path(&self.state.location, path)?;
+
+        if let DatasourceUrl::File(fp) = &self.state.location {
+            // Create the file since local object store doesn't create on its own.
+            let fp = fp.join(path);
+            std::fs::File::create(fp)?;
+        }
+
+        let store = self.state.store.clone();
+        let sink = ParquetSink::from_obj_store(
+            store.clone(),
+            object_path.clone(),
+            ParquetSinkOpts::default(),
+        );
+
+        let input = execute_stream(self.input.clone(), context.clone())?;
+
+        let state = self.state.clone();
+        let metadata = self.state.metadata.clone();
+
+        let stream = stream::once(async move {
+            let manifest_list = state
+                .read_manifest_list()
+                .await
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+            let mut manifests = state
+                .read_manifests(&manifest_list)
+                .await
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+            // TODO: Maybe don't use default?
+            let partition_spec = metadata.default_partition_spec().ok_or_else(|| {
+                DataFusionError::Execution("missing default parition spec".to_string())
+            })?;
+
+            let inserted = sink
+                .write_all(input, &context)
+                .await
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+            let object_meta = store.head(&object_path).await?;
+
+            let data_file = DataFileBuilder::default()
+                .content(DataContentType::Data)
+                .file_path(object_path.to_string())
+                .file_format(DataFileFormat::Parquet)
+                .partition(Struct::empty()) // TODO: Partition?
+                .record_count(inserted)
+                .file_size_in_bytes(object_meta.size as u64)
+                .build()
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+            let manifest_entry = ManifestEntry::builder()
+                .status(ManifestStatus::Added)
+                .data_file(data_file)
+                .build();
+
+            let current_schema = metadata.current_schema();
+            let manifest_meta = ManifestMetadata::builder()
+                .schema(current_schema.as_ref().clone())
+                .schema_id(current_schema.schema_id())
+                .format_version(metadata.format_version())
+                .content(ManifestContentType::Data)
+                .partition_spec(PartitionSpec::clone(partition_spec.as_ref()))
+                .build();
+
+            let manifest = Manifest::new(manifest_meta, vec![manifest_entry]);
+            let manifest = manifest
+                .into_avro_bytes()
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+            let manifest_path = "insert-manifest.avro";
+            let manifest_obj_path = format_object_path(&state.location, manifest_path)?;
+            store.put(&manifest_obj_path, manifest.into()).await?;
+
+            let inserted = UInt64Array::from_iter_values([inserted]);
+            Ok(RecordBatch::try_new(
+                COUNT_SCHEMA.clone(),
+                vec![Arc::new(inserted)],
+            )?)
+        });
+
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            RecordBatchStreamAdapter::new(COUNT_SCHEMA.clone(), Box::pin(stream)),
+            0,
+            &self.metrics,
+        )))
+    }
+
+    fn statistics(&self) -> DataFusionResult<Statistics> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
+    }
+}
+
+impl DisplayAs for IcebergTableInsert {
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "IcebergTableInsert")
     }
 }
 

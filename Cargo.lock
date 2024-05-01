@@ -4502,7 +4502,6 @@ dependencies = [
 [[package]]
 name = "iceberg"
 version = "0.2.0"
-source = "git+https://github.com/GlareDB/iceberg-rust.git?rev=f16fcc557d1c69f27614578a9d2df6e7d3a54463#f16fcc557d1c69f27614578a9d2df6e7d3a54463"
 dependencies = [
  "anyhow",
  "apache-avro",
