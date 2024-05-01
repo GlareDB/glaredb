@@ -28,10 +28,9 @@ use datafusion::physical_plan::{
 };
 use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use deltalake::arrow::array::{RecordBatch, UInt64Array};
-use futures::{stream, StreamExt};
+use futures::StreamExt;
 use iceberg::spec::{
     DataContentType,
-    DataFile,
     DataFileBuilder,
     DataFileFormat,
     Manifest,
@@ -232,6 +231,12 @@ impl TableState {
             manifests.push(manifest);
         }
 
+        let path = format_object_path(&self.location, "metadata/insert-manifest.avro")?;
+        let bs = self.store.get(&path).await?.bytes().await?;
+
+        let manifest = Manifest::parse_avro(&bs)?;
+        manifests.push(manifest);
+
         Ok(manifests)
     }
 
@@ -431,7 +436,7 @@ impl TableProvider for IcebergTableReader {
     async fn insert_into(
         &self,
         _state: &SessionState,
-        _input: Arc<dyn ExecutionPlan>,
+        input: Arc<dyn ExecutionPlan>,
         overwrite: bool,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         if overwrite {
@@ -440,7 +445,11 @@ impl TableProvider for IcebergTableReader {
             ));
         }
 
-        todo!()
+        Ok(Arc::new(IcebergTableInsert {
+            state: self.state.clone(),
+            input,
+            metrics: ExecutionPlanMetricsSet::new(),
+        }))
     }
 }
 
@@ -573,7 +582,7 @@ impl ExecutionPlan for IcebergTableInsert {
             ));
         }
 
-        let path = "insert-file.parquet"; // FIXME: Generate file name.
+        let path = "data/insert-file.parquet"; // FIXME: Generate file name.
         let object_path = format_object_path(&self.state.location, path)?;
 
         if let DatasourceUrl::File(fp) = &self.state.location {
@@ -594,17 +603,7 @@ impl ExecutionPlan for IcebergTableInsert {
         let state = self.state.clone();
         let metadata = self.state.metadata.clone();
 
-        let stream = stream::once(async move {
-            let manifest_list = state
-                .read_manifest_list()
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-            let mut manifests = state
-                .read_manifests(&manifest_list)
-                .await
-                .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
+        let insert_stream = futures::stream::once(async move {
             // TODO: Maybe don't use default?
             let partition_spec = metadata.default_partition_spec().ok_or_else(|| {
                 DataFusionError::Execution("missing default parition spec".to_string())
@@ -619,7 +618,7 @@ impl ExecutionPlan for IcebergTableInsert {
 
             let data_file = DataFileBuilder::default()
                 .content(DataContentType::Data)
-                .file_path(object_path.to_string())
+                .file_path(path.to_string())
                 .file_format(DataFileFormat::Parquet)
                 .partition(Struct::empty()) // TODO: Partition?
                 .record_count(inserted)
@@ -646,8 +645,15 @@ impl ExecutionPlan for IcebergTableInsert {
                 .into_avro_bytes()
                 .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
-            let manifest_path = "insert-manifest.avro";
+            let manifest_path = "metadata/insert-manifest.avro";
             let manifest_obj_path = format_object_path(&state.location, manifest_path)?;
+
+            if let DatasourceUrl::File(fp) = &state.location {
+                // Create the file since local object store doesn't create on its own.
+                let fp = fp.join(manifest_path);
+                std::fs::File::create(fp)?;
+            }
+
             store.put(&manifest_obj_path, manifest.into()).await?;
 
             let inserted = UInt64Array::from_iter_values([inserted]);
@@ -658,8 +664,8 @@ impl ExecutionPlan for IcebergTableInsert {
         });
 
         Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
-            RecordBatchStreamAdapter::new(COUNT_SCHEMA.clone(), Box::pin(stream)),
-            0,
+            RecordBatchStreamAdapter::new(self.schema(), insert_stream.boxed()),
+            partition,
             &self.metrics,
         )))
     }
