@@ -55,6 +55,9 @@ pub enum PostgresError {
     SshKey(#[from] crate::common::ssh::key::SshKeyError),
     #[error(transparent)]
     SshTunnel(#[from] crate::common::ssh::session::SshTunnelError),
+
+    #[error(transparent)]
+    InvalidDnsName(#[from] rustls::pki_types::InvalidDnsNameError),
 }
 
 pub type Result<T, E = PostgresError> = std::result::Result<T, E>;

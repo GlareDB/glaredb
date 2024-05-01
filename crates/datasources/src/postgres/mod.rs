@@ -1,7 +1,6 @@
 pub mod errors;
 
 mod query_exec;
-mod tls;
 
 use std::any::Any;
 use std::borrow::{Borrow, Cow};
@@ -64,6 +63,7 @@ use futures::stream::BoxStream;
 use futures::{ready, FutureExt, Stream, StreamExt};
 use protogen::metastore::types::options::TunnelOptions;
 use protogen::{FromOptionalField, ProtoConvError};
+use rustls::ClientConfig;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
@@ -241,6 +241,12 @@ impl PostgresAccessState {
             })
         }
 
+        let mut root_store = rustls::RootCertStore::empty();
+        root_store
+            .roots
+            .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| r.to_owned()));
+
+
         // Configure tls depending on ssl mode.
         //
         // - Disable => no tls
@@ -254,8 +260,21 @@ impl PostgresAccessState {
                 (client, handle)
             }
             SslMode::Prefer => {
-                match tokio_postgres::connect(connection_string, tls::MakeRustlsConnect::default())
-                    .await
+                let mut root_store = rustls::RootCertStore::empty();
+                root_store
+                    .roots
+                    .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| r.to_owned()));
+
+
+                match tokio_postgres::connect(
+                    connection_string,
+                    tokio_postgres_rustls::MakeRustlsConnect::new(
+                        ClientConfig::builder()
+                            .with_root_certificates(root_store)
+                            .with_no_client_auth(),
+                    ),
+                )
+                .await
                 {
                     Ok((client, conn)) => {
                         let handle = spawn_conn(conn);
@@ -273,9 +292,20 @@ impl PostgresAccessState {
                 }
             }
             SslMode::Require => {
-                let (client, conn) =
-                    tokio_postgres::connect(connection_string, tls::MakeRustlsConnect::default())
-                        .await?;
+                let mut root_store = rustls::RootCertStore::empty();
+                root_store
+                    .roots
+                    .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| r.to_owned()));
+
+                let (client, conn) = tokio_postgres::connect(
+                    connection_string,
+                    tokio_postgres_rustls::MakeRustlsConnect::new(
+                        ClientConfig::builder()
+                            .with_root_certificates(root_store)
+                            .with_no_client_auth(),
+                    ),
+                )
+                .await?;
                 let handle = spawn_conn(conn);
                 (client, handle)
             }
@@ -322,15 +352,17 @@ impl PostgresAccessState {
             })
         }
 
-        let tcp_stream = TcpStream::connect(tunnel_addr).await?;
+        let mut root_store = rustls::RootCertStore::empty();
+        root_store
+            .roots
+            .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| r.to_owned()));
 
-        // Rust doesn't feel like type inferring this for us.
-        let tls_connect = <tls::MakeRustlsConnect as MakeTlsConnect<TcpStream>>::make_tls_connect(
-            &mut tls::MakeRustlsConnect::default(),
-            // TODO: Which host do we want to specify? Since this is being tunneled
-            // over ssh, I don't know if SNI actually matters.
-            "",
-        )?;
+
+        let tcp_stream = TcpStream::connect(tunnel_addr).await?;
+        let mut tls_conf = ClientConfig::builder()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+        tls_conf.enable_sni = false;
 
         // Configure tls depending on ssl mode.
         //
@@ -338,39 +370,67 @@ impl PostgresAccessState {
         // - Prefer => try tls, fallback to no tls on connection error
         // - Require => try tls, no fallback
         // - Any other => return unsupported
-        let (client, handle) = match config.get_ssl_mode() {
+        Ok(match config.get_ssl_mode() {
             SslMode::Disable => {
                 let (client, conn) = config.connect_raw(tcp_stream, NoTls).await?;
                 let handle = spawn_conn(conn, session);
                 (client, handle)
             }
             SslMode::Prefer => {
-                match config.connect_raw(tcp_stream, tls_connect).await {
-                    Ok((client, conn)) => {
-                        let handle = spawn_conn(conn, session);
-                        (client, handle)
-                    }
-                    Err(e) => {
+                // Rust doesn't feel like type inferring this for us.
+                match <tokio_postgres_rustls::MakeRustlsConnect as MakeTlsConnect<
+                    TcpStream,
+                >>::make_tls_connect(
+                    &mut tokio_postgres_rustls::MakeRustlsConnect::new(tls_conf),
+                    // TODO: Which host do we want to specify? Since this is being tunneled
+                    // over ssh, I don't know if SNI actually matters.
+                    "",
+                ) {
+		    Ok(tls_connect) => match config.connect_raw(tcp_stream, tls_connect).await {
+			Ok((client, conn)) => {
+                            let handle = spawn_conn(conn, session);
+                            (client, handle)
+			}
+			Err(e) => {
+                            // The tokio postgres lib does discriminate between tls
+                            // and other errors, but that's not made public.
+                            debug!(%e, "pg conn falling back to no tls");
+                            // Reconnect to get a fresh stream.
+                            let tcp_stream = TcpStream::connect(tunnel_addr).await?;
+                            let (client, conn) = config.connect_raw(tcp_stream, NoTls).await?;
+                            let handle = spawn_conn(conn, session);
+                            (client, handle)
+			}
+                    },
+		    Err(e) => {
                         // The tokio postgres lib does discriminate between tls
                         // and other errors, but that's not made public.
-                        debug!(%e, "pg conn falling back to no tls");
+                        debug!(%e, "cert for pg conn falling back to no tls");
                         // Reconnect to get a fresh stream.
                         let tcp_stream = TcpStream::connect(tunnel_addr).await?;
                         let (client, conn) = config.connect_raw(tcp_stream, NoTls).await?;
                         let handle = spawn_conn(conn, session);
-                        (client, handle)
-                    }
-                }
+			(client, handle)
+		    }
+		}
             }
             SslMode::Require => {
+                // Rust doesn't feel like type inferring this for us.
+                let tls_connect = <tokio_postgres_rustls::MakeRustlsConnect as MakeTlsConnect<
+                    TcpStream,
+                >>::make_tls_connect(
+                    &mut tokio_postgres_rustls::MakeRustlsConnect::new(tls_conf),
+                    // TODO: Which host do we want to specify? Since this is being tunneled
+                    // over ssh, I don't know if SNI actually matters.
+                    "",
+                )?;
+
                 let (client, conn) = config.connect_raw(tcp_stream, tls_connect).await?;
                 let handle = spawn_conn(conn, session);
                 (client, handle)
             }
             other => return Err(PostgresError::UnsupportSslMode(other)),
-        };
-
-        Ok((client, handle))
+        })
     }
 
     async fn get_table_schema(

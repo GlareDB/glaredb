@@ -35,7 +35,7 @@ use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use errors::{ClickhouseError, Result};
 use futures::StreamExt;
 use klickhouse::{Client, ClientOptions, KlickhouseError};
-use rustls::ServerName;
+use rustls::pki_types::ServerName;
 use tokio_rustls::TlsConnector;
 use url::Url;
 
@@ -150,28 +150,22 @@ impl ClickhouseAccessState {
             // authentication failure). Currently the error is 'Error: protocol
             // error: failed to receive blocks from upstream: channel closed'
             let mut root_store = rustls::RootCertStore::empty();
-
-            root_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| {
-                rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
-                    r.subject.to_vec(),
-                    r.subject_public_key_info.to_vec(),
-                    r.name_constraints.clone().map(|f| f.to_vec()),
-                )
-            }));
+            root_store
+                .roots
+                .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| r.to_owned()));
 
             let config = Arc::new(
                 rustls::ClientConfig::builder()
-                    .with_safe_defaults()
                     .with_root_certificates(root_store)
                     .with_no_client_auth(),
             );
 
-            let server_name = ServerName::try_from(conn_str.host_str().unwrap_or_default())
-                .map_err(|e| {
-                    ClickhouseError::String(format!(
-                        "failed to create server name for {conn_str}: {e}"
-                    ))
-                })?;
+            let server_name = ServerName::try_from(
+                conn_str.host_str().unwrap_or_default().to_owned(),
+            )
+            .map_err(|e| {
+                ClickhouseError::String(format!("failed to create server name for {conn_str}: {e}"))
+            })?;
 
             Client::connect_tls(host, opts, server_name, &TlsConnector::from(config)).await?
         } else {
