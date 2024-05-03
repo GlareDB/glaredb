@@ -58,7 +58,7 @@ CREATE EXTERNAL TABLE external_table
 	);
 
 query I
-SELECT * FROM external_table ORDER BY station_id LIMIT 2; 
+SELECT * FROM external_table ORDER BY station_id LIMIT 2;
 ----
 0
 11
@@ -77,12 +77,12 @@ CREATE EXTERNAL TABLE magic_test
 		table = 'minimal_test',
 	)
 	COLUMNS (
-		id int, 
+		id int,
 		power int,
 	);
 
 query I
-SELECT * FROM magic_test  ORDER BY id LIMIT 2; 
+SELECT * FROM magic_test  ORDER BY id LIMIT 2;
 ----
 1 2
 2 4
@@ -100,14 +100,14 @@ CREATE EXTERNAL TABLE magic_test_type_error
 		table = 'minimal_test',
 	)
 	COLUMNS (
-		id int, 
+		id int,
 		ordinal int,
 		power text,
 	);
 
 statement error
-SELECT * FROM magic_test_type_error ORDER BY id LIMIT 2; 
+SELECT * FROM magic_test_type_error ORDER BY id LIMIT 2;
 
 query I
-SELECT * FROM magic_test WHERE power = 42; 
+SELECT * FROM magic_test WHERE power = 42;
 ----

@@ -62,7 +62,7 @@ INSERT INTO datatypes (
 -- bikeshare_stations table for testing datasources.
 CREATE TABLE IF NOT EXISTS bikeshare_stations (
     station_id        INT,
-    name              TEXT, 
+    name              TEXT,
     status            TEXT,
     address           TEXT,
     alternate_name    TEXT,
@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS minimal_test (
     ordinal   TEXT,
     fib       INT,
     power     INT,
-    answer    BIGINT,
+    answer    INT
 );
 
 INSERT INTO minimal_test VALUES (1, 'first', 1, 2, 42);
@@ -109,4 +109,3 @@ INSERT INTO minimal_test VALUES (3, 'third', 2, 8, 168);
 INSERT INTO minimal_test VALUES (4, 'fourth', 3, 16, 336);
 INSERT INTO minimal_test VALUES (5, 'fifth', 5, 32, 336);
 INSERT INTO minimal_test VALUES (6, 'sixth', 5, 64, 672);
-
