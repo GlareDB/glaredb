@@ -62,3 +62,52 @@ SELECT * FROM external_table ORDER BY station_id LIMIT 2;
 ----
 0
 11
+
+
+statement ok
+CREATE EXTERNAL TABLE magic_test
+	FROM postgres
+	OPTIONS (
+		host = 'localhost',
+		port = '5433',
+		user = 'glaredb',
+		password = 'password',
+		database = 'glaredb_test',
+		schema = 'public',
+		table = 'minimal_test',
+	)
+	COLUMNS (
+		id int, 
+		power int,
+	);
+
+query I
+SELECT * FROM magic_test  ORDER BY id LIMIT 2; 
+----
+1 2
+2 4
+
+statement ok
+CREATE EXTERNAL TABLE magic_test_type_error
+	FROM postgres
+	OPTIONS (
+		host = 'localhost',
+		port = '5433',
+		user = 'glaredb',
+		password = 'password',
+		database = 'glaredb_test',
+		schema = 'public',
+		table = 'minimal_test',
+	)
+	COLUMNS (
+		id int, 
+		ordinal int,
+		power text,
+	);
+
+statement error
+SELECT * FROM magic_test_type_error ORDER BY id LIMIT 2; 
+
+query I
+SELECT * FROM magic_test WHERE power = 42; 
+----
