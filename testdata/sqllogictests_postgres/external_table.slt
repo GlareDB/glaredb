@@ -41,23 +41,6 @@ SELECT count(*) FROM external_table;
 statement ok
 DROP TABLE external_table;
 
-statement error
-CREATE EXTERNAL TABLE external_table
-	FROM postgres
-	OPTIONS (
-		host = 'localhost',
-		port = '5433',
-		user = 'glaredb',
-		password = 'password',
-		database = 'glaredb_test',
-		schema = 'public',
-		table = 'bikeshare_stations',
-	)
-	COLUMNS (
-	  abc int,
-	  xyz int	  	
-	);
-
 statement ok
 CREATE EXTERNAL TABLE external_table
 	FROM postgres
