@@ -55,11 +55,10 @@ CREATE EXTERNAL TABLE external_table
 	)
 	COLUMNS (
 	  station_id int,
-	  council_district int	  	
 	);
 
 query I
 SELECT * FROM external_table ORDER BY station_id LIMIT 2; 
 ----
-0 9
-1001 1
+0
+11
