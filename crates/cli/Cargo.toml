@@ -42,7 +42,7 @@ terminal_util = { path = "../terminal_util" }
 
 num_cpus = "1.16.0"
 colored = "2.1.0"
-reedline = "0.31.0"
+reedline = "0.32.0"
 nu-ansi-term = "0.50.0"
 atty = "0.2.14"
 console-subscriber = "0.2.0"
