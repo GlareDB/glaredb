@@ -162,6 +162,7 @@ impl<'a> ExternalDispatcher<'a> {
                     access,
                     schema: schema.to_owned(),
                     table: name.to_owned(),
+                    fields: None,
                 };
                 let prov = PostgresTableProvider::try_new(prov_conf).await?;
                 Ok(Arc::new(prov))
@@ -428,6 +429,9 @@ impl<'a> ExternalDispatcher<'a> {
         tunnel: Option<TunnelOptions>,
         schema: Option<Schema>,
     ) -> Result<Arc<dyn TableProvider>> {
+        // TODO: possibly true that if you have a schema for provider
+        // that doesn't support it, the schema would be ignored.
+
         match &opts {
             TableOptionsV0::Debug(TableOptionsDebug { table_type }) => {
                 let provider = DebugTableType::from_str(table_type)?;
@@ -454,14 +458,20 @@ impl<'a> ExternalDispatcher<'a> {
 
             TableOptionsV0::Postgres(TableOptionsPostgres {
                 connection_string,
-                schema,
+                schema: pg_schema,
                 table,
             }) => {
                 let access = PostgresAccess::new_from_conn_str(connection_string, tunnel);
                 let prov_conf = PostgresTableProviderConfig {
                     access,
-                    schema: schema.to_owned(),
+                    schema: pg_schema.to_owned(),
                     table: table.to_owned(),
+                    fields: schema.map(|s| {
+                        s.all_fields()
+                            .into_iter()
+                            .map(|f| Arc::new(f.to_owned()))
+                            .collect()
+                    }),
                 };
                 let prov = PostgresTableProvider::try_new(prov_conf).await?;
                 Ok(Arc::new(prov))

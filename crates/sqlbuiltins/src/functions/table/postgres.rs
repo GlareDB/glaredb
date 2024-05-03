@@ -59,6 +59,7 @@ impl TableFunc for ReadPostgres {
                     access,
                     schema,
                     table,
+                    fields: None,
                 };
                 let prov = PostgresTableProvider::try_new(prov_conf)
                     .await
