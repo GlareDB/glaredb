@@ -84,15 +84,11 @@ impl SessionCatalog {
     pub fn new_with_alias(
         state: Arc<CatalogState>,
         resolve_conf: ResolveConfig,
-        alias: String,
+        alias: impl Into<String>,
     ) -> SessionCatalog {
-        let catalog = Self::new(state, resolve_conf);
-        catalog.with_alias(alias)
-    }
-
-    pub fn with_alias(mut self, alias: String) -> SessionCatalog {
-        self.alias = Some(alias);
-        self
+        let mut catalog = Self::new(state, resolve_conf);
+        catalog.alias = Some(alias.into());
+        catalog
     }
 
     pub fn alias(&self) -> Option<&str> {
