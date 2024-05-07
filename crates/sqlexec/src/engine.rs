@@ -496,27 +496,14 @@ impl Engine {
             .storage
             .new_native_tables_storage(database_id, &storage)?;
         let state = metastore.get_cached_state().await?;
-        let mut catalog = SessionCatalog::new(
+        let catalog = SessionCatalog::new_with_alias(
             state,
             ResolveConfig {
                 default_schema_oid: SCHEMA_DEFAULT.oid,
                 session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
             },
+            vars.database_name(),
         );
-
-        // If the database name is in the form of `<UUID>/<db_id>`, then we
-        // should use the <db_id> as the alias for the database.
-        let database_name = vars.database_name();
-        if let Some(db_id) = database_name
-            .split_once('/')
-            // check if the first part is a valid UUID
-            .and_then(|(org_id, db_id)| Uuid::parse_str(org_id).ok().map(|_| db_id))
-        {
-            catalog = catalog.with_alias(db_id.to_string());
-        // else, we should use the entire database name as the alias if it's not empty
-        } else if !database_name.is_empty() {
-            catalog = catalog.with_alias(database_name);
-        }
 
         Session::new(
             vars,
