@@ -9959,7 +9959,7 @@ dependencies = [
  "anyhow",
  "clap",
  "xshell",
- "zip 1.1.1",
+ "zip 1.1.3",
 ]
 
 [[package]]
@@ -10086,9 +10086,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "1.1.1"
+version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2655979068a1f8fa91cb9e8e5b9d3ee54d18e0ddc358f2f4a395afc0929a84b"
+checksum = "2e6cb8909b2e8e6733c9ef67d35be1a27105644d362aafb5f8b2ba395727adf6"
 dependencies = [
  "aes",
  "arbitrary",
