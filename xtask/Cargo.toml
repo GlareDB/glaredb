@@ -10,4 +10,4 @@ workspace = true
 anyhow = { workspace = true }
 clap = { workspace = true }
 xshell = "0.2.6"
-zip = "1.1.1"
+zip = "1.1.3"
