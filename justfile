@@ -5,6 +5,7 @@ export PROTOC := justfile_directory() + "/deps/protoc/bin/protoc"
 alias py := python
 alias js := javascript
 alias slt := sql-logic-tests
+alias unit-tests := test
 
 os_arch := os() + '-' + arch()
 
@@ -55,10 +56,6 @@ dist triple=target_triple: protoc
 # Run tests with arbitrary arguments.
 test *args: protoc
   cargo test {{args}}
-
-# Run unit tests.
-unit-tests *args: protoc
-  just test --workspace {{args}}
 
 # Run doc tests.
 doc-tests: protoc

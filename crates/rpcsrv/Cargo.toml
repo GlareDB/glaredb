@@ -6,6 +6,10 @@ edition.workspace = true
 [lints]
 workspace = true
 
+[lib]
+# no doctests currently implemented in this package; skip, then
+doctest = false
+
 [dependencies]
 arrow-flight = { workspace = true  }
 async-trait = { workspace = true }
@@ -24,7 +28,6 @@ protogen = { path = "../protogen" }
 proxyutil = { path = "../proxyutil" }
 sqlexec = { path = "../sqlexec" }
 telemetry = { path = "../telemetry" }
-
 
 base64 = "0.22.1"
 bytes = "1.6"

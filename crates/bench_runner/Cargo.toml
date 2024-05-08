@@ -6,6 +6,10 @@ edition = { workspace = true }
 [lints]
 workspace = true
 
+[[bin]]
+name = "bench_runner"
+test = false
+
 [dependencies]
 logutil = {path = "../logutil"}
 cli = {path = "../cli"}
