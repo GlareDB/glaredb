@@ -6,6 +6,12 @@ edition = {workspace = true}
 [lints]
 workspace = true
 
+[[bin]]
+name = "pgprototest"
+# no tests currently implemented in this package; skip, then
+doctest = false
+test = false 
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }

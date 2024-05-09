@@ -6,6 +6,10 @@ edition = {workspace = true}
 [lints]
 workspace = true
 
+[lib]
+# no doctests currently implemented in this package; skip, then
+doctest = false
+
 [dependencies]
 thiserror.workspace = true
 datafusion = {workspace = true}

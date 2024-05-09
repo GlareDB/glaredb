@@ -6,6 +6,12 @@ edition = "2021"
 [lints]
 workspace = true
 
+[[bin]]
+name = "xtask"
+# no tests currently implemented in this package; skip, then
+doctest = false
+test = false
+
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }

@@ -1987,7 +1987,6 @@ version = "0.9.2"
 dependencies = [
  "anyhow",
  "arrow_util",
- "assert_cmd",
  "atty",
  "built",
  "clap",
@@ -2008,7 +2007,6 @@ dependencies = [
  "parser",
  "pgrepr",
  "pgsrv",
- "predicates",
  "protogen",
  "proxyutil",
  "reedline",
@@ -7273,6 +7271,16 @@ dependencies = [
  "rustc_version 0.4.0",
  "syn 2.0.58",
  "unicode-ident",
+]
+
+[[package]]
+name = "rstests"
+version = "0.9.2"
+dependencies = [
+ "assert_cmd",
+ "predicates",
+ "tempfile",
+ "tokio-postgres",
 ]
 
 [[package]]
