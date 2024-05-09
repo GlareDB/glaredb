@@ -6,6 +6,10 @@ edition = { workspace = true }
 [lints]
 workspace = true
 
+[lib]
+# no doctests currently implemented in this package; skip, then
+doctest = false
+
 [dependencies]
 ioutil = { path = "../ioutil" }
 logutil = { path = "../logutil" }
@@ -22,7 +26,7 @@ datafusion = { workspace = true }
 decimal = { path = "../decimal" }
 deltalake = { workspace = true }
 futures = { workspace = true }
-gcp-bigquery-client = "0.18.0"
+gcp-bigquery-client = "0.20.0"
 klickhouse = { version = "0.12.0", features = ["tls"] }
 protogen = { path = "../protogen" }
 parser = {path = "../parser"}
@@ -45,7 +49,7 @@ rustls = "0.23.5"
 reqwest = { workspace = true }
 rust_decimal = { version = "1.35.0", features = ["db-tokio-postgres"] }
 serde = { workspace = true }
-serde_with = "3.8.0"
+serde_with = "3.8.1"
 serde_json = {workspace = true}
 snowflake_connector = { path = "../snowflake_connector" }
 tempfile = { workspace = true }

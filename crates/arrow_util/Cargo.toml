@@ -6,6 +6,10 @@ edition.workspace = true
 [lints]
 workspace = true
 
+[lib]
+# no doctests currently implemented in this package; skip, then
+doctest = false
+
 [dependencies]
 datafusion = { workspace = true }
 comfy-table = { version = "7.1.1", default-features = false }

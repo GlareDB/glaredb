@@ -1,6 +1,6 @@
 [workspace]
-members = ["crates/*", "xtask", "bindings/*"]
-default-members = ["crates/*", "xtask"]
+members = ["crates/*", "xtask", "bindings/*", "rstests"]
+default-members = ["crates/*", "xtask", "rstests"]
 resolver = "2"
 
 [workspace.package]

@@ -6,6 +6,12 @@ edition.workspace = true
 [lints]
 workspace = true
 
+
+[lib]
+# no tests currently implemented in this package; skip, then
+doctest = false
+test = false 
+
 [dependencies]
 datafusion = { workspace = true }
 logutil = { path = "../logutil" }

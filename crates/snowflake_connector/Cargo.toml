@@ -6,6 +6,11 @@ edition = { workspace = true }
 [lints]
 workspace = true
 
+[lib]
+# no tests currently implemented in this package; skip, then
+doctest = false
+test = false
+
 [dependencies]
 thiserror.workspace = true
 reqwest = { workspace = true }
@@ -16,9 +21,9 @@ chrono = { workspace = true }
 uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 datafusion = { workspace = true }
 hex = "0.4.3"
-base64 = "0.22.0"
+base64 = "0.22.1"
 bytes = "1.6.0"
-flate2 = "1.0.29"
+flate2 = "1.0.30"
 decimal = { path = "../decimal" }
 
 [dev-dependencies]
