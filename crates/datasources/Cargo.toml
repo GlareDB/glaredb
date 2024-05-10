@@ -27,7 +27,7 @@ decimal = { path = "../decimal" }
 deltalake = { workspace = true }
 futures = { workspace = true }
 gcp-bigquery-client = "0.20.0"
-klickhouse = { version = "0.12.0", features = ["tls"] }
+klickhouse = { version = "0.13.0", features = ["tls"] }
 protogen = { path = "../protogen" }
 parser = {path = "../parser"}
 datafusion_ext = { path = "../datafusion_ext" }
