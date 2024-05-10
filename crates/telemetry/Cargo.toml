@@ -13,7 +13,7 @@ test = false
 
 [dependencies]
 tracing = { workspace = true }
-segment = "0.2.3"
+segment = "0.2.4"
 tokio = { workspace = true }
 uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 serde_json = { workspace = true }
