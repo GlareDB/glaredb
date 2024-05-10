@@ -2891,7 +2891,7 @@ dependencies = [
  "bytes",
  "calamine",
  "chrono",
- "chrono-tz 0.8.6",
+ "chrono-tz 0.9.0",
  "datafusion",
  "datafusion_ext",
  "decimal",
