@@ -1,15 +1,12 @@
-use arrow::{
-    array::StringArray,
-    datatypes::DataType,
-    util::display::{ArrayFormatter, FormatOptions},
-};
 use async_trait::async_trait;
 use futures::StreamExt;
-use rayexec_error::{RayexecError, Result};
-use rayexec_execution::{
-    engine::{session::Session, Engine},
-    types::batch::{DataBatch, DataBatchSchema},
+use rayexec_bullet::{
+    batch::Batch,
+    field::{DataType, Schema},
+    format::{FormatOptions, Formatter},
 };
+use rayexec_error::{RayexecError, Result};
+use rayexec_execution::engine::{session::Session, Engine};
 use sqllogictest::DefaultColumnType;
 use std::path::PathBuf;
 use tracing::{debug, info};
@@ -72,56 +69,35 @@ impl sqllogictest::AsyncDB for TestSession {
     }
 }
 
-/// String representing null values in the ouput.
-const NULL_STR: &str = "NULL";
-
-/// String representing empty string values in the output.
-const EMPTY_STR: &str = "(empty)";
-
-const ARROW_FORMAT_OPTIONS: FormatOptions = FormatOptions::new().with_null(NULL_STR);
-
 /// Convert a batch into a vector of rows.
-fn batch_to_rows(batch: DataBatch) -> Result<Vec<Vec<String>>> {
+fn batch_to_rows(batch: Batch) -> Result<Vec<Vec<String>>> {
+    const OPTS: FormatOptions = FormatOptions {
+        null: "NULL",
+        empty_string: "(empty)",
+        ..FormatOptions::new()
+    };
+    let formatter = Formatter::new(OPTS);
+
     let mut rows = Vec::new();
 
     for row_idx in 0..batch.num_rows() {
-        let mut row = Vec::with_capacity(batch.columns().len());
-        for col in batch.columns().iter() {
-            let s = if col.is_valid(row_idx) {
-                match col.data_type() {
-                    DataType::Null => NULL_STR.to_string(),
-                    DataType::Utf8 => {
-                        let val = col
-                            .as_any()
-                            .downcast_ref::<StringArray>()
-                            .unwrap()
-                            .value(row_idx);
-                        if val.is_empty() {
-                            EMPTY_STR.to_string()
-                        } else {
-                            val.to_string()
-                        }
-                    }
-                    _ => ArrayFormatter::try_new(col.as_ref(), &ARROW_FORMAT_OPTIONS)?
-                        .value(row_idx)
-                        .to_string(),
-                }
-            } else {
-                NULL_STR.to_string()
-            };
+        let row = batch.row(row_idx).expect("row to exist");
 
-            row.push(s);
-        }
-        rows.push(row);
+        let col_strings: Vec<_> = row
+            .iter()
+            .map(|col| formatter.format_scalar_value(col.clone()).to_string())
+            .collect();
+
+        rows.push(col_strings);
     }
 
     Ok(rows)
 }
 
-fn schema_to_types(schema: &DataBatchSchema) -> Vec<DefaultColumnType> {
+fn schema_to_types(schema: &Schema) -> Vec<DefaultColumnType> {
     let mut typs = Vec::new();
-    for data_type in schema.get_types() {
-        let typ = match data_type {
+    for field in &schema.fields {
+        let typ = match field.datatype {
             DataType::Int8
             | DataType::Int16
             | DataType::Int32
@@ -130,11 +106,7 @@ fn schema_to_types(schema: &DataBatchSchema) -> Vec<DefaultColumnType> {
             | DataType::UInt16
             | DataType::UInt32
             | DataType::UInt64 => DefaultColumnType::Integer,
-            DataType::Float16
-            | DataType::Float32
-            | DataType::Float64
-            | DataType::Decimal128(_, _)
-            | DataType::Decimal256(_, _) => DefaultColumnType::FloatingPoint,
+            DataType::Float32 | DataType::Float64 => DefaultColumnType::FloatingPoint,
             DataType::Utf8 | DataType::LargeUtf8 | DataType::Boolean => DefaultColumnType::Text,
             _ => DefaultColumnType::Any,
         };

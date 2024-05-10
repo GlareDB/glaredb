@@ -1,10 +1,9 @@
-use super::{Sink, Source};
+use super::{SinkOperator2, SourceOperator2};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::{ColumnHash, DataBatch};
-use arrow_array::UInt64Array;
 use crossbeam::channel::{Receiver, Sender};
 use parking_lot::Mutex;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -18,7 +17,7 @@ use std::task::{Context, Poll, Waker};
 #[derive(Debug)]
 pub struct PhysicalUnboundedRepartition {
     /// Receiver for the Source side to produce batches.
-    recv: Receiver<DataBatch>,
+    recv: Receiver<Batch>,
 
     /// The sink side of the repartition, expected to be take during planning.
     sink: Option<PhysicalUnboundedRepartitionSink>,
@@ -64,7 +63,7 @@ pub struct PhysicalUnboundedRepartitionSink {
     ///
     /// There's no guarantees on which output partition the data batch will be
     /// sent to.
-    send: Sender<DataBatch>,
+    send: Sender<Batch>,
 }
 
 impl Explainable for PhysicalUnboundedRepartitionSink {

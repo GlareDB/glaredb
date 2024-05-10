@@ -1,0 +1,185 @@
+# ADD
+
+# TODO: Implicit cast
+statement error
+select add(1.0, 2);
+
+query I
+select add(1, 2);
+----
+3
+
+query I
+select add(1+3, 2);
+----
+6
+
+query I
+select add(add(add(1, 2), add(3, 4)), add(5,6));
+----
+21
+
+query I
+select 1 + 1;
+----
+2
+
+query RI
+select 1.5 + 2.0, 1 + 2;
+----
+3.5  3
+
+query I
+select column1 + 2 from (values (1, 2), (3, 4));
+----
+3
+5
+
+query I
+select column1+ column2 from (values (1, 2), (3, 4));
+----
+3
+7
+
+query I
+select add(add(add(column2, 2), add(column1, 4)), add(5,column2)) from (values (1, 2), (3, 4));
+----
+16
+22
+
+# SUB
+
+# TODO: Implicit cast
+statement error
+select sub(1.0, 2);
+
+query I
+select sub(2, 1);
+----
+1
+
+query I
+select 2 - 1;
+----
+1
+
+query I
+select 2 - 3;
+----
+-1
+
+query RI
+select 2.5 - 2.0, 2 - 1;
+----
+0.5  1
+
+query I
+select column1 - 2 from (values (1, 2), (3, 4));
+----
+-1
+1
+
+query I
+select column1- column2 from (values (1, 2), (3, 4));
+----
+-1
+-1
+
+# MUL
+
+# TODO: Implicit cast
+statement error
+select mul(1.0, 2);
+
+query I
+select mul(2, 3);
+----
+6
+
+query I
+select 2 * 3;
+----
+6
+
+query RI
+select 2.5 * 3.0, 2 * 1;
+----
+7.5  2
+
+query I
+select column1 * 2 from (values (1, 2), (3, 4));
+----
+2
+6
+
+query I
+select column1* column2 from (values (1, 2), (3, 4));
+----
+2
+12
+
+# DIV
+
+# TODO: Implicit cast
+statement error
+select div(1.0, 2);
+
+query I
+select div(5, 2);
+----
+2
+
+query I
+select 5 / 2;
+----
+2
+
+query RI
+select 5.0 / 2.0, 2 / 1;
+----
+2.5  2
+
+query I
+select column1 / 2 from (values (1, 2), (3, 4));
+----
+0
+1
+
+query I
+select column2/ column1 from (values (1, 2), (3, 4));
+----
+2
+1
+
+# REM
+
+# TODO: Implicit cast
+statement error
+select rem(1.0, 2);
+
+query I
+select rem(5, 2);
+----
+1
+
+query I
+select 5 % 2;
+----
+1
+
+query RI
+select 5.0 % 2.0, 2 % 1;
+----
+1  0
+
+query I
+select column1 % 2 from (values (1, 2), (3, 4));
+----
+1
+1
+
+query I
+select column2% column1 from (values (1, 2), (3, 4));
+----
+0
+1

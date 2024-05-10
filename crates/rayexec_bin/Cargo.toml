@@ -8,8 +8,8 @@ edition.workspace = true
 [dependencies]
 rayexec_error = { path = '../rayexec_error' }
 rayexec_execution = { path = '../rayexec_execution' }
+rayexec_bullet = { path = '../rayexec_bullet' }
 tokio = { version = "1", features = ["full"] }
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
-arrow = { workspace = true, features = ["prettyprint"] }
 futures = { workspace = true }

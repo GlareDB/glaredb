@@ -1,0 +1,41 @@
+# AND
+
+query B
+select true and false;
+----
+false
+
+query B
+select true and true;
+----
+true
+
+query B
+select 1 = 1 and 2 = 2;
+----
+true
+
+# TODO: Concat bools
+# query B
+# select column1 and 2 = 2 from (values (true, 2), (false, 3));
+# ----
+# true
+# false
+
+# OR
+
+query B
+select true or true;
+----
+true
+
+query B
+select true or false;
+----
+true
+
+query B
+select false or false;
+----
+false
+

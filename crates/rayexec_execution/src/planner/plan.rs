@@ -1,25 +1,23 @@
-use crate::{
-    expr::scalar::ScalarValue,
-    functions::table::TableFunctionArgs,
-    planner::{
-        operator::{ExpressionList, Filter, JoinType, Scan, ScanItem, SetVar, ShowVar},
-        scope::TableReference,
-    },
-    types::batch::DataBatchSchema,
-};
-
 use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
     operator::{AnyJoin, CrossJoin, Limit, LogicalExpression, LogicalOperator, Projection},
     scope::{ColumnRef, Scope},
     Resolver,
 };
+use crate::{
+    functions::table::TableFunctionArgs,
+    planner::{
+        operator::{ExpressionList, Filter, JoinType, Scan, ScanItem, SetVar, ShowVar},
+        scope::TableReference,
+    },
+};
+use rayexec_bullet::field::{Schema, TypeSchema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{ast, statement::Statement};
 use tracing::trace;
 
 const EMPTY_SCOPE: &Scope = &Scope::empty();
-const EMPTY_SCHEMA: &DataBatchSchema = &DataBatchSchema::empty();
+const EMPTY_TYPE_SCHEMA: &TypeSchema = &TypeSchema::empty();
 
 #[derive(Debug)]
 pub struct LogicalQuery {
@@ -48,11 +46,11 @@ impl<'a> PlanContext<'a> {
     }
 
     pub fn plan_statement(mut self, stmt: Statement) -> Result<LogicalQuery> {
-        trace!(?stmt, "planning statement");
+        trace!("planning statement");
         match stmt {
             Statement::Query(query) => self.plan_query(query),
             Statement::SetVariable { reference, value } => {
-                let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_SCHEMA);
+                let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
                 let expr = expr_ctx.plan_expression(value)?;
                 Ok(LogicalQuery {
                     root: LogicalOperator::SetVar(SetVar {
@@ -102,15 +100,15 @@ impl<'a> PlanContext<'a> {
         // DISTINCT
 
         // Handle LIMIT/OFFSET
-        let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_SCHEMA);
+        let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
         if let Some(limit_expr) = query.limit.limit {
             let expr = expr_ctx.plan_expression(limit_expr)?;
-            let limit = expr.try_into_scalar()?.try_as_int()? as usize;
+            let limit = expr.try_into_scalar()?.try_as_i64()? as usize;
 
             let offset = match query.limit.offset {
                 Some(offset_expr) => {
                     let expr = expr_ctx.plan_expression(offset_expr)?;
-                    let offset = expr.try_into_scalar()?.try_as_int()?;
+                    let offset = expr.try_into_scalar()?.try_as_i64()?;
                     Some(offset as usize)
                 }
                 None => None,
@@ -137,9 +135,11 @@ impl<'a> PlanContext<'a> {
             },
         };
 
+        let from_type_schema = plan.root.output_schema(&[])?;
+
         // Handle WHERE
         if let Some(where_expr) = select.where_expr {
-            let expr_ctx = ExpressionContext::new(self, &plan.scope, EMPTY_SCHEMA);
+            let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
             let expr = expr_ctx.plan_expression(where_expr)?;
 
             // Add filter to the plan, does not change the scope.
@@ -151,7 +151,7 @@ impl<'a> PlanContext<'a> {
 
         // Expand projections.
         // TODO: Error on wildcards if no from.
-        let expr_ctx = ExpressionContext::new(self, &plan.scope, EMPTY_SCHEMA);
+        let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
         let mut projections = Vec::new();
         for select_proj in select.projections {
             let mut expanded = expr_ctx.expand_select_expr(select_proj)?;
@@ -165,7 +165,7 @@ impl<'a> PlanContext<'a> {
         // Add projections to plan using previously expanded select items.
         let mut select_exprs = Vec::with_capacity(projections.len());
         let mut names = Vec::with_capacity(projections.len());
-        let expr_ctx = ExpressionContext::new(self, &plan.scope, EMPTY_SCHEMA);
+        let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
         for proj in projections {
             match proj {
                 ExpandedSelectExpr::Expr { expr, name } => {
@@ -209,7 +209,7 @@ impl<'a> PlanContext<'a> {
 
                 // Plan the arguments to the table function. Currently only
                 // constant expressions are allowed.
-                let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_SCHEMA);
+                let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
                 let mut func_args = TableFunctionArgs::default();
                 for arg in args {
                     match arg {
@@ -240,9 +240,7 @@ impl<'a> PlanContext<'a> {
 
                 let name = func.name();
                 let bound = func.bind(func_args)?; // The only thing that would benefit from async.
-                let schema = bound.schema();
-                let (col_names, types) = schema.into_names_and_types();
-                let schema = DataBatchSchema::new(types);
+                let schema = bound.schema().clone();
 
                 // Create a new scope with just this table function.
                 // TODO: Reference should probably be qualified.
@@ -252,12 +250,12 @@ impl<'a> PlanContext<'a> {
                         schema: None,
                         table: name.to_string(),
                     }),
-                    col_names,
+                    schema.iter().map(|field| field.name.clone()),
                 );
 
                 let operator = LogicalOperator::Scan(Scan {
                     source: ScanItem::TableFunction(bound),
-                    schema,
+                    schema: schema.into_type_schema(),
                 });
 
                 LogicalQuery {
@@ -285,8 +283,8 @@ impl<'a> PlanContext<'a> {
                 match join_condition {
                     ast::JoinCondition::On(on) => {
                         let merged = left_plan.scope.merge(right_plan.scope)?;
-                        let left_schema = left_plan.root.schema(&[])?; // TODO: Outers
-                        let right_schema = right_plan.root.schema(&[])?; // TODO: Outers
+                        let left_schema = left_plan.root.output_schema(&[])?; // TODO: Outers
+                        let right_schema = right_plan.root.output_schema(&[])?; // TODO: Outers
                         let merged_schema = left_schema.merge(right_schema);
                         let expr_ctx =
                             ExpressionContext::new(&left_nested, &merged, &merged_schema);
@@ -390,7 +388,7 @@ impl<'a> PlanContext<'a> {
         }
 
         // Convert AST expressions to logical expressions.
-        let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_SCHEMA);
+        let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
         let num_cols = values.rows[0].len();
         let exprs = values
             .rows

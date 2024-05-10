@@ -7,7 +7,7 @@ pub mod scheduler;
 
 use crate::{engine::modify::Modification, planner::explainable::ExplainConfig};
 use crossbeam::channel::Sender;
-use plans::{Sink, Source};
+use plans::{SinkOperator2, SourceOperator2};
 use rayexec_error::Result;
 use std::sync::Arc;
 

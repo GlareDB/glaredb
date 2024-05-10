@@ -1,2 +1,2 @@
-mod decode;
-mod infer;
+pub mod decode;
+pub mod reader;

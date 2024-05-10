@@ -1,43 +1,48 @@
-use super::{BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs};
+use super::{BoundTableFunctionOld, Pushdown, Statistics, TableFunctionArgs, TableFunctionOld};
 use crate::{
     physical::{
-        plans::{PollPull, Source},
+        plans::{PollPull, SourceOperator2},
         TaskContext,
     },
     planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    types::batch::{DataBatch, NamedDataBatchSchema},
 };
-use arrow_array::StringArray;
-use arrow_schema::DataType;
 use parking_lot::Mutex;
+use rayexec_bullet::{
+    array::{Array, Utf8Array},
+    batch::Batch,
+    field::{DataType, Field, Schema},
+};
 use rayexec_error::{RayexecError, Result};
-use std::sync::Arc;
 use std::task::{Context, Poll};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DummyTableFunction;
 
-impl TableFunction for DummyTableFunction {
+impl TableFunctionOld for DummyTableFunction {
     fn name(&self) -> &str {
         "dummy"
     }
 
-    fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunction>> {
+    fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunctionOld>> {
         if !args.unnamed.is_empty() || !args.named.is_empty() {
             return Err(RayexecError::new(
                 "Dummy table functions accepts no arguments",
             ));
         }
-        Ok(Box::new(BoundDummyTableFunction))
+        Ok(Box::new(BoundDummyTableFunction {
+            schema: Schema::new([Field::new("dummy", DataType::Utf8, true)]),
+        }))
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct BoundDummyTableFunction;
+pub struct BoundDummyTableFunction {
+    schema: Schema,
+}
 
-impl BoundTableFunction for BoundDummyTableFunction {
-    fn schema(&self) -> NamedDataBatchSchema {
-        NamedDataBatchSchema::try_new(vec!["dummy".to_string()], vec![DataType::Utf8]).unwrap()
+impl BoundTableFunctionOld for BoundDummyTableFunction {
+    fn schema(&self) -> &Schema {
+        &self.schema
     }
 
     fn statistics(&self) -> Statistics {
@@ -51,7 +56,7 @@ impl BoundTableFunction for BoundDummyTableFunction {
         self: Box<Self>,
         projection: Vec<usize>,
         _pushdown: Pushdown,
-    ) -> Result<Box<dyn Source>> {
+    ) -> Result<Box<dyn SourceOperator2>> {
         Ok(Box::new(DummyTableFunctionSource::new(projection)))
     }
 }
@@ -65,12 +70,13 @@ impl Explainable for BoundDummyTableFunction {
 #[derive(Debug)]
 pub struct DummyTableFunctionSource {
     projection: Vec<usize>,
-    batch: Mutex<Option<DataBatch>>,
+    batch: Mutex<Option<Batch>>,
 }
 
 impl DummyTableFunctionSource {
     fn new(projection: Vec<usize>) -> Self {
-        let batch = DataBatch::try_new(vec![Arc::new(StringArray::from(vec!["dummy"]))]).unwrap();
+        let batch = Batch::try_new([Array::Utf8(Utf8Array::from_iter(["dummy"]))])
+            .expect("dummy batch to be valid");
         DummyTableFunctionSource {
             projection,
             batch: Mutex::new(Some(batch)),
@@ -78,7 +84,7 @@ impl DummyTableFunctionSource {
     }
 }
 
-impl Source for DummyTableFunctionSource {
+impl SourceOperator2 for DummyTableFunctionSource {
     fn output_partitions(&self) -> usize {
         1
     }

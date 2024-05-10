@@ -1,3 +1,5 @@
+halt
+
 query ITR rowsort
 select * from read_csv('../../testdata/csv/simple.csv')
 ----

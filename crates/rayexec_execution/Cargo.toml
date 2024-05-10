@@ -6,19 +6,14 @@ edition = { workspace = true }
 [dependencies]
 rayexec_error = { path = "../rayexec_error" }
 rayexec_parser = { path = "../rayexec_parser" }
+rayexec_bullet = { path = "../rayexec_bullet" }
 
 ahash = { workspace = true }
-arrow = { workspace = true }
-arrow-array = { workspace = true }
-arrow-buffer = { workspace = true }
-arrow-cast = { workspace = true }
-arrow-ipc = { workspace = true }
-arrow-ord = { workspace = true }
-arrow-schema = { workspace = true }
-arrow-select = { workspace = true }
+dyn-clone = "1.0.17"
 chrono = { workspace = true }
 futures = { workspace = true }
 hashbrown = { workspace = true }
+num-traits = "0.2.19"
 once_cell = { workspace = true }
 parking_lot = { workspace = true }
 parquet = { workspace = true }

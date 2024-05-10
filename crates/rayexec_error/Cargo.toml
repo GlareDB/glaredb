@@ -4,5 +4,4 @@ version = { workspace = true }
 edition = { workspace = true }
 
 [dependencies]
-arrow = { workspace = true }
 parquet = { workspace = true }

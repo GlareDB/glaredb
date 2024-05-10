@@ -1,7 +1,11 @@
+use rayexec_bullet::{
+    field::{Schema, TypeSchema},
+    scalar::OwnedScalarValue,
+};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::{expr::scalar::ScalarValue, types::batch::DataBatchSchema};
+use crate::functions::scalar::{self, GenericScalarFunction};
 
 use super::{
     operator::LogicalExpression,
@@ -51,15 +55,11 @@ pub struct ExpressionContext<'a> {
     /// Scope for this expression.
     pub scope: &'a Scope,
     /// Schema of input that this expression will be executed on.
-    pub input: &'a DataBatchSchema,
+    pub input: &'a TypeSchema,
 }
 
 impl<'a> ExpressionContext<'a> {
-    pub fn new(
-        plan_context: &'a PlanContext,
-        scope: &'a Scope,
-        input: &'a DataBatchSchema,
-    ) -> Self {
+    pub fn new(plan_context: &'a PlanContext, scope: &'a Scope, input: &'a TypeSchema) -> Self {
         ExpressionContext {
             plan_context,
             scope,
@@ -124,38 +124,96 @@ impl<'a> ExpressionContext<'a> {
                 right: Box::new(self.plan_expression(*right)?),
             }),
             ast::Expr::Function(func) => {
-                // Check if there exists an aggregate function with this name.
-                if let Some(agg) = self
+                // Check scalars first.
+                if let Some(scalar_func) = self
                     .plan_context
                     .resolver
-                    .resolve_aggregate_function(&func.name)?
+                    .resolve_scalar_function(&func.name)
                 {
-                    // TODO: We'll actually want to pass down additional plans
-                    // to ensure we're not planning nested
-                    // aggregates/subqueries.
-                    //
-                    // Same thing with the filter.
-                    let args = func
+                    let inputs = func
                         .args
                         .into_iter()
                         .map(|arg| match arg {
-                            ast::FunctionArg::Unnamed { arg } => {
-                                Ok(Box::new(self.plan_expression(arg)?))
-                            }
+                            ast::FunctionArg::Unnamed { arg } => Ok(self.plan_expression(arg)?),
+                            ast::FunctionArg::Named { .. } => Err(RayexecError::new(
+                                "Named arguments to scalar functions not supported",
+                            )),
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+
+                    if !self.scalar_function_can_handle_input(scalar_func.as_ref(), &inputs)? {
+                        // TODO: Do we want to fall through? Is it possible for a
+                        // scalar and aggregate function to have the same name?
+
+                        return Err(RayexecError::new(format!(
+                            "Invalid inputs to '{}'",
+                            scalar_func.name(),
+                        )));
+                    }
+
+                    return Ok(LogicalExpression::ScalarFunction {
+                        function: scalar_func,
+                        inputs,
+                    });
+                }
+
+                if let Some(agg_func) = self
+                    .plan_context
+                    .resolver
+                    .resolve_aggregate_function(&func.name)
+                {
+                    let inputs = func
+                        .args
+                        .into_iter()
+                        .map(|arg| match arg {
+                            ast::FunctionArg::Unnamed { arg } => Ok(self.plan_expression(arg)?),
                             ast::FunctionArg::Named { .. } => Err(RayexecError::new(
                                 "Named arguments to aggregate functions not supported",
                             )),
                         })
                         .collect::<Result<Vec<_>>>()?;
 
-                    let filter = match func.filter {
-                        Some(filter) => Some(Box::new(self.plan_expression(*filter)?)),
-                        None => None,
-                    };
+                    // TODO: Sig check
 
-                    // TODO: agg
-                    return Ok(LogicalExpression::Aggregate { args, filter });
+                    return Ok(LogicalExpression::Aggregate {
+                        agg: agg_func,
+                        inputs,
+                        filter: None,
+                    });
                 }
+
+                // Check if there exists an aggregate function with this name.
+                // if let Some(agg) = self
+                //     .plan_context
+                //     .resolver
+                //     .resolve_aggregate_function(&func.name)?
+                // {
+                //     // TODO: We'll actually want to pass down additional plans
+                //     // to ensure we're not planning nested
+                //     // aggregates/subqueries.
+                //     //
+                //     // Same thing with the filter.
+                //     let args = func
+                //         .args
+                //         .into_iter()
+                //         .map(|arg| match arg {
+                //             ast::FunctionArg::Unnamed { arg } => {
+                //                 Ok(Box::new(self.plan_expression(arg)?))
+                //             }
+                //             ast::FunctionArg::Named { .. } => Err(RayexecError::new(
+                //                 "Named arguments to aggregate functions not supported",
+                //             )),
+                //         })
+                //         .collect::<Result<Vec<_>>>()?;
+
+                //     let filter = match func.filter {
+                //         Some(filter) => Some(Box::new(self.plan_expression(*filter)?)),
+                //         None => None,
+                //     };
+
+                //     // TODO: agg
+                //     return Ok(LogicalExpression::Aggregate { args, filter });
+                // }
 
                 // TODO: Check normal scalars.
 
@@ -173,21 +231,21 @@ impl<'a> ExpressionContext<'a> {
         Ok(match literal {
             ast::Literal::Number(n) => {
                 if let Ok(n) = n.parse::<i64>() {
-                    LogicalExpression::Literal(ScalarValue::Int64(n))
+                    LogicalExpression::Literal(OwnedScalarValue::Int64(n))
                 } else if let Ok(n) = n.parse::<u64>() {
-                    LogicalExpression::Literal(ScalarValue::UInt64(n))
+                    LogicalExpression::Literal(OwnedScalarValue::UInt64(n))
                 } else if let Ok(n) = n.parse::<f64>() {
-                    LogicalExpression::Literal(ScalarValue::Float64(n))
+                    LogicalExpression::Literal(OwnedScalarValue::Float64(n))
                 } else {
                     return Err(RayexecError::new(format!(
                         "Unable to parse {n} as a number"
                     )));
                 }
             }
-            ast::Literal::Boolean(b) => LogicalExpression::Literal(ScalarValue::Boolean(b)),
-            ast::Literal::Null => LogicalExpression::Literal(ScalarValue::Null),
+            ast::Literal::Boolean(b) => LogicalExpression::Literal(OwnedScalarValue::Boolean(b)),
+            ast::Literal::Null => LogicalExpression::Literal(OwnedScalarValue::Null),
             ast::Literal::SingleQuotedString(s) => {
-                LogicalExpression::Literal(ScalarValue::Utf8(s.to_string()))
+                LogicalExpression::Literal(OwnedScalarValue::Utf8(s.to_string().into()))
             }
             other => {
                 return Err(RayexecError::new(format!(
@@ -256,5 +314,25 @@ impl<'a> ExpressionContext<'a> {
                 ast::ObjectReference(idents),
             ))), // TODO: Struct fields.
         }
+    }
+
+    /// Check if a scalar function is able to handle the given inputs.
+    ///
+    /// Errors if the datatypes for the inputs cannot be determined.
+    fn scalar_function_can_handle_input(
+        &self,
+        function: &dyn GenericScalarFunction,
+        inputs: &[LogicalExpression],
+    ) -> Result<bool> {
+        let inputs = inputs
+            .iter()
+            .map(|expr| expr.datatype(&self.input, &[])) // TODO: Outer schemas
+            .collect::<Result<Vec<_>>>()?;
+
+        if function.return_type_for_inputs(&inputs).is_some() {
+            return Ok(true);
+        }
+
+        Ok(false)
     }
 }

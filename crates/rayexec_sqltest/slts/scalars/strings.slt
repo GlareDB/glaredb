@@ -1,0 +1,24 @@
+# REPEAT
+
+query T
+select repeat('abc', 3);
+----
+abcabcabc
+
+query T
+select repeat(column1, 3) from (values ('a', 2), ('b', 4));
+----
+aaa
+bbb
+
+query T
+select repeat(column1, column2 + 2) from (values ('a', 2), ('b', 4));
+----
+aaaa
+bbbbbb
+
+query T
+select repeat(repeat(column1, column2), column2) from (values ('a', 2), ('b', 4));
+----
+aaaa
+bbbbbbbbbbbbbbbb

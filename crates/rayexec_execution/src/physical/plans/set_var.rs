@@ -1,23 +1,23 @@
 use crate::engine::modify::Modification;
-use crate::expr::scalar::ScalarValue;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::DataBatch;
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
 
-use super::{PollPull, Source};
+use super::{PollPull, SourceOperator2};
 
 #[derive(Debug)]
 pub struct PhysicalSetVar {
     var: String,
-    value: ScalarValue,
+    value: OwnedScalarValue,
     sent: AtomicBool,
 }
 
 impl PhysicalSetVar {
-    pub fn new(var: String, value: ScalarValue) -> Self {
+    pub fn new(var: String, value: OwnedScalarValue) -> Self {
         PhysicalSetVar {
             var,
             value,
@@ -43,7 +43,7 @@ impl PhysicalSetVar {
     }
 }
 
-impl Source for PhysicalSetVar {
+impl SourceOperator2 for PhysicalSetVar {
     fn output_partitions(&self) -> usize {
         1
     }
@@ -60,7 +60,7 @@ impl Source for PhysicalSetVar {
         }
 
         self.set_inner(task_cx)?;
-        Ok(PollPull::Batch(DataBatch::empty()))
+        Ok(PollPull::Batch(Batch::empty()))
     }
 }
 

@@ -1,14 +1,14 @@
 use crate::expr::PhysicalScalarExpression;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::DataBatch;
 use parking_lot::Mutex;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use super::{PollPull, PollPush, Sink, Source};
+use super::{PollPull, PollPush, SinkOperator2, SourceOperator2};
 
 const LIMIT_BUFFER_CAP: usize = 4;
 
@@ -39,7 +39,7 @@ struct LocalState {
     remaining_limit: usize,
 
     /// Buffer of computed batches from input.
-    buf: VecDeque<DataBatch>,
+    buf: VecDeque<Batch>,
 
     /// If we're finished.
     finished: bool,
@@ -76,7 +76,7 @@ impl PhysicalLimit {
     }
 }
 
-impl Source for PhysicalLimit {
+impl SourceOperator2 for PhysicalLimit {
     fn output_partitions(&self) -> usize {
         self.states.len()
     }
@@ -116,7 +116,7 @@ pub struct PhysicalLimitSink {
     states: Arc<Vec<Mutex<LocalState>>>,
 }
 
-impl Sink for PhysicalLimitSink {
+impl SinkOperator2 for PhysicalLimitSink {
     fn input_partitions(&self) -> usize {
         self.states.len()
     }
@@ -125,7 +125,7 @@ impl Sink for PhysicalLimitSink {
         &self,
         _task_cx: &TaskContext,
         cx: &mut Context,
-        input: DataBatch,
+        input: Batch,
         partition: usize,
     ) -> Result<PollPush> {
         let mut state = self.states[partition].lock();
@@ -151,14 +151,16 @@ impl Sink for PhysicalLimitSink {
                 input.num_rows(),
                 state.remaining_limit + state.remaining_offset,
             );
-            let batch = input.slice(state.remaining_offset, len);
-            state.remaining_offset = 0;
-            state.remaining_limit -= batch.num_rows();
-            batch
+            unimplemented!()
+            // let batch = input.slice(state.remaining_offset, len);
+            // state.remaining_offset = 0;
+            // state.remaining_limit -= batch.num_rows();
+            // batch
         } else if state.remaining_limit < input.num_rows() {
-            let batch = input.slice(0, state.remaining_limit);
-            state.remaining_limit = 0;
-            batch
+            unimplemented!()
+            // let batch = input.slice(0, state.remaining_limit);
+            // state.remaining_limit = 0;
+            // batch
         } else {
             state.remaining_limit -= input.num_rows();
             input

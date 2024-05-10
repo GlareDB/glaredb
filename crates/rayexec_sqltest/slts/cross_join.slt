@@ -1,3 +1,5 @@
+halt
+
 query II
 select * from (select 1, 2), (select 3, 4);
 ----

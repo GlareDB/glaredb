@@ -2,7 +2,6 @@ use crate::array::{
     Array, BooleanArray, OffsetIndex, PrimitiveArray, PrimitiveNumeric, VarlenArray, VarlenType,
 };
 use crate::scalar::ScalarValue;
-use crate::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
 use std::ops::Add;
 
@@ -27,6 +26,7 @@ pub fn min(arr: &Array) -> ScalarValue {
         Array::LargeUtf8(arr) => min_varlen(arr).into(),
         Array::Binary(arr) => min_varlen(arr).into(),
         Array::LargeBinary(arr) => min_varlen(arr).into(),
+        _ => unimplemented!(),
     }
 }
 
@@ -51,6 +51,7 @@ pub fn max(arr: &Array) -> ScalarValue {
         Array::LargeUtf8(arr) => max_varlen(arr).into(),
         Array::Binary(arr) => max_varlen(arr).into(),
         Array::LargeBinary(arr) => max_varlen(arr).into(),
+        _ => unimplemented!(),
     }
 }
 
@@ -147,9 +148,7 @@ fn primitive_reduce<T: Copy>(
     arr: &PrimitiveArray<T>,
     reduce_fn: impl Fn(T, T) -> T,
 ) -> Option<T> {
-    let values = match arr.values() {
-        PrimitiveStorage::Vec(v) => v,
-    };
+    let values = arr.values();
 
     match &arr.validity() {
         Some(bitmap) => {
@@ -159,14 +158,17 @@ fn primitive_reduce<T: Copy>(
             }
 
             let out = bitmap.index_iter().fold(start, |acc, idx| {
-                let value = values.get(idx).unwrap();
+                let value = values.as_ref().get(idx).unwrap();
                 reduce_fn(acc, *value)
             });
 
             Some(out)
         }
         None => {
-            let out = values.iter().fold(start, |acc, val| reduce_fn(acc, *val));
+            let out = values
+                .as_ref()
+                .iter()
+                .fold(start, |acc, val| reduce_fn(acc, *val));
             Some(out)
         }
     }

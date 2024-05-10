@@ -1,5 +1,6 @@
 use futures::Stream;
 use parking_lot::Mutex;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::pin::Pin;
@@ -8,9 +9,9 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
 use crate::physical::plans::PollPush;
+use crate::physical::plans::SinkOperator2;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::{physical::plans::Sink, types::batch::DataBatch};
 
 /// Stream for materialized batches for a query.
 #[derive(Debug)]
@@ -21,7 +22,7 @@ pub struct MaterializedBatchStream {
 
 impl MaterializedBatchStream {
     /// Take the configured sink for the stream. Cannot be taken more than once.
-    pub(crate) fn take_sink(&mut self) -> Result<Box<dyn Sink>> {
+    pub(crate) fn take_sink(&mut self) -> Result<Box<dyn SinkOperator2>> {
         match self.sink.take() {
             Some(sink) => Ok(Box::new(sink)),
             None => Err(RayexecError::new("Attempted to take sink more than once")),
@@ -32,7 +33,7 @@ impl MaterializedBatchStream {
 #[derive(Debug)]
 struct MaterializedBatchesState {
     /// The materialized batches.
-    batches: VecDeque<DataBatch>,
+    batches: VecDeque<Batch>,
     /// Pending waker for the async stream implementation.
     waker: Option<Waker>,
     /// Whether or not the sink is finished.
@@ -69,7 +70,7 @@ struct MaterializedBatchSink {
     state: Arc<Mutex<MaterializedBatchesState>>,
 }
 
-impl Sink for MaterializedBatchSink {
+impl SinkOperator2 for MaterializedBatchSink {
     fn input_partitions(&self) -> usize {
         1
     }
@@ -78,7 +79,7 @@ impl Sink for MaterializedBatchSink {
         &self,
         _task_cx: &TaskContext,
         cx: &mut Context,
-        input: DataBatch,
+        input: Batch,
         partition: usize,
     ) -> Result<PollPush> {
         if partition != 0 {
@@ -114,7 +115,7 @@ impl Explainable for MaterializedBatchSink {
 }
 
 impl Stream for MaterializedBatchStream {
-    type Item = DataBatch;
+    type Item = Batch;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut inner = self.state.lock();

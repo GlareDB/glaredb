@@ -1,19 +1,28 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::scope::ColumnRef;
-use crate::functions::aggregate::AggregateFunction;
+use crate::functions::aggregate::GenericAggregateFunction;
+use crate::functions::scalar::{GenericScalarFunction, SpecializedScalarFunction};
 use crate::{
     engine::vars::SessionVar,
-    expr::{
-        scalar::{BinaryOperator, ScalarValue, UnaryOperator, VariadicOperator},
-        Expression,
-    },
-    functions::table::BoundTableFunction,
-    optimizer::walk_plan,
-    types::batch::DataBatchSchema,
+    expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
+    functions::table::BoundTableFunctionOld,
 };
-use arrow_schema::DataType;
+use rayexec_bullet::field::{DataType, TypeSchema};
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use std::fmt;
+
+pub trait LogicalNode {
+    /// Get the output type schema of the operator.
+    ///
+    /// Since we're working with possibly correlated columns, this also accepts
+    /// the schema of the outer scopes.
+    ///
+    /// During physical planning, it's assumed that the logical plan has been
+    /// completely decorrelated, and as such will be provided and empty outer
+    /// schema.
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema>;
+}
 
 #[derive(Debug)]
 pub enum LogicalOperator {
@@ -34,51 +43,27 @@ pub enum LogicalOperator {
 }
 
 impl LogicalOperator {
-    /// Get the output schema of the operator.
+    /// Get the output type schema of the operator.
     ///
     /// Since we're working with possibly correlated columns, this also accepts
     /// the schema of the outer scopes.
-    pub fn schema(&self, outer: &[DataBatchSchema]) -> Result<DataBatchSchema> {
-        Ok(match self {
-            Self::Projection(proj) => {
-                let current = proj.input.schema(outer)?;
-                let types = proj
-                    .exprs
-                    .iter()
-                    .map(|expr| expr.data_type(&current, outer))
-                    .collect::<Result<Vec<_>>>()?;
-                DataBatchSchema::new(types)
-            }
-            Self::Filter(filter) => filter.input.schema(outer)?,
-            Self::Aggregate(_agg) => unimplemented!(),
-            Self::Order(order) => order.input.schema(outer)?,
-            Self::AnyJoin(_join) => unimplemented!(),
-            Self::EqualityJoin(_join) => unimplemented!(),
-            Self::CrossJoin(_cross) => unimplemented!(),
-            Self::Limit(limit) => limit.input.schema(outer)?,
-            Self::Scan(scan) => scan.schema.clone(),
-            Self::ExpressionList(list) => {
-                let first = list
-                    .rows
-                    .first()
-                    .ok_or_else(|| RayexecError::new("Expression list contains no rows"))?;
-                // No inputs to expression list. Attempting to reference a
-                // column should error.
-                let current = DataBatchSchema::empty();
-                let types = first
-                    .iter()
-                    .map(|expr| expr.data_type(&current, outer))
-                    .collect::<Result<Vec<_>>>()?;
-                DataBatchSchema::new(types)
-            }
-            Self::Empty => DataBatchSchema::empty(),
-            Self::SetVar(_) => DataBatchSchema::empty(),
-            // TODO: Double check with postgres if they convert everything to
-            // string in SHOW. I'm adding this in right now just to quickly
-            // check the vars for debugging.
-            Self::ShowVar(_show_var) => DataBatchSchema::new(vec![DataType::Utf8]),
+    pub fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        match self {
+            Self::Projection(n) => n.output_schema(outer),
+            Self::Filter(n) => n.output_schema(outer),
+            Self::Aggregate(n) => n.output_schema(outer),
+            Self::Order(n) => n.output_schema(outer),
+            Self::AnyJoin(n) => n.output_schema(outer),
+            Self::EqualityJoin(n) => n.output_schema(outer),
+            Self::CrossJoin(n) => n.output_schema(outer),
+            Self::Limit(n) => n.output_schema(outer),
+            Self::Scan(n) => n.output_schema(outer),
+            Self::ExpressionList(n) => n.output_schema(outer),
+            Self::Empty => Ok(TypeSchema::empty()),
+            Self::SetVar(n) => n.output_schema(outer),
+            Self::ShowVar(n) => n.output_schema(outer),
             Self::CreateTableAs(_) => unimplemented!(),
-        })
+        }
     }
 
     pub fn as_explain_string(&self) -> Result<String> {
@@ -160,6 +145,18 @@ pub struct Projection {
     pub input: Box<LogicalOperator>,
 }
 
+impl LogicalNode for Projection {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        let current = self.input.output_schema(outer)?;
+        let types = self
+            .exprs
+            .iter()
+            .map(|expr| expr.datatype(&current, outer))
+            .collect::<Result<Vec<_>>>()?;
+        Ok(TypeSchema::new(types))
+    }
+}
+
 impl Explainable for Projection {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Projection").with_values(
@@ -175,6 +172,13 @@ pub struct Filter {
     pub input: Box<LogicalOperator>,
 }
 
+impl LogicalNode for Filter {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        // Filter just filters out rows, no column changes happen.
+        self.input.output_schema(outer)
+    }
+}
+
 impl Explainable for Filter {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Filter").with_value("predicate", format!("{}", self.predicate))
@@ -183,7 +187,7 @@ impl Explainable for Filter {
 
 #[derive(Debug)]
 pub struct OrderByExpr {
-    pub expr: Expression,
+    // pub expr: Expression,
     pub asc: bool,
     pub nulls_first: bool,
 }
@@ -192,6 +196,13 @@ pub struct OrderByExpr {
 pub struct Order {
     pub exprs: Vec<OrderByExpr>,
     pub input: Box<LogicalOperator>,
+}
+
+impl LogicalNode for Order {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        // Order by doesn't change row output.
+        self.input.output_schema(outer)
+    }
 }
 
 impl Explainable for Order {
@@ -231,6 +242,14 @@ pub struct AnyJoin {
     pub on: LogicalExpression,
 }
 
+impl LogicalNode for AnyJoin {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        let left = self.left.output_schema(outer)?;
+        let right = self.right.output_schema(outer)?;
+        Ok(left.merge(right))
+    }
+}
+
 impl Explainable for AnyJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("AnyJoin")
@@ -250,6 +269,14 @@ pub struct EqualityJoin {
     // TODO: Filter
 }
 
+impl LogicalNode for EqualityJoin {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        let left = self.left.output_schema(outer)?;
+        let right = self.right.output_schema(outer)?;
+        Ok(left.merge(right))
+    }
+}
+
 impl Explainable for EqualityJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("EqualityJoin")
@@ -265,6 +292,14 @@ pub struct CrossJoin {
     pub right: Box<LogicalOperator>,
 }
 
+impl LogicalNode for CrossJoin {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        let left = self.left.output_schema(outer)?;
+        let right = self.right.output_schema(outer)?;
+        Ok(left.merge(right))
+    }
+}
+
 impl Explainable for CrossJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CrossJoin")
@@ -278,6 +313,12 @@ pub struct Limit {
     pub input: Box<LogicalOperator>,
 }
 
+impl LogicalNode for Limit {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        self.input.output_schema(outer)
+    }
+}
+
 impl Explainable for Limit {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Limit")
@@ -286,7 +327,7 @@ impl Explainable for Limit {
 
 #[derive(Debug)]
 pub enum ScanItem {
-    TableFunction(Box<dyn BoundTableFunction>),
+    TableFunction(Box<dyn BoundTableFunctionOld>),
 }
 
 impl Explainable for ScanItem {
@@ -300,10 +341,16 @@ impl Explainable for ScanItem {
 #[derive(Debug)]
 pub struct Scan {
     pub source: ScanItem,
-    pub schema: DataBatchSchema,
+    pub schema: TypeSchema,
     // pub projection: Option<Vec<usize>>,
     // pub input: BindIdx,
     // TODO: Pushdowns
+}
+
+impl LogicalNode for Scan {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(self.schema.clone())
+    }
 }
 
 impl Explainable for Scan {
@@ -318,6 +365,23 @@ pub struct ExpressionList {
     // TODO: Table index.
 }
 
+impl LogicalNode for ExpressionList {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        let first = self
+            .rows
+            .first()
+            .ok_or_else(|| RayexecError::new("Expression list contains no rows"))?;
+        // No inputs to expression list. Attempting to reference a
+        // column should error.
+        let current = TypeSchema::empty();
+        let types = first
+            .iter()
+            .map(|expr| expr.datatype(&current, outer))
+            .collect::<Result<Vec<_>>>()?;
+        Ok(TypeSchema::new(types))
+    }
+}
+
 impl Explainable for ExpressionList {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("ExpressionList")
@@ -327,8 +391,14 @@ impl Explainable for ExpressionList {
 #[derive(Debug)]
 pub struct Aggregate {
     pub grouping_expr: GroupingExpr,
-    pub agg_exprs: Vec<Expression>,
+    // pub agg_exprs: Vec<Expression>,
     pub input: Box<LogicalOperator>,
+}
+
+impl LogicalNode for Aggregate {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        unimplemented!()
+    }
 }
 
 impl Explainable for Aggregate {
@@ -340,10 +410,10 @@ impl Explainable for Aggregate {
 #[derive(Debug)]
 pub enum GroupingExpr {
     None,
-    GroupingSet(Vec<Expression>),
-    Rollup(Vec<Expression>),
-    Cube(Vec<Expression>),
-    GroupingSets(Vec<Vec<Expression>>),
+    // GroupingSet(Vec<Expression>),
+    // Rollup(Vec<Expression>),
+    // Cube(Vec<Expression>),
+    // GroupingSets(Vec<Vec<Expression>>),
 }
 
 /// Dummy create table for testing.
@@ -362,7 +432,13 @@ impl Explainable for CreateTableAs {
 #[derive(Debug)]
 pub struct SetVar {
     pub name: String,
-    pub value: ScalarValue,
+    pub value: OwnedScalarValue,
+}
+
+impl LogicalNode for SetVar {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::empty())
+    }
 }
 
 impl Explainable for SetVar {
@@ -376,6 +452,15 @@ pub struct ShowVar {
     pub var: SessionVar,
 }
 
+impl LogicalNode for ShowVar {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        // TODO: Double check with postgres if they convert everything to
+        // string in SHOW. I'm adding this in right now just to quickly
+        // check the vars for debugging.
+        Ok(TypeSchema::new(vec![DataType::Utf8]))
+    }
+}
+
 impl Explainable for ShowVar {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("ShowVar")
@@ -383,15 +468,22 @@ impl Explainable for ShowVar {
 }
 
 /// An expression that can exist in a logical plan.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum LogicalExpression {
     /// Reference to a column.
     ///
     /// Note that this includes scoping information since this expression can be
     /// part of a correlated subquery.
     ColumnRef(ColumnRef),
+
     /// Literal value.
-    Literal(ScalarValue),
+    Literal(OwnedScalarValue),
+
+    ScalarFunction {
+        function: Box<dyn GenericScalarFunction>,
+        inputs: Vec<LogicalExpression>,
+    },
+
     /// Unary operator.
     Unary {
         op: UnaryOperator,
@@ -403,6 +495,7 @@ pub enum LogicalExpression {
         left: Box<LogicalExpression>,
         right: Box<LogicalExpression>,
     },
+
     /// Variadic operator.
     Variadic {
         op: VariadicOperator,
@@ -411,10 +504,10 @@ pub enum LogicalExpression {
     /// An aggregate function.
     Aggregate {
         /// The function.
-        // agg: Box<dyn AggregateFunction>, // TODO
+        agg: Box<dyn GenericAggregateFunction>,
 
         /// Input expressions to the aggragate.
-        args: Vec<Box<LogicalExpression>>,
+        inputs: Vec<LogicalExpression>,
 
         /// Optional filter to the aggregate.
         filter: Option<Box<LogicalExpression>>,
@@ -437,6 +530,18 @@ impl fmt::Display for LogicalExpression {
                     write!(f, "{}#{}", col.scope_level, col.item_idx)
                 }
             }
+            Self::ScalarFunction {
+                function, inputs, ..
+            } => write!(
+                f,
+                "{}({})",
+                function.name(),
+                inputs
+                    .iter()
+                    .map(|input| input.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             Self::Literal(val) => write!(f, "{val}"),
             Self::Unary { op, expr } => write!(f, "{op}{expr}"),
             Self::Binary { op, left, right } => write!(f, "{left}{op}{right}"),
@@ -452,24 +557,17 @@ impl LogicalExpression {
     ///
     /// Since we're working with possibly correlated columns, both the schema of
     /// the scope and the schema of the outer scopes are provided.
-    pub fn data_type(
-        &self,
-        current: &DataBatchSchema,
-        outer: &[DataBatchSchema],
-    ) -> Result<DataType> {
+    pub fn datatype(&self, current: &TypeSchema, outer: &[TypeSchema]) -> Result<DataType> {
         Ok(match self {
             LogicalExpression::ColumnRef(col) => {
                 if col.scope_level == 0 {
                     // Get data type from current schema.
-                    current
-                        .get_types()
-                        .get(col.item_idx)
-                        .cloned()
-                        .ok_or_else(|| {
-                            RayexecError::new(
-                                "Column reference points to outside of current schema",
-                            )
-                        })?
+                    current.types.get(col.item_idx).cloned().ok_or_else(|| {
+                        RayexecError::new(format!(
+                            "Column reference '{}' points to outside of current schema: {current:?}",
+                            col.item_idx
+                        ))
+                    })?
                 } else {
                     // Get data type from one of the outer schemas.
                     outer
@@ -477,7 +575,7 @@ impl LogicalExpression {
                         .ok_or_else(|| {
                             RayexecError::new("Column reference points to non-existent schema")
                         })?
-                        .get_types()
+                        .types
                         .get(col.item_idx)
                         .cloned()
                         .ok_or_else(|| {
@@ -485,12 +583,31 @@ impl LogicalExpression {
                         })?
                 }
             }
-            LogicalExpression::Literal(lit) => lit.data_type(),
+            LogicalExpression::Literal(lit) => lit.datatype(),
+            LogicalExpression::ScalarFunction { function, inputs } => {
+                let datatypes = inputs
+                    .iter()
+                    .map(|input| input.datatype(current, outer))
+                    .collect::<Result<Vec<_>>>()?;
+                let ret_type = function.return_type_for_inputs(&datatypes).ok_or_else(|| {
+                    RayexecError::new(format!(
+                        "Failed to find correct signature for '{}'",
+                        function.name()
+                    ))
+                })?;
+                ret_type
+            }
             LogicalExpression::Unary { op: _, expr: _ } => unimplemented!(),
             LogicalExpression::Binary { op, left, right } => {
-                let left = left.data_type(current, outer)?;
-                let right = right.data_type(current, outer)?;
-                op.data_type(&left, &right)?
+                let left = left.datatype(current, outer)?;
+                let right = right.datatype(current, outer)?;
+                let ret_type = op
+                    .scalar_function()
+                    .return_type_for_inputs(&[left, right])
+                    .ok_or_else(|| {
+                        RayexecError::new("Failed to get correct signature for scalar function")
+                    })?;
+                ret_type
             }
             _ => unimplemented!(),
         })
@@ -498,7 +615,7 @@ impl LogicalExpression {
 
     /// Try to get a top-level literal from this expression, erroring if it's
     /// not one.
-    pub fn try_into_scalar(self) -> Result<ScalarValue> {
+    pub fn try_into_scalar(self) -> Result<OwnedScalarValue> {
         match self {
             Self::Literal(lit) => Ok(lit),
             other => Err(RayexecError::new(format!("Not a literal: {other:?}"))),

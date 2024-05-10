@@ -1,62 +1,105 @@
-pub mod sum;
+pub mod numeric;
 
-use arrow_array::{Array, ArrayRef};
-use rayexec_error::{RayexecError, Result};
-use std::{any::Any, fmt::Debug};
+use dyn_clone::DynClone;
+use once_cell::sync::Lazy;
+use rayexec_bullet::{array::Array, executor::aggregate::AggregateState, field::DataType};
+use rayexec_error::Result;
+use std::{fmt::Debug, marker::PhantomData};
 
-pub trait AggregateFunction: Send + Sync + Debug {
-    /// Name used to generate columns names in the output if an alias is not
-    /// explicitly provided.
+use super::{ReturnType, Signature};
+
+pub static ALL_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn GenericAggregateFunction>>> =
+    Lazy::new(|| vec![Box::new(numeric::Sum)]);
+
+/// A generic aggregate function that can be specialized into a more specific
+/// function depending on type.
+pub trait GenericAggregateFunction: Debug + Sync + Send + DynClone {
+    /// Name of the function.
     fn name(&self) -> &str;
+
+    /// Optional aliases for this function.
+    fn aliases(&self) -> &[&str] {
+        &[]
+    }
+
+    fn signatures(&self) -> &[Signature];
+
+    fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
+        let sig = self
+            .signatures()
+            .iter()
+            .find(|sig| sig.inputs_satisfy_signature(inputs))?;
+
+        match &sig.return_type {
+            ReturnType::Static(datatype) => Some(datatype.clone()),
+            ReturnType::Dynamic => None,
+        }
+    }
+
+    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>>;
 }
 
-pub trait AccumulatorState: Send + Sync + Debug {
-    /// Number of groups represented by this state.
-    fn num_groups(&self) -> usize;
-
-    /// Convert to a mutable any reference.
-    ///
-    /// This allows us to downcast to the concrete state when merging multiple
-    /// states for the same accumulator together.
-    fn as_any_mut(&mut self) -> &mut dyn Any;
+impl Clone for Box<dyn GenericAggregateFunction> {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
 }
 
-/// Downcast this to the concrete state to allow for merging states across
-/// multiple instances of an accumulator.
-pub fn downcast_state_mut<T: AccumulatorState + 'static>(
-    state: &mut Box<dyn AccumulatorState>,
-) -> Result<&mut T> {
-    state
-        .as_any_mut()
-        .downcast_mut::<T>()
-        .ok_or_else(|| RayexecError::new("failed to downcast to requested state"))
+pub trait SpecializedAggregateFunction: Debug + Sync + Send + DynClone {
+    fn new_grouped_state(&self) -> Box<dyn GroupedStates>;
 }
 
-pub trait Accumulator: Sync + Send + Debug {
-    /// Update the internal state for the group at the given index using `vals`.
-    ///
-    /// This may be called out of order, and th accumulator should initialized
-    /// skipped groups to some uninitialized state.
-    fn accumulate(&mut self, group_idx: usize, vals: &[&ArrayRef]) -> Result<()>;
+// TODO: Combine
+pub trait GroupedStates {
+    fn new_group(&mut self) -> usize;
+    fn update_from_arrays(&mut self, inputs: &[Array], mapping: &[usize]) -> Result<()>;
+    fn finalize(&mut self) -> Result<Array>;
+}
 
-    /// Take the internal state so that it can be merged with another instance
-    /// of this accumulator.
-    fn take_state(&mut self) -> Result<Box<dyn AccumulatorState>>;
+pub struct DefaultGroupedStates<S, T, O, UF, FF> {
+    states: Vec<S>,
 
-    /// Update the internal state using the state from a different instances.
-    ///
-    /// `groups` provides the mapping from the external state to internal state.
-    /// The group index at `groups[0]` means merge the the 0th group from
-    /// `state` into the group at `groups[0]` in `self`.
-    ///
-    /// `groups` may be bigger than the number of groups that this state has
-    /// seen, and so the internal state needs to be updated to accomdate that.
-    fn update_from_state(
-        &mut self,
-        groups: &[usize],
-        state: Box<dyn AccumulatorState>,
-    ) -> Result<()>;
+    update_fn: UF,
+    finalize_fn: FF,
 
-    /// Produce the final result of accumulation.
-    fn finish(&mut self) -> Result<ArrayRef>;
+    _t: PhantomData<T>,
+    _o: PhantomData<O>,
+}
+
+impl<S, T, O, UF, FF> DefaultGroupedStates<S, T, O, UF, FF>
+where
+    S: AggregateState<T, O>,
+    UF: Fn(&[Array], &[usize], &mut [S]) -> Result<()>,
+    FF: Fn(Vec<S>) -> Result<Array>,
+{
+    fn new(update_fn: UF, finalize_fn: FF) -> Self {
+        DefaultGroupedStates {
+            states: Vec::new(),
+            update_fn,
+            finalize_fn,
+            _t: PhantomData,
+            _o: PhantomData,
+        }
+    }
+}
+
+impl<S, T, O, UF, FF> GroupedStates for DefaultGroupedStates<S, T, O, UF, FF>
+where
+    S: AggregateState<T, O>,
+    UF: Fn(&[Array], &[usize], &mut [S]) -> Result<()>,
+    FF: Fn(Vec<S>) -> Result<Array>,
+{
+    fn new_group(&mut self) -> usize {
+        let idx = self.states.len();
+        self.states.push(S::default());
+        idx
+    }
+
+    fn update_from_arrays(&mut self, inputs: &[Array], mapping: &[usize]) -> Result<()> {
+        (self.update_fn)(inputs, mapping, &mut self.states)
+    }
+
+    fn finalize(&mut self) -> Result<Array> {
+        (self.finalize_fn)(std::mem::take(&mut self.states))
+    }
 }

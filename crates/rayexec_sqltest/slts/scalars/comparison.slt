@@ -1,0 +1,82 @@
+# EQ
+
+query B
+select 1 = 1;
+----
+true
+
+query B
+select column1 = column2 from (values (1, 1), (1, 3));
+----
+true
+false
+
+# NEQ
+
+query B
+select 1 != 1;
+----
+false
+
+query B
+select 1 <> 1;
+----
+false
+
+query B
+select column1 != column2 from (values (1, 1), (1, 3));
+----
+false
+true
+
+# LT
+
+query B
+select 1 < 1;
+----
+false
+
+query B
+select column1 < column2 from (values (1, 1), (1, 3));
+----
+false
+true
+
+# LT EQ
+
+query B
+select 1 <= 1;
+----
+true
+
+query B
+select column1 <= column2 from (values (1, 1), (1, 3));
+----
+true
+true
+
+# GT
+
+query B
+select 1 > 1;
+----
+false
+
+query B
+select column1 > column2 from (values (1, 1), (1, 3));
+----
+false
+false
+
+# GT EQ
+
+query B
+select 1 >= 1;
+----
+true
+
+query B
+select column1 >= column2 from (values (1, 1), (1, 3));
+----
+true
+false

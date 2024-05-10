@@ -1,33 +1,27 @@
 pub mod materialize;
 pub mod modify;
+pub mod result_stream;
 pub mod session;
 pub mod vars;
 
-use rayexec_error::{RayexecError, Result};
-use rayon::{ThreadPool, ThreadPoolBuilder};
+use rayexec_error::Result;
 use session::Session;
-use std::sync::Arc;
 
-use crate::physical::scheduler::Scheduler;
+use crate::scheduler::Scheduler;
 
 #[derive(Debug)]
 pub struct Engine {
-    thread_pool: Arc<ThreadPool>,
+    scheduler: Scheduler,
 }
 
 impl Engine {
     pub fn try_new() -> Result<Self> {
-        let thread_pool = ThreadPoolBuilder::new()
-            .build()
-            .map_err(|e| RayexecError::with_source("Failed to build thread pool", Box::new(e)))?;
-
         Ok(Engine {
-            thread_pool: Arc::new(thread_pool),
+            scheduler: Scheduler::try_new()?,
         })
     }
 
     pub fn new_session(&self) -> Result<Session> {
-        let scheduler = Scheduler::new(self.thread_pool.clone());
-        Ok(Session::new(scheduler))
+        Ok(Session::new(self.scheduler.clone()))
     }
 }

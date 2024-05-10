@@ -1,3 +1,5 @@
+halt
+
 statement ok
 set debug_string_var to 'test';
 

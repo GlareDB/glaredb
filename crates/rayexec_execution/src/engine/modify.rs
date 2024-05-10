@@ -1,13 +1,15 @@
-use crate::expr::scalar::ScalarValue;
-
 use super::{session::Session, vars::SessionVar};
 use crossbeam::channel::{unbounded, Receiver, Sender};
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 
 /// Modifications to be applied to the session.
 #[derive(Debug)]
 pub enum Modification {
-    UpdateVariable { name: String, value: ScalarValue },
+    UpdateVariable {
+        name: String,
+        value: OwnedScalarValue,
+    },
     UpdateTransactionState(()),
     UpdateCatalog(()),
 }

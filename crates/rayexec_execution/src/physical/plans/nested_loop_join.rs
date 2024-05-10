@@ -1,17 +1,18 @@
 use crate::expr::PhysicalScalarExpression;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::DataBatch;
-use arrow_array::cast::AsArray;
-use arrow_array::UInt32Array;
 use parking_lot::Mutex;
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::compute::filter::filter;
+use rayexec_bullet::compute::take::take;
 use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use super::{PollPull, PollPush, Sink, Source};
+use super::{PollPull, PollPush, SinkOperator2, SourceOperator2};
 
 /// Nested loop join for joining tables on arbitrary expressions.
 #[derive(Debug)]
@@ -69,7 +70,7 @@ impl PhysicalNestedLoopJoin {
     }
 }
 
-impl Source for PhysicalNestedLoopJoin {
+impl SourceOperator2 for PhysicalNestedLoopJoin {
     fn output_partitions(&self) -> usize {
         self.states.len()
     }
@@ -109,14 +110,14 @@ impl Explainable for PhysicalNestedLoopJoin {
 #[derive(Debug)]
 enum BatchState {
     /// Local only batches.
-    Local(Vec<DataBatch>),
+    Local(Vec<Batch>),
 
     /// All batches across all partitions.
-    Global(Arc<Vec<DataBatch>>),
+    Global(Arc<Vec<Batch>>),
 }
 
 impl BatchState {
-    fn push_for_build(&mut self, batch: DataBatch) -> Result<()> {
+    fn push_for_build(&mut self, batch: Batch) -> Result<()> {
         match self {
             Self::Local(batches) => batches.push(batch),
             _ => return Err(RayexecError::new("Expected batch state to be local")),
@@ -124,14 +125,14 @@ impl BatchState {
         Ok(())
     }
 
-    fn take_local(&mut self) -> Result<Vec<DataBatch>> {
+    fn take_local(&mut self) -> Result<Vec<Batch>> {
         match self {
             Self::Local(batches) => Ok(std::mem::take(batches)),
             _ => Err(RayexecError::new("Expected batch state to be local")),
         }
     }
 
-    fn swap_to_global(&mut self, global: Arc<Vec<DataBatch>>) -> Result<()> {
+    fn swap_to_global(&mut self, global: Arc<Vec<Batch>>) -> Result<()> {
         match self {
             Self::Local(_) => {
                 *self = BatchState::Global(global);
@@ -141,7 +142,7 @@ impl BatchState {
         }
     }
 
-    fn get_global_batches(&self) -> Result<Arc<Vec<DataBatch>>> {
+    fn get_global_batches(&self) -> Result<Arc<Vec<Batch>>> {
         match self {
             BatchState::Global(v) => Ok(v.clone()),
             _ => Err(RayexecError::new("Expected batch state to be global")),
@@ -170,7 +171,7 @@ struct LocalState {
     pending_pull: Option<Waker>,
 
     /// Computed batches.
-    computed: VecDeque<DataBatch>,
+    computed: VecDeque<Batch>,
 }
 
 #[derive(Debug)]
@@ -182,7 +183,7 @@ pub struct PhysicalNestedLoopJoinBuildSink {
     remaining: AtomicUsize,
 }
 
-impl Sink for PhysicalNestedLoopJoinBuildSink {
+impl SinkOperator2 for PhysicalNestedLoopJoinBuildSink {
     fn input_partitions(&self) -> usize {
         self.states.len()
     }
@@ -191,7 +192,7 @@ impl Sink for PhysicalNestedLoopJoinBuildSink {
         &self,
         _task_cx: &TaskContext,
         _cx: &mut Context,
-        input: DataBatch,
+        input: Batch,
         partition: usize,
     ) -> Result<PollPush> {
         let mut state = self.states[partition].lock();
@@ -256,7 +257,7 @@ pub struct PhysicalNestedLoopJoinProbeSink {
     filter: Option<PhysicalScalarExpression>,
 }
 
-impl Sink for PhysicalNestedLoopJoinProbeSink {
+impl SinkOperator2 for PhysicalNestedLoopJoinProbeSink {
     fn input_partitions(&self) -> usize {
         self.states.len()
     }
@@ -265,7 +266,7 @@ impl Sink for PhysicalNestedLoopJoinProbeSink {
         &self,
         _task_cx: &TaskContext,
         cx: &mut Context,
-        input: DataBatch,
+        input: Batch,
         partition: usize,
     ) -> Result<PollPush> {
         let left_batches = {
@@ -320,42 +321,49 @@ impl Explainable for PhysicalNestedLoopJoinProbeSink {
 /// Generate a cross product of two batches, applying an optional filter to the
 /// result.
 fn cross_join(
-    left: &DataBatch,
-    right: &DataBatch,
-    filter: Option<&PhysicalScalarExpression>,
-) -> Result<Vec<DataBatch>> {
+    left: &Batch,
+    right: &Batch,
+    filter_expr: Option<&PhysicalScalarExpression>,
+) -> Result<Vec<Batch>> {
     let mut batches = Vec::with_capacity(left.num_rows() * right.num_rows());
 
     // For each row in the left batch, join the entirety of right.
     for left_idx in 0..left.num_rows() {
-        let left_indices =
-            UInt32Array::from_iter(std::iter::repeat(left_idx as u32).take(right.num_rows()));
+        let left_indices = vec![left_idx; right.num_rows()];
 
         let mut cols = Vec::new();
         for col in left.columns() {
             // TODO: It'd be nice to have a logical repeated array type instead
             // of having to physically copy the same element `n` times into a
             // new array.
-            let left_repeated = arrow::compute::take(&col, &left_indices, None)?;
-            cols.push(left_repeated);
+            let left_repeated = take(&col, &left_indices)?;
+            cols.push(Arc::new(left_repeated));
         }
 
         // Join all of right.
         cols.extend_from_slice(right.columns());
-        let mut batch = DataBatch::try_new(cols)?;
+        let mut batch = Batch::try_new(cols)?;
 
         // If we have a filter, apply it to the intermediate batch.
-        if let Some(filter) = &filter {
-            let arr = filter.eval(&batch)?;
-            let selection = arr.as_boolean(); // TODO: Need to check that this returns a boolean somewhere.
+        if let Some(filter_expr) = &filter_expr {
+            let arr = filter_expr.eval(&batch)?;
+            let selection = match arr.as_ref() {
+                Array::Boolean(arr) => arr,
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Expected filter predicate in cross join to return a boolean, got {}",
+                        other.datatype()
+                    )))
+                }
+            };
 
             let filtered = batch
                 .columns()
                 .iter()
-                .map(|col| arrow::compute::filter(col, selection))
+                .map(|col| filter(col, selection))
                 .collect::<Result<Vec<_>, _>>()?;
 
-            batch = DataBatch::try_new(filtered)?;
+            batch = Batch::try_new(filtered)?;
         }
 
         batches.push(batch);

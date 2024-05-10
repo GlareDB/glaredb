@@ -19,6 +19,7 @@ pub fn take(arr: &Array, indices: &[usize]) -> Result<Array> {
         Array::LargeUtf8(arr) => Array::LargeUtf8(take_varlen(arr, indices)?),
         Array::Binary(arr) => Array::Binary(take_varlen(arr, indices)?),
         Array::LargeBinary(arr) => Array::LargeBinary(take_varlen(arr, indices)?),
+        _ => unimplemented!(),
     })
 }
 
@@ -32,7 +33,9 @@ pub fn take_primitive<T: Copy>(
 
     let values = arr.values();
     // TODO: validity
-    let iter = indices.iter().map(|idx| *values.get(*idx).unwrap());
+    let iter = indices
+        .iter()
+        .map(|idx| *values.as_ref().get(*idx).unwrap());
     let taken = PrimitiveArray::from_iter(iter);
 
     Ok(taken)

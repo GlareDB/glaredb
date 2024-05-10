@@ -1,5 +1,5 @@
 use crate::{
-    expr::scalar::{BinaryOperator, ScalarValue},
+    expr::scalar::BinaryOperator,
     planner::operator::{AnyJoin, EqualityJoin, LogicalExpression, LogicalOperator},
 };
 use rayexec_error::Result;
@@ -26,7 +26,7 @@ impl JoinOrderRule {
                     split_conjuctive(join.on.clone(), &mut conjunctives);
 
                     // Used to adjust the indexes used for the on keys.
-                    let left_len = join.left.schema(&[])?.num_columns();
+                    let left_len = join.left.output_schema(&[])?.types.len();
 
                     let mut left_on = Vec::new();
                     let mut right_on = Vec::new();

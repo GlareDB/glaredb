@@ -7,16 +7,14 @@ resolver = "2"
 version = "0.0.1"
 edition = "2021"
 
+[profile.release]
+lto = "thin"
+opt-level = 3
+codegen-units = 1
+strip = true
+
 [workspace.dependencies]
 ahash = { version = "0.8.11", default-features = false }
-arrow = { version = "50.0.0", features = ["prettyprint"] }
-arrow-array = { version = "50.0.0", default-features = false, features = ["chrono-tz"] }
-arrow-buffer = { version = "50.0.0", default-features = false }
-arrow-cast = { version = "50.0.0", default-features = false }
-arrow-ipc = { version = "50.0.0", default-features = false, features = ["lz4"] }
-arrow-ord = { version = "50.0.0", default-features = false }
-arrow-schema = { version = "50.0.0", default-features = false }
-arrow-select = { version = "50.0.0", default-features = false }
 chrono = { version = "0.4.38", default-features = false }
 futures = "0.3.30"
 hashbrown = "0.14.3"

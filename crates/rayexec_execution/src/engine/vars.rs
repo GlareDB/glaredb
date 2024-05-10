@@ -1,5 +1,5 @@
-use crate::expr::scalar::ScalarValue;
 use once_cell::sync::Lazy;
+use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 
@@ -8,17 +8,17 @@ static DEFAULT_GLOBAL_SESSION_VARS: Lazy<SessionVars> = Lazy::new(|| SessionVars
 #[derive(Debug, Clone, PartialEq)]
 pub struct SessionVar {
     pub name: &'static str,
-    pub value: ScalarValue,
+    pub value: OwnedScalarValue,
 }
 
 impl SessionVar {
     /// Validate that the type of the provided value is valid for this variable.
     pub fn validate_type(&self, value: &ScalarValue) -> Result<()> {
-        if self.value.data_type() != value.data_type() {
+        if self.value.datatype() != value.datatype() {
             return Err(RayexecError::new(format!(
                 "Invalid value for session variable {}, expected a value of type {}",
                 self.name,
-                self.value.data_type()
+                self.value.datatype()
             )));
         }
 
@@ -42,7 +42,7 @@ impl SessionVars {
         let vars = [
             SessionVar {
                 name: "debug_string_var",
-                value: ScalarValue::Utf8("debug".to_string()),
+                value: ScalarValue::Utf8("debug".into()),
             },
             SessionVar {
                 name: "debug_error_on_nested_loop_join",
@@ -80,7 +80,7 @@ impl SessionVars {
         self.get_var(name).is_ok()
     }
 
-    pub fn set_var(&mut self, name: &str, value: ScalarValue) -> Result<()> {
+    pub fn set_var(&mut self, name: &str, value: OwnedScalarValue) -> Result<()> {
         if let Some(var) = self.vars.get_mut(name) {
             var.validate_type(&value)?;
 
@@ -113,12 +113,12 @@ mod tests {
     fn set_var_exists() {
         let mut vars = SessionVars::new_local();
         let var = vars.get_var("debug_string_var").unwrap();
-        assert_eq!(ScalarValue::Utf8("debug".to_string()), var.value);
+        assert_eq!(ScalarValue::Utf8("debug".into()), var.value);
 
-        vars.set_var("debug_string_var", ScalarValue::Utf8("test".to_string()))
+        vars.set_var("debug_string_var", ScalarValue::Utf8("test".into()))
             .unwrap();
         let var = vars.get_var("debug_string_var").unwrap();
-        assert_eq!(ScalarValue::Utf8("test".to_string()), var.value);
+        assert_eq!(ScalarValue::Utf8("test".into()), var.value);
     }
 
     #[test]
@@ -131,7 +131,7 @@ mod tests {
     #[test]
     fn set_var_not_exists() {
         let mut vars = SessionVars::new_local();
-        vars.set_var("does_not_exist", ScalarValue::Utf8("test".to_string()))
+        vars.set_var("does_not_exist", ScalarValue::Utf8("test".into()))
             .unwrap_err();
     }
 }

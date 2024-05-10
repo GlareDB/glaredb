@@ -1,15 +1,15 @@
-use super::{BoundTableFunction, TableFunction, TableFunctionArgs};
+use super::{BoundTableFunctionOld, TableFunctionArgs, TableFunctionOld};
 use rayexec_error::{RayexecError, Result};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadParquet;
 
-impl TableFunction for ReadParquet {
+impl TableFunctionOld for ReadParquet {
     fn name(&self) -> &str {
         "read_parquet"
     }
 
-    fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunction>> {
+    fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunctionOld>> {
         unimplemented!()
     }
 }

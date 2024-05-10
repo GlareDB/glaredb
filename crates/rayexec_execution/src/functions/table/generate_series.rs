@@ -1,11 +1,10 @@
-use super::{BoundTableFunction, Pushdown, Statistics, TableFunction, TableFunctionArgs};
-use crate::expr::scalar::ScalarValue;
-use crate::physical::plans::{PollPull, Source};
+use super::{BoundTableFunctionOld, Pushdown, Statistics, TableFunctionArgs, TableFunctionOld};
+use crate::physical::plans::{PollPull, SourceOperator2};
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::{DataBatch, NamedDataBatchSchema};
-use arrow_array::Int32Array;
-use arrow_schema::DataType;
+use rayexec_bullet::array::{Array, Int32Array};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::field::{DataType, Field, Schema};
 use rayexec_error::{RayexecError, Result};
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
@@ -14,24 +13,12 @@ use std::task::{Context, Poll};
 #[derive(Debug, Clone, Copy)]
 pub struct GenerateSeries;
 
-impl TableFunction for GenerateSeries {
+impl TableFunctionOld for GenerateSeries {
     fn name(&self) -> &str {
         "generate_series"
     }
 
-    fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunction>> {
-        fn get_i32(scalar: &ScalarValue) -> Result<i32> {
-            Ok(match scalar {
-                ScalarValue::Int32(i) => *i,
-                ScalarValue::Int64(i) => *i as i32, // TODO
-                other => {
-                    return Err(RayexecError::new(format!(
-                        "Expected integer argument, got {other:?}"
-                    )))
-                }
-            })
-        }
-
+    fn bind(&self, args: TableFunctionArgs) -> Result<Box<dyn BoundTableFunctionOld>> {
         if !args.named.is_empty() {
             return Err(RayexecError::new(
                 "This function doesn't accept named arguments".to_string(),
@@ -40,14 +27,14 @@ impl TableFunction for GenerateSeries {
 
         let (start, stop, step) = match args.unnamed.len() {
             2 => (
-                get_i32(args.unnamed.first().unwrap())?,
-                get_i32(args.unnamed.get(1).unwrap())?,
+                args.unnamed.first().unwrap().try_as_i32()?,
+                args.unnamed.get(1).unwrap().try_as_i32()?,
                 1,
             ),
             3 => (
-                get_i32(args.unnamed.first().unwrap())?,
-                get_i32(args.unnamed.get(1).unwrap())?,
-                get_i32(args.unnamed.get(2).unwrap())?,
+                args.unnamed.first().unwrap().try_as_i32()?,
+                args.unnamed.get(1).unwrap().try_as_i32()?,
+                args.unnamed.get(2).unwrap().try_as_i32()?,
             ),
             other => {
                 return Err(RayexecError::new(format!(
@@ -56,20 +43,26 @@ impl TableFunction for GenerateSeries {
             }
         };
 
-        Ok(Box::new(GenerateSeriesInteger { start, stop, step }))
+        Ok(Box::new(GenerateSeriesInteger {
+            start,
+            stop,
+            step,
+            schema: Schema::new([Field::new("generate_series", DataType::Int32, false)]),
+        }))
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct GenerateSeriesInteger {
     start: i32,
     stop: i32,
     step: i32,
+    schema: Schema,
 }
 
-impl BoundTableFunction for GenerateSeriesInteger {
-    fn schema(&self) -> NamedDataBatchSchema {
-        NamedDataBatchSchema::try_new(vec!["generate_series"], vec![DataType::Int32]).unwrap()
+impl BoundTableFunctionOld for GenerateSeriesInteger {
+    fn schema(&self) -> &Schema {
+        &self.schema
     }
 
     fn statistics(&self) -> Statistics {
@@ -83,9 +76,11 @@ impl BoundTableFunction for GenerateSeriesInteger {
         self: Box<Self>,
         _projection: Vec<usize>,
         _pushdown: Pushdown,
-    ) -> Result<Box<dyn Source>> {
+    ) -> Result<Box<dyn SourceOperator2>> {
         Ok(Box::new(GenerateSeriesIntegerOperator {
-            s: *self,
+            start: self.start,
+            stop: self.stop,
+            step: self.step,
             curr: AtomicI32::new(self.start),
         }))
     }
@@ -106,11 +101,13 @@ impl Explainable for GenerateSeriesInteger {
 
 #[derive(Debug)]
 struct GenerateSeriesIntegerOperator {
-    s: GenerateSeriesInteger,
+    start: i32,
+    stop: i32,
+    step: i32,
     curr: AtomicI32,
 }
 
-impl Source for GenerateSeriesIntegerOperator {
+impl SourceOperator2 for GenerateSeriesIntegerOperator {
     fn output_partitions(&self) -> usize {
         1
     }
@@ -124,12 +121,12 @@ impl Source for GenerateSeriesIntegerOperator {
         const BATCH_SIZE: usize = 1000;
         let curr = self.curr.load(Ordering::Relaxed);
 
-        if curr > self.s.stop {
+        if curr > self.stop {
             return Ok(PollPull::Exhausted);
         }
 
-        let vals: Vec<_> = (curr..=self.s.stop)
-            .step_by(self.s.step as usize)
+        let vals: Vec<_> = (curr..=self.stop)
+            .step_by(self.step as usize)
             .take(BATCH_SIZE)
             .collect();
 
@@ -138,15 +135,22 @@ impl Source for GenerateSeriesIntegerOperator {
             None => return Ok(PollPull::Exhausted),
         };
 
-        self.curr.store(last + self.s.step, Ordering::Relaxed);
-        let arr = Arc::new(Int32Array::from(vals));
+        self.curr.store(last + self.step, Ordering::Relaxed);
+        let arr = Array::Int32(Int32Array::from(vals));
 
-        Ok(PollPull::Batch(DataBatch::try_new(vec![arr]).unwrap()))
+        Ok(PollPull::Batch(Batch::try_new([arr]).unwrap()))
     }
 }
 
 impl Explainable for GenerateSeriesIntegerOperator {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.s.explain_entry(conf)
+        let ent = ExplainEntry::new("generate_series (int)");
+        if conf.verbose {
+            ent.with_value("start", self.start)
+                .with_value("stop", self.stop)
+                .with_value("step", self.step)
+        } else {
+            ent
+        }
     }
 }

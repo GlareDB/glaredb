@@ -1,11 +1,10 @@
 use crate::expr::PhysicalScalarExpression;
 use crate::physical::TaskContext;
 use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::types::batch::DataBatch;
-
+use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 
-use super::PhysicalOperator;
+use super::StatelessOperator;
 
 #[derive(Debug)]
 pub struct PhysicalProjection {
@@ -18,15 +17,15 @@ impl PhysicalProjection {
     }
 }
 
-impl PhysicalOperator for PhysicalProjection {
-    fn execute(&self, _task_cx: &TaskContext, input: DataBatch) -> Result<DataBatch> {
+impl StatelessOperator for PhysicalProjection {
+    fn execute(&self, _task_cx: &TaskContext, input: Batch) -> Result<Batch> {
         let arrs = self
             .exprs
             .iter()
             .map(|expr| expr.eval(&input))
             .collect::<Result<Vec<_>>>()?;
 
-        let batch = DataBatch::try_new(arrs)?;
+        let batch = Batch::try_new(arrs)?;
 
         Ok(batch)
     }

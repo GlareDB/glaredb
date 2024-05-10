@@ -2,7 +2,6 @@ use crate::{
     array::{Array, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType},
     bitmap::Bitmap,
     scalar::ScalarValue,
-    storage::PrimitiveStorage,
 };
 use rayexec_error::{RayexecError, Result};
 
@@ -204,12 +203,8 @@ where
         ));
     }
 
-    let left = match left.values() {
-        PrimitiveStorage::Vec(v) => v.iter(),
-    };
-    let right = match right.values() {
-        PrimitiveStorage::Vec(v) => v.iter(),
-    };
+    let left = left.values().as_ref().iter();
+    let right = right.values().as_ref().iter();
 
     let bools = compare_value_iters(left, right, cmp_fn);
 

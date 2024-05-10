@@ -1,5 +1,4 @@
 use crate::array::{Array, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType};
-use crate::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
 
 pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
@@ -34,9 +33,7 @@ pub fn filter_primitive<T: Copy>(
 
     // TODO: validity
 
-    let values_iter = match arr.values() {
-        PrimitiveStorage::Vec(v) => v.iter(),
-    };
+    let values_iter = arr.values().as_ref().iter();
     let select_iter = selection.values().iter();
 
     let iter = values_iter

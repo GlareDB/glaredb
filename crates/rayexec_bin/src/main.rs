@@ -1,4 +1,5 @@
 use futures::StreamExt;
+use rayexec_bullet::format::ugly::ugly_print;
 use rayexec_error::Result;
 use rayexec_execution::engine::Engine;
 use tracing_subscriber::filter::EnvFilter;
@@ -21,7 +22,7 @@ async fn main() {
         .with_file(true)
         .with_line_number(true)
         .finish();
-    let _g = tracing::subscriber::set_default(subscriber);
+    tracing::subscriber::set_global_default(subscriber).unwrap();
 
     if let Err(e) = inner().await {
         println!("----");
@@ -46,8 +47,9 @@ async fn inner() -> Result<()> {
     println!("INPUT: {query}");
     println!("OUTPUT SCHEMA: {:?}", output.output_schema);
 
-    for (idx, batch) in batches.into_iter().enumerate() {
-        println!("{idx}: BATCH\n{batch:?}");
+    for batch in batches.into_iter() {
+        let out = ugly_print(&output.output_schema, &[batch])?;
+        println!("{out}");
     }
 
     Ok(())

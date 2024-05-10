@@ -1,6 +1,5 @@
 use crate::array::{Array, PrimitiveArray};
 use crate::scalar::ScalarValue;
-use crate::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
 
@@ -150,12 +149,8 @@ where
         ));
     }
 
-    let left = match left.values_mut() {
-        PrimitiveStorage::Vec(v) => v.iter_mut(),
-    };
-    let right = match right.values() {
-        PrimitiveStorage::Vec(v) => v.iter(),
-    };
+    let left = left.values_mut().try_as_mut()?.iter_mut();
+    let right = right.values().as_ref().iter();
 
     for (left, right) in left.zip(right) {
         *left = f(*left, *right);
