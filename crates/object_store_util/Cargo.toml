@@ -6,6 +6,11 @@ edition = { workspace = true }
 [lints]
 workspace = true
 
+[lib]
+# no tests currently implemented in this package; skip, then
+doctest = false
+test = false 
+
 [dependencies]
 logutil = { path = "../logutil" }
 object_store = { workspace = true, features = ["azure"] }

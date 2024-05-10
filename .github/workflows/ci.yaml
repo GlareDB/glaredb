@@ -211,7 +211,7 @@ jobs:
           path: target/debug/glaredb
           key: ${{ runner.os }}-glaredb-bin-${{ github.run_id }}
           fail-on-cache-miss: true
-      - run: just unit-tests
+      - run: just test
 
   cache:
     # when we change the Cargo.lock we should copy the branch cache

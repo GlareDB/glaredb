@@ -6,6 +6,11 @@ edition = {workspace = true}
 [lints]
 workspace = true
 
+[lib]
+# no tests currently implemented in this package; skip, then
+doctest = false
+test = false 
+
 [dependencies]
 bytes = { workspace = true }
 home = "0.5.9"

@@ -6,78 +6,71 @@ edition = { workspace = true }
 [lints]
 workspace = true
 
+[lib]
+# no doctests currently implemented in this package; skip, then
+doctest = false
+
 [dependencies]
+datafusion_ext = { path = "../datafusion_ext" }
+decimal = { path = "../decimal" }
 ioutil = { path = "../ioutil" }
 logutil = { path = "../logutil" }
-apache-avro = "0.16"
-async-channel = "2.2.1"
-async-stream = "0.3.5"
+object_store_util = { path = "../object_store_util" }
+parser = { path = "../parser" }
+protogen = { path = "../protogen" }
+repr = { path = "../repr" }
+snowflake_connector = { path = "../snowflake_connector" }
 async-trait = { workspace = true }
-bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "deps/2023-10-27-update" }
-bitvec = "1"
 bytes = { workspace = true }
 chrono = { workspace = true }
-chrono-tz = "0.8.6"
 datafusion = { workspace = true }
-decimal = { path = "../decimal" }
 deltalake = { workspace = true }
 futures = { workspace = true }
-gcp-bigquery-client = "0.18.0"
-klickhouse = { version = "0.11.2", features = ["tls"] }
-protogen = { path = "../protogen" }
-parser = {path = "../parser"}
-datafusion_ext = { path = "../datafusion_ext" }
-mongodb = "2.8.2"
-mysql_async = { version = "0.34.1", default-features = false, features = [
-  "default-rustls",
-] }
-mysql_common = { version = "0.32.2", default-features = false, features = [
-  "chrono",
-] }
 object_store = { workspace = true, features = ["gcp", "aws", "http"] }
-object_store_util = { path = "../object_store_util" }
-once_cell = "1.19.0"
-rand = "0.8.5"
-regex = "1.10.4"
-repr = { path = "../repr" }
-ring = "0.17.8"
-rustls = "0.21.10"
 reqwest = { workspace = true }
-rust_decimal = { version = "1.35.0", features = ["db-tokio-postgres"] }
 serde = { workspace = true }
-serde_with = "3.7.0"
-serde_json = {workspace = true}
-snowflake_connector = { path = "../snowflake_connector" }
+serde_json = { workspace = true }
 tempfile = { workspace = true }
-ssh-key = { version = "0.6.6", features = ["ed25519", "alloc"] }
-thiserror.workspace = true
-tokio-util = { version = "*" }
+thiserror = { workspace = true }
 tokio = { workspace = true }
-tokio-postgres = { version = "0.7.8", features = [
-  "with-uuid-1",
-  "with-serde_json-1",
-  "with-chrono-0_4",
-] }
-parking_lot = "0.12.1"
-tokio-rustls = "0.24.1"
 tracing = { workspace = true }
-uuid = "1.8.0"
-url.workspace = true
-webpki-roots = "0.26.1"
-calamine = { version = "0.24.0", features = ["dates"] }
-tiberius = { version = "0.12.2", default-features = false, features = [
-  "tds73",
-  "rustls",
-  "chrono",
-] }
-lance = { git = "https://github.com/GlareDB/lance", branch = "df36" }
+url = { workspace = true }
+apache-avro = "0.16"
+async-channel = "2.2.1"
+async-sqlite = "0.2.2"
+async-stream = "0.3.5"
+bitvec = "1"
 bson = "2.10.0"
-scylla = { version = "0.12.0" }
+chrono-tz = "0.9"
+gcp-bigquery-client = "0.20.0"
 glob = "0.3.1"
 indexmap = "2.2.6"
-async-sqlite = "0.2.2"
+mongodb = "2.8.2"
+once_cell = "1.19.0"
+parking_lot = "0.12.2"
+rand = "0.8.5"
+regex = "1.10.4"
+ring = "0.17.8"
+rustls = "0.23.5"
+scylla = "0.13.0"
+serde_with = "3.8.1"
+tokio-postgres-rustls = "0.12.0"
+tokio-rustls = "0.26.0"
+tokio-util = "0.7.11"
+uuid = "1.8.0"
+webpki-roots = "0.26.1"
+calamine = { version = "0.24.0", features = ["dates"] }
+klickhouse = { version = "0.13.0", features = ["tls"] }
+mysql_async = { version = "0.34.1", default-features = false, features = ["default-rustls"] }
+mysql_common = { version = "0.32.2", default-features = false, features = ["chrono"] }
+rust_decimal = { version = "1.35.0", features = ["db-tokio-postgres"] }
+ssh-key = { version = "0.6.6", features = ["ed25519", "alloc"] }
+tiberius = { version = "0.12.2", default-features = false, features = ["tds73","rustls","chrono"] }
+tokio-postgres = { version = "0.7.8", features = ["with-uuid-1", "with-serde_json-1","with-chrono-0_4"] }
+bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "deps/2023-10-27-update" }
+lance = { git = "https://github.com/GlareDB/lance", branch = "df36" }
 json-stream = { git = "https://github.com/tychoish/json-stream", rev = "bd4990fab95f789740a75a8eea98d5dac1f0160a" }
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
-openssh = "0.10.3"
+openssh = "0.10.4"

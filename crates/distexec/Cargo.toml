@@ -3,7 +3,10 @@ name = "distexec"
 version = { workspace = true }
 edition = { workspace = true }
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+# no tests currently implemented in this package; skip, then
+doctest = false
+test = false 
 
 [dependencies]
 thiserror.workspace = true
@@ -11,5 +14,5 @@ datafusion.workspace = true
 tokio.workspace = true
 futures.workspace = true
 tracing.workspace = true
-parking_lot = "0.12.1"
+parking_lot = "0.12.2"
 async-channel = "2.2.1"
