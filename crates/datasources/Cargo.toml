@@ -76,7 +76,7 @@ tiberius = { version = "0.12.2", default-features = false, features = [
 ] }
 lance = { git = "https://github.com/GlareDB/lance", branch = "df36" }
 bson = "2.10.0"
-scylla = { version = "0.12.0" }
+scylla = { version = "0.13.0" }
 glob = "0.3.1"
 indexmap = "2.2.6"
 async-sqlite = "0.2.2"
