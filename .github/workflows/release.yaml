@@ -64,24 +64,22 @@ jobs:
     env:
       DIST_TARGET_TRIPLE: ${{ matrix.target }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@1.75.0
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.75.0
         with:
           targets: ${{ matrix.target }}
       - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
-      - name: Build
-        run: just dist
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+      - uses: threeal/cmake-action@main
+        with:
+          run-build: false
+      - run: just dist
+      - uses: actions/upload-artifact@v3
         with:
           name: dist-${{ matrix.target }}
           path: ./target/dist/
-      - name: Post to slack
-        uses: slackapi/slack-github-action@v1.26.0
+      - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -99,14 +97,11 @@ jobs:
     env:
       GCP_PROJECT_ID: glaredb-artifacts
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@v2
       - run: gcloud auth configure-docker -q
       - run: ./scripts/build-and-push-images.sh
         # TODO: this should pull the binary that was built in kernel-dist.
@@ -133,13 +128,11 @@ jobs:
           name: dist-x86_64-pc-windows-msvc
           path: dist
       - run: ls -al ./dist
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v3
         with:
           name: releases
           path: ./dist
-      - name: Post to slack
-        uses: slackapi/slack-github-action@v1.26.0
+      - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -167,26 +160,22 @@ jobs:
       - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
-      - name: install protoc
-        run: just protoc
+      - run: just protoc
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Build wheels
+      - name: maturin build
         uses: PyO3/maturin-action@v1
         with:
           manylinux: "auto"
           docker-options: "--env PROTOC=${{ env.PROTOC }}"
           target: ${{ matrix.target }}
           args: --release --out dist -m bindings/python/Cargo.toml
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v3
         with:
           name: wheels
           path: dist
-
-      - name: Post to slack
-        uses: slackapi/slack-github-action@v1.26.0
+      - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -208,26 +197,23 @@ jobs:
       - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
-      - name: install protoc
-        run: just protoc
+      - run: just protoc
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: ${{ matrix.target }}
-      - name: Build wheels
+      - name: maturin build
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
           working-directory: bindings/python
           container: "off"
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v3
         with:
           name: wheels
           path: bindings/python/dist
-      - name: Post to slack
-        uses: slackapi/slack-github-action@v1.26.0
+      - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -257,21 +243,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Build wheels
+      - name: maturin build
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.config.target }}
           args: --release --out dist
           working-directory: bindings/python
           container: "off"
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v3
         with:
           name: wheels
           path: bindings/python/dist
-
-      - name: Post to slack
-        uses: slackapi/slack-github-action@v1.26.0
+      - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -290,15 +273,14 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: wheels
-      - name: Publish to PyPI
+      - name: maturin publish
         uses: PyO3/maturin-action@v1
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         with:
           command: upload
           args: --skip-existing *
-      - name: Post to slack
-        uses: slackapi/slack-github-action@v1.26.0
+      - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -368,20 +350,17 @@ jobs:
         with:
           just-version: "1.23.0"
       - run: just protoc
-      - name: Setup node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         if: ${{ !matrix.settings.docker }}
         with:
           node-version: 20
           check-latest: true
-      - name: Install
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         if: ${{ !matrix.settings.docker }}
         with:
           toolchain: stable
           targets: ${{ matrix.settings.target }}
-      - name: Cache cargo
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry/index/
@@ -394,42 +373,34 @@ jobs:
         if: ${{ matrix.settings.target == 'armv7-unknown-linux-gnueabihf' }}
         with:
           version: 0.10.1
-      - name: Setup toolchain
-        run: ${{ matrix.settings.setup }}
+      - run: ${{ matrix.settings.setup }}
         if: ${{ matrix.settings.setup }}
         shell: bash
-      - name: Setup node x86
-        if: matrix.settings.target == 'i686-pc-windows-msvc'
+      - if: matrix.settings.target == 'i686-pc-windows-msvc'
         run: yarn config set supportedArchitectures.cpu "ia32"
         shell: bash
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-      - name: Setup node x86
-        uses: actions/setup-node@v4
+      - run: yarn install --frozen-lockfile
+      - uses: actions/setup-node@v4
         if: matrix.settings.target == 'i686-pc-windows-msvc'
         with:
           node-version: 20
           check-latest: true
           architecture: x86
-      - name: Build in docker
-        uses: addnab/docker-run-action@v3
+      - uses: addnab/docker-run-action@v3
         if: ${{ matrix.settings.docker }}
         with:
           image: ${{ matrix.settings.docker }}
           options: "--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build"
           run: ${{ matrix.settings.build }}
-      - name: Build
-        run: ${{ matrix.settings.build }}
+      - run: ${{ matrix.settings.build }}
         if: ${{ !matrix.settings.docker }}
         shell: bash
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v3
         with:
           name: bindings-${{ matrix.settings.target }}
           path: bindings/nodejs/${{ env.APP_NAME }}.*.node
           if-no-files-found: error
-      - name: Post to slack
-        uses: slackapi/slack-github-action@v1.26.0
+      - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
@@ -457,24 +428,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
       - run: just protoc
-      - name: Setup node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           check-latest: true
           registry-url: "https://registry.npmjs.org"
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-      - name: Download all artifacts
-        uses: actions/download-artifact@v3
+      - run: yarn install --frozen-lockfile
+      - uses: actions/download-artifact@v3
         with:
           path: bindings/nodejs/artifacts
-      - name: Move artifacts
-        run: yarn artifacts
-      - name: List packages
-        run: ls -R ./npm
+      - run: yarn artifacts
+      - run: ls -R ./npm
         shell: bash
-      - name: Publish
+      - name: publish
         run: |
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
           npm publish
@@ -482,8 +448,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Post to slack
-        uses: slackapi/slack-github-action@v1.26.0
+      - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
         with:
           payload: |
