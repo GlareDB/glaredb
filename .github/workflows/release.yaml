@@ -66,9 +66,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/setup-nasm@v1
-        if: matrix.settings.target == 'x86_64-pc-windows-msvc'
+        if: matrix.settings.os == 'windows-latest-8-cores'
       - uses: egor-tensin/setup-gcc@v1
-        if: matrix.settings.target == 'x86_64-unknown-linux-gnu'
+        if: matrix.settings.os == 'ubuntu-2004-8-cores'
         with:
           version: 11
       - uses: dtolnay/rust-toolchain@1.75.0
@@ -77,9 +77,6 @@ jobs:
       - uses: extractions/setup-just@v2
         with:
           just-version: "1.23.0"
-      - uses: threeal/cmake-action@main
-        with:
-          run-build: false
       - run: just dist
       - uses: actions/upload-artifact@v3
         with:
@@ -90,7 +87,12 @@ jobs:
         with:
           payload: |
             {
-              "text": "Build Kernel Binary (${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Kernel Binary"
+              "attachments": [ 
+                 { "title": "target", "value": "${{ matrix.settings.target }}", "short": true }, 
+                 { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                 { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+              ]
             }
 
   docker-push:
@@ -143,7 +145,12 @@ jobs:
         with:
           payload: |
             {
-              "text": "Publish Kernal Binary: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Kernel Release"
+              "attachments": [ 
+                 { "title": "target", "value": "${{ matrix.settings.target }}", "short": true }, 
+                 { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                 { "title": "Link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+              ]
             }
 
   ########################################################################
@@ -189,7 +196,12 @@ jobs:
         with:
           payload: |
             {
-              "text": "Build Python Bindings (linux ${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Python Bindings"
+              "attachments": [ 
+                 { "title": "target", "value": "linux ${{ matrix.settings.target }}", "short": true }, 
+                 { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                 { "title": "Link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+              ]
             }
 
   python-windows:
@@ -228,7 +240,12 @@ jobs:
         with:
           payload: |
             {
-              "text": "Build Python Bindings (windows ${{ matrix.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Python Bindings"
+              "attachments": [ 
+                 { "title": "target", "value": "windows ${{ matrix.settings.target }}", "short": true }, 
+                 { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                 { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+              ]
             }
 
   python-macos:
@@ -269,7 +286,12 @@ jobs:
         with:
           payload: |
             {
-              "text": "Build Python Bindings (macos ${{ matrix.config.target }}): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Python Bindings"
+              "attachments": [ 
+                 { "title": "target", "value": "macOS ${{ matrix.settings.target }}", "short": true }, 
+                 { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                 { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+              ]
             }
 
   python-push:
@@ -295,7 +317,12 @@ jobs:
         with:
           payload: |
             {
-              "text": "Push Python Bindings: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Push Python Bindings"
+              "attachments": [ 
+                 { "title": "target", "value": "macOS ${{ matrix.settings.target }}", "short": true }, 
+                 { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                 { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+              ]
             }
 
   ########################################################################
@@ -357,9 +384,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/setup-nasm@v1
-        if: matrix.settings.target == 'x86_64-pc-windows-msvc'
+        if: matrix.settings.host == 'windows-latest-8-cores'
       - uses: egor-tensin/setup-gcc@v1
-        if: matrix.settings.target == 'x86_64-unknown-linux-gnu'
+        if: matrix.settings.host == 'ubuntu-2004-8-cores'
         with:
           version: 11
       - uses: extractions/setup-just@v2
@@ -421,7 +448,12 @@ jobs:
         with:
           payload: |
             {
-              "text": "Build Node.JS Bindings (stable - ${{ matrix.settings.target }} - node@18): ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Build Node.JS Bindings (stable - node@18)",
+              "attachments": [ 
+                 { "title": "target", "value": "${{ matrix.settings.target }}", "short": true }, 
+                 { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                 { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+              ]
             }
 
   node-push:
@@ -469,5 +501,10 @@ jobs:
         with:
           payload: |
             {
-              "text": "Push Node.js Bindings: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "text": "Push node.JS Bidnings"
+              "attachments": [ 
+                 { "title": "target", "value": "macOS ${{ matrix.settings.target }}", "short": true }, 
+                 { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                 { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+              ]
             }
