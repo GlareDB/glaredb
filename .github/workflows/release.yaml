@@ -86,13 +86,14 @@ jobs:
         with:
           payload: |
             {
-              "text": "Build Kernel Binary",
+              "text": "Build Kernel Binary: ${{ job.status }}",
               "attachments": [
                  {
                    "fields": [
                       { "title": "target", "value": "${{ matrix.target }}", "short": true },
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
+                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
                    ]
                  }
               ]
@@ -148,12 +149,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "Push Kernel Release",
+              "text": "Push Kernel Release: ${{ job.status }}",
               "attachments": [
                  {
                    "fields": [
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
+                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
                    ]
                  }
               ]
@@ -202,13 +204,14 @@ jobs:
         with:
           payload: |
             {
-              "text": "Build Linux Python Bindings",
+              "text": "Build Linux Python Bindings: ${{ job.status }}",
               "attachments": [
                  {
                    "fields": [
                       { "title": "target", "value": "${{ matrix.target }}", "short": true },
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
+                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
                    ]
                  }
               ]
@@ -250,13 +253,14 @@ jobs:
         with:
           payload: |
             {
-              "text": "Build Windows Python Bindings",
+              "text": "Build Windows Python Bindings: ${{ job.status }}",
               "attachments": [
                  {
                    "fields": [
                       { "title": "target", "value": "Windows ${{ matrix.target }}", "short": true },
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
+                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
                    ]
                  }
               ]
@@ -300,13 +304,14 @@ jobs:
         with:
           payload: |
             {
-              "text": "Build macOS Python Bindings",
+              "text": "Build macOS Python Bindings: ${{ job.status }}",
               "attachments": [
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.target }}", "short": true },
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
+                      { "title": "target", "value": "${{ matrix.target }}", "short": true },
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
+                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
                    ]
                  }
               ]
@@ -335,12 +340,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "Push Python Bindings",
+              "text": "Push Python Bindings: ${{ job.status }}",
               "attachments": [
                  {
                    "fields": [
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
+                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
                    ]
                  }
               ]
@@ -395,7 +401,7 @@ jobs:
               export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
               yarn build --target aarch64-apple-darwin
               strip -x *.node
-    name: Build Node.JS Bindings (stable - ${{ matrix.target }} - node@18)
+    name: Build Node.JS Bindings ${{ matrix.target }}
     runs-on: ${{ matrix.host }}
     env:
       DEBUG: napi:*
@@ -469,13 +475,14 @@ jobs:
         with:
           payload: |
             {
-              "text": "Build Node Bindings (stable - node@18)",
+              "text": "Build Node Bindings ${{ matrix.target }}: ${{ job.status }}",
               "attachments": [
                  {
                    "fields": [
                       { "title": "target", "value": "${{ matrix.target }}", "short": true },
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
+                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
                    ]
                  }
               ]
@@ -526,12 +533,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "Push Node Bidnings",
+              "text": "Push Node Bindings: ${{ job.status }}",
               "attachments": [
                  {
                    "fields": [
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
+                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
                    ]
                  }
               ]
