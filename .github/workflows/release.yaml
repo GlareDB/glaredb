@@ -48,16 +48,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-latest-8-cores
-            target: x86_64-pc-windows-msvc
-          - os: ubuntu-2004-8-cores
-            target: x86_64-unknown-linux-gnu
-          - os: macos-12-large
-            target: x86_64-apple-darwin
-          - os: macos-13-xlarge
-            target: aarch64-apple-darwin
-
+        - os: windows-latest-8-cores
+          target: x86_64-pc-windows-msvc
+        - os: ubuntu-2004-8-cores
+          target: x86_64-unknown-linux-gnu
+        - os: macos-12-large
+          target: x86_64-apple-darwin
+        - os: macos-13-xlarge
+          target: aarch64-apple-darwin
     name: Build Kernel Release (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
@@ -66,9 +64,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/setup-nasm@v1
-        if: ${{ matrix.settings.os == 'windows-latest-8-cores' }}
+        if: matrix.target == 'x86_64-pc-windows-msvc'
       - uses: egor-tensin/setup-gcc@v1
-        if: ${{ matrix.settings.os == 'ubuntu-2004-8-cores' }}
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         with:
           version: 11
       - uses: dtolnay/rust-toolchain@1.75.0
@@ -91,7 +89,7 @@ jobs:
               "attachments": [ 
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.settings.target }}", "short": true }, 
+                      { "title": "target", "value": "${{ matrix.target }}", "short": true }, 
                       { "title": "status", "value": "${{ job.status }}", "short": true }, 
                       { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
                    ]
@@ -153,9 +151,8 @@ jobs:
               "attachments": [ 
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.settings.target }}", "short": true }, 
                       { "title": "status", "value": "${{ job.status }}", "short": true }, 
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
                  }                
               ]
@@ -208,9 +205,9 @@ jobs:
               "attachments": [ 
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.settings.target }}", "short": true }, 
+                      { "title": "target", "value": "${{ matrix.target }}", "short": true }, 
                       { "title": "status", "value": "${{ job.status }}", "short": true }, 
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
                  }                
               ]
@@ -256,27 +253,26 @@ jobs:
               "attachments": [ 
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.settings.target }}", "short": true }, 
+                      { "title": "target", "value": "Windows ${{ matrix.target }}", "short": true }, 
                       { "title": "status", "value": "${{ job.status }}", "short": true }, 
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
                  }                
               ]
             }
 
   python-macos:
-    name: Build Python Bindings (macos ${{ matrix.config.target }})
-    runs-on: ${{ matrix.config.runner }}
+    name: Build Python Bindings (macos ${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
     strategy:
       fail-fast: true
       matrix:
-        config:
-          - target: x86_64-apple-darwin
-            runner: macos-13-large
-          - target: aarch64-apple-darwin
-            runner: macos-13-xlarge
+        - target: x86_64-apple-darwin
+          runner: macos-13-large
+        - target: aarch64-apple-darwin
+          runner: macos-13-xlarge
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
@@ -289,7 +285,7 @@ jobs:
       - name: maturin build
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.config.target }}
+          target: ${{ matrix.target }}
           args: --release --out dist
           working-directory: bindings/python
           container: "off"
@@ -306,9 +302,9 @@ jobs:
               "attachments": [ 
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.settings.target }}", "short": true }, 
+                      { "title": "target", "value": "${{ matrix.target }}", "short": true }, 
                       { "title": "status", "value": "${{ job.status }}", "short": true }, 
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
                  }                
               ]
@@ -341,9 +337,8 @@ jobs:
               "attachments": [ 
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.settings.target }}", "short": true }, 
                       { "title": "status", "value": "${{ job.status }}", "short": true }, 
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
                  }                
               ]
@@ -365,41 +360,40 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        settings:
-          - host: macos-12-xl
-            target: x86_64-apple-darwin
-            build: |
-              yarn build
-              strip -x *.node
-          - host: windows-latest-8-cores
-            build: yarn build
-            target: x86_64-pc-windows-msvc
-          - host: ubuntu-2004-8-cores
-            target: x86_64-unknown-linux-gnu
-            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
-            build: |-
-              set -eux &&
-              curl -L https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip -o protoc.zip
-              mkdir -p deps &&
-              unzip -o protoc.zip -d deps/protoc &&
-              rm protoc.zip
-              export PROTOC="$PWD/deps/protoc/bin/protoc" &&
-              cd bindings/nodejs &&
-              yarn build --target x86_64-unknown-linux-gnu &&
-              strip *.node
-          - host: macos-12-xl
-            target: aarch64-apple-darwin
-            build: |
-              rustup target add aarch64-apple-darwin
-              sudo rm -Rf /Library/Developer/CommandLineTools/SDKs/*;
-              export CC=$(xcrun -f clang);
-              export CXX=$(xcrun -f clang++);
-              SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
-              export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
-              yarn build --target aarch64-apple-darwin
-              strip -x *.node
-    name: Build Node.JS Bindings (stable - ${{ matrix.settings.target }} - node@18)
-    runs-on: ${{ matrix.settings.host }}
+        - host: macos-12-xl
+          target: x86_64-apple-darwin
+          build: |
+            yarn build
+            strip -x *.node
+        - host: windows-latest-8-cores
+          build: yarn build
+          target: x86_64-pc-windows-msvc
+        - host: ubuntu-2004-8-cores
+          target: x86_64-unknown-linux-gnu
+          docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+          build: |-
+            set -eux &&
+            curl -L https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip -o protoc.zip
+            mkdir -p deps &&
+            unzip -o protoc.zip -d deps/protoc &&
+            rm protoc.zip
+            export PROTOC="$PWD/deps/protoc/bin/protoc" &&
+            cd bindings/nodejs &&
+            yarn build --target x86_64-unknown-linux-gnu &&
+            strip *.node
+        - host: macos-12-xl
+          target: aarch64-apple-darwin
+          build: |
+            rustup target add aarch64-apple-darwin
+            sudo rm -Rf /Library/Developer/CommandLineTools/SDKs/*;
+            export CC=$(xcrun -f clang);
+            export CXX=$(xcrun -f clang++);
+            SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
+            export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
+            yarn build --target aarch64-apple-darwin
+            strip -x *.node
+    name: Build Node.JS Bindings (stable - ${{ matrix.target }} - node@18)
+    runs-on: ${{ matrix.host }}
     env:
       DEBUG: napi:*
       APP_NAME: "glaredb"
@@ -408,9 +402,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/setup-nasm@v1
-        if: ${{ matrix.settings.host == 'windows-latest-8-cores' }}
+        if: matrix.target == 'x86_64-pc-windows-msvc'
       - uses: egor-tensin/setup-gcc@v1
-        if: ${{ matrix.settings.host == 'ubuntu-2004-8-cores' }}
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         with:
           version: 11
       - uses: extractions/setup-just@v2
@@ -418,15 +412,15 @@ jobs:
           just-version: "1.23.0"
       - run: just protoc
       - uses: actions/setup-node@v4
-        if: ${{ !matrix.settings.docker }}
+        if: ${{ !matrix.docker }}
         with:
           node-version: 20
           check-latest: true
       - uses: dtolnay/rust-toolchain@stable
-        if: ${{ !matrix.settings.docker }}
+        if: ${{ !matrix.docker }}
         with:
           toolchain: stable
-          targets: ${{ matrix.settings.target }}
+          targets: ${{ matrix.target }}
       - uses: actions/cache@v4
         with:
           path: |
@@ -435,36 +429,36 @@ jobs:
             ~/.cargo/git/db/
             .cargo-cache
             target/
-          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
+          key: ${{ matrix.target }}-cargo-${{ matrix.host }}
       - uses: goto-bus-stop/setup-zig@v2
-        if: ${{ matrix.settings.target == 'armv7-unknown-linux-gnueabihf' }}
+        if: ${{ matrix.target == 'armv7-unknown-linux-gnueabihf' }}
         with:
           version: 0.10.1
-      - run: ${{ matrix.settings.setup }}
-        if: ${{ matrix.settings.setup }}
+      - run: ${{ matrix.setup }}
+        if: ${{ matrix.setup }}
         shell: bash
-      - if: matrix.settings.target == 'i686-pc-windows-msvc'
+      - if: matrix.target == 'i686-pc-windows-msvc'
         run: yarn config set supportedArchitectures.cpu "ia32"
         shell: bash
       - run: yarn install --frozen-lockfile
       - uses: actions/setup-node@v4
-        if: matrix.settings.target == 'i686-pc-windows-msvc'
+        if: matrix.target == 'i686-pc-windows-msvc'
         with:
           node-version: 20
           check-latest: true
           architecture: x86
       - uses: addnab/docker-run-action@v3
-        if: ${{ matrix.settings.docker }}
+        if: ${{ matrix.docker }}
         with:
-          image: ${{ matrix.settings.docker }}
+          image: ${{ matrix.docker }}
           options: "--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build"
-          run: ${{ matrix.settings.build }}
-      - run: ${{ matrix.settings.build }}
-        if: ${{ !matrix.settings.docker }}
+          run: ${{ matrix.build }}
+      - run: ${{ matrix.build }}
+        if: ${{ !matrix.docker }}
         shell: bash
       - uses: actions/upload-artifact@v3
         with:
-          name: bindings-${{ matrix.settings.target }}
+          name: bindings-${{ matrix.target }}
           path: bindings/nodejs/${{ env.APP_NAME }}.*.node
           if-no-files-found: error
       - uses: slackapi/slack-github-action@v1.26.0
@@ -472,13 +466,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "Build node.js Bindings (stable - node@18)",
+              "text": "Build Node Bindings (stable - node@18)",
               "attachments": [ 
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.settings.target }}", "short": true }, 
+                      { "title": "target", "value": "${{ matrix.target }}", "short": true }, 
                       { "title": "status", "value": "${{ job.status }}", "short": true }, 
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
                  }                
               ]
@@ -529,13 +523,12 @@ jobs:
         with:
           payload: |
             {
-              "text": "Push node.js Bidnings",
+              "text": "Push Node Bidnings",
               "attachments": [ 
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.settings.target }}", "short": true }, 
                       { "title": "status", "value": "${{ job.status }}", "short": true }, 
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
+                      { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
                  }                
               ]
