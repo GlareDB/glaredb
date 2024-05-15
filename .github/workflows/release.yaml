@@ -48,14 +48,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        - os: windows-latest-8-cores
-          target: x86_64-pc-windows-msvc
-        - os: ubuntu-2004-8-cores
-          target: x86_64-unknown-linux-gnu
-        - os: macos-12-large
-          target: x86_64-apple-darwin
-        - os: macos-13-xlarge
-          target: aarch64-apple-darwin
+        include:
+          - os: windows-latest-8-cores
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-2004-8-cores
+            target: x86_64-unknown-linux-gnu
+          - os: macos-12-large
+            target: x86_64-apple-darwin
+          - os: macos-13-xlarge
+            target: aarch64-apple-darwin
     name: Build Kernel Release (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
@@ -86,14 +87,14 @@ jobs:
           payload: |
             {
               "text": "Build Kernel Binary",
-              "attachments": [ 
+              "attachments": [
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.target }}", "short": true }, 
-                      { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                      { "title": "target", "value": "${{ matrix.target }}", "short": true },
+                      { "title": "status", "value": "${{ job.status }}", "short": true },
                       { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}", "short": true }
                    ]
-                 }                
+                 }
               ]
             }
 
@@ -148,13 +149,13 @@ jobs:
           payload: |
             {
               "text": "Push Kernel Release",
-              "attachments": [ 
+              "attachments": [
                  {
                    "fields": [
-                      { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                      { "title": "status", "value": "${{ job.status }}", "short": true },
                       { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
-                 }                
+                 }
               ]
             }
 
@@ -202,14 +203,14 @@ jobs:
           payload: |
             {
               "text": "Build Linux Python Bindings",
-              "attachments": [ 
+              "attachments": [
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.target }}", "short": true }, 
-                      { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                      { "title": "target", "value": "${{ matrix.target }}", "short": true },
+                      { "title": "status", "value": "${{ job.status }}", "short": true },
                       { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
-                 }                
+                 }
               ]
             }
 
@@ -250,14 +251,14 @@ jobs:
           payload: |
             {
               "text": "Build Windows Python Bindings",
-              "attachments": [ 
+              "attachments": [
                  {
                    "fields": [
-                      { "title": "target", "value": "Windows ${{ matrix.target }}", "short": true }, 
-                      { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                      { "title": "target", "value": "Windows ${{ matrix.target }}", "short": true },
+                      { "title": "status", "value": "${{ job.status }}", "short": true },
                       { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
-                 }                
+                 }
               ]
             }
 
@@ -269,10 +270,11 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        - target: x86_64-apple-darwin
-          runner: macos-13-large
-        - target: aarch64-apple-darwin
-          runner: macos-13-xlarge
+        include:
+          - target: x86_64-apple-darwin
+            runner: macos-13-large
+          - target: aarch64-apple-darwin
+            runner: macos-13-xlarge
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
@@ -299,14 +301,14 @@ jobs:
           payload: |
             {
               "text": "Build macOS Python Bindings",
-              "attachments": [ 
+              "attachments": [
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.target }}", "short": true }, 
-                      { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                      { "title": "target", "value": "${{ matrix.target }}", "short": true },
+                      { "title": "status", "value": "${{ job.status }}", "short": true },
                       { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
-                 }                
+                 }
               ]
             }
 
@@ -334,13 +336,13 @@ jobs:
           payload: |
             {
               "text": "Push Python Bindings",
-              "attachments": [ 
+              "attachments": [
                  {
                    "fields": [
-                      { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                      { "title": "status", "value": "${{ job.status }}", "short": true },
                       { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
-                 }                
+                 }
               ]
             }
 
@@ -360,38 +362,39 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        - host: macos-12-xl
-          target: x86_64-apple-darwin
-          build: |
-            yarn build
-            strip -x *.node
-        - host: windows-latest-8-cores
-          build: yarn build
-          target: x86_64-pc-windows-msvc
-        - host: ubuntu-2004-8-cores
-          target: x86_64-unknown-linux-gnu
-          docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
-          build: |-
-            set -eux &&
-            curl -L https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip -o protoc.zip
-            mkdir -p deps &&
-            unzip -o protoc.zip -d deps/protoc &&
-            rm protoc.zip
-            export PROTOC="$PWD/deps/protoc/bin/protoc" &&
-            cd bindings/nodejs &&
-            yarn build --target x86_64-unknown-linux-gnu &&
-            strip *.node
-        - host: macos-12-xl
-          target: aarch64-apple-darwin
-          build: |
-            rustup target add aarch64-apple-darwin
-            sudo rm -Rf /Library/Developer/CommandLineTools/SDKs/*;
-            export CC=$(xcrun -f clang);
-            export CXX=$(xcrun -f clang++);
-            SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
-            export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
-            yarn build --target aarch64-apple-darwin
-            strip -x *.node
+        include:
+          - host: macos-12-xl
+            target: x86_64-apple-darwin
+            build: |
+              yarn build
+              strip -x *.node
+          - host: windows-latest-8-cores
+            build: yarn build
+            target: x86_64-pc-windows-msvc
+          - host: ubuntu-2004-8-cores
+            target: x86_64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+            build: |-
+              set -eux &&
+              curl -L https://github.com/protocolbuffers/protobuf/releases/download/v23.1/protoc-23.1-linux-x86_64.zip -o protoc.zip
+              mkdir -p deps &&
+              unzip -o protoc.zip -d deps/protoc &&
+              rm protoc.zip
+              export PROTOC="$PWD/deps/protoc/bin/protoc" &&
+              cd bindings/nodejs &&
+              yarn build --target x86_64-unknown-linux-gnu &&
+              strip *.node
+          - host: macos-12-xl
+            target: aarch64-apple-darwin
+            build: |
+              rustup target add aarch64-apple-darwin
+              sudo rm -Rf /Library/Developer/CommandLineTools/SDKs/*;
+              export CC=$(xcrun -f clang);
+              export CXX=$(xcrun -f clang++);
+              SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
+              export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
+              yarn build --target aarch64-apple-darwin
+              strip -x *.node
     name: Build Node.JS Bindings (stable - ${{ matrix.target }} - node@18)
     runs-on: ${{ matrix.host }}
     env:
@@ -467,14 +470,14 @@ jobs:
           payload: |
             {
               "text": "Build Node Bindings (stable - node@18)",
-              "attachments": [ 
+              "attachments": [
                  {
                    "fields": [
-                      { "title": "target", "value": "${{ matrix.target }}", "short": true }, 
-                      { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                      { "title": "target", "value": "${{ matrix.target }}", "short": true },
+                      { "title": "status", "value": "${{ job.status }}", "short": true },
                       { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
-                 }                
+                 }
               ]
             }
 
@@ -524,12 +527,12 @@ jobs:
           payload: |
             {
               "text": "Push Node Bidnings",
-              "attachments": [ 
+              "attachments": [
                  {
                    "fields": [
-                      { "title": "status", "value": "${{ job.status }}", "short": true }, 
+                      { "title": "status", "value": "${{ job.status }}", "short": true },
                       { "title": "link", "value": "[commit](${{ github.event.pull_request.html_url || github.event.head_commit.url }})", "short": true }
                    ]
-                 }                
+                 }
               ]
             }
