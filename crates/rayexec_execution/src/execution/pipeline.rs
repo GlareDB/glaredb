@@ -208,8 +208,6 @@ impl PartitionPipeline {
     /// they've not been exhausted. An example operator that would emit a Break
     /// is LIMIT.
     pub fn poll_execute(&mut self, cx: &mut Context) -> Poll<Option<Result<()>>> {
-        trace!(info = ?self.info, "polling execute for partition pipeline");
-
         let state = &mut self.state;
 
         loop {
@@ -343,6 +341,18 @@ impl PartitionPipeline {
                             self.pull_start_idx = *operator_idx;
                             *state = PipelinePartitionState::PullFrom {
                                 operator_idx: *operator_idx,
+                            };
+                            continue;
+                        }
+                        Ok(PollPush::NeedsMore) => {
+                            // Operator accepted input, but needs more input
+                            // before it will produce output.
+                            //
+                            // Reset the state to pull from the start of the
+                            // pipline to produce more batches.
+                            assert_ne!(0, *operator_idx);
+                            *state = PipelinePartitionState::PullFrom {
+                                operator_idx: self.pull_start_idx,
                             };
                             continue;
                         }

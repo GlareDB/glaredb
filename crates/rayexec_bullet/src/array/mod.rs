@@ -12,6 +12,7 @@ pub use varlen::*;
 use crate::bitmap::Bitmap;
 use crate::field::DataType;
 use crate::scalar::ScalarValue;
+use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 
 #[derive(Debug, PartialEq)]
@@ -126,6 +127,114 @@ impl Array {
             Self::Binary(arr) => arr.len(),
             Self::LargeBinary(arr) => arr.len(),
             Self::Struct(arr) => arr.len(),
+        }
+    }
+
+    /// Try to convert an iterator of scalars of a given datatype into an array.
+    ///
+    /// Errors if any of the scalars are a different type than the provided
+    /// datatype.
+    pub fn try_from_scalars<'a>(
+        datatype: DataType,
+        scalars: impl Iterator<Item = ScalarValue<'a>>,
+    ) -> Result<Array> {
+        /// Helper for iterating over scalars and producing a single type of
+        /// array.
+        ///
+        /// `builder` is the array builder we're pushing values to.
+        ///
+        /// `default` is the default value to use if the we want to push a "null".
+        ///
+        /// `variant` is the enum variant for the Array and ScalarValue.
+        macro_rules! iter_scalars_for_type {
+            ($builder:expr, $default:expr, $variant:ident) => {{
+                let mut validity = Bitmap::default();
+                let mut builder = $builder;
+                for scalar in scalars {
+                    match scalar {
+                        ScalarValue::Null => {
+                            validity.push(false);
+                            builder.push_value($default);
+                        }
+                        ScalarValue::$variant(v) => {
+                            validity.push(true);
+                            builder.push_value(v);
+                        }
+                        other => {
+                            return Err(RayexecError::new(format!(
+                                "Unexpected scalar value: {other}"
+                            )))
+                        }
+                    }
+                }
+                builder.put_validity(validity);
+                Ok(Array::$variant(builder.into_typed_array()))
+            }};
+        }
+
+        let (cap, _) = scalars.size_hint();
+
+        match datatype {
+            DataType::Null => {
+                let mut len = 0;
+                for scalar in scalars {
+                    match scalar {
+                        ScalarValue::Null => len += 1,
+                        other => {
+                            return Err(RayexecError::new(format!(
+                                "Unexpected non-null scalar: {other}"
+                            )))
+                        }
+                    }
+                }
+                Ok(Array::Null(NullArray::new(len)))
+            }
+            DataType::Boolean => iter_scalars_for_type!(BooleanArrayBuilder::new(), false, Boolean),
+            DataType::Float32 => {
+                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0.0, Float32)
+            }
+            DataType::Float64 => {
+                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0.0, Float64)
+            }
+            DataType::Int8 => {
+                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Int8)
+            }
+            DataType::Int16 => {
+                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Int16)
+            }
+            DataType::Int32 => {
+                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Int32)
+            }
+            DataType::Int64 => {
+                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Int64)
+            }
+            DataType::UInt8 => {
+                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt8)
+            }
+            DataType::UInt16 => {
+                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt16)
+            }
+            DataType::UInt32 => {
+                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt32)
+            }
+            DataType::UInt64 => {
+                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt64)
+            }
+            DataType::Utf8 => {
+                iter_scalars_for_type!(VarlenArrayBuilder::new(), "".into(), Utf8)
+            }
+            DataType::LargeUtf8 => {
+                iter_scalars_for_type!(VarlenArrayBuilder::new(), "".into(), LargeUtf8)
+            }
+            DataType::Binary => {
+                iter_scalars_for_type!(VarlenArrayBuilder::new(), (&[]).into(), Binary)
+            }
+            DataType::LargeBinary => {
+                iter_scalars_for_type!(VarlenArrayBuilder::new(), (&[]).into(), LargeBinary)
+            }
+            DataType::Struct { .. } => Err(RayexecError::new(
+                "Cannot build a struct array from struct scalars",
+            )), // yet
         }
     }
 }

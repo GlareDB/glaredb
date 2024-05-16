@@ -1,0 +1,164 @@
+# Test functionality of aggregating and grouping.
+
+# NO GROUPING
+
+query I
+select sum(column1) from (values (1, 2), (3, 4));
+----
+4
+
+query I
+select sum(column2), sum(column1) from (values (1, 2), (3, 4));
+----
+6  4
+
+query I
+select sum(c2), sum(c1) from (values (1, 2), (3, 4)) as t(c1, c2);
+----
+6  4
+
+# query I
+# select sum(t.c2), sum(t.c1) from (values (1, 2), (3, 4)) as t(c1, c2);
+# ----
+# 6  4
+
+query I
+select sum(column2 + 2) from (values (1, 2), (3, 4));
+----
+10
+
+# query I
+# select sum(column1) + 2 from (values (1, 2), (3, 4));
+# ----
+# 6
+
+# GROUP BY
+
+query I rowsort
+select sum(column2) from (values (1, 2), (3, 4)) group by column1;
+----
+2
+4
+
+query I rowsort
+select sum(column2) from
+    (values (1, 2),
+            (3, 4),
+            (1, 5),
+            (1, 8)) group by column1;
+----
+15
+4
+
+# Weird but valid to aggregate on a grouping column.
+query II rowsort
+select sum(column1), sum(column2) from
+    (values (1, 2),
+            (3, 4),
+            (1, 5),
+            (1, 8)) group by column1;
+----
+3  15
+3  4
+
+query II rowsort
+select sum(column1), sum(column2) from
+    (values (1, 2, 1),
+            (3, 4, 2),
+            (1, 5, 3),
+            (1, 8, 1)) group by column1, column3;
+----
+1  5
+2  10
+3  4
+
+query I rowsort
+select sum(column2) from
+    (values (1, 2),
+            (3, 4),
+            (1, 5),
+            (4, 8)) group by column1 < 2;
+----
+12
+7
+
+query I rowsort
+select sum(column2 * 10) from
+    (values (1, 2),
+            (3, 4),
+            (1, 5),
+            (4, 8)) group by column1 < 2;
+----
+120
+70
+
+# ROLLUP
+
+query I rowsort
+select sum(column3) from
+    (values (1, 1, 1),
+            (1, 2, 2),
+            (2, 3, 4),
+            (2, 3, 5)) group by rollup (column1, column2);
+----
+1
+12
+2
+3
+9
+9
+
+query I rowsort
+select sum(column3) from
+    (values (1, 1, 1),
+            (1, 2, 2),
+            (2, 3, 4),
+            (2, 3, 5)) as s group by rollup (column2)
+----
+1
+12
+2
+9
+
+# GROUP BY column references
+
+query TI rowsort
+select column1, sum(column2) from
+    (values ('burger', 1),
+            ('hotdog', 2),
+            ('hotdog', 3),
+            ('burger', 4),
+            ('hotdog', 5)) group by column1;
+----
+burger  5
+hotdog  10
+
+# query TI rowsort
+# select sum(column2), column1 from
+#     (values ('burger', 1),
+#             ('hotdog', 2),
+#             ('hotdog', 3),
+#             ('burger', 4),
+#             ('hotdog', 5)) group by column1;
+# ----
+# 5   burger
+# 10  hotdog
+
+# ROLLUP column references
+
+query TTI rowsort
+select state, city, sum(revenue) from
+    (values ('Texas', 'Austin',    100),
+            ('Texas', 'Dallas',    150),
+            ('Ohio',  'Columbus',  35),
+            ('Texas', 'Austin',    125),
+            ('Ohio',  'Cleveland', 25)) as revenues(state, city, revenue)
+    group by rollup (state, city);
+----
+NULL    NULL        435
+Ohio    Cleveland   25
+Ohio    Columbus    35
+Ohio    NULL        60
+Texas   Austin      225
+Texas   Dallas      150
+Texas   NULL        375

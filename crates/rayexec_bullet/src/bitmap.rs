@@ -9,6 +9,20 @@ pub struct Bitmap {
 }
 
 impl Bitmap {
+    /// Create a new bitmap of a given length with all values initialized to the
+    /// given value.
+    pub fn new_with_val(val: bool, len: usize) -> Self {
+        Self::from_iter(std::iter::repeat(val).take(len))
+    }
+
+    pub fn all_true(len: usize) -> Self {
+        Self::new_with_val(true, len)
+    }
+
+    pub fn all_false(len: usize) -> Self {
+        Self::new_with_val(false, len)
+    }
+
     /// Get the number of bits being tracked by this bitmap.
     pub const fn len(&self) -> usize {
         self.len

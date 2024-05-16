@@ -1,6 +1,6 @@
+pub mod aggregate;
 pub mod empty;
 pub mod filter;
-pub mod hash_aggregate;
 pub mod nl_join;
 pub mod project;
 pub mod query_sink;
@@ -15,6 +15,7 @@ use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::Context;
 
+use self::aggregate::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::empty::EmptyPartitionState;
 use self::nl_join::{NlJoinBuildPartitionState, NlJoinOperatorState, NlJoinProbePartitionState};
 use self::query_sink::QuerySinkPartitionState;
@@ -26,9 +27,10 @@ use self::simple::SimplePartitionState;
 use self::values::ValuesPartitionState;
 
 /// States local to a partition within a single operator.
-// Current size: 88 bytes
+// Current size: 104 bytes
 #[derive(Debug)]
 pub enum PartitionState {
+    HashAggregate(HashAggregatePartitionState),
     NlJoinBuild(NlJoinBuildPartitionState),
     NlJoinProbe(NlJoinProbePartitionState),
     Values(ValuesPartitionState),
@@ -45,6 +47,7 @@ pub enum PartitionState {
 // Current size: 72 bytes
 #[derive(Debug)]
 pub enum OperatorState {
+    HashAggregate(HashAggregateOperatorState),
     NlJoin(NlJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
     HashRepartition(HashRepartitionOperatorState),
@@ -72,6 +75,10 @@ pub enum PollPush {
     ///
     /// `finalize_push` for the operator should _not_ be called.
     Break,
+
+    /// Batch was successfully pushed, but the operator needs more input before
+    /// it can start producing output
+    NeedsMore,
 }
 
 /// Result of a pull from a Source.

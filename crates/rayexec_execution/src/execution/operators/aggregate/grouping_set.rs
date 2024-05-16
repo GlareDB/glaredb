@@ -1,17 +1,7 @@
-use parking_lot::Mutex;
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::compute::filter::filter;
-use rayexec_bullet::compute::take::take;
 use rayexec_error::{RayexecError, Result};
-use std::collections::VecDeque;
-use std::task::Context;
-use std::{sync::Arc, task::Waker};
 
-use crate::expr::PhysicalScalarExpression;
-
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use crate::planner::operator::GroupingExpr;
 
 /// Represents groups in the GROUP BY clause.
 ///
@@ -96,49 +86,17 @@ impl GroupingSets {
         self.null_masks.len()
     }
 
+    pub fn columns(&self) -> &[usize] {
+        &self.columns
+    }
+
+    pub fn null_masks(&self) -> &[Bitmap] {
+        &self.null_masks
+    }
+
     /// Grouping set for a simple `GROUP BY a, b, ...`
     pub fn new_single(columns: Vec<usize>) -> Self {
         let null_masks = vec![Bitmap::from_iter(vec![false; columns.len()])];
         Self::try_new(columns, null_masks).expect("null mask to be valid")
-    }
-}
-
-#[derive(Debug)]
-pub struct HashAggregateOperatorState {}
-
-pub struct HashAggregatePartitionState {}
-
-#[derive(Debug)]
-pub struct PhysicalHashAggregate {
-    /// Grouping sets we're grouping by.
-    grouping_sets: GroupingSets,
-}
-
-impl PhysicalOperator for PhysicalHashAggregate {
-    fn poll_push(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
-        unimplemented!()
-    }
-
-    fn finalize_push(
-        &self,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-    ) -> Result<()> {
-        unimplemented!()
-    }
-
-    fn poll_pull(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-    ) -> Result<PollPull> {
-        unimplemented!()
     }
 }

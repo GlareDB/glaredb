@@ -225,7 +225,7 @@ impl AstParseable for GroupByNode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupByExpr {
     /// `GROUP BY <expr>[, ...]`
-    Expr(Expr),
+    Expr(Vec<Expr>),
     /// `GROUP BY CUBE (<expr>)`
     Cube(Vec<Expr>),
     /// `GROUP BY ROLLUP (<expr>)`
@@ -267,7 +267,7 @@ impl AstParseable for GroupByExpr {
             }
         }
 
-        let expr = Expr::parse(parser)?;
-        Ok(GroupByExpr::Expr(expr))
+        let exprs = parser.parse_comma_separated(Expr::parse)?;
+        Ok(GroupByExpr::Expr(exprs))
     }
 }

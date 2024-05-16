@@ -1,5 +1,6 @@
 pub mod scalar;
 
+use crate::functions::aggregate::SpecializedAggregateFunction;
 use crate::functions::scalar::SpecializedScalarFunction;
 use crate::planner::operator::LogicalExpression;
 use rayexec_bullet::field::{DataType, TypeSchema};
@@ -93,7 +94,7 @@ impl PhysicalScalarExpression {
                     inputs,
                 }
             }
-            _ => unimplemented!(),
+            other => unimplemented!("{other:?}"),
         })
     }
 
@@ -127,6 +128,47 @@ impl PhysicalScalarExpression {
                 Arc::new(out)
             }
             _ => unimplemented!(),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct PhysicalAggregateExpression {
+    /// The function we'll be calling to produce the aggregate states.
+    pub function: Box<dyn SpecializedAggregateFunction>,
+
+    /// Column indices we'll be aggregating on.
+    pub column_indices: Vec<usize>,
+    // TODO: Filter
+}
+
+impl PhysicalAggregateExpression {
+    pub fn try_from_logical_expression(
+        expr: LogicalExpression,
+        input: &TypeSchema,
+    ) -> Result<Self> {
+        Ok(match expr {
+            LogicalExpression::Aggregate {
+                agg,
+                inputs,
+                filter,
+            } => {
+                let column_indices = inputs.into_iter().map(|input| match input {
+                    LogicalExpression::ColumnRef(col) => col.try_as_uncorrelated(),
+                    other => Err(RayexecError::new(format!("Physical aggregate expressions must be construct with uncorrelated column inputs, got: {other}"))),
+                }).collect::<Result<Vec<_>>>()?;
+
+                let input_types = column_indices.iter().map(|idx| input.types.get(*idx).cloned().ok_or_else(|| RayexecError::new(format!("Attempted to get a column outside the type schema, got: {idx}, max: {}", input.types.len() -1)))).collect::<Result<Vec<_>>>()?;
+                let specialized = agg.specialize(&input_types)?;
+
+                PhysicalAggregateExpression {
+                    function: specialized,
+                    column_indices,
+                }
+            }
+            other => return Err(RayexecError::new(
+                "Cannot create a physical aggregate expression from logical expression: {other}",
+            )),
         })
     }
 }

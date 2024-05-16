@@ -54,21 +54,3 @@ impl<'a> FromIterator<ScalarValue<'a>> for Row<'a> {
         }
     }
 }
-
-/// Representation of multiple rows.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Rows<'a>(pub Vec<Row<'a>>);
-
-/// A set of rows with full ownership of all values.
-pub type OwnedRows = Rows<'static>;
-
-impl<'a> Rows<'a> {
-    /// Return an iterator over all rows.
-    pub fn iter(&self) -> impl Iterator<Item = &Row> {
-        self.0.iter()
-    }
-
-    pub fn into_owned(self) -> OwnedRows {
-        Rows(self.0.into_iter().map(|row| row.into_owned()).collect())
-    }
-}

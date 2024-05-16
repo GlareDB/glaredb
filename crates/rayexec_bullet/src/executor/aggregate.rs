@@ -2,7 +2,10 @@
 use rayexec_error::Result;
 use std::fmt::Debug;
 
-use crate::array::{ArrayAccessor, ArrayBuilder};
+use crate::{
+    array::{ArrayAccessor, ArrayBuilder},
+    bitmap::Bitmap,
+};
 
 /// State for a single group's aggregate.
 ///
@@ -23,76 +26,40 @@ pub trait AggregateState<T, O>: Default + Debug {
 pub struct UnaryUpdater;
 
 impl UnaryUpdater {
-    pub fn update<A, T, I, S, O>(inputs: A, mapping: &[usize], states: &mut [S]) -> Result<()>
+    /// Updates a list of target states from some inputs.
+    ///
+    /// The row selection bitmap indicates which rows from the input to use for
+    /// the update, and the mapping slice maps rows to target states.
+    pub fn update<A, T, I, S, O>(
+        row_selection: &Bitmap,
+        inputs: A,
+        mapping: &[usize],
+        target_states: &mut [S],
+    ) -> Result<()>
     where
         A: ArrayAccessor<T, ValueIter = I>,
         I: Iterator<Item = T>,
         S: AggregateState<T, O>,
     {
+        debug_assert_eq!(
+            row_selection.popcnt(),
+            mapping.len(),
+            "number of rows selected in input must equal length of mappings"
+        );
+
         // TODO: Figure out null handling. Some aggs want it, some don't.
 
-        for (input, &mapping) in inputs.values_iter().zip(mapping.iter()) {
-            let state = &mut states[mapping];
-            state.update(input)?;
+        let mut mapping_idx = 0;
+        for (selected, input) in row_selection.iter().zip(inputs.values_iter()) {
+            if !selected {
+                continue;
+            }
+            let target = &mut target_states[mapping[mapping_idx]];
+            target.update(input)?;
+            mapping_idx += 1;
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct CovarSampFloat64 {
-    count: usize,
-    meanx: f64,
-    meany: f64,
-    co_moment: f64,
-}
-
-impl AggregateState<(f64, f64), f64> for CovarSampFloat64 {
-    fn merge(&mut self, other: Self) -> Result<()> {
-        let count = self.count + other.count;
-        let meanx =
-            (other.count as f64 * other.meanx + self.count as f64 * self.meanx) / count as f64;
-        let meany =
-            (other.count as f64 * other.meany + self.count as f64 * self.meany) / count as f64;
-
-        let deltax = self.meanx - other.meanx;
-        let deltay = self.meany - other.meany;
-
-        self.co_moment = other.co_moment
-            + self.co_moment
-            + deltax * deltay * other.count as f64 * self.count as f64 / count as f64;
-        self.meanx = meanx;
-        self.meany = meany;
-        self.count = count;
-
-        Ok(())
-    }
-
-    fn update(&mut self, input: (f64, f64)) -> Result<()> {
-        let x = input.1;
-        let y = input.0;
-
-        let n = self.count as f64;
-        self.count += 1;
-
-        let dx = x - self.meanx;
-        let meanx = self.meanx + dx / n;
-
-        let dy = y - self.meany;
-        let meany = self.meany + dy / n;
-
-        let co_moment = self.co_moment + dx * (y - meany);
-
-        self.meanx = meanx;
-        self.meany = meany;
-        self.co_moment = co_moment;
-
-        Ok(())
-    }
-
-    fn finalize(self) -> Result<f64> {
-        Ok(self.co_moment / (self.count - 1) as f64)
     }
 }
 
@@ -101,10 +68,11 @@ pub struct BinaryUpdater;
 
 impl BinaryUpdater {
     pub fn update<A1, T1, I1, A2, T2, I2, S, O>(
+        row_selection: &Bitmap,
         first: A1,
         second: A2,
         mapping: &[usize],
-        states: &mut [S],
+        target_states: &mut [S],
     ) -> Result<()>
     where
         A1: ArrayAccessor<T1, ValueIter = I1>,
@@ -113,14 +81,25 @@ impl BinaryUpdater {
         I2: Iterator<Item = T2>,
         S: AggregateState<(T1, T2), O>,
     {
+        debug_assert_eq!(
+            row_selection.popcnt(),
+            mapping.len(),
+            "number of rows selected in input must equal length of mappings"
+        );
+
         // TODO: Figure out null handling. Some aggs want it, some don't.
 
         let first = first.values_iter();
         let second = second.values_iter();
 
-        for (&mapping, (first, second)) in mapping.iter().zip(first.zip(second)) {
-            let state = &mut states[mapping];
-            state.update((first, second))?;
+        let mut mapping_idx = 0;
+        for (selected, (first, second)) in row_selection.iter().zip(first.zip(second)) {
+            if !selected {
+                continue;
+            }
+            let target = &mut target_states[mapping[mapping_idx]];
+            target.update((first, second))?;
+            mapping_idx += 1;
         }
 
         Ok(())
@@ -131,12 +110,18 @@ impl BinaryUpdater {
 pub struct StateCombiner;
 
 impl StateCombiner {
-    pub fn combine<S, T, O>(states: &mut [S], consume: Vec<S>) -> Result<()>
+    /// Combine states, merging states from `consume` into `targets`.
+    ///
+    /// `mapping` provides a mapping of consume states to the target index. The
+    /// 'n'th state in `consume` corresponds to the 'n'th value `mapping`. With the value
+    /// in mapping being the index of the target state.
+    pub fn combine<S, T, O>(consume: Vec<S>, mapping: &[usize], targets: &mut [S]) -> Result<()>
     where
         S: AggregateState<T, O>,
     {
-        for (state, consume) in states.iter_mut().zip(consume.into_iter()) {
-            state.merge(consume)?;
+        for (target_idx, consume_state) in mapping.iter().zip(consume.into_iter()) {
+            let target = &mut targets[*target_idx];
+            target.merge(consume_state)?;
         }
 
         Ok(())
@@ -147,7 +132,10 @@ impl StateCombiner {
 pub struct StateFinalizer;
 
 impl StateFinalizer {
-    pub fn finalize<S, T, O>(states: Vec<S>, builder: &mut impl ArrayBuilder<O>) -> Result<()>
+    pub fn finalize<S, T, O>(
+        states: impl IntoIterator<Item = S>,
+        builder: &mut impl ArrayBuilder<O>,
+    ) -> Result<()>
     where
         S: AggregateState<T, O>,
     {

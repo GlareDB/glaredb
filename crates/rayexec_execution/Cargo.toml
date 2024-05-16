@@ -12,7 +12,7 @@ ahash = { workspace = true }
 dyn-clone = "1.0.17"
 chrono = { workspace = true }
 futures = { workspace = true }
-hashbrown = { workspace = true }
+hashbrown = { workspace = true, features = ["raw"] }
 num-traits = "0.2.19"
 once_cell = { workspace = true }
 parking_lot = { workspace = true }

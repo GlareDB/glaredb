@@ -1,6 +1,0 @@
-# TODO
-halt
-
-query I
-select country, sum(salary) from read_csv('../../testdata/csv/userdata1.csv');
-----

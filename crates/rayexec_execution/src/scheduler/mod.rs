@@ -29,6 +29,7 @@ impl fmt::Debug for Scheduler {
 impl Scheduler {
     pub fn try_new() -> Result<Self> {
         let thread_pool = ThreadPoolBuilder::new()
+            .thread_name(|idx| format!("glaredb-thread-{idx}"))
             .build()
             .map_err(|e| RayexecError::with_source("Failed to build thread pool", Box::new(e)))?;
 

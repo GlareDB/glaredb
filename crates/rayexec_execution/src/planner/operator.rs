@@ -390,14 +390,20 @@ impl Explainable for ExpressionList {
 
 #[derive(Debug)]
 pub struct Aggregate {
+    pub exprs: Vec<LogicalExpression>,
     pub grouping_expr: GroupingExpr,
-    // pub agg_exprs: Vec<Expression>,
     pub input: Box<LogicalOperator>,
 }
 
 impl LogicalNode for Aggregate {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
-        unimplemented!()
+        let current = self.input.output_schema(outer)?;
+        let types = self
+            .exprs
+            .iter()
+            .map(|expr| expr.datatype(&current, outer))
+            .collect::<Result<Vec<_>>>()?;
+        Ok(TypeSchema::new(types))
     }
 }
 
@@ -409,11 +415,29 @@ impl Explainable for Aggregate {
 
 #[derive(Debug)]
 pub enum GroupingExpr {
+    /// No grouping expression.
     None,
-    // GroupingSet(Vec<Expression>),
-    // Rollup(Vec<Expression>),
-    // Cube(Vec<Expression>),
-    // GroupingSets(Vec<Vec<Expression>>),
+    /// Group by a single set of columns.
+    GroupBy(Vec<LogicalExpression>),
+    /// Group by a column rollup.
+    Rollup(Vec<LogicalExpression>),
+    /// Group by a powerset of the columns.
+    Cube(Vec<LogicalExpression>),
+}
+
+impl GroupingExpr {
+    /// Get mutable references to the input expressions.
+    ///
+    /// This is used to allow modifying the expression to point to a
+    /// pre-projection into the aggregate.
+    pub fn expressions_mut(&mut self) -> &mut [LogicalExpression] {
+        match self {
+            Self::None => &mut [],
+            Self::GroupBy(ref mut exprs) => exprs.as_mut_slice(),
+            Self::Rollup(ref mut exprs) => exprs.as_mut_slice(),
+            Self::Cube(ref mut exprs) => exprs.as_mut_slice(),
+        }
+    }
 }
 
 /// Dummy create table for testing.
@@ -501,6 +525,7 @@ pub enum LogicalExpression {
         op: VariadicOperator,
         exprs: Vec<LogicalExpression>,
     },
+
     /// An aggregate function.
     Aggregate {
         /// The function.
@@ -512,6 +537,7 @@ pub enum LogicalExpression {
         /// Optional filter to the aggregate.
         filter: Option<Box<LogicalExpression>>,
     },
+
     /// Case expressions.
     Case {
         input: Box<LogicalExpression>,
@@ -597,6 +623,23 @@ impl LogicalExpression {
                 })?;
                 ret_type
             }
+            LogicalExpression::Aggregate {
+                agg,
+                inputs,
+                filter: _,
+            } => {
+                let datatypes = inputs
+                    .iter()
+                    .map(|input| input.datatype(current, outer))
+                    .collect::<Result<Vec<_>>>()?;
+                let ret_type = agg.return_type_for_inputs(&datatypes).ok_or_else(|| {
+                    RayexecError::new(format!(
+                        "Failed to find correct signature for '{}'",
+                        agg.name()
+                    ))
+                })?;
+                ret_type
+            }
             LogicalExpression::Unary { op: _, expr: _ } => unimplemented!(),
             LogicalExpression::Binary { op, left, right } => {
                 let left = left.datatype(current, outer)?;
@@ -613,12 +656,26 @@ impl LogicalExpression {
         })
     }
 
+    /// Check if this expression is an aggregate.
+    pub const fn is_aggregate(&self) -> bool {
+        matches!(self, LogicalExpression::Aggregate { .. })
+    }
+
     /// Try to get a top-level literal from this expression, erroring if it's
     /// not one.
     pub fn try_into_scalar(self) -> Result<OwnedScalarValue> {
         match self {
             Self::Literal(lit) => Ok(lit),
             other => Err(RayexecError::new(format!("Not a literal: {other:?}"))),
+        }
+    }
+
+    pub fn try_into_column_ref(self) -> Result<ColumnRef> {
+        match self {
+            Self::ColumnRef(col) => Ok(col),
+            other => Err(RayexecError::new(format!(
+                "Not a column reference: {other:?}"
+            ))),
         }
     }
 }

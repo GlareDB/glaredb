@@ -1,6 +1,10 @@
 use crate::{
     execution::{
         operators::{
+            aggregate::{
+                grouping_set::GroupingSets,
+                hash_aggregate::{HashAggregateColumnOutput, PhysicalHashAggregate},
+            },
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
             nl_join::{
@@ -16,10 +20,12 @@ use crate::{
         },
         pipeline::{Pipeline, PipelineId},
     },
-    expr::PhysicalScalarExpression,
+    expr::{PhysicalAggregateExpression, PhysicalScalarExpression},
     planner::operator::{self, LogicalNode, LogicalOperator},
 };
-use rayexec_bullet::{array::Array, batch::Batch, compute::concat::concat, field::TypeSchema};
+use rayexec_bullet::{
+    array::Array, batch::Batch, bitmap::Bitmap, compute::concat::concat, field::TypeSchema,
+};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
@@ -106,6 +112,7 @@ impl BuildState {
             LogicalOperator::CrossJoin(join) => self.push_cross_join(conf, join),
             LogicalOperator::AnyJoin(join) => self.push_any_join(conf, join),
             LogicalOperator::Empty => self.push_empty(conf),
+            LogicalOperator::Aggregate(agg) => self.push_aggregate(conf, agg),
             // LogicalOperator::Scan(scan) => self.plan_scan(scan),
             // LogicalOperator::EqualityJoin(join) => self.plan_equality_join(join),
             // LogicalOperator::Limit(limit) => self.plan_limit(limit),
@@ -159,6 +166,116 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    fn push_aggregate(&mut self, conf: &BuildConfig, agg: operator::Aggregate) -> Result<()> {
+        let input_schema = agg.input.output_schema(&[])?;
+        self.walk(conf, *agg.input)?;
+
+        let pipeline = self.in_progress_pipeline_mut()?;
+
+        let mut agg_exprs = Vec::new();
+        let mut projection = Vec::new();
+        for (_idx, expr) in agg.exprs.into_iter().enumerate() {
+            match expr {
+                operator::LogicalExpression::ColumnRef(col) => {
+                    let col = col.try_as_uncorrelated()?;
+                    projection.push(HashAggregateColumnOutput::GroupingColumn(col));
+                }
+                other => {
+                    let agg_expr = PhysicalAggregateExpression::try_from_logical_expression(
+                        other,
+                        &input_schema,
+                    )?;
+                    agg_exprs.push(agg_expr);
+                    projection.push(HashAggregateColumnOutput::AggregateResult(
+                        agg_exprs.len() - 1,
+                    ));
+                }
+            }
+        }
+
+        // Compute the grouping sets based on the grouping expression. It's
+        // expected that this plan only has uncorrelated column references as
+        // expressions.
+        let grouping_sets = match agg.grouping_expr {
+            operator::GroupingExpr::None => {
+                // TODO: We'd actually use a different (ungrouped) operator if
+                // not provided any grouping sets.
+                //
+                // This just works because all hashes are initialized to zero,
+                // and so everything does map to the same thing. Def not
+                // something we should rely on.
+                GroupingSets::try_new(Vec::new(), vec![Bitmap::default()])?
+            }
+            operator::GroupingExpr::GroupBy(cols_exprs) => {
+                let cols = cols_exprs
+                    .into_iter()
+                    .map(|expr| expr.try_into_column_ref()?.try_as_uncorrelated())
+                    .collect::<Result<Vec<_>>>()?;
+                let null_masks = vec![Bitmap::new_with_val(false, cols.len())];
+                GroupingSets::try_new(cols, null_masks)?
+            }
+            operator::GroupingExpr::Rollup(cols_exprs) => {
+                let cols = cols_exprs
+                    .into_iter()
+                    .map(|expr| expr.try_into_column_ref()?.try_as_uncorrelated())
+                    .collect::<Result<Vec<_>>>()?;
+
+                // Generate all null masks.
+                //
+                // E.g. for rollup on 4 columns:
+                // [
+                //   0000,
+                //   0001,
+                //   0011,
+                //   0111,
+                //   1111,
+                // ]
+                let mut null_masks = Vec::with_capacity(cols.len() + 1);
+                for num_null_cols in 0..cols.len() {
+                    let iter = std::iter::repeat(false)
+                        .take(cols.len() - num_null_cols)
+                        .chain(std::iter::repeat(true).take(num_null_cols));
+                    let null_mask = Bitmap::from_iter(iter);
+                    null_masks.push(null_mask);
+                }
+
+                // Append null mask with all columns marked as null (the final
+                // rollup).
+                null_masks.push(Bitmap::all_true(cols.len()));
+
+                GroupingSets::try_new(cols, null_masks)?
+            }
+            operator::GroupingExpr::Cube(_) => {
+                unimplemented!("https://github.com/GlareDB/rayexec/issues/38")
+            }
+        };
+
+        let group_types: Vec<_> = grouping_sets
+            .columns()
+            .iter()
+            .map(|idx| input_schema.types.get(*idx).expect("type to exist").clone())
+            .collect();
+
+        let (operator, operator_state, partition_states) = PhysicalHashAggregate::try_new(
+            pipeline.num_partitions(),
+            group_types,
+            grouping_sets,
+            agg_exprs,
+            projection,
+        )?;
+
+        let operator = Arc::new(operator);
+        let operator_state = Arc::new(OperatorState::HashAggregate(operator_state));
+        let partition_states = partition_states
+            .into_iter()
+            .map(PartitionState::HashAggregate)
+            .collect();
+
+        pipeline.push_operator(operator, operator_state, partition_states)?;
 
         Ok(())
     }

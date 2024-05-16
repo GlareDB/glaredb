@@ -1,7 +1,7 @@
 use crate::bitmap::Bitmap;
 use crate::storage::PrimitiveStorage;
-use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::{borrow::Cow, fmt::Debug};
 
 use super::{is_valid, ArrayAccessor, ArrayBuilder};
 
@@ -35,6 +35,8 @@ impl VarlenType for str {
     }
 }
 
+/// Helper trait to convert types into references we can use when building a
+/// varlen array.
 pub trait AsVarlenType {
     type AsType: VarlenType + ?Sized;
     fn as_varlen_type(&self) -> &Self::AsType;
@@ -47,10 +49,17 @@ impl AsVarlenType for String {
     }
 }
 
-impl<T: VarlenType + ?Sized> AsVarlenType for T {
-    type AsType = Self;
+impl AsVarlenType for &str {
+    type AsType = str;
     fn as_varlen_type(&self) -> &Self::AsType {
         self
+    }
+}
+
+impl<'a> AsVarlenType for Cow<'a, str> {
+    type AsType = str;
+    fn as_varlen_type(&self) -> &Self::AsType {
+        self.as_ref()
     }
 }
 
@@ -58,6 +67,27 @@ impl AsVarlenType for Vec<u8> {
     type AsType = [u8];
     fn as_varlen_type(&self) -> &Self::AsType {
         self.as_slice()
+    }
+}
+
+impl AsVarlenType for &[u8] {
+    type AsType = [u8];
+    fn as_varlen_type(&self) -> &Self::AsType {
+        self
+    }
+}
+
+impl<'a> AsVarlenType for Cow<'a, [u8]> {
+    type AsType = [u8];
+    fn as_varlen_type(&self) -> &Self::AsType {
+        self.as_ref()
+    }
+}
+
+impl<T: VarlenType + ?Sized> AsVarlenType for T {
+    type AsType = Self;
+    fn as_varlen_type(&self) -> &Self::AsType {
+        self
     }
 }
 
