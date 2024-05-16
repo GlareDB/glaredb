@@ -8,13 +8,14 @@ use std::collections::VecDeque;
 use std::task::Context;
 use std::{sync::Arc, task::Waker};
 
+use crate::execution::operators::{
+    OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
+};
 use crate::expr::PhysicalScalarExpression;
-
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 
 /// Partition-local state on the build side.
 #[derive(Debug, Default)]
-pub struct NlJoinBuildPartitionState {
+pub struct NestedLoopJoinBuildPartitionState {
     /// All batches on the build side for a single partition.
     ///
     /// For hash joins, this would be a partition-local hash map.
@@ -23,7 +24,7 @@ pub struct NlJoinBuildPartitionState {
 
 /// Partition-local state on the probe side.
 #[derive(Debug)]
-pub struct NlJoinProbePartitionState {
+pub struct NestedLoopJoinProbePartitionState {
     /// Partition index this state is for.
     ///
     /// This is needed to properly emplace a probe-side waker in the operator
@@ -67,9 +68,9 @@ pub struct NlJoinProbePartitionState {
     input_finished: bool,
 }
 
-impl NlJoinProbePartitionState {
+impl NestedLoopJoinProbePartitionState {
     pub fn new_for_partition(partition: usize) -> Self {
-        NlJoinProbePartitionState {
+        NestedLoopJoinProbePartitionState {
             partition_idx: partition,
             all_batches: Arc::new(Vec::new()),
             is_populated: false,
@@ -83,17 +84,17 @@ impl NlJoinProbePartitionState {
 
 /// State shared across all partitions on both the build and probe side.
 #[derive(Debug)]
-pub struct NlJoinOperatorState {
-    inner: Mutex<NlJoinOperatorStateInner>,
+pub struct NestedLoopJoinOperatorState {
+    inner: Mutex<SharedOperatorState>,
 }
 
-impl NlJoinOperatorState {
+impl NestedLoopJoinOperatorState {
     /// Create a new operator state using the configured number of partitions.
     ///
     /// Build and probe side partition numbers may be different.
     pub fn new(num_partitions_build_side: usize, num_partitions_probe_side: usize) -> Self {
-        NlJoinOperatorState {
-            inner: Mutex::new(NlJoinOperatorStateInner::Building {
+        NestedLoopJoinOperatorState {
+            inner: Mutex::new(SharedOperatorState::Building {
                 batches: Vec::new(),
                 build_partitions_remaining: num_partitions_build_side,
                 probe_side_wakers: vec![None; num_partitions_probe_side],
@@ -103,7 +104,7 @@ impl NlJoinOperatorState {
 }
 
 #[derive(Debug)]
-enum NlJoinOperatorStateInner {
+enum SharedOperatorState {
     /// Join is currently waiting for all partitions on the build side to
     /// compete.
     Building {
@@ -131,7 +132,7 @@ enum NlJoinOperatorStateInner {
     },
 }
 
-impl NlJoinOperatorStateInner {
+impl SharedOperatorState {
     /// Transitions the state from `Building` to `Probing`.
     ///
     /// Must be called when number of partitions remaining on the build side is
@@ -164,18 +165,18 @@ impl NlJoinOperatorStateInner {
 
 /// Nested loop join.
 #[derive(Debug)]
-pub struct PhysicalNlJoin {
+pub struct PhysicalNestedLoopJoin {
     /// Filter to apply after cross joining batches.
     filter: Option<PhysicalScalarExpression>,
 }
 
-impl PhysicalNlJoin {
+impl PhysicalNestedLoopJoin {
     pub fn new(filter: Option<PhysicalScalarExpression>) -> Self {
-        PhysicalNlJoin { filter }
+        PhysicalNestedLoopJoin { filter }
     }
 }
 
-impl PhysicalOperator for PhysicalNlJoin {
+impl PhysicalOperator for PhysicalNestedLoopJoin {
     fn poll_push(
         &self,
         cx: &mut Context,
@@ -184,23 +185,23 @@ impl PhysicalOperator for PhysicalNlJoin {
         batch: Batch,
     ) -> Result<PollPush> {
         match partition_state {
-            PartitionState::NlJoinBuild(state) => {
+            PartitionState::NestedLoopJoinBuild(state) => {
                 state.batches.push(batch);
                 Ok(PollPush::Pushed)
             }
-            PartitionState::NlJoinProbe(state) => {
+            PartitionState::NestedLoopJoinProbe(state) => {
                 // Check that the partition-local state has a reference to the
                 // global vec of batches.
                 if !state.is_populated {
                     // Need to get the global reference.
                     let operator_state = match operator_state {
-                        OperatorState::NlJoin(operater_state) => operater_state,
+                        OperatorState::NestedLoopJoin(operater_state) => operater_state,
                         other => panic!("invalid operator state: {other:?}"),
                     };
 
                     let mut inner = operator_state.inner.lock();
                     match &mut *inner {
-                        NlJoinOperatorStateInner::Building {
+                        SharedOperatorState::Building {
                             probe_side_wakers, ..
                         } => {
                             // Still waiting for the build to finish, register
@@ -209,7 +210,7 @@ impl PhysicalOperator for PhysicalNlJoin {
                             probe_side_wakers[state.partition_idx] = Some(cx.waker().clone());
                             return Ok(PollPush::Pending(batch));
                         }
-                        NlJoinOperatorStateInner::Probing { batches } => {
+                        SharedOperatorState::Probing { batches } => {
                             // Otherwise the batches are ready for us. Clone the
                             // reference into our local state.
                             state.all_batches = batches.clone();
@@ -253,15 +254,15 @@ impl PhysicalOperator for PhysicalNlJoin {
         operator_state: &OperatorState,
     ) -> Result<()> {
         match partition_state {
-            PartitionState::NlJoinBuild(state) => {
+            PartitionState::NestedLoopJoinBuild(state) => {
                 let operator_state = match operator_state {
-                    OperatorState::NlJoin(operater_state) => operater_state,
+                    OperatorState::NestedLoopJoin(operater_state) => operater_state,
                     other => panic!("invalid operator state: {other:?}"),
                 };
 
                 let mut inner = operator_state.inner.lock();
                 match &mut *inner {
-                    NlJoinOperatorStateInner::Building {
+                    SharedOperatorState::Building {
                         batches,
                         build_partitions_remaining,
                         ..
@@ -284,7 +285,7 @@ impl PhysicalOperator for PhysicalNlJoin {
                     other => panic!("inner join state is not building: {other:?}"),
                 }
             }
-            PartitionState::NlJoinProbe(state) => {
+            PartitionState::NestedLoopJoinProbe(state) => {
                 state.input_finished = true;
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
@@ -302,7 +303,7 @@ impl PhysicalOperator for PhysicalNlJoin {
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
         match partition_state {
-            PartitionState::NlJoinProbe(state) => {
+            PartitionState::NestedLoopJoinProbe(state) => {
                 match state.buffered.pop_front() {
                     Some(batch) => Ok(PollPull::Batch(batch)),
                     None => {
@@ -319,7 +320,7 @@ impl PhysicalOperator for PhysicalNlJoin {
                     }
                 }
             }
-            PartitionState::NlJoinBuild(_) => {
+            PartitionState::NestedLoopJoinBuild(_) => {
                 // We should never attempt to pull with the build state. Builds
                 // just act as a "sink" into the join. The probe is the proper
                 // push/pull operator that happens to wait on the build to

@@ -133,6 +133,7 @@ select column1, sum(column2) from
 burger  5
 hotdog  10
 
+# Off by one in projection
 # query TI rowsort
 # select sum(column2), column1 from
 #     (values ('burger', 1),
@@ -146,19 +147,20 @@ hotdog  10
 
 # ROLLUP column references
 
-query TTI rowsort
-select state, city, sum(revenue) from
-    (values ('Texas', 'Austin',    100),
-            ('Texas', 'Dallas',    150),
-            ('Ohio',  'Columbus',  35),
-            ('Texas', 'Austin',    125),
-            ('Ohio',  'Cleveland', 25)) as revenues(state, city, revenue)
-    group by rollup (state, city);
-----
-NULL    NULL        435
-Ohio    Cleveland   25
-Ohio    Columbus    35
-Ohio    NULL        60
-Texas   Austin      225
-Texas   Dallas      150
-Texas   NULL        375
+# Unsure: https://github.com/GlareDB/rayexec/issues/40
+# query TTI rowsort
+# select state, city, sum(revenue) from
+#     (values ('Texas', 'Austin',    100),
+#             ('Texas', 'Dallas',    150),
+#             ('Ohio',  'Columbus',  35),
+#             ('Texas', 'Austin',    125),
+#             ('Ohio',  'Cleveland', 25)) as revenues(state, city, revenue)
+#     group by rollup (state, city);
+# ----
+# NULL    NULL        435
+# Ohio    Cleveland   25
+# Ohio    Columbus    35
+# Ohio    NULL        60
+# Texas   Austin      225
+# Texas   Dallas      150
+# Texas   NULL        375

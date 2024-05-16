@@ -7,9 +7,12 @@ use crate::{
             },
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
-            nl_join::{
-                NlJoinBuildPartitionState, NlJoinOperatorState, NlJoinProbePartitionState,
-                PhysicalNlJoin,
+            join::{
+                hash_join::PhysicalHashJoin,
+                nl_join::{
+                    NestedLoopJoinBuildPartitionState, NestedLoopJoinOperatorState,
+                    NestedLoopJoinProbePartitionState, PhysicalNestedLoopJoin,
+                },
             },
             project::ProjectOperation,
             query_sink::{PhysicalQuerySink, QuerySinkPartitionState},
@@ -111,10 +114,10 @@ impl BuildState {
             LogicalOperator::ExpressionList(values) => self.push_values(conf, values),
             LogicalOperator::CrossJoin(join) => self.push_cross_join(conf, join),
             LogicalOperator::AnyJoin(join) => self.push_any_join(conf, join),
+            LogicalOperator::EqualityJoin(join) => self.push_equality_join(conf, join),
             LogicalOperator::Empty => self.push_empty(conf),
             LogicalOperator::Aggregate(agg) => self.push_aggregate(conf, agg),
             // LogicalOperator::Scan(scan) => self.plan_scan(scan),
-            // LogicalOperator::EqualityJoin(join) => self.plan_equality_join(join),
             // LogicalOperator::Limit(limit) => self.plan_limit(limit),
             // LogicalOperator::SetVar(set_var) => self.plan_set_var(set_var),
             // LogicalOperator::ShowVar(show_var) => self.plan_show_var(show_var),
@@ -360,6 +363,70 @@ impl BuildState {
         Ok(())
     }
 
+    /// Push an equality (hash) join.
+    fn push_equality_join(
+        &mut self,
+        conf: &BuildConfig,
+        join: operator::EqualityJoin,
+    ) -> Result<()> {
+        // Build up all inputs on the right (probe) side. This is going to
+        // continue with the the current pipeline.
+        self.walk(conf, *join.right)?;
+
+        // Build up the left (build) side in a separate pipeline. This will feed
+        // into the currently pipeline at the join operator.
+        let mut left_state = BuildState::new();
+        left_state.walk(conf, *join.left)?;
+
+        // Take any completed pipelines from the left side and put them in our
+        // list.
+        //
+        // Ordering doesn't matter.
+        self.completed.append(&mut left_state.completed);
+
+        // Get the left pipeline.
+        let mut left_pipeline = left_state.in_progress.take().ok_or_else(|| {
+            RayexecError::new("expected in-progress pipeline from left side of join")
+        })?;
+
+        let num_build_partitions = left_pipeline.num_partitions();
+        let num_probe_partitions = self.in_progress_pipeline_mut()?.num_partitions();
+
+        let operator = Arc::new(PhysicalHashJoin::new(
+            join.join_type,
+            join.left_on,
+            join.right_on,
+        ));
+        let (operator_state, build_states, probe_states) =
+            operator.create_states(num_build_partitions, num_probe_partitions);
+
+        let operator_state = Arc::new(OperatorState::HashJoin(operator_state));
+        let build_states: Vec<_> = build_states
+            .into_iter()
+            .map(PartitionState::HashJoinBuild)
+            .collect();
+        let probe_states: Vec<_> = probe_states
+            .into_iter()
+            .map(PartitionState::HashJoinProbe)
+            .collect();
+
+        // Push build states to left pipeline.
+        left_pipeline.push_operator(operator.clone(), operator_state.clone(), build_states)?;
+
+        // Left pipeline is now completed.
+        self.completed.push(left_pipeline);
+
+        // Push probe states to current pipeline along the shared operator
+        // state.
+        //
+        // This pipeline is not completed, we'll continue to push more operators
+        // on it.
+        self.in_progress_pipeline_mut()?
+            .push_operator(operator, operator_state, probe_states)?;
+
+        Ok(())
+    }
+
     fn push_any_join(&mut self, conf: &BuildConfig, join: operator::AnyJoin) -> Result<()> {
         let left_schema = join.left.output_schema(&[])?;
         let right_schema = join.right.output_schema(&[])?;
@@ -421,16 +488,17 @@ impl BuildState {
         let left_partitions = left_pipeline.num_partitions();
         let right_partitions = self.in_progress_pipeline_mut()?.num_partitions();
 
-        let physical = Arc::new(PhysicalNlJoin::new(filter));
+        let physical = Arc::new(PhysicalNestedLoopJoin::new(filter));
 
         // State shared between left and right.
-        let operator_state = Arc::new(OperatorState::NlJoin(NlJoinOperatorState::new(
-            left_partitions,
-            right_partitions,
-        )));
+        let operator_state = Arc::new(OperatorState::NestedLoopJoin(
+            NestedLoopJoinOperatorState::new(left_partitions, right_partitions),
+        ));
 
         let left_states = (0..left_partitions)
-            .map(|_| PartitionState::NlJoinBuild(NlJoinBuildPartitionState::default()))
+            .map(|_| {
+                PartitionState::NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState::default())
+            })
             .collect();
 
         // Push left states to left pipeline. This pipeline is now "completed".
@@ -441,7 +509,9 @@ impl BuildState {
         let current_pipeline = self.in_progress_pipeline_mut()?;
         let right_states = (0..right_partitions)
             .map(|partition| {
-                PartitionState::NlJoinProbe(NlJoinProbePartitionState::new_for_partition(partition))
+                PartitionState::NestedLoopJoinProbe(
+                    NestedLoopJoinProbePartitionState::new_for_partition(partition),
+                )
             })
             .collect();
 

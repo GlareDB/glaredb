@@ -155,10 +155,18 @@ impl Session {
             functions: &self.functions,
         };
         let plan_context = PlanContext::new(&resolver);
-        let logical = plan_context.plan_statement(stmts.next().unwrap())?;
+        let mut logical = plan_context.plan_statement(stmts.next().unwrap())?;
+
+        let optimizer = Optimizer::new();
+        logical.root = optimizer.optimize(logical.root)?;
 
         let (result_stream, result_sink) = unpartitioned_result_stream();
-        let planner = QueryGraphPlanner::new(1, QueryGraphDebugConfig::default());
+        let planner = QueryGraphPlanner::new(
+            8,
+            QueryGraphDebugConfig {
+                error_on_nested_loop_join: true,
+            },
+        );
         let query_graph = planner.create_graph(logical.root, QuerySink::new([result_sink]))?;
 
         self.scheduler.spawn_query_graph(query_graph);
@@ -167,9 +175,6 @@ impl Session {
             output_schema: Schema::empty(), // TODO
             stream: result_stream,
         })
-
-        // let optimizer = Optimizer::new();
-        // logical.root = optimizer.optimize(logical.root)?;
 
         // let mut output_stream = MaterializedBatchStream::new();
 

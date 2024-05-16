@@ -1,0 +1,54 @@
+# SIMPLE INNER
+
+query IIII
+select * from
+    (values (1, 2),
+            (3, 4)) as t1(a, b)
+  inner join
+    (values (1, 5),
+            (6, 4)) as t2(c, d) on a = c
+----
+1  2  1  5
+
+query II
+select b, d from
+    (values (1, 2),
+            (3, 4)) as t1(a, b)
+  inner join
+    (values (1, 5),
+            (6, 4)) as t2(c, d) on a = c
+----
+2  5
+
+query II
+select b, d, c from
+    (values (1, 2, 'mario'),
+            (3, 4, 'wario')) as t1(a, b, c)
+  inner join
+    (values (1, 5, 'mario'),
+            (6, 4, 'wario')) as t2(d, e, f) on a = d and c = f
+----
+2  1  mario
+
+
+# Using not implemented
+# query II
+# select * from
+#     (values (1, 2),
+#             (3, 4)) as t1(a, b)
+#   inner join
+#     (values (1, 5),
+#             (6, 4)) as t2(a, b) using (a)
+# ----
+# 2  5
+
+# Doesn't optimize to hash join
+# query II
+# select b, d from
+#     (values (1, 2),
+#             (3, 4)) as t1(a, b)
+#   inner join
+#     (values (2, 5),
+#             (6, 4)) as t2(c, d) on a = c + 1
+# ----
+# 2  5

@@ -237,6 +237,10 @@ impl Array {
             )), // yet
         }
     }
+
+    pub fn values_eq_at(&self, other: &Self, idx: usize, null_equals_null: bool) -> bool {
+        unimplemented!()
+    }
 }
 
 /// Utility trait for iterating over arrays.
