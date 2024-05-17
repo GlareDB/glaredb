@@ -26,7 +26,7 @@ bytesutil = { path = "../bytesutil" }
 parser = { path = "../parser" }
 pgrepr = { path = "../pgrepr" }
 datafusion_ext = { path = "../datafusion_ext" }
-rustls = "0.23.5"
+rustls = "0.23.6"
 webpki-roots = "0.26.1"
 tokio-rustls = "0.26.0"
 rustls-pemfile = "2.1.2"

@@ -15,4 +15,4 @@ tokio.workspace = true
 futures.workspace = true
 tracing.workspace = true
 parking_lot = "0.12.2"
-async-channel = "2.2.1"
+async-channel = "2.3.1"

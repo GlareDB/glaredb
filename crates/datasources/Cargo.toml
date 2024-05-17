@@ -36,7 +36,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 url = { workspace = true }
 apache-avro = "0.16"
-async-channel = "2.2.1"
+async-channel = "2.3.1"
 async-sqlite = "0.2.2"
 async-stream = "0.3.5"
 bitvec = "1"
@@ -51,7 +51,7 @@ parking_lot = "0.12.2"
 rand = "0.8.5"
 regex = "1.10.4"
 ring = "0.17.8"
-rustls = "0.23.5"
+rustls = "0.23.6"
 scylla = "0.13.0"
 serde_with = "3.8.1"
 tokio-postgres-rustls = "0.12.0"
@@ -62,7 +62,7 @@ webpki-roots = "0.26.1"
 calamine = { version = "0.24.0", features = ["dates"] }
 klickhouse = { version = "0.13.0", features = ["tls"] }
 mysql_async = { version = "0.34.1", default-features = false, features = ["default-rustls"] }
-mysql_common = { version = "0.32.2", default-features = false, features = ["chrono"] }
+mysql_common = { version = "0.32.3", default-features = false, features = ["chrono"] }
 rust_decimal = { version = "1.35.0", features = ["db-tokio-postgres"] }
 ssh-key = { version = "0.6.6", features = ["ed25519", "alloc"] }
 tiberius = { version = "0.12.2", default-features = false, features = ["tds73","rustls","chrono"] }
