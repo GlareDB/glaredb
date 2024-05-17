@@ -24,4 +24,4 @@ crossbeam = "0.8.4"
 half = "2.4.1"
 
 [dev-dependencies]
-insta = "1.38.0"
+insta = "1.39.0"
